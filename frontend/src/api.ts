@@ -56,14 +56,15 @@ export type ContextDocument = {
   added: number;
 };
 
-/** The token arrives in the URL once, then lives in a cookie. */
+/** The token arrives in the URL once and the server turns it into an
+ *  HttpOnly cookie on that first request.  All this does is take it back out
+ *  of the address bar, so the credential is not sitting in the history, in a
+ *  bookmark, or in whatever the next screenshot catches. */
 export function captureToken(): void {
   const url = new URL(window.location.href);
-  const token = url.searchParams.get("token");
-  if (!token) return;
+  if (!url.searchParams.has("token")) return;
   url.searchParams.delete("token");
   window.history.replaceState({}, "", url.toString());
-  document.cookie = `nexttex=${token}; path=/; SameSite=Lax; max-age=31536000`;
 }
 
 export class ApiError extends Error {
@@ -103,6 +104,8 @@ const api = {
   projects: () =>
     request<{ projects: ProjectSummary[]; open: string[] }>("/projects"),
   addProject: (path: string) => request<any>("/projects", json({ path })),
+  createProject: (path: string, name: string) =>
+    request<any>("/projects/create", json({ path, name })),
   forgetProject: (id: string) =>
     request<any>(`/projects/${id}`, { method: "DELETE" }),
   open: (id: string) =>
@@ -172,6 +175,51 @@ const api = {
     request<any>(`/projects/${id}/context/${documentId}`, { method: "DELETE" }),
   distill: (id: string, kind: string) =>
     request<any>(`/projects/${id}/context/distill`, json({ kind })),
+
+  usage: (id: string) =>
+    request<{
+      usage: {
+        turns: number;
+        costUsd: number;
+        inputTokens: number;
+        outputTokens: number;
+        cacheReadTokens: number;
+        durationMs: number;
+      };
+      model: string;
+      models: { id: string; name: string; note: string }[];
+    }>(`/projects/${id}/agent/usage`),
+  setModel: (id: string, model: string) =>
+    request<{ ok: boolean; model: string }>(
+      `/projects/${id}/agent/model`,
+      json({ model }),
+    ),
+
+  git: (id: string) =>
+    request<{
+      repository: boolean;
+      branch: string;
+      ahead: number;
+      behind: number;
+      remote: string;
+      changes: { state: string; path: string }[];
+      detail: string;
+      gh: boolean;
+      ghReason: string;
+    }>(`/projects/${id}/git`),
+  gitAction: (id: string, action: string, message = "") =>
+    request<{ ok: boolean; output?: string }>(
+      `/projects/${id}/git/${action}`,
+      json({ message }),
+    ),
+  gitBackup: (
+    id: string,
+    payload: { name?: string; url?: string; token?: string; private?: boolean },
+  ) =>
+    request<{ ok: boolean; remote: string }>(
+      `/projects/${id}/git/backup/github`,
+      json(payload),
+    ),
 
   claudeStatus: () =>
     request<{ loggedIn: boolean; email?: string; plan?: string; method?: string }>(

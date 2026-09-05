@@ -33,16 +33,28 @@ PDF.js and is never themed. `--line` and `--pen-wash` are derived, not authored:
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--surround` | `#D8DCD8` | `#141715` | App background; gaps between panes; the field the PDF sits on |
-| `--surface` | `#EDF0EC` | `#1A1E1B` | Panes: rail, editor body, chat column |
-| `--surface-2` | `#E2E6E1` | `#222623` | Raised/inset: tab bar, status strip, hover fills, code blocks |
-| `--ink` | `#191C1A` | `#DDE2DD` | Primary text |
-| `--ink-2` | `#565C58` | `#99A19B` | Secondary text, user messages, consequences |
-| `--ink-3` | `#676D68` | `#838B84` | Metadata, file extensions, line numbers, idle dot |
-| `--pen` | `#74408E` | `#C48EDA` | Agent identity, SyncTeX highlight, active-file bar, focus ring, primary button |
-| `--error` | `#A32A26` | `#EF7167` | Compile errors, destructive hover |
-| `--warn` | `#7E6410` | `#CBA84A` | chktex warnings, permission gate bar |
-| `--ok` | `#2F6A4A` | `#63BE92` | Git clean, added diff lines, resolved-allow dot |
+| `--surround` | `#C7CCC7` | `#0D0F0E` | App background; the field the PDF sits on |
+| `--surface` | `#E3E7E2` | `#161A18` | Panes: rail, editor body, chat column |
+| `--surface-2` | `#D7DCD6` | `#1E2320` | Raised/inset: tab bar, status strip, hover fills, code blocks |
+| `--surface-3` | `#CDD3CC` | `#272D29` | Pressed and selected states inside a raised surface |
+| `--ink` | `#141715` | `#E3E8E2` | Primary text |
+| `--ink-2` | `#4C534E` | `#9CA49E` | Secondary text, user messages, consequences |
+| `--ink-3` | `#626963` | `#7F8781` | Metadata, file extensions, line numbers, idle dot |
+| `--pen` | `#6B3A87` | `#C08CE8` | Agent identity, SyncTeX highlight, active-file bar, primary button |
+| `--hint` | `#1B6B72` | `#56C7C0` | Live and interactive states that are *not* the agent: streaming stopped, a control the eye should find |
+| `--error` | `#9C2521` | `#F0776D` | Compile errors, destructive hover |
+| `--warn` | `#74590C` | `#D6B155` | chktex warnings, permission gate bar |
+| `--ok` | `#2A6144` | `#6BC79A` | Git clean, added diff lines, resolved-allow dot |
+
+**Both themes are authored and chosen, not inherited.** A toggle in the rail
+header stamps `data-theme` and the choice is remembered per browser; dark is the
+default. `prefers-color-scheme` covers only the first frame before the app
+stamps its own choice.
+
+**Both are pitched darker than the original specification.** The light theme is
+a proofing grey rather than a white UI — a page cannot be the brightest object
+on screen if the chrome around it is also white — and the dark theme's surround
+is nearly black so the sheet reads as lit.
 
 All text tokens clear 4.5:1 on their own surface (light `--ink-3` 4.6:1, dark `--ink-3`
 4.8:1, `--pen` 6.4:1 light / 6.9:1 dark).
@@ -438,3 +450,63 @@ slide-over below 1400 px but not how it is dismissed; without one it covers the
 PDF permanently. Below that width the tab bar carries a `Claude` button and the
 panel a `Hide` link, and the panel animates on `translateX` at 180 ms as
 specified.
+
+
+## 9. Revision two
+
+The first implementation was reviewed against sections 1–8 and the findings
+acted on. What follows is what the design gained afterwards, at the writer's
+direction: *"add a splash of colour and subtle animations where necessary to
+give hints to the user… tune the colour palette towards the darker side… give
+the user two options, one light and one dark… all panels should be resizable
+and collapsible… the user should be able to see their usage stats and change
+the model on the agent panel… all projects start blank."*
+
+**A second accent, `--hint`, with one job.** `--pen` still means *Claude
+touched this* and nothing else. `--hint` is for live and interactive state that
+is not the agent: the `Stop` control while a turn is running, a control the eye
+is meant to find. It is a desaturated teal at roughly 185°, a hundred degrees
+from the pen, so the two never read as the same signal.
+
+**Motion is a hint, never decoration.** Four primitives, all inside the 0/90/
+120/180 ms budget: `.nx-hover` (90 ms colour on interactive rows), `.nx-press`
+(a 1 px depress on click, so a button feels answered), `.nx-pane` (180 ms width
+change when a panel folds, so it is clear where it went), and `.nx-arrive`
+(120 ms, 3 px rise, for something that appeared because you asked for it —
+the usage panel, the welcome message). `prefers-reduced-motion` reduces all of
+them to an opacity change.
+
+**Every panel folds, and says where it went.** The file list, the source, the
+preview and the Claude column each have a fold control; a folded panel leaves a
+26 px strip carrying its name vertically, which is both the evidence that it is
+folded and the control that brings it back. Source and preview are mutually
+exclusive — folding one gives the other the whole middle, and folding both
+would leave nothing to work in. Fold state is remembered per project.
+
+**The preview reads two ways.** A `Scroll` / `Page` toggle in the PDF bar. The
+scrolling view is the default and is built for rebuilds: page elements and
+their canvases are *reused* when a rebuild produces the same page count and
+geometry, so a recompile redraws only the pages actually on screen instead of
+recreating the document. Scroll handling is coalesced to one pass per animation
+frame, and a canvas keeps its previous render until the new one is ready, so
+the pane never blanks. Page mode keeps a single page in the flow and answers
+the arrow keys.
+
+**The agent column carries its own instruments.** A model selector (default,
+Opus, Sonnet, Haiku) that takes effect on the next question — the conversation
+resumes by session id, so changing model does not lose the transcript — and a
+usage readout: turns, estimated cost, tokens sent, written and read from cache,
+and model time, counted per project and kept across restarts. Cost is labelled
+as an estimate, because on a subscription it is not a bill.
+
+**New projects are blank.** One empty document, an empty bibliography, a
+figures folder. A journal class, a university handbook and a lab report agree
+on nothing, so NextTex does not guess: the way to shape a project is to upload
+the real template and let the agent read it.
+
+**The agent speaks first.** A project with no conversation shows a message from
+Claude — written into the app, not generated — covering the three panes, what
+the agent can and cannot do without asking, how to tailor the project with a
+template, and how to teach it the writer's voice. It is the app's only
+onboarding, and it is set as the agent's own prose because the agent is what
+does all of it.

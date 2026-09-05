@@ -68,7 +68,7 @@ export default function ContextPanel() {
                   </button>
                 </div>
                 {mine.length === 0 ? (
-                  <p className="t-micro text-ink-3">{entry.hint}</p>
+                  <p className="t-meta text-ink-3">{entry.hint}</p>
                 ) : (
                   mine.map((document) => (
                     <div

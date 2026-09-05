@@ -9,15 +9,23 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 /** Extra device pixels so text stays crisp without quadrupling the work. */
 const RESOLUTION = Math.min(window.devicePixelRatio || 1, 2);
 
+/** How far outside the viewport a page is still worth drawing. */
+const NEAR = 400;
+
 export type PdfHandle = {
   reveal(path: string, line: number): Promise<boolean>;
 };
 
+type Mode = "scroll" | "page";
+
 type PageView = {
   container: HTMLDivElement;
   canvas: HTMLCanvasElement;
-  viewport: pdfjs.PageViewport;
-  rendered: boolean;
+  width: number;
+  height: number;
+  scale: number;
+  /** The document generation this canvas was drawn from. */
+  drawnFor: number;
   task: pdfjs.RenderTask | null;
 };
 
@@ -32,141 +40,210 @@ export default function Pdf({
   const sheet = useRef<HTMLDivElement | null>(null);
   const doc = useRef<pdfjs.PDFDocumentProxy | null>(null);
   const pages = useRef<PageView[]>([]);
-  const observer = useRef<IntersectionObserver | null>(null);
-  const [scale, setScale] = useState(1.25);
+  const generation = useRef(0);
+  const drawn = useRef(1);
+  const raf = useRef(0);
+
+  const [mode, setMode] = useState<Mode>(
+    () => (window.localStorage.getItem("nexttex.pdf.mode") as Mode) || "scroll",
+  );
+  const [scale, setScale] = useState(0);        // 0 means "whatever fits"
+  const [fitScale, setFitScale] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [current, setCurrent] = useState(1);
   const [missing, setMissing] = useState(false);
+
   const stamp = useStore((s) => s.pdfStamp);
   const projectId = useStore((s) => s.projectId);
 
-  /** Where the view is, in a form that survives the page count changing. */
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const currentRef = useRef(current);
+  currentRef.current = current;
+
+  // ---- where the reader is, in a form that survives a rebuild -----------
   const anchor = useCallback(() => {
     const root = scroller.current;
     if (!root || !pages.current.length) return { index: 0, fraction: 0 };
+    if (modeRef.current === "page") {
+      return { index: currentRef.current - 1, fraction: 0 };
+    }
     const top = root.scrollTop;
     for (let index = 0; index < pages.current.length; index += 1) {
       const element = pages.current[index].container;
-      const start = element.offsetTop;
-      const height = element.offsetHeight;
-      if (top < start + height) {
-        return { index, fraction: (top - start) / height };
+      if (top < element.offsetTop + element.offsetHeight) {
+        return {
+          index,
+          fraction: (top - element.offsetTop) / (element.offsetHeight || 1),
+        };
       }
     }
     return { index: pages.current.length - 1, fraction: 0 };
   }, []);
 
-  /** The page at the top of the view is the page the reader is on.  Taking
-   *  it from the intersection observer instead reports whichever page most
-   *  recently crossed the margin, which is usually the next one. */
-  const trackCurrent = useCallback(() => {
-    const position = anchorRef.current();
-    setCurrent(position.index + 1);
-  }, []);
-
   const restore = useCallback((position: { index: number; fraction: number }) => {
     const root = scroller.current;
     if (!root || !pages.current.length) return;
-    const index = Math.min(position.index, pages.current.length - 1);
+    const index = Math.min(Math.max(position.index, 0), pages.current.length - 1);
+    if (modeRef.current === "page") {
+      setCurrent(index + 1);
+      root.scrollTop = 0;
+      return;
+    }
     const element = pages.current[index].container;
     root.scrollTop = element.offsetTop + position.fraction * element.offsetHeight;
   }, []);
 
-  const anchorRef = useRef(anchor);
-  anchorRef.current = anchor;
-
+  // ---- drawing ----------------------------------------------------------
   const renderPage = useCallback(async (index: number) => {
     const view = pages.current[index];
     const document = doc.current;
-    if (!view || !document || view.rendered || view.task) return;
-    const page = await document.getPage(index + 1);
-    const viewport = page.getViewport({ scale: scale * RESOLUTION });
-    const canvas = view.canvas;
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    view.task = page.render({ canvasContext: context, viewport } as any);
+    if (!view || !document) return;
+    if (view.drawnFor === generation.current) return;   // already current
+    if (view.task) return;                              // in flight
+    const mine = generation.current;
     try {
+      const page = await document.getPage(index + 1);
+      if (mine !== generation.current) return;
+      const viewport = page.getViewport({ scale: view.scale * RESOLUTION });
+      const canvas = view.canvas;
+      if (canvas.width !== Math.floor(viewport.width)) {
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+      }
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) return;
+      view.task = page.render({ canvasContext: context, viewport } as any);
       await view.task.promise;
-      view.rendered = true;
+      if (mine === generation.current) view.drawnFor = mine;
     } catch {
-      /* superseded by a re-render; the next pass will draw it */
+      /* superseded, or the page went away with the document */
     } finally {
       view.task = null;
     }
-  }, [scale]);
+  }, []);
 
-  const build = useCallback(
+  /** Draw what is on screen, and the page either side of it. */
+  const drawVisible = useCallback(() => {
+    const root = scroller.current;
+    if (!root || !pages.current.length) return;
+    if (modeRef.current === "page") {
+      const index = currentRef.current - 1;
+      renderPage(index);
+      return;
+    }
+    const top = root.scrollTop - NEAR;
+    const bottom = root.scrollTop + root.clientHeight + NEAR;
+    let first = -1;
+    for (let index = 0; index < pages.current.length; index += 1) {
+      const element = pages.current[index].container;
+      const start = element.offsetTop;
+      const end = start + element.offsetHeight;
+      if (end < top || start > bottom) continue;
+      if (first < 0) first = index;
+      renderPage(index);
+    }
+    if (first >= 0 && first + 1 !== currentRef.current) setCurrent(first + 1);
+  }, [renderPage]);
+
+  const onScroll = useCallback(() => {
+    // One pass per frame at most: scroll events fire far faster than
+    // anything useful can be drawn, and this is the hot path.
+    if (raf.current) return;
+    raf.current = window.requestAnimationFrame(() => {
+      raf.current = 0;
+      drawVisible();
+    });
+  }, [drawVisible]);
+
+  // ---- laying the document out ------------------------------------------
+  const layout = useCallback(
     async (document: pdfjs.PDFDocumentProxy, keep: boolean) => {
-      const position = keep ? anchor() : { index: 0, fraction: 0 };
       const container = sheet.current;
       if (!container) return;
+      const position = keep ? anchor() : { index: 0, fraction: 0 };
+      generation.current += 1;
 
-      observer.current?.disconnect();
-      for (const view of pages.current) view.task?.cancel();
-
-      // Every page's height is known before anything is drawn, so the
-      // scrollbar is correct from the first frame and the restored position
-      // does not slide as pages arrive.
-      const built: PageView[] = [];
-      const fragment = document.numPages;
+      const count = document.numPages;
       const first = await document.getPage(1);
-      const base = first.getViewport({ scale });
-      for (let index = 0; index < fragment; index += 1) {
+      const natural = first.getViewport({ scale: 1 });
+      const measured = scroller.current?.clientWidth ?? 0;
+      const available = (measured > 80 ? measured : 900) - 48;
+      const fit = Math.max(0.35, +(available / natural.width).toFixed(3));
+      setFitScale(fit);
+      const effective = scale || fit;
+      drawn.current = effective;
+
+      // Reuse what is already on screen.  A rebuild usually produces a
+      // document with the same page count and the same page size, and
+      // recreating forty canvases for that is the single most expensive
+      // thing this pane can do -- it is also what makes the preview blink.
+      const reusable = pages.current.length === count;
+      const views: PageView[] = [];
+      for (let index = 0; index < count; index += 1) {
+        const page = index === 0 ? first : await document.getPage(index + 1);
+        const viewport = page.getViewport({ scale: effective });
+        const width = Math.floor(viewport.width);
+        const height = Math.floor(viewport.height);
+        if (reusable) {
+          const view = pages.current[index];
+          view.task?.cancel();
+          view.task = null;
+          view.width = width;
+          view.height = height;
+          view.scale = effective;
+          view.container.style.width = `${width}px`;
+          view.container.style.height = `${height}px`;
+          views.push(view);
+          continue;
+        }
         const element = window.document.createElement("div");
         element.className = "nx-page";
-        element.style.width = `${Math.floor(base.width)}px`;
-        element.style.height = `${Math.floor(base.height)}px`;
+        element.style.width = `${width}px`;
+        element.style.height = `${height}px`;
         const canvas = window.document.createElement("canvas");
         canvas.style.width = "100%";
         canvas.style.height = "100%";
         canvas.style.display = "block";
         element.appendChild(canvas);
-        built.push({ container: element, canvas, viewport: base, rendered: false, task: null });
+        views.push({
+          container: element, canvas, width, height,
+          scale: effective, drawnFor: -1, task: null,
+        });
       }
-      // Per-page viewports, in case the document mixes page sizes.
-      await Promise.all(
-        built.map(async (view, index) => {
-          if (index === 0) return;
-          const page = await document.getPage(index + 1);
-          const viewport = page.getViewport({ scale });
-          view.viewport = viewport;
-          view.container.style.width = `${Math.floor(viewport.width)}px`;
-          view.container.style.height = `${Math.floor(viewport.height)}px`;
-        }),
-      );
 
-      // Swap the whole set in one frame: the pane is never blanked.
-      const next = window.document.createDocumentFragment();
-      for (const view of built) next.appendChild(view.container);
-      container.replaceChildren(next);
-      pages.current = built;
-      setPageCount(fragment);
+      pages.current = views;
+      setPageCount(count);
+
+      if (!reusable) {
+        for (const view of pages.current) view.task?.cancel();
+        const fragment = window.document.createDocumentFragment();
+        for (const view of views) fragment.appendChild(view.container);
+        container.replaceChildren(fragment);
+      }
+      applyMode(modeRef.current);
       restore(position);
-
-      observer.current = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            const index = built.findIndex((view) => view.container === entry.target);
-            if (index < 0) continue;
-            if (entry.isIntersecting) {
-              renderPage(index);
-              renderPage(index + 1);
-              renderPage(index - 1);
-            }
-          }
-        },
-        { root: scroller.current, rootMargin: "200px 0px" },
-      );
-      for (const view of built) observer.current.observe(view.container);
-      await renderPage(Math.min(position.index, built.length - 1));
-      trackCurrent();
+      // The canvases still hold the previous render until this resolves, so
+      // the pane shows the old page rather than a blank one.
+      await renderPage(Math.min(position.index, count - 1));
+      drawVisible();
     },
-    [anchor, renderPage, restore, scale, trackCurrent],
+    [anchor, drawVisible, renderPage, restore, scale],
   );
 
-  // Load, and reload after every build.
+  /** In page mode only one page is in the flow; in scroll mode all are. */
+  const applyMode = useCallback((next: Mode) => {
+    const index = currentRef.current - 1;
+    pages.current.forEach((view, position) => {
+      view.container.style.display =
+        next === "scroll" || position === index ? "block" : "none";
+    });
+  }, []);
+
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+
+  // ---- fetching ---------------------------------------------------------
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
@@ -189,7 +266,7 @@ export default function Pdf({
         const previous = doc.current;
         doc.current = loaded;
         setMissing(false);
-        await build(loaded, previous !== null);
+        await layoutRef.current(loaded, previous !== null);
         previous?.destroy();
       } catch {
         setMissing(true);
@@ -198,15 +275,56 @@ export default function Pdf({
     return () => {
       cancelled = true;
     };
-  }, [projectId, stamp, build]);
+  }, [projectId, stamp]);
 
-  // Re-render at a new zoom without losing the reader's place.
+  // Zoom, mode and pane width all change the layout but not the document.
   useEffect(() => {
-    if (doc.current) build(doc.current, true);
+    if (doc.current) layoutRef.current(doc.current, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scale]);
 
-  /** Double-click anywhere on the page goes to that line of the source. */
+  useEffect(() => {
+    window.localStorage.setItem("nexttex.pdf.mode", mode);
+    applyMode(mode);
+    if (mode === "page") {
+      if (scroller.current) scroller.current.scrollTop = 0;
+      renderPage(current - 1);
+    } else {
+      drawVisible();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  useEffect(() => {
+    if (modeRef.current !== "page") return;
+    applyMode("page");
+    renderPage(current - 1);
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [current, applyMode, renderPage]);
+
+  // A pane that changes width has to re-fit, or the page stops filling it.
+  useEffect(() => {
+    const root = scroller.current;
+    if (!root) return;
+    let timer = 0;
+    const observer = new ResizeObserver((entries) => {
+      // A pane that has just been collapsed reports zero width; re-fitting
+      // to that would leave a page 35% wide when it comes back.
+      if ((entries[0]?.contentRect.width ?? 0) < 80) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (doc.current && !scale) layoutRef.current(doc.current, true);
+        else drawVisible();
+      }, 120);
+    });
+    observer.observe(root);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, [drawVisible, scale]);
+
+  // ---- SyncTeX ----------------------------------------------------------
   const onDoubleClick = useCallback(
     async (event: React.MouseEvent) => {
       const projectId = get().projectId;
@@ -216,10 +334,10 @@ export default function Pdf({
       const index = pages.current.findIndex((view) => view.container === target);
       if (index < 0) return;
       const box = target.getBoundingClientRect();
-      // SyncTeX works in PDF points from the top-left corner, and so does the
-      // canvas, so the conversion is the scale factor and nothing else.
-      const x = (event.clientX - box.left) / scale;
-      const y = (event.clientY - box.top) / scale;
+      // SyncTeX works in PDF points from the top-left corner, and so does
+      // the canvas, so the conversion is the scale factor and nothing else.
+      const x = (event.clientX - box.left) / drawn.current;
+      const y = (event.clientY - box.top) / drawn.current;
       try {
         const result = await api.inverse(projectId, index + 1, x, y);
         if (result.found && result.file && result.line) {
@@ -229,10 +347,9 @@ export default function Pdf({
         /* a click that lands on nothing is not an error worth reporting */
       }
     },
-    [onNavigate, scale],
+    [onNavigate],
   );
 
-  // Forward search: from a source line to the page.
   useEffect(() => {
     handleRef({
       reveal: async (path: string, line: number) => {
@@ -245,85 +362,152 @@ export default function Pdf({
           const view = pages.current[position.page - 1];
           const root = scroller.current;
           if (!view || !root) return false;
-          const top =
-            view.container.offsetTop +
-            (position.y - position.height) * scale -
-            root.clientHeight / 3;
-          root.scrollTo({ top: Math.max(top, 0) });
+          const zoom = drawn.current;
+          if (modeRef.current === "page") {
+            setCurrent(position.page);
+            await renderPage(position.page - 1);
+          } else {
+            root.scrollTo({
+              top: Math.max(
+                view.container.offsetTop +
+                  (position.y - position.height) * zoom -
+                  root.clientHeight / 3,
+                0,
+              ),
+            });
+          }
           const flash = window.document.createElement("div");
           flash.className = "nx-flash";
-          flash.style.left = `${position.x * scale}px`;
-          flash.style.top = `${(position.y - position.height) * scale}px`;
-          flash.style.width = `${Math.max(position.width * scale, 12)}px`;
-          flash.style.height = `${Math.max(position.height * scale, 10)}px`;
+          flash.style.left = `${position.x * zoom}px`;
+          flash.style.top = `${(position.y - position.height) * zoom}px`;
+          flash.style.width = `${Math.max(position.width * zoom, 12)}px`;
+          flash.style.height = `${Math.max(position.height * zoom, 10)}px`;
           view.container.appendChild(flash);
-          window.setTimeout(() => flash.remove(), 700);
+          window.setTimeout(() => (flash.style.opacity = "0"), 250);
+          window.setTimeout(() => flash.remove(), 950);
           return true;
         } catch {
           return false;
         }
       },
     });
-  }, [handleRef, scale]);
+  }, [handleRef, renderPage]);
+
+  // ---- keyboard, in page mode ------------------------------------------
+  const step = useCallback(
+    (delta: number) => setCurrent((value) => Math.min(Math.max(value + delta, 1), pageCount || 1)),
+    [pageCount],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surround">
       <div
         ref={scroller}
-        className="min-h-0 flex-1 overflow-auto"
-        onScroll={trackCurrent}
+        className={`min-h-0 flex-1 ${mode === "page" ? "overflow-auto" : "overflow-auto"}`}
+        onScroll={mode === "scroll" ? onScroll : undefined}
         onDoubleClick={onDoubleClick}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (mode !== "page") return;
+          if (event.key === "ArrowRight" || event.key === "PageDown") step(1);
+          if (event.key === "ArrowLeft" || event.key === "PageUp") step(-1);
+        }}
       >
         {missing ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
-            <p className="t-meta text-ink-3 max-w-[32ch]">
-              Nothing has been typeset yet. Save a change, or press the rebuild
-              control in the status strip.
+            <p className="t-display max-w-[24ch] text-ink-3">
+              Nothing has been typeset yet.
             </p>
           </div>
         ) : null}
-        <div ref={sheet} className="flex flex-col items-center gap-4 py-4" />
+        <div
+          ref={sheet}
+          className="flex w-fit min-w-full flex-col items-center gap-4 px-6 py-4"
+          style={{ justifyContent: "safe center" }}
+        />
       </div>
+
       <div className="flex h-[26px] shrink-0 items-center gap-3 border-t border-line bg-surface-2 px-[10px]">
-        <span className="t-micro text-ink-2 tnum">
-          {pageCount ? `Page ${current} of ${pageCount}` : "—"}
-        </span>
-        <span className="h-[10px] w-px bg-line" />
+        <div className="flex shrink-0 overflow-hidden rounded-[3px] border border-line">
+          {(["scroll", "page"] as const).map((option) => (
+            <button
+              key={option}
+              className={`nx-hover t-micro px-2 py-[2px] ${
+                mode === option ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink"
+              }`}
+              onClick={() => setMode(option)}
+              title={
+                option === "scroll"
+                  ? "One continuous document"
+                  : "One page at a time"
+              }
+            >
+              {option === "scroll" ? "Scroll" : "Page"}
+            </button>
+          ))}
+        </div>
+        <Rule />
+        {mode === "page" ? (
+          <span className="flex shrink-0 items-center gap-1">
+            <button
+              className="nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
+              disabled={current <= 1}
+              onClick={() => step(-1)}
+              aria-label="Previous page"
+            >
+              ‹
+            </button>
+            <span className="t-micro tnum w-[74px] text-center text-ink-2">
+              {pageCount ? `${current} of ${pageCount}` : "—"}
+            </span>
+            <button
+              className="nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
+              disabled={current >= pageCount}
+              onClick={() => step(1)}
+              aria-label="Next page"
+            >
+              ›
+            </button>
+          </span>
+        ) : (
+          <span className="t-micro tnum shrink-0 text-ink-2">
+            {pageCount ? `Page ${current} of ${pageCount}` : "—"}
+          </span>
+        )}
+        <Rule />
         <button
-          className="t-micro text-ink-2 hover:text-ink"
-          onClick={() => setScale((value) => Math.max(0.5, +(value - 0.15).toFixed(2)))}
-          title="Zoom out"
+          className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
+          onClick={() =>
+            setScale((value) => Math.max(fitScale, +((value || fitScale) - 0.15).toFixed(2)))
+          }
+          aria-label="Zoom out"
         >
           −
         </button>
-        <span className="t-micro text-ink-3 tnum w-[34px] text-center">
-          {Math.round(scale * 100)}%
+        <span className="t-micro tnum w-[38px] text-center text-ink-3">
+          {Math.round((scale || fitScale) * 100)}%
         </span>
         <button
-          className="t-micro text-ink-2 hover:text-ink"
-          onClick={() => setScale((value) => Math.min(3, +(value + 0.15).toFixed(2)))}
-          title="Zoom in"
+          className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
+          onClick={() =>
+            setScale((value) => Math.min(3, +((value || fitScale) + 0.15).toFixed(2)))
+          }
+          aria-label="Zoom in"
         >
           +
         </button>
-        <span className="h-[10px] w-px bg-line" />
+        <Rule />
         <button
-          className="t-micro text-ink-2 hover:text-ink"
-          onClick={() => {
-            const root = scroller.current;
-            const page = pages.current[0];
-            if (root && page) {
-              setScale((value) =>
-                +(
-                  ((root.clientWidth - 48) / (page.viewport.width / value))
-                ).toFixed(2),
-              );
-            }
-          }}
+          className="nx-hover t-micro text-ink-2 hover:text-ink"
+          onClick={() => setScale(0)}
         >
           Fit width
         </button>
       </div>
     </div>
   );
+}
+
+function Rule() {
+  return <span className="h-[10px] w-px shrink-0 bg-line" />;
 }

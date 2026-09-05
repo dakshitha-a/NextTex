@@ -6,7 +6,9 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 PIDFILE=/tmp/nexttex-dev.pid
 LOG=${NEXTTEX_LOG:-/tmp/nexttex-dev.log}
-PORT=${NEXTTEX_PORT:-8450}
+# 8451, not 8450: the installed instance owns 8450, and a development
+# server that silently takes its port is a confusing afternoon.
+PORT=${NEXTTEX_PORT:-8451}
 
 stop() {
   if [ -f "$PIDFILE" ]; then

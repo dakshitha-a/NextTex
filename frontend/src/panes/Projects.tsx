@@ -14,8 +14,11 @@ export default function Projects({
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [path, setPath] = useState("");
+  const [mode, setMode] = useState<"add" | "create">("create");
+  const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [forgetting, setForgetting] = useState<string | null>(null);
 
   const refresh = async () => {
     try {
@@ -34,8 +37,12 @@ export default function Projects({
     if (!path.trim()) return;
     setError(null);
     try {
-      const project = await api.addProject(path.trim());
+      const project =
+        mode === "create"
+          ? await api.createProject(path.trim(), newName.trim())
+          : await api.addProject(path.trim());
       setPath("");
+      setNewName("");
       await refresh();
       if (project.id) onOpen(project.id);
     } catch (problem: any) {
@@ -87,8 +94,8 @@ export default function Projects({
         <div className="mt-6 rounded-[5px] border border-line bg-surface">
           {projects.length === 0 ? (
             <p className="t-meta p-4 text-ink-3">
-              No projects yet. Give NextTex the path to a folder containing a
-              LaTeX document; nothing is copied or moved.
+              Nothing here yet. Start a blank project below, or open a folder
+              you already write in.
             </p>
           ) : null}
           {projects.map((project) => (
@@ -111,6 +118,30 @@ export default function Projects({
                   </div>
                 ) : null}
               </div>
+              {forgetting === project.path ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="t-meta text-ink-2">
+                    Remove from NextTex? The files stay where they are.
+                  </span>
+                  <button
+                    className="h-[28px] rounded-[3px] px-2 t-micro text-error"
+                    onClick={async () => {
+                      setForgetting(null);
+                      if (!project.id) return;
+                      await api.forgetProject(project.id);
+                      refresh();
+                    }}
+                  >
+                    Remove
+                  </button>
+                  <button
+                    className="h-[28px] px-2 t-micro text-ink-3 hover:text-ink"
+                    onClick={() => setForgetting(null)}
+                  >
+                    Keep
+                  </button>
+                </div>
+              ) : (
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   className="h-[28px] rounded-[3px] border border-line px-2 t-micro text-ink-2 hover:text-ink disabled:opacity-40"
@@ -131,30 +162,58 @@ export default function Projects({
                 </button>
                 <button
                   className="h-[28px] rounded-[3px] px-2 t-micro text-ink-3 hover:text-error"
-                  onClick={async () => {
-                    if (!project.id) return;
-                    if (!window.confirm(`Remove ${project.name} from NextTex? The files stay where they are.`)) return;
-                    await api.forgetProject(project.id);
-                    refresh();
-                  }}
+                  onClick={() => setForgetting(project.path)}
                 >
                   Remove
                 </button>
               </div>
+              )}
             </div>
           ))}
         </div>
 
-        <div className="mt-4 flex gap-2">
+        <div className="mt-6 flex gap-3">
+          {(["create", "add"] as const).map((option) => (
+            <button
+              key={option}
+              className={`nx-hover t-ui border-b-2 pb-1 ${
+                mode === option
+                  ? "border-pen text-ink"
+                  : "border-transparent text-ink-3 hover:text-ink"
+              }`}
+              onClick={() => setMode(option)}
+            >
+              {option === "create" ? "Start something new" : "Open what you have"}
+            </button>
+          ))}
+        </div>
+        <p className="t-meta mt-2 text-ink-2">
+          {mode === "create"
+            ? "A new project starts blank — one empty document. Give Claude your template or handbook afterwards and it will shape the project around it."
+            : "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."}
+        </p>
+        {mode === "create" ? (
+          <input
+            value={newName}
+            placeholder="What is it called?"
+            className="t-ui mt-3 h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+            onChange={(event) => setNewName(event.target.value)}
+          />
+        ) : null}
+        <div className="mt-2 flex gap-2">
           <input
             value={path}
-            placeholder="/path/to/your/writing/project"
+            placeholder={
+              mode === "create"
+                ? "Where to put it, e.g. ~/writing/my-thesis"
+                : "/path/to/your/writing/project"
+            }
             className="t-code-sm h-[28px] flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && add()}
           />
           <button
-            className="h-[28px] rounded-[3px] bg-pen px-3 t-ui font-medium text-white"
+            className="h-[28px] pen-button px-3 t-ui"
             onClick={add}
           >
             Add project

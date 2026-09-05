@@ -127,6 +127,10 @@ class ProjectAgent:
         self._lock = asyncio.Lock()
         self._session_id: str | None = None
         self._last_used = 0.0
+        # What this project has spent, kept beside the session so it
+        # survives a restart.  Writers on a subscription still want to know
+        # how much of the day's work went through the model.
+        self.usage = self._load_usage()
 
         # A permission request in flight, waiting on the browser.
         self._pending: dict[str, asyncio.Future] = {}
@@ -226,6 +230,13 @@ class ProjectAgent:
         "mcp__nexttex__editor_state",
         "mcp__nexttex__compile_diagnostics",
         "mcp__nexttex__compile",
+        # How the model finds out which tools exist.  Asking the writer to
+        # approve that is asking them to approve punctuation: it reads
+        # nothing, changes nothing, and a card for it trains them to click
+        # Allow without looking, which is exactly what the cards are for.
+        "ToolSearch",
+        "TodoWrite",
+        "Task",
     }
     _WRITE_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 
@@ -581,14 +592,63 @@ class ProjectAgent:
                     if session_id and session_id != self._session_id:
                         self._session_id = session_id
                         self._save_session(session_id)
+                    self._record_usage(message)
                     await self._emit({
                         "type": "done",
                         "subtype": message.subtype,
                         "costUsd": getattr(message, "total_cost_usd", None),
                         "durationMs": getattr(message, "duration_ms", None),
+                        "usage": self.usage,
                     })
                     self._last_used = time.monotonic()
                     return
+
+    # -- usage -------------------------------------------------------------
+    @property
+    def usage_path(self) -> Path:
+        return self.state_dir / "usage.json"
+
+    def _load_usage(self) -> dict:
+        blank = {
+            "turns": 0, "costUsd": 0.0, "inputTokens": 0, "outputTokens": 0,
+            "cacheReadTokens": 0, "durationMs": 0, "model": self.model or "default",
+        }
+        try:
+            saved = json.loads(self.usage_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return blank
+        return {**blank, **{k: v for k, v in saved.items() if k in blank}}
+
+    def _record_usage(self, message: Any) -> None:
+        counts = getattr(message, "usage", None) or {}
+        self.usage["turns"] += 1
+        self.usage["costUsd"] += getattr(message, "total_cost_usd", None) or 0.0
+        self.usage["durationMs"] += getattr(message, "duration_ms", None) or 0
+        self.usage["inputTokens"] += counts.get("input_tokens", 0) or 0
+        self.usage["outputTokens"] += counts.get("output_tokens", 0) or 0
+        self.usage["cacheReadTokens"] += (
+            counts.get("cache_read_input_tokens", 0) or 0
+        )
+        self.usage["model"] = self.model or "default"
+        try:
+            temp = self.usage_path.with_suffix(".json.tmp")
+            temp.write_text(json.dumps(self.usage, indent=2), encoding="utf-8")
+            temp.replace(self.usage_path)
+        except OSError:
+            pass
+
+    async def set_model(self, model: str | None) -> None:
+        """Change the model this project's agent uses.
+
+        The client carries the model it was started with, so this ends the
+        current one; the next question starts a fresh client, which resumes
+        the same conversation from its stored session id.  Nothing in the
+        transcript is lost.
+        """
+        if (model or None) == (self.model or None):
+            return
+        self.model = model or None
+        await self.close()
 
     async def _flush_edits(self) -> None:
         for edit in self.drain_edits():

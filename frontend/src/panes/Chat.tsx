@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createTwoFilesPatch } from "diff";
+import Prose from "./prose";
+import { WELCOME } from "../welcome";
 import api from "../api";
 import {
   get,
+  markLive,
   markReverted,
   pushChat,
   resolvePermission,
@@ -17,10 +20,12 @@ export type ChatHandle = { seed(text: string): void };
 export default function Chat({
   onShowEdit,
   onHoverEdit,
+  onFold,
   handleRef,
 }: {
   onShowEdit: (path: string, line: number) => void;
   onHoverEdit: (path: string, range: [number, number] | null) => void;
+  onFold?: () => void;
   handleRef: (handle: ChatHandle) => void;
 }) {
   const chat = useStore((s) => s.chat);
@@ -31,6 +36,15 @@ export default function Chat({
   const stream = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
   const pinned = useRef(true);
+  const projectId = useStore((s) => s.projectId);
+  const [usage, setUsage] = useState<Awaited<ReturnType<typeof api.usage>> | null>(null);
+  const [showUsage, setShowUsage] = useState(false);
+
+  // The tally follows the end of a turn, which is when it changes.
+  useEffect(() => {
+    if (!projectId || thinking) return;
+    api.usage(projectId).then(setUsage).catch(() => undefined);
+  }, [projectId, thinking]);
 
   useEffect(() => {
     handleRef({
@@ -63,11 +77,12 @@ export default function Chat({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
-      <div className="flex h-[32px] shrink-0 items-center justify-between border-b border-line px-[10px]">
+      <div className="flex h-[32px] shrink-0 items-center gap-2 border-b border-line px-[10px]">
         <span className="t-ui-lg">Claude</span>
+        <span className="flex-1" />
         {thinking ? (
           <button
-            className="t-micro text-ink-3 hover:text-ink"
+            className="nx-hover t-micro text-hint hover:text-ink"
             onClick={() => {
               const projectId = get().projectId;
               if (projectId) api.interrupt(projectId).catch(() => undefined);
@@ -75,12 +90,80 @@ export default function Chat({
           >
             Stop
           </button>
-        ) : claude?.email ? (
-          <span className="t-micro text-ink-3 truncate max-w-[180px]">
-            {claude.email}
-          </span>
+        ) : null}
+        <select
+          className="nx-hover t-micro cursor-pointer rounded-[3px] border border-line bg-surface-2 px-1 py-[1px] text-ink-2 hover:text-ink"
+          value={usage?.model ?? ""}
+          title="Which model answers here"
+          onChange={async (event) => {
+            const chosen = event.target.value;
+            if (!projectId) return;
+            try {
+              await api.setModel(projectId, chosen);
+              setUsage(await api.usage(projectId));
+            } catch (error: any) {
+              set({ error: error.message });
+            }
+          }}
+        >
+          {(usage?.models ?? [{ id: "", name: "Default", note: "" }]).map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {entry.name}
+            </option>
+          ))}
+        </select>
+        <button
+          className="nx-hover t-micro tabular-nums text-ink-3 hover:text-ink"
+          title="What this project has used"
+          onClick={() => setShowUsage(!showUsage)}
+        >
+          {usage && usage.usage.turns > 0
+            ? `${usage.usage.turns} ${usage.usage.turns === 1 ? "turn" : "turns"}`
+            : "Usage"}
+        </button>
+        {onFold ? (
+          <button
+            className="nx-hover t-micro text-ink-3 hover:text-ink"
+            title="Fold this panel away"
+            aria-label="Fold this panel away"
+            onClick={onFold}
+          >
+            ›
+          </button>
         ) : null}
       </div>
+
+      {showUsage && usage ? (
+        <div className="nx-arrive shrink-0 border-b border-line bg-surface-2 px-[10px] py-2">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <Stat label="Turns" value={usage.usage.turns.toLocaleString()} />
+            <Stat
+              label="Cost"
+              value={
+                usage.usage.costUsd
+                  ? `$${usage.usage.costUsd.toFixed(usage.usage.costUsd < 1 ? 3 : 2)}`
+                  : "—"
+              }
+            />
+            <Stat label="Sent" value={compact(usage.usage.inputTokens)} />
+            <Stat label="Written" value={compact(usage.usage.outputTokens)} />
+            <Stat label="From cache" value={compact(usage.usage.cacheReadTokens)} />
+            <Stat
+              label="Model time"
+              value={
+                usage.usage.durationMs
+                  ? `${Math.round(usage.usage.durationMs / 1000)}s`
+                  : "—"
+              }
+            />
+          </div>
+          <p className="t-micro mt-2 text-ink-3">
+            Counted in this project since it was first opened. Cost is what the
+            API would charge; on a Claude subscription it is an estimate, not a
+            bill.
+          </p>
+        </div>
+      ) : null}
 
       <div
         ref={stream}
@@ -92,10 +175,15 @@ export default function Chat({
         }}
       >
         {chat.length === 0 ? (
-          <p className="t-meta text-ink-3 mt-6">
-            Ask for a paragraph, a table, a figure, or a fix. Edits inside this
-            project are made directly; anything else asks first.
-          </p>
+          <div className="nx-arrive flex">
+            <span className="w-[3px] shrink-0 bg-pen" />
+            <div className="ml-3 min-w-0 flex-1">
+              <div className="t-micro mb-1 text-pen">Claude</div>
+              <div className="t-prose text-ink">
+                <Prose text={WELCOME} />
+              </div>
+            </div>
+          </div>
         ) : null}
         <div className="flex flex-col gap-5">
           {chat.map((item) => (
@@ -130,7 +218,11 @@ export default function Chat({
             {thinking ? "Working" : "Enter to send, Shift-Enter for a new line"}
           </span>
           <button
-            className="h-[28px] rounded-[3px] bg-pen px-3 t-ui font-medium text-white disabled:opacity-40"
+            className={
+              draft.trim() && !blocked
+                ? "pen-button h-[28px] px-3 t-ui"
+                : "h-[28px] rounded-[3px] border border-line px-3 t-ui text-ink-3"
+            }
             disabled={blocked || !draft.trim()}
             onClick={send}
           >
@@ -140,6 +232,22 @@ export default function Chat({
       </div>
     </div>
   );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="t-micro text-ink-3">{label}</span>
+      <span className="t-micro tabular-nums text-ink">{value}</span>
+    </div>
+  );
+}
+
+function compact(value: number): string {
+  if (!value) return "—";
+  if (value < 1000) return String(value);
+  if (value < 1_000_000) return `${(value / 1000).toFixed(1)}k`;
+  return `${(value / 1_000_000).toFixed(2)}M`;
 }
 
 function Item({
@@ -165,25 +273,12 @@ function Item({
   }
 
   if (item.kind === "claude") {
-    return (
-      <div className="flex">
-        <span className="w-[3px] shrink-0 bg-pen" />
-        <div className="ml-3 min-w-0 flex-1">
-          <div className="t-micro mb-1 text-pen">Claude</div>
-          <div className="t-prose whitespace-pre-wrap text-ink">
-            {item.text}
-            {item.streaming ? (
-              <span className="ml-[1px] inline-block h-[1.1em] w-[2px] translate-y-[2px] bg-pen" />
-            ) : null}
-          </div>
-        </div>
-      </div>
-    );
+    return <ClaudeMessage item={item} />;
   }
 
   if (item.kind === "tool") {
     return (
-      <div className="flex items-baseline gap-2 pl-[15px]">
+      <div className="flex items-baseline gap-2 stream-indent">
         <span className="t-micro text-ink-3">{item.name}</span>
         <span className="t-code-sm truncate text-ink-3">{item.summary}</span>
       </div>
@@ -192,7 +287,7 @@ function Item({
 
   if (item.kind === "notice") {
     return (
-      <div className={`t-meta pl-[15px] ${item.tone === "error" ? "text-error" : "text-ink-3"}`}>
+      <div className={`t-meta stream-indent ${item.tone === "error" ? "text-error" : "text-ink-3"}`}>
         {item.text}
       </div>
     );
@@ -203,6 +298,53 @@ function Item({
   }
 
   return <Permission item={item} />;
+}
+
+function ClaudeMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> }) {
+  // The caret is solid while tokens are arriving and blinks once they stop,
+  // so a paused generation looks different from a finished one.
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (!item.streaming) return;
+    setPaused(false);
+    const timer = window.setTimeout(() => setPaused(true), 900);
+    return () => window.clearTimeout(timer);
+  }, [item.text, item.streaming]);
+
+  const [hover, setHover] = useState(false);
+
+  return (
+    <div
+      className="flex"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <span className="w-[3px] shrink-0 bg-pen" />
+      <div className="ml-3 min-w-0 flex-1">
+        <div className="flex items-baseline justify-between">
+          <span className="t-micro text-pen">Claude</span>
+          {hover ? (
+            <span className="t-micro tnum text-ink-3">
+              {new Date(item.at).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          ) : null}
+        </div>
+        <div className="t-prose text-ink">
+          <Prose text={item.text} />
+          {item.streaming ? (
+            <span
+              className={`ml-[1px] inline-block h-[1.1em] w-[2px] translate-y-[2px] bg-pen ${
+                paused ? "caret-paused" : ""
+              }`}
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function EditChip({
@@ -238,15 +380,11 @@ function EditChip({
   }, [item.before, item.after]);
 
   if (item.state === "reverted") {
-    return (
-      <div className="t-micro pl-[15px] text-ink-3 line-through">
-        Reverted — {name}
-      </div>
-    );
+    return <Reverted item={item} name={name} />;
   }
 
   return (
-    <div className="pl-[15px]">
+    <div className="stream-indent">
       <div
         className="group flex h-[24px] w-fit max-w-full items-center gap-2 rounded-[3px] bg-pen-wash px-2"
         onMouseEnter={() => onHoverEdit(item.path, [firstChangedLine, firstChangedLine + 2])}
@@ -316,6 +454,45 @@ function EditChip({
   );
 }
 
+function Reverted({
+  item,
+  name,
+}: {
+  item: Extract<ChatItem, { kind: "edit" }>;
+  name: string;
+}) {
+  // Redo stays live for ten seconds.  After that the reverted line remains
+  // in the transcript for good: the chat is the record of what was done to
+  // the document, and nothing in it disappears.
+  const [canRedo, setCanRedo] = useState(true);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCanRedo(false), 10000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="flex h-[20px] items-center gap-3 stream-indent">
+      <span className="t-micro text-ink-3 line-through">Reverted — {name}</span>
+      {canRedo ? (
+        <button
+          className="t-micro text-ink-2 hover:text-ink"
+          onClick={async () => {
+            const projectId = get().projectId;
+            if (!projectId) return;
+            const result = await api.undo(
+              projectId, item.path, item.after, item.before,
+            );
+            if (result.ok) markLive(item.id);
+            else setCanRedo(false);
+          }}
+        >
+          Redo
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> }) {
   const [armed, setArmed] = useState(false);
 
@@ -342,9 +519,21 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
   // a contenteditable div, so a window-level handler that only excludes
   // inputs would let ordinary typing in the editor answer the card.
   const card = useRef<HTMLDivElement | null>(null);
+  const [scope, setScope] = useState(false);
   useEffect(() => {
     if (item.decision) return;
-    const timer = window.setTimeout(() => card.current?.focus(), 350);
+    const timer = window.setTimeout(() => {
+      // Only take focus if nothing is being typed into.  Pulling the caret
+      // out of the editor mid-sentence would make the writer's next "a" or
+      // "d" answer a card they have not read -- which is the exact thing
+      // the 350 ms shield exists to prevent.
+      const active = document.activeElement as HTMLElement | null;
+      const typing =
+        active?.closest(".cm-editor") ||
+        active?.tagName === "TEXTAREA" ||
+        active?.tagName === "INPUT";
+      if (!typing) card.current?.focus();
+    }, 350);
     return () => window.clearTimeout(timer);
   }, [item.decision]);
 
@@ -352,7 +541,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
     const label =
       item.decision === "deny" ? "Denied" : "Allowed";
     return (
-      <div className="flex h-[26px] items-center gap-2 pl-[15px]">
+      <div className="flex h-[26px] items-center gap-2 stream-indent">
         <span
           className={`h-[6px] w-[6px] rounded-full ${
             item.decision === "deny" ? "bg-ink-3" : "bg-ok"
@@ -371,7 +560,10 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
       tabIndex={0}
       role="group"
       aria-label={item.headline}
-      className="flex rounded-[5px] border border-line bg-surface-2 outline-none focus-visible:ring-1 focus-visible:ring-pen"
+      // No focus ring: the global one is --pen, and a violet perimeter on a
+      // card whose whole point is a --warn gate says "Claude is talking" at
+      // the moment it should say "this needs an answer".
+      className="stream-indent no-focus-ring flex rounded-[5px] border border-line bg-surface-2"
       style={{ animation: "permission-in 90ms var(--ease)" }}
       onKeyDown={(event) => {
         if (event.key === "a" && !event.shiftKey) decide("allow");
@@ -390,16 +582,22 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         {item.consequence ? (
           <div className="t-meta mt-2 text-ink-2">{item.consequence}</div>
         ) : null}
+        {scope && item.rule ? (
+          <div className="t-micro mt-2 text-ink-3">Remembers: {item.rule}</div>
+        ) : null}
         <div className="mt-3 flex gap-[6px]">
           <button
-            className="h-[28px] rounded-[3px] bg-pen px-3 t-ui font-medium text-white"
+            className="h-[28px] pen-button px-3 t-ui"
             onClick={() => decide("allow")}
           >
             Allow <span className="t-micro opacity-70">A</span>
           </button>
           <button
             className="h-[28px] rounded-[3px] border border-line px-3 t-ui"
-            title={item.rule ? `Remembers: ${item.rule}` : undefined}
+            onMouseEnter={() => setScope(true)}
+            onMouseLeave={() => setScope(false)}
+            onFocus={() => setScope(true)}
+            onBlur={() => setScope(false)}
             onClick={() => decide("always")}
           >
             Allow always <span className="t-micro text-ink-3">⇧A</span>

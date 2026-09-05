@@ -345,6 +345,10 @@ export function markReverted(id: string) {
   updateChat(id, { state: "reverted" } as any);
 }
 
+export function markLive(id: string) {
+  updateChat(id, { state: "live" } as any);
+}
+
 export async function refreshContext(projectId: string) {
   try {
     const result = await api.context(projectId);

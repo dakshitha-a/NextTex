@@ -235,6 +235,46 @@ async def add_project(path: str = Body(..., embed=True)):
     return project.as_dict()
 
 
+# A new project is empty on purpose.  Templates are not guesses NextTex
+# should make: a journal class, a university handbook and a lab report have
+# nothing in common, and the way to get one is to upload the real document
+# and let the agent read it.
+BLANK_DOCUMENT = """\\documentclass[12pt]{article}
+
+\\begin{document}
+
+\\end{document}
+"""
+
+
+@app.post("/api/projects/create")
+async def create_project(
+    path: str = Body(...),
+    name: str = Body(""),
+):
+    root = Path(path).expanduser()
+    if not root.is_absolute():
+        root = Path.home() / root
+    if root.exists() and any(root.iterdir()):
+        raise HTTPException(400, f"{root} already has files in it")
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise HTTPException(400, f"could not make that folder: {error}")
+
+    (root / "main.tex").write_text(BLANK_DOCUMENT, encoding="utf-8")
+    (root / "references.bib").write_text("", encoding="utf-8")
+    (root / "figures").mkdir(exist_ok=True)
+    title = name.strip() or root.name
+    (root / "nexttex.toml").write_text(
+        f'[project]\nname = "{title}"\nmain = "main.tex"\nbuild_dir = "build"\n',
+        encoding="utf-8",
+    )
+    project = REGISTRY.add(root)
+    _restart_watch()
+    return project.as_dict()
+
+
 @app.delete("/api/projects/{project_id}")
 async def forget_project(project_id: str):
     session = SESSIONS.pop(project_id, None)
@@ -663,7 +703,7 @@ async def git_backup(
 async def compile_now(project_id: str, full: bool = Body(False, embed=True)):
     session = session_for(project_id)
     result = await session.compile(force_full=full)
-    return result.as_dict()
+    return session.as_client_dict(result)
 
 
 @app.post("/api/projects/{project_id}/editor")
@@ -816,6 +856,38 @@ async def agent_permission(
         raise HTTPException(400, "decision must be allow, always or deny")
     session = session_for(project_id)
     return {"resolved": session.agent.resolve_permission(id, decision)}
+
+
+# The models a writer can choose between.  Names, not identifiers, because
+# the person picking is choosing how careful and how quick they want the
+# help to be -- not which build is deployed.
+MODELS = [
+    {"id": "", "name": "Default", "note": "Whatever your Claude plan gives"},
+    {"id": "claude-opus-5", "name": "Opus 5", "note": "The most careful"},
+    {"id": "claude-sonnet-5", "name": "Sonnet 5", "note": "Quick, and good at prose"},
+    {"id": "claude-haiku-4-5-20251001", "name": "Haiku 4.5", "note": "Fastest, for small edits"},
+]
+
+
+@app.get("/api/projects/{project_id}/agent/usage")
+async def agent_usage(project_id: str):
+    session = session_for(project_id)
+    return {
+        "usage": session.agent.usage,
+        "model": session.agent.model or "",
+        "models": MODELS,
+    }
+
+
+@app.post("/api/projects/{project_id}/agent/model")
+async def agent_model(project_id: str, model: str = Body("", embed=True)):
+    session = session_for(project_id)
+    if model and not any(entry["id"] == model for entry in MODELS):
+        raise HTTPException(400, "unknown model")
+    await session.agent.set_model(model)
+    SETTINGS.model = model
+    SETTINGS.save()
+    return {"ok": True, "model": model}
 
 
 @app.post("/api/projects/{project_id}/agent/interrupt")

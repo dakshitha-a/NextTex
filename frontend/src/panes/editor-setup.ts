@@ -60,6 +60,8 @@ export type Mark = { line: number; severity: "error" | "warning" };
 
 export const setMarks = StateEffect.define<Mark[]>();
 export const flashRange = StateEffect.define<{ from: number; to: number } | null>();
+/** Drop the fading highlight once it has finished fading. */
+export const clearFlash = StateEffect.define<null>();
 
 const markField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -96,7 +98,24 @@ const flashField = StateField.define<DecorationSet>({
   update(current, tr) {
     for (const effect of tr.effects) {
       if (!effect.is(flashRange)) continue;
-      if (!effect.value) return Decoration.none;
+      if (!effect.value) {
+        // Swap to the fading class rather than dropping the decoration, so
+        // the highlight leaves the way the specification asks -- over
+        // 450 ms -- instead of snapping off in one frame.
+        const existing: any[] = [];
+        current.between(0, tr.state.doc.length, (from, to, value) => {
+          const spec = (value as any).spec ?? {};
+          const fading = spec.class?.includes("cm-line-flash");
+          if (!fading) return;
+          existing.push(
+            (spec.widget || to === from
+              ? Decoration.line({ class: "cm-line-fading" })
+              : Decoration.mark({ class: "cm-line-fading" })
+            ).range(from, to === from ? undefined : to) as any,
+          );
+        });
+        return existing.length ? Decoration.set(existing, true) : Decoration.none;
+      }
       const { from, to } = effect.value;
       return Decoration.set([
         Decoration.line({ class: "cm-line-flash" }).range(
@@ -106,6 +125,9 @@ const flashField = StateField.define<DecorationSet>({
           ? [Decoration.mark({ class: "cm-line-flash" }).range(from, to)]
           : []),
       ]);
+    }
+    for (const effect of tr.effects) {
+      if (effect.is(clearFlash)) return Decoration.none;
     }
     return tr.docChanged ? current.map(tr.changes) : current;
   },
