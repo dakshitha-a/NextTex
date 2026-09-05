@@ -23,13 +23,13 @@
    --paper is never themed.  PDF.js paints it, and it is white in both.
    ----------------------------------------------------------------------- */
 :root {
-  --surround: #C7CCC7;
-  --surface: #E3E7E2;
-  --surface-2: #D7DCD6;
-  --surface-3: #CDD3CC;
+  --surround: #ADB4AD;
+  --surface: #F0F3EF;
+  --surface-2: #DCE1DB;
+  --surface-3: #C6CDC5;
   --ink: #141715;
-  --ink-2: #4C534E;
-  --ink-3: #626963;
+  --ink-2: #474E49;
+  --ink-3: #565C57;
   --pen: #6B3A87;
   --hint: #1B6B72;
   --error: #9C2521;
@@ -37,7 +37,7 @@
   --ok: #2A6144;
 
   --paper: #ffffff;
-  --line: color-mix(in oklab, var(--ink-3) 34%, transparent);
+  --line: color-mix(in oklab, var(--ink-3) 55%, transparent);
   --pen-wash: color-mix(in oklab, var(--pen) 12%, transparent);
   --hint-wash: color-mix(in oklab, var(--hint) 14%, transparent);
   --page-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
@@ -49,13 +49,13 @@
 /* Only covers the first frame, before the app stamps its own choice. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --surround: #0D0F0E;
-    --surface: #161A18;
+    --surround: #0A0C0B;
+    --surface: #121614;
     --surface-2: #1E2320;
-    --surface-3: #272D29;
+    --surface-3: #2A302C;
     --ink: #E3E8E2;
-    --ink-2: #9CA49E;
-    --ink-3: #7F8781;
+    --ink-2: #A2AAA4;
+    --ink-3: #8C948E;
     --pen: #C08CE8;
     --hint: #56C7C0;
     --error: #F0776D;
@@ -68,13 +68,13 @@
 }
 
 :root[data-theme="dark"] {
-  --surround: #0D0F0E;
-  --surface: #161A18;
+  --surround: #0A0C0B;
+  --surface: #121614;
   --surface-2: #1E2320;
-  --surface-3: #272D29;
+  --surface-3: #2A302C;
   --ink: #E3E8E2;
-  --ink-2: #9CA49E;
-  --ink-3: #7F8781;
+  --ink-2: #A2AAA4;
+  --ink-3: #8C948E;
   --pen: #C08CE8;
   --hint: #56C7C0;
   --error: #F0776D;
@@ -141,6 +141,34 @@ body {
 
 button { font: inherit; color: inherit; }
 
+/* A control that is not the agent: quiet until you approach it, then
+   --hint.  This is most of the app's buttons; --pen is reserved for
+   answering Claude or addressing it. */
+.ghost-button {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  background: transparent;
+  transition: border-color 90ms var(--ease), color 90ms var(--ease),
+    background-color 90ms var(--ease);
+}
+.ghost-button:hover:not(:disabled) {
+  border-color: var(--hint);
+  color: var(--hint);
+  background: var(--hint-wash);
+}
+.ghost-button:disabled { opacity: 0.4; }
+
+/* Quiet text controls -- fold chevrons, strip actions, chip actions. */
+.quiet {
+  color: var(--ink-3);
+  transition: color 90ms var(--ease), background-color 90ms var(--ease);
+}
+.quiet:hover:not(:disabled) { color: var(--hint); }
+
+.nx-handle { background: var(--line); transition: background-color 90ms var(--ease); }
+.nx-handle:hover { background: var(--hint); }
+
 /* A filled --pen button.  In dark, --pen is #C48EDA and white on it is
    2.6:1 -- unreadable -- so the label takes the darkest surface instead. */
 .pen-button {
@@ -153,6 +181,8 @@ button { font: inherit; color: inherit; }
   :root:not([data-theme="light"]) .pen-button { color: var(--surround); }
 }
 :root[data-theme="dark"] .pen-button { color: var(--surround); }
+.pen-button { transition: transform 90ms var(--ease), filter 90ms var(--ease); }
+.pen-button:active:not(:disabled) { transform: translateY(1px); }
 .pen-button:disabled { opacity: 0.4; }
 
 /* The transcript's single left edge: the rule column is 3px, then a 12px
@@ -164,6 +194,15 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    user tabbed to them.  A --pen ring on a --warn permission gate would say
    "Claude is talking" at the moment it should say "this needs an answer". */
 .no-focus-ring:focus-visible { outline: none; }
+/* The gate takes focus so it can answer the keyboard.  It still has to say
+   so -- otherwise the next "a" you type approves a shell command with
+   nothing on screen to warn you -- but in its own colour, not the agent's. */
+.permission-card { outline: none; }
+.permission-card:focus-visible,
+.permission-card:focus-within {
+  outline: 1px solid var(--warn);
+  outline-offset: 2px;
+}
 /* Not --pen-wash: pen means "Claude touched this", and an ordinary
    drag-select is the user touching their own text. */
 ::selection { background: color-mix(in oklab, var(--ink-3) 24%, transparent); }
@@ -229,11 +268,25 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   *,
   *::before,
   *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
+    animation: none !important;
     transition-duration: 90ms !important;
     transition-property: opacity, background-color, color !important;
   }
+  /* Without its sweep the compile indicator would disappear entirely, so it
+     becomes a static bar: the point is to say a build is running, and that
+     is worth saying whether or not anything is allowed to move. */
+  .hairline::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--pen);
+  }
+  /* And the SyncTeX rectangle stays put for its full 700 ms rather than
+     blinking out in 90: the eye still has to find it. */
+  .nx-flash { transition: none !important; }
 }
 
 @keyframes sweep { 0% { left: -30% } 100% { left: 100% } }

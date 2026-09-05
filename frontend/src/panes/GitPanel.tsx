@@ -73,7 +73,7 @@ export default function GitPanel() {
           </p>
           <div className="mt-3 flex gap-2">
             <button
-              className="h-[26px] pen-button px-3 t-ui"
+              className="h-[26px] ghost-button px-3 t-ui"
               onClick={() => setWizard(true)}
             >
               Set up
@@ -107,7 +107,7 @@ export default function GitPanel() {
               for you.
             </p>
             <button
-              className="mt-2 h-[26px] pen-button px-3 t-ui"
+              className="mt-2 h-[26px] ghost-button px-3 t-ui"
               disabled={busy === "create"}
               onClick={async () => {
                 setBusy("create");
@@ -235,7 +235,7 @@ export default function GitPanel() {
 
       {dirty > 0 || status.ahead > 0 ? (
         <button
-          className="mt-2 h-[26px] w-full pen-button t-ui"
+          className="mt-2 h-[26px] w-full ghost-button t-ui"
           disabled={Boolean(busy) || (dirty > 0 && !message.trim())}
           onClick={async () => {
             if (dirty > 0) await act("commit");

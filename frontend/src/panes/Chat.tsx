@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createTwoFilesPatch } from "diff";
 import Prose from "./prose";
-import { WELCOME } from "../welcome";
+import { WELCOME, WELCOME_ACTIONS } from "../welcome";
+import { Chevron } from "../App";
 import api from "../api";
 import {
   get,
@@ -17,15 +18,48 @@ import {
 
 export type ChatHandle = { seed(text: string): void };
 
+/** Two kinds of noise the raw stream produces, removed before rendering:
+ *  an `Edited main.tex` row immediately followed by the chip that says the
+ *  same thing with a diff, and the same read repeated back to back. */
+function tidy(items: ChatItem[]): ChatItem[] {
+  const out: ChatItem[] = [];
+  for (const item of items) {
+    const previous = out[out.length - 1];
+    if (
+      item.kind === "edit" &&
+      previous?.kind === "tool" &&
+      ["Edit", "MultiEdit", "Write"].includes(previous.name) &&
+      previous.summary.endsWith(item.path)
+    ) {
+      out.pop();
+    } else if (
+      item.kind === "tool" &&
+      previous?.kind === "tool" &&
+      previous.name === item.name &&
+      previous.summary === item.summary
+    ) {
+      out[out.length - 1] = {
+        ...previous,
+        repeats: (previous.repeats ?? 1) + 1,
+      };
+      continue;
+    }
+    out.push(item);
+  }
+  return out;
+}
+
 export default function Chat({
   onShowEdit,
   onHoverEdit,
   onFold,
+  onAddContext,
   handleRef,
 }: {
   onShowEdit: (path: string, line: number) => void;
   onHoverEdit: (path: string, range: [number, number] | null) => void;
   onFold?: () => void;
+  onAddContext?: (kind: "style" | "voice") => void;
   handleRef: (handle: ChatHandle) => void;
 }) {
   const chat = useStore((s) => s.chat);
@@ -39,6 +73,7 @@ export default function Chat({
   const projectId = useStore((s) => s.projectId);
   const [usage, setUsage] = useState<Awaited<ReturnType<typeof api.usage>> | null>(null);
   const [showUsage, setShowUsage] = useState(false);
+  const [focusedComposer, setFocusedComposer] = useState(false);
 
   // The tally follows the end of a turn, which is when it changes.
   useEffect(() => {
@@ -91,8 +126,12 @@ export default function Chat({
             Stop
           </button>
         ) : null}
+        <label className="t-micro text-ink-3" htmlFor="nx-model">
+          Model
+        </label>
         <select
-          className="nx-hover t-micro cursor-pointer rounded-[3px] border border-line bg-surface-2 px-1 py-[1px] text-ink-2 hover:text-ink"
+          id="nx-model"
+          className="t-micro cursor-pointer rounded-[3px] border border-line bg-surface-2 px-1 py-[2px] text-ink-2 hover:border-hint hover:text-ink"
           value={usage?.model ?? ""}
           title="Which model answers here"
           onChange={async (event) => {
@@ -113,54 +152,52 @@ export default function Chat({
           ))}
         </select>
         <button
-          className="nx-hover t-micro tabular-nums text-ink-3 hover:text-ink"
+          className="quiet t-micro flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3"
           title="What this project has used"
+          aria-expanded={showUsage}
           onClick={() => setShowUsage(!showUsage)}
         >
-          {usage && usage.usage.turns > 0
-            ? `${usage.usage.turns} ${usage.usage.turns === 1 ? "turn" : "turns"}`
-            : "Usage"}
+          Usage
+          <span className={showUsage ? "rotate-180" : ""}>
+            <Chevron direction="down" />
+          </span>
         </button>
         {onFold ? (
           <button
-            className="nx-hover t-micro text-ink-3 hover:text-ink"
+            className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3"
             title="Fold this panel away"
             aria-label="Fold this panel away"
             onClick={onFold}
           >
-            ›
+            <Chevron direction="right" />
           </button>
         ) : null}
       </div>
 
       {showUsage && usage ? (
-        <div className="nx-arrive shrink-0 border-b border-line bg-surface-2 px-[10px] py-2">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            <Stat label="Turns" value={usage.usage.turns.toLocaleString()} />
-            <Stat
-              label="Cost"
-              value={
-                usage.usage.costUsd
-                  ? `$${usage.usage.costUsd.toFixed(usage.usage.costUsd < 1 ? 3 : 2)}`
-                  : "—"
-              }
-            />
-            <Stat label="Sent" value={compact(usage.usage.inputTokens)} />
-            <Stat label="Written" value={compact(usage.usage.outputTokens)} />
-            <Stat label="From cache" value={compact(usage.usage.cacheReadTokens)} />
-            <Stat
-              label="Model time"
-              value={
-                usage.usage.durationMs
-                  ? `${Math.round(usage.usage.durationMs / 1000)}s`
-                  : "—"
-              }
-            />
+        <div className="nx-arrive shrink-0 border-b border-line bg-surface-2 px-[10px] py-3">
+          <div className="flex items-baseline gap-2">
+            <span className="t-ui-lg tabular-nums text-ink">
+              {usage.usage.costUsd
+                ? `$${usage.usage.costUsd.toFixed(usage.usage.costUsd < 1 ? 3 : 2)}`
+                : "$0.000"}
+            </span>
+            <span className="t-micro text-ink-3">estimated, this project</span>
+          </div>
+          <div className="t-micro mt-1 text-ink-2">
+            {usage.usage.turns} {usage.usage.turns === 1 ? "turn" : "turns"} ·{" "}
+            {Math.round(usage.usage.durationMs / 1000)}s of model time
+          </div>
+          <div className="t-micro text-ink-2">
+            {compact(usage.usage.inputTokens)} tokens in
+            {usage.usage.cacheReadTokens
+              ? ` (${compact(usage.usage.cacheReadTokens)} from cache)`
+              : ""}{" "}
+            · {compact(usage.usage.outputTokens)} out
           </div>
           <p className="t-micro mt-2 text-ink-3">
-            Counted in this project since it was first opened. Cost is what the
-            API would charge; on a Claude subscription it is an estimate, not a
-            bill.
+            On a Claude subscription this is what the same work would have
+            cost through the API, not a bill.
           </p>
         </div>
       ) : null}
@@ -182,11 +219,23 @@ export default function Chat({
               <div className="t-prose text-ink">
                 <Prose text={WELCOME} />
               </div>
+              <div className="mt-3 flex flex-col gap-2">
+                {WELCOME_ACTIONS.map((action) => (
+                  <button
+                    key={action.kind}
+                    className="ghost-button nx-press px-3 py-2 text-left"
+                    onClick={() => onAddContext?.(action.kind)}
+                  >
+                    <span className="t-ui block">{action.label}</span>
+                    <span className="t-meta block text-ink-2">{action.detail}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}
         <div className="flex flex-col gap-5">
-          {chat.map((item) => (
+          {tidy(chat).map((item) => (
             <Item
               key={item.id}
               item={item}
@@ -205,6 +254,8 @@ export default function Chat({
           disabled={blocked}
           placeholder={blocked ? "Waiting on your approval" : "Ask Claude"}
           className="t-ui w-full resize-none rounded-[3px] border border-line bg-surface-2 px-2 py-[6px] outline-none placeholder:text-ink-3 disabled:text-ink-3"
+          onFocus={() => setFocusedComposer(true)}
+          onBlur={() => setFocusedComposer(false)}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -215,7 +266,11 @@ export default function Chat({
         />
         <div className="mt-[6px] flex items-center justify-between">
           <span className="t-micro text-ink-3">
-            {thinking ? "Working" : "Enter to send, Shift-Enter for a new line"}
+            {thinking
+              ? "Claude is writing"
+              : focusedComposer
+                ? "Enter to send, Shift-Enter for a new line"
+                : ""}
           </span>
           <button
             className={
@@ -234,6 +289,17 @@ export default function Chat({
   );
 }
 
+/** What the tool did, in the words a writer would use. */
+function verb(name: string): string {
+  switch (name) {
+    case "Read": return "Read";
+    case "Edit": case "MultiEdit": case "Write": return "Edited";
+    case "Bash": return "Ran";
+    case "Glob": case "Grep": return "Searched";
+    default: return name;
+  }
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
@@ -244,7 +310,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function compact(value: number): string {
-  if (!value) return "—";
+  if (!value) return "0";
   if (value < 1000) return String(value);
   if (value < 1_000_000) return `${(value / 1000).toFixed(1)}k`;
   return `${(value / 1_000_000).toFixed(2)}M`;
@@ -279,8 +345,11 @@ function Item({
   if (item.kind === "tool") {
     return (
       <div className="flex items-baseline gap-2 stream-indent">
-        <span className="t-micro text-ink-3">{item.name}</span>
+        <span className="t-micro text-ink-2">{verb(item.name)}</span>
         <span className="t-code-sm truncate text-ink-3">{item.summary}</span>
+        {item.repeats && item.repeats > 1 ? (
+          <span className="t-micro tabular-nums text-ink-3">×{item.repeats}</span>
+        ) : null}
       </div>
     );
   }
@@ -386,27 +455,34 @@ function EditChip({
   return (
     <div className="stream-indent">
       <div
-        className="group flex h-[24px] w-fit max-w-full items-center gap-2 rounded-[3px] bg-pen-wash px-2"
+        className="flex h-[24px] w-fit max-w-full items-center gap-2 rounded-[3px] bg-pen-wash px-2"
         onMouseEnter={() => onHoverEdit(item.path, [firstChangedLine, firstChangedLine + 2])}
         onMouseLeave={() => onHoverEdit(item.path, null)}
       >
-        <button className="t-code-sm truncate text-ink" onClick={() => setOpen(!open)}>
-          {name}
+        <button
+          className="flex min-w-0 items-center gap-1 text-ink"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <span className={open ? "rotate-180" : ""}>
+            <Chevron direction="down" />
+          </span>
+          <span className="t-code-sm truncate">{name}</span>
         </button>
         <span className="t-micro tnum shrink-0">
           <span className="text-ok">+{item.added}</span>{" "}
           <span className="text-error">−{item.removed}</span>
         </span>
-        <span className="hidden shrink-0 gap-2 group-hover:flex">
+        <span className="flex shrink-0 gap-2">
           <button
-            className="t-micro text-ink-2 hover:text-ink"
+            className="quiet t-micro"
             onClick={() => onShowEdit(item.path, firstChangedLine)}
           >
             Show
           </button>
           {undoable ? (
             <button
-              className="t-micro text-ink-2 hover:text-ink"
+              className="quiet t-micro"
               onClick={async () => {
                 const projectId = get().projectId;
                 if (!projectId) return;
@@ -415,6 +491,7 @@ function EditChip({
                   item.path,
                   item.before,
                   item.after,
+                  item.id,
                 );
                 if (result.ok) markReverted(item.id);
                 else setUndoable(false);
@@ -423,9 +500,7 @@ function EditChip({
               Undo
             </button>
           ) : (
-            <span className="t-micro text-ink-3" title="Changed since — can't undo cleanly">
-              Changed since
-            </span>
+            <span className="t-micro text-ink-3">Can't undo — you edited this</span>
           )}
         </span>
       </div>
@@ -480,7 +555,7 @@ function Reverted({
             const projectId = get().projectId;
             if (!projectId) return;
             const result = await api.undo(
-              projectId, item.path, item.after, item.before,
+              projectId, item.path, item.after, item.before, item.id, "live",
             );
             if (result.ok) markLive(item.id);
             else setCanRedo(false);
@@ -520,6 +595,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
   // inputs would let ordinary typing in the editor answer the card.
   const card = useRef<HTMLDivElement | null>(null);
   const [scope, setScope] = useState(false);
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
     if (item.decision) return;
     const timer = window.setTimeout(() => {
@@ -563,8 +639,14 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
       // No focus ring: the global one is --pen, and a violet perimeter on a
       // card whose whole point is a --warn gate says "Claude is talking" at
       // the moment it should say "this needs an answer".
-      className="stream-indent no-focus-ring flex rounded-[5px] border border-line bg-surface-2"
+      className="stream-indent permission-card flex rounded-[5px] border border-line bg-surface-2"
       style={{ animation: "permission-in 90ms var(--ease)" }}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+          setFocused(false);
+        }
+      }}
       onKeyDown={(event) => {
         if (event.key === "a" && !event.shiftKey) decide("allow");
         if (event.key === "A" && event.shiftKey) decide("always");
@@ -590,7 +672,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             className="h-[28px] pen-button px-3 t-ui"
             onClick={() => decide("allow")}
           >
-            Allow <span className="t-micro opacity-70">A</span>
+            Allow{focused ? <span className="t-micro opacity-70"> A</span> : null}
           </button>
           <button
             className="h-[28px] rounded-[3px] border border-line px-3 t-ui"
@@ -600,13 +682,14 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             onBlur={() => setScope(false)}
             onClick={() => decide("always")}
           >
-            Allow always <span className="t-micro text-ink-3">⇧A</span>
+            Allow always
+            {focused ? <span className="t-micro text-ink-3"> ⇧A</span> : null}
           </button>
           <button
             className="h-[28px] rounded-[3px] border border-line px-3 t-ui text-ink-2 hover:border-error hover:text-error"
             onClick={() => decide("deny")}
           >
-            Deny <span className="t-micro text-ink-3">D</span>
+            Deny{focused ? <span className="t-micro text-ink-3"> D</span> : null}
           </button>
         </div>
       </div>

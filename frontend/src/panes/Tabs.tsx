@@ -80,7 +80,7 @@ export default function Tabs({
             aria-selected={active}
             title={tab.path}
             className={[
-              "relative flex min-w-[96px] max-w-[200px] shrink-0 cursor-default items-center gap-2 border-r border-line px-[10px]",
+              "relative flex min-w-[96px] max-w-[200px] shrink-0 cursor-pointer items-center gap-2 border-r border-line px-[10px]",
               active ? "bg-surface" : "border-b border-line",
             ].join(" ")}
             onClick={() => onSelect(tab.path)}

@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import { get, refreshContext, set, useStore } from "../store";
+import { Chevron } from "../App";
 
 const KINDS: { key: "style" | "voice" | "source"; label: string; hint: string }[] = [
   {
@@ -20,12 +21,31 @@ const KINDS: { key: "style" | "voice" | "source"; label: string; hint: string }[
   },
 ];
 
-export default function ContextPanel() {
+export default function ContextPanel({
+  openFor,
+  onHandled,
+}: {
+  openFor?: "style" | "voice" | null;
+  onHandled?: () => void;
+} = {}) {
   const documents = useStore((s) => s.contextDocs);
   const stale = useStore((s) => s.contextStale);
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"style" | "voice" | "source">("style");
   const input = useRef<HTMLInputElement | null>(null);
+
+  // The welcome message's buttons land here: open the panel, aim the file
+  // picker at the right kind, and let the writer pick a file.
+  useEffect(() => {
+    if (!openFor) return;
+    setOpen(true);
+    setKind(openFor);
+    const timer = window.setTimeout(() => {
+      input.current?.click();
+      onHandled?.();
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [openFor, onHandled]);
 
   const upload = async (files: File[]) => {
     const projectId = get().projectId;
@@ -41,13 +61,16 @@ export default function ContextPanel() {
   return (
     <div className="shrink-0 border-t border-line">
       <button
-        className="flex h-[26px] w-full items-center justify-between px-[10px] hover:bg-surface-2"
+        className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
         <span className="t-micro text-ink-2">
           What Claude reads {documents.length ? `(${documents.length})` : ""}
         </span>
-        <span className="t-micro text-ink-3">{open ? "Hide" : "Show"}</span>
+        <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
+          <Chevron direction="down" />
+        </span>
       </button>
       {open ? (
         <div className="px-[10px] pb-[8px]">
@@ -58,7 +81,7 @@ export default function ContextPanel() {
                 <div className="flex items-center justify-between">
                   <span className="t-micro text-ink-2">{entry.label}</span>
                   <button
-                    className="t-micro text-ink-3 hover:text-ink"
+                    className="quiet t-micro"
                     onClick={() => {
                       setKind(entry.key);
                       input.current?.click();
@@ -79,7 +102,7 @@ export default function ContextPanel() {
                         {document.filename}
                       </span>
                       <button
-                        className="t-micro hidden text-ink-3 hover:text-error group-hover:block"
+                        className="t-micro text-ink-3 opacity-0 hover:text-error focus:opacity-100 group-hover:opacity-100"
                         onClick={async () => {
                           const projectId = get().projectId;
                           if (!projectId) return;
@@ -94,7 +117,7 @@ export default function ContextPanel() {
                 )}
                 {stale.includes(entry.key) ? (
                   <button
-                    className="t-micro mt-1 text-pen"
+                    className="quiet t-micro mt-1 text-pen"
                     onClick={() => {
                       const projectId = get().projectId;
                       if (projectId) api.distill(projectId, entry.key);

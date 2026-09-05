@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../store";
 
+function summarise(rows: { severity: string }[]): string {
+  const errors = rows.filter((row) => row.severity === "error").length;
+  const warnings = rows.length - errors;
+  const parts: string[] = [];
+  if (errors) parts.push(`${errors} ${errors === 1 ? "error" : "errors"}`);
+  if (warnings) parts.push(`${warnings} ${warnings === 1 ? "warning" : "warnings"}`);
+  return parts.join(", ") || "Nothing to fix";
+}
+
 export default function Diagnostics({
   height,
   onJump,
@@ -56,8 +65,11 @@ export default function Diagnostics({
         }}
       />
       <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-line px-[10px]">
+        {/* Named, not counted: "3 findings" tells a writer nothing, and
+            severity carried only by a coloured bar is severity carried by
+            colour alone. */}
         <span className="t-micro text-ink-2">
-          {rows.length} {rows.length === 1 ? "finding" : "findings"}
+          {summarise(rows)}
         </span>
         <button className="t-micro text-ink-3 hover:text-ink" onClick={onClose}>
           Close
@@ -70,9 +82,19 @@ export default function Diagnostics({
           return (
             <div key={index} className="group">
               <div
-                className={`relative flex h-[28px] cursor-default items-center hover:bg-surface-2 ${
+                role="button"
+                tabIndex={0}
+                aria-expanded={open}
+                className={`relative flex h-[28px] cursor-pointer items-center hover:bg-surface-2 ${
                   selected === index ? "bg-surface-2" : ""
                 }`}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  setSelected(index);
+                  setExpanded(open ? null : index);
+                  if (item.file && item.line) onJump(item.file, item.line);
+                }}
                 onClick={() => {
                   setSelected(index);
                   setExpanded(open ? null : index);
@@ -105,7 +127,7 @@ export default function Diagnostics({
                   </span>
                 ) : null}
                 <button
-                  className="mr-2 hidden h-[22px] shrink-0 rounded-[3px] border border-line px-2 t-micro group-hover:block"
+                  className="ghost-button mr-2 h-[22px] shrink-0 px-2 t-micro opacity-0 focus:opacity-100 group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     onFix(

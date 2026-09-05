@@ -36,7 +36,14 @@ export type ChatItem =
       at: number;
       decision?: "allow" | "always" | "deny";
     }
-  | { kind: "tool"; id: string; name: string; summary: string }
+  | {
+      kind: "tool";
+      id: string;
+      name: string;
+      summary: string;
+      /** Consecutive identical calls are shown once, with a count. */
+      repeats?: number;
+    }
   | { kind: "notice"; id: string; text: string; tone: "error" | "plain" };
 
 export type Tab = { path: string; dirty: boolean };
@@ -127,6 +134,54 @@ export function useStore<T>(select: (s: State) => T): T {
 
 let counter = 0;
 const nextId = () => `item-${Date.now().toString(36)}-${counter++}`;
+
+/** Rebuild the panel from what the server kept.
+ *
+ *  The model resumes its own memory of the conversation from disk, so the
+ *  window has to as well -- otherwise the agent refers to work the writer
+ *  cannot see.  The chips and permission records are also the audit trail
+ *  of what an assistant did to the document, which is not session state. */
+export function replayTranscript(items: any[]) {
+  const chat: ChatItem[] = [];
+  for (const item of items) {
+    const at = item.at ?? Date.now();
+    if (item.kind === "user") {
+      chat.push({ kind: "user", id: nextId(), text: item.text ?? "", at });
+    } else if (item.kind === "claude") {
+      chat.push({
+        kind: "claude", id: nextId(), text: item.text ?? "", at,
+        streaming: false,
+      });
+    } else if (item.kind === "tool") {
+      chat.push({
+        kind: "tool", id: item.id || nextId(), name: item.name ?? "",
+        summary: summariseTool(item.name ?? "", item.input),
+      });
+    } else if (item.kind === "edit") {
+      const { added, removed } = countDiff(item.before ?? "", item.after ?? "");
+      chat.push({
+        kind: "edit", id: item.id || nextId(), path: item.path ?? "",
+        before: item.before ?? "", after: item.after ?? "", added, removed,
+        state: item.state === "reverted" ? "reverted" : "live",
+      });
+    } else if (item.kind === "permission") {
+      chat.push({
+        kind: "permission", id: item.id || nextId(), tool: item.tool ?? "",
+        rule: item.rule ?? "", headline: item.headline ?? "",
+        detail: item.detail ?? "", consequence: item.consequence ?? "", at,
+        decision: item.decision,
+      });
+    } else if (item.kind === "notice") {
+      chat.push({ kind: "notice", id: nextId(), text: item.text ?? "", tone: "error" });
+    }
+  }
+  // A permission still unanswered when the window closed can never be
+  // answered now: the turn waiting on it is gone.
+  for (const item of chat) {
+    if (item.kind === "permission" && !item.decision) item.decision = "deny";
+  }
+  set({ chat, awaitingPermission: false });
+}
 
 export function pushChat(item: ChatItem) {
   state.chat = [...state.chat, item];
@@ -299,7 +354,8 @@ function receive(event: any) {
       const { added, removed } = countDiff(event.before ?? "", event.after ?? "");
       pushChat({
         kind: "edit",
-        id: nextId(),
+        // The server assigns this so an undo can be recorded against it.
+        id: event.id || nextId(),
         path: event.path,
         before: event.before ?? "",
         after: event.after ?? "",

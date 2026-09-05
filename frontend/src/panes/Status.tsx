@@ -99,21 +99,18 @@ export default function Status({
           that will think pages have gone missing. */}
       <span className="hidden shrink-0 items-center gap-3 @[500px]:flex">
         <Rule />
-        <button
-          className="t-micro text-ink-3 hover:text-ink"
-          title="How much of the document the preview shows. Click to typeset all of it."
-          onClick={onRebuild}
-        >
+        {/* A state, not a control: the action beside it is Rebuild. */}
+        <span className="t-micro text-ink-3">
           {result && result.scope !== "full" ? "This chapter" : "Whole document"}
-        </button>
+        </span>
       </span>
       <Rule />
-      <span className="hidden shrink-0 items-center gap-3 group-hover:flex @[420px]:group-hover:flex">
-        <Rule />
-        <button className="t-micro text-ink-2 hover:text-ink" onClick={onRebuild}>
-          Rebuild
-        </button>
-      </span>
+      {/* Permanent, not hover-only: it is one word, it is the answer when
+          the preview looks stale, and a strip that gains a segment on hover
+          is a strip that jitters. */}
+      <button className="quiet t-micro shrink-0" onClick={onRebuild}>
+        Rebuild
+      </button>
       <Rule />
       <button
         className="t-micro tnum w-[92px] shrink-0 text-right text-ink-2 hover:text-ink"

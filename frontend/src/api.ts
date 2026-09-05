@@ -161,10 +161,17 @@ const api = {
     ),
   interrupt: (id: string) =>
     request<any>(`/projects/${id}/agent/interrupt`, { method: "POST" }),
-  undo: (id: string, path: string, before: string, after: string) =>
+  undo: (
+    id: string,
+    path: string,
+    before: string,
+    after: string,
+    editId = "",
+    state: "reverted" | "live" = "reverted",
+  ) =>
     request<{ ok: boolean; reason?: string }>(
       `/projects/${id}/agent/undo`,
-      json({ path, before, after }),
+      json({ path, before, after, edit_id: editId, state }),
     ),
 
   context: (id: string) =>

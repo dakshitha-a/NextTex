@@ -30,6 +30,10 @@ export default function FileTree({
   const [creating, setCreating] =
     useState<{ parent: string; directory: boolean } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  // A roving tabindex: the tree is one stop, and the arrow keys move
+  // inside it.  Forty files should not be forty tab presses.
+  const [focusPath, setFocusPath] = useState<string | null>(null);
+  const order = useRef<{ path: string; directory: boolean; open: boolean }[]>([]);
   const uploadInput = useRef<HTMLInputElement | null>(null);
   const uploadTo = useRef<string>("");
 
@@ -115,7 +119,18 @@ export default function FileTree({
     }
   };
 
+  const moveFocus = (path: string) => {
+    setFocusPath(path);
+    window.requestAnimationFrame(() => {
+      const element = document.querySelector<HTMLElement>(
+        `[data-path="${CSS.escape(path)}"]`,
+      );
+      element?.focus();
+    });
+  };
+
   const rows: React.ReactNode[] = [];
+  order.current = [];
   const walk = (node: TreeNode, depth: number) => {
     const isDirectory = node.type === "dir";
     const isOpen = !collapsed.has(node.path);
@@ -123,25 +138,48 @@ export default function FileTree({
     const errors = errorsByFile.get(node.path) ?? 0;
     const active = node.path === activePath;
 
+    order.current.push({ path: node.path, directory: isDirectory, open: isOpen });
     rows.push(
       <div
         key={node.path}
+        data-path={node.path}
         role="treeitem"
-        tabIndex={0}
+        tabIndex={
+          (focusPath ?? activePath ?? tree?.children?.[0]?.path) === node.path ? 0 : -1
+        }
         aria-selected={active}
         className={[
-          "group relative flex h-[26px] shrink-0 cursor-default items-center rounded-[3px] pr-1",
+          "group relative flex h-[26px] shrink-0 cursor-pointer items-center rounded-[3px] pr-1",
           active ? "bg-surface-2" : "hover:bg-surface-2",
           dropTarget === node.path ? "bg-pen-wash border-b border-pen" : "",
         ].join(" ")}
         style={{ paddingLeft: 10 + depth * INDENT }}
         onClick={() => (isDirectory ? toggle(node.path) : onOpen(node.path))}
+        onFocus={() => setFocusPath(node.path)}
         onKeyDown={(event) => {
+          const rows = order.current;
+          const at = rows.findIndex((row) => row.path === node.path);
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             isDirectory ? toggle(node.path) : onOpen(node.path);
+          } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            const next = rows[at + (event.key === "ArrowDown" ? 1 : -1)];
+            if (next) moveFocus(next.path);
+          } else if (event.key === "ArrowRight") {
+            if (isDirectory && !isOpen) toggle(node.path);
+            else if (rows[at + 1]) moveFocus(rows[at + 1].path);
+          } else if (event.key === "ArrowLeft") {
+            if (isDirectory && isOpen) toggle(node.path);
+            else {
+              const parent = dirname(node.path);
+              if (parent) moveFocus(parent);
+            }
+          } else if (event.key === "F2") {
+            act("rename", node);
+          } else if (event.key === "Delete") {
+            setConfirming(node.path);
           }
-          if (event.key === "F2") act("rename", node);
         }}
         onDragOver={(event) => {
           event.preventDefault();
@@ -190,7 +228,7 @@ export default function FileTree({
             <span className="h-[5px] w-[5px] rounded-full bg-ink-2 group-hover:hidden" />
           ) : null}
           <button
-            className="hidden text-ink-3 hover:text-ink group-hover:block"
+            className="quiet opacity-0 focus:opacity-100 group-hover:opacity-100"
             aria-label={`Actions for ${node.name}`}
             onClick={(event) => {
               event.stopPropagation();
