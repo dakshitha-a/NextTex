@@ -47,8 +47,11 @@ export default function Pdf({
   const [mode, setMode] = useState<Mode>(
     () => (window.localStorage.getItem("nexttex.pdf.mode") as Mode) || "scroll",
   );
-  const [scale, setScale] = useState(0);        // 0 means "whatever fits"
+  // 0 means "fit the width", -1 means "fit a whole page"; anything else is
+  // a zoom the reader chose.
+  const [scale, setScale] = useState(0);
   const [fitScale, setFitScale] = useState(1);
+  const [pageFitScale, setPageFitScale] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [current, setCurrent] = useState(1);
   const [missing, setMissing] = useState(false);
@@ -169,9 +172,14 @@ export default function Pdf({
       const natural = first.getViewport({ scale: 1 });
       const measured = scroller.current?.clientWidth ?? 0;
       const available = (measured > 80 ? measured : 900) - 48;
-      const fit = Math.max(0.35, +(available / natural.width).toFixed(3));
+      const fit = Math.max(0.2, +(available / natural.width).toFixed(3));
       setFitScale(fit);
-      const effective = scale || fit;
+      // A writer checking whether a figure has pushed a heading onto the
+      // next page needs to see a whole page, which fit-width rarely gives.
+      const height = (scroller.current?.clientHeight ?? 900) - 40;
+      const pageFit = Math.max(0.2, +Math.min(fit, height / natural.height).toFixed(3));
+      setPageFitScale(pageFit);
+      const effective = scale === -1 ? pageFit : scale || fit;
       drawn.current = effective;
 
       // Reuse what is already on screen.  A rebuild usually produces a
@@ -415,9 +423,13 @@ export default function Pdf({
       >
         {missing ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
-            <p className="t-display max-w-[24ch] text-ink-3">
-              Nothing has been typeset yet.
-            </p>
+            <div className="max-w-[42ch]">
+              <p className="t-display text-ink-3">Nothing has been typeset yet.</p>
+              <p className="t-meta mt-2 text-ink-2">
+                An empty document produces no pages. Write a line, and it will
+                appear here about a second later.
+              </p>
+            </div>
           </div>
         ) : null}
         <div
@@ -432,8 +444,10 @@ export default function Pdf({
           {(["scroll", "page"] as const).map((option) => (
             <button
               key={option}
-              className={`nx-hover t-micro px-2 py-[2px] ${
-                mode === option ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink"
+              className={`t-micro border-b-2 px-2 py-[2px] transition-colors duration-[90ms] ${
+                mode === option
+                  ? "border-hint bg-surface text-ink"
+                  : "border-transparent text-ink-3 hover:text-hint"
               }`}
               onClick={() => setMode(option)}
               title={
@@ -457,8 +471,8 @@ export default function Pdf({
             >
               ‹
             </button>
-            <span className="t-micro tnum w-[74px] text-center text-ink-2">
-              {pageCount ? `${current} of ${pageCount}` : "—"}
+            <span className="t-micro tnum w-[92px] text-center text-ink-2">
+              {pageCount ? `Page ${current} of ${pageCount}` : "—"}
             </span>
             <button
               className="nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
@@ -478,19 +492,23 @@ export default function Pdf({
         <button
           className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
           onClick={() =>
-            setScale((value) => Math.max(fitScale, +((value || fitScale) - 0.15).toFixed(2)))
+            setScale((value) =>
+              Math.max(0.25, +((value === -1 ? pageFitScale : value || fitScale) - 0.15).toFixed(2)),
+            )
           }
           aria-label="Zoom out"
         >
           −
         </button>
         <span className="t-micro tnum w-[38px] text-center text-ink-3">
-          {Math.round((scale || fitScale) * 100)}%
+          {Math.round((scale === -1 ? pageFitScale : scale || fitScale) * 100)}%
         </span>
         <button
           className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
           onClick={() =>
-            setScale((value) => Math.min(3, +((value || fitScale) + 0.15).toFixed(2)))
+            setScale((value) =>
+              Math.min(3, +((value === -1 ? pageFitScale : value || fitScale) + 0.15).toFixed(2)),
+            )
           }
           aria-label="Zoom in"
         >
@@ -498,10 +516,16 @@ export default function Pdf({
         </button>
         <Rule />
         <button
-          className="nx-hover t-micro text-ink-2 hover:text-ink"
+          className={`quiet t-micro ${scale === 0 ? "text-ink" : ""}`}
           onClick={() => setScale(0)}
         >
           Fit width
+        </button>
+        <button
+          className={`quiet t-micro ${scale === -1 ? "text-ink" : ""}`}
+          onClick={() => setScale(-1)}
+        >
+          Fit page
         </button>
       </div>
     </div>

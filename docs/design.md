@@ -510,3 +510,57 @@ the agent can and cannot do without asking, how to tailor the project with a
 template, and how to teach it the writer's voice. It is the app's only
 onboarding, and it is set as the agent's own prose because the agent is what
 does all of it.
+
+
+## 10. What the second audit changed
+
+The built interface was audited as a whole — visual design, information
+design, interaction, wording, accessibility — against §§1–9 and against real
+renders in both themes. The audit's own summary is that four things carried
+most of the damage; all four are fixed, along with most of the smaller
+findings.
+
+**The transcript is now durable, and that is architecture, not polish.** The
+model resumes its own memory of a conversation from disk, so a panel that
+started empty meant the agent could refer to work the writer could not see.
+More importantly, §5 promises that the chat is a record of what was done to
+the document — every diff, every reverted edit, every command allowed or
+refused — and a record that survives one session is not a record. Events are
+now written to `.nexttex/transcript.jsonl` as they are broadcast, with
+streamed text coalesced into whole messages, and replayed when the project is
+reopened. A permission still unanswered when the window closed replays as
+denied, because the turn that was waiting on it is gone.
+
+**Folding the file list no longer strands anything.** The project name, the
+switcher, the theme toggle and the downloads move into whichever header is
+still on screen — the tab bar, or the preview header when the source is
+folded too.
+
+**The surfaces have their specified separation.** The steps had been built at
+roughly half the distance the palette called for, and `--line` sat at 1.5:1,
+so panes had no visible edges, drag handles were invisible, and a selected
+segment was indistinguishable from an unselected one. The steps are now 5–7
+L\* apart in both themes and `--line` clears 3:1. `--ink-3` was below 4.5:1 on
+`--surface-2` — the surface most of the app's metadata actually sits on — and
+is now 5.2:1 in both.
+
+**`--pen` is back to meaning one thing.** It had spread to eight filled
+buttons, of which five had nothing to do with the agent; the loudest object in
+the light theme was a GitHub setup button. Filled violet is now `Allow` and
+`Send` only — answering the agent, or addressing it. Everything else is a
+ghost button that takes `--hint` on hover, which is also now on the drag
+handles, the segmented controls, the chip actions and the fold controls: the
+jobs the second accent was invented for.
+
+Also: the welcome message is three paragraphs with its two instructions as
+buttons that do the thing, rather than five paragraphs of prose pointing at a
+grey row; the usage panel leads with one number instead of a 2×3 grid in four
+units; the edit chip shows `Show` and `Undo` without waiting for a hover, and
+no longer sits under a tool row saying the same thing; the permission card has
+a `--warn` focus ring, because a card that answers bare keypresses must show
+that it has focus; the file tree is one tab stop with arrow-key navigation
+rather than forty; diagnostics say "2 errors, 1 warning" instead of "3
+findings", which also stops severity being carried by colour alone; the
+preview can fit a whole page; and reduced motion now makes the compile
+indicator and the SyncTeX highlight *static* rather than fast, which was the
+point of both.

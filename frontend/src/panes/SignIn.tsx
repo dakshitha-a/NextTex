@@ -67,7 +67,7 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
         {!running ? (
           <div className="mt-5 flex gap-2">
             <button
-              className="h-[28px] pen-button px-3 t-ui"
+              className="h-[28px] ghost-button px-3 t-ui"
               onClick={() => start("subscription")}
             >
               Sign in with a Claude account
@@ -119,7 +119,7 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
                 }}
               />
               <button
-                className="h-[28px] pen-button px-3 t-ui"
+                className="h-[28px] ghost-button px-3 t-ui"
                 onClick={() => {
                   api.loginInput(code).catch(() => undefined);
                   setCode("");

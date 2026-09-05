@@ -83,7 +83,12 @@ export default function Projects({
     <div className="flex h-full flex-col items-center overflow-auto bg-surround px-6 py-10">
       <div className="w-full max-w-[680px]">
         <div className="flex items-baseline justify-between">
-          <h1 className="t-display">Writing projects</h1>
+          <div>
+            <h1 className="t-display">NextTex</h1>
+            <p className="t-meta mt-1 text-ink-2">
+              Write LaTeX with Claude beside the typeset page.
+            </p>
+          </div>
           {canClose ? (
             <button className="t-ui text-ink-2 hover:text-ink" onClick={onClose}>
               Back
@@ -91,13 +96,13 @@ export default function Projects({
           ) : null}
         </div>
 
-        <div className="mt-6 rounded-[5px] border border-line bg-surface">
-          {projects.length === 0 ? (
-            <p className="t-meta p-4 text-ink-3">
-              Nothing here yet. Start a blank project below, or open a folder
-              you already write in.
-            </p>
-          ) : null}
+        <div
+          className={
+            projects.length
+              ? "mt-6 rounded-[5px] border border-line bg-surface"
+              : "hidden"
+          }
+        >
           {projects.map((project) => (
             <div
               key={project.path}
@@ -178,7 +183,7 @@ export default function Projects({
               key={option}
               className={`nx-hover t-ui border-b-2 pb-1 ${
                 mode === option
-                  ? "border-pen text-ink"
+                  ? "border-hint text-ink"
                   : "border-transparent text-ink-3 hover:text-ink"
               }`}
               onClick={() => setMode(option)}

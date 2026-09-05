@@ -15,6 +15,7 @@ from pathlib import Path
 from nexttex.agent import ProjectAgent
 from nexttex.compile import CompileResult, CompileScheduler, Outcome, ProjectPaths
 from nexttex.context import ProjectContext
+from server.transcript import Transcript
 from nexttex.project import Project
 
 # How long an idle project keeps its Claude session alive. Each one is a
@@ -58,6 +59,7 @@ class ProjectSession:
     def __init__(self, project: Project, model: str | None = None):
         self.project = project
         self.context = ProjectContext(project.state_dir)
+        self.transcript = Transcript(project.state_dir / "transcript.jsonl")
         self.events = Broadcaster()
 
         self.paths = ProjectPaths(
@@ -181,6 +183,10 @@ class ProjectSession:
 
         async def pump() -> None:
             async for event in self.agent.events():
+                # Recorded before it is broadcast, so the panel and the file
+                # on disk always show the same conversation -- and so an
+                # event that arrives while nobody is watching is still kept.
+                event = self.transcript.record(event)
                 await self.events.publish({"scope": "agent", **event})
 
         self._agent_pump = asyncio.create_task(pump())

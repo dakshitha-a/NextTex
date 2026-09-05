@@ -302,6 +302,7 @@ async def open_project(project_id: str):
         **session.project.as_dict(),
         "tree": session.project.tree(),
         "context": [d.as_dict() for d in session.context.documents()],
+        "transcript": session.transcript.items(),
     }
 
 
@@ -855,7 +856,10 @@ async def agent_permission(
     if decision not in {"allow", "always", "deny"}:
         raise HTTPException(400, "decision must be allow, always or deny")
     session = session_for(project_id)
-    return {"resolved": session.agent.resolve_permission(id, decision)}
+    resolved = session.agent.resolve_permission(id, decision)
+    if resolved:
+        session.transcript.note_decision(id, decision)
+    return {"resolved": resolved}
 
 
 # The models a writer can choose between.  Names, not identifiers, because
@@ -898,7 +902,12 @@ async def agent_interrupt(project_id: str):
 
 @app.post("/api/projects/{project_id}/agent/undo")
 async def agent_undo(
-    project_id: str, path: str = Body(...), before: str = Body(...), after: str = Body(...)
+    project_id: str,
+    path: str = Body(...),
+    before: str = Body(...),
+    after: str = Body(...),
+    edit_id: str = Body(""),
+    state: str = Body("reverted"),
 ):
     """Reverse one edit the agent made.
 
@@ -920,6 +929,8 @@ async def agent_undo(
     temp.write_text(before, encoding="utf-8")
     temp.replace(target)
     session.mark_written(target)
+    if edit_id:
+        session.transcript.note_revert(edit_id, state)
     session.note_edit(target, before, current)
     session.schedule_compile()
     return {"ok": True}

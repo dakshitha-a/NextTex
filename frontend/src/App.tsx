@@ -6,6 +6,7 @@ import {
   get,
   handlers,
   refreshContext,
+  replayTranscript,
   set,
   useStore,
 } from "./store";
@@ -46,6 +47,8 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(true);
   const [showing, setShowing] = useState<"source" | "preview">("source");
   const [theme, setTheme] = useState<Theme>(() => storedTheme());
+  const [contextRequest, setContextRequest] =
+    useState<"style" | "voice" | null>(null);
   // Every pane folds away, and says where it went.  Editor and preview are
   // mutually exclusive: folding one gives the other the whole space, and
   // folding both would leave nothing to work in.
@@ -94,11 +97,11 @@ export default function App() {
       tree: project.tree,
       tabs: [],
       activePath: null,
-      chat: [],
       diagnostics: [],
       lint: [],
       compile: null,
     });
+    replayTranscript(project.transcript ?? []);
     connect(id);
     refreshContext(id);
     setView("editor");
@@ -314,6 +317,9 @@ export default function App() {
   }
 
   const editorFraction = widths.editor;
+  // Whether the rail went by hand or by window width, everything it holds
+  // has to be reachable from somewhere else.
+  const railFolded = railHidden || folded.rail;
 
   return (
     <div ref={shell} className="relative flex h-full w-full overflow-hidden bg-surround">
@@ -335,23 +341,16 @@ export default function App() {
           >
             <div className="flex h-[32px] shrink-0 items-center justify-between border-b border-line px-[10px]">
               <button
-                className="t-ui-lg truncate font-serif hover:text-pen"
+                className="t-ui-lg truncate font-serif transition-colors duration-[90ms] hover:text-hint"
                 onClick={() => setView("projects")}
                 title="Switch project"
               >
                 {projectName}
               </button>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center">
+                <ThemeToggle theme={theme} onChange={setTheme} />
                 <button
-                  className="nx-hover t-micro text-ink-3 hover:text-ink"
-                  title={theme === "dark" ? "Switch to the light theme" : "Switch to the dark theme"}
-                  aria-label="Switch theme"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                >
-                  {theme === "dark" ? "☾" : "☀"}
-                </button>
-                <button
-                  className="nx-hover t-micro text-ink-3 hover:text-ink"
+                  className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
                   title="Download the whole project as a zip"
                   onClick={() =>
                     projectId &&
@@ -361,24 +360,24 @@ export default function App() {
                   Zip
                 </button>
                 <button
-                  className="t-micro text-ink-3 hover:text-ink"
+                  className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
                   title="Download the typeset PDF"
                   onClick={() => projectId && downloadPdf(projectId, projectName)}
                 >
                   PDF
                 </button>
-                <button
-                  className="nx-hover t-micro text-ink-3 hover:text-ink"
-                  title="Fold the file list away"
-                  aria-label="Fold the file list away"
+                <FoldButton
+                  direction="left"
+                  label="Fold the file list away"
                   onClick={() => fold("rail")}
-                >
-                  ‹
-                </button>
+                />
               </div>
             </div>
             <FileTree onOpen={openFile} onRefresh={refreshTree} />
-            <ContextPanel />
+            <ContextPanel
+              openFor={contextRequest}
+              onHandled={() => setContextRequest(null)}
+            />
             <GitPanel />
           </div>
           <Handle
@@ -409,19 +408,18 @@ export default function App() {
           }
         >
           <div className="flex items-center bg-surface-2">
-            {railHidden ? (
-              // Nothing is lost when the rail folds away: the project name
-              // and its switcher move here.
-              <button
-                className="t-meta flex h-[32px] shrink-0 items-center gap-1 border-r border-line px-[10px] font-serif hover:text-pen"
-                onClick={() => setView("projects")}
-                title="Switch project"
-              >
-                <span className="max-w-[160px] truncate">{projectName}</span>
-                <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden>
-                  <path d="M0 2 L4 6 L8 2" fill="none" stroke="currentColor" strokeWidth="1.4" />
-                </svg>
-              </button>
+            {railFolded ? (
+              // Nothing is lost when the rail folds away: the project name,
+              // its switcher, the theme and the downloads move here.
+              <div className="flex h-[32px] shrink-0 items-center border-r border-line pl-1">
+                <AppControls
+                  theme={theme}
+                  onTheme={setTheme}
+                  projectId={projectId}
+                  projectName={projectName}
+                  onSwitch={() => setView("projects")}
+                />
+              </div>
             ) : null}
             <div className="min-w-0 flex-1">
               <Tabs onSelect={(path) => openFile(path)} onClose={closeFile} />
@@ -430,14 +428,11 @@ export default function App() {
               <Segmented value={showing} onChange={setShowing} />
             ) : null}
             {!tight ? (
-              <button
-                className="nx-hover t-micro mr-1 shrink-0 px-1 text-ink-3 hover:text-ink"
-                title="Fold the source away"
-                aria-label="Fold the source away"
+              <FoldButton
+                direction="left"
+                label="Fold the source away"
                 onClick={() => fold("editor")}
-              >
-                ‹
-              </button>
+              />
             ) : null}
             {chatOver && !chatOpen ? (
               <button
@@ -508,16 +503,24 @@ export default function App() {
           }
         >
           {!tight ? (
-            <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-line bg-surface-2 px-[10px]">
-              <span className="t-micro text-ink-3">Preview</span>
-              <button
-                className="nx-hover t-micro text-ink-3 hover:text-ink"
-                title="Fold the preview away"
-                aria-label="Fold the preview away"
+            <div className="flex h-[32px] shrink-0 items-center gap-2 border-b border-line bg-surface-2 pl-2 pr-1">
+              {railFolded && folded.editor ? (
+                <AppControls
+                  theme={theme}
+                  onTheme={setTheme}
+                  projectId={projectId}
+                  projectName={projectName}
+                  onSwitch={() => setView("projects")}
+                />
+              ) : (
+                <span className="t-ui-lg font-serif text-ink">Preview</span>
+              )}
+              <span className="flex-1" />
+              <FoldButton
+                direction="right"
+                label="Fold the preview away"
                 onClick={() => fold("pdf")}
-              >
-                ›
-              </button>
+              />
             </div>
           ) : null}
           {tight && showing === "preview" ? (
@@ -571,6 +574,13 @@ export default function App() {
           </button>
         ) : null}
         <Chat
+          onAddContext={(kind) => {
+            // The panel lives in the rail, so it has to be open to be used.
+            railByHand.current = true;
+            setRailHidden(false);
+            setFolded((current) => ({ ...current, rail: false }));
+            setContextRequest(kind);
+          }}
           onFold={() => (chatOver ? setChatOpen(false) : fold("chat"))}
           handleRef={(handle) => (chat.current = handle)}
           onShowEdit={(path, line) => openFile(path, line)}
@@ -619,6 +629,128 @@ async function downloadPdf(projectId: string, name: string) {
   }
 }
 
+function AppControls({
+  theme,
+  onTheme,
+  projectId,
+  projectName,
+  onSwitch,
+}: {
+  theme: Theme;
+  onTheme: (theme: Theme) => void;
+  projectId: string | null;
+  projectName: string;
+  onSwitch: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1 pr-1">
+      <button
+        className="quiet t-meta flex h-[26px] max-w-[200px] items-center gap-1 rounded-[3px] px-2 font-serif hover:bg-surface-3"
+        onClick={onSwitch}
+        title="Switch project"
+      >
+        <span className="truncate text-ink">{projectName}</span>
+        <Chevron direction="down" />
+      </button>
+      <ThemeToggle theme={theme} onChange={onTheme} />
+      <button
+        className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
+        title="Download the whole project as a zip"
+        onClick={() =>
+          projectId && startDownload(api.downloadUrl(projectId, { format: "zip" }))
+        }
+      >
+        Zip
+      </button>
+      <button
+        className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
+        title="Download the typeset PDF"
+        onClick={() => projectId && downloadPdf(projectId, projectName)}
+      >
+        PDF
+      </button>
+    </div>
+  );
+}
+
+function ThemeToggle({
+  theme,
+  onChange,
+}: {
+  theme: Theme;
+  onChange: (theme: Theme) => void;
+}) {
+  return (
+    <button
+      className="quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
+      title={theme === "dark" ? "Switch to the light theme" : "Switch to the dark theme"}
+      aria-label={theme === "dark" ? "Switch to the light theme" : "Switch to the dark theme"}
+      onClick={() => onChange(theme === "dark" ? "light" : "dark")}
+    >
+      {theme === "dark" ? (
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden>
+          <path
+            d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8 5.6 5.6 0 1 0 13.2 9.6Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden>
+          <circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          <g stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
+            <path d="M8 1v1.8M8 13.2V15M1 8h1.8M13.2 8H15M3.1 3.1l1.3 1.3M11.6 11.6l1.3 1.3M12.9 3.1l-1.3 1.3M4.4 11.6l-1.3 1.3" />
+          </g>
+        </svg>
+      )}
+    </button>
+  );
+}
+
+/** One chevron drawing, so the app speaks one language of arrows. */
+export function Chevron({
+  direction = "left",
+}: {
+  direction?: "left" | "right" | "up" | "down";
+}) {
+  const path = {
+    left: "M6 1 L2 5 L6 9",
+    right: "M2 1 L6 5 L2 9",
+    up: "M1 6 L5 2 L9 6",
+    down: "M1 2 L5 6 L9 2",
+  }[direction];
+  const size = direction === "left" || direction === "right" ? [8, 10] : [10, 8];
+  return (
+    <svg width={size[0]} height={size[1]} viewBox={direction === "left" || direction === "right" ? "0 0 8 10" : "0 0 10 8"} aria-hidden>
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** A padded fold control, so it is a button rather than punctuation. */
+function FoldButton({
+  direction,
+  label,
+  onClick,
+}: {
+  direction: "left" | "right";
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="quiet flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded-[3px] hover:bg-surface-3"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <Chevron direction={direction} />
+    </button>
+  );
+}
+
 function Segmented({
   value,
   onChange,
@@ -631,8 +763,10 @@ function Segmented({
       {(["source", "preview"] as const).map((option) => (
         <button
           key={option}
-          className={`t-micro px-2 py-[3px] ${
-            value === option ? "bg-surface text-ink" : "text-ink-3"
+          className={`t-micro border-b-2 px-2 py-[3px] transition-colors duration-[90ms] ${
+            value === option
+              ? "border-hint bg-surface text-ink"
+              : "border-transparent text-ink-3 hover:text-hint"
           }`}
           onClick={() => onChange(option)}
         >
@@ -652,7 +786,7 @@ function Handle({
 }) {
   return (
     <div
-      className="relative w-px shrink-0 cursor-col-resize bg-line"
+      className="nx-handle relative w-px shrink-0 cursor-col-resize"
       onPointerDown={onPointerDown}
       onDoubleClick={onReset}
     >
