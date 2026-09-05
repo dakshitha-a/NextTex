@@ -1,0 +1,145 @@
+"""Start NextTex, on one address or two.
+
+uvicorn binds a single socket per server object, so "reachable at localhost
+*and* over Tailscale" means two servers sharing one event loop.  They serve
+the same application object, so there is one registry, one set of open
+projects and one agent per project no matter which address the browser
+came in on.
+
+Loopback is served as plain HTTP: nothing leaves the machine, and a
+self-signed certificate on localhost costs the user a browser warning for
+no gain.  Anything reachable from another machine is served over TLS.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import socket
+import sys
+from pathlib import Path
+
+import uvicorn
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from nexttex.config import Settings, ensure_tex_on_path, missing_tools, required_missing
+
+
+def tailscale_address() -> str | None:
+    """This machine's tailnet address, if Tailscale is up."""
+    import json
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["tailscale", "status", "--json"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout
+        status = json.loads(out)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    addresses = (status.get("Self") or {}).get("TailscaleIPs") or []
+    for address in addresses:
+        if ":" not in address:      # IPv4 first; it is what people type
+            return address
+    return addresses[0] if addresses else None
+
+
+def in_use(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind((host, port))
+        except OSError:
+            return True
+    return False
+
+
+async def serve(settings: Settings) -> None:
+    servers: list[uvicorn.Server] = []
+    urls: list[str] = []
+
+    if settings.localhost:
+        config = uvicorn.Config(
+            "server.main:app", host="127.0.0.1", port=settings.port,
+            log_level="warning", access_log=False,
+        )
+        servers.append(uvicorn.Server(config))
+        urls.append(f"http://127.0.0.1:{settings.port}")
+
+    remote = settings.lan_host or (tailscale_address() if settings.tailscale else "")
+    if remote:
+        if not (settings.certfile and Path(settings.certfile).is_file()):
+            print(
+                "  no certificate, so the tailnet address is not being served.\n"
+                "  Run scripts/gen_cert.sh, or scripts/install.sh again.",
+                file=sys.stderr,
+            )
+        else:
+            config = uvicorn.Config(
+                "server.main:app", host=remote, port=settings.port,
+                ssl_certfile=settings.certfile, ssl_keyfile=settings.keyfile,
+                log_level="warning", access_log=False,
+            )
+            servers.append(uvicorn.Server(config))
+            urls.append(f"https://{remote}:{settings.port}")
+
+    if not servers:
+        print("Nothing to listen on. Set localhost or tailscale in the config.",
+              file=sys.stderr)
+        raise SystemExit(2)
+
+    print("\nNextTex")
+    for url in urls:
+        print(f"  {url}/?token={settings.token}")
+    print()
+
+    # One loop, both sockets.  If either fails to bind, the whole thing
+    # stops: a half-started server that silently drops the address the user
+    # actually types is worse than not starting.
+    await asyncio.gather(*(server.serve() for server in servers))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run NextTex.")
+    parser.add_argument("--port", type=int, help="override the configured port")
+    parser.add_argument("--print-url", action="store_true",
+                        help="print the sign-in URL and exit")
+    arguments = parser.parse_args()
+
+    settings = Settings.load()
+    if arguments.port:
+        settings.port = arguments.port
+
+    if arguments.print_url:
+        host = "127.0.0.1" if settings.localhost else (
+            settings.lan_host or tailscale_address() or "127.0.0.1")
+        scheme = "http" if host == "127.0.0.1" else "https"
+        print(f"{scheme}://{host}:{settings.port}/?token={settings.token}")
+        return
+
+    ensure_tex_on_path()
+    for item in required_missing():
+        print(f"  missing: {item}", file=sys.stderr)
+    for item in missing_tools():
+        print(f"  note: {item}")
+
+    for host in filter(None, [
+        "127.0.0.1" if settings.localhost else None,
+        settings.lan_host or (tailscale_address() if settings.tailscale else None),
+    ]):
+        if in_use(host, settings.port):
+            print(f"Port {settings.port} is already in use on {host}. "
+                  f"Stop the other NextTex, or set a different port.",
+                  file=sys.stderr)
+            raise SystemExit(1)
+
+    try:
+        asyncio.run(serve(settings))
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

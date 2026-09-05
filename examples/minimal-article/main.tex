@@ -1,0 +1,57 @@
+% A small article, here so a new NextTex install has something to open.
+% Nothing in this file is special to NextTex: it is ordinary LaTeX, and it
+% will compile the same way on Overleaf or from a terminal.
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
+\addbibresource{references.bib}
+
+\title{A Minimal Article}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  This is the example project NextTex ships with. Edit this paragraph and
+  the preview beside it will typeset again about a second after you stop
+  typing. Double-click any line of the rendered page to jump to the source
+  that produced it.
+\end{abstract}
+
+\section{Writing}
+\label{sec:writing}
+
+Text goes here. A citation looks like this~\cite{knuth1984}, and a
+cross-reference to Section~\ref{sec:maths} looks like that.
+
+\section{Mathematics}
+\label{sec:maths}
+
+Display mathematics is typeset the usual way,
+\begin{equation}
+  i\hbar \frac{\partial}{\partial t}\Psi(\mathbf{r}, t)
+    = \hat{H}\,\Psi(\mathbf{r}, t),
+  \label{eq:schrodinger}
+\end{equation}
+and Equation~\eqref{eq:schrodinger} can be referred to by number.
+
+\section{Figures}
+
+Put an image in \texttt{figures/} -- drag it onto the folder in the file
+list -- and include it here:
+
+% \begin{figure}[ht]
+%   \centering
+%   \includegraphics[width=0.6\linewidth]{figures/your-image.png}
+%   \caption{What the reader should notice.}
+%   \label{fig:example}
+% \end{figure}
+
+\printbibliography
+
+\end{document}
