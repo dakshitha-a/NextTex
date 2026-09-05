@@ -113,10 +113,14 @@ def main() -> None:
         settings.port = arguments.port
 
     if arguments.print_url:
-        host = "127.0.0.1" if settings.localhost else (
-            settings.lan_host or tailscale_address() or "127.0.0.1")
-        scheme = "http" if host == "127.0.0.1" else "https"
-        print(f"{scheme}://{host}:{settings.port}/?token={settings.token}")
+        # Every address it answers on.  Printing only localhost would hide
+        # the one URL a headless user can actually open.
+        if settings.localhost:
+            print(f"http://127.0.0.1:{settings.port}/?token={settings.token}")
+        remote = settings.lan_host or (
+            tailscale_address() if settings.tailscale else "")
+        if remote:
+            print(f"https://{remote}:{settings.port}/?token={settings.token}")
         return
 
     ensure_tex_on_path()
