@@ -1,0 +1,10 @@
+# NextTex server dependencies.
+# Pinned loosely: this is an application, not a library, and the install
+# script resolves them fresh. Python 3.10+.
+
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9      # file uploads
+watchfiles>=0.21             # project file watching
+claude-agent-sdk>=0.2.150    # the writing agent
+tomli>=2.0; python_version < "3.11"
