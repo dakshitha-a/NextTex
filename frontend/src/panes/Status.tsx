@@ -57,51 +57,67 @@ export default function Status({
   }
 
   return (
+    // A container query, not a viewport one: this strip is as wide as the
+    // editor pane, which the user drags.  Segments drop out in order of how
+    // little they are missed -- the path first, since the tab above says it.
     <div
-      className={`group relative flex h-[26px] shrink-0 items-center border-t border-line bg-surface-2 px-[10px] ${
-        slow ? "hairline overflow-hidden" : ""
+      className={`@container group relative flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px] ${
+        slow ? "hairline" : ""
       }`}
     >
       <button
-        className="flex items-center gap-2"
+        className="flex shrink-0 items-center gap-2"
         onClick={() => clickable && onToggleDrawer()}
       >
-        <span className={`h-[6px] w-[6px] rounded-full ${dot}`} />
+        <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot}`} />
         <span className="t-micro text-ink-2">{label}</span>
       </button>
-      <span className="mx-3 h-[10px] w-px bg-line" />
-      <span className="t-code-sm truncate text-ink-3">{activePath ?? "—"}</span>
-      <span className="mx-3 h-[10px] w-px bg-line" />
-      <span className="t-micro tnum min-w-[104px] text-ink-2">
+      {result && !compiling ? (
+        <span className="hidden shrink-0 items-center gap-3 @[380px]:flex">
+          <Rule />
+          <span className="t-micro tnum text-ink-3">
+            {(result.durationMs / 1000).toFixed(2)}s
+          </span>
+        </span>
+      ) : null}
+      <span className="hidden min-w-0 flex-1 items-center gap-3 @[620px]:flex">
+        <Rule />
+        <span className="t-code-sm min-w-0 flex-1 truncate text-ink-3">
+          {activePath ?? "—"}
+        </span>
+      </span>
+      <span className="flex-1 @[620px]:hidden" />
+      <Rule />
+      <span className="t-micro tnum w-[96px] shrink-0 text-right text-ink-2">
         Ln {cursor.line}, Col {cursor.column}
       </span>
-      <span className="flex-1" />
       {/* Which document the PDF beside this strip is actually showing.  A
           fast build typesets one chapter, and a reader who does not know
           that will think pages have gone missing. */}
+      <span className="hidden shrink-0 items-center gap-3 @[500px]:flex">
+        <Rule />
+        <button
+          className="t-micro text-ink-3 hover:text-ink"
+          title="How much of the document the preview shows. Click to typeset all of it."
+          onClick={onRebuild}
+        >
+          {result && result.scope !== "full" ? "This chapter" : "Whole document"}
+        </button>
+      </span>
+      <Rule />
       <button
-        className="t-micro text-ink-3 hover:text-ink"
-        title="The preview shows this much of the document. Rebuild to see all of it."
-        onClick={onRebuild}
-      >
-        {result && result.scope !== "full" ? "This chapter" : "Whole document"}
-      </button>
-      <span className="mx-3 h-[10px] w-px bg-line" />
-      <button
-        className="t-micro tnum min-w-[92px] text-right text-ink-2 hover:text-ink"
+        className="t-micro tnum w-[92px] shrink-0 text-right text-ink-2 hover:text-ink"
         title="Click to count this file or the whole document"
         onClick={onToggleWordScope}
       >
         {words === null
-          ? "— words"
+          ? "\u2014 words"
           : `${words.toLocaleString()} ${wordScope === "document" ? "words" : "in file"}`}
-      </button>
-      <button
-        className="t-micro ml-3 hidden text-ink-2 hover:text-ink group-hover:block"
-        onClick={onRebuild}
-      >
-        Rebuild
       </button>
     </div>
   );
+}
+
+function Rule() {
+  return <span className="h-[10px] w-px shrink-0 bg-line" />;
 }

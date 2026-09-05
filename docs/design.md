@@ -398,3 +398,43 @@ Also cut, quietly: all-caps tracked eyebrow labels, `A · B · C` middle-dot met
 glyphs on buttons, monospace as decoration for small labels, and a single global
 border-radius (0 for panes, 3 for rows, 5 for cards — the radius encodes what kind of object
 you are looking at).
+
+## 8. Deviations recorded during implementation
+
+Each of these departs from the specification above. They are written down
+rather than left implicit, so the next person to read both can tell a
+decision from a drift.
+
+**Fonts are self-hosted, not loaded from Google Fonts.** §3 says "Google Fonts
+only". NextTex is a self-hosted tool that people run on a private tailnet, and
+often on a machine with no route to the public internet; a stylesheet from
+`fonts.googleapis.com` would make the app's typography depend on Google being
+reachable, and would tell Google every time someone opened their thesis. The
+three families ship as `@fontsource` packages in the bundle. The typefaces and
+their roles are unchanged.
+
+**There is one transient message, at the bottom of the shell.** §6 says "no
+toasts". It carries save and download failures only — the cases where an action
+the user took did not happen and nothing else on screen would say so. It has no
+timer: it stays until dismissed, because a failed save that fades out is worse
+than no message at all.
+
+**Editor syntax highlighting is near-monochrome.** The specification does not
+cover token colours. Commands take `--ink` at 600, comments `--ink-3` italic,
+arguments and literals `--ink-2`; no hue is introduced. The rendered page sits
+two panes away and must stay the loudest object on screen, and `--pen` stays
+reserved for the agent.
+
+**The status strip adapts to its own width by dropping segments.** §5 requires
+that the strip never reflow. The editor pane is resizable down to 420 px, where
+all six segments cannot fit on one line. Rather than wrap, segments drop out in
+reverse order of value — the file path first, since the tab above already names
+it, then the preview scope — through container queries on the strip itself.
+Every remaining segment keeps its reserved width, so nothing shifts as digits
+change.
+
+**A `Hide` control on the slide-over.** §4 describes the Claude panel becoming a
+slide-over below 1400 px but not how it is dismissed; without one it covers the
+PDF permanently. Below that width the tab bar carries a `Claude` button and the
+panel a `Hide` link, and the panel animates on `translateX` at 180 ms as
+specified.

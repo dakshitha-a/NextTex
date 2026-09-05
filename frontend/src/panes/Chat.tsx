@@ -338,19 +338,15 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
     }
   };
 
+  // The hotkeys belong to the card, not the window.  CodeMirror's content is
+  // a contenteditable div, so a window-level handler that only excludes
+  // inputs would let ordinary typing in the editor answer the card.
+  const card = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (item.decision) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (!armed) return;
-      const target = event.target as HTMLElement;
-      if (target.tagName === "TEXTAREA" || target.tagName === "INPUT") return;
-      if (event.key === "a" && !event.shiftKey) decide("allow");
-      if (event.key === "A" && event.shiftKey) decide("always");
-      if (event.key === "d") decide("deny");
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
+    const timer = window.setTimeout(() => card.current?.focus(), 350);
+    return () => window.clearTimeout(timer);
+  }, [item.decision]);
 
   if (item.decision) {
     const label =
@@ -371,8 +367,17 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
 
   return (
     <div
-      className="flex rounded-[5px] border border-line bg-surface-2"
+      ref={card}
+      tabIndex={0}
+      role="group"
+      aria-label={item.headline}
+      className="flex rounded-[5px] border border-line bg-surface-2 outline-none focus-visible:ring-1 focus-visible:ring-pen"
       style={{ animation: "permission-in 90ms var(--ease)" }}
+      onKeyDown={(event) => {
+        if (event.key === "a" && !event.shiftKey) decide("allow");
+        if (event.key === "A" && event.shiftKey) decide("always");
+        if (event.key === "d") decide("deny");
+      }}
     >
       <span className="w-[3px] shrink-0 rounded-l-[5px] bg-warn" />
       <div className="min-w-0 flex-1 p-3">
