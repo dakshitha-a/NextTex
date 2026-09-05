@@ -51,6 +51,11 @@ IGNORED_DIRS = {
     ".ipynb_checkpoints", ".nexttex", ".DS_Store",
 }
 
+# Individual files that are NextTex's own machinery rather than the user's
+# work. The preview stand-in in particular is written and rewritten on every
+# scoped build; showing it would invite someone to edit it.
+IGNORED_FILES = {".nexttex-preview.tex", ".DS_Store"}
+
 
 @dataclass
 class ProjectConfig:
@@ -168,7 +173,9 @@ class Project:
     # -- the file tree --------------------------------------------------
     def _excluded(self, path: Path) -> bool:
         name = path.name
-        if name in IGNORED_DIRS or name in set(self.config.exclude):
+        if name in IGNORED_DIRS or name in IGNORED_FILES:
+            return True
+        if name in set(self.config.exclude):
             return True
         # The build directory is excluded by configuration rather than by
         # name, since a project can call it anything.
@@ -290,7 +297,7 @@ class Registry:
                 # A project whose directory has gone is shown, not silently
                 # dropped: the user moved it, and should be told so.
                 "missing": not exists,
-                "id": Project(Path(entry.path), ProjectConfig()).id if exists else None,
+                "id": Project.open(entry.path).id if exists else None,
             })
         return result
 

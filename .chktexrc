@@ -1,0 +1,37 @@
+# chktex rules for prose-heavy LaTeX.
+#
+# Stock chktex is tuned for a different job and fires constantly on ordinary
+# academic writing. Left as shipped, its output is noise, and noise in an
+# editor's gutter trains people to ignore the gutter -- which costs more
+# than the warnings are worth.
+#
+# What stays on: the things that silently produce wrong output.
+
+# Warnings suppressed, and why.
+#   1  "Command terminated with space"       -- fires on every \LaTeX\ use
+#   8  "Wrong length of dash"                -- wrong about ranges in maths
+#  11  "You should use \\dots"               -- style, not correctness
+#  17  "Number of `character' does not match"-- false on mhchem and siunitx
+#  18  "Use `` or '' for quotes"             -- wrong inside verbatim/urls
+#  22  "Comment displayed"                   -- commented-out outlines are
+#                                               a normal way to draft
+#  30  "Multiple spaces detected"            -- alignment in tabulars
+#  36  "You should not use ~ before/after"   -- disagrees with itself
+#  44  "User-specified pattern"              -- nothing specified
+WarnOff { 1, 8, 11, 17, 18, 22, 30, 36, 44 }
+
+# What is worth interrupting for: an unmatched brace or environment, a
+# missing space after a full stop that will silently set as an abbreviation,
+# and \label/\ref hygiene.
+WarnOn { 2, 3, 12, 13, 16, 19, 23, 24, 26, 32, 38, 39, 46 }
+
+# Abbreviations that legitimately end in a period mid-sentence, so the
+# inter-sentence spacing check does not fire on them.
+Abbrev { e.g., i.e., cf., et al., etc., vs., Fig., Eq., Ref., Refs., Sec., Ch., approx., ca., viz. }
+
+# Verbatim-like environments whose contents are not LaTeX.
+VerbEnvir { verbatim, lstlisting, minted, Verbatim, alltt, comment }
+
+# Maths environments: quoting and dash rules do not apply inside them.
+MathEnvir { math, displaymath, equation, eqnarray, align, gather, multline,
+            alignat, split, array, matrix, pmatrix, bmatrix, cases }

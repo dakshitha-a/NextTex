@@ -20,6 +20,15 @@ used here at all; a fence that silently does nothing is worse than none.
 Nothing here proxies edits through the editor, because the editor autosaves
 to disk and watches it. The custom tools below exist only for the things a
 filesystem cannot express -- where the cursor is, what the compiler said.
+
+**A turn outlives the request that started it.** Everything a turn produces
+-- streamed text, tool calls, edits, permission cards -- goes into one queue
+per project, and the turn runs as its own task. Two things follow. Closing
+the browser mid-turn no longer abandons the agent halfway through, leaving
+the next message to deadlock behind a half-consumed response. And because
+permission cards travel the same queue as the text, they arrive in the order
+they happened, so a card sits after the sentence that provoked it instead of
+racing it through a side channel.
 """
 
 from __future__ import annotations
@@ -37,6 +46,7 @@ from claude_agent_sdk import (
     ClaudeSDKClient,
     HookMatcher,
     ResultMessage,
+    StreamEvent,
     SystemMessage,
     TextBlock,
     ThinkingBlock,
@@ -125,6 +135,10 @@ class ProjectAgent:
         # Edits made this turn, drained by the caller into the transcript.
         self._edits: list[EditRecord] = []
         self._file_snapshots: dict[str, str] = {}
+        # The single ordered channel every turn writes to.
+        self._events: asyncio.Queue | None = None
+        self._turn: asyncio.Task | None = None
+        self._cancelled = False
 
     # -- session persistence ---------------------------------------------
     @property
@@ -138,8 +152,13 @@ class ProjectAgent:
             return None
 
     def _save_session(self, session_id: str) -> None:
+        # Written through a temporary file: an interrupted write here would
+        # otherwise leave unparseable JSON and silently lose the whole
+        # conversation history on the next start.
         try:
-            self._session_path.write_text(json.dumps({"session_id": session_id}))
+            temp = self._session_path.with_suffix(".json.tmp")
+            temp.write_text(json.dumps({"session_id": session_id}), encoding="utf-8")
+            temp.replace(self._session_path)
         except OSError:
             pass
 
@@ -258,7 +277,11 @@ class ProjectAgent:
         decision = await self._ask_user(tool_name, tool_input)
         if decision in {"allow", "always"}:
             return self._allow()
-        return self._deny("The user declined this action.")
+        result = self._deny("The user declined this action.")
+        if self._cancelled:
+            result["continue_"] = False
+            result["stopReason"] = "Interrupted."
+        return result
 
     async def _ask_user(self, tool_name: str, tool_input: dict) -> str:
         """Put a permission card in front of the user and wait for the answer."""
@@ -281,6 +304,9 @@ class ProjectAgent:
         try:
             decision = await future
         except asyncio.CancelledError:
+            # An interrupt while a card is open must end the turn, not just
+            # refuse this one call and let the agent carry on.
+            self._cancelled = True
             return "deny"
         finally:
             self._pending.pop(request_id, None)
@@ -430,6 +456,9 @@ class ProjectAgent:
         return time.monotonic() - self._last_used if self._last_used else 0.0
 
     async def interrupt(self) -> None:
+        self._cancelled = True
+        if self._turn is not None and not self._turn.done():
+            self._turn.cancel()
         if self._client is not None:
             try:
                 await self._client.interrupt()
@@ -440,27 +469,82 @@ class ProjectAgent:
                 future.cancel()
 
     # -- the conversation ---------------------------------------------------
-    _emit_target: Callable[[dict], Any] | None = None
+    # One queue per project carries everything a turn produces, in the order
+    # it happened.  The SSE route drains it; the turn does not care whether
+    # anyone is listening.
 
-    def set_emitter(self, emit: Callable[[dict], Any]) -> None:
-        """Where events go. The server points this at the project's SSE hub."""
-        self._emit_target = emit
+    def _queue(self) -> asyncio.Queue:
+        if self._events is None:
+            self._events = asyncio.Queue()
+        return self._events
 
     async def _emit(self, event: dict) -> None:
-        if self._emit_target is not None:
-            result = self._emit_target(event)
-            if asyncio.iscoroutine(result):
-                await result
+        await self._queue().put(event)
 
-    async def ask(self, prompt: str) -> AsyncIterator[dict]:
-        """Send a message and yield events as the answer arrives."""
+    async def events(self) -> AsyncIterator[dict]:
+        """Drain the event queue. Safe to leave and re-enter mid-turn."""
+        queue = self._queue()
+        while True:
+            yield await queue.get()
+
+    @property
+    def busy(self) -> bool:
+        return self._turn is not None and not self._turn.done()
+
+    async def ask(self, prompt: str) -> None:
+        """Start a turn. Returns as soon as it is running, not when it ends.
+
+        The turn is a task so that it survives the HTTP request that
+        started it; the browser reads the result from the event stream.
+        """
+        if self.busy:
+            raise RuntimeError("a turn is already running")
+        self._cancelled = False
+        await self._emit({"type": "turn_start", "prompt": prompt})
+        self._turn = asyncio.create_task(self._run_turn(prompt))
+
+    async def _run_turn(self, prompt: str) -> None:
+        try:
+            await self._stream(prompt)
+        except asyncio.CancelledError:
+            await self._emit({"type": "done", "subtype": "interrupted"})
+            raise
+        except Exception as exc:  # a crashed turn must not stall the UI
+            await self._emit({
+                "type": "error",
+                "message": f"{type(exc).__name__}: {exc}",
+            })
+            await self._emit({"type": "done", "subtype": "error"})
+        finally:
+            self._turn = None
+
+    async def _stream(self, prompt: str) -> None:
         async with self._lock:
             self._last_used = time.monotonic()
             client = await self._ensure_client()
             await client.query(prompt)
 
-            text_open = False
+            # With include_partial_messages on, text arrives twice: as
+            # content_block_delta events and again in the completed
+            # AssistantMessage.  The deltas are what makes the reply appear
+            # as it is written, so those are rendered and the finished block
+            # is used only to close the run -- emitting both would double
+            # every sentence.
+            streaming_text = False
+
             async for message in client.receive_response():
+                if isinstance(message, StreamEvent):
+                    event = getattr(message, "event", {}) or {}
+                    if event.get("type") == "content_block_delta":
+                        delta = event.get("delta") or {}
+                        if delta.get("type") == "text_delta" and delta.get("text"):
+                            streaming_text = True
+                            await self._emit({"type": "text", "text": delta["text"]})
+                    elif event.get("type") == "content_block_stop" and streaming_text:
+                        streaming_text = False
+                        await self._emit({"type": "text_end"})
+                    continue
+
                 if isinstance(message, SystemMessage):
                     session_id = (getattr(message, "data", {}) or {}).get("session_id")
                     if session_id and session_id != self._session_id:
@@ -470,50 +554,47 @@ class ProjectAgent:
 
                 if isinstance(message, AssistantMessage):
                     for block in message.content:
-                        if isinstance(block, TextBlock) and block.text:
-                            text_open = True
-                            yield {"type": "text", "text": block.text}
-                        elif isinstance(block, ThinkingBlock):
-                            continue
-                        elif isinstance(block, ToolUseBlock):
-                            if text_open:
-                                yield {"type": "text_end"}
-                                text_open = False
-                            yield {
+                        if isinstance(block, ToolUseBlock):
+                            await self._emit({
                                 "type": "tool_use",
                                 "id": block.id,
                                 "name": block.name,
                                 "input": block.input,
-                            }
+                            })
+                        elif isinstance(block, TextBlock) and not streaming_text:
+                            # No deltas arrived for this block, so nothing has
+                            # been shown yet.
+                            if block.text:
+                                await self._emit({"type": "text", "text": block.text})
+                                await self._emit({"type": "text_end"})
                     continue
 
                 if isinstance(message, UserMessage):
-                    # Tool results come back as user messages; the edits they
-                    # produced are what the transcript actually wants.
-                    for edit in self.drain_edits():
-                        yield {
-                            "type": "edit",
-                            "path": edit.path,
-                            "before": edit.before,
-                            "after": edit.after,
-                        }
+                    # Tool results arrive as user messages; what the
+                    # transcript wants from them is the edits they produced.
+                    await self._flush_edits()
                     continue
 
                 if isinstance(message, ResultMessage):
-                    if text_open:
-                        yield {"type": "text_end"}
-                    for edit in self.drain_edits():
-                        yield {
-                            "type": "edit",
-                            "path": edit.path,
-                            "before": edit.before,
-                            "after": edit.after,
-                        }
-                    yield {
+                    await self._flush_edits()
+                    session_id = getattr(message, "session_id", None)
+                    if session_id and session_id != self._session_id:
+                        self._session_id = session_id
+                        self._save_session(session_id)
+                    await self._emit({
                         "type": "done",
                         "subtype": message.subtype,
                         "costUsd": getattr(message, "total_cost_usd", None),
                         "durationMs": getattr(message, "duration_ms", None),
-                    }
+                    })
                     self._last_used = time.monotonic()
                     return
+
+    async def _flush_edits(self) -> None:
+        for edit in self.drain_edits():
+            await self._emit({
+                "type": "edit",
+                "path": edit.path,
+                "before": edit.before,
+                "after": edit.after,
+            })
