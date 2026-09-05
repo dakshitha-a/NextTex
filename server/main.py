@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from nexttex import claude_auth, synctex
 from nexttex.compile import CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
+from nexttex.context import KINDS
 from nexttex.project import IGNORED_FILES, Project, Registry
 from server.session import ProjectSession
 
@@ -374,6 +375,92 @@ async def upload(project_id: str, directory: str = Form(""), files: list[UploadF
     return {"written": written}
 
 
+# ---------------------------------------------------------------------------
+# Project context: the template, the voice samples, the background reading
+#
+# These documents are not part of the manuscript and must not land in the
+# project directory: they are what the agent reads *about* the writing, and
+# they live under .nexttex/context/ instead.
+
+
+@app.get("/api/projects/{project_id}/context")
+async def list_context(project_id: str):
+    session = session_for(project_id)
+    return {
+        "documents": [d.as_dict() for d in session.context.documents()],
+        "stale": session.context.needs_distillation(),
+    }
+
+
+@app.post("/api/projects/{project_id}/context")
+async def add_context(
+    project_id: str,
+    kind: str = Form(...),
+    note: str = Form(""),
+    files: list[UploadFile] = File(...),
+):
+    session = session_for(project_id)
+    if kind not in KINDS:
+        raise HTTPException(400, f"kind must be one of {', '.join(KINDS)}")
+    added = []
+    for item in files:
+        data = await item.read()
+        document = session.context.add(
+            kind, Path(item.filename or "upload").name, data, note
+        )
+        added.append(document.as_dict())
+    await session.events.publish({"type": "context_changed"})
+    return {"added": added, "stale": session.context.needs_distillation()}
+
+
+@app.delete("/api/projects/{project_id}/context/{document_id}")
+async def remove_context(project_id: str, document_id: str):
+    session = session_for(project_id)
+    removed = session.context.remove(document_id)
+    if not removed:
+        raise HTTPException(404, "no such document")
+    await session.events.publish({"type": "context_changed"})
+    return {"ok": True}
+
+
+@app.get("/api/projects/{project_id}/context/{document_id}/file")
+async def context_file(project_id: str, document_id: str, text: bool = False):
+    session = session_for(project_id)
+    documents = {d.id: d for d in session.context.documents()}
+    document = documents.get(document_id)
+    if document is None:
+        raise HTTPException(404, "no such document")
+    if text:
+        return {"text": session.context.extracted_text(document)}
+    path = session.context.stored_path(document)
+    if path is None or not path.is_file():
+        raise HTTPException(404, "the stored file is missing")
+    return FileResponse(
+        path, filename=document.filename,
+        media_type=mimetypes.guess_type(document.filename)[0]
+        or "application/octet-stream",
+    )
+
+
+@app.post("/api/projects/{project_id}/context/distill")
+async def distill_context(project_id: str, kind: str = Body(..., embed=True)):
+    """Turn uploaded documents into the short summary the agent actually reads.
+
+    The documents themselves are far too long to sit in every prompt: a
+    handbook is ninety pages. The agent reads them once, here, and writes a
+    page of rules that goes into the system prompt from then on.
+    """
+    session = session_for(project_id)
+    if kind not in {"style", "voice"}:
+        raise HTTPException(400, "kind must be style or voice")
+    request = session.context.distillation_request(kind)
+    if request is None:
+        raise HTTPException(400, f"no {kind} documents to read")
+    prompt, output = request
+    await session.agent.ask(prompt)
+    return {"started": True, "writes": str(output)}
+
+
 @app.get("/api/projects/{project_id}/download")
 async def download(project_id: str, path: str = "", format: str = "auto"):
     """Take a copy away: one file, a folder, the whole project, or its PDF.
@@ -545,6 +632,41 @@ async def synctex_forward(project_id: str, path: str, line: int, column: int = 0
         {"page": p.page, "x": p.x, "y": p.y, "width": p.width, "height": p.height}
         for p in positions
     ]}
+
+
+@app.get("/api/projects/{project_id}/words")
+async def words(project_id: str, path: str = "", scope: str = "file"):
+    """A word count that ignores markup, from texcount.
+
+    Counting words in a .tex file with a regular expression counts control
+    sequences and maths as prose, which is wrong by thousands on a thesis.
+    texcount complains about a preamble it cannot parse and still counts
+    correctly, so its warnings go to stderr and are ignored.
+    """
+    session = session_for(project_id)
+    if not shutil.which("texcount"):
+        return {"words": None, "scope": scope}
+    argv = ["texcount", "-q", "-total", "-1", "-sum"]
+    if scope == "document":
+        argv += ["-inc", str(session.paths.main)]
+    else:
+        if not path:
+            return {"words": None, "scope": scope}
+        argv.append(str(_safe(session, path)))
+    try:
+        out = subprocess.run(
+            argv, capture_output=True, text=True, timeout=45,
+            cwd=session.project.root,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {"words": None, "scope": scope}
+    total = None
+    for line in out.splitlines():
+        digits = line.strip()
+        if digits.isdigit():
+            total = int(digits)
+            break
+    return {"words": total, "scope": scope}
 
 
 @app.get("/api/projects/{project_id}/lint")

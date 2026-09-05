@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+@import "@fontsource/source-sans-3/400.css";
+@import "@fontsource/source-sans-3/500.css";
+@import "@fontsource/source-sans-3/600.css";
+@import "@fontsource/source-serif-4/400.css";
+@import "@fontsource/source-serif-4/400-italic.css";
+@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/source-code-pro/400.css";
+@import "@fontsource/source-code-pro/600.css";
+
+/* --------------------------------------------------------------------------
+   Palette.  The light theme is authored on bare :root so it applies in the
+   un-stamped state as well; dark redefines only the tokens.  --paper is not
+   themed: it is painted by PDF.js and is white in both themes, which is the
+   whole point of the grey surround.
+   ----------------------------------------------------------------------- */
+:root {
+  --surround: #d8dcd8;
+  --surface: #edf0ec;
+  --surface-2: #e2e6e1;
+  --ink: #191c1a;
+  --ink-2: #565c58;
+  --ink-3: #676d68;
+  --pen: #74408e;
+  --error: #a32a26;
+  --warn: #7e6410;
+  --ok: #2f6a4a;
+
+  --paper: #ffffff;
+  --line: color-mix(in oklab, var(--ink-3) 35%, transparent);
+  --pen-wash: color-mix(in oklab, var(--pen) 12%, transparent);
+  --page-shadow: none;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surround: #141715;
+    --surface: #1a1e1b;
+    --surface-2: #222623;
+    --ink: #dde2dd;
+    --ink-2: #99a19b;
+    --ink-3: #838b84;
+    --pen: #c48eda;
+    --error: #ef7167;
+    --warn: #cba84a;
+    --ok: #63be92;
+    --page-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --surround: #141715;
+  --surface: #1a1e1b;
+  --surface-2: #222623;
+  --ink: #dde2dd;
+  --ink-2: #99a19b;
+  --ink-3: #838b84;
+  --pen: #c48eda;
+  --error: #ef7167;
+  --warn: #cba84a;
+  --ok: #63be92;
+  --page-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+/* `inline` is what makes bg-surface follow the theme rather than baking in
+   whatever the token happened to be at build time. */
+@theme inline {
+  --color-surround: var(--surround);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-pen: var(--pen);
+  --color-pen-wash: var(--pen-wash);
+  --color-error: var(--error);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+  --color-line: var(--line);
+  --color-paper: var(--paper);
+
+  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
+  --font-mono: "Source Code Pro", ui-monospace, SFMono-Regular, monospace;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--surround);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ---- type roles from the spec, as utilities ---------------------------- */
+.t-micro { font-size: 11px; line-height: 16px; font-weight: 500;
+  letter-spacing: 0.004em; font-variant-numeric: tabular-nums; }
+.t-meta  { font-size: 12px; line-height: 18px; }
+.t-ui    { font-size: 13px; line-height: 20px; }
+.t-ui-lg { font-size: 15px; line-height: 22px; font-weight: 600; }
+.t-prose { font-family: var(--font-serif); font-size: 14.5px; line-height: 23.5px;
+  max-width: 68ch; }
+.t-code  { font-family: var(--font-mono); font-size: 13.5px; line-height: 22px; }
+.t-code-sm { font-family: var(--font-mono); font-size: 12px; line-height: 18px; }
+.t-display { font-family: var(--font-serif); font-size: 22px; line-height: 28px;
+  font-weight: 600; letter-spacing: -0.01em; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+button { font: inherit; color: inherit; }
+input, textarea { font: inherit; color: inherit; background: transparent; }
+:focus-visible { outline: 1px solid var(--pen); outline-offset: 1px; }
+::selection { background: var(--pen-wash); }
+
+/* Scrollbars: present, quiet, and never a layout shift. */
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ---- CodeMirror ------------------------------------------------------- */
+.cm-editor { height: 100%; background: var(--surface); color: var(--ink); }
+.cm-editor .cm-scroller { font-family: var(--font-mono); font-size: 13.5px;
+  line-height: 22px; }
+.cm-editor .cm-gutters { background: var(--surface); color: var(--ink-3);
+  border-right: none; font-size: 11px; }
+.cm-editor .cm-activeLineGutter { background: transparent; color: var(--ink-2); }
+.cm-editor .cm-activeLine { background: color-mix(in oklab, var(--ink-3) 7%, transparent); }
+.cm-editor .cm-cursor { border-left-color: var(--ink); }
+.cm-editor .cm-selectionBackground,
+.cm-editor.cm-focused .cm-selectionBackground { background: var(--pen-wash) !important; }
+.cm-editor .cm-content { padding: 6px 0 40vh 0; }
+/* Diagnostic marks: a 3px bar in the gutter, a dotted underline in the text.
+   Dotted, not wavy -- a wavy underline under 13.5px LaTeX is mush. */
+.cm-gutter-error { box-shadow: inset 3px 0 0 var(--error); }
+.cm-gutter-warn  { box-shadow: inset 3px 0 0 var(--warn); }
+.cm-mark-error { text-decoration: underline dotted var(--error) 1.5px;
+  text-underline-offset: 3px; }
+.cm-mark-warn { text-decoration: underline dotted var(--warn) 1.5px;
+  text-underline-offset: 3px; }
+.cm-line-flash { background: var(--pen-wash); }
+.cm-editor .cm-lint-marker { display: none; }
+.cm-tooltip { background: var(--surface-2) !important; color: var(--ink);
+  border: 1px solid var(--line) !important; border-radius: 3px; font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-property: opacity !important; }
+}
+
+@keyframes sweep { 0% { left: -30% } 100% { left: 100% } }
+.hairline::after {
+  content: ""; position: absolute; top: 0; height: 2px; width: 30%;
+  background: var(--pen); animation: sweep 900ms linear infinite;
+}
+@keyframes blink { 50% { opacity: 0 } }
+.caret-paused { animation: blink 1.06s steps(1) infinite; }
+
+/* ---- PDF pane --------------------------------------------------------- */
+.nx-page {
+  position: relative;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: var(--page-shadow);
+}
+.nx-flash {
+  position: absolute;
+  background: var(--pen-wash);
+  outline: 1px solid var(--pen);
+  pointer-events: none;
+  transition: opacity 700ms var(--ease);
+}
+
+@keyframes permission-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
