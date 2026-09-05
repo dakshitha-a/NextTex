@@ -385,8 +385,11 @@ function ClaudeMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> }
   return (
     <div
       className="flex"
+      tabIndex={0}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onFocus={() => setHover(true)}
+      onBlur={() => setHover(false)}
     >
       <span className="w-[3px] shrink-0 bg-pen" />
       <div className="ml-3 min-w-0 flex-1">

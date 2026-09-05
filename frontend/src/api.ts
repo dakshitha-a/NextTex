@@ -133,8 +133,17 @@ const api = {
 
   compile: (id: string, full = false) =>
     request<CompileResult>(`/projects/${id}/compile`, json({ full })),
-  setFocus: (id: string, file: string, line?: number, column?: number) =>
-    request<any>(`/projects/${id}/editor`, json({ file, line, column })),
+  setFocus: (
+    id: string,
+    file: string,
+    line?: number,
+    column?: number,
+    selection?: string,
+  ) =>
+    request<any>(
+      `/projects/${id}/editor`,
+      json({ file, line, column, selection }),
+    ),
   words: (id: string, path: string, scope: "file" | "document") =>
     request<{ words: number | null; scope: string }>(
       `/projects/${id}/words?scope=${scope}&path=${encodeURIComponent(path)}`,

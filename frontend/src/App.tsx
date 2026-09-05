@@ -6,6 +6,7 @@ import {
   get,
   handlers,
   refreshContext,
+  refreshGit,
   replayTranscript,
   set,
   useStore,
@@ -166,6 +167,9 @@ export default function App() {
       refreshTree();
       for (const path of paths) editor.current?.reload(path);
     };
+    handlers.onReveal = (path, line) => {
+      openFile(path, line);
+    };
     handlers.onAgentEdit = (path) => {
       editor.current?.reload(path);
       refreshTree();
@@ -179,16 +183,24 @@ export default function App() {
     };
     return () => {
       handlers.onFilesChanged = undefined;
+      handlers.onReveal = undefined;
       handlers.onAgentEdit = undefined;
       handlers.onCompileDone = undefined;
     };
-  }, [refreshTree, drawerDismissed]);
+  }, [refreshTree, drawerDismissed, openFile]);
 
   useEffect(() => () => disconnect(), []);
 
   // Word counts are cheap but not free, so they follow the build rather
   // than every keystroke.
   const compileResult = useStore((s) => s.compile);
+  const git = useStore((s) => s.git);
+
+  // Roughly as often as the files on disk change, and it costs one
+  // `git status`.
+  useEffect(() => {
+    if (projectId) refreshGit(projectId);
+  }, [projectId, compileResult]);
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
@@ -452,6 +464,9 @@ export default function App() {
             ) : null}
           </div>
           <Status
+            // §4: nothing is lost when the rail folds -- the dirty count
+            // comes here instead of disappearing with the git panel.
+            git={railFolded && git?.repository ? git : null}
             words={words}
             wordScope={wordScope}
             onToggleWordScope={() =>

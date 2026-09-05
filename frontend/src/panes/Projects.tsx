@@ -80,8 +80,8 @@ export default function Projects({
   };
 
   return (
-    <div className="flex h-full flex-col items-center overflow-auto bg-surround px-6 py-10">
-      <div className="w-full max-w-[680px]">
+    <div className="flex h-full flex-col items-center justify-center overflow-auto bg-surround px-6 py-10">
+      <div className="my-auto w-full max-w-[680px]">
         <div className="flex items-baseline justify-between">
           <div>
             <h1 className="t-display">NextTex</h1>

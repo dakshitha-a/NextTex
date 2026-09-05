@@ -38,6 +38,7 @@ export default function Editor({
   const buffers = useRef(new Map<string, Buffer>());
   const current = useRef<string | null>(null);
   const timer = useRef<number | null>(null);
+  const focusTimer = useRef<number | null>(null);
   const openRef = useRef<((path: string, line?: number) => Promise<void>) | null>(null);
   // The parent hands us a new callback on every render.  Holding it in a ref
   // keeps the setup effect at zero dependencies, which matters more than it
@@ -109,11 +110,24 @@ export default function Editor({
       }, SAVE_DELAY);
     };
 
-    const onCursor = (line: number, column: number) => {
+    const onCursor = (line: number, column: number, selection: string) => {
       const cursor = get().cursor;
       if (cursor.line !== line || cursor.column !== column) {
         set({ cursor: { line, column } });
       }
+      // Where the user is looking, told to the server on a delay: it is
+      // what the agent's "here" and "this" resolve to, and it changes on
+      // every keystroke.
+      if (focusTimer.current !== null) window.clearTimeout(focusTimer.current);
+      focusTimer.current = window.setTimeout(() => {
+        focusTimer.current = null;
+        const projectId = get().projectId;
+        const path = current.current;
+        if (!projectId || !path) return;
+        api
+          .setFocus(projectId, path, line, column, selection)
+          .catch(() => undefined);
+      }, 400);
     };
 
     const ext = extensions(onChange, onCursor);
@@ -255,6 +269,7 @@ export default function Editor({
     return () => {
       window.removeEventListener("pagehide", onLeave);
       cancelTimer();
+      if (focusTimer.current !== null) window.clearTimeout(focusTimer.current);
       view.current?.destroy();
       view.current = null;
     };

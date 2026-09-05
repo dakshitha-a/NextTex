@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../api";
-import { get, set, useStore } from "../store";
+import { get, refreshGit, set, useStore } from "../store";
 
-type Status = Awaited<ReturnType<typeof api.git>>;
+
 
 /** The rail footer: what has changed, and how to get it somewhere safe.
  *
@@ -13,8 +13,7 @@ type Status = Awaited<ReturnType<typeof api.git>>;
 export default function GitPanel() {
   const projectId = useStore((s) => s.projectId);
   const projectName = useStore((s) => s.projectName);
-  const compile = useStore((s) => s.compile);
-  const [status, setStatus] = useState<Status | null>(null);
+  const status = useStore((s) => s.git);
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
@@ -24,19 +23,8 @@ export default function GitPanel() {
   const [token, setToken] = useState("");
 
   const refresh = useCallback(async () => {
-    if (!projectId) return;
-    try {
-      setStatus(await api.git(projectId));
-    } catch {
-      setStatus(null);
-    }
+    if (projectId) await refreshGit(projectId);
   }, [projectId]);
-
-  // After every build is often enough: that is roughly how often the files
-  // on disk change, and it costs one `git status`.
-  useEffect(() => {
-    refresh();
-  }, [refresh, compile]);
 
   useEffect(() => {
     if (!projectId) return;

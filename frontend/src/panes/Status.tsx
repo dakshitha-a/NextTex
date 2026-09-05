@@ -11,12 +11,18 @@ export default function Status({
   words,
   wordScope,
   onToggleWordScope,
+  git,
 }: {
   onToggleDrawer: () => void;
   onRebuild: () => void;
   words: number | null;
   wordScope: "file" | "document";
   onToggleWordScope: () => void;
+  git: {
+    branch: string;
+    ahead: number;
+    changes: { state: string; path: string }[];
+  } | null;
 }) {
   const compiling = useStore((s) => s.compiling);
   const result = useStore((s) => s.compile);
@@ -90,6 +96,16 @@ export default function Status({
         </span>
       </span>
       <span className="flex-1 @[760px]:hidden" />
+      {git ? (
+        <span className="hidden shrink-0 items-center gap-3 @[560px]:flex">
+          <Rule />
+          <span className="nx-mono-11 text-ink-2">
+            {git.branch}
+            {git.changes.length ? ` +${git.changes.length}` : ""}
+            {git.ahead ? ` ↑${git.ahead}` : ""}
+          </span>
+        </span>
+      ) : null}
       <Rule />
       <span className="t-micro tnum w-[96px] shrink-0 text-right text-ink-2">
         Ln {cursor.line}, Col {cursor.column}

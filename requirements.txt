@@ -8,3 +8,4 @@ python-multipart>=0.0.9      # file uploads
 watchfiles>=0.21             # project file watching
 claude-agent-sdk>=0.2.150    # the writing agent
 tomli>=2.0; python_version < "3.11"
+requests>=2.31             # scholarly lookups for the reference tools

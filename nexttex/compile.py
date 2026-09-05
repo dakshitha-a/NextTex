@@ -311,19 +311,7 @@ class CompileScheduler:
         # output directory; the engine will not create those directories.
         self._mirror_build_tree(main_source)
 
-        if full_pass:
-            argv = [
-                "latexmk", "-pdf", "-interaction=nonstopmode", "-file-line-error",
-                "-synctex=1", f"-jobname={self.paths.jobname}",
-                f"-outdir={self.paths.build_dir}", str(source_file),
-            ]
-        else:
-            argv = [
-                "pdflatex", "-interaction=nonstopmode", "-file-line-error",
-                "-synctex=1", f"-jobname={self.paths.jobname}",
-                f"-output-directory={self.paths.build_dir}", str(source_file),
-            ]
-
+        argv = self.full_argv(source_file) if full_pass else self.fast_argv(source_file)
         env = {**os.environ, **LOG_ENV}
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -391,6 +379,31 @@ class CompileScheduler:
             outcome, log, pdf, time.monotonic() - started, scope,
             "full" if full_pass else "fast",
         )
+
+    def full_argv(self, source_file: Path) -> list[str]:
+        """latexmk with biber: citations, cross-references, the lot.
+
+        latexmk accepts `-synctex=1` and then does not pass it on to the
+        engine, so a full build produced a PDF carrying no synctex data and
+        double-click navigation silently stopped working -- which is exactly
+        what happens the moment a citation is added.  Handing the engine its
+        own command line is the only reliable way to get it back.
+        """
+        return [
+            "latexmk", "-pdf", "-interaction=nonstopmode", "-file-line-error",
+            "-pdflatex=pdflatex -synctex=1 -interaction=nonstopmode "
+            "-file-line-error %O %S",
+            f"-jobname={self.paths.jobname}",
+            f"-outdir={self.paths.build_dir}", str(source_file),
+        ]
+
+    def fast_argv(self, source_file: Path) -> list[str]:
+        """One pdflatex pass: what an ordinary edit gets."""
+        return [
+            "pdflatex", "-interaction=nonstopmode", "-file-line-error",
+            "-synctex=1", f"-jobname={self.paths.jobname}",
+            f"-output-directory={self.paths.build_dir}", str(source_file),
+        ]
 
     SCOPE_MARKER = ".nexttex-scope"
 

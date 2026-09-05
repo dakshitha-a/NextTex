@@ -19,15 +19,14 @@ export default function Tabs({
   const activePath = useStore((s) => s.activePath);
   const diagnostics = useStore((s) => s.diagnostics);
 
-  const withErrors = useMemo(
-    () =>
-      new Set(
-        diagnostics
-          .filter((item) => item.severity === "error" && item.file)
-          .map((item) => item.file as string),
-      ),
-    [diagnostics],
-  );
+  const errorCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of diagnostics) {
+      if (item.severity !== "error" || !item.file) continue;
+      counts.set(item.file, (counts.get(item.file) ?? 0) + 1);
+    }
+    return counts;
+  }, [diagnostics]);
 
   const strip = useRef<HTMLDivElement | null>(null);
   const [hidden, setHidden] = useState(0);
@@ -71,14 +70,18 @@ export default function Tabs({
         const stem = dot > 0 ? name.slice(0, dot) : name;
         const extension = dot > 0 ? name.slice(dot) : "";
         const active = tab.path === activePath;
-        const bad = withErrors.has(tab.path);
+        const errors = errorCounts.get(tab.path) ?? 0;
         return (
           <div
             key={tab.path}
             data-tab="1"
             role="tab"
             aria-selected={active}
-            title={tab.path}
+            title={
+              errors
+                ? `${tab.path} — ${errors} ${errors === 1 ? "error" : "errors"}`
+                : tab.path
+            }
             className={[
               "relative flex min-w-[96px] max-w-[200px] shrink-0 cursor-pointer items-center gap-2 border-r border-line px-[10px]",
               active ? "bg-surface" : "border-b border-line",
@@ -96,9 +99,16 @@ export default function Tabs({
             ) : null}
             <span className="t-meta min-w-0 flex-1 truncate">
               <span className="text-ink">{middleTruncate(stem, 18)}</span>
-              <span className={bad ? "text-error" : "text-ink-3"}>{extension}</span>
-              {bad ? (
-                <span className="ml-1 inline-block h-[3px] w-[3px] translate-y-[-2px] rounded-full bg-error" />
+              <span className={errors ? "text-error" : "text-ink-3"}>{extension}</span>
+              {errors ? (
+                // A number, not a coloured dot: the count says the same
+                // thing without depending on being able to see the colour.
+                <span
+                  className="t-micro tnum ml-[6px] text-error"
+                  title={`${errors} ${errors === 1 ? "error" : "errors"} in this file`}
+                >
+                  {errors}
+                </span>
               ) : null}
             </span>
             <button
