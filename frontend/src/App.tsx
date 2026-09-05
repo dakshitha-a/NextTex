@@ -66,6 +66,8 @@ export default function App() {
   const pdf = useRef<PdfHandle | null>(null);
   const chat = useRef<ChatHandle | null>(null);
   const shell = useRef<HTMLDivElement | null>(null);
+  const editorPane = useRef<HTMLDivElement | null>(null);
+  const pdfPane = useRef<HTMLDivElement | null>(null);
 
   const projectId = useStore((s) => s.projectId);
   const projectName = useStore((s) => s.projectName);
@@ -236,43 +238,76 @@ export default function App() {
   }, [activePath]);
 
   // ---- pane dragging ----------------------------------------------------
-  const startDrag = (which: "rail" | "split" | "chat") => (event: React.PointerEvent) => {
-    event.preventDefault();
-    const box = shell.current?.getBoundingClientRect();
-    if (!box) return;
-    const move = (moveEvent: PointerEvent) => {
-      const x = moveEvent.clientX - box.left;
-      setWidths((current) => {
-        if (which === "rail") {
-          return { ...current, rail: Math.min(Math.max(x, 180), 400) };
+  // Minimum widths, in pixels.  The panes carry these as CSS too; the drag
+  // has to know them or it computes ratios the layout cannot honour.
+  const MIN_EDITOR = 420;
+  const MIN_PDF = 320;
+
+  const startDrag =
+    (which: "rail" | "split" | "chat") => (event: React.PointerEvent) => {
+      event.preventDefault();
+      // Measure what the panes actually are, then move them by how far the
+      // pointer has travelled since the last frame -- re-anchoring whenever
+      // a minimum width stops the movement.
+      //
+      // Without the re-anchoring, dragging past a stop lets the cursor run
+      // away from the pane: a pointer 400 px beyond the limit has to travel
+      // all 400 px back before anything moves, which reads as the handle
+      // being stuck in the direction you now want to go.  Re-anchoring
+      // means the pane starts moving the instant you reverse.
+      const bounds =
+        which === "rail"
+          ? { min: 180, max: 400 }
+          : which === "chat"
+            ? { min: 320, max: 560 }
+            : { min: MIN_EDITOR, max: 0 };
+
+      const editorWidth = editorPane.current?.getBoundingClientRect().width ?? 0;
+      const pdfWidth = pdfPane.current?.getBoundingClientRect().width ?? 0;
+      const pair = editorWidth + pdfWidth;
+      if (which === "split") bounds.max = Math.max(pair - MIN_PDF, MIN_EDITOR);
+
+      let anchorX = event.clientX;
+      let anchorWidth =
+        which === "rail"
+          ? widthsRef.current.rail
+          : which === "chat"
+            ? widthsRef.current.chat
+            : editorWidth;
+
+      const move = (moveEvent: PointerEvent) => {
+        const direction = which === "chat" ? -1 : 1;
+        const wanted = anchorWidth + direction * (moveEvent.clientX - anchorX);
+        const settled = Math.min(Math.max(wanted, bounds.min), bounds.max);
+        if (settled !== wanted) {
+          anchorX = moveEvent.clientX;
+          anchorWidth = settled;
         }
-        if (which === "chat") {
-          const width = box.width - x;
-          return { ...current, chat: Math.min(Math.max(width, 320), 560) };
+        setWidths((current) => {
+          if (which === "rail") return { ...current, rail: settled };
+          if (which === "chat") return { ...current, chat: settled };
+          if (pair <= 0) return current;
+          return { ...current, editor: settled / pair };
+        });
+      };
+
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        const id = get().projectId;
+        if (id) {
+          window.localStorage.setItem(
+            `nexttex.widths.${id}`,
+            JSON.stringify(widthsRef.current),
+          );
         }
-        const rail = railHidden ? 0 : current.rail;
-        const available = box.width - rail - (chatOver ? 0 : current.chat);
-        const fraction = (x - rail) / available;
-        return { ...current, editor: Math.min(Math.max(fraction, 0.25), 0.75) };
-      });
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
     };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      const id = get().projectId;
-      if (id) {
-        window.localStorage.setItem(
-          `nexttex.widths.${id}`,
-          JSON.stringify(get_widths()),
-        );
-      }
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
+
   const widthsRef = useRef(widths);
   widthsRef.current = widths;
-  const get_widths = () => widthsRef.current;
 
   useEffect(() => {
     setChatOver(narrow);
@@ -404,6 +439,7 @@ export default function App() {
           <Collapsed label="Source" side="left" onExpand={() => fold("editor")} />
         ) : null}
         <div
+          ref={editorPane}
           className={`nx-pane flex min-h-0 flex-col bg-surface ${
             tight
               ? showing === "source"
@@ -499,6 +535,7 @@ export default function App() {
         )}
 
         <div
+          ref={pdfPane}
           className={`nx-pane flex min-h-0 flex-col ${
             tight
               ? showing === "preview"
@@ -518,7 +555,15 @@ export default function App() {
           }
         >
           {!tight ? (
-            <div className="flex h-[32px] shrink-0 items-center gap-2 border-b border-line bg-surface-2 pl-2 pr-1">
+            <div
+              className="flex h-[32px] shrink-0 cursor-pointer items-center gap-2 border-b border-line bg-surface-2 pl-2 pr-1 transition-colors duration-[90ms] hover:bg-surface-3"
+              title="Fold the preview away"
+              onClick={(event) => {
+                // The header is the control; the chip inside it is not.
+                if ((event.target as HTMLElement).closest("button")) return;
+                fold("pdf");
+              }}
+            >
               {railFolded && folded.editor ? (
                 <AppControls
                   theme={theme}
