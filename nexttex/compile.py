@@ -1,0 +1,337 @@
+"""Compiling LaTeX fast enough that the preview feels live.
+
+A compile runs every time typing pauses, so the budget is about a second.
+Three decisions get it there.
+
+**Only rebuild what changed.** A document that uses `\\include` can be
+compiled one chapter at a time with `\\includeonly`, which on a
+seven-chapter dissertation halves the work. Whether that applies is
+detected from the source, never assumed.
+
+**Only run biber when citations changed.** Biber dominates a full build.
+Reference resolution matters when the bibliography moves, not on every
+keystroke, so the expensive path is triggered by what the edit touched.
+
+**Never let two runs share a build directory.** A new keystroke kills the
+run in flight -- the whole process group, because latexmk spawns children
+that outlive it otherwise -- before starting the next.
+
+The one non-obvious mechanism here is the stand-in main file. `\\includeonly`
+has to sit in the preamble, so scoping a build to one chapter means either
+editing the user's main file on every keystroke or compiling something else.
+Editing it is not acceptable: the editor would see its own file change under
+it, and every keystroke would dirty the git working tree. So the compiler
+writes `.nexttex-preview.tex` beside the real main file -- beside it, because
+`\\include` paths resolve relative to the main file's directory -- and runs
+that under `-jobname=<main>` so the aux files, the PDF and the SyncTeX map
+all keep their usual names and stay shared with a full build.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import re
+import signal
+import time
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+
+from .latexlog import ParsedLog, parse as parse_log
+
+SHADOW_NAME = ".nexttex-preview.tex"
+
+# TeX wraps its log at 79 columns by default, splitting messages and paths
+# mid-word.  Raising the limit is what lets latexlog.py read whole lines
+# instead of stitching fragments back together.
+LOG_ENV = {
+    "max_print_line": "1000",
+    "error_line": "254",
+    "half_error_line": "238",
+}
+
+INCLUDE_RE = re.compile(r"^[^%\n]*\\include\{([^}]*)\}", re.M)
+INCLUDEONLY_RE = re.compile(r"^%?\s*\\includeonly\{[^}]*\}\s*$", re.M)
+DOCUMENTCLASS_RE = re.compile(r"^[^%\n]*\\documentclass[^\n]*\n", re.M)
+
+# Edits that make a one-pass build insufficient.  Citations and labels need
+# the bibliography and the aux file to catch up; preamble changes can alter
+# anything downstream.
+FULL_BUILD_TRIGGERS = re.compile(
+    r"\\(?:cite|citep|citet|autocite|textcite|parencite|nocite"
+    r"|label|ref|eqref|pageref|autoref|cref|Cref"
+    r"|bibliography|addbibresource|printbibliography"
+    r"|usepackage|documentclass|newcommand|renewcommand|def)\b"
+)
+
+
+class Outcome(str, Enum):
+    OK = "ok"
+    ERRORS = "errors"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+    NO_ENGINE = "no_engine"
+
+
+@dataclass
+class CompileResult:
+    outcome: Outcome
+    log: ParsedLog | None
+    pdf: Path | None
+    duration: float
+    scope: str          # "full" or the chapter stem the build was limited to
+    engine_pass: str    # "fast" (one pdflatex) or "full" (latexmk + biber)
+
+    def as_dict(self) -> dict:
+        return {
+            "outcome": self.outcome.value,
+            "durationMs": round(self.duration * 1000),
+            "scope": self.scope,
+            "enginePass": self.engine_pass,
+            "pdf": str(self.pdf) if self.pdf else None,
+            **(self.log.as_dict() if self.log else
+               {"diagnostics": [], "errorCount": 0, "warningCount": 0, "rawTail": ""}),
+        }
+
+
+@dataclass
+class ProjectPaths:
+    root: Path
+    main: Path
+    build_dir: Path
+
+    @property
+    def jobname(self) -> str:
+        return self.main.stem
+
+    @property
+    def pdf(self) -> Path:
+        return self.build_dir / f"{self.jobname}.pdf"
+
+    @property
+    def log(self) -> Path:
+        return self.build_dir / f"{self.jobname}.log"
+
+    @property
+    def shadow(self) -> Path:
+        return self.root / SHADOW_NAME
+
+
+def supports_partial(main_source: str) -> bool:
+    """Can this document be compiled one chapter at a time?
+
+    Only if it actually uses `\\include`.  `\\input` cannot be scoped this
+    way, and guessing wrong produces a document missing its body.
+    """
+    return bool(INCLUDE_RE.search(main_source))
+
+
+def included_targets(main_source: str) -> list[str]:
+    return INCLUDE_RE.findall(main_source)
+
+
+def chapter_for(path: Path, root: Path, targets: list[str]) -> str | None:
+    """Which `\\include` target, if any, does this file belong to?"""
+    try:
+        rel = path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return None
+    stem = str(rel.with_suffix(""))
+    for target in targets:
+        # An exact match, or a file sitting in the same chapter directory
+        # (its supporting information, say).
+        if stem == target or stem.startswith(target.rsplit("/", 1)[0] + "/"):
+            return target
+    return None
+
+
+def write_shadow(paths: ProjectPaths, only: str | None) -> Path:
+    """Write the stand-in main file, scoped to one chapter or to everything.
+
+    Returns the file to hand the engine -- the real main file when no
+    scoping is needed, so an ordinary full build touches nothing extra.
+    """
+    if only is None:
+        return paths.main
+
+    source = paths.main.read_text(encoding="utf-8", errors="replace")
+    directive = f"\\includeonly{{{only}}}"
+    if INCLUDEONLY_RE.search(source):
+        source = INCLUDEONLY_RE.sub(lambda _m: directive, source, count=1)
+    else:
+        match = DOCUMENTCLASS_RE.search(source)
+        if not match:
+            # No \documentclass means this is not a compilable main file;
+            # fall back rather than produce something broken.
+            return paths.main
+        source = source[: match.end()] + directive + "\n" + source[match.end():]
+
+    paths.shadow.write_text(source, encoding="utf-8")
+    return paths.shadow
+
+
+class CompileScheduler:
+    """Serialises builds for one project.
+
+    Exactly one build runs at a time.  A request arriving mid-build cancels
+    the one in flight rather than queueing behind it, because by the time a
+    superseded build finished, its PDF would already be stale.
+    """
+
+    def __init__(self, paths: ProjectPaths, timeout: float = 120.0):
+        self.paths = paths
+        self.timeout = timeout
+        self._process: asyncio.subprocess.Process | None = None
+        self._lock = asyncio.Lock()
+        self._generation = 0
+        # Set when an edit touches citations, labels or the preamble; the
+        # next build then takes the full path and clears it.
+        self._needs_full = True   # the first build of a session always is
+
+    def note_edit(self, path: Path, text: str | None = None) -> None:
+        """Record what an edit touched, so the next build picks the right path."""
+        if path.suffix.lower() in {".bib"}:
+            self._needs_full = True
+            return
+        if path.resolve() == self.paths.main.resolve():
+            self._needs_full = True
+            return
+        if text is not None and FULL_BUILD_TRIGGERS.search(text):
+            self._needs_full = True
+
+    async def cancel(self) -> None:
+        """Stop the build in flight, including anything it spawned."""
+        proc = self._process
+        if proc is None or proc.returncode is not None:
+            return
+        try:
+            # latexmk spawns pdflatex and biber; killing only the parent
+            # leaves them writing into the build directory.
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            return
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=3)
+        except asyncio.TimeoutError:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+    async def build(
+        self, focus: Path | None = None, force_full: bool = False
+    ) -> CompileResult:
+        """Compile, scoped to `focus`'s chapter when that is possible."""
+        self._generation += 1
+        generation = self._generation
+        await self.cancel()
+
+        async with self._lock:
+            if generation != self._generation:
+                # Superseded while waiting for the lock.
+                return CompileResult(Outcome.CANCELLED, None, None, 0.0, "full", "fast")
+            return await self._run(focus, force_full)
+
+    async def _run(self, focus: Path | None, force_full: bool) -> CompileResult:
+        started = time.monotonic()
+        self.paths.build_dir.mkdir(parents=True, exist_ok=True)
+
+        main_source = self.paths.main.read_text(encoding="utf-8", errors="replace")
+        scope = "full"
+        only = None
+        if focus is not None and supports_partial(main_source) and not force_full:
+            target = chapter_for(focus, self.paths.root, included_targets(main_source))
+            if target:
+                only, scope = target, target
+
+        source_file = write_shadow(self.paths, only)
+        full_pass = force_full or self._needs_full
+
+        # \include writes one .aux per included file, mirrored under the
+        # output directory; the engine will not create those directories.
+        self._mirror_build_tree(main_source)
+
+        if full_pass:
+            argv = [
+                "latexmk", "-pdf", "-interaction=nonstopmode", "-file-line-error",
+                "-synctex=1", f"-jobname={self.paths.jobname}",
+                f"-outdir={self.paths.build_dir}", str(source_file),
+            ]
+        else:
+            argv = [
+                "pdflatex", "-interaction=nonstopmode", "-file-line-error",
+                "-synctex=1", f"-jobname={self.paths.jobname}",
+                f"-output-directory={self.paths.build_dir}", str(source_file),
+            ]
+
+        env = {**os.environ, **LOG_ENV}
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                cwd=str(self.paths.root),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+                env=env,
+                # Its own process group, so cancel() can take the children too.
+                start_new_session=True,
+            )
+        except FileNotFoundError:
+            return CompileResult(
+                Outcome.NO_ENGINE, None, None, time.monotonic() - started, scope,
+                "full" if full_pass else "fast",
+            )
+        self._process = proc
+
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=self.timeout)
+        except asyncio.TimeoutError:
+            await self.cancel()
+            return CompileResult(
+                Outcome.TIMEOUT, None, None, time.monotonic() - started, scope,
+                "full" if full_pass else "fast",
+            )
+        finally:
+            self._process = None
+
+        if proc.returncode is not None and proc.returncode < 0:
+            return CompileResult(
+                Outcome.CANCELLED, None, None, time.monotonic() - started, scope,
+                "full" if full_pass else "fast",
+            )
+
+        if full_pass:
+            self._needs_full = False
+
+        log = None
+        if self.paths.log.exists():
+            log = parse_log(
+                self.paths.log.read_text(encoding="utf-8", errors="replace"),
+                self.paths.root,
+                self.paths.main,
+            )
+            self._remap_shadow(log)
+
+        # A PDF from a previous good build is better than none: the preview
+        # keeps showing the last thing that compiled rather than going blank.
+        pdf = self.paths.pdf if self.paths.pdf.exists() else None
+        outcome = Outcome.ERRORS if (log and log.errors) else Outcome.OK
+        return CompileResult(
+            outcome, log, pdf, time.monotonic() - started, scope,
+            "full" if full_pass else "fast",
+        )
+
+    def _mirror_build_tree(self, main_source: str) -> None:
+        for target in included_targets(main_source):
+            parent = (self.paths.build_dir / target).parent
+            parent.mkdir(parents=True, exist_ok=True)
+
+    def _remap_shadow(self, log: ParsedLog) -> None:
+        """Point diagnostics at the real main file, not the stand-in."""
+        shadow = self.paths.shadow.resolve()
+        for diagnostic in log.diagnostics:
+            if diagnostic.file is not None and diagnostic.file.resolve() == shadow:
+                diagnostic.file = self.paths.main
+
+    def cleanup(self) -> None:
+        self.paths.shadow.unlink(missing_ok=True)
