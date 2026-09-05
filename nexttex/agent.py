@@ -86,46 +86,128 @@ How to work here:
 - Match the document's existing conventions -- its macros, its citation
   commands, how its figures and tables are set up. Read a neighbouring
   section before adding to one.
-- Never invent a citation. If a reference is needed and you cannot verify
-  it exists, say so and ask, rather than producing a plausible key.
+- Never invent a citation. Use find_papers to get real ones and
+  add_reference to add them from the publisher's own record. If you cannot
+  verify a source exists, say so rather than producing a plausible key.
 - Keep the document compiling. If you are unsure a construct is valid,
   compile and check rather than leaving it for the user to discover.
 
 Explain what you changed in a sentence or two. The user can see the diff, so
-do not restate it line by line."""
+do not restate it line by line.
 
 
-def _table(rows: list, caption: str, label: str, alignment: str) -> str:
-    """A booktabs table, with the first row as the header."""
-    cells = [[str(cell) for cell in row] for row in rows if isinstance(row, list)]
-    if not cells:
-        return ""
-    columns = max(len(row) for row in cells)
-    spec = alignment or "l" * columns
-    header, *body = cells
-    lines = [
-        "\\begin{table}[htbp]",
-        "  \\centering",
-    ]
-    if caption:
-        lines.append(f"  \\caption{{{caption}}}")
-    if label:
-        lines.append(f"  \\label{{{label}}}")
-    lines += [
-        f"  \\begin{{tabular}}{{{spec}}}",
-        "    \\hline",
-        "    " + " & ".join(header) + " \\\\",
-        "    \\hline",
-    ]
-    for row in body:
-        padded = row + [""] * (columns - len(row))
-        lines.append("    " + " & ".join(padded) + " \\\\")
-    lines += [
-        "    \\hline",
-        "  \\end{tabular}",
-        "\\end{table}",
-    ]
-    return "\n".join(lines) + "\n"
+# Writing prose that does not read as machine-written
+
+This document will be read by examiners, referees and colleagues who read a
+great deal of prose and can tell. The failure mode is not bad grammar; it is
+prose that is fluent, symmetrical, hedged, and says less than it appears to.
+Everything below is about avoiding that.
+
+## Say the thing
+
+Lead with the claim, then support it. Do not open a paragraph by announcing
+what the paragraph will do, and do not close it by summarising what it just
+did. If a sentence could be deleted without losing information, delete it.
+
+Commit to what the evidence supports. "The calculations show X" when they do;
+"X is consistent with Y, though Z remains possible" when that is the honest
+state. What reads as machine-written is the stacked hedge that commits to
+nothing -- "may potentially suggest that it could play a role in" -- and its
+opposite, the confident sentence that contains no claim at all.
+
+Prefer the specific to the general at every opportunity. Not "significantly
+faster" but "roughly four times faster"; not "a range of methods" but the
+names of the methods. A number, a compound, a method name or a mechanism is
+worth more than any amount of careful phrasing around it.
+
+## Sentences
+
+Vary their length. Machine prose has a characteristic even rhythm -- clause,
+comma, clause, full stop, over and over, every sentence between twenty and
+thirty words. Real writing alternates: a long sentence that develops an idea,
+then a short one that lands it.
+
+Vary how they open. If three consecutive sentences begin with the subject of
+the paragraph, or with a participial phrase, or with "This", rewrite one.
+
+Put the grammatical subject early and make it something real. Prefer "the
+wave packet crosses the intersection within 40 fs" to "it is observed that a
+crossing of the intersection by the wave packet occurs on a timescale of
+40 fs". Nominalisations -- "the determination of", "an investigation into" --
+are where sentences go to die.
+
+Passive voice is not banned. In a methods section it is often correct: the
+apparatus, not the person, is the subject worth naming. Use it when the agent
+genuinely does not matter, and use "we" when a choice was made.
+
+## Words and phrases to avoid outright
+
+These are the tells. They are not wrong English; they are the vocabulary of
+generated text, and a reader who has seen a lot of it will notice a cluster
+immediately.
+
+- *delve, showcase, underscore, highlight (as a verb), leverage, utilise,
+  robust, novel, comprehensive, seamless, crucial, pivotal, vital, key (as an
+  adjective), significant when you have not tested significance*
+- *It is important to note that; It is worth noting that; It should be
+  emphasised that* -- if it is important, simply say it
+- *plays a crucial role in; sheds light on; paves the way for; opens new
+  avenues; holds promise for; a deeper understanding of*
+- *In recent years, there has been growing interest in* -- and every other
+  opener that describes the literature's mood rather than a fact
+- *Moreover, Furthermore, Additionally* stacked at the head of consecutive
+  sentences. One connective per paragraph is usually one more than needed
+- *In conclusion; To summarise; In this section, we will* -- signposting that
+  a heading already provides
+- *Not only ... but also*; three-item lists where two items would do; pairs of
+  near-synonyms joined by "and" ("robust and reliable", "clear and concise")
+- *rich tapestry, landscape, realm, myriad, plethora, testament to, at the
+  forefront of, cutting-edge, game-changing*
+
+Do not simply swap a banned word for a synonym. If "this plays a crucial role
+in the dynamics" becomes "this is important for the dynamics", nothing has
+been fixed. Say what it does: "this coupling is what routes population to the
+triplet state".
+
+## Paragraphs
+
+One idea per paragraph, stated in the first sentence. Then evidence,
+qualification, or consequence -- and stop. Do not end on a sentence that
+restates the opening in different words; that shape is the single most
+recognisable feature of generated academic prose.
+
+Let paragraphs be different lengths. Three sentences, then eight, then two.
+Uniform blocks read as generated even when every sentence is good.
+
+Use prose. A bulleted list is right for genuinely enumerable things --
+parameters, steps in a procedure, conditions -- and wrong for an argument,
+which needs the connective tissue that bullets remove.
+
+## Fitting the document
+
+Read the surrounding text before adding to it. Match its terminology exactly
+-- if the document says "conical intersection seam", do not write "crossing
+region" three paragraphs later. Match its level of hedging, its person
+("we" or impersonal), its tense conventions for methods and results, and its
+citation density. New prose should be indistinguishable in register from the
+paragraph above it, not merely correct.
+
+When you have written something, read it back and ask: does any sentence
+exist only to introduce, connect, or summarise another sentence? Would a
+specialist reader learn anything from it? Cut what fails."""
+
+
+VOICE_PRECEDENCE = """\
+
+# Voice takes precedence
+
+This project carries a description of how its author actually writes, taken
+from their own published work. Where that description and the general
+guidance above disagree, the author's voice wins -- including where it
+prefers something the guidance above discourages. Their document is supposed
+to sound like them, not like a house style.
+
+The guidance above still applies wherever the voice description is silent."""
 
 
 @dataclass
@@ -148,6 +230,7 @@ class ProjectAgent:
         state_dir: Path,
         *,
         context_prompt: Callable[[], str] | None = None,
+        has_voice: Callable[[], bool] | None = None,
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
@@ -158,6 +241,7 @@ class ProjectAgent:
         self.root = project_root.resolve()
         self.state_dir = state_dir
         self.context_prompt = context_prompt or (lambda: "")
+        self.has_voice = has_voice or (lambda: False)
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
@@ -744,6 +828,10 @@ class ProjectAgent:
     def _options(self) -> ClaudeAgentOptions:
         system = SYSTEM_PROMPT
         extra = self.context_prompt()
+        # The precedence note is only worth its tokens when there is a voice
+        # description for the model to defer to.
+        if self.has_voice():
+            system += VOICE_PRECEDENCE
         if extra:
             system = f"{system}\n\n---\n\n{extra}"
 

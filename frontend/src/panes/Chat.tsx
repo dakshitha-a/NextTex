@@ -24,6 +24,7 @@ export type ChatHandle = { seed(text: string): void };
 function tidy(items: ChatItem[]): ChatItem[] {
   const out: ChatItem[] = [];
   for (const item of items) {
+    if (item.kind === "tool" && HIDDEN_TOOLS.has(item.name)) continue;
     const previous = out[out.length - 1];
     if (
       item.kind === "edit" &&
@@ -266,9 +267,11 @@ export default function Chat({
         />
         <div className="mt-[6px] flex items-center justify-between">
           <span className="t-micro text-ink-3">
-            {thinking
-              ? "Claude is writing"
-              : focusedComposer
+            {blocked
+              ? ""
+              : thinking
+                ? "Claude is writing"
+                : focusedComposer
                 ? "Enter to send, Shift-Enter for a new line"
                 : ""}
           </span>
@@ -289,15 +292,35 @@ export default function Chat({
   );
 }
 
-/** What the tool did, in the words a writer would use. */
+/** What the tool did, in the words a writer would use.
+ *
+ *  `mcp__nexttex__insert_at_cursor` is how the protocol names it; nobody
+ *  writing a thesis should have to read that. */
+const VERBS: Record<string, string> = {
+  Read: "Read",
+  Edit: "Edited",
+  MultiEdit: "Edited",
+  Write: "Wrote",
+  Bash: "Ran",
+  Glob: "Searched",
+  Grep: "Searched",
+  mcp__nexttex__editor_state: "Checked where you are",
+  mcp__nexttex__compile_diagnostics: "Read the errors",
+  mcp__nexttex__compile: "Rebuilt the document",
+  mcp__nexttex__insert_at_cursor: "Inserted at your cursor",
+  mcp__nexttex__insert_figure: "Inserted a figure",
+  mcp__nexttex__insert_table: "Inserted a table",
+  mcp__nexttex__goto: "Moved your editor",
+  mcp__nexttex__find_papers: "Searched the literature",
+  mcp__nexttex__add_reference: "Added a reference",
+  mcp__nexttex__check_references: "Checked the bibliography",
+};
+
+/** Tools that are plumbing rather than work: showing them is noise. */
+const HIDDEN_TOOLS = new Set(["ToolSearch", "TodoWrite"]);
+
 function verb(name: string): string {
-  switch (name) {
-    case "Read": return "Read";
-    case "Edit": case "MultiEdit": case "Write": return "Edited";
-    case "Bash": return "Ran";
-    case "Glob": case "Grep": return "Searched";
-    default: return name;
-  }
+  return VERBS[name] ?? name.replace(/^mcp__[a-z]+__/, "").replace(/_/g, " ");
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

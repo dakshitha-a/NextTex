@@ -71,6 +71,7 @@ class ProjectSession:
             project.root,
             project.state_dir,
             context_prompt=self.context.prompt_section,
+            has_voice=lambda: self.context.voice_summary.exists(),
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
             compile_now=self.compile,
