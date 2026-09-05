@@ -10,60 +10,78 @@
 @import "@fontsource/source-code-pro/600.css";
 
 /* --------------------------------------------------------------------------
-   Palette.  The light theme is authored on bare :root so it applies in the
-   un-stamped state as well; dark redefines only the tokens.  --paper is not
-   themed: it is painted by PDF.js and is white in both themes, which is the
-   whole point of the grey surround.
+   Palette.  Two authored themes, chosen explicitly rather than inherited
+   from the operating system: the toggle stamps data-theme on the root and
+   the choice is remembered.  Dark is the default -- this is an instrument
+   you sit in front of for hours, beside a white page that supplies all the
+   brightness the eye needs.
+
+   Both are pitched darker than a conventional editor.  The light theme is a
+   proofing grey, not a white UI: the rendered page has to stay the brightest
+   object on screen, and it cannot be if the chrome around it is white too.
+
+   --paper is never themed.  PDF.js paints it, and it is white in both.
    ----------------------------------------------------------------------- */
 :root {
-  --surround: #d8dcd8;
-  --surface: #edf0ec;
-  --surface-2: #e2e6e1;
-  --ink: #191c1a;
-  --ink-2: #565c58;
-  --ink-3: #676d68;
-  --pen: #74408e;
-  --error: #a32a26;
-  --warn: #7e6410;
-  --ok: #2f6a4a;
+  --surround: #C7CCC7;
+  --surface: #E3E7E2;
+  --surface-2: #D7DCD6;
+  --surface-3: #CDD3CC;
+  --ink: #141715;
+  --ink-2: #4C534E;
+  --ink-3: #626963;
+  --pen: #6B3A87;
+  --hint: #1B6B72;
+  --error: #9C2521;
+  --warn: #74590C;
+  --ok: #2A6144;
 
   --paper: #ffffff;
-  --line: color-mix(in oklab, var(--ink-3) 35%, transparent);
+  --line: color-mix(in oklab, var(--ink-3) 34%, transparent);
   --pen-wash: color-mix(in oklab, var(--pen) 12%, transparent);
-  --page-shadow: none;
+  --hint-wash: color-mix(in oklab, var(--hint) 14%, transparent);
+  --page-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.07);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   color-scheme: light;
 }
 
+/* Only covers the first frame, before the app stamps its own choice. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --surround: #141715;
-    --surface: #1a1e1b;
-    --surface-2: #222623;
-    --ink: #dde2dd;
-    --ink-2: #99a19b;
-    --ink-3: #838b84;
-    --pen: #c48eda;
-    --error: #ef7167;
-    --warn: #cba84a;
-    --ok: #63be92;
-    --page-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    --surround: #0D0F0E;
+    --surface: #161A18;
+    --surface-2: #1E2320;
+    --surface-3: #272D29;
+    --ink: #E3E8E2;
+    --ink-2: #9CA49E;
+    --ink-3: #7F8781;
+    --pen: #C08CE8;
+    --hint: #56C7C0;
+    --error: #F0776D;
+    --warn: #D6B155;
+    --ok: #6BC79A;
+    --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
+    --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --surround: #141715;
-  --surface: #1a1e1b;
-  --surface-2: #222623;
-  --ink: #dde2dd;
-  --ink-2: #99a19b;
-  --ink-3: #838b84;
-  --pen: #c48eda;
-  --error: #ef7167;
-  --warn: #cba84a;
-  --ok: #63be92;
-  --page-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --surround: #0D0F0E;
+  --surface: #161A18;
+  --surface-2: #1E2320;
+  --surface-3: #272D29;
+  --ink: #E3E8E2;
+  --ink-2: #9CA49E;
+  --ink-3: #7F8781;
+  --pen: #C08CE8;
+  --hint: #56C7C0;
+  --error: #F0776D;
+  --warn: #D6B155;
+  --ok: #6BC79A;
+  --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 
@@ -73,11 +91,14 @@
   --color-surround: var(--surround);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-pen: var(--pen);
   --color-pen-wash: var(--pen-wash);
+  --color-hint: var(--hint);
+  --color-hint-wash: var(--hint-wash);
   --color-error: var(--error);
   --color-warn: var(--warn);
   --color-ok: var(--ok);
@@ -114,11 +135,38 @@ body {
 .t-display { font-family: var(--font-serif); font-size: 22px; line-height: 28px;
   font-weight: 600; letter-spacing: -0.01em; }
 .tnum { font-variant-numeric: tabular-nums; }
+/* The status strip is the densest surface in the app; its literal strings
+   are a point smaller than code elsewhere. */
+.nx-mono-11 { font-family: var(--font-mono); font-size: 11px; line-height: 16px; }
 
 button { font: inherit; color: inherit; }
+
+/* A filled --pen button.  In dark, --pen is #C48EDA and white on it is
+   2.6:1 -- unreadable -- so the label takes the darkest surface instead. */
+.pen-button {
+  background: var(--pen);
+  color: #ffffff;
+  border-radius: 3px;
+  font-weight: 500;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .pen-button { color: var(--surround); }
+}
+:root[data-theme="dark"] .pen-button { color: var(--surround); }
+.pen-button:disabled { opacity: 0.4; }
+
+/* The transcript's single left edge: the rule column is 3px, then a 12px
+   gutter, and everything in the stream starts at 15px. */
+.stream-indent { padding-left: 15px; }
 input, textarea { font: inherit; color: inherit; background: transparent; }
 :focus-visible { outline: 1px solid var(--pen); outline-offset: 1px; }
-::selection { background: var(--pen-wash); }
+/* Some elements take focus so they can answer the keyboard, not because the
+   user tabbed to them.  A --pen ring on a --warn permission gate would say
+   "Claude is talking" at the moment it should say "this needs an answer". */
+.no-focus-ring:focus-visible { outline: none; }
+/* Not --pen-wash: pen means "Claude touched this", and an ordinary
+   drag-select is the user touching their own text. */
+::selection { background: color-mix(in oklab, var(--ink-3) 24%, transparent); }
 
 /* Scrollbars: present, quiet, and never a layout shift. */
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
@@ -138,7 +186,9 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .cm-editor .cm-activeLine { background: color-mix(in oklab, var(--ink-3) 7%, transparent); }
 .cm-editor .cm-cursor { border-left-color: var(--ink); }
 .cm-editor .cm-selectionBackground,
-.cm-editor.cm-focused .cm-selectionBackground { background: var(--pen-wash) !important; }
+.cm-editor.cm-focused .cm-selectionBackground {
+  background: color-mix(in oklab, var(--ink-3) 24%, transparent) !important;
+}
 .cm-editor .cm-content { padding: 6px 0 40vh 0; }
 /* Diagnostic marks: a 3px bar in the gutter, a dotted underline in the text.
    Dotted, not wavy -- a wavy underline under 13.5px LaTeX is mush. */
@@ -148,13 +198,42 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   text-underline-offset: 3px; }
 .cm-mark-warn { text-decoration: underline dotted var(--warn) 1.5px;
   text-underline-offset: 3px; }
-.cm-line-flash { background: var(--pen-wash); }
+.cm-line-flash {
+  background: var(--pen-wash);
+  transition: background 700ms var(--ease);
+}
+.cm-line-fading { background: transparent; transition: background 450ms var(--ease); }
 .cm-editor .cm-lint-marker { display: none; }
 .cm-tooltip { background: var(--surface-2) !important; color: var(--ink);
   border: 1px solid var(--line) !important; border-radius: 3px; font-size: 12px; }
 
+/* ---- motion --------------------------------------------------------------
+   Everything here is a hint, not decoration: it tells the eye that a thing
+   is interactive, that something arrived, or that a panel went somewhere
+   rather than vanishing.  Nothing exceeds 180 ms. */
+.nx-hover { transition: background-color 90ms var(--ease), color 90ms var(--ease); }
+.nx-press { transition: transform 90ms var(--ease); }
+.nx-press:active { transform: translateY(1px); }
+.nx-pane { transition: flex-basis 180ms var(--ease), width 180ms var(--ease); }
+
+@keyframes arrive { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.nx-arrive { animation: arrive 120ms var(--ease); }
+
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--hint) 35%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--hint) 0%, transparent); }
+}
+.nx-pulse { animation: hint-pulse 1.8s var(--ease) 2; }
+
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.001ms !important; transition-property: opacity !important; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 90ms !important;
+    transition-property: opacity, background-color, color !important;
+  }
 }
 
 @keyframes sweep { 0% { left: -30% } 100% { left: 100% } }

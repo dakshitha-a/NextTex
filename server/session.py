@@ -97,11 +97,37 @@ class ProjectSession:
             except (PermissionError, OSError):
                 self._focus = None
 
+    def as_client_dict(self, result: CompileResult) -> dict:
+        """A build result with paths the browser can match against.
+
+        The log gives absolute paths.  Everything the client holds -- the
+        open file, the tabs, the tree -- is relative to the project root, so
+        an absolute path here silently matches nothing and the error marks
+        never appear beside the line that caused them.
+        """
+        payload = result.as_dict()
+        payload["diagnostics"] = [
+            {**item, "file": self.relative_or_none(item.get("file"))}
+            for item in payload.get("diagnostics", [])
+        ]
+        payload.pop("pdf", None)   # a server path the browser cannot use
+        return payload
+
+    def relative_or_none(self, path: str | None) -> str | None:
+        if not path:
+            return None
+        try:
+            return self.project.relative(Path(path))
+        except (ValueError, OSError):
+            # A file outside the project -- a class or package from the TeX
+            # tree.  Show its name rather than a path nothing can act on.
+            return Path(path).name
+
     # -- compiling --------------------------------------------------------
     async def compile(self, force_full: bool = False) -> CompileResult:
         await self.events.publish({"type": "compile_start"})
         result = await self.compiler.build(focus=self._focus, force_full=force_full)
-        payload = result.as_dict()
+        payload = self.as_client_dict(result)
         # A superseded build carries no log.  Keeping its empty diagnostics
         # would clear the editor's error marks every time the user typed
         # during a compile, which is exactly when they are looking at them.

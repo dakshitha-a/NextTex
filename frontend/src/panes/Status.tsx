@@ -55,6 +55,9 @@ export default function Status({
     dot = "bg-ink-3";
     label = `Built ${(result.durationMs / 1000).toFixed(2)}s`;
   }
+  // The duration is already in the label when a build succeeded; it earns a
+  // segment of its own only when the label is saying something else.
+  const showDuration = Boolean(result) && !compiling && !label.startsWith("Built");
 
   return (
     // A container query, not a viewport one: this strip is as wide as the
@@ -72,21 +75,21 @@ export default function Status({
         <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot}`} />
         <span className="t-micro text-ink-2">{label}</span>
       </button>
-      {result && !compiling ? (
+      {showDuration ? (
         <span className="hidden shrink-0 items-center gap-3 @[380px]:flex">
           <Rule />
           <span className="t-micro tnum text-ink-3">
-            {(result.durationMs / 1000).toFixed(2)}s
+            {((result?.durationMs ?? 0) / 1000).toFixed(2)}s
           </span>
         </span>
       ) : null}
-      <span className="hidden min-w-0 flex-1 items-center gap-3 @[620px]:flex">
+      <span className="hidden min-w-0 flex-1 items-center gap-3 @[760px]:flex">
         <Rule />
-        <span className="t-code-sm min-w-0 flex-1 truncate text-ink-3">
+        <span className="nx-mono-11 min-w-0 flex-1 truncate text-ink-3">
           {activePath ?? "—"}
         </span>
       </span>
-      <span className="flex-1 @[620px]:hidden" />
+      <span className="flex-1 @[760px]:hidden" />
       <Rule />
       <span className="t-micro tnum w-[96px] shrink-0 text-right text-ink-2">
         Ln {cursor.line}, Col {cursor.column}
@@ -102,6 +105,13 @@ export default function Status({
           onClick={onRebuild}
         >
           {result && result.scope !== "full" ? "This chapter" : "Whole document"}
+        </button>
+      </span>
+      <Rule />
+      <span className="hidden shrink-0 items-center gap-3 group-hover:flex @[420px]:group-hover:flex">
+        <Rule />
+        <button className="t-micro text-ink-2 hover:text-ink" onClick={onRebuild}>
+          Rebuild
         </button>
       </span>
       <Rule />

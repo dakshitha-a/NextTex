@@ -26,6 +26,9 @@ export default function FileTree({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [creating, setCreating] =
+    useState<{ parent: string; directory: boolean } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const uploadInput = useRef<HTMLInputElement | null>(null);
   const uploadTo = useRef<string>("");
@@ -65,24 +68,15 @@ export default function FileTree({
           }),
         );
       } else if (action === "delete") {
-        const label = isDir(node) ? "folder" : "file";
-        if (!window.confirm(`Delete the ${label} ${node.name}?`)) return;
-        await api.deleteFile(projectId, node.path);
-        onRefresh();
+        // Confirmed in place, in this typeface.  A native confirm() dialog
+        // is the one thing that would undo the composing-room premise
+        // faster than any colour choice.
+        setConfirming(node.path);
       } else if (action === "rename") {
         setRenaming(node.path);
       } else if (action === "newfile" || action === "newfolder") {
         const parent = isDir(node) ? node.path : dirname(node.path);
-        const name = window.prompt(
-          action === "newfile" ? "New file name" : "New folder name",
-        );
-        if (!name) return;
-        await api.newFile(
-          projectId,
-          parent ? `${parent}/${name}` : name,
-          action === "newfolder",
-        );
-        onRefresh();
+        setCreating({ parent, directory: action === "newfolder" });
       } else if (action === "upload") {
         uploadTo.current = isDir(node) ? node.path : dirname(node.path);
         uploadInput.current?.click();
@@ -208,7 +202,7 @@ export default function FileTree({
         </span>
         {menu === node.path ? (
           <div
-            className="absolute right-1 top-[24px] z-20 w-[168px] rounded-[5px] border border-line bg-surface py-1 shadow-lg"
+            className="absolute right-1 top-[24px] z-20 w-[168px] rounded-[5px] border border-line bg-surface py-1"
             onClick={(event) => event.stopPropagation()}
           >
             {[
@@ -235,12 +229,95 @@ export default function FileTree({
       </div>,
     );
 
+    if (confirming === node.path) {
+      rows.push(
+        <div
+          key={`${node.path}-confirm`}
+          className="flex h-[26px] items-center gap-2 bg-surface-2"
+          style={{ paddingLeft: 10 + depth * INDENT }}
+        >
+          <span className="t-micro flex-1 truncate text-ink-2">
+            Delete {node.name}?
+          </span>
+          <button
+            className="t-micro px-2 text-error"
+            onClick={async () => {
+              const projectId = get().projectId;
+              setConfirming(null);
+              if (!projectId) return;
+              try {
+                await api.deleteFile(projectId, node.path);
+                onRefresh();
+              } catch (error: any) {
+                set({ error: error.message });
+              }
+            }}
+          >
+            Delete
+          </button>
+          <button
+            className="t-micro px-2 text-ink-3 hover:text-ink"
+            onClick={() => setConfirming(null)}
+          >
+            Keep
+          </button>
+        </div>,
+      );
+    }
+
+    if (creating && creating.parent === (isDirectory ? node.path : "")) {
+      rows.push(
+        <NewName
+          key={`${node.path}-new`}
+          depth={depth + 1}
+          directory={creating.directory}
+          onCancel={() => setCreating(null)}
+          onCommit={async (name) => {
+            const projectId = get().projectId;
+            setCreating(null);
+            if (!projectId || !name) return;
+            try {
+              await api.newFile(
+                projectId,
+                creating.parent ? `${creating.parent}/${name}` : name,
+                creating.directory,
+              );
+              onRefresh();
+            } catch (error: any) {
+              set({ error: error.message });
+            }
+          }}
+        />,
+      );
+    }
+
     if (isDirectory && isOpen) {
       for (const child of node.children ?? []) walk(child, depth + 1);
     }
   };
 
   if (tree) for (const child of tree.children ?? []) walk(child, 0);
+  if (creating && creating.parent === "") {
+    rows.unshift(
+      <NewName
+        key="new-at-root"
+        depth={0}
+        directory={creating.directory}
+        onCancel={() => setCreating(null)}
+        onCommit={async (name) => {
+          const projectId = get().projectId;
+          setCreating(null);
+          if (!projectId || !name) return;
+          try {
+            await api.newFile(projectId, name, creating.directory);
+            onRefresh();
+          } catch (error: any) {
+            set({ error: error.message });
+          }
+        }}
+      />,
+    );
+  }
 
   return (
     <div className="min-h-0 flex-1 overflow-auto py-[6px]" role="tree">
@@ -261,6 +338,36 @@ export default function FileTree({
           } catch (error: any) {
             set({ error: error.message });
           }
+        }}
+      />
+    </div>
+  );
+}
+
+function NewName({
+  depth,
+  directory,
+  onCommit,
+  onCancel,
+}: {
+  depth: number;
+  directory: boolean;
+  onCommit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="flex h-[26px] items-center bg-surface-2"
+      style={{ paddingLeft: 10 + depth * INDENT }}
+    >
+      <input
+        autoFocus
+        placeholder={directory ? "new folder" : "new-file.tex"}
+        className="t-ui min-w-0 flex-1 border-b border-pen outline-none placeholder:text-ink-3"
+        onBlur={(event) => onCommit(event.target.value.trim())}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onCommit(event.currentTarget.value.trim());
+          if (event.key === "Escape") onCancel();
         }}
       />
     </div>

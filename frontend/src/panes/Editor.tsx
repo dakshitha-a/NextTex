@@ -3,7 +3,14 @@ import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import api from "../api";
 import { get, set, useStore } from "../store";
-import { extensions, flashRange, freshState, marksFor, setMarks } from "./editor-setup";
+import {
+  clearFlash,
+  extensions,
+  flashRange,
+  freshState,
+  marksFor,
+  setMarks,
+} from "./editor-setup";
 
 /** Autosave delay.  The server debounces the compile again on its side; this
  *  half is deliberately short so the total wait after the last keystroke is
@@ -133,6 +140,9 @@ export default function Editor({
       window.setTimeout(() => {
         view.current?.dispatch({ effects: flashRange.of(null) });
       }, 700);
+      window.setTimeout(() => {
+        view.current?.dispatch({ effects: clearFlash.of(null) });
+      }, 1200);
     };
 
     const openBuffer = async (path: string, line?: number) => {

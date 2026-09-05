@@ -19,6 +19,9 @@ import FileTree from "./panes/FileTree";
 import Projects from "./panes/Projects";
 import SignIn from "./panes/SignIn";
 import ContextPanel from "./panes/ContextPanel";
+import Collapsed from "./panes/Collapsed";
+import { applyTheme, storedTheme, type Theme } from "./theme";
+import GitPanel from "./panes/GitPanel";
 
 const DRAWER_CLOSED = 0;
 const DRAWER_OPEN = 168;
@@ -42,6 +45,16 @@ export default function App() {
   const tight = width < 900;
   const [chatOpen, setChatOpen] = useState(true);
   const [showing, setShowing] = useState<"source" | "preview">("source");
+  const [theme, setTheme] = useState<Theme>(() => storedTheme());
+  // Every pane folds away, and says where it went.  Editor and preview are
+  // mutually exclusive: folding one gives the other the whole space, and
+  // folding both would leave nothing to work in.
+  const [folded, setFolded] = useState({
+    rail: false,
+    editor: false,
+    pdf: false,
+    chat: false,
+  });
   const [chatOver, setChatOver] = useState(false);
   const [wordScope, setWordScope] = useState<"file" | "document">("document");
   const [words, setWords] = useState<number | null>(null);
@@ -89,6 +102,14 @@ export default function App() {
     connect(id);
     refreshContext(id);
     setView("editor");
+    const storedFolds = window.localStorage.getItem(`nexttex.folded.${id}`);
+    if (storedFolds) {
+      try {
+        setFolded((current) => ({ ...current, ...JSON.parse(storedFolds) }));
+      } catch {
+        /* a corrupt entry is not worth reporting */
+      }
+    }
     const stored = window.localStorage.getItem(`nexttex.widths.${id}`);
     if (stored) {
       try {
@@ -183,6 +204,7 @@ export default function App() {
       const meta = event.metaKey || event.ctrlKey;
       if (meta && event.key === "b") {
         event.preventDefault();
+        railByHand.current = true;
         setRailHidden((value) => !value);
       }
       if (meta && event.key === "s") {
@@ -243,7 +265,29 @@ export default function App() {
   }, [narrow]);
 
   useEffect(() => {
-    if (width < 1100) setRailHidden(true);
+    applyTheme(theme);
+  }, [theme]);
+
+  const fold = useCallback((pane: "rail" | "editor" | "pdf" | "chat") => {
+    setFolded((current) => {
+      const next = { ...current, [pane]: !current[pane] };
+      // One of the two middle panes always stays open.
+      if (pane === "editor" && next.editor) next.pdf = false;
+      if (pane === "pdf" && next.pdf) next.editor = false;
+      const id = get().projectId;
+      if (id) {
+        window.localStorage.setItem(`nexttex.folded.${id}`, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+
+  // The rail folds away when there is no room and comes back when there is,
+  // unless the user hid it themselves.
+  const railByHand = useRef(false);
+  useEffect(() => {
+    if (railByHand.current) return;
+    setRailHidden(width < 1100);
   }, [width]);
 
   if (view === "loading") {
@@ -273,10 +317,20 @@ export default function App() {
 
   return (
     <div ref={shell} className="relative flex h-full w-full overflow-hidden bg-surround">
-      {!railHidden ? (
+      {railHidden || folded.rail ? (
+        <Collapsed
+          label="Files"
+          side="left"
+          onExpand={() => {
+            railByHand.current = true;
+            setRailHidden(false);
+            setFolded((current) => ({ ...current, rail: false }));
+          }}
+        />
+      ) : (
         <>
           <div
-            className="flex min-h-0 flex-col bg-surface"
+            className="nx-pane flex min-h-0 flex-col bg-surface"
             style={{ width: widths.rail }}
           >
             <div className="flex h-[32px] shrink-0 items-center justify-between border-b border-line px-[10px]">
@@ -289,7 +343,15 @@ export default function App() {
               </button>
               <div className="flex items-center gap-2">
                 <button
-                  className="t-micro text-ink-3 hover:text-ink"
+                  className="nx-hover t-micro text-ink-3 hover:text-ink"
+                  title={theme === "dark" ? "Switch to the light theme" : "Switch to the dark theme"}
+                  aria-label="Switch theme"
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                >
+                  {theme === "dark" ? "☾" : "☀"}
+                </button>
+                <button
+                  className="nx-hover t-micro text-ink-3 hover:text-ink"
                   title="Download the whole project as a zip"
                   onClick={() =>
                     projectId &&
@@ -305,28 +367,77 @@ export default function App() {
                 >
                   PDF
                 </button>
+                <button
+                  className="nx-hover t-micro text-ink-3 hover:text-ink"
+                  title="Fold the file list away"
+                  aria-label="Fold the file list away"
+                  onClick={() => fold("rail")}
+                >
+                  ‹
+                </button>
               </div>
             </div>
             <FileTree onOpen={openFile} onRefresh={refreshTree} />
             <ContextPanel />
+            <GitPanel />
           </div>
-          <Handle onPointerDown={startDrag("rail")} />
+          <Handle
+            onPointerDown={startDrag("rail")}
+            onReset={() => setWidths((current) => ({ ...current, rail: DEFAULTS.rail }))}
+          />
         </>
-      ) : null}
+      )}
 
       <div className="flex min-w-0 flex-1">
+        {folded.editor && !tight ? (
+          <Collapsed label="Source" side="left" onExpand={() => fold("editor")} />
+        ) : null}
         <div
-          className={`flex min-h-0 flex-col bg-surface ${
-            tight ? (showing === "source" ? "flex-1" : "hidden") : "min-w-[420px]"
+          className={`nx-pane flex min-h-0 flex-col bg-surface ${
+            tight
+              ? showing === "source"
+                ? "flex-1"
+                : "hidden"
+              : folded.editor
+                ? "hidden"
+                : "min-w-[420px]"
           }`}
-          style={tight ? undefined : { flex: `${editorFraction} 1 0` }}
+          style={
+            tight || folded.editor
+              ? undefined
+              : { flex: `${folded.pdf ? 1 : editorFraction} 1 0` }
+          }
         >
           <div className="flex items-center bg-surface-2">
+            {railHidden ? (
+              // Nothing is lost when the rail folds away: the project name
+              // and its switcher move here.
+              <button
+                className="t-meta flex h-[32px] shrink-0 items-center gap-1 border-r border-line px-[10px] font-serif hover:text-pen"
+                onClick={() => setView("projects")}
+                title="Switch project"
+              >
+                <span className="max-w-[160px] truncate">{projectName}</span>
+                <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden>
+                  <path d="M0 2 L4 6 L8 2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                </svg>
+              </button>
+            ) : null}
             <div className="min-w-0 flex-1">
               <Tabs onSelect={(path) => openFile(path)} onClose={closeFile} />
             </div>
             {tight ? (
               <Segmented value={showing} onChange={setShowing} />
+            ) : null}
+            {!tight ? (
+              <button
+                className="nx-hover t-micro mr-1 shrink-0 px-1 text-ink-3 hover:text-ink"
+                title="Fold the source away"
+                aria-label="Fold the source away"
+                onClick={() => fold("editor")}
+              >
+                ‹
+              </button>
             ) : null}
             {chatOver && !chatOpen ? (
               <button
@@ -341,7 +452,7 @@ export default function App() {
             <Editor handleRef={(handle) => (editor.current = handle)} />
             {tabs.length === 0 ? (
               <div className="absolute inset-0 flex items-center justify-center bg-surface">
-                <p className="t-meta text-ink-3">Open a file from the list.</p>
+                <p className="t-display text-ink-3">Open a file from the list.</p>
               </div>
             ) : null}
           </div>
@@ -360,6 +471,7 @@ export default function App() {
             height={drawer}
             onJump={(file, line) => openFile(file, line)}
             onFix={(text) => chat.current?.seed(text)}
+            onResize={setDrawer}
             onClose={() => {
               setDrawer(DRAWER_CLOSED);
               setDrawerDismissed(true);
@@ -367,17 +479,47 @@ export default function App() {
           />
         </div>
 
-        {tight ? null : <Handle onPointerDown={startDrag("split")} />}
+        {tight || folded.editor || folded.pdf ? null : (
+          <Handle
+            onPointerDown={startDrag("split")}
+            onReset={() =>
+              setWidths((current) => ({ ...current, editor: DEFAULTS.editor }))
+            }
+          />
+        )}
 
         <div
-          className={`flex min-h-0 flex-col ${
+          className={`nx-pane flex min-h-0 flex-col ${
             tight
               ? showing === "preview"
                 ? "flex-1"
                 : "hidden"
-              : "min-w-[320px] flex-1"
+              : folded.pdf
+                ? "hidden"
+                : "min-w-[320px]"
           }`}
+          // Grow factors are two halves of one whole.  Against Tailwind's
+          // flex-1 (grow: 1) an editor at 0.5 takes a third, not a half,
+          // which is how the PDF ended up filling its pane edge to edge.
+          style={
+            tight || folded.pdf
+              ? undefined
+              : { flex: `${folded.editor ? 1 : 1 - editorFraction} 1 0` }
+          }
         >
+          {!tight ? (
+            <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-line bg-surface-2 px-[10px]">
+              <span className="t-micro text-ink-3">Preview</span>
+              <button
+                className="nx-hover t-micro text-ink-3 hover:text-ink"
+                title="Fold the preview away"
+                aria-label="Fold the preview away"
+                onClick={() => fold("pdf")}
+              >
+                ›
+              </button>
+            </div>
+          ) : null}
           {tight && showing === "preview" ? (
             <div className="flex items-center justify-end bg-surface-2 py-1 pr-2">
               <Segmented value={showing} onChange={setShowing} />
@@ -388,20 +530,36 @@ export default function App() {
             onNavigate={(file, line) => openFile(file, line)}
           />
         </div>
+        {folded.pdf && !tight ? (
+          <Collapsed label="Preview" side="right" onExpand={() => fold("pdf")} />
+        ) : null}
       </div>
 
-      {!chatOver ? <Handle onPointerDown={startDrag("chat")} /> : null}
+      {!chatOver && !folded.chat ? (
+        <Handle
+          onPointerDown={startDrag("chat")}
+          onReset={() => setWidths((current) => ({ ...current, chat: DEFAULTS.chat }))}
+        />
+      ) : null}
+      {folded.chat && !chatOver ? (
+        <Collapsed label="Claude" side="right" onExpand={() => fold("chat")} />
+      ) : null}
       <div
         className={
           chatOver
-            ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)] transition-transform duration-[180ms]"
-            : "min-h-0"
+            ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)]"
+            : folded.chat
+              ? "hidden"
+              : "nx-pane min-h-0"
         }
         style={{
           width: widths.chat,
           transform: chatOver && !chatOpen ? "translateX(100%)" : undefined,
-          visibility: chatOver && !chatOpen ? "hidden" : undefined,
+          transition: chatOver
+            ? "transform 180ms var(--ease)"
+            : undefined,
         }}
+        aria-hidden={chatOver && !chatOpen}
       >
         {chatOver ? (
           <button
@@ -413,6 +571,7 @@ export default function App() {
           </button>
         ) : null}
         <Chat
+          onFold={() => (chatOver ? setChatOpen(false) : fold("chat"))}
           handleRef={(handle) => (chat.current = handle)}
           onShowEdit={(path, line) => openFile(path, line)}
           onHoverEdit={(path, range) => {
@@ -484,11 +643,18 @@ function Segmented({
   );
 }
 
-function Handle({ onPointerDown }: { onPointerDown: (e: React.PointerEvent) => void }) {
+function Handle({
+  onPointerDown,
+  onReset,
+}: {
+  onPointerDown: (e: React.PointerEvent) => void;
+  onReset?: () => void;
+}) {
   return (
     <div
       className="relative w-px shrink-0 cursor-col-resize bg-line"
       onPointerDown={onPointerDown}
+      onDoubleClick={onReset}
     >
       <span className="absolute -left-1 top-0 h-full w-[9px]" />
     </div>

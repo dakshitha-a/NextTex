@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 
 function middleTruncate(stem: string, limit: number): string {
@@ -29,8 +29,42 @@ export default function Tabs({
     [diagnostics],
   );
 
+  const strip = useRef<HTMLDivElement | null>(null);
+  const [hidden, setHidden] = useState(0);
+
+  // How many tabs are scrolled out of sight, so the overflow says so
+  // instead of swallowing them silently.
+  useEffect(() => {
+    const element = strip.current;
+    if (!element) return;
+    const measure = () => {
+      const children = Array.from(element.children) as HTMLElement[];
+      const right = element.scrollLeft + element.clientWidth;
+      setHidden(
+        children.filter(
+          (child) =>
+            child.dataset.tab &&
+            (child.offsetLeft + child.offsetWidth > right + 1 ||
+              child.offsetLeft < element.scrollLeft - 1),
+        ).length,
+      );
+    };
+    measure();
+    element.addEventListener("scroll", measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      element.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [tabs.length]);
+
   return (
-    <div className="no-scrollbar flex h-[32px] shrink-0 overflow-x-auto bg-surface-2">
+    <div className="relative flex h-[32px] shrink-0">
+      <div
+        ref={strip}
+        className="no-scrollbar flex h-[32px] min-w-0 flex-1 overflow-x-auto bg-surface-2"
+      >
       {tabs.map((tab) => {
         const name = tab.path.split("/").pop() ?? tab.path;
         const dot = name.lastIndexOf(".");
@@ -41,6 +75,7 @@ export default function Tabs({
         return (
           <div
             key={tab.path}
+            data-tab="1"
             role="tab"
             aria-selected={active}
             title={tab.path}
@@ -86,7 +121,20 @@ export default function Tabs({
           </div>
         );
       })}
-      <div className="flex-1 border-b border-line" />
+        <div className="flex-1 border-b border-line" />
+      </div>
+      {hidden > 0 ? (
+        <button
+          className="flex w-6 shrink-0 items-center justify-center border-b border-l border-line bg-surface-2 t-micro text-ink-3 hover:text-ink"
+          title={`${hidden} more open`}
+          onClick={() => {
+            const element = strip.current;
+            if (element) element.scrollLeft = element.scrollWidth;
+          }}
+        >
+          {hidden}
+        </button>
+      ) : null}
     </div>
   );
 }
