@@ -185,7 +185,7 @@ PY
 say "Starting on boot"
 
 if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
-  UNIT="$HOME/.config/systemd/user/nexttex.service"
+  UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/nexttex.service"
   mkdir -p "$(dirname "$UNIT")"
   # The PATH is written out in full on purpose.  Under `systemd --user` it is
   # minimal, and the SDK spawns `claude`, which must find the credentials the
@@ -199,6 +199,7 @@ After=network-online.target
 Type=simple
 WorkingDirectory=$ROOT
 Environment=HOME=$HOME
+Environment=PYTHONUNBUFFERED=1
 Environment=PATH=$HOME/.local/bin:$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=$ROOT/.venv/bin/python $ROOT/server/run.py
 Restart=on-failure

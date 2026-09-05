@@ -39,7 +39,12 @@ restyled by changing a handful of preamble settings instead of touching
 every page by hand. And because the source is plain text, it works well
 under version control, diffs cleanly, and survives being merged and
 reviewed the way code does -- all properties that matter more, not less,
-as a document gets longer.
+as a document gets longer. In particular, since each sentence typically
+sits on its own line, a Git diff shows exactly which sentences changed
+instead of reflowing the whole paragraph into one indistinguishable
+block. It also means several authors can draft different sections at once,
+since Git's line-based merges resolve most simultaneous edits
+automatically instead of requiring one person to hold the file locked.
 
 \section{Mathematics}
 \label{sec:maths}
@@ -67,3 +72,7 @@ list -- and include it here:
 \printbibliography
 
 \end{document}
+
+\brokencommand
+
+\brokencommand
