@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from nexttex.agent import ProjectAgent
-from nexttex.compile import CompileResult, CompileScheduler, ProjectPaths
+from nexttex.compile import CompileResult, CompileScheduler, Outcome, ProjectPaths
 from nexttex.context import ProjectContext
 from nexttex.project import Project
 
@@ -22,9 +22,11 @@ from nexttex.project import Project
 # anyway, so dropping it costs the user nothing but a moment's reconnect.
 AGENT_IDLE_TIMEOUT = 30 * 60
 
-# Typing settles, then we build. Long enough that a fast typist does not
-# trigger a build mid-word; short enough to feel immediate.
-COMPILE_DEBOUNCE = 0.8
+# Typing settles, then we build.  This is only half the wait: the browser
+# already holds a keystroke for ~250 ms before saving, and a compile takes
+# about a second, so the number the user actually feels is the sum.  Keeping
+# this at 0.45 puts that total under 1.8 s rather than well over two.
+COMPILE_DEBOUNCE = 0.45
 
 
 class Broadcaster:
@@ -77,6 +79,10 @@ class ProjectSession:
         self._diagnostics: list[dict] = []
         self.last_result: CompileResult | None = None
 
+        # Files this server has just written, by mtime.  The watcher uses
+        # this to tell the user's own save apart from an outside change; the
+        # browser must not be told to reload a buffer it just sent us.
+        self.recently_written: dict[str, int] = {}
         self._debounce: asyncio.Task | None = None
         self._agent_pump: asyncio.Task | None = None
         self._focus: Path | None = None
@@ -95,9 +101,13 @@ class ProjectSession:
     async def compile(self, force_full: bool = False) -> CompileResult:
         await self.events.publish({"type": "compile_start"})
         result = await self.compiler.build(focus=self._focus, force_full=force_full)
-        self.last_result = result
         payload = result.as_dict()
-        self._diagnostics = payload.get("diagnostics", [])
+        # A superseded build carries no log.  Keeping its empty diagnostics
+        # would clear the editor's error marks every time the user typed
+        # during a compile, which is exactly when they are looking at them.
+        if result.outcome is not Outcome.CANCELLED:
+            self.last_result = result
+            self._diagnostics = payload.get("diagnostics", [])
         await self.events.publish({"type": "compile_done", **payload})
         return result
 
@@ -115,8 +125,23 @@ class ProjectSession:
 
         self._debounce = asyncio.create_task(wait_then_build())
 
-    def note_edit(self, path: Path, text: str | None = None) -> None:
-        self.compiler.note_edit(path, text)
+    def note_edit(
+        self, path: Path, text: str | None = None, previous: str | None = None
+    ) -> None:
+        self.compiler.note_edit(path, text, previous)
+
+    def mark_written(self, path: Path) -> None:
+        try:
+            self.recently_written[str(path.resolve())] = path.stat().st_mtime_ns
+        except OSError:
+            pass
+
+    def is_own_write(self, path: Path) -> bool:
+        try:
+            key = str(path.resolve())
+            return self.recently_written.get(key) == path.stat().st_mtime_ns
+        except OSError:
+            return False
 
     # -- agent ------------------------------------------------------------
     def start_agent_pump(self) -> None:
