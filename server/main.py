@@ -26,11 +26,15 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 
 from nexttex import claude_auth, synctex
+from nexttex.compile import CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
-from nexttex.project import Project, Registry
+from nexttex.project import IGNORED_FILES, Project, Registry
 from server.session import ProjectSession
 
 SESSIONS: dict[str, ProjectSession] = {}
+# Stop events for the running file watch.  Setting one makes the watcher
+# restart against the current set of open projects.
+WATCH_RESTART: list[asyncio.Event] = []
 SETTINGS = Settings.load()
 REGISTRY = Registry()
 
@@ -63,7 +67,9 @@ async def _watch_projects() -> None:
     """Tell the browser when files change underneath it.
 
     An external edit -- a git pull, a checkout, the user's own editor -- has
-    to reach the open tab, or it will save over changes it never saw.
+    to reach the open tab, or it will save over changes it never saw.  Our
+    *own* writes must not: the browser would then be told to reload the
+    buffer it just sent us, discarding whatever was typed in the meantime.
     """
     from watchfiles import awatch
 
@@ -72,8 +78,15 @@ async def _watch_projects() -> None:
         if not roots:
             await asyncio.sleep(1.0)
             continue
+        stop = asyncio.Event()
+        WATCH_RESTART.append(stop)
         try:
-            async for changes in awatch(*roots, step=300, recursive=True):
+            # `step` is the poll interval; `debounce` is the window over which
+            # changes are coalesced, and its default of 1600 ms would make an
+            # external edit take nearly two seconds to appear.
+            async for changes in awatch(
+                *roots, step=120, debounce=300, recursive=True, stop_event=stop
+            ):
                 touched: dict[str, set[str]] = {}
                 for _change, raw in changes:
                     path = Path(raw)
@@ -88,6 +101,12 @@ async def _watch_projects() -> None:
                             session.project.config.build_dir, ".nexttex", ".git"
                         }:
                             continue
+                        if path.name in IGNORED_FILES or path.suffix in {
+                            ".nexttex-tmp", ".part", ".swp"
+                        }:
+                            continue
+                        if session.is_own_write(path):
+                            continue
                         touched.setdefault(session.project.id, set()).add(str(rel))
                 for project_id, paths in touched.items():
                     session = SESSIONS.get(project_id)
@@ -95,12 +114,19 @@ async def _watch_projects() -> None:
                         await session.events.publish(
                             {"type": "files_changed", "paths": sorted(paths)}
                         )
-                if set(Path(s.project.root) for s in SESSIONS.values()) != set(roots):
-                    break  # a project was opened or closed; restart the watch
         except (asyncio.CancelledError, GeneratorExit):
             raise
         except Exception:
             await asyncio.sleep(1.0)
+        finally:
+            if stop in WATCH_RESTART:
+                WATCH_RESTART.remove(stop)
+
+
+def _restart_watch() -> None:
+    """Wake the file watcher so it picks up a newly opened or closed project."""
+    while WATCH_RESTART:
+        WATCH_RESTART.pop().set()
 
 
 async def _reap_idle() -> None:
@@ -128,7 +154,16 @@ async def authenticate(request: Request, call_next):
     if request.url.path.startswith(("/assets/", "/favicon")):
         return await call_next(request)
 
-    supplied = request.query_params.get("token") or request.cookies.get(COOKIE)
+    # The cookie is what the browser uses after the first load; the query
+    # parameter is what the printed URL carries; the header is for anything
+    # scripted, which cannot easily hold a cookie jar.
+    header = request.headers.get("authorization", "")
+    supplied = (
+        request.query_params.get("token")
+        or request.cookies.get(COOKIE)
+        or request.headers.get("x-nexttex-token")
+        or (header[7:] if header.lower().startswith("bearer ") else "")
+    )
     if not supplied or not secrets.compare_digest(supplied, SETTINGS.token):
         if request.url.path.startswith("/api/"):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
@@ -205,6 +240,7 @@ async def forget_project(project_id: str):
     if session:
         await session.close()
         REGISTRY.remove(session.project.root)
+        _restart_watch()
     return {"ok": True}
 
 
@@ -219,6 +255,7 @@ async def open_project(project_id: str):
         session = ProjectSession(project, model=SETTINGS.model)
         SESSIONS[project_id] = session
         REGISTRY.touch(project.root)
+        _restart_watch()
     session.start_agent_pump()
     return {
         **session.project.as_dict(),
@@ -262,11 +299,16 @@ async def write_file(
     target.parent.mkdir(parents=True, exist_ok=True)
     # Through a temporary file in the same directory, so a crash mid-save
     # cannot truncate a chapter the user has been writing all afternoon.
+    try:
+        previous = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        previous = None
     temp = target.with_name(target.name + ".nexttex-tmp")
     temp.write_text(text, encoding="utf-8")
     temp.replace(target)
+    session.mark_written(target)
 
-    session.note_edit(target, text)
+    session.note_edit(target, text, previous)
     if compile:
         session.schedule_compile()
     return {"ok": True, "mtime": target.stat().st_mtime}
@@ -333,23 +375,49 @@ async def upload(project_id: str, directory: str = Form(""), files: list[UploadF
 
 
 @app.get("/api/projects/{project_id}/download")
-async def download(project_id: str, path: str = ""):
-    """Download one file, or a directory (the whole project by default) as a zip."""
-    session = session_for(project_id)
-    target = _safe(session, path) if path else session.project.root
+async def download(project_id: str, path: str = "", format: str = "auto"):
+    """Take a copy away: one file, a folder, the whole project, or its PDF.
 
-    if target.is_file():
+    This works whether or not the project is open, because the moment a user
+    most wants a copy is often from the project list -- about to archive
+    something, or to send the PDF to a supervisor -- and having to open a
+    project first would be a step for nothing.
+    """
+    session = SESSIONS.get(project_id)
+    project = session.project if session else REGISTRY.find(project_id)
+    if project is None:
+        raise HTTPException(404, "unknown project")
+
+    if format == "pdf":
+        pdf = await _project_pdf(project, session)
+        return FileResponse(
+            pdf, media_type="application/pdf",
+            filename=f"{project.config.name}.pdf",
+        )
+
+    try:
+        target = project.resolve(path) if path else project.root
+    except PermissionError:
+        raise HTTPException(403, "path is outside the project")
+    except OSError:
+        raise HTTPException(400, "bad path")
+
+    if target.is_file() and format != "zip":
         return FileResponse(
             target, filename=target.name,
             media_type=mimetypes.guess_type(target.name)[0] or "application/octet-stream",
         )
+    if not target.exists():
+        raise HTTPException(404, "no such path")
 
-    build_dir = session.project.build_dir.resolve()
+    build_dir = project.build_dir.resolve()
 
     def stream() -> io.BytesIO:
         buffer = io.BytesIO()
+        base = target.parent if target.is_file() else target
+        items = [target] if target.is_file() else target.rglob("*")
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-            for item in target.rglob("*"):
+            for item in items:
                 if not item.is_file():
                     continue
                 # Build output is regenerated from the source and would
@@ -358,15 +426,57 @@ async def download(project_id: str, path: str = ""):
                     continue
                 if any(p in {".git", ".nexttex", "__pycache__"} for p in item.parts):
                     continue
-                archive.write(item, item.relative_to(target))
+                if item.name in IGNORED_FILES:
+                    continue
+                archive.write(item, item.relative_to(base))
         buffer.seek(0)
         return buffer
 
-    name = (target.name or session.project.config.name) + ".zip"
+    stem = target.stem if target.is_file() else (target.name or project.config.name)
     return StreamingResponse(
         stream(), media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        headers={"Content-Disposition": f'attachment; filename="{stem}.zip"'},
     )
+
+
+async def _project_pdf(project: Project, session: ProjectSession | None) -> Path:
+    """The project's rendered PDF, built first if it is missing or stale.
+
+    A download has to be the current document.  The preview PDF on disk may
+    have been produced by a scoped fast build covering one chapter, so any
+    build done here is a full one.
+    """
+    paths = ProjectPaths(
+        root=project.root, main=project.main, build_dir=project.build_dir
+    )
+    if not project.main.is_file():
+        raise HTTPException(400, f"no main file at {project.config.main}")
+
+    scheduler = session.compiler if session else CompileScheduler(paths)
+    # Only a full build produces a PDF worth handing over; the preview on
+    # disk is often one chapter.
+    fresh = paths.pdf.is_file() and scheduler.pdf_is_complete()
+    if fresh:
+        stamp = paths.pdf.stat().st_mtime
+        for item in project.root.rglob("*"):
+            if item.suffix.lower() not in {".tex", ".bib", ".cls", ".sty"}:
+                continue
+            if project.build_dir in item.parents or item.name in IGNORED_FILES:
+                continue
+            if item.stat().st_mtime > stamp:
+                fresh = False
+                break
+    if fresh:
+        return paths.pdf
+
+    result = await scheduler.build(force_full=True)
+    if not paths.pdf.is_file():
+        message = "compilation produced no PDF"
+        if result.diagnostics:
+            first = result.diagnostics[0]
+            message = f"{message}: {first.get('message', '')}"
+        raise HTTPException(422, message)
+    return paths.pdf
 
 
 # ---------------------------------------------------------------------------
@@ -526,7 +636,8 @@ async def agent_undo(
     temp = target.with_name(target.name + ".nexttex-tmp")
     temp.write_text(before, encoding="utf-8")
     temp.replace(target)
-    session.note_edit(target, before)
+    session.mark_written(target)
+    session.note_edit(target, before, current)
     session.schedule_compile()
     return {"ok": True}
 

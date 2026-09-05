@@ -58,18 +58,28 @@ DOCUMENTCLASS_RE = re.compile(r"^[^%\n]*\\documentclass[^\n]*\n", re.M)
 # Edits that make a one-pass build insufficient.  Citations and labels need
 # the bibliography and the aux file to catch up; preamble changes can alter
 # anything downstream.
-# Deliberately narrower than "anything to do with references".  A \\ref to
-# a label that already exists resolves from the previous run's .aux on the
-# fast path, and a stale number is corrected by the next full build; making
-# every cross-reference force biber would put every chapter of a thesis on
-# the slow path forever.  What genuinely cannot wait is a *new* target or a
-# *new* bibliography entry, and anything in the preamble.
-FULL_BUILD_TRIGGERS = re.compile(
-    r"\\(?:cite|citep|citet|autocite|textcite|parencite|nocite|supercite"
-    r"|label"
-    r"|bibliography|addbibresource|printbibliography"
-    r"|usepackage|documentclass|newcommand|renewcommand|input|include)\b"
+# What forces the slow path is a change in the *set* of cross-reference
+# targets or citation keys, not the mere presence of one.  Testing
+# "does this file contain \\cite" puts every real chapter on the slow path
+# forever, because every real chapter cites something.  A \\ref to a label
+# that already exists resolves from the previous run's .aux on the fast
+# path; only a new label or a new citation key needs biber and a second
+# pass.
+CITE_KEYS = re.compile(r"\\(?:no|super|paren|text|auto)?cite[a-zA-Z]*\s*(?:\[[^\]]*\]\s*)*\{([^}]*)\}")
+LABEL_KEYS = re.compile(r"\\label\s*\{([^}]*)\}")
+PREAMBLE_CHANGE = re.compile(
+    r"\\(?:usepackage|documentclass|newcommand|renewcommand|providecommand"
+    r"|bibliography|addbibresource|printbibliography|include|input)\b"
 )
+
+
+def reference_fingerprint(text: str) -> tuple[frozenset[str], frozenset[str]]:
+    """The citation keys and label names a file defines or refers to."""
+    cites: set[str] = set()
+    for group in CITE_KEYS.findall(text):
+        cites.update(k.strip() for k in group.split(",") if k.strip())
+    labels = {k.strip() for k in LABEL_KEYS.findall(text)}
+    return frozenset(cites), frozenset(labels)
 
 
 class Outcome(str, Enum):
@@ -205,15 +215,33 @@ class CompileScheduler:
         # next build then takes the full path and clears it.
         self._needs_full = True   # the first build of a session always is
 
-    def note_edit(self, path: Path, text: str | None = None) -> None:
-        """Record what an edit touched, so the next build picks the right path."""
-        if path.suffix.lower() in {".bib"}:
+    def note_edit(
+        self, path: Path, text: str | None = None, previous: str | None = None
+    ) -> None:
+        """Record what an edit touched, so the next build picks the right path.
+
+        `previous` is the file's contents before the edit.  Without it the
+        only safe answer is "rebuild everything", so the caller should pass
+        it whenever it can -- that is the difference between a one-second
+        preview and a two-second one on every keystroke.
+        """
+        if path.suffix.lower() == ".bib":
             self._needs_full = True
             return
         if path.resolve() == self.paths.main.resolve():
             self._needs_full = True
             return
-        if text is not None and FULL_BUILD_TRIGGERS.search(text):
+        if text is None:
+            self._needs_full = True
+            return
+        if previous is None:
+            # No baseline to compare against; assume the worst once.
+            self._needs_full = True
+            return
+        if PREAMBLE_CHANGE.search(text) != PREAMBLE_CHANGE.search(previous):
+            self._needs_full = True
+            return
+        if reference_fingerprint(text) != reference_fingerprint(previous):
             self._needs_full = True
 
     async def cancel(self) -> None:
@@ -319,6 +347,12 @@ class CompileScheduler:
         if full_pass:
             self._needs_full = False
 
+        # Record whether the PDF on disk is the whole document or one scoped
+        # chapter.  They are indistinguishable by timestamp, and a download
+        # that silently handed over a nine-page fragment of a twenty-page
+        # thesis would be worse than a slow one.
+        self._note_pdf_scope(scope if scope != "full" else "")
+
         log = None
         if self.paths.log.exists():
             log = parse_log(
@@ -336,6 +370,25 @@ class CompileScheduler:
             outcome, log, pdf, time.monotonic() - started, scope,
             "full" if full_pass else "fast",
         )
+
+    SCOPE_MARKER = ".nexttex-scope"
+
+    def _note_pdf_scope(self, scope: str) -> None:
+        marker = self.paths.build_dir / self.SCOPE_MARKER
+        try:
+            marker.write_text(scope, encoding="utf-8")
+        except OSError:
+            pass
+
+    def pdf_is_complete(self) -> bool:
+        """Was the PDF on disk produced by a build of the whole document?"""
+        marker = self.paths.build_dir / self.SCOPE_MARKER
+        try:
+            return marker.read_text(encoding="utf-8").strip() == ""
+        except OSError:
+            # No marker: an older build, or one made outside NextTex. Assume
+            # the worst rather than serve a fragment.
+            return False
 
     def _mirror_build_tree(self, main_source: str) -> None:
         for target in included_targets(main_source):
