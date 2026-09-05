@@ -1,20 +1,19 @@
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
 
-# Frontend
-node_modules/
-frontend/dist/
-frontend/.vite/
-
-# Runtime state (per-install, never committed)
-*.pem
-*.key
 *.crt
 .env
-
-# LaTeX build output from the example project
 examples/**/build/
+# Frontend
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/
+*.key
+# LaTeX build output from the example project
 .nexttex-preview.tex
+node_modules/
+*.pem
+*.pyc
+__pycache__/
+# Python
+# Runtime state (per-install, never committed)
+.venv/
+venv/
