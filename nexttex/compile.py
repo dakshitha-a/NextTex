@@ -65,6 +65,10 @@ DOCUMENTCLASS_RE = re.compile(r"^[^%\n]*\\documentclass[^\n]*\n", re.M)
 # that already exists resolves from the previous run's .aux on the fast
 # path; only a new label or a new citation key needs biber and a second
 # pass.
+# Above this, a preview of the whole document stops feeling immediate and
+# NextTex starts typesetting only the chapter being edited.
+SCOPE_ABOVE_MS = 2000.0
+
 CITE_KEYS = re.compile(r"\\(?:no|super|paren|text|auto)?cite[a-zA-Z]*\s*(?:\[[^\]]*\]\s*)*\{([^}]*)\}")
 LABEL_KEYS = re.compile(r"\\label\s*\{([^}]*)\}")
 PREAMBLE_CHANGE = re.compile(
@@ -214,6 +218,11 @@ class CompileScheduler:
         # Set when an edit touches citations, labels or the preamble; the
         # next build then takes the full path and clears it.
         self._needs_full = True   # the first build of a session always is
+        # How long one pdflatex pass over the whole document takes here.
+        # Scoping the preview to a single chapter saves about 70 ms on a
+        # twenty-page document -- not worth showing the writer a fragment --
+        # so it only starts once a whole-document pass stops being quick.
+        self._full_fast_ms: float | None = None
 
     def note_edit(
         self, path: Path, text: str | None = None, previous: str | None = None
@@ -284,7 +293,13 @@ class CompileScheduler:
         main_source = self.paths.main.read_text(encoding="utf-8", errors="replace")
         scope = "full"
         only = None
-        if focus is not None and supports_partial(main_source) and not force_full:
+        if (
+            focus is not None
+            and supports_partial(main_source)
+            and not force_full
+            and self._full_fast_ms is not None
+            and self._full_fast_ms > SCOPE_ABOVE_MS
+        ):
             target = chapter_for(focus, self.paths.root, included_targets(main_source))
             if target:
                 only, scope = target, target
@@ -352,6 +367,12 @@ class CompileScheduler:
         # that silently handed over a nine-page fragment of a twenty-page
         # thesis would be worse than a slow one.
         self._note_pdf_scope(scope if scope != "full" else "")
+
+        elapsed = (time.monotonic() - started) * 1000
+        if scope == "full" and not full_pass:
+            # Remember what a whole-document preview costs, so the decision
+            # above is made from this document rather than from a guess.
+            self._full_fast_ms = elapsed
 
         log = None
         if self.paths.log.exists():

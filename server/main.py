@@ -25,7 +25,7 @@ from fastapi.responses import (
 )
 from fastapi.staticfiles import StaticFiles
 
-from nexttex import claude_auth, synctex
+from nexttex import claude_auth, gitrepo, synctex
 from nexttex.compile import CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
 from nexttex.context import KINDS
@@ -591,6 +591,68 @@ async def _project_pdf(project: Project, session: ProjectSession | None) -> Path
             message = f"{message}: {first.get('message', '')}"
         raise HTTPException(422, message)
     return paths.pdf
+
+
+# ---------------------------------------------------------------------------
+# Git: backing the writing up somewhere that is not this machine
+
+
+@app.get("/api/projects/{project_id}/git")
+async def git_status(project_id: str):
+    session = SESSIONS.get(project_id)
+    project = session.project if session else REGISTRY.find(project_id)
+    if project is None:
+        raise HTTPException(404, "unknown project")
+    ready, reason = gitrepo.gh_available()
+    return {**gitrepo.status(project.root).as_dict(), "gh": ready, "ghReason": reason}
+
+
+@app.post("/api/projects/{project_id}/git/{action}")
+async def git_action(
+    project_id: str,
+    action: str,
+    message: str = Body("", embed=True),
+):
+    session = session_for(project_id)
+    root = session.project.root
+    try:
+        if action == "commit":
+            return {"ok": True, "output": gitrepo.commit(root, message)}
+        if action == "push":
+            return {"ok": True, "output": gitrepo.push(root)}
+        if action == "pull":
+            output = gitrepo.pull(root)
+            await session.events.publish({"type": "files_changed", "paths": []})
+            return {"ok": True, "output": output}
+        if action == "init":
+            gitrepo.initialise(root)
+            return {"ok": True}
+    except gitrepo.GitError as error:
+        raise HTTPException(400, str(error))
+    raise HTTPException(404, "no such action")
+
+
+@app.post("/api/projects/{project_id}/git/backup/github")
+async def git_backup(
+    project_id: str,
+    name: str = Body(""),
+    url: str = Body(""),
+    token: str = Body(""),
+    private: bool = Body(True),
+):
+    """Point a project at GitHub, either by making the repository or joining one."""
+    session = session_for(project_id)
+    root = session.project.root
+    try:
+        if url:
+            remote = gitrepo.attach_remote(root, url, token)
+        else:
+            remote = gitrepo.create_github(
+                root, name or session.project.config.name, private
+            )
+        return {"ok": True, "remote": remote}
+    except gitrepo.GitError as error:
+        raise HTTPException(400, str(error))
 
 
 # ---------------------------------------------------------------------------
