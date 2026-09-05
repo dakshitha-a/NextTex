@@ -57,11 +57,15 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
   return (
     <div className="flex h-full items-center justify-center bg-surround px-6">
       <div className="w-full max-w-[560px] rounded-[5px] border border-line bg-surface p-6">
-        <h1 className="t-display">Connect Claude</h1>
-        <p className="t-meta mt-2 text-ink-2">
-          NextTex writes with a Claude session scoped to your project. Sign in
-          once; the credentials stay on this machine, in the Claude CLI's own
-          store.
+        <h1 className="t-display">NextTex</h1>
+        <p className="t-meta mt-1 text-ink-2">
+          Write LaTeX with Claude beside the typeset page.
+        </p>
+        <p className="t-ui mt-5 text-ink">Connect your Claude account</p>
+        <p className="t-meta mt-1 text-ink-2">
+          The writing agent runs as a Claude session scoped to your project.
+          Sign in once; the credentials stay on this machine, in the Claude
+          CLI's own store — NextTex never sees them.
         </p>
 
         {!running ? (

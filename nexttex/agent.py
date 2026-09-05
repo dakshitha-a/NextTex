@@ -59,11 +59,16 @@ from claude_agent_sdk import (
 
 SESSION_FILE = "session.json"
 
-# Tools that never need asking about: they only read.
+# Tools that never need asking about wherever they point: they change
+# nothing outside the model's own head.
 READ_ONLY_TOOLS = [
-    "Read", "Glob", "Grep", "NotebookRead", "TodoWrite",
-    "WebSearch", "WebFetch",
+    "TodoWrite", "WebSearch", "WebFetch",
 ]
+
+# Reading changes nothing, but a writing project is not a licence to read
+# the whole disk: the point of scoping a session to a project is that it
+# stays there.  Inside the project these are free; outside they ask.
+READING_TOOLS = frozenset({"Read", "NotebookRead", "Glob", "Grep"})
 
 SYSTEM_PROMPT = """\
 You are helping write and maintain a document in NextTex, a LaTeX editor.
@@ -90,6 +95,39 @@ Explain what you changed in a sentence or two. The user can see the diff, so
 do not restate it line by line."""
 
 
+def _table(rows: list, caption: str, label: str, alignment: str) -> str:
+    """A booktabs table, with the first row as the header."""
+    cells = [[str(cell) for cell in row] for row in rows if isinstance(row, list)]
+    if not cells:
+        return ""
+    columns = max(len(row) for row in cells)
+    spec = alignment or "l" * columns
+    header, *body = cells
+    lines = [
+        "\\begin{table}[htbp]",
+        "  \\centering",
+    ]
+    if caption:
+        lines.append(f"  \\caption{{{caption}}}")
+    if label:
+        lines.append(f"  \\label{{{label}}}")
+    lines += [
+        f"  \\begin{{tabular}}{{{spec}}}",
+        "    \\hline",
+        "    " + " & ".join(header) + " \\\\",
+        "    \\hline",
+    ]
+    for row in body:
+        padded = row + [""] * (columns - len(row))
+        lines.append("    " + " & ".join(padded) + " \\\\")
+    lines += [
+        "    \\hline",
+        "  \\end{tabular}",
+        "\\end{table}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 @dataclass
 class EditRecord:
     """One file the agent changed, for the undo chip in the transcript."""
@@ -113,6 +151,8 @@ class ProjectAgent:
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
+        apply_edit: Callable[[Path, str], Any] | None = None,
+        reveal: Callable[[str, int], Any] | None = None,
         model: str | None = None,
     ):
         self.root = project_root.resolve()
@@ -121,6 +161,11 @@ class ProjectAgent:
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
+        # Writes a file the way the HTTP layer does -- atomically, marking it
+        # as ours so the watcher does not echo it back, and scheduling the
+        # rebuild.  Without this an MCP tool would leave the editor stale.
+        self.apply_edit = apply_edit
+        self.reveal = reveal
         self.model = model
 
         self._client: ClaudeSDKClient | None = None
@@ -206,6 +251,12 @@ class ProjectAgent:
             display = str(Path(path).resolve().relative_to(self.root))
         except (ValueError, OSError):
             pass
+        if tool_name in READING_TOOLS:
+            return {
+                "headline": f"Read a file outside the project: {display}",
+                "detail": path,
+                "consequence": "This file is not part of this writing project.",
+            }
         if tool_name in {"Write", "Edit", "MultiEdit", "NotebookEdit"}:
             return {
                 "headline": f"Write outside the project: {display}",
@@ -226,10 +277,13 @@ class ProjectAgent:
     # Tool calls that are always safe here: they only read, or they are our
     # own in-process tools.  Checked in the hook rather than delegated to
     # `allowed_tools`, so the decision lives in one place.
+    # NextTex's own tools are allowed by construction: each one can only
+    # read the project, write inside it, or ask a public catalogue about a
+    # DOI.  None can reach the shell or a path outside the project, so a
+    # card for them would be a card for nothing -- and a card for nothing
+    # teaches the writer to click Allow without reading.
+    _OWN_TOOL_PREFIX = "mcp__nexttex__"
     _ALWAYS_OK = frozenset(READ_ONLY_TOOLS) | {
-        "mcp__nexttex__editor_state",
-        "mcp__nexttex__compile_diagnostics",
-        "mcp__nexttex__compile",
         # How the model finds out which tools exist.  Asking the writer to
         # approve that is asking them to approve punctuation: it reads
         # nothing, changes nothing, and a card for it trains them to click
@@ -265,8 +319,19 @@ class ProjectAgent:
         tool_name = input_data.get("tool_name", "")
         tool_input = input_data.get("tool_input") or {}
 
-        if tool_name in self._ALWAYS_OK:
+        if tool_name in self._ALWAYS_OK or tool_name.startswith(self._OWN_TOOL_PREFIX):
             return self._allow()
+
+        if tool_name in READING_TOOLS:
+            raw = (
+                tool_input.get("file_path")
+                or tool_input.get("path")
+                or tool_input.get("notebook_path")
+            )
+            # Glob and Grep default to the working directory, which is the
+            # project; only an explicit path can leave it.
+            if raw is None or self._inside_project(raw):
+                return self._allow("Inside the writing project.")
 
         if tool_name in self._WRITE_TOOLS:
             raw = tool_input.get("file_path") or tool_input.get("path")
@@ -413,10 +478,266 @@ class ProjectAgent:
             return {"content": [{"type": "text",
                                  "text": f"Built cleanly in {payload.get('durationMs')} ms."}]}
 
+        @tool(
+            "insert_at_cursor",
+            "Insert LaTeX at the user's cursor in the file they have open. Use "
+            "this when they ask for something 'here'. Prefer it to Edit when "
+            "there is no anchoring text to match on -- an empty section, or a "
+            "blank line they are sitting on.",
+            {"text": str},
+        )
+        async def insert_at_cursor(args: dict) -> dict:
+            return self._insert(args.get("text", ""))
+
+        @tool(
+            "insert_figure",
+            "Insert a figure environment at the cursor, referencing an image "
+            "already in the project. Give the image path relative to the "
+            "project root.",
+            {"path": str, "caption": str, "label": str, "width": str},
+        )
+        async def insert_figure(args: dict) -> dict:
+            path = str(args.get("path", "")).strip()
+            if not path:
+                return self._text("A figure needs the path of an image.")
+            target = (self.root / path).resolve()
+            if not target.is_file():
+                return self._text(
+                    f"There is no file at {path}. Upload the image first, or "
+                    "check the path."
+                )
+            width = str(args.get("width") or "0.8\\linewidth")
+            label = str(args.get("label") or "").strip()
+            caption = str(args.get("caption") or "").strip()
+            body = (
+                "\\begin{figure}[htbp]\n"
+                "  \\centering\n"
+                f"  \\includegraphics[width={width}]{{{path}}}\n"
+                + (f"  \\caption{{{caption}}}\n" if caption else "")
+                + (f"  \\label{{{label}}}\n" if label else "")
+                + "\\end{figure}\n"
+            )
+            return self._insert(body)
+
+        @tool(
+            "insert_table",
+            "Insert a table at the cursor. Rows is a list of lists of cell "
+            "text; the first row is treated as the header. Alignment is a "
+            "column spec such as 'lrr'; omit it for left-aligned columns.",
+            {
+                "rows": list,
+                "caption": str,
+                "label": str,
+                "alignment": str,
+            },
+        )
+        async def insert_table(args: dict) -> dict:
+            rows = args.get("rows") or []
+            if not rows or not isinstance(rows, list):
+                return self._text("A table needs rows.")
+            body = _table(
+                rows,
+                str(args.get("caption") or "").strip(),
+                str(args.get("label") or "").strip(),
+                str(args.get("alignment") or "").strip(),
+            )
+            return self._insert(body)
+
+        @tool(
+            "goto",
+            "Scroll the user's editor to a line, so they can look at what you "
+            "are describing. Does not change anything.",
+            {"path": str, "line": int},
+        )
+        async def goto(args: dict) -> dict:
+            path = str(args.get("path", "")).strip()
+            line = int(args.get("line") or 1)
+            if not path:
+                return self._text("Which file?")
+            if self.reveal:
+                self.reveal(path, line)
+                return self._text(f"Showing {path}:{line} in the editor.")
+            return self._text("The editor is not connected.")
+
+        @tool(
+            "find_papers",
+            "Search the scholarly literature and return real papers with their "
+            "DOIs. Use this before citing anything: it is the only way to get "
+            "a citation that exists. Sources: crossref (default), openalex, "
+            "semanticscholar. Set cited_by to a DOI to walk forward from a "
+            "paper instead of searching by keyword.",
+            {
+                "query": str,
+                "author": str,
+                "years": str,
+                "cited_by": str,
+                "source": str,
+                "limit": int,
+            },
+        )
+        async def find_papers(args: dict) -> dict:
+            from . import references
+
+            limit = int(args.get("limit") or 8)
+            try:
+                if args.get("cited_by"):
+                    found = await asyncio.to_thread(
+                        references.cited_by, str(args["cited_by"]), limit
+                    )
+                else:
+                    found = await asyncio.to_thread(
+                        references.search,
+                        str(args.get("query", "")),
+                        source=str(args.get("source") or "crossref"),
+                        author=str(args.get("author") or ""),
+                        years=str(args.get("years") or ""),
+                        limit=limit,
+                    )
+            except Exception as error:
+                return self._text(f"The search failed: {error}")
+            if not found:
+                return self._text("Nothing matched.")
+            lines = []
+            for item in found:
+                authors = item.get("authors") or ""
+                lines.append(
+                    f"- {item.get('title', '(untitled)')}\n"
+                    f"  {authors} · {item.get('year') or 'n.d.'} · "
+                    f"{item.get('venue') or ''}\n"
+                    f"  doi: {item.get('doi') or '(none)'}"
+                )
+            return self._text("\n".join(lines))
+
+        @tool(
+            "add_reference",
+            "Add a reference to the project's .bib file from its DOI. The "
+            "entry is fetched from the publisher's own record -- never write "
+            "one yourself. Returns the citation key to use.",
+            {"doi": str, "bib_file": str},
+        )
+        async def add_reference(args: dict) -> dict:
+            from . import references
+
+            doi = str(args.get("doi", "")).strip()
+            if not doi:
+                return self._text("Which DOI?")
+            bib = self._bib_path(str(args.get("bib_file") or ""))
+            if bib is None:
+                return self._text(
+                    "I cannot find a .bib file in this project. Create one "
+                    "first, or say which file to add to."
+                )
+            try:
+                result = await asyncio.to_thread(references.add, doi, bib)
+            except Exception as error:
+                return self._text(f"Could not add it: {error}")
+            if not result.get("added"):
+                return self._text(result.get("reason", "nothing to do"))
+            if self.compile_now:
+                await self._maybe(self.compile_now())
+            return self._text(
+                f"Added to {self._display(bib)} as \\cite{{{result['key']}}} "
+                f"— {result.get('title', '')}"
+            )
+
+        @tool(
+            "check_references",
+            "Re-check every entry in the bibliography against the record it "
+            "claims to come from, and report anything that does not match.",
+            {"bib_file": str},
+        )
+        async def check_references(args: dict) -> dict:
+            from . import references
+
+            bib = self._bib_path(str(args.get("bib_file") or ""))
+            if bib is None:
+                return self._text("There is no .bib file in this project.")
+            result = await asyncio.to_thread(references.verify, bib)
+            if not result["problems"]:
+                return self._text(
+                    f"All {result['checked']} entries check out against their "
+                    "published records."
+                )
+            lines = [
+                f"{len(result['problems'])} of {result['checked']} entries have "
+                "problems:"
+            ]
+            for problem in result["problems"]:
+                lines.append(f"- {problem['key']}: {'; '.join(problem['issues'])}")
+            return self._text("\n".join(lines))
+
         return create_sdk_mcp_server(
             name="nexttex",
             version="1.0.0",
-            tools=[editor_state, compile_diagnostics, compile_document],
+            tools=[
+                editor_state, compile_diagnostics, compile_document,
+                insert_at_cursor, insert_figure, insert_table, goto,
+                find_papers, add_reference, check_references,
+            ],
+        )
+
+    # -- helpers the tools share -------------------------------------------
+    @staticmethod
+    def _text(message: str) -> dict:
+        return {"content": [{"type": "text", "text": message}]}
+
+    def _display(self, path: Path) -> str:
+        try:
+            return str(path.resolve().relative_to(self.root))
+        except (ValueError, OSError):
+            return str(path)
+
+    def _bib_path(self, named: str) -> Path | None:
+        if named:
+            candidate = (self.root / named).resolve()
+            return candidate if self._inside_project(str(candidate)) else None
+        # references.bib by convention, otherwise whatever .bib is there.
+        preferred = self.root / "references.bib"
+        if preferred.exists():
+            return preferred
+        found = sorted(self.root.rglob("*.bib"))
+        return found[0] if found else None
+
+    @staticmethod
+    async def _maybe(value: Any) -> Any:
+        if asyncio.iscoroutine(value):
+            return await value
+        return value
+
+    def _insert(self, text: str) -> dict:
+        """Put text at the user's cursor, as an ordinary undoable edit."""
+        if not text:
+            return self._text("Nothing to insert.")
+        state = self.editor_state() or {}
+        name = state.get("file")
+        if not name:
+            return self._text(
+                "No file is open, so there is no cursor to insert at. Open "
+                "one, or tell me which file and I will use Edit."
+            )
+        path = (self.root / name).resolve()
+        if not self._inside_project(str(path)) or not path.is_file():
+            return self._text(f"I cannot write to {name}.")
+        try:
+            before = path.read_text(encoding="utf-8")
+        except OSError as error:
+            return self._text(f"Could not read {name}: {error}")
+
+        lines = before.split("\n")
+        # The cursor line is 1-based and sits *before* the line it names, so
+        # the insertion goes after it -- which is what "here" means when
+        # somebody is sitting at the end of a paragraph.
+        at = max(0, min(int(state.get("line") or len(lines)), len(lines)))
+        body = text if text.endswith("\n") else text + "\n"
+        after = "\n".join(lines[:at]) + ("\n" if at else "") + body + "\n".join(lines[at:])
+
+        if self.apply_edit is None:
+            return self._text("The editor is not connected.")
+        self.apply_edit(path, after)
+        self._edits.append(EditRecord("insert", self._display(path), before, after))
+        return self._text(
+            f"Inserted {len(body.splitlines())} lines into {self._display(path)} "
+            f"after line {at}."
         )
 
     # -- lifecycle ---------------------------------------------------------

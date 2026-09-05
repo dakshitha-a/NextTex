@@ -84,13 +84,16 @@ def _normalise(raw: str, project_root: Path) -> Path:
     other way, and the editor opens a second tab for it.
     """
     path = Path(raw)
+    # A relative path belongs to the project, not to whatever directory the
+    # server happens to be running in -- which under systemd is the NextTex
+    # source tree, so resolving it there would produce a path outside the
+    # project and the click would silently do nothing.
+    if not path.is_absolute():
+        path = project_root / path
     try:
-        resolved = path.resolve()
+        return path.resolve()
     except OSError:
-        resolved = path
-    if not resolved.is_absolute():
-        resolved = (project_root / resolved).resolve()
-    return resolved
+        return path
 
 
 # Files the engine generates and then reads back.  A click that lands on a

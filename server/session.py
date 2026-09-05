@@ -74,6 +74,8 @@ class ProjectSession:
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
             compile_now=self.compile,
+            apply_edit=self.write_from_agent,
+            reveal=self.reveal_in_editor,
             model=model or None,
         )
 
@@ -157,6 +159,38 @@ class ProjectSession:
         self, path: Path, text: str | None = None, previous: str | None = None
     ) -> None:
         self.compiler.note_edit(path, text, previous)
+
+    def write_from_agent(self, path: Path, text: str) -> None:
+        """A write made by one of the agent's own tools.
+
+        The same path as an HTTP save: atomic, recorded as ours so the
+        watcher does not echo it back at the editor, and followed by a
+        rebuild.  Anything less and the pane would go stale under an edit
+        the user just watched arrive.
+        """
+        try:
+            previous = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            previous = None
+        temp = path.with_name(path.name + ".nexttex-tmp")
+        temp.write_text(text, encoding="utf-8")
+        temp.replace(path)
+        self.mark_written(path)
+        self.note_edit(path, text, previous)
+        self.schedule_compile()
+        asyncio.create_task(
+            self.events.publish({
+                "type": "files_changed",
+                "paths": [self.project.relative(path)],
+                "byAgent": True,
+            })
+        )
+
+    def reveal_in_editor(self, path: str, line: int) -> None:
+        """Ask the open editor to show a line."""
+        asyncio.create_task(
+            self.events.publish({"type": "reveal", "path": path, "line": line})
+        )
 
     def mark_written(self, path: Path) -> None:
         try:

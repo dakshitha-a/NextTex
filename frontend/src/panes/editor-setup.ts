@@ -148,7 +148,7 @@ export function marksFor(
 
 export function extensions(
   onChange: () => void,
-  onCursor: (line: number, column: number) => void,
+  onCursor: (line: number, column: number, selection: string) => void,
 ): Extension[] {
   return [
     lineNumbers(),
@@ -176,9 +176,14 @@ export function extensions(
     EditorView.updateListener.of((update) => {
       if (update.docChanged) onChange();
       if (update.selectionSet || update.docChanged) {
-        const head = update.state.selection.main.head;
-        const line = update.state.doc.lineAt(head);
-        onCursor(line.number, head - line.from + 1);
+        const range = update.state.selection.main;
+        const line = update.state.doc.lineAt(range.head);
+        // The selection goes with the position: "rewrite this" needs to
+        // know what "this" is, and the agent should not have to guess.
+        const selection = range.empty
+          ? ""
+          : update.state.sliceDoc(range.from, range.to).slice(0, 20000);
+        onCursor(line.number, range.head - line.from + 1, selection);
       }
     }),
   ];

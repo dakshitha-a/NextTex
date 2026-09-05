@@ -69,6 +69,16 @@ export type State = {
   chat: ChatItem[];
   thinking: boolean;
   awaitingPermission: boolean;
+  git: {
+    repository: boolean;
+    branch: string;
+    ahead: number;
+    behind: number;
+    remote: string;
+    changes: { state: string; path: string }[];
+    gh: boolean;
+    ghReason: string;
+  } | null;
   contextDocs: ContextDocument[];
   contextStale: string[];
   claude: { loggedIn: boolean; email?: string; plan?: string } | null;
@@ -94,6 +104,7 @@ const state: State = {
   chat: [],
   thinking: false,
   awaitingPermission: false,
+  git: null,
   contextDocs: [],
   contextStale: [],
   claude: null,
@@ -267,6 +278,7 @@ function countDiff(before: string, after: string) {
 
 let source: EventSource | null = null;
 export type EventHandlers = {
+  onReveal?: (path: string, line: number) => void;
   onFilesChanged?: (paths: string[]) => void;
   onCompileDone?: (result: CompileResult) => void;
   onAgentEdit?: (path: string) => void;
@@ -314,6 +326,9 @@ function receive(event: any) {
     }
     case "files_changed":
       handlers.onFilesChanged?.(event.paths ?? []);
+      break;
+    case "reveal":
+      handlers.onReveal?.(event.path, event.line);
       break;
     case "context_changed":
       if (state.projectId) refreshContext(state.projectId);
@@ -403,6 +418,14 @@ export function markReverted(id: string) {
 
 export function markLive(id: string) {
   updateChat(id, { state: "live" } as any);
+}
+
+export async function refreshGit(projectId: string) {
+  try {
+    set({ git: await api.git(projectId) });
+  } catch {
+    set({ git: null });
+  }
 }
 
 export async function refreshContext(projectId: string) {
