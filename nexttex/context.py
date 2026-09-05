@@ -114,7 +114,12 @@ class ProjectContext:
         safe = Path(filename).name or "document"
         document_id = f"{int(time.time() * 1000):x}"
         target = self._dir(kind) / f"{document_id}__{safe}"
-        target.write_bytes(data)
+        # Through a temporary file: an upload cut off partway would
+        # otherwise leave a truncated PDF that pdftotext extracts as
+        # garbage, and nothing downstream would notice.
+        temp = target.with_name(target.name + ".part")
+        temp.write_bytes(data)
+        temp.replace(target)
 
         document = Document(
             id=document_id, kind=kind, filename=safe,

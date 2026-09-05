@@ -58,11 +58,17 @@ DOCUMENTCLASS_RE = re.compile(r"^[^%\n]*\\documentclass[^\n]*\n", re.M)
 # Edits that make a one-pass build insufficient.  Citations and labels need
 # the bibliography and the aux file to catch up; preamble changes can alter
 # anything downstream.
+# Deliberately narrower than "anything to do with references".  A \\ref to
+# a label that already exists resolves from the previous run's .aux on the
+# fast path, and a stale number is corrected by the next full build; making
+# every cross-reference force biber would put every chapter of a thesis on
+# the slow path forever.  What genuinely cannot wait is a *new* target or a
+# *new* bibliography entry, and anything in the preamble.
 FULL_BUILD_TRIGGERS = re.compile(
-    r"\\(?:cite|citep|citet|autocite|textcite|parencite|nocite"
-    r"|label|ref|eqref|pageref|autoref|cref|Cref"
+    r"\\(?:cite|citep|citet|autocite|textcite|parencite|nocite|supercite"
+    r"|label"
     r"|bibliography|addbibresource|printbibliography"
-    r"|usepackage|documentclass|newcommand|renewcommand|def)\b"
+    r"|usepackage|documentclass|newcommand|renewcommand|input|include)\b"
 )
 
 
@@ -138,12 +144,22 @@ def chapter_for(path: Path, root: Path, targets: list[str]) -> str | None:
     except ValueError:
         return None
     stem = str(rel.with_suffix(""))
+    # An exact match wins outright.
     for target in targets:
-        # An exact match, or a file sitting in the same chapter directory
-        # (its supporting information, say).
-        if stem == target or stem.startswith(target.rsplit("/", 1)[0] + "/"):
+        if stem == target:
             return target
-    return None
+    # Otherwise the file may be a companion of an included one -- a
+    # chapter's supporting information sitting beside it.  Match on the
+    # containing directory, longest first, so a file under
+    # chapters/02_theory/ is not attributed to chapters/01_introduction
+    # merely because both live under chapters/.
+    best: str | None = None
+    for target in targets:
+        directory = target.rsplit("/", 1)[0] if "/" in target else None
+        if directory and stem.startswith(directory + "/"):
+            if best is None or len(directory) > len(best.rsplit("/", 1)[0]):
+                best = target
+    return best
 
 
 def write_shadow(paths: ProjectPaths, only: str | None) -> Path:
