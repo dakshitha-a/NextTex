@@ -14,7 +14,7 @@ type Buffer = { state: EditorState; saved: string };
 
 export type EditorHandle = {
   open(path: string, line?: number): Promise<void>;
-  close(path: string): void;
+  close(path: string): Promise<void>;
   reload(path: string): Promise<void>;
   flash(line: number, endLine?: number): void;
   saveNow(): Promise<void>;
@@ -32,6 +32,13 @@ export default function Editor({
   const current = useRef<string | null>(null);
   const timer = useRef<number | null>(null);
   const openRef = useRef<((path: string, line?: number) => Promise<void>) | null>(null);
+  // The parent hands us a new callback on every render.  Holding it in a ref
+  // keeps the setup effect at zero dependencies, which matters more than it
+  // sounds: an effect that re-runs destroys the view mid-edit and the
+  // pending autosave then writes what the empty replacement contains.
+  const publish = useRef(handleRef);
+  publish.current = handleRef;
+
   const pendingOpen = useStore((s) => s.pendingOpen);
   const diagnostics = useStore((s) => s.diagnostics);
   const lint = useStore((s) => s.lint);
@@ -40,19 +47,18 @@ export default function Editor({
   useEffect(() => {
     if (!host.current || view.current) return;
 
-    const save = async () => {
-      const path = current.current;
+    /** Write one file, and only if the view still holds it. */
+    const saveFile = async (path: string) => {
       const editor = view.current;
-      if (!path || !editor) return;
-      const text = editor.state.doc.toString();
+      if (!editor || current.current !== path) return;
       const buffer = buffers.current.get(path);
-      if (buffer && buffer.saved === text) return;
+      const text = editor.state.doc.toString();
+      if (!buffer || buffer.saved === text) return;
       const projectId = get().projectId;
       if (!projectId) return;
       try {
         await api.writeFile(projectId, path, text);
-        const entry = buffers.current.get(path);
-        if (entry) entry.saved = text;
+        buffer.saved = text;
         set({
           tabs: get().tabs.map((tab) =>
             tab.path === path ? { ...tab, dirty: false } : tab,
@@ -62,6 +68,20 @@ export default function Editor({
       } catch (error: any) {
         set({ error: `Could not save ${path}: ${error.message}` });
       }
+    };
+
+    const cancelTimer = () => {
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
+        timer.current = null;
+      }
+    };
+
+    /** Write whatever is in the view now, before anything replaces it. */
+    const flush = async () => {
+      cancelTimer();
+      const path = current.current;
+      if (path) await saveFile(path);
     };
 
     const onChange = () => {
@@ -75,8 +95,11 @@ export default function Editor({
           ),
         });
       }
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(save, SAVE_DELAY);
+      cancelTimer();
+      timer.current = window.setTimeout(() => {
+        timer.current = null;
+        saveFile(path);
+      }, SAVE_DELAY);
     };
 
     const onCursor = (line: number, column: number) => {
@@ -88,28 +111,6 @@ export default function Editor({
 
     const ext = extensions(onChange, onCursor);
     view.current = new EditorView({ parent: host.current, state: freshState("", ext) });
-
-    const openBuffer = async (path: string, line?: number) => {
-      const projectId = get().projectId;
-      if (!projectId || !view.current) return;
-      let buffer = buffers.current.get(path);
-      if (!buffer) {
-        const file = await api.readFile(projectId, path);
-        buffer = { state: freshState(file.text, ext), saved: file.text };
-        buffers.current.set(path, buffer);
-      } else if (current.current === path && line === undefined) {
-        return;
-      }
-      if (current.current && current.current !== path && view.current) {
-        const existing = buffers.current.get(current.current);
-        if (existing) existing.state = view.current.state;
-      }
-      current.current = path;
-      view.current.setState(buffer.state);
-      if (line !== undefined) jump(line);
-      api.setFocus(projectId, path).catch(() => undefined);
-      lintFile(projectId, path);
-    };
 
     const jump = (line: number, endLine?: number) => {
       const editor = view.current;
@@ -134,10 +135,69 @@ export default function Editor({
       }, 700);
     };
 
+    const openBuffer = async (path: string, line?: number) => {
+      const projectId = get().projectId;
+      if (!projectId || !view.current) return;
+      if (current.current === path) {
+        if (line !== undefined) jump(line);
+        return;
+      }
+      // The outgoing file is written before its state leaves the view, or an
+      // edit made in the last quarter second is lost to a tab click.
+      await flush();
+      let buffer = buffers.current.get(path);
+      if (!buffer) {
+        const file = await api.readFile(projectId, path);
+        buffer = { state: freshState(file.text, ext), saved: file.text };
+        buffers.current.set(path, buffer);
+      }
+      if (current.current && view.current) {
+        const outgoing = buffers.current.get(current.current);
+        if (outgoing) outgoing.state = view.current.state;
+      }
+      current.current = path;
+      view.current.setState(buffer.state);
+      if (line !== undefined) jump(line);
+      api.setFocus(projectId, path).catch(() => undefined);
+      lintFile(projectId, path);
+    };
     openRef.current = openBuffer;
-    handleRef({
+
+    /** Replace a buffer's text with what is on disk, keeping the history. */
+    const replaceText = (path: string, text: string) => {
+      const buffer = buffers.current.get(path);
+      if (!buffer) return;
+      if (current.current === path && view.current) {
+        const editor = view.current;
+        const scroll = editor.scrollDOM.scrollTop;
+        editor.dispatch({
+          changes: { from: 0, to: editor.state.doc.length, insert: text },
+        });
+        editor.scrollDOM.scrollTop = scroll;
+        buffer.state = editor.state;
+      } else {
+        buffer.state = buffer.state.update({
+          changes: { from: 0, to: buffer.state.doc.length, insert: text },
+        }).state;
+      }
+      buffer.saved = text;
+    };
+
+    publish.current({
       open: openBuffer,
-      close: (path) => {
+      close: async (path) => {
+        if (current.current === path) await flush();
+        else {
+          const buffer = buffers.current.get(path);
+          if (buffer && buffer.saved !== buffer.state.doc.toString()) {
+            const projectId = get().projectId;
+            if (projectId) {
+              await api
+                .writeFile(projectId, path, buffer.state.doc.toString())
+                .catch(() => undefined);
+            }
+          }
+        }
         buffers.current.delete(path);
         if (current.current === path) current.current = null;
       },
@@ -145,24 +205,19 @@ export default function Editor({
         const projectId = get().projectId;
         if (!projectId) return;
         const buffer = buffers.current.get(path);
+        if (!buffer) return;
+        const live =
+          current.current === path && view.current
+            ? view.current.state.doc.toString()
+            : buffer.state.doc.toString();
         // Never overwrite unsaved work with what is on disk.  The tab stays
         // dirty and the user decides.
-        if (buffer && view.current && current.current === path) {
-          if (buffer.saved !== view.current.state.doc.toString()) return;
-        } else if (buffer && buffer.saved !== buffer.state.doc.toString()) {
-          return;
-        }
+        if (live !== buffer.saved) return;
         const file = await api.readFile(projectId, path);
-        const replaced = { state: freshState(file.text, ext), saved: file.text };
-        buffers.current.set(path, replaced);
-        if (current.current === path && view.current) {
-          const scroll = view.current.scrollDOM.scrollTop;
-          view.current.setState(replaced.state);
-          view.current.scrollDOM.scrollTop = scroll;
-        }
+        if (file.text !== live) replaceText(path, file.text);
       },
       flash: jump,
-      saveNow: save,
+      saveNow: flush,
       textOf: (path) => {
         if (current.current === path && view.current) {
           return view.current.state.doc.toString();
@@ -171,11 +226,29 @@ export default function Editor({
       },
     });
 
+    // Closing the tab mid-edit should not lose the last quarter second.
+    const onLeave = () => {
+      const path = current.current;
+      const editor = view.current;
+      const projectId = get().projectId;
+      if (!path || !editor || !projectId) return;
+      const buffer = buffers.current.get(path);
+      const text = editor.state.doc.toString();
+      if (!buffer || buffer.saved === text) return;
+      navigator.sendBeacon?.(
+        `/api/projects/${projectId}/file/beacon`,
+        new Blob([JSON.stringify({ path, text })], { type: "application/json" }),
+      );
+    };
+    window.addEventListener("pagehide", onLeave);
+
     return () => {
+      window.removeEventListener("pagehide", onLeave);
+      cancelTimer();
       view.current?.destroy();
       view.current = null;
     };
-  }, [handleRef]);
+  }, []);
 
   useEffect(() => {
     if (!pendingOpen) return;

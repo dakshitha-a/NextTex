@@ -134,7 +134,11 @@ class ProjectSession:
         try:
             self.recently_written[str(path.resolve())] = path.stat().st_mtime_ns
         except OSError:
-            pass
+            return
+        # Only the most recent write of each file can still be echoed back,
+        # and a session can run for weeks: keep the ledger bounded.
+        while len(self.recently_written) > 256:
+            self.recently_written.pop(next(iter(self.recently_written)))
 
     def is_own_write(self, path: Path) -> bool:
         try:

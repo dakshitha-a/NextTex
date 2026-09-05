@@ -315,6 +315,33 @@ async def write_file(
     return {"ok": True, "mtime": target.stat().st_mtime}
 
 
+@app.post("/api/projects/{project_id}/file/beacon")
+async def file_beacon(project_id: str, request: Request):
+    """Last-gasp save from a tab that is closing.
+
+    `navigator.sendBeacon` cannot wait for a reply and cannot set headers,
+    so this takes the body as-is and saves without compiling.  It is the
+    difference between losing the last quarter second of typing and not.
+    """
+    session = session_for(project_id)
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "bad body")
+    path = payload.get("path")
+    text = payload.get("text")
+    if not isinstance(path, str) or not isinstance(text, str):
+        raise HTTPException(400, "path and text are required")
+    target = _safe(session, path)
+    if not target.is_file():
+        raise HTTPException(404, "no such file")
+    temp = target.with_name(target.name + ".nexttex-tmp")
+    temp.write_text(text, encoding="utf-8")
+    temp.replace(target)
+    session.mark_written(target)
+    return {"ok": True}
+
+
 @app.post("/api/projects/{project_id}/file/new")
 async def create_entry(
     project_id: str, path: str = Body(...), directory: bool = Body(False)

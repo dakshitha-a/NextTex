@@ -34,7 +34,14 @@ export default function App() {
   const [drawer, setDrawer] = useState(DRAWER_CLOSED);
   const [drawerDismissed, setDrawerDismissed] = useState(false);
   const [railHidden, setRailHidden] = useState(false);
-  const [narrow, setNarrow] = useState(window.innerWidth < 1400);
+  // Three widths matter: below 1400 the chat stops being a docked column,
+  // below 1100 the rail folds away, and below 900 the editor and the PDF
+  // take turns rather than splitting a space too small for either.
+  const [width, setWidth] = useState(window.innerWidth);
+  const narrow = width < 1400;
+  const tight = width < 900;
+  const [chatOpen, setChatOpen] = useState(true);
+  const [showing, setShowing] = useState<"source" | "preview">("source");
   const [chatOver, setChatOver] = useState(false);
   const [wordScope, setWordScope] = useState<"file" | "document">("document");
   const [words, setWords] = useState<number | null>(null);
@@ -60,7 +67,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onResize = () => setNarrow(window.innerWidth < 1400);
+    const onResize = () => setWidth(window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -108,10 +115,10 @@ export default function App() {
     });
   }, []);
 
-  const closeFile = useCallback((path: string) => {
+  const closeFile = useCallback(async (path: string) => {
     const state = get();
     const remaining = state.tabs.filter((tab) => tab.path !== path);
-    editor.current?.close(path);
+    await editor.current?.close(path);
     set({
       tabs: remaining,
       activePath:
@@ -230,7 +237,14 @@ export default function App() {
   widthsRef.current = widths;
   const get_widths = () => widthsRef.current;
 
-  useEffect(() => setChatOver(narrow), [narrow]);
+  useEffect(() => {
+    setChatOver(narrow);
+    setChatOpen(!narrow);
+  }, [narrow]);
+
+  useEffect(() => {
+    if (width < 1100) setRailHidden(true);
+  }, [width]);
 
   if (view === "loading") {
     return <div className="h-full bg-surround" />;
@@ -258,7 +272,7 @@ export default function App() {
   const editorFraction = widths.editor;
 
   return (
-    <div ref={shell} className="flex h-full w-full overflow-hidden bg-surround">
+    <div ref={shell} className="relative flex h-full w-full overflow-hidden bg-surround">
       {!railHidden ? (
         <>
           <div
@@ -287,10 +301,7 @@ export default function App() {
                 <button
                   className="t-micro text-ink-3 hover:text-ink"
                   title="Download the typeset PDF"
-                  onClick={() =>
-                    projectId &&
-                    startDownload(api.downloadUrl(projectId, { format: "pdf" }))
-                  }
+                  onClick={() => projectId && downloadPdf(projectId, projectName)}
                 >
                   PDF
                 </button>
@@ -305,10 +316,27 @@ export default function App() {
 
       <div className="flex min-w-0 flex-1">
         <div
-          className="flex min-h-0 min-w-[420px] flex-col bg-surface"
-          style={{ flex: `${editorFraction} 1 0` }}
+          className={`flex min-h-0 flex-col bg-surface ${
+            tight ? (showing === "source" ? "flex-1" : "hidden") : "min-w-[420px]"
+          }`}
+          style={tight ? undefined : { flex: `${editorFraction} 1 0` }}
         >
-          <Tabs onSelect={(path) => openFile(path)} onClose={closeFile} />
+          <div className="flex items-center bg-surface-2">
+            <div className="min-w-0 flex-1">
+              <Tabs onSelect={(path) => openFile(path)} onClose={closeFile} />
+            </div>
+            {tight ? (
+              <Segmented value={showing} onChange={setShowing} />
+            ) : null}
+            {chatOver && !chatOpen ? (
+              <button
+                className="t-micro mr-2 shrink-0 rounded-[3px] border border-line px-2 py-[3px] text-ink-2 hover:text-ink"
+                onClick={() => setChatOpen(true)}
+              >
+                Claude
+              </button>
+            ) : null}
+          </div>
           <div className="relative min-h-0 flex-1">
             <Editor handleRef={(handle) => (editor.current = handle)} />
             {tabs.length === 0 ? (
@@ -339,9 +367,22 @@ export default function App() {
           />
         </div>
 
-        <Handle onPointerDown={startDrag("split")} />
+        {tight ? null : <Handle onPointerDown={startDrag("split")} />}
 
-        <div className="flex min-w-[320px] flex-1 flex-col">
+        <div
+          className={`flex min-h-0 flex-col ${
+            tight
+              ? showing === "preview"
+                ? "flex-1"
+                : "hidden"
+              : "min-w-[320px] flex-1"
+          }`}
+        >
+          {tight && showing === "preview" ? (
+            <div className="flex items-center justify-end bg-surface-2 py-1 pr-2">
+              <Segmented value={showing} onChange={setShowing} />
+            </div>
+          ) : null}
           <Pdf
             handleRef={(handle) => (pdf.current = handle)}
             onNavigate={(file, line) => openFile(file, line)}
@@ -353,11 +394,24 @@ export default function App() {
       <div
         className={
           chatOver
-            ? "absolute right-0 top-0 z-30 h-full shadow-[0_0_8px_rgba(0,0,0,0.25)]"
+            ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)] transition-transform duration-[180ms]"
             : "min-h-0"
         }
-        style={{ width: widths.chat }}
+        style={{
+          width: widths.chat,
+          transform: chatOver && !chatOpen ? "translateX(100%)" : undefined,
+          visibility: chatOver && !chatOpen ? "hidden" : undefined,
+        }}
       >
+        {chatOver ? (
+          <button
+            className="t-micro absolute right-2 top-[8px] z-10 text-ink-3 hover:text-ink"
+            onClick={() => setChatOpen(false)}
+            aria-label="Hide the Claude panel"
+          >
+            Hide
+          </button>
+        ) : null}
         <Chat
           handleRef={(handle) => (chat.current = handle)}
           onShowEdit={(path, line) => openFile(path, line)}
@@ -380,6 +434,52 @@ export default function App() {
           </button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** A PDF download can fail -- the document may not typeset -- and a plain
+ *  link would save the error as a .pdf.  Fetching first lets it say why. */
+async function downloadPdf(projectId: string, name: string) {
+  try {
+    const response = await fetch(api.downloadUrl(projectId, { format: "pdf" }), {
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail || "the project did not typeset");
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${name || "project"}.pdf`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error: any) {
+    set({ error: `Could not download the PDF: ${error.message}` });
+  }
+}
+
+function Segmented({
+  value,
+  onChange,
+}: {
+  value: "source" | "preview";
+  onChange: (value: "source" | "preview") => void;
+}) {
+  return (
+    <div className="mr-2 flex shrink-0 overflow-hidden rounded-[3px] border border-line">
+      {(["source", "preview"] as const).map((option) => (
+        <button
+          key={option}
+          className={`t-micro px-2 py-[3px] ${
+            value === option ? "bg-surface text-ink" : "text-ink-3"
+          }`}
+          onClick={() => onChange(option)}
+        >
+          {option === "source" ? "Source" : "Preview"}
+        </button>
+      ))}
     </div>
   );
 }
