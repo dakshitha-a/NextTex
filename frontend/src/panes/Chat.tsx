@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useDismiss } from "../useDismiss";
 import { createTwoFilesPatch } from "diff";
 import Prose from "./prose";
@@ -625,7 +632,14 @@ function compact(value: number): string {
   return `${(value / 1_000_000).toFixed(2)}M`;
 }
 
-function Item({
+/** One row of the transcript.
+ *
+ *  Memoised, because the store replaces `chat` on every streamed delta --
+ *  twenty times a second -- and without this every row in the conversation
+ *  re-rendered on each one.  The items are immutable and keyed by a stable
+ *  id, so reference equality is exactly the right test; the two handlers
+ *  come from App, which is not re-rendering while a turn streams. */
+const Item = memo(function Item({
   item,
   onShowEdit,
   onHoverEdit,
@@ -676,7 +690,7 @@ function Item({
   }
 
   return <Permission item={item} />;
-}
+})
 
 function AgentMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> }) {
   const name = agentName(useStore((s) => s.agent?.provider));
@@ -920,7 +934,11 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         active?.closest(".cm-editor") ||
         active?.tagName === "TEXTAREA" ||
         active?.tagName === "INPUT";
-      if (!typing) card.current?.focus();
+      // `preventScroll`, because the panel has its own idea of where it
+      // should be: the pin-to-bottom effect runs on every change, and a
+      // focus that also scrolls means two authorities moving the same
+      // container in one frame, which the reader sees as a jump.
+      if (!typing) card.current?.focus({ preventScroll: true });
     }, 350);
     return () => window.clearTimeout(timer);
   }, [item.decision]);

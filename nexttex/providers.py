@@ -8,8 +8,11 @@ want an AI in their thesis should get a complete application rather than a
 crippled one with a dead panel down the right-hand side.
 
 So there are three providers and one of them is "none".  All three satisfy
-the same eleven members, which is what lets `ProjectSession` and every
-route stay ignorant of the choice.
+the same small protocol -- the ask/stream/interrupt loop, `reset` for
+starting a fresh conversation, and the settings the panel reads -- which is
+what lets `ProjectSession` and every route stay ignorant of the choice.
+A member added to one and forgotten in another is how the no-agent install
+breaks, so add to all of them at once.
 """
 
 from __future__ import annotations
