@@ -390,6 +390,7 @@ export type EventHandlers = {
   onFilesChanged?: (paths: string[], structural?: boolean) => void;
   onCompileDone?: (result: CompileResult) => void;
   onAgentEdit?: (path: string, line: number) => void | Promise<void>;
+  onRenamed?: (from: string, to: string) => void;
 };
 export const handlers: EventHandlers = {};
 
@@ -525,6 +526,12 @@ function receive(event: any) {
       // reloading would fight a caret that has moved on since.
       if (event.origin && event.origin === clientId) break;
       handlers.onFilesChanged?.(event.paths ?? [], event.structural !== false);
+      break;
+    case "renamed":
+      // A move in another tab.  The tree refresh that follows would show the
+      // file in its new place while this tab's open tab still pointed at the
+      // old one, and the next autosave would write it back there.
+      handlers.onRenamed?.(event.from, event.to);
       break;
     case "reveal":
       handlers.onReveal?.(event.path, event.line);

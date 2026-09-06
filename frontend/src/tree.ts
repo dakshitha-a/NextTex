@@ -26,21 +26,40 @@ export function foldersIn(tree: TreeNode | null): Folder[] {
   return found;
 }
 
+/** The node at a path, or null.
+ *
+ *  Descends only into the folder that could contain the path rather than
+ *  walking the whole tree, which matters on a project with a few hundred
+ *  files being asked on every keystroke. */
+export function findNode(tree: TreeNode | null, path: string): TreeNode | null {
+  if (!tree) return null;
+  if (path === "") return tree;
+  if (tree.path === path) return tree;
+  for (const child of tree.children ?? []) {
+    if (child.path === path) return child;
+    if (child.type !== "dir") continue;
+    if (isInside(child.path, path)) {
+      const hit = findNode(child, path);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+/** Whether `path` is `parent` itself or sits somewhere beneath it.
+ *
+ *  The prefix has to be tested with the separator attached: `chapters` is
+ *  not the parent of `chapters-old`, and a plain `startsWith` says it is.
+ *  A drag guard that gets this wrong moves a folder into itself. */
+export function isInside(parent: string, path: string): boolean {
+  if (parent === "") return true;
+  return path === parent || path.startsWith(`${parent}/`);
+}
+
 /** The names directly inside one folder -- files and folders alike, since
  *  a file cannot be written where a folder of that name sits. */
 export function namesIn(tree: TreeNode | null, directory: string): Set<string> {
-  const find = (node: TreeNode, path: string): TreeNode | null => {
-    if (node.path === path) return node;
-    for (const child of node.children ?? []) {
-      if (child.type !== "dir") continue;
-      if (path === child.path || path.startsWith(`${child.path}/`)) {
-        const hit = find(child, path);
-        if (hit) return hit;
-      }
-    }
-    return null;
-  };
-  const folder = directory === "" ? tree : tree ? find(tree, directory) : null;
+  const folder = findNode(tree, directory);
   return new Set((folder?.children ?? []).map((child) => child.name));
 }
 
@@ -77,4 +96,37 @@ export function collisions(
 export function ancestorsOf(path: string): string[] {
   const parts = path.split("/").slice(0, -1);
   return parts.map((_, index) => parts.slice(0, index + 1).join("/"));
+}
+
+
+/** What a search should leave on screen.
+ *
+ *  `matches` is what the query actually found, for emphasis; `show` adds
+ *  every folder on the way down to a match, because a result the writer
+ *  cannot see the path to is not a result. Matching is case-insensitive
+ *  and on the name rather than the full path: someone typing "intro"
+ *  is looking for a file, not for every file in `introduction/`.
+ */
+export function search(
+  tree: TreeNode | null,
+  query: string,
+): { matches: Set<string>; show: Set<string> } {
+  const matches = new Set<string>();
+  const show = new Set<string>();
+  const needle = query.trim().toLowerCase();
+  if (!tree || !needle) return { matches, show };
+
+  const walk = (node: TreeNode, ancestors: string[]) => {
+    const hit = node.name.toLowerCase().includes(needle);
+    if (hit) {
+      matches.add(node.path);
+      show.add(node.path);
+      for (const ancestor of ancestors) show.add(ancestor);
+    }
+    if (node.type !== "dir") return;
+    const deeper = [...ancestors, node.path];
+    for (const child of node.children ?? []) walk(child, deeper);
+  };
+  for (const child of tree.children ?? []) walk(child, []);
+  return { matches, show };
 }

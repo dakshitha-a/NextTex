@@ -104,6 +104,47 @@ def test_a_rename_carries_the_past_with_it(tmp_path):
     assert store.versions("draft.tex") == []
 
 
+def test_moving_a_folder_carries_the_history_of_everything_in_it(tmp_path):
+    # A folder move re-slugs the folder, which has no log of its own, so
+    # every file underneath used to keep its history filed under a path
+    # that no longer existed -- still on disk, but unreachable.
+    store = history(tmp_path)
+    store.record("chapters/02_theory.tex", "the theory")
+    store.record("chapters/figures/plot.tex", "a figure")
+    store.note_move("chapters", "parts/chapters")
+
+    moved = store.versions("parts/chapters/02_theory.tex")
+    assert len(moved) == 1
+    assert store.content("parts/chapters/02_theory.tex", moved[0].sha) == "the theory"
+
+    nested = store.versions("parts/chapters/figures/plot.tex")
+    assert len(nested) == 1
+    assert store.content("parts/chapters/figures/plot.tex", nested[0].sha) == "a figure"
+
+    assert store.versions("chapters/02_theory.tex") == []
+    assert store.versions("chapters/figures/plot.tex") == []
+
+
+def test_a_folder_move_leaves_a_neighbouring_prefix_alone(tmp_path):
+    # `chapters-old` is not inside `chapters`, and a plain prefix test
+    # says it is.
+    store = history(tmp_path)
+    store.record("chapters/02_theory.tex", "moved")
+    store.record("chapters-old/02_theory.tex", "left where it was")
+    store.note_move("chapters", "parts/chapters")
+
+    assert len(store.versions("chapters-old/02_theory.tex")) == 1
+    assert store.versions("parts/chapters-old/02_theory.tex") == []
+
+
+def test_a_plain_file_rename_still_works_through_note_move(tmp_path):
+    store = history(tmp_path)
+    store.record("draft.tex", "early words")
+    store.note_move("draft.tex", "chapters/02_theory.tex")
+    assert len(store.versions("chapters/02_theory.tex")) == 1
+    assert store.versions("draft.tex") == []
+
+
 def test_collection_leaves_referenced_content_alone(tmp_path):
     store = history(tmp_path)
     version = store.record("main.tex", "keep me")

@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   ancestorsOf,
   collisions,
+  findNode,
   foldersIn,
+  isInside,
   keptBothName,
   namesIn,
+  search,
 } from "./tree";
 import type { TreeNode } from "./api";
 
@@ -107,5 +110,81 @@ describe("ancestorsOf", () => {
 
   it("gives nothing for a file at the root", () => {
     expect(ancestorsOf("main.tex")).toEqual([]);
+  });
+});
+
+describe("findNode", () => {
+  it("finds a file several folders down", () => {
+    expect(findNode(tree, "figures/spectra/uv.png")?.name).toBe("uv.png");
+  });
+
+  it("finds a folder", () => {
+    expect(findNode(tree, "figures/spectra")?.type).toBe("dir");
+  });
+
+  it("answers the root for the empty path, which has no row of its own", () => {
+    expect(findNode(tree, "")).toBe(tree);
+  });
+
+  it("says nothing for a path that is not there", () => {
+    expect(findNode(tree, "chapters/03_missing.tex")).toBeNull();
+  });
+
+  it("says nothing rather than throwing before the tree has loaded", () => {
+    expect(findNode(null, "main.tex")).toBeNull();
+  });
+});
+
+describe("isInside", () => {
+  it("counts a folder as inside itself, which is what refuses a move onto self", () => {
+    expect(isInside("figures", "figures")).toBe(true);
+  });
+
+  it("sees a descendant", () => {
+    expect(isInside("figures", "figures/spectra/uv.png")).toBe(true);
+  });
+
+  it("does not mistake a shared prefix for containment", () => {
+    // The bug this exists to prevent: `figures-old` is not in `figures`,
+    // and a plain startsWith says it is.
+    expect(isInside("figures", "figures-old/plot.png")).toBe(false);
+  });
+
+  it("puts everything inside the project root", () => {
+    expect(isInside("", "main.tex")).toBe(true);
+  });
+});
+
+describe("search", () => {
+  it("finds a file by part of its name, ignoring case", () => {
+    expect([...search(tree, "THEORY").matches]).toEqual(["chapters/02_theory.tex"]);
+  });
+
+  it("keeps the folders on the way down, so the match can be seen", () => {
+    expect([...search(tree, "uv.png").show].sort()).toEqual([
+      "figures", "figures/spectra", "figures/spectra/uv.png",
+    ]);
+  });
+
+  it("matches folders too", () => {
+    expect(search(tree, "spectra").matches.has("figures/spectra")).toBe(true);
+  });
+
+  it("matches on the name, not the path: a folder does not drag its files in", () => {
+    expect(search(tree, "chapters").matches.has("chapters/02_theory.tex")).toBe(false);
+  });
+
+  it("finds every file sharing a stem", () => {
+    expect([...search(tree, "plot").matches].sort()).toEqual([
+      "figures/plot (2).png", "figures/plot.png",
+    ]);
+  });
+
+  it("shows nothing for an empty query, which is how the tree comes back", () => {
+    expect(search(tree, "   ").show.size).toBe(0);
+  });
+
+  it("finds nothing rather than throwing before the tree has loaded", () => {
+    expect(search(null, "main").matches.size).toBe(0);
   });
 });

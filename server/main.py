@@ -563,7 +563,16 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
         source.rename(target)
     except OSError as error:
         raise HTTPException(400, f"could not rename: {error}")
-    session.history.note_rename(path, to)
+    session.history.note_move(path, to)
+    # A second tab has the file open under its old name, and the watcher
+    # only tells it the tree changed -- not that this path became that one.
+    # Every tab gets this, the originating one included, which is safe
+    # because the remap is idempotent: after the first pass nothing matches
+    # the old path any more.
+    await session.events.publish({"type": "renamed", "from": path, "to": to})
+    await session.events.publish(
+        {"type": "files_changed", "paths": [to], "structural": True}
+    )
     return {"ok": True}
 
 

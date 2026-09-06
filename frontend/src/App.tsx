@@ -403,19 +403,36 @@ export default function App() {
    *  that no longer exists, and the next autosave then wrote there --
    *  bringing the old file back and stranding the writer's edits in it.
    */
+  // A folder that moves takes every file under it, so this follows a path
+  // prefix rather than an exact match.  Matching only the moved path itself
+  // left every tab inside a moved folder pointing at a file that was no
+  // longer there, and the next save wrote it back to the old place.
   const renameOpenFile = useCallback((from: string, to: string) => {
-    editor.current?.renamed(from, to);
+    const moved = (path: string): string | null => {
+      if (path === from) return to;
+      if (path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
+      return null;
+    };
     const state = get();
-    if (!state.tabs.some((tab) => tab.path === from)) return;
+    // The editor follows the same prefix rule over its own buffers, so one
+    // call moves every open file under a renamed folder.
+    editor.current?.renamed(from, to);
+    const touched =
+      state.tabs.some((tab) => moved(tab.path) !== null) ||
+      (state.activePath !== null && moved(state.activePath) !== null) ||
+      (state.viewing != null && moved(state.viewing.path) !== null);
+    if (!touched) return;
     set({
-      tabs: state.tabs.map((tab) =>
-        tab.path === from ? { ...tab, path: to } : tab,
-      ),
-      activePath: state.activePath === from ? to : state.activePath,
-      viewing:
-        state.viewing?.path === from
-          ? { ...state.viewing, path: to }
-          : state.viewing,
+      tabs: state.tabs.map((tab) => {
+        const next = moved(tab.path);
+        return next ? { ...tab, path: next } : tab;
+      }),
+      activePath: state.activePath
+        ? (moved(state.activePath) ?? state.activePath)
+        : state.activePath,
+      viewing: state.viewing
+        ? { ...state.viewing, path: moved(state.viewing.path) ?? state.viewing.path }
+        : state.viewing,
     });
   }, []);
 
@@ -450,6 +467,9 @@ export default function App() {
       if (structural) refreshTree();
       for (const path of paths) editor.current?.reload(path);
     };
+    handlers.onRenamed = (from, to) => {
+      renameOpenFile(from, to);
+    };
     handlers.onReveal = (path, line) => {
       openFile(path, line);
     };
@@ -481,12 +501,13 @@ export default function App() {
     // The status strip colours its dot; opening the list stays your choice.
     return () => {
       handlers.onFilesChanged = undefined;
+      handlers.onRenamed = undefined;
       handlers.onReveal = undefined;
       handlers.onAgentEdit = undefined;
       handlers.onProjectChanged = undefined;
       handlers.onCompileDone = undefined;
     };
-  }, [refreshTree, openFile]);
+  }, [refreshTree, openFile, renameOpenFile]);
 
   useEffect(() => () => disconnect(), []);
 
@@ -545,6 +566,39 @@ export default function App() {
   const MIN_EDITOR = 420;
   const MIN_PDF = 320;
 
+  // The widths the writer chose are kept, but the window may no longer be
+  // able to honour them -- it has been made narrower, or the widths were
+  // restored from a session on a bigger screen.  The middle two panes carry
+  // hard minimums in CSS and will not go below them, so without this the row
+  // simply overflows and the shell clips whatever is on the right.
+  useEffect(() => {
+    if (tight) return;
+    const railShown = !(railHidden || folded.rail);
+    const chatShown = !noAgent && !chatOver && !folded.chat;
+    const minPair =
+      (folded.editor ? 0 : MIN_EDITOR) + (folded.pdf ? 0 : MIN_PDF);
+    setWidths((current) => {
+      const over =
+        (railShown ? current.rail : 0) +
+        (chatShown ? current.chat : 0) +
+        minPair -
+        width;
+      if (over <= 0) return current;
+      // Taken from the agent first and the file list second: the source and
+      // the page are what is being looked at.
+      const chat = chatShown ? Math.max(320, current.chat - over) : current.chat;
+      const left =
+        (railShown ? current.rail : 0) +
+        (chatShown ? chat : 0) +
+        minPair -
+        width;
+      const rail =
+        left > 0 && railShown ? Math.max(180, current.rail - left) : current.rail;
+      if (rail === current.rail && chat === current.chat) return current;
+      return { ...current, rail, chat };
+    });
+  }, [width, tight, railHidden, folded, chatOver, noAgent]);
+
   const startDrag =
     (which: "rail" | "split" | "chat") => (event: React.PointerEvent) => {
       event.preventDefault();
@@ -579,6 +633,20 @@ export default function App() {
           : which === "chat"
             ? widthsRef.current.chat
             : editorWidth;
+
+      // A side pane may only take the room the middle two can actually
+      // give up.  Its ceiling used to be a bare constant, so the chat could
+      // be dragged to 560 px against an editor and a page that together
+      // refuse to go below 740 -- the row overflowed, the shell clipped it,
+      // and the pane appeared to expand behind the preview instead of
+      // beside it.
+      if (which !== "split") {
+        const minPair = tight
+          ? 0
+          : (folded.editor ? 0 : MIN_EDITOR) + (folded.pdf ? 0 : MIN_PDF);
+        const slack = Math.max(pair - minPair, 0);
+        bounds.max = Math.max(Math.min(bounds.max, anchorWidth + slack), bounds.min);
+      }
 
       const move = (moveEvent: PointerEvent) => {
         const direction = which === "chat" ? -1 : 1;
@@ -749,7 +817,7 @@ export default function App() {
       ) : (
         <>
           <div
-            className="nx-pane flex min-h-0 flex-col bg-surface"
+            className="nx-pane flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: widths.rail }}
           >
             {/* No rule under this: the Files bar below carries it, so the
@@ -1051,7 +1119,7 @@ export default function App() {
             ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)]"
             : folded.chat
               ? "hidden"
-              : "nx-pane min-h-0"
+              : "nx-pane min-h-0 shrink-0"
         }
         style={{
           width: widths.chat,
