@@ -207,7 +207,7 @@ export default function Projects({
               }`}
               onClick={() => setMode(option)}
             >
-              {option === "create" ? "Start something new" : "Open what you have"}
+              {option === "create" ? "Start something new" : "Point at a folder"}
             </button>
           ))}
         </div>
@@ -237,7 +237,7 @@ export default function Projects({
             onKeyDown={(event) => event.key === "Enter" && add()}
           />
           <button
-            className="h-[28px] pen-button px-3 t-ui"
+            className="ghost-button h-[28px] px-3 t-ui"
             onClick={add}
           >
             {mode === "create" ? "Create project" : "Open folder"}

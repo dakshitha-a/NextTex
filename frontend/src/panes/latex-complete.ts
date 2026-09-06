@@ -214,13 +214,13 @@ export function latexCompletions(symbols: () => Symbols | null): Extension {
             `\\${entry.name}` + "{#{}}".repeat(entry.args),
             {
               label: `\\${entry.name}`,
-              detail: `yours · ${entry.file.split("/").pop()}`,
+              detail: `yours, ${entry.file.split("/").pop()}`,
               type: "macro",
             },
           )
         : {
             label: `\\${entry.name}`,
-            detail: `yours · ${entry.file.split("/").pop()}`,
+            detail: `yours, ${entry.file.split("/").pop()}`,
             type: "macro",
             apply: `\\${entry.name}`,
           },

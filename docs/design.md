@@ -644,3 +644,62 @@ paper white inside, drawn on a 32-unit grid and checked at 16 px. It is
 inlined into the HTML as a `data:` favicon rather than served as a file,
 because the server routes every unknown path to the app shell and a
 `/logo.svg` would come back as HTML.
+
+
+## 13. What the third audit changed
+
+The new surfaces were audited against §§1–12 with real renders in both
+themes. What it found, and what was done:
+
+**The history panel now docks rather than overlays**, whenever the editor is
+wider than 700 px. As an overlay it covered the right third of every wrapped
+LaTeX line, so the file could not be read while the panel comparing it to its
+past was open — which defeats the panel. Below that width it still overlays,
+now on `--surface-2` so the plane change is legible without depending on a
+hairline. It also keeps your place: entering a version anchors to the line
+you were on rather than resetting to the top, because the old version is a
+different length and a pixel offset would land somewhere else entirely.
+
+**The banner is unmistakably not the tab bar.** It had been `--surface-2` —
+the tab bar's own fill, directly above it — announcing the most consequential
+state in the editor in the same colour as more toolbar. It now takes a
+`--hint` top rule and a tinted fill, `--pen-wash` when the version is
+Claude's. Escape leaves. Every path that closes the panel also leaves viewing
+mode, which the status strip's toggle did not, and `Restore this` — the only
+mutating action available in a read-only mode — confirms in place like every
+other destructive action in the app.
+
+**"Show what's gone" is a real diff.** It had been set membership: does this
+line appear anywhere in the new text. LaTeX is full of repeated lines, so
+deleting a figure block left `\centering` and `\end{figure}` unshaded and the
+eye got a comb where it needed a block. It is now an LCS diff, and the label
+says what it actually shows — the old version's deletions, since additions
+since are invisible by construction. The 2 px error-coloured gutter bar is
+gone: it was the same shape, colour and position as a diagnostic marker.
+
+**One stray `$` no longer breaks every equation preview after it.** Dollar
+pairing ran over the whole document, so a single unclosed delimiter — the
+commonest LaTeX typo there is — inverted the pairing for everything below it:
+hovering prose rendered maths, hovering maths rendered nothing. The scan is
+now scoped to the paragraph under the pointer and says nothing when that
+block is unbalanced, which is also what makes it cheap enough to run on every
+pointer move.
+
+**`.quiet` was silently repainting other elements' colours.** It is unlayered
+and outweighs Tailwind's utilities, so `quiet … hover:text-error` on the
+trash's Delete hovered to `--hint` — the colour that means *safe and
+interactive* — and the preview's selected Fit width state was identical to
+the unselected one. Tone is now carried by a `data-tone` attribute the class
+respects.
+
+**Smaller, all from the same pass:** one `--float` shadow token replaces three
+hand-rolled recipes; the `main` tag lost its `--surface-3` chip, which was
+under 4.5:1 in both themes and wore the pressed-state colour for a permanent
+label; the trash reads like the file tree it hangs under, with 26 px rows,
+stem/extension names and the same clock the history panel uses; `Create
+project` is a ghost button, since the projects screen has no agent on it and
+filled violet was the loudest thing on the page; the completion popup is
+capped so it stops crossing into the preview; and the logo was redrawn with
+one chevron instead of two two units apart, on an outlined tile — the old
+mark fused into a violet smudge at 18 px, and a brand mark should not spend
+the fill that means *answer the agent*.

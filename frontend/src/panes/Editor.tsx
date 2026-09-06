@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { diffLines } from "diff";
 import api, { type Symbols } from "../api";
 import {
   clearFlash,
@@ -262,12 +263,21 @@ export default function Editor({
       const file = await api.historyVersion(projectId, path, sha);
       // Nothing below can arm a save: `current.current` is null, so every
       // early return in onChange, saveFile, flush and the beacon fires.
-      viewing.current = {
-        path, sha, scroll: editor.scrollDOM.scrollTop,
-      };
+      // Where the reader is, as a line rather than a pixel: the old
+      // version is a different length, so a scroll offset would land
+      // somewhere else entirely.
+      const anchorLine = editor.state.doc.lineAt(
+        editor.state.selection.main.head,
+      ).number;
+      viewing.current = { path, sha, scroll: editor.scrollDOM.scrollTop };
       current.current = null;
       editor.setState(freshState(file.text, readOnlyExt));
-      editor.scrollDOM.scrollTop = 0;
+      const target = Math.min(anchorLine, editor.state.doc.lines);
+      editor.dispatch({
+        effects: EditorView.scrollIntoView(editor.state.doc.line(target).from, {
+          y: "center",
+        }),
+      });
     };
 
     publish.current({
@@ -284,7 +294,7 @@ export default function Editor({
         }
         const live = buffers.current.get(parked.path)?.state.doc.toString() ?? "";
         editor.dispatch({
-          effects: setDiff.of(changedLines(editor.state.doc.toString(), live)),
+          effects: setDiff.of(goneLines(editor.state.doc.toString(), live)),
         });
       },
       close: async (path) => {
@@ -390,15 +400,26 @@ export default function Editor({
   return <div ref={host} className="h-full min-h-0 overflow-hidden" />;
 }
 
-/** Which lines of `text` are not in `other`, 1-based. */
-function changedLines(text: string, other: string): number[] {
-  const mine = text.split("\n");
-  const theirs = new Set(other.split("\n"));
-  const changed: number[] = [];
-  mine.forEach((line, index) => {
-    if (line.trim() && !theirs.has(line)) changed.push(index + 1);
-  });
-  return changed;
+/** Lines of the old version that are gone from the file as it stands.
+ *
+ *  A real diff, not set membership: LaTeX is full of repeated lines --
+ *  \centering, \end{figure}, a bare brace -- and asking "does this line
+ *  appear anywhere in the new text" leaves a comb of shaded and unshaded
+ *  rows through a block that was deleted whole. */
+function goneLines(old: string, live: string): number[] {
+  const gone: number[] = [];
+  let line = 1;
+  for (const part of diffLines(live, old)) {
+    const count = part.count ?? part.value.split("\n").length - 1;
+    if (part.added) {
+      // Present in the old version, absent from the live one.
+      for (let index = 0; index < count; index += 1) gone.push(line + index);
+      line += count;
+    } else if (!part.removed) {
+      line += count;
+    }
+  }
+  return gone;
 }
 
 let lintTimer: number | null = null;

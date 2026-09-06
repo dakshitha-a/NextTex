@@ -238,7 +238,7 @@ export default function FileTree({
         )}
         {node.path === mainFile ? (
           <span
-            className="t-micro mr-1 shrink-0 rounded-[3px] bg-surface-3 px-1 text-ink-3"
+            className="t-micro mr-2 shrink-0 text-ink-2"
             title="This is the document that gets typeset"
           >
             main
@@ -271,7 +271,7 @@ export default function FileTree({
             ref={menuRef}
             // Fixed, not absolute: an absolute menu is clipped by the
             // tree's own scroll box, so the last row's menu was cut in half.
-            className="fixed z-40 w-[184px] rounded-[5px] border border-line bg-surface py-1 shadow-[0_2px_10px_rgba(0,0,0,0.25)]"
+            className="fixed z-40 w-[184px] rounded-[5px] border border-line bg-surface py-1 shadow-float"
             style={menuAt ? { left: menuAt.x, top: menuAt.y } : undefined}
             onClick={(event) => event.stopPropagation()}
           >

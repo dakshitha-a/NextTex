@@ -55,33 +55,36 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <span className="t-micro text-ink-2">Trash ({entries.length})</span>
+        <span className="t-micro text-ink-2">
+          {entries.length} deleted
+        </span>
         <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
           <Chevron direction="down" />
         </span>
       </button>
       {open ? (
-        <div className="max-h-[220px] overflow-auto px-[10px] pb-2">
-          {entries.map((entry) => (
-            <div key={entry.id} className="group py-1">
-              <div className="flex items-baseline gap-2">
-                <span className="t-code-sm min-w-0 flex-1 truncate text-ink">
-                  {entry.name}
-                </span>
-                <span className="t-micro shrink-0 text-ink-3">{when(entry.at)}</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="t-micro min-w-0 flex-1 truncate text-ink-3">
-                  {entry.path}
-                  {entry.kind === "dir" ? ` · ${entry.count} files` : ""}
+        <div className="max-h-[220px] overflow-auto pb-2">
+          {entries.map((entry) => {
+            const [stem, extension] = splitName(entry.name);
+            return (
+              <div
+                key={entry.id}
+                className="group flex h-[26px] items-center gap-2 rounded-[3px] pl-[10px] pr-1 hover:bg-surface-2"
+                title={entry.path}
+              >
+                <span className="t-ui min-w-0 flex-1 truncate">
+                  <span className="text-ink">{stem}</span>
+                  <span className="text-ink-3">{extension}</span>
                 </span>
                 {confirming === entry.id ? (
                   <>
+                    <span className="t-micro shrink-0 text-ink-2">For good?</span>
                     <button
-                      className="t-micro shrink-0 text-error"
+                      className="quiet t-micro shrink-0"
+                      data-tone="danger"
                       onClick={() => act("purge", entry.id)}
                     >
-                      Delete forever
+                      Delete
                     </button>
                     <button
                       className="quiet t-micro shrink-0"
@@ -92,15 +95,19 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
                   </>
                 ) : (
                   <>
+                    <span className="t-micro shrink-0 text-ink-3 group-hover:hidden">
+                      {when(entry.at)}
+                    </span>
                     <button
-                      className="quiet t-micro shrink-0 opacity-0 focus:opacity-100 group-hover:opacity-100"
+                      className="quiet t-micro hidden shrink-0 group-hover:block"
                       disabled={busy === entry.id}
                       onClick={() => act("restore", entry.id)}
                     >
                       {busy === entry.id ? "Restoring" : "Restore"}
                     </button>
                     <button
-                      className="quiet t-micro shrink-0 opacity-0 hover:text-error focus:opacity-100 group-hover:opacity-100"
+                      className="quiet t-micro hidden shrink-0 group-hover:block"
+                      data-tone="danger"
                       onClick={() => setConfirming(entry.id)}
                     >
                       Delete
@@ -108,10 +115,10 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
                   </>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
           {confirming === "all" ? (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2 px-[10px]">
               <span className="t-micro flex-1 text-ink-2">
                 Delete all {entries.length} for good, with their history?
               </span>
@@ -124,7 +131,7 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
             </div>
           ) : (
             <button
-              className="quiet t-micro mt-2"
+              className="quiet t-micro mt-2 px-[10px]"
               onClick={() => setConfirming("all")}
             >
               Empty the trash
@@ -136,11 +143,18 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
+/** The same clock the history panel uses: two panels answering "when did
+ *  this happen to this file" should not answer it two different ways. */
 function when(at: number): string {
-  const minutes = Math.round((Date.now() - at) / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return new Date(at).toLocaleDateString([], { day: "numeric", month: "short" });
+  const date = new Date(at);
+  if (date.toDateString() === new Date().toDateString()) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
+function splitName(name: string): [string, string] {
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0) return [name, ""];
+  return [name.slice(0, dot), name.slice(dot)];
 }
