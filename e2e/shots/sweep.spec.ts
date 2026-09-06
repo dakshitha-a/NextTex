@@ -171,7 +171,6 @@ test("the agent column, mid-turn and at rest", async ({ tab }) => {
     await shot(tab, "16-card-answered", theme, 1600);
 
     // Auto mode: the chip, and a card that arrives already answered.
-    await tab.getByTestId("chat-menu-open").click();
     await tab.getByTestId("auto-toggle").click();
     await tab.waitForTimeout(200);
     await shot(tab, "17-auto-on", theme, 1600);

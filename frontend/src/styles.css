@@ -197,6 +197,11 @@ button { font: inherit; color: inherit; }
 .quiet:hover:not(:disabled):not([data-tone]) { color: var(--hint); }
 .quiet[data-tone="danger"]:hover:not(:disabled) { color: var(--error); }
 .quiet[data-tone="on"] { color: var(--ink); }
+/* The one control that lowers the permission fence.  It needs --warn, and
+   it needs the hover rule above to leave it alone: a switch that turns the
+   colour meaning "safe and interactive" under the pointer is the opposite
+   of what it does. */
+.quiet[data-tone="warn"] { color: var(--warn); }
 
 .nx-handle { background: var(--line); transition: background-color 90ms var(--ease); }
 .nx-handle:hover { background: var(--hint); }

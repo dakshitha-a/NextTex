@@ -1551,3 +1551,35 @@ mark that changes a row's size would shift every row below it several times a
 minute. Above the first heading nothing is marked, because that is a real
 place to be in a file and not a reason to point at the first section.
 
+### The agent's controls moved under the box
+
+The chat header is 32px and carried the name, what the agent is doing, the
+Auto chip, Stop, the usage tally, an overflow menu and a fold chevron. Seven
+things in a bar that narrows to 280px is four too many, and the overflow menu
+was where the crowding had already been swept.
+
+New conversation, model and auto mode are now **icons in a row under the
+composer**, beside Send, with "Template and voice" joining them. Every one of
+them is something you reach for while writing the question, so under the box
+is where the hand already is; and the row costs no more width than the single
+text button it replaces.
+
+Two rules held while moving them:
+
+- **The Auto chip stays in the header.** The icon is the *toggle*; the chip is
+  the *state*. A mode that disables the permission fence and survives a
+  restart has to be visible without opening anything, and the header is the
+  part of the panel that is always on screen.
+- **The confirm still asks in place.** "New conversation" opens its two
+  buttons above the composer rather than in a dialog, in the same idiom as
+  the setup block, so the sentence has room to say that the record is kept.
+
+The icons are five hand-drawn paths at 13px. An icon set would have been
+faster to write and would have cost tens of kilobytes on a bundle with about
+24kB of headroom.
+
+The model popover opens upward from its button and dismisses through the
+anchor-aware `useDismiss` — the same hook, with the same trigger ref, that
+the usage panel needed. Any new toggle popover in this app must pass its
+anchor or it will close on `pointerdown` and reopen on `click`.
+

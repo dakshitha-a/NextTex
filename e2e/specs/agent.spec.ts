@@ -139,7 +139,6 @@ test("a new conversation empties the panel and keeps the tally", async ({
     timeout: 20_000,
   });
 
-  await tab.getByTestId("chat-menu-open").click();
   await tab.getByTestId("clear-chat").click();
   await tab.getByTestId("clear-confirm").click();
 
@@ -158,7 +157,6 @@ test("a cleared conversation stays cleared after a reload", async ({ tab }) => {
   await expect(tab.getByText(/A label attaches a name/)).toBeVisible({
     timeout: 20_000,
   });
-  await tab.getByTestId("chat-menu-open").click();
   await tab.getByTestId("clear-chat").click();
   await tab.getByTestId("clear-confirm").click();
   await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
@@ -182,7 +180,6 @@ test("the usage panel closes from the button that opened it", async ({ tab }) =>
 test("auto mode approves without a card, and says so in the record", async ({
   tab,
 }) => {
-  await tab.getByTestId("chat-menu-open").click();
   await tab.getByTestId("auto-toggle").click();
   await expect(tab.getByTestId("auto-chip")).toBeVisible();
 
@@ -207,7 +204,6 @@ test("what the agent is told to remember survives a new conversation", async ({
     timeout: 20_000,
   });
 
-  await tab.getByTestId("chat-menu-open").click();
   await tab.getByTestId("clear-chat").click();
   await tab.getByTestId("clear-confirm").click();
   await expect(tab.getByText(/Stony Brook/)).toHaveCount(0);
@@ -256,4 +252,29 @@ test("the permission card does not move while you reach for it", async ({
     expect(Math.abs(after.width - before.width)).toBeLessThan(1);
   }
   await allow.click();
+});
+
+test("the model list closes from the button that opened it", async ({ tab }) => {
+  // Every toggle popover in this app has to pass its trigger to
+  // `useDismiss`: the press that dismisses arrives in the capture phase,
+  // before the trigger's own click, so without the anchor this closed and
+  // immediately reopened.
+  const model = tab.getByTestId("model-open");
+  await model.click();
+  await expect(tab.getByTestId("model-menu")).toBeVisible();
+  await model.click();
+  await expect(tab.getByTestId("model-menu")).toBeHidden();
+});
+
+test("the new-conversation question can be answered from the keyboard", async ({
+  tab,
+}) => {
+  // The block opens above the composer and its buttons come after the box
+  // in the DOM, so Tab from the trigger walks away from what it opened.
+  await tab.getByTestId("clear-chat").press("Enter");
+  await expect(tab.getByRole("button", { name: "Keep this one" })).toBeFocused();
+  // The safe half, because this ends a conversation.
+  await tab.keyboard.press("Escape");
+  await expect(tab.getByTestId("clear-confirm")).toHaveCount(0);
+  await expect(tab.getByTestId("clear-chat")).toBeFocused();
 });
