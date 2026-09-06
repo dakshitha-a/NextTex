@@ -84,7 +84,9 @@ export default function Tabs({
             }
             className={[
               "relative flex min-w-[96px] max-w-[200px] shrink-0 cursor-pointer items-center gap-2 border-r border-line px-[10px]",
-              active ? "bg-surface" : "border-b border-line",
+              active
+                ? "bg-surface"
+                : "border-b border-line hover:bg-surface-3",
             ].join(" ")}
             onClick={() => onSelect(tab.path)}
             onMouseDown={(event) => {

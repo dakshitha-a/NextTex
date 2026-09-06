@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDismiss } from "../useDismiss";
 import { createTwoFilesPatch } from "diff";
 import Prose from "./prose";
 import { WELCOME, WELCOME_ACTIONS } from "../welcome";
 import { Chevron } from "../App";
 import api from "../api";
 import {
+  firstChangedLine,
   get,
   markLive,
   markReverted,
@@ -60,7 +62,7 @@ export default function Chat({
   onShowEdit: (path: string, line: number) => void;
   onHoverEdit: (path: string, range: [number, number] | null) => void;
   onFold?: () => void;
-  onAddContext?: (kind: "style" | "voice") => void;
+  onAddContext?: (kind: "style" | "voice" | "template") => void;
   handleRef: (handle: ChatHandle) => void;
 }) {
   const chat = useStore((s) => s.chat);
@@ -74,6 +76,8 @@ export default function Chat({
   const projectId = useStore((s) => s.projectId);
   const [usage, setUsage] = useState<Awaited<ReturnType<typeof api.usage>> | null>(null);
   const [showUsage, setShowUsage] = useState(false);
+  const usageRef = useRef<HTMLDivElement | null>(null);
+  useDismiss(usageRef, showUsage, useCallback(() => setShowUsage(false), []));
   const [focusedComposer, setFocusedComposer] = useState(false);
 
   // The tally follows the end of a turn, which is when it changes.
@@ -113,8 +117,18 @@ export default function Chat({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
-      <div className="flex h-[32px] shrink-0 items-center gap-2 border-b border-line px-[10px]">
-        <span className="t-ui-lg">Claude</span>
+      <div
+        className={`flex h-[32px] shrink-0 items-center gap-2 border-b border-line px-[10px] ${
+          onFold ? "cursor-pointer transition-colors duration-[90ms] hover:bg-surface-2" : ""
+        }`}
+        title={onFold ? "Fold this panel away" : undefined}
+        onClick={(event) => {
+          if (!onFold) return;
+          if ((event.target as HTMLElement).closest("button, select, input")) return;
+          onFold();
+        }}
+      >
+        <span className="t-ui-lg font-serif">Claude</span>
         <span className="flex-1" />
         {thinking ? (
           <button
@@ -176,7 +190,10 @@ export default function Chat({
       </div>
 
       {showUsage && usage ? (
-        <div className="nx-arrive shrink-0 border-b border-line bg-surface-2 px-[10px] py-3">
+        <div
+          ref={usageRef}
+          className="nx-arrive shrink-0 border-b border-line bg-surface-2 px-[10px] py-3"
+        >
           <div className="flex items-baseline gap-2">
             <span className="t-ui-lg tabular-nums text-ink">
               {usage.usage.costUsd
@@ -465,14 +482,10 @@ function EditChip({
     [open, item.before, item.after, name],
   );
 
-  const firstChangedLine = useMemo(() => {
-    const before = item.before.split("\n");
-    const after = item.after.split("\n");
-    for (let index = 0; index < Math.max(before.length, after.length); index += 1) {
-      if (before[index] !== after[index]) return index + 1;
-    }
-    return 1;
-  }, [item.before, item.after]);
+  const changedLine = useMemo(
+    () => firstChangedLine(item.before, item.after),
+    [item.before, item.after],
+  );
 
   if (item.state === "reverted") {
     return <Reverted item={item} name={name} />;
@@ -482,7 +495,7 @@ function EditChip({
     <div className="stream-indent">
       <div
         className="flex h-[24px] w-fit max-w-full items-center gap-2 rounded-[3px] bg-pen-wash px-2"
-        onMouseEnter={() => onHoverEdit(item.path, [firstChangedLine, firstChangedLine + 2])}
+        onMouseEnter={() => onHoverEdit(item.path, [changedLine, changedLine + 2])}
         onMouseLeave={() => onHoverEdit(item.path, null)}
       >
         <button
@@ -502,7 +515,7 @@ function EditChip({
         <span className="flex shrink-0 gap-2">
           <button
             className="quiet t-micro"
-            onClick={() => onShowEdit(item.path, firstChangedLine)}
+            onClick={() => onShowEdit(item.path, changedLine)}
           >
             Show
           </button>

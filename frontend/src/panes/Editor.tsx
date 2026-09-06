@@ -1,16 +1,19 @@
 import { useEffect, useRef } from "react";
 import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import api from "../api";
-import { get, set, useStore } from "../store";
+import api, { type Symbols } from "../api";
 import {
   clearFlash,
   extensions,
   flashRange,
   freshState,
   marksFor,
+  setDiff,
   setMarks,
+  viewExtensions,
 } from "./editor-setup";
+import { get, set, useStore } from "../store";
+
 
 /** Autosave delay.  The server debounces the compile again on its side; this
  *  half is deliberately short so the total wait after the last keystroke is
@@ -21,6 +24,12 @@ type Buffer = { state: EditorState; saved: string };
 
 export type EditorHandle = {
   open(path: string, line?: number): Promise<void>;
+  /** Show an old version of a file, read-only. */
+  view(path: string, sha: string): Promise<void>;
+  /** Put the live buffer back, with its undo history and cursor. */
+  backToNow(): void;
+  /** Paint the lines that differ from what is on screen now. */
+  showChanges(on: boolean): void;
   close(path: string): Promise<void>;
   reload(path: string): Promise<void>;
   flash(line: number, endLine?: number): void;
@@ -46,6 +55,11 @@ export default function Editor({
   // pending autosave then writes what the empty replacement contains.
   const publish = useRef(handleRef);
   publish.current = handleRef;
+  // While this is set the view holds historical text.  The live
+  // EditorState stays parked in `buffers`, so its undo history and cursor
+  // survive by never being touched.
+  const viewing = useRef<{ path: string; sha: string; scroll: number } | null>(null);
+  const symbols = useRef<Symbols | null>(null);
 
   const pendingOpen = useStore((s) => s.pendingOpen);
   const diagnostics = useStore((s) => s.diagnostics);
@@ -130,7 +144,8 @@ export default function Editor({
       }, 400);
     };
 
-    const ext = extensions(onChange, onCursor);
+    const ext = extensions(onChange, onCursor, () => symbols.current);
+    const readOnlyExt = viewExtensions(() => symbols.current);
     view.current = new EditorView({ parent: host.current, state: freshState("", ext) });
 
     const jump = (line: number, endLine?: number) => {
@@ -159,9 +174,24 @@ export default function Editor({
       }, 1200);
     };
 
+    const backToNow = () => {
+      const parked = viewing.current;
+      if (!parked || !view.current) return;
+      const buffer = buffers.current.get(parked.path);
+      viewing.current = null;
+      if (buffer) {
+        view.current.setState(buffer.state);
+        view.current.scrollDOM.scrollTop = parked.scroll;
+      }
+      current.current = parked.path;
+      set({ viewing: null });
+      view.current.focus();
+    };
+
     const openBuffer = async (path: string, line?: number) => {
       const projectId = get().projectId;
       if (!projectId || !view.current) return;
+      if (viewing.current) backToNow();
       if (current.current === path) {
         if (line !== undefined) jump(line);
         return;
@@ -191,7 +221,7 @@ export default function Editor({
     const replaceText = (path: string, text: string) => {
       const buffer = buffers.current.get(path);
       if (!buffer) return;
-      if (current.current === path && view.current) {
+      if (current.current === path && view.current && !viewing.current) {
         const editor = view.current;
         const scroll = editor.scrollDOM.scrollTop;
         editor.dispatch({
@@ -199,6 +229,15 @@ export default function Editor({
         });
         editor.scrollDOM.scrollTop = scroll;
         buffer.state = editor.state;
+        // The dispatch above ran the shared update listener, which marked
+        // the tab dirty and armed a save; the save then returns early
+        // because nothing changed, leaving a dot that means nothing.
+        cancelTimer();
+        set({
+          tabs: get().tabs.map((tab) =>
+            tab.path === path ? { ...tab, dirty: false } : tab,
+          ),
+        });
       } else {
         buffer.state = buffer.state.update({
           changes: { from: 0, to: buffer.state.doc.length, insert: text },
@@ -207,9 +246,49 @@ export default function Editor({
       buffer.saved = text;
     };
 
+    const viewVersion = async (path: string, sha: string) => {
+      const projectId = get().projectId;
+      const editor = view.current;
+      if (!projectId || !editor) return;
+      // Write anything pending first: entering a read-only view must not
+      // strand an edit, and the buffer has to be clean to come back to.
+      await flush();
+      cancelTimer();
+      if (current.current && current.current !== path) await openBuffer(path);
+      const buffer = buffers.current.get(path);
+      if (!buffer) return;
+      buffer.state = editor.state;
+
+      const file = await api.historyVersion(projectId, path, sha);
+      // Nothing below can arm a save: `current.current` is null, so every
+      // early return in onChange, saveFile, flush and the beacon fires.
+      viewing.current = {
+        path, sha, scroll: editor.scrollDOM.scrollTop,
+      };
+      current.current = null;
+      editor.setState(freshState(file.text, readOnlyExt));
+      editor.scrollDOM.scrollTop = 0;
+    };
+
     publish.current({
       open: openBuffer,
+      view: viewVersion,
+      backToNow,
+      showChanges: (on: boolean) => {
+        const parked = viewing.current;
+        const editor = view.current;
+        if (!parked || !editor) return;
+        if (!on) {
+          editor.dispatch({ effects: setDiff.of([]) });
+          return;
+        }
+        const live = buffers.current.get(parked.path)?.state.doc.toString() ?? "";
+        editor.dispatch({
+          effects: setDiff.of(changedLines(editor.state.doc.toString(), live)),
+        });
+      },
       close: async (path) => {
+        if (viewing.current?.path === path) backToNow();
         if (current.current === path) await flush();
         else {
           const buffer = buffers.current.get(path);
@@ -230,10 +309,10 @@ export default function Editor({
         if (!projectId) return;
         const buffer = buffers.current.get(path);
         if (!buffer) return;
-        const live =
-          current.current === path && view.current
-            ? view.current.state.doc.toString()
-            : buffer.state.doc.toString();
+        const showing = current.current === path && view.current && !viewing.current;
+        const live = showing
+          ? view.current!.state.doc.toString()
+          : buffer.state.doc.toString();
         // Never overwrite unsaved work with what is on disk.  The tab stays
         // dirty and the user decides.
         if (live !== buffer.saved) return;
@@ -275,6 +354,22 @@ export default function Editor({
     };
   }, []);
 
+  const compileResult = useStore((s) => s.compile);
+  const projectId = useStore((s) => s.projectId);
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    api
+      .symbols(projectId)
+      .then((found) => {
+        if (!cancelled) symbols.current = found;
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, compileResult]);
+
   useEffect(() => {
     if (!pendingOpen) return;
     openRef.current?.(pendingOpen.path, pendingOpen.line).catch((error) => {
@@ -284,7 +379,7 @@ export default function Editor({
 
   // Diagnostics repaint whenever a build or a lint pass lands.
   useEffect(() => {
-    if (!view.current || !activePath) return;
+    if (!view.current || !activePath || viewing.current) return;
     const marks = [
       ...marksFor(diagnostics, activePath),
       ...marksFor(lint, activePath),
@@ -293,6 +388,17 @@ export default function Editor({
   }, [diagnostics, lint, activePath]);
 
   return <div ref={host} className="h-full min-h-0 overflow-hidden" />;
+}
+
+/** Which lines of `text` are not in `other`, 1-based. */
+function changedLines(text: string, other: string): number[] {
+  const mine = text.split("\n");
+  const theirs = new Set(other.split("\n"));
+  const changed: number[] = [];
+  mine.forEach((line, index) => {
+    if (line.trim() && !theirs.has(line)) changed.push(index + 1);
+  });
+  return changed;
 }
 
 let lintTimer: number | null = null;

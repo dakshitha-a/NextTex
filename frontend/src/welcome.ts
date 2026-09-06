@@ -14,6 +14,11 @@ Two things make me much better at this, and both take a minute:`;
 
 export const WELCOME_ACTIONS = [
   {
+    kind: "template" as const,
+    label: "Start from a basic document",
+    detail: "A page with maths, a figure, a table and a citation already working. For when you want to write now and decide on a template later.",
+  },
+  {
     kind: "style" as const,
     label: "Add your template",
     detail: "Thesis guidelines, a journal's author instructions, a class file. I'll follow its rules instead of guessing.",

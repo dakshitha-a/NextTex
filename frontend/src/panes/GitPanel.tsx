@@ -10,7 +10,7 @@ import { get, refreshGit, set, useStore } from "../store";
  *  somewhere that is not this machine, and pulled back on another; branching
  *  and history rewriting belong in a terminal where the mistakes are
  *  recoverable. */
-export default function GitPanel() {
+export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void } = {}) {
   const projectId = useStore((s) => s.projectId);
   const projectName = useStore((s) => s.projectName);
   const status = useStore((s) => s.git);
@@ -200,12 +200,17 @@ export default function GitPanel() {
           {open ? (
             <div className="mt-1 max-h-[96px] overflow-auto">
               {status.changes.map((change) => (
-                <div key={change.path} className="flex items-baseline gap-2">
+                <button
+                  key={change.path}
+                  className="flex w-full items-baseline gap-2 rounded-[3px] px-1 text-left hover:bg-surface-2"
+                  title={`Open ${change.path}`}
+                  onClick={() => onOpen?.(change.path)}
+                >
                   <span className="t-code-sm w-[14px] shrink-0 text-ink-3">
                     {change.state}
                   </span>
                   <span className="t-code-sm truncate text-ink-2">{change.path}</span>
-                </div>
+                </button>
               ))}
             </div>
           ) : null}

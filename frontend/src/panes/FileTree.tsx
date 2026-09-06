@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useDismiss } from "../useDismiss";
 import api, { startDownload, type TreeNode } from "../api";
 import { get, set, useStore } from "../store";
 
@@ -15,9 +16,13 @@ function splitName(name: string): [string, string] {
 export default function FileTree({
   onOpen,
   onRefresh,
+  onHistory,
+  mainFile,
 }: {
   onOpen: (path: string) => void;
   onRefresh: () => void;
+  onHistory?: () => void;
+  mainFile?: string;
 }) {
   const tree = useStore((s) => s.tree);
   const activePath = useStore((s) => s.activePath);
@@ -26,7 +31,7 @@ export default function FileTree({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const [creating, setCreating] =
     useState<{ parent: string; directory: boolean } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -35,6 +40,9 @@ export default function FileTree({
   const [focusPath, setFocusPath] = useState<string | null>(null);
   const order = useRef<{ path: string; directory: boolean; open: boolean }[]>([]);
   const uploadInput = useRef<HTMLInputElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  useDismiss(menuRef, menu !== null, closeMenu);
   const uploadTo = useRef<string>("");
 
   const errorsByFile = useMemo(() => {
@@ -72,15 +80,22 @@ export default function FileTree({
           }),
         );
       } else if (action === "delete") {
-        // Confirmed in place, in this typeface.  A native confirm() dialog
-        // is the one thing that would undo the composing-room premise
-        // faster than any colour choice.
-        setConfirming(node.path);
+        // No confirmation: deleting now moves the file to the trash with
+        // its history, and asking twice about something that is one click
+        // from coming back is friction for nothing.
+        await api.deleteFile(projectId, node.path);
+        onRefresh();
       } else if (action === "rename") {
         setRenaming(node.path);
       } else if (action === "newfile" || action === "newfolder") {
         const parent = isDir(node) ? node.path : dirname(node.path);
         setCreating({ parent, directory: action === "newfolder" });
+      } else if (action === "main") {
+        await api.setMain(projectId, node.path);
+        onRefresh();
+      } else if (action === "history") {
+        onOpen(node.path);
+        onHistory?.();
       } else if (action === "upload") {
         uploadTo.current = isDir(node) ? node.path : dirname(node.path);
         uploadInput.current?.click();
@@ -178,7 +193,7 @@ export default function FileTree({
           } else if (event.key === "F2") {
             act("rename", node);
           } else if (event.key === "Delete") {
-            setConfirming(node.path);
+            act("delete", node);
           }
         }}
         onDragOver={(event) => {
@@ -221,6 +236,14 @@ export default function FileTree({
             <span className="text-ink-3">{extension}</span>
           </span>
         )}
+        {node.path === mainFile ? (
+          <span
+            className="t-micro mr-1 shrink-0 rounded-[3px] bg-surface-3 px-1 text-ink-3"
+            title="This is the document that gets typeset"
+          >
+            main
+          </span>
+        ) : null}
         <span className="flex w-4 shrink-0 items-center justify-end">
           {errors > 0 ? (
             <span className="t-micro text-error group-hover:hidden">{errors}</span>
@@ -232,6 +255,11 @@ export default function FileTree({
             aria-label={`Actions for ${node.name}`}
             onClick={(event) => {
               event.stopPropagation();
+              const box = (event.target as HTMLElement).getBoundingClientRect();
+              setMenuAt({
+                x: Math.min(box.right - 184, window.innerWidth - 192),
+                y: Math.min(box.bottom + 4, window.innerHeight - 220),
+              });
               setMenu(menu === node.path ? null : node.path);
             }}
           >
@@ -240,16 +268,25 @@ export default function FileTree({
         </span>
         {menu === node.path ? (
           <div
-            className="absolute right-1 top-[24px] z-20 w-[168px] rounded-[5px] border border-line bg-surface py-1"
+            ref={menuRef}
+            // Fixed, not absolute: an absolute menu is clipped by the
+            // tree's own scroll box, so the last row's menu was cut in half.
+            className="fixed z-40 w-[184px] rounded-[5px] border border-line bg-surface py-1 shadow-[0_2px_10px_rgba(0,0,0,0.25)]"
+            style={menuAt ? { left: menuAt.x, top: menuAt.y } : undefined}
             onClick={(event) => event.stopPropagation()}
           >
             {[
               ["rename", "Rename"],
+              ...(!isDirectory && /\.(tex|ltx)$/i.test(node.name) &&
+              node.path !== mainFile
+                ? [["main", "Set as main document"]]
+                : []),
+              ...(!isDirectory ? [["history", "History"]] : []),
               ["download", isDirectory ? "Download as zip" : "Download"],
               ["upload", "Upload here"],
               ["newfile", "New file here"],
               ["newfolder", "New folder here"],
-              ["delete", "Delete"],
+              ["delete", isDirectory ? "Move folder to trash" : "Move to trash"],
             ].map(([key, label]) => (
               <button
                 key={key}
@@ -266,42 +303,6 @@ export default function FileTree({
         ) : null}
       </div>,
     );
-
-    if (confirming === node.path) {
-      rows.push(
-        <div
-          key={`${node.path}-confirm`}
-          className="flex h-[26px] items-center gap-2 bg-surface-2"
-          style={{ paddingLeft: 10 + depth * INDENT }}
-        >
-          <span className="t-micro flex-1 truncate text-ink-2">
-            Delete {node.name}?
-          </span>
-          <button
-            className="t-micro px-2 text-error"
-            onClick={async () => {
-              const projectId = get().projectId;
-              setConfirming(null);
-              if (!projectId) return;
-              try {
-                await api.deleteFile(projectId, node.path);
-                onRefresh();
-              } catch (error: any) {
-                set({ error: error.message });
-              }
-            }}
-          >
-            Delete
-          </button>
-          <button
-            className="t-micro px-2 text-ink-3 hover:text-ink"
-            onClick={() => setConfirming(null)}
-          >
-            Keep
-          </button>
-        </div>,
-      );
-    }
 
     if (creating && creating.parent === (isDirectory ? node.path : "")) {
       rows.push(
