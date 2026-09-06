@@ -297,6 +297,13 @@ export default function FileTree({
   const overDrag = (event: React.DragEvent, node: TreeNode | null) => {
     const destination = destinationFor(node);
     if (event.dataTransfer.types.includes(NX_PATH)) {
+      // A row answers for itself.  Without this the event went on up to the
+      // tree body, which asked the same question about the project root --
+      // where the file already was -- said no, and set `dropEffect` back to
+      // "none".  Chromium reads the last word, so the drop was refused and
+      // the gesture ended in `dragend`: everything looked right except that
+      // nothing moved.
+      if (node) event.stopPropagation();
       if (!canDropInternal(destination)) {
         event.dataTransfer.dropEffect = "none";
         return;
@@ -429,6 +436,7 @@ export default function FileTree({
           setDraggingPath(null);
           setDropTarget(null);
         }}
+        onDragEnter={(event) => overDrag(event, node)}
         onDragOver={(event) => overDrag(event, node)}
         onDragLeave={() => setDropTarget(null)}
         onDrop={(event) => drop(event, node)}
@@ -677,6 +685,7 @@ export default function FileTree({
           uploadFrom.current = event.currentTarget;
           uploadInput.current?.click();
         }}
+        onDragEnter={(event) => overDrag(event, null)}
         onDragOver={(event) => overDrag(event, null)}
         onDragLeave={() => setDropTarget(null)}
         onDrop={(event) => drop(event, null)}
@@ -718,6 +727,7 @@ export default function FileTree({
       <div
         className="min-h-0 flex-1 overflow-auto py-[6px]"
         role="tree"
+        onDragEnter={(event) => overDrag(event, null)}
         onDragOver={(event) => overDrag(event, null)}
         onDragLeave={() => setDropTarget(null)}
         onDrop={(event) => drop(event, null)}

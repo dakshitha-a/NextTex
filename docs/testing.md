@@ -103,15 +103,20 @@ vocabulary. Whether OpenAI still returns those shapes is unproven.
 
 ## Two things the browser tier cannot prove
 
-**A drag is dispatched, not mimed.** Chromium, driven headlessly, raises
-`dragstart` and `dragover` for a pointer-driven drag and then ends it with
-`dragend` instead of `drop` — so a mouse-driven spec for the file tree's
-drag-to-move passes only when the feature is broken. `dragRow` in
-`files.spec.ts` dispatches the events with a shared `DataTransfer` instead.
-Everything under test still runs for real: the same handlers, the same
-refusals, the same server call. That Chromium *starts* the drag at all is
-checked by hand in a real browser, and is the one part of that feature no
-spec covers.
+**A drag is the real gesture, and the shortcut nearly cost a feature.**
+Headless Chromium ends an HTML5 drag with `dragend` and no `drop` when the
+page has refused it, which looks exactly like the harness being unable to
+drag — so the first version of the file-tree spec dispatched the events by
+hand with a shared `DataTransfer` and passed. A minimal control page proved
+the browser could drop perfectly well, and the fault was ours: a row set
+`dropEffect` to "move", the event bubbled to the tree body, which asked the
+same question about the project root, said no, and set it back to "none".
+Chromium reads the last word. Dragging would have shipped looking right and
+doing nothing.
+
+The lesson is worth more than the bug: when a browser feature appears not to
+work under test, write the smallest page that uses it before concluding the
+harness is at fault. `dragRow` now uses `page.dragAndDrop`.
 
 **The scripted agent calls the memory tool because the script says to.**
 `remember.json` proves the plumbing end to end — the tool writes, the panel

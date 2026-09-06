@@ -7,10 +7,11 @@ shield that guards them, the follow-up queue, usage, model switching.  All
 of that is interface, and interface is exactly what a test should be able to
 drive.
 
-So this stands in.  It has the ten members the rest of the app actually uses
--- `ask`, `events`, `busy`, `idle_seconds`, `disconnect`, `current_why`,
-`resolve_permission`, `set_model`, `model`, `usage` -- and replays a list of
-steps through the same event queue the real agent writes to.  An `edit` step
+So this stands in.  It has the members the rest of the app actually uses -- `ask`, `events`,
+`busy`, `idle_seconds`, `disconnect`, `reset`, `current_why`,
+`resolve_permission`, `set_auto`, `set_model`, `model`, `usage` -- and
+replays a list of steps through the same event queue the real agent writes
+to.  An `edit` step
 performs a *real* write through the same `apply_edit` callback, so the
 version, the rebuild, the chip and the undo all run for real; a `permission`
 step really does block until somebody answers it.

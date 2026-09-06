@@ -241,34 +241,17 @@ test("typing in the tree jumps to a file", async ({ tab }) => {
 const row = (tab: Page, path: string) =>
   tab.locator(`[role="tree"] [data-path="${path}"]`);
 
-/** Drag one row onto another.
+/** Drag one row onto another, with the mouse, as a person would.
  *
- *  The events are dispatched rather than mimed with the mouse.  Chromium,
- *  driven headlessly, raises `dragstart` and `dragover` for a real pointer
- *  drag and then ends it with `dragend` instead of `drop`, so a mouse-driven
- *  version of this passes only when the feature is broken.  What is under
- *  test is what the tree does with the drop, and that is exercised here in
- *  full: the same handlers, the same DataTransfer, the same server call.
- *  That Chromium starts the drag at all is checked by hand in a real
- *  browser instead. */
+ *  This is the real gesture: Chromium's own HTML5 drag, which is why it is
+ *  worth the seconds it costs. An earlier version dispatched the events by
+ *  hand and passed against a build where dragging did nothing at all --
+ *  the row set `dropEffect` to "move", the event went on up to the tree
+ *  body, which set it back to "none", and the browser refused the drop. */
 async function dragRow(tab: Page, from: string, onto: string): Promise<void> {
-  await tab.evaluate(
-    ({ from, onto }) => {
-      const at = (path: string) =>
-        document.querySelector(`[role="tree"] [data-path="${path}"]`)!;
-      const data = new DataTransfer();
-      at(from).dispatchEvent(
-        new DragEvent("dragstart", { bubbles: true, dataTransfer: data }),
-      );
-      const target = at(onto);
-      target.dispatchEvent(
-        new DragEvent("dragover", { bubbles: true, dataTransfer: data }),
-      );
-      target.dispatchEvent(
-        new DragEvent("drop", { bubbles: true, dataTransfer: data }),
-      );
-    },
-    { from, onto },
+  await tab.dragAndDrop(
+    `[role="tree"] [data-path="${from}"]`,
+    `[role="tree"] [data-path="${onto}"]`,
   );
 }
 
