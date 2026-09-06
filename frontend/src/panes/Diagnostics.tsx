@@ -71,7 +71,18 @@ export default function Diagnostics({
           window.addEventListener("pointerup", up);
         }}
       />
-      <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-line px-[10px]">
+      {/* The whole bar closes the drawer, the way the preview's and the
+          agent's headers fold their panes. The button stays: it is what
+          says the bar is a control, and it is what a keyboard reaches. */}
+      <div
+        className="flex h-[26px] shrink-0 cursor-pointer items-center justify-between border-b border-line px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+        data-testid="diagnostics-header"
+        title="Close the list"
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest("button")) return;
+          onClose();
+        }}
+      >
         {/* Named, not counted: "3 findings" tells a writer nothing, and
             severity carried only by a coloured bar is severity carried by
             colour alone. */}

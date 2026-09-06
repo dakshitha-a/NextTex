@@ -230,6 +230,7 @@ export default function Chat({
           onFold ? "cursor-pointer transition-colors duration-[90ms] hover:bg-surface-2" : ""
         }`}
         title={onFold ? "Fold this panel away" : undefined}
+        data-testid="chat-header"
         onClick={(event) => {
           if (!onFold) return;
           if ((event.target as HTMLElement).closest("button, select, input")) return;

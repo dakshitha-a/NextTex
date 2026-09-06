@@ -11,9 +11,16 @@ function middleTruncate(stem: string, limit: number): string {
 export default function Tabs({
   onSelect,
   onClose,
+  onBlank,
 }: {
   onSelect: (path: string) => void;
   onClose: (path: string) => void;
+  /** The empty run of the strip, past the last tab, acts as this pane's
+   *  header the way the preview's title bar does. It is the only part of
+   *  this row that is not already something -- and it shrinks to nothing
+   *  as tabs fill the strip, which is the right behaviour: a writer with
+   *  twelve files open has not left themselves a place to click. */
+  onBlank?: () => void;
 }) {
   const tabs = useStore((s) => s.tabs);
   const activePath = useStore((s) => s.activePath);
@@ -145,7 +152,16 @@ export default function Tabs({
           </div>
         );
       })}
-        <div className="flex-1 border-b border-line" />
+        <div
+          className={`flex-1 border-b border-line ${onBlank ? "cursor-pointer" : ""}`}
+          data-testid="tabs-blank"
+          title={
+            onBlank
+              ? "Click to fold the source away, double-click to write"
+              : undefined
+          }
+          onClick={onBlank}
+        />
       </div>
       {hidden > 0 ? (
         <button
