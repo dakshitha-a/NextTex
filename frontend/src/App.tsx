@@ -624,15 +624,6 @@ export default function App() {
         }}
         aria-hidden={chatOver && !chatOpen}
       >
-        {chatOver ? (
-          <button
-            className="t-micro absolute right-2 top-[8px] z-10 text-ink-3 hover:text-ink"
-            onClick={() => setChatOpen(false)}
-            aria-label="Hide the Claude panel"
-          >
-            Hide
-          </button>
-        ) : null}
         <Chat
           onAddContext={(kind) => {
             // The panel lives in the rail, so it has to be open to be used.

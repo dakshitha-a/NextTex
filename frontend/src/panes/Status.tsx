@@ -106,9 +106,11 @@ export default function Status({
           </span>
         </span>
       ) : null}
-      <Rule />
-      <span className="t-micro tnum w-[96px] shrink-0 text-right text-ink-2">
-        Ln {cursor.line}, Col {cursor.column}
+      <span className="hidden shrink-0 items-center gap-3 @[300px]:flex">
+        <Rule />
+        <span className="t-micro tnum w-[96px] text-right text-ink-2">
+          Ln {cursor.line}, Col {cursor.column}
+        </span>
       </span>
       {/* Which document the PDF beside this strip is actually showing.  A
           fast build typesets one chapter, and a reader who does not know
@@ -120,13 +122,15 @@ export default function Status({
           {result && result.scope !== "full" ? "This chapter" : "Whole document"}
         </span>
       </span>
-      <Rule />
       {/* Permanent, not hover-only: it is one word, it is the answer when
           the preview looks stale, and a strip that gains a segment on hover
           is a strip that jitters. */}
-      <button className="quiet t-micro shrink-0" onClick={onRebuild}>
-        Rebuild
-      </button>
+      <span className="hidden shrink-0 items-center gap-3 @[420px]:flex">
+        <Rule />
+        <button className="quiet t-micro" onClick={onRebuild}>
+          Rebuild
+        </button>
+      </span>
       <Rule />
       <button
         className="t-micro tnum w-[92px] shrink-0 text-right text-ink-2 hover:text-ink"
