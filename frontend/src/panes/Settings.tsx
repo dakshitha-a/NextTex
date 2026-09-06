@@ -57,7 +57,7 @@ export default function Settings({
     setOpen(false);
     trigger.current?.focus();
   };
-  useDismiss(card, open, close);
+  useDismiss(card, open, close, trigger);
 
   const change = (patch: Partial<Appearance>) => {
     const next = { ...look, ...patch };

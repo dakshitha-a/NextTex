@@ -439,12 +439,27 @@ export default function Editor({
         // pointed at the old name, and the next autosave wrote there --
         // recreating the file that had just been renamed away, and leaving
         // the writer's ongoing edits in an orphan nothing includes.
-        const buffer = buffers.current.get(from);
-        if (!buffer) return;
-        buffers.current.delete(from);
-        buffers.current.set(to, buffer);
-        if (current.current === from) current.current = to;
-        if (viewing.current?.path === from) viewing.current.path = to;
+        //
+        // A folder move renames every buffer beneath it at once, so this
+        // follows a path prefix: matching only the moved path itself left
+        // every open file inside a moved folder writing to the old place,
+        // which is the same bug once removed.
+        const moved = (path: string): string | null => {
+          if (path === from) return to;
+          if (path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
+          return null;
+        };
+        for (const path of [...buffers.current.keys()]) {
+          const next = moved(path);
+          if (!next) continue;
+          const buffer = buffers.current.get(path)!;
+          buffers.current.delete(path);
+          buffers.current.set(next, buffer);
+        }
+        const active = current.current ? moved(current.current) : null;
+        if (active) current.current = active;
+        const shown = viewing.current ? moved(viewing.current.path) : null;
+        if (shown && viewing.current) viewing.current.path = shown;
       },
       flash: jump,
       saveNow: flush,

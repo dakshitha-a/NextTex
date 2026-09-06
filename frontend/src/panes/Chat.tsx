@@ -89,7 +89,13 @@ export default function Chat({
   const [usage, setUsage] = useState<Awaited<ReturnType<typeof api.usage>> | null>(null);
   const [showUsage, setShowUsage] = useState(false);
   const usageRef = useRef<HTMLDivElement | null>(null);
-  useDismiss(usageRef, showUsage, useCallback(() => setShowUsage(false), []));
+  const usageButton = useRef<HTMLButtonElement | null>(null);
+  useDismiss(
+    usageRef,
+    showUsage,
+    useCallback(() => setShowUsage(false), []),
+    usageButton,
+  );
   const [focusedComposer, setFocusedComposer] = useState(false);
 
   // The tally follows the end of a turn, which is when it changes.
@@ -220,6 +226,7 @@ export default function Chat({
           ))}
         </select>
         <button
+          ref={usageButton}
           className="quiet t-micro flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3"
           title="What this project has used"
           aria-expanded={showUsage}

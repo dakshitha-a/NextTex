@@ -54,8 +54,12 @@ export default function FileTree({
   const order = useRef<{ path: string; directory: boolean; open: boolean }[]>([]);
   const uploadInput = useRef<HTMLInputElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // Only one menu is open at a time, so one ref is enough: the row that is
+  // open claims it, and the dismiss hook leaves that button's own press
+  // alone so the trigger can close what it opened.
+  const menuButton = useRef<HTMLButtonElement | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
-  useDismiss(menuRef, menu !== null, closeMenu);
+  useDismiss(menuRef, menu !== null, closeMenu, menuButton);
   const uploadTo = useRef<string>("");
   // Where the picker was started from, so focus can go back there when the
   // chooser closes, and whether that gesture named a folder of its own.
@@ -357,8 +361,10 @@ export default function FileTree({
             <span className="h-[5px] w-[5px] rounded-full bg-ink-2 group-hover:hidden" />
           ) : null}
           <button
+            ref={menu === node.path ? menuButton : undefined}
             className="quiet opacity-0 focus:opacity-100 group-hover:opacity-100"
             aria-label={`Actions for ${node.name}`}
+            aria-expanded={menu === node.path}
             onClick={(event) => {
               event.stopPropagation();
               // `getBoundingClientRect` answers in viewport pixels even

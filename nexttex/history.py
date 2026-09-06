@@ -257,6 +257,28 @@ class History:
         }
         self._write_paths(paths)
 
+    def note_move(self, old_path: str, new_path: str) -> None:
+        """Carry history across a rename that may be of a whole folder.
+
+        `note_rename` is keyed by one path, so moving a directory used to
+        re-slug the directory itself -- which has no log -- and leave every
+        file inside it with its history filed under a path that no longer
+        exists.  The history was still on disk but nothing could find it,
+        which reads to the writer as a folder move destroying the past.
+
+        The recorded paths are the authority here rather than the disk: the
+        files have already been moved by the time this runs.
+        """
+        self.note_rename(old_path, new_path)
+        prefix = f"{old_path}/"
+        inside = [
+            entry.get("path", "")
+            for entry in self._paths().values()
+            if entry.get("path", "").startswith(prefix)
+        ]
+        for path in inside:
+            self.note_rename(path, f"{new_path}/{path[len(prefix):]}")
+
     def path_of(self, slug: str) -> str:
         return (self._paths().get(slug) or {}).get("path", "")
 
