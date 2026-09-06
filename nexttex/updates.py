@@ -39,8 +39,14 @@ MIN_NODE_MAJOR = 20
 class Commit:
     sha: str
     subject: str
-    # "app", "interface" or "neither"
+    # "app", "interface" or "neither" -- one label, for the screen to show.
     touches: str
+    # Whether it touched the interface *at all*.  Separate from the label
+    # on purpose: a commit that changes both a Python module and a React
+    # component is labelled "app", and reading the rebuild question off
+    # that label meant a commit like that installed new server code behind
+    # the interface that was already built.
+    interface: bool = False
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -73,21 +79,29 @@ class Report:
         return body
 
 
-def classify(paths: list[str]) -> str:
+def classify(paths: list[str]) -> tuple[str, bool]:
     """What a commit touching these paths means for a running install.
 
-    A commit is only as unimportant as its most important file, so the
-    scan stops at the first path that reaches the program.  Anything
-    unrecognised counts as reaching it: a wrong "nothing to see here" is
-    worse than a wrong "something changed".
+    Returns the one label worth showing, and separately whether the
+    interface has to be rebuilt.  The two are not the same question: a
+    commit that changes a Python module *and* a React component is an
+    "app" change to a reader, and still needs the bundle rebuilt.
+
+    Anything unrecognised counts as reaching the program: a wrong "nothing
+    to see here" is worse than a wrong "something changed".
     """
-    seen_interface = False
+    interface = False
+    app = False
     for path in paths:
         if any(path.startswith(prefix) for prefix in INTERFACE_PREFIXES):
-            seen_interface = True
+            interface = True
         elif not any(path.startswith(prefix) for prefix in NOT_THE_PROGRAM):
-            return "app"
-    return "interface" if seen_interface else "neither"
+            app = True
+    if app:
+        return "app", interface
+    if interface:
+        return "interface", True
+    return "neither", False
 
 
 def node_available() -> tuple[bool, str]:
@@ -131,7 +145,8 @@ def _commits_behind(root: Path) -> list[Commit]:
         header, _, rest = block.partition("\n")
         sha, _, subject = header.partition("\x02")
         paths = [line for line in rest.splitlines() if line.strip()]
-        commits.append(Commit(sha.strip(), subject.strip(), classify(paths)))
+        label, interface = classify(paths)
+        commits.append(Commit(sha.strip(), subject.strip(), label, interface))
     commits.reverse()
     return commits
 
@@ -156,7 +171,7 @@ def check(root: Path) -> Report:
 
     report.behind = len(report.commits)
     report.changing = sum(1 for c in report.commits if c.touches != "neither")
-    report.rebuild = any(c.touches == "interface" for c in report.commits)
+    report.rebuild = any(c.interface for c in report.commits)
 
     dirty = gitrepo.status(root)
     report.dirty = [change["path"] for change in dirty.as_dict()["changes"]][:20]

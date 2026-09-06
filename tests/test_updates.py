@@ -54,26 +54,33 @@ def commit(work, path, body="x\n", message="a change"):
 
 # -- what a commit means ----------------------------------------------------
 def test_a_commit_touching_only_docs_changes_nothing():
-    assert updates.classify(["docs/design.md", "README.md"]) == "neither"
+    assert updates.classify(["docs/design.md", "README.md"]) == ("neither", False)
 
 
 def test_a_commit_touching_the_server_changes_the_app():
-    assert updates.classify(["server/main.py"]) == "app"
-    assert updates.classify(["nexttex/compile.py", "docs/x.md"]) == "app"
+    assert updates.classify(["server/main.py"]) == ("app", False)
+    assert updates.classify(["nexttex/compile.py", "docs/x.md"]) == ("app", False)
 
 
 def test_a_commit_touching_only_the_frontend_needs_a_rebuild():
-    assert updates.classify(["frontend/src/App.tsx"]) == "interface"
+    assert updates.classify(["frontend/src/App.tsx"]) == ("interface", True)
 
 
 def test_an_unrecognised_path_counts_as_changing_the_app():
     """A wrong "nothing to see here" is worse than a wrong "something
     changed", so anything the table does not know about reaches the app."""
-    assert updates.classify(["some/new/thing.py"]) == "app"
+    assert updates.classify(["some/new/thing.py"]) == ("app", False)
 
 
-def test_a_commit_that_is_both_is_not_called_harmless():
-    assert updates.classify(["frontend/src/App.tsx", "server/main.py"]) == "app"
+def test_a_commit_that_is_both_still_asks_for_a_rebuild():
+    """The label a reader sees and the question "must the bundle be rebuilt"
+    are different questions.  Reading the second off the first meant a
+    commit touching a Python module and a React component installed new
+    server code behind the interface that was already built -- found on a
+    real deployment, against a real commit."""
+    label, interface = updates.classify(["frontend/src/App.tsx", "server/main.py"])
+    assert label == "app"
+    assert interface is True
 
 
 # -- against a real remote --------------------------------------------------
@@ -113,6 +120,22 @@ def test_a_frontend_commit_asks_for_a_rebuild(pair):
     work, clone = pair
     commit(work, "frontend/src/App.tsx", message="interface")
     report = updates.check(clone)
+    assert report.rebuild is True
+
+
+def test_a_commit_touching_both_halves_still_asks_for_a_rebuild(pair):
+    work, clone = pair
+    target = work / "frontend" / "src" / "App.tsx"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x\n")
+    (work / "server").mkdir(exist_ok=True)
+    (work / "server" / "main.py").write_text("y\n")
+    git(work, "add", "-A")
+    git(work, "commit", "-m", "both halves")
+    git(work, "push")
+
+    report = updates.check(clone)
+    assert report.commits[0].touches == "app"
     assert report.rebuild is True
 
 
