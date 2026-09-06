@@ -219,3 +219,74 @@ test("writing keeps the file list even where the window had hidden it", async ({
   await tab.getByTestId("tabs-blank").dblclick();
   await expect(tab.getByTestId("collapsed-files")).toBeVisible();
 });
+
+test("the agent panel opens and closes from the keyboard, docked", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await chatThere(tab);
+  // Not Super-A as first asked for: on Linux the window manager takes Super
+  // before the browser sees it, Cmd/Ctrl-A alone is Select All, and
+  // Cmd/Ctrl-Shift-A is Chrome's own tab search.  Alt keeps the A.
+  await tab.keyboard.press("Control+Alt+KeyA");
+  await expect(tab.getByTestId("collapsed-claude")).toBeVisible();
+  await tab.keyboard.press("Control+Alt+KeyA");
+  await expect(composer(tab)).toBeVisible();
+});
+
+test("the same shortcut works on the overlay, and leaves the caret in the box", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1200, height: 1000 });
+  await chatAway(tab);
+  await tab.keyboard.press("Control+Alt+KeyA");
+  await chatThere(tab);
+  // A shortcut that opens a panel you then have to click into has saved
+  // nobody anything.
+  await expect(composer(tab)).toBeFocused();
+  await tab.keyboard.press("Control+Alt+KeyA");
+  await chatAway(tab);
+});
+
+test("reaching for the preview puts the overlay away", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1200, height: 1000 });
+  await tab.getByTestId("open-chat").click();
+  await chatThere(tab);
+  // The panel lies over the preview at this width, so the click that means
+  // "let me read this" is the one that should give the width back.
+  await tab.getByTestId("preview-pane").click({ position: { x: 20, y: 200 } });
+  await chatAway(tab);
+});
+
+test("the docked panel is not closed by a click on the preview", async ({
+  tab,
+}) => {
+  // Nothing is covered at this width, so nothing needs to get out of the
+  // way -- and a panel that vanished on every click into the page would be
+  // unusable.
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await chatThere(tab);
+  await tab.getByTestId("preview-pane").click({ position: { x: 20, y: 200 } });
+  await chatThere(tab);
+});
+
+test("reading mode still gives the overlay back", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1200, height: 1000 });
+  await tab.getByTestId("open-chat").click();
+  await chatThere(tab);
+  // The header is a control, not "the page": closing the overlay from it
+  // would be saved as the layout reading mode was entered from, and
+  // leaving reading mode would then give back a window with no agent in
+  // it.
+  // The same spot twice, which is the gesture a writer actually makes.
+  // Near the left edge, because at this width the overlay covers the
+  // middle of the header before the mode starts -- and because the left of
+  // this bar has to stay the label rather than becoming the project
+  // switcher, or the second click leaves the document.
+  const header = tab.getByTestId("preview-header");
+  await header.dblclick({ position: { x: 20, y: 16 } });
+  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await header.dblclick({ position: { x: 20, y: 16 } });
+  await chatThere(tab);
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+});

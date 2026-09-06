@@ -248,6 +248,7 @@ export default function App() {
       tree: project.tree,
       tabs: [],
       activePath: null,
+      outline: [],
       diagnostics: [],
       lint: [],
       compile: null,
@@ -598,33 +599,6 @@ export default function App() {
     };
   }, [projectId, activePath, wordScope, compileResult]);
 
-  // ---- keyboard ---------------------------------------------------------
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const meta = event.metaKey || event.ctrlKey;
-      if (meta && event.key === "b") {
-        event.preventDefault();
-        railByHand.current = true;
-        setRailHidden((value) => !value);
-      }
-      if (meta && event.key === "s") {
-        event.preventDefault();
-        // With compile-as-you-type off, save is also the build: it is the
-        // Overleaf convention, it is what the hands already do, and it
-        // saves inventing a second binding for a thing the writer now has
-        // to ask for explicitly.
-        if (get().settings.autocompile) editor.current?.saveNow();
-        else void buildNow(false);
-      }
-      if (meta && event.key === "Enter" && activePath) {
-        event.preventDefault();
-        pdf.current?.reveal(activePath, get().cursor.line);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [activePath]);
-
   // ---- pane dragging ----------------------------------------------------
   // Minimum widths, in pixels.  The panes carry these as CSS too; the drag
   // has to know them or it computes ratios the layout cannot honour.
@@ -760,6 +734,8 @@ export default function App() {
 
   const chatOpenRef = useRef(chatOpen);
   chatOpenRef.current = chatOpen;
+  const chatOverRef = useRef(chatOver);
+  chatOverRef.current = chatOver;
   const foldedRef = useRef(folded);
   foldedRef.current = folded;
   const focusRef = useRef(focus);
@@ -819,6 +795,66 @@ export default function App() {
       return next;
     });
   }, []);
+
+  /** Show or hide the agent panel.
+   *
+   *  It is two different things depending on the width: below 1400px the
+   *  panel is an overlay that slides over the page, above it a column that
+   *  folds.  One shortcut has to do whichever is on screen, and either way
+   *  opening it leaves the caret in the box -- a shortcut that opens a
+   *  panel you then have to click into has saved nobody anything. */
+  const toggleChat = useCallback(() => {
+    if (get().agent?.provider === "none") return;
+    if (chatOverRef.current) {
+      const opening = !chatOpenRef.current;
+      setChatOpen(opening);
+      if (opening) window.setTimeout(() => chat.current?.focusComposer(), 60);
+      return;
+    }
+    const opening = foldedRef.current.chat;
+    fold("chat");
+    if (opening) window.setTimeout(() => chat.current?.focusComposer(), 60);
+  }, [fold]);
+
+  // ---- keyboard ---------------------------------------------------------
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const meta = event.metaKey || event.ctrlKey;
+      if (meta && event.key === "b") {
+        event.preventDefault();
+        railByHand.current = true;
+        setRailHidden((value) => !value);
+      }
+      if (meta && event.key === "s") {
+        event.preventDefault();
+        // With compile-as-you-type off, save is also the build: it is the
+        // Overleaf convention, it is what the hands already do, and it
+        // saves inventing a second binding for a thing the writer now has
+        // to ask for explicitly.
+        if (get().settings.autocompile) editor.current?.saveNow();
+        else void buildNow(false);
+      }
+      if (meta && event.key === "Enter" && activePath) {
+        event.preventDefault();
+        pdf.current?.reveal(activePath, get().cursor.line);
+      }
+      // The agent panel.  `code` rather than `key`: with Alt held, macOS
+      // reports the character the combination would type, so `key` here is
+      // "å" rather than "a".
+      //
+      // Not Super-A as first suggested: on Linux the window manager takes
+      // Super before the browser sees it, and Cmd/Ctrl-A alone is Select
+      // All, which an editor cannot give up.  Cmd/Ctrl-Shift-A is Chrome's
+      // own tab search.  Alt keeps the A, which is the part worth keeping.
+      if (meta && event.altKey && event.code === "KeyA") {
+        event.preventDefault();
+        toggleChat();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activePath, toggleChat]);
+
 
   /** Give one pane the whole window, and give it back.
    *
@@ -1149,6 +1185,8 @@ export default function App() {
             {chatOver && !chatOpen ? (
               <button
                 className="t-micro mr-2 shrink-0 rounded-[3px] border border-line px-2 py-[3px] text-ink-2 hover:text-ink"
+                data-testid="open-chat"
+                title="Show the agent panel (Ctrl/Cmd-Alt-A)"
                 onClick={() => setChatOpen(true)}
               >
                 Claude
@@ -1238,6 +1276,26 @@ export default function App() {
 
         <div
           ref={pdfPane}
+          data-testid="preview-pane"
+          // Reaching for the page puts the page away.  Below 1400px the
+          // agent panel is an overlay lying over the preview, and the
+          // click that means "let me read this" is the same click that
+          // should give the width back.  On pointerdown rather than click,
+          // so it lands before the header's own single/double-click timer
+          // and never turns a fold into a mode change; nothing is
+          // prevented, so the click still reaches the page underneath.
+          onPointerDown={(event) => {
+            if (!chatOver || !chatOpen) return;
+            // Not from the header.  It is a control with its own single and
+            // double click handling, and closing the overlay from it would
+            // be recorded as the layout that reading mode came *from* --
+            // so leaving reading mode would give back a window with the
+            // agent panel missing, which is not what was there before.
+            if ((event.target as HTMLElement).closest('[data-testid="preview-header"]')) {
+              return;
+            }
+            setChatOpen(false);
+          }}
           className={`nx-pane flex min-h-0 flex-col ${
             tight
               ? showing === "preview"
@@ -1267,16 +1325,22 @@ export default function App() {
                 headerClick("pdf");
               }}
             >
+              {/* The label stays on the left in every state.  When the
+                  rail is folded away this header also carries the project
+                  controls, and those used to take the label's place -- so
+                  the second half of the double click that leaves reading
+                  mode landed on "switch project" and left the document
+                  entirely.  They go beside the other control instead, and
+                  the left of the bar stays the thing you click. */}
+              <span className="t-ui-lg font-serif text-ink">Preview</span>
+              <span className="flex-1" />
               {railFolded && folded.editor ? (
                 <AppControls
                   projectId={projectId}
                   projectName={projectName}
                   onSwitch={leaveProject}
                 />
-              ) : (
-                <span className="t-ui-lg font-serif text-ink">Preview</span>
-              )}
-              <span className="flex-1" />
+              ) : null}
               <FoldButton
                 direction="right"
                 label="Fold the preview away"
