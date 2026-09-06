@@ -157,7 +157,6 @@ def test_a_permission_request_waits_for_an_answer(client, opened):
     time.sleep(0.6)                       # the script reaches the card quickly
     asked = [i for i in transcript(client, opened["id"]) if i["kind"] == "permission"]
     assert len(asked) == 1
-    session_agent = None
     assert client.post(f"/api/projects/{opened['id']}/agent/permission",
                        json={"id": asked[0]["id"], "decision": "allow"}
                        ).json() == {"resolved": True}
@@ -165,7 +164,6 @@ def test_a_permission_request_waits_for_an_answer(client, opened):
     answered = [i for i in transcript(client, opened["id"])
                 if i["kind"] == "permission"][0]
     assert answered["decision"] == "allow"
-    assert session_agent is None
 
 
 def test_an_unknown_decision_is_refused(client, opened):

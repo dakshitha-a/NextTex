@@ -24,10 +24,10 @@ const SAVE_DELAY = 250;
 type Buffer = {
   state: EditorState;
   saved: string;
-  /** What the file's modification time was when this tab last agreed with
-   *  the disk.  Sent with every save so the server can refuse to let this
-   *  buffer overwrite work done in another window. */
-  mtime: number;
+  /** What the file looked like when this tab last agreed with the disk.
+   *  Sent with every save so the server can refuse to let this buffer
+   *  overwrite work done in another window. */
+  tag: string;
 };
 
 export type EditorHandle = {
@@ -42,6 +42,8 @@ export type EditorHandle = {
   reload(path: string): Promise<void>;
   /** Answer a refused save: keep this tab's text, or take what is on disk. */
   resolveConflict(path: string, keep: "mine" | "theirs"): Promise<void>;
+  /** Follow a file that has been renamed, keeping its buffer and history. */
+  renamed(from: string, to: string): void;
   flash(line: number, endLine?: number): void;
   saveNow(): Promise<void>;
   textOf(path: string): string | null;
@@ -90,20 +92,18 @@ export default function Editor({
       if (!projectId) return;
       try {
         const answer = await api.writeFile(
-          projectId, path, text, true, buffer.mtime,
+          projectId, path, text, true, buffer.tag,
         );
         if (answer.conflict) {
           // Nothing was written and nothing is thrown away: the buffer
           // stays dirty and the writer picks which copy survives.
           set({
-            conflict: {
-              path, theirs: answer.text ?? "", mtime: answer.mtime ?? 0,
-            },
+            conflict: { path, theirs: answer.text ?? "", tag: answer.tag ?? "" },
           });
           return;
         }
         buffer.saved = text;
-        buffer.mtime = answer.mtime ?? 0;
+        buffer.tag = answer.tag ?? "";
         set({
           tabs: get().tabs.map((tab) =>
             tab.path === path ? { ...tab, dirty: false } : tab,
@@ -226,7 +226,7 @@ export default function Editor({
       if (!buffer) {
         const file = await api.readFile(projectId, path);
         buffer = {
-          state: freshState(file.text, ext), saved: file.text, mtime: file.mtime,
+          state: freshState(file.text, ext), saved: file.text, tag: file.tag,
         };
         buffers.current.set(path, buffer);
       }
@@ -243,7 +243,7 @@ export default function Editor({
     openRef.current = openBuffer;
 
     /** Replace a buffer's text with what is on disk, keeping the history. */
-    const replaceText = (path: string, text: string, mtime?: number) => {
+    const replaceText = (path: string, text: string, tag?: string) => {
       const buffer = buffers.current.get(path);
       if (!buffer) return;
       if (current.current === path && view.current && !viewing.current) {
@@ -269,7 +269,7 @@ export default function Editor({
         }).state;
       }
       buffer.saved = text;
-      if (mtime !== undefined) buffer.mtime = mtime;
+      if (tag !== undefined) buffer.tag = tag;
     };
 
     const viewVersion = async (path: string, sha: string) => {
@@ -296,6 +296,13 @@ export default function Editor({
       ).number;
       viewing.current = { path, sha, scroll: editor.scrollDOM.scrollTop };
       current.current = null;
+      // Set here rather than by the caller after its own await: clicking a
+      // tab in between called backToNow(), which cleared it, and the
+      // caller then set it again -- leaving a banner saying "viewing an old
+      // version" over a live, editable buffer whose Restore button would
+      // have written the old text over it.
+      const version = get().history.find((item) => item.sha === sha) ?? null;
+      if (version) set({ viewing: { path, sha, version } });
       editor.setState(freshState(file.text, readOnlyExt));
       const target = Math.min(anchorLine, editor.state.doc.lines);
       editor.dispatch({
@@ -331,7 +338,9 @@ export default function Editor({
             const projectId = get().projectId;
             if (projectId) {
               await api
-                .writeFile(projectId, path, buffer.state.doc.toString())
+                .writeFile(
+                  projectId, path, buffer.state.doc.toString(), true, buffer.tag,
+                )
                 .catch(() => undefined);
             }
           }
@@ -355,7 +364,7 @@ export default function Editor({
         if (live !== buffer.saved) {
           const file = await api.readFile(projectId, path);
           if (file.text !== live) {
-            set({ conflict: { path, theirs: file.text, mtime: file.mtime } });
+            set({ conflict: { path, theirs: file.text, tag: file.tag } });
           }
           return;
         }
@@ -366,7 +375,7 @@ export default function Editor({
           ? view.current!.state.doc.toString()
           : buffer.state.doc.toString();
         if (stillLive !== buffer.saved) return;
-        if (file.text !== stillLive) replaceText(path, file.text, file.mtime);
+        if (file.text !== stillLive) replaceText(path, file.text, file.tag);
       },
       resolveConflict: async (path, keep) => {
         const projectId = get().projectId;
@@ -375,28 +384,48 @@ export default function Editor({
         set({ conflict: null });
         if (!projectId || !conflict || !buffer) return;
         if (keep === "theirs") {
-          replaceText(path, conflict.theirs, conflict.mtime);
+          replaceText(path, conflict.theirs, conflict.tag);
           return;
         }
         // Keeping ours: save again against the version we were just shown,
         // so the write is deliberate rather than a race won by luck.
-        buffer.mtime = conflict.mtime;
+        buffer.tag = conflict.tag;
         const text =
           current.current === path && view.current
             ? view.current.state.doc.toString()
             : buffer.state.doc.toString();
         const answer = await api
-          .writeFile(projectId, path, text, true, conflict.mtime)
+          .writeFile(projectId, path, text, true, conflict.tag)
           .catch(() => null);
+        if (answer?.conflict) {
+          // It moved again while the writer was deciding.  Ask once more
+          // rather than dropping the banner and saving nothing.
+          set({
+            conflict: { path, theirs: answer.text ?? "", tag: answer.tag ?? "" },
+          });
+          return;
+        }
         if (answer?.ok) {
           buffer.saved = text;
-          buffer.mtime = answer.mtime ?? 0;
+          buffer.tag = answer.tag ?? "";
           set({
             tabs: get().tabs.map((tab) =>
               tab.path === path ? { ...tab, dirty: false } : tab,
             ),
           });
         }
+      },
+      renamed: (from, to) => {
+        // Buffers are keyed by path.  Without this the open tab still
+        // pointed at the old name, and the next autosave wrote there --
+        // recreating the file that had just been renamed away, and leaving
+        // the writer's ongoing edits in an orphan nothing includes.
+        const buffer = buffers.current.get(from);
+        if (!buffer) return;
+        buffers.current.delete(from);
+        buffers.current.set(to, buffer);
+        if (current.current === from) current.current = to;
+        if (viewing.current?.path === from) viewing.current.path = to;
       },
       flash: jump,
       saveNow: flush,
@@ -419,7 +448,9 @@ export default function Editor({
       if (!buffer || buffer.saved === text) return;
       navigator.sendBeacon?.(
         `/api/projects/${projectId}/file/beacon`,
-        new Blob([JSON.stringify({ path, text })], { type: "application/json" }),
+        new Blob([JSON.stringify({ path, text, base: buffer.tag })], {
+          type: "application/json",
+        }),
       );
     };
     window.addEventListener("pagehide", onLeave);

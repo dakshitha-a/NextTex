@@ -6,27 +6,33 @@ stale buffer over everything the first tab had saved -- no error, no dirty
 marker, and the only copy left was in the version history.
 """
 
-import time
 
-
-def save(client, project_id, text, base=0.0, origin=""):
+def save(client, project_id, text, base="", origin="", path="main.tex"):
     return client.put(
         f"/api/projects/{project_id}/file",
-        json={"path": "main.tex", "text": text, "compile": False,
+        json={"path": path, "text": text, "compile": False,
               "base": base, "origin": origin},
     )
 
 
-def test_a_save_reports_the_time_it_wrote(client, opened):
+def test_a_save_hands_back_a_tag_to_come_back_with(client, opened):
     body = save(client, opened["id"], "first").json()
-    assert body["ok"] is True and body["mtime"] > 0
+    assert body["ok"] is True and body["tag"]
+
+
+def test_reading_a_file_hands_back_the_same_kind_of_tag(client, opened):
+    written = save(client, opened["id"], "first").json()
+    read = client.get(f"/api/projects/{opened['id']}/file",
+                      params={"path": "main.tex"}).json()
+    assert read["tag"] == written["tag"]
 
 
 def test_a_stale_tab_is_refused_rather_than_believed(client, opened, project_dir):
     """Tab A saves; tab B, which last read the file a minute ago, saves its
     own copy.  B must not win by arriving second."""
-    first = save(client, opened["id"], "what tab A wrote").json()
-    stale = first["mtime"] - 60
+    stale = client.get(f"/api/projects/{opened['id']}/file",
+                       params={"path": "main.tex"}).json()["tag"]
+    save(client, opened["id"], "what tab A wrote")
     answer = save(client, opened["id"], "what tab B still had", base=stale).json()
 
     assert answer["ok"] is False and answer["conflict"] is True
@@ -34,9 +40,23 @@ def test_a_stale_tab_is_refused_rather_than_believed(client, opened, project_dir
     assert (project_dir / "main.tex").read_text(encoding="utf-8") == "what tab A wrote"
 
 
-def test_saving_against_the_time_you_were_given_works(client, opened, project_dir):
+def test_two_saves_a_fraction_of_a_second_apart_still_conflict(client, opened,
+                                                              project_dir):
+    """Autosave lands a quarter of a second after typing stops, so any slack
+    wide enough to absorb a filesystem's mtime granularity is also wide
+    enough to wave through exactly the clobber this exists to catch."""
+    stale = save(client, opened["id"], "tab B's starting point").json()["tag"]
+    save(client, opened["id"], "what tab A wrote, moments later")
+    answer = save(client, opened["id"], "what tab B still had", base=stale).json()
+    assert answer["conflict"] is True
+    assert (project_dir / "main.tex").read_text(encoding="utf-8").startswith(
+        "what tab A wrote"
+    )
+
+
+def test_saving_against_the_tag_you_were_given_works(client, opened, project_dir):
     first = save(client, opened["id"], "one").json()
-    second = save(client, opened["id"], "two", base=first["mtime"]).json()
+    second = save(client, opened["id"], "two", base=first["tag"]).json()
     assert second["ok"] is True
     assert (project_dir / "main.tex").read_text(encoding="utf-8") == "two"
 
@@ -44,9 +64,45 @@ def test_saving_against_the_time_you_were_given_works(client, opened, project_di
 def test_writing_the_same_text_is_never_a_conflict(client, opened):
     """Both tabs holding identical text is not a disagreement, and a beacon
     save on tab close must not fail because of one."""
-    first = save(client, opened["id"], "agreed").json()
-    again = save(client, opened["id"], "agreed", base=first["mtime"] - 600).json()
-    assert again["ok"] is True
+    save(client, opened["id"], "agreed")
+    assert save(client, opened["id"], "agreed", base="0-0").json()["ok"] is True
+
+
+def test_a_closing_tab_never_overwrites_the_open_one(client, opened, project_dir):
+    """A beacon cannot be asked anything and the tab is going away, so the
+    window still open keeps its work -- and what the closing tab held is
+    put in the file's history rather than dropped."""
+    stale = save(client, opened["id"], "what the closing tab had").json()["tag"]
+    save(client, opened["id"], "what the open tab wrote")
+
+    answer = client.post(
+        f"/api/projects/{opened['id']}/file/beacon",
+        json={"path": "main.tex", "text": "the closing tab's older copy",
+              "base": stale},
+    ).json()
+    assert answer["conflict"] is True
+    assert (project_dir / "main.tex").read_text(encoding="utf-8") == (
+        "what the open tab wrote"
+    )
+
+    versions = client.get(f"/api/projects/{opened['id']}/history",
+                          params={"path": "main.tex"}).json()["versions"]
+    texts = [
+        client.get(f"/api/projects/{opened['id']}/history/blob",
+                   params={"path": "main.tex", "sha": v["sha"]}).json()["text"]
+        for v in versions
+    ]
+    assert "the closing tab's older copy" in texts
+
+
+def test_a_beacon_with_no_tag_still_saves(client, opened, project_dir):
+    client.post(
+        f"/api/projects/{opened['id']}/file/beacon",
+        json={"path": "main.tex", "text": "the last quarter second"},
+    )
+    assert (project_dir / "main.tex").read_text(encoding="utf-8") == (
+        "the last quarter second"
+    )
 
 
 def test_a_save_tells_the_other_tabs(client, opened):
@@ -69,6 +125,8 @@ def test_a_save_tells_the_other_tabs(client, opened):
     told = [e for e in seen if e["type"] == "files_changed"]
     assert told and told[0]["origin"] == "tab-a"
     assert told[0]["paths"] == ["main.tex"]
+    # Nothing appeared or disappeared, so nobody needs to walk the tree.
+    assert told[0]["structural"] is False
 
 
 def test_a_save_that_changes_nothing_says_nothing(client, opened):

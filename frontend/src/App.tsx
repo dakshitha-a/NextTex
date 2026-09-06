@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
-import api, { captureToken, startDownload } from "./api";
+import api, { captureToken, saveBlob, startDownload } from "./api";
 import {
   connect,
   disconnect,
@@ -183,11 +183,11 @@ export default function App() {
       editor.current?.backToNow();
       return;
     }
-    const version = get().history.find((item) => item.sha === sha) ?? null;
-    if (!version) return;
     try {
+      // The editor sets `viewing` itself, at the moment it actually parks
+      // the live buffer.  Setting it here, after the await, could land
+      // after a tab click had already left the view.
       await editor.current?.view(path, sha);
-      set({ viewing: { path, sha, version } });
     } catch (error: any) {
       set({ error: `Could not open that version: ${error.message}` });
     }
@@ -214,6 +214,29 @@ export default function App() {
     setHistoryOpen(false);
   }, []);
 
+  /** Carry an open file across a rename.
+   *
+   *  Tabs, the active path and the editor's buffers are all keyed by path.
+   *  Renaming one that was open left every one of them pointing at a name
+   *  that no longer exists, and the next autosave then wrote there --
+   *  bringing the old file back and stranding the writer's edits in it.
+   */
+  const renameOpenFile = useCallback((from: string, to: string) => {
+    editor.current?.renamed(from, to);
+    const state = get();
+    if (!state.tabs.some((tab) => tab.path === from)) return;
+    set({
+      tabs: state.tabs.map((tab) =>
+        tab.path === from ? { ...tab, path: to } : tab,
+      ),
+      activePath: state.activePath === from ? to : state.activePath,
+      viewing:
+        state.viewing?.path === from
+          ? { ...state.viewing, path: to }
+          : state.viewing,
+    });
+  }, []);
+
   const refreshTree = useCallback(async () => {
     const id = get().projectId;
     if (!id) return;
@@ -222,8 +245,11 @@ export default function App() {
 
   // ---- events from the server ------------------------------------------
   useEffect(() => {
-    handlers.onFilesChanged = (paths) => {
-      refreshTree();
+    handlers.onFilesChanged = (paths, structural = true) => {
+      // A plain save in another tab changes a file, not the shape of the
+      // project, and walking the tree for one of those on every keystroke
+      // burst in the other window is work for nothing.
+      if (structural) refreshTree();
       for (const path of paths) editor.current?.reload(path);
     };
     handlers.onReveal = (path, line) => {
@@ -365,6 +391,10 @@ export default function App() {
       const up = () => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
+        // A drag can also end without a pointerup -- a browser dialog, a
+        // tab switch, an interrupted touch -- and the move listener then
+        // stayed attached, resizing panes on every mouse movement after.
+        window.removeEventListener("pointercancel", up);
         const id = get().projectId;
         if (id) {
           window.localStorage.setItem(
@@ -375,14 +405,30 @@ export default function App() {
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
     };
 
   const widthsRef = useRef(widths);
   widthsRef.current = widths;
 
+  const chatOpenRef = useRef(chatOpen);
+  chatOpenRef.current = chatOpen;
+
+  // What the chat panel was doing before the window got narrow, so that
+  // widening it again gives back the layout the writer chose rather than
+  // reopening a panel they deliberately folded away.
+  const foldedBeforeNarrow = useRef<boolean | null>(null);
   useEffect(() => {
     setChatOver(narrow);
-    setChatOpen(!narrow);
+    if (narrow) {
+      if (foldedBeforeNarrow.current === null) {
+        foldedBeforeNarrow.current = get().projectId ? chatOpenRef.current : true;
+      }
+      setChatOpen(false);
+      return;
+    }
+    setChatOpen(foldedBeforeNarrow.current ?? true);
+    foldedBeforeNarrow.current = null;
   }, [narrow]);
 
   useEffect(() => {
@@ -506,6 +552,7 @@ export default function App() {
             <FileTree
               onOpen={openFile}
               onRefresh={refreshTree}
+              onRename={renameOpenFile}
               onHistory={() => setHistoryOpen(true)}
               mainFile={mainFile}
             />
@@ -833,12 +880,7 @@ async function downloadPdf(projectId: string, name: string) {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.detail || "the project did not typeset");
     }
-    const url = URL.createObjectURL(await response.blob());
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${name || "project"}.pdf`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveBlob(await response.blob(), `${name || "project"}.pdf`);
   } catch (error: any) {
     set({ error: `Could not download the PDF: ${error.message}` });
   }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api, { startDownload, type ProjectSummary } from "../api";
+import api, { saveBlob, startDownload, type ProjectSummary } from "../api";
 import Logo from "../Logo";
 
 /** The project list.  Downloads live here as well as inside an open project:
@@ -66,13 +66,7 @@ export default function Projects({
         const body = await response.json().catch(() => ({}));
         throw new Error(body.detail || "the project did not typeset");
       }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${project.name}.pdf`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      saveBlob(await response.blob(), `${project.name}.pdf`);
     } catch (problem: any) {
       setError(`${project.name}: ${problem.message}`);
     } finally {

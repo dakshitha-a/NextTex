@@ -257,6 +257,41 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .cm-tooltip { background: var(--surface-2) !important; color: var(--ink);
   border: 1px solid var(--line) !important; border-radius: 3px; font-size: 12px; }
 
+/* Find and replace.  CodeMirror ships this panel unstyled, and the browser
+   default controls read as somebody else's application inside this one. */
+.cm-editor .cm-panels { background: var(--surface-2); color: var(--ink);
+  border-bottom: 1px solid var(--line); }
+.cm-editor .cm-panels-bottom { border-top: 1px solid var(--line);
+  border-bottom: 0; }
+.cm-editor .cm-panel.cm-search { padding: 6px 8px; display: flex;
+  flex-wrap: wrap; align-items: center; gap: 5px; font-size: 12px; }
+.cm-editor .cm-panel.cm-search br { display: none; }
+.cm-editor .cm-panel.cm-search label { display: inline-flex; align-items: center;
+  gap: 4px; color: var(--ink-2); font-size: 11px; }
+.cm-editor .cm-panel.cm-search input[type="text"] {
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 3px;
+  padding: 3px 6px; font-family: var(--font-mono); font-size: 12px;
+  min-width: 160px; }
+.cm-editor .cm-panel.cm-search input[type="text"]:focus-visible {
+  outline: 2px solid var(--hint); outline-offset: -1px; }
+.cm-editor .cm-panel.cm-search button:not([name="close"]) {
+  background: var(--surface); color: var(--ink-2);
+  border: 1px solid var(--line); border-radius: 3px;
+  padding: 3px 8px; font-size: 11px; font-weight: 500;
+  transition: color 90ms var(--ease), background-color 90ms var(--ease); }
+.cm-editor .cm-panel.cm-search button:not([name="close"]):hover {
+  color: var(--ink); background: var(--surface-3); }
+.cm-editor .cm-panel.cm-search [name="close"] {
+  position: absolute; right: 6px; top: 4px;
+  background: transparent; border: 0; color: var(--ink-3);
+  font-size: 16px; line-height: 1; padding: 2px 5px; cursor: pointer; }
+.cm-editor .cm-panel.cm-search [name="close"]:hover { color: var(--ink); }
+.cm-editor .cm-searchMatch {
+  background: color-mix(in oklab, var(--warn) 30%, transparent); }
+.cm-editor .cm-searchMatch-selected {
+  background: color-mix(in oklab, var(--hint) 45%, transparent); }
+
 /* ---- motion --------------------------------------------------------------
    Everything here is a hint, not decoration: it tells the eye that a thing
    is interactive, that something arrived, or that a panel went somewhere

@@ -151,20 +151,28 @@ const api = {
   tree: (id: string) => request<TreeNode>(`/projects/${id}/tree`),
 
   readFile: (id: string, path: string) =>
-    request<{ path: string; text: string; mtime: number }>(
+    request<{ path: string; text: string; mtime: number; tag: string }>(
       `/projects/${id}/file?path=${encodeURIComponent(path)}`,
     ),
   /** Save one file.
    *
-   *  `base` is the modification time this tab last saw.  The server refuses
-   *  rather than overwrite when the file has moved on since, and hands back
-   *  what is on disk instead. */
+   *  `base` is the tag this tab was given when it last agreed with the file.
+   *  The server refuses rather than overwrite when the file has moved on
+   *  since, and hands back what is on disk instead. */
   writeFile: (
-    id: string, path: string, text: string, compile = true, base = 0,
+    id: string,
+    path: string,
+    text: string,
+    compile = true,
+    base = "",
+    create = false,
   ) =>
-    request<{ ok: boolean; mtime: number; conflict?: true; text?: string }>(
+    request<{ ok: boolean; tag: string; conflict?: true; text?: string }>(
       `/projects/${id}/file`,
-      { ...json({ path, text, compile, base, origin: clientId }), method: "PUT" },
+      {
+        ...json({ path, text, compile, base, create, origin: clientId }),
+        method: "PUT",
+      },
     ),
   newFile: (id: string, path: string, directory = false) =>
     request<any>(`/projects/${id}/file/new`, json({ path, directory })),
@@ -326,7 +334,12 @@ const api = {
     request<{ loggedIn: boolean; email?: string; plan?: string; method?: string }>(
       "/claude/status",
     ),
-  startLogin: (mode: string) => request<any>("/claude/login/start", json({ mode })),
+  /** `console` picks the API-console flow; false is the Claude.ai one.
+   *  The name has to be this: the route reads a `console` boolean, and a
+   *  `{mode}` body sent instead was simply ignored, so both buttons ran the
+   *  same flow. */
+  startLogin: (console: boolean) =>
+    request<any>("/claude/login/start", json({ console })),
   loginInput: (text: string) => request<any>("/claude/login/input", json({ text })),
   cancelLogin: () => request<any>("/claude/login/cancel", { method: "POST" }),
   logout: () => request<any>("/claude/logout", { method: "POST" }),
@@ -375,6 +388,23 @@ const api = {
 export default api;
 
 /** Start a download without navigating away from the app. */
+/** Hand a blob to the browser as a download.
+ *
+ *  The anchor has to be in the document and the object URL has to outlive
+ *  the click: revoking on the same tick cancels the download in Firefox and
+ *  Safari, and an anchor that was never appended does nothing at all in
+ *  some of them. */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 export function startDownload(url: string): void {
   const anchor = document.createElement("a");
   anchor.href = url;

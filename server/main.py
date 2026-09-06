@@ -209,11 +209,50 @@ def _token_page() -> str:
 # Helpers
 
 
-def session_for(project_id: str) -> ProjectSession:
-    session = SESSIONS.get(project_id)
-    if session is None:
-        raise HTTPException(404, "project not open")
+def _open_session(project: Project) -> ProjectSession:
+    """Build a session for a project and put it in service."""
+    session = ProjectSession(project, model=SETTINGS.model)
+    SESSIONS[project.id] = session
+    session.start_agent_pump()
+    _restart_watch()
     return session
+
+
+def session_for(project_id: str) -> ProjectSession:
+    """The session for a project, opening it if it is not open yet.
+
+    "Open" is a thing the user does to a window, not a precondition the
+    server keeps.  While it was one, restarting the server 404'd every route
+    a tab was using -- including its event stream, which then retried a 404
+    every two seconds forever with nothing on screen to say so.  A tab that
+    was open before the restart now simply carries on.
+
+    Construction is synchronous, so two requests arriving together cannot
+    build two sessions for one project.
+    """
+    session = SESSIONS.get(project_id)
+    if session is not None:
+        return session
+    project = REGISTRY.find(project_id)
+    if project is None:
+        raise HTTPException(404, "unknown project")
+    return _open_session(project)
+
+
+def _tag(target: Path) -> str:
+    """What a file looked like, for a browser to hand back on its next save.
+
+    Nanosecond mtime and size, as an opaque string.  A float second was
+    tried first and was not precise enough to be useful: saves land a
+    quarter of a second apart, so any slack wide enough to absorb filesystem
+    differences was also wide enough to wave through the clobber this
+    exists to catch.
+    """
+    try:
+        stat = target.stat()
+    except OSError:
+        return ""
+    return f"{stat.st_mtime_ns}-{stat.st_size}"
 
 
 def _safe(session: ProjectSession, relative: str) -> Path:
@@ -300,17 +339,16 @@ async def forget_project(project_id: str):
 
 @app.post("/api/projects/{project_id}/open")
 async def open_project(project_id: str):
-    if project_id in SESSIONS:
-        session = SESSIONS[project_id]
-    else:
-        project = REGISTRY.find(project_id)
-        if project is None:
-            raise HTTPException(404, "unknown project")
-        session = ProjectSession(project, model=SETTINGS.model)
-        SESSIONS[project_id] = session
-        REGISTRY.touch(project.root)
-        _restart_watch()
-    session.start_agent_pump()
+    """Open a project in a window, and hand back everything it needs.
+
+    Other routes open a session on demand; this one is what the *user*
+    means by opening a project, so it is the only place that marks the
+    project as recently opened.
+    """
+    fresh = project_id not in SESSIONS
+    session = session_for(project_id)
+    if fresh:
+        REGISTRY.touch(session.project.root)
     return {
         **session.project.as_dict(),
         "tree": session.project.tree(),
@@ -339,7 +377,11 @@ async def read_file(project_id: str, path: str):
     except UnicodeDecodeError:
         raise HTTPException(415, "not a text file")
     stat = target.stat()
-    return {"path": path, "text": text, "mtime": stat.st_mtime, "size": stat.st_size}
+    return {
+        "path": path, "text": text,
+        "mtime": stat.st_mtime, "size": stat.st_size,
+        "tag": _tag(target),
+    }
 
 
 @app.put("/api/projects/{project_id}/file")
@@ -348,35 +390,38 @@ async def write_file(
     path: str = Body(...),
     text: str = Body(...),
     compile: bool = Body(True),
-    base: float = Body(0.0),
+    base: str = Body(""),
     origin: str = Body(""),
+    create: bool = Body(False),
 ):
     """Save one file.
 
-    `base` is the modification time the browser last saw.  Without it this
-    route was whole-file last-writer-wins with nothing watching: two tabs on
-    one project, or one tab and a `git checkout`, and a chapter written in
-    the other window was gone with no error and no dirty marker.  When the
-    file has moved on underneath the caller, nothing is written -- the
-    answer carries what is on disk now and the browser asks the writer.
+    `base` is the tag the browser was given when it last agreed with this
+    file.  Without it this route was whole-file last-writer-wins with
+    nothing watching: two tabs on one project, or one tab and a `git
+    checkout`, and a chapter written in the other window was gone with no
+    error and no dirty marker.  When the file has moved on underneath the
+    caller, nothing is written -- the answer carries what is on disk now and
+    the browser asks the writer which copy survives.
 
     `origin` names the tab that saved, so the broadcast below can tell every
     *other* tab to reload without the saving tab reloading itself.
     """
     session = session_for(project_id)
     target = _safe(session, path)
+    if not target.exists() and not create:
+        # A save must not bring a file back.  Renaming or deleting one that
+        # was open left the tab pointing at the old name, and this route's
+        # mkdir-and-write then recreated it -- so the writer went on editing
+        # an orphan nothing includes.
+        raise HTTPException(404, "no such file")
     previous = read_text(target)
     if base and previous is not None and previous != text:
-        try:
-            current = target.stat().st_mtime
-        except OSError:
-            current = 0.0
-        # A whole second of slack: mtime resolution varies by filesystem and
-        # the number crosses JSON as a float.
-        if current and abs(current - base) > 1.0:
+        current = _tag(target)
+        if current and current != base:
             return {
                 "ok": False, "conflict": True,
-                "text": previous, "mtime": current,
+                "text": previous, "tag": current,
             }
     try:
         write_atomically(target, text)
@@ -390,12 +435,17 @@ async def write_file(
     session.note_edit(target, text, previous)
     if compile:
         session.schedule_compile()
-    mtime = target.stat().st_mtime
+    tag = _tag(target)
     if previous != text:
         await session.events.publish({
             "type": "files_changed", "paths": [path], "origin": origin,
+            # Nothing appeared or disappeared, so the other tabs need to
+            # reload this file and nothing else.  Without this every
+            # keystroke burst in one window cost every other one a full
+            # tree request.
+            "structural": False,
         })
-    return {"ok": True, "mtime": mtime}
+    return {"ok": True, "tag": tag, "mtime": target.stat().st_mtime}
 
 
 @app.post("/api/projects/{project_id}/file/beacon")
@@ -413,12 +463,25 @@ async def file_beacon(project_id: str, request: Request):
         raise HTTPException(400, "bad body")
     path = payload.get("path")
     text = payload.get("text")
+    base = payload.get("base")
     if not isinstance(path, str) or not isinstance(text, str):
         raise HTTPException(400, "path and text are required")
     target = _safe(session, path)
     if not target.is_file():
         raise HTTPException(404, "no such file")
     previous = read_text(target)
+    if isinstance(base, str) and base and previous is not None and previous != text:
+        current = _tag(target)
+        if current and current != base:
+            # A closing tab cannot be asked anything, and it is the one that
+            # is going away: the window that is still open keeps its work.
+            # The text is not lost -- it is in the file's own history.
+            session.record_version(
+                target, text, by="you",
+                why="from a tab that closed holding an older copy",
+                previous=previous,
+            )
+            return {"ok": False, "conflict": True}
     try:
         write_atomically(target, text)
     except (NotAFile, OSError) as error:
@@ -1316,7 +1379,6 @@ async def events(project_id: str, request: Request):
         import json as _json
         try:
             yield "retry: 2000\n\n"
-            last_ping = time.monotonic()
             while True:
                 if await request.is_disconnected():
                     return
@@ -1327,7 +1389,6 @@ async def events(project_id: str, request: Request):
                     # A comment frame keeps intermediaries from closing an
                     # idle stream, and tells us when the client has gone.
                     yield ": keepalive\n\n"
-                    last_ping = time.monotonic()
         finally:
             session.events.unsubscribe(queue)
 

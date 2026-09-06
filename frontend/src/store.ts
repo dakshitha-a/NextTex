@@ -94,7 +94,7 @@ export type State = {
   // Set when a save was refused because the file changed underneath this
   // tab.  Nothing is written and nothing is thrown away until the writer
   // says which copy they want.
-  conflict: { path: string; theirs: string; mtime: number } | null;
+  conflict: { path: string; theirs: string; tag: string } | null;
   error: string | null;
 };
 
@@ -315,7 +315,7 @@ let source: EventSource | null = null;
 export type EventHandlers = {
   onReveal?: (path: string, line: number) => void;
   onProjectChanged?: () => void;
-  onFilesChanged?: (paths: string[]) => void;
+  onFilesChanged?: (paths: string[], structural?: boolean) => void;
   onCompileDone?: (result: CompileResult) => void;
   onAgentEdit?: (path: string, line: number) => void | Promise<void>;
 };
@@ -364,7 +364,7 @@ function receive(event: any) {
       // Our own save, coming back around.  The buffer already holds it, and
       // reloading would fight a caret that has moved on since.
       if (event.origin && event.origin === clientId) break;
-      handlers.onFilesChanged?.(event.paths ?? []);
+      handlers.onFilesChanged?.(event.paths ?? [], event.structural !== false);
       break;
     case "reveal":
       handlers.onReveal?.(event.path, event.line);
@@ -437,7 +437,11 @@ function receive(event: any) {
       break;
     case "done":
       endText();
-      set({ thinking: false });
+      // Including `awaitingPermission`: interrupting a turn with a card open
+      // cancels the pending answer server-side, so the card is gone but
+      // nothing was ever going to clear the flag -- and the composer stayed
+      // disabled saying it was waiting on an approval that no longer exists.
+      set({ thinking: false, awaitingPermission: false });
       break;
   }
 }

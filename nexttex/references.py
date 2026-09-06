@@ -83,15 +83,22 @@ def cited_by(doi: str, limit: int = 20) -> list[dict]:
         raise
 
 
-def add(doi: str, bib_path: Path) -> dict:
-    """Add one reference to a .bib file from the publisher's own record.
+def entry_for(doi: str, existing: str) -> dict:
+    """Fetch one reference from the publisher's own record.
 
-    Returns what happened, including the citation key the writer should use.
-    Never composes an entry: if the DOI does not resolve, nothing is added.
+    Writes nothing.  The DOI lookup takes seconds over the network, and the
+    caller reads the .bib file *after* this returns rather than before, so
+    an edit made in the editor while the fetch was in flight is not silently
+    overwritten -- which is exactly what used to happen.
+
+    `existing` is only used to pick a key that is not already taken and to
+    notice a DOI the file already has; it may be a moment out of date
+    without any harm, since the caller re-reads before it writes.
+
+    Never composes an entry: if the DOI does not resolve, nothing comes back.
     """
     fetch = _load("bib_from_doi")
     clean = fetch.normalise_doi(doi)
-    existing = bib_path.read_text(encoding="utf-8") if bib_path.exists() else ""
     if clean.lower() in {d.lower() for d in fetch.existing_dois(existing)}:
         return {"added": False, "reason": "that DOI is already in the file", "doi": clean}
 
@@ -104,18 +111,29 @@ def add(doi: str, bib_path: Path) -> dict:
         while f"{key}{chr(suffix)}" in taken:
             suffix += 1
         key = f"{key}{chr(suffix)}"
-    entry = fetch.tidy(raw, key, meta)
-
-    separator = "" if not existing or existing.endswith("\n\n") else "\n"
-    text = existing + separator + entry + "\n"
-    write_atomically(bib_path, text)
     return {
         "added": True,
         "key": key,
         "doi": clean,
         "title": (meta.get("title") or [""])[0] if meta else "",
-        "entry": entry,
+        "entry": fetch.tidy(raw, key, meta),
     }
+
+
+def appended(existing: str, entry: str) -> str:
+    """What the .bib file should say once one entry is added to it."""
+    separator = "" if not existing or existing.endswith("\n\n") else "\n"
+    return existing + separator + entry + "\n"
+
+
+def add(doi: str, bib_path: Path) -> dict:
+    """Add one reference to a .bib file. For the command-line tools."""
+    existing = bib_path.read_text(encoding="utf-8") if bib_path.exists() else ""
+    result = entry_for(doi, existing)
+    if not result.get("added"):
+        return result
+    write_atomically(bib_path, appended(existing, result["entry"]))
+    return result
 
 
 def verify(bib_path: Path) -> dict:
