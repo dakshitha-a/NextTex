@@ -31,9 +31,11 @@ type PageView = {
 
 export default function Pdf({
   onNavigate,
+  onLoadTemplate,
   handleRef,
 }: {
   onNavigate: (file: string, line: number) => void;
+  onLoadTemplate?: () => void;
   handleRef: (handle: PdfHandle) => void;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -426,9 +428,18 @@ export default function Pdf({
             <div className="max-w-[42ch]">
               <p className="t-display text-ink-3">Nothing has been typeset yet.</p>
               <p className="t-meta mt-2 text-ink-2">
-                An empty document produces no pages. Write a line, and it will
-                appear here about a second later.
+                An empty document produces no pages. Write a line and it will
+                appear here about a second later — or start from something
+                that already works.
               </p>
+              {onLoadTemplate ? (
+                <button
+                  className="ghost-button mt-4 px-3 py-2 t-ui"
+                  onClick={onLoadTemplate}
+                >
+                  Load a basic document
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}

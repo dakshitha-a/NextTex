@@ -11,6 +11,8 @@ export default function Status({
   words,
   wordScope,
   onToggleWordScope,
+  onHistory,
+  historyOpen,
   git,
 }: {
   onToggleDrawer: () => void;
@@ -18,6 +20,8 @@ export default function Status({
   words: number | null;
   wordScope: "file" | "document";
   onToggleWordScope: () => void;
+  onHistory: () => void;
+  historyOpen: boolean;
   git: {
     branch: string;
     ahead: number;
@@ -131,6 +135,14 @@ export default function Status({
           Rebuild
         </button>
       </span>
+      <Rule />
+      <button
+        className={`t-micro shrink-0 ${historyOpen ? "text-ink" : "quiet"}`}
+        title="What this file used to say"
+        onClick={onHistory}
+      >
+        History
+      </button>
       <Rule />
       <button
         className="t-micro tnum w-[92px] shrink-0 text-right text-ink-2 hover:text-ink"

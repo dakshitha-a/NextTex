@@ -21,6 +21,36 @@ export type CompileResult = {
   pdf?: string | null;
 };
 
+export type Symbols = {
+  labels: { name: string; file: string; line: number }[];
+  citations: { key: string; type: string; title: string; author: string; year: string }[];
+  images: string[];
+  texfiles: string[];
+  commands: { name: string; args: number; file: string; definition?: string }[];
+  environments: string[];
+};
+
+export type Version = {
+  at: number;
+  sha: string;
+  bytes: number;
+  by: "you" | "claude";
+  why: string;
+  op: "edit" | "create" | "delete" | "restore" | "undo";
+  label: string | null;
+};
+
+export type TrashEntry = {
+  id: string;
+  at: number;
+  by: string;
+  path: string;
+  name: string;
+  kind: "file" | "dir";
+  count: number;
+  bytes: number;
+};
+
 export type SyncPosition = {
   page: number;
   x: number;
@@ -144,6 +174,46 @@ const api = {
       `/projects/${id}/editor`,
       json({ file, line, column, selection }),
     ),
+  symbols: (id: string) => request<Symbols>(`/projects/${id}/symbols`),
+
+  history: (id: string, path: string) =>
+    request<{ path: string; versions: Version[] }>(
+      `/projects/${id}/history?path=${encodeURIComponent(path)}`,
+    ),
+  historyVersion: (id: string, path: string, sha: string) =>
+    request<{ text: string }>(
+      `/projects/${id}/history/blob?path=${encodeURIComponent(path)}&sha=${sha}`,
+    ),
+  restoreVersion: (id: string, path: string, sha: string) =>
+    request<{ ok: boolean }>(`/projects/${id}/history/restore`, json({ path, sha })),
+  labelVersion: (id: string, path: string, sha: string, label: string) =>
+    request<{ ok: boolean }>(
+      `/projects/${id}/history/label`,
+      json({ path, sha, label }),
+    ),
+
+  trash: (id: string) =>
+    request<{ entries: TrashEntry[] }>(`/projects/${id}/trash`),
+  restoreTrash: (id: string, entryId: string) =>
+    request<{ ok: boolean; renamed: string; path: string }>(
+      `/projects/${id}/trash/${entryId}/restore`,
+      { method: "POST" },
+    ),
+  purgeTrash: (id: string, entryId: string) =>
+    request<{ ok: boolean }>(`/projects/${id}/trash/${entryId}`, { method: "DELETE" }),
+  emptyTrash: (id: string) =>
+    request<{ ok: boolean; removed: number }>(`/projects/${id}/trash`, {
+      method: "DELETE",
+    }),
+
+  loadTemplate: (id: string, name = "basic") =>
+    request<{ ok: boolean; written: string[] }>(
+      `/projects/${id}/template`,
+      json({ name }),
+    ),
+  setMain: (id: string, path: string) =>
+    request<{ ok: boolean; main: string }>(`/projects/${id}/main`, json({ path })),
+
   words: (id: string, path: string, scope: "file" | "document") =>
     request<{ words: number | null; scope: string }>(
       `/projects/${id}/words?scope=${scope}&path=${encodeURIComponent(path)}`,

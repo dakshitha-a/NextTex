@@ -18,7 +18,8 @@ from pathlib import Path
 
 LABEL = re.compile(r"\\label\s*\{([^}]{1,120})\}")
 NEWCOMMAND = re.compile(
-    r"\\(?:new|renew|provide)command\*?\s*\{?\\([a-zA-Z@]+)\}?\s*(?:\[(\d)\])?"
+    r"\\(?:new|renew|provide)command\*?\s*\{?\\([a-zA-Z@]+)\}?\s*"
+    r"(?:\[(\d)\])?\s*(\{)"
 )
 NEWENV = re.compile(r"\\newenvironment\*?\s*\{([^}]+)\}")
 DECLARE_OP = re.compile(r"\\DeclareMathOperator\*?\s*\{?\\([a-zA-Z@]+)\}?")
@@ -72,6 +73,22 @@ def _bib_entries(text: str) -> list[dict]:
 
 def _clean(value: str) -> str:
     return re.sub(r"[{}\\]", "", value).strip()[:120]
+
+
+def _balanced(text: str, start: int, limit: int = 400) -> str:
+    """The contents of the brace group starting at `start`."""
+    if start >= len(text) or text[start] != "{":
+        return ""
+    depth = 0
+    for index in range(start, min(len(text), start + limit)):
+        char = text[index]
+        if char == "{" and text[index - 1 : index] != "\\":
+            depth += 1
+        elif char == "}" and text[index - 1 : index] != "\\":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1 : index]
+    return ""
 
 
 def _first_author(value: str) -> str:
@@ -131,13 +148,19 @@ def scan(root: Path, *, excluded=None, build_dir: Path | None = None) -> Symbols
                     {"name": name, "file": relative, "line": line_number}
                 )
 
-        for name, arity in NEWCOMMAND.findall(text):
+        for match in NEWCOMMAND.finditer(text):
+            name, arity = match.group(1), match.group(2)
             if name in seen_commands:
                 continue
             seen_commands.add(name)
-            found.commands.append(
-                {"name": name, "args": int(arity or 0), "file": relative}
-            )
+            found.commands.append({
+                "name": name,
+                "args": int(arity or 0),
+                "file": relative,
+                # The body, so a hover preview can expand the macro rather
+                # than showing an error for the writer's own notation.
+                "definition": _balanced(text, match.end(3) - 1),
+            })
         for name in DECLARE_OP.findall(text):
             if name not in seen_commands:
                 seen_commands.add(name)

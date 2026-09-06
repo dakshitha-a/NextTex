@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api, { startDownload, type ProjectSummary } from "../api";
+import Logo from "../Logo";
 
 /** The project list.  Downloads live here as well as inside an open project:
  *  the moment a copy is most wanted is often before opening anything. */
@@ -84,7 +85,10 @@ export default function Projects({
       <div className="my-auto w-full max-w-[680px]">
         <div className="flex items-baseline justify-between">
           <div>
-            <h1 className="t-display">NextTex</h1>
+            <h1 className="t-display flex items-center gap-3">
+            <Logo size={26} />
+            NextTex
+          </h1>
             <p className="t-meta mt-1 text-ink-2">
               Write LaTeX with Claude beside the typeset page.
             </p>
@@ -106,16 +110,31 @@ export default function Projects({
           {projects.map((project) => (
             <div
               key={project.path}
-              className="group flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0"
+              role={project.id && !project.missing ? "button" : undefined}
+              tabIndex={project.id && !project.missing ? 0 : undefined}
+              className={`group flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 ${
+                project.id && !project.missing
+                  ? "cursor-pointer hover:bg-surface-2"
+                  : ""
+              }`}
+              onClick={(event) => {
+                if ((event.target as HTMLElement).closest("button, input")) return;
+                if (project.id && !project.missing) onOpen(project.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                if (project.id && !project.missing) onOpen(project.id);
+              }}
             >
               <div className="min-w-0 flex-1">
-                <button
-                  className="t-ui-lg block max-w-full truncate font-serif text-ink disabled:text-ink-3"
-                  disabled={project.missing || !project.id}
-                  onClick={() => project.id && onOpen(project.id)}
+                <span
+                  className={`t-ui-lg block max-w-full truncate font-serif ${
+                    project.missing ? "text-ink-3" : "text-ink group-hover:text-hint"
+                  }`}
                 >
                   {project.name}
-                </button>
+                </span>
                 <div className="t-code-sm truncate text-ink-3">{project.path}</div>
                 {project.missing ? (
                   <div className="t-micro mt-1 text-warn">

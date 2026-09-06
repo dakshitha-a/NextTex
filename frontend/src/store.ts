@@ -9,7 +9,9 @@ import api, {
   type ContextDocument,
   type Diagnostic,
   type ProjectSummary,
+  type TrashEntry,
   type TreeNode,
+  type Version,
 } from "./api";
 
 export type ChatItem =
@@ -61,6 +63,10 @@ export type State = {
   // whether or not the editor has finished mounting -- which it has not,
   // the first time a project opens.
   pendingOpen: { path: string; line?: number; nonce: number } | null;
+  // Set while the editor is showing an old version of a file, read-only.
+  viewing: { path: string; sha: string; version: Version } | null;
+  history: Version[];
+  trash: TrashEntry[];
   compiling: boolean;
   compile: CompileResult | null;
   diagnostics: Diagnostic[];
@@ -96,6 +102,9 @@ const state: State = {
   tabs: [],
   activePath: null,
   pendingOpen: null,
+  viewing: null,
+  history: [],
+  trash: [],
   compiling: false,
   compile: null,
   diagnostics: [],
@@ -257,6 +266,19 @@ function endText() {
   streamingId = null;
 }
 
+/** The first line where two versions of a file diverge.
+ *
+ *  Not a real diff: it is where to put the caret so the writer is looking
+ *  at what changed, which is the first difference either way. */
+export function firstChangedLine(before: string, after: string): number {
+  const a = before.split("\n");
+  const b = after.split("\n");
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    if (a[index] !== b[index]) return index + 1;
+  }
+  return 1;
+}
+
 function countDiff(before: string, after: string) {
   const a = before.split("\n");
   const b = after.split("\n");
@@ -279,9 +301,10 @@ function countDiff(before: string, after: string) {
 let source: EventSource | null = null;
 export type EventHandlers = {
   onReveal?: (path: string, line: number) => void;
+  onProjectChanged?: () => void;
   onFilesChanged?: (paths: string[]) => void;
   onCompileDone?: (result: CompileResult) => void;
-  onAgentEdit?: (path: string) => void;
+  onAgentEdit?: (path: string, line: number) => void;
 };
 export const handlers: EventHandlers = {};
 
@@ -333,6 +356,12 @@ function receive(event: any) {
     case "context_changed":
       if (state.projectId) refreshContext(state.projectId);
       break;
+    case "trash_changed":
+      if (state.projectId) refreshTrash(state.projectId);
+      break;
+    case "project_changed":
+      handlers.onProjectChanged?.();
+      break;
     case "turn_start":
       set({ thinking: true });
       break;
@@ -378,7 +407,7 @@ function receive(event: any) {
         removed,
         state: "live",
       });
-      handlers.onAgentEdit?.(event.path);
+      handlers.onAgentEdit?.(event.path, firstChangedLine(event.before ?? "", event.after ?? ""));
       break;
     }
     case "error":
@@ -418,6 +447,22 @@ export function markReverted(id: string) {
 
 export function markLive(id: string) {
   updateChat(id, { state: "live" } as any);
+}
+
+export async function refreshHistory(projectId: string, path: string) {
+  try {
+    set({ history: (await api.history(projectId, path)).versions });
+  } catch {
+    set({ history: [] });
+  }
+}
+
+export async function refreshTrash(projectId: string) {
+  try {
+    set({ trash: (await api.trash(projectId)).entries });
+  } catch {
+    set({ trash: [] });
+  }
 }
 
 export async function refreshGit(projectId: string) {

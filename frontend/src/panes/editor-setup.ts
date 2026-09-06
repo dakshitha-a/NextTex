@@ -36,7 +36,9 @@ import {
 import { tags } from "@lezer/highlight";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import type { Diagnostic } from "../api";
+import type { Diagnostic, Symbols } from "../api";
+import { latexCompletions } from "./latex-complete";
+import { mathHover } from "./math-hover";
 
 /** Near-monochrome on purpose.  The rendered page is two panes away, and a
  *  rainbow of token colours beside it makes the source look like the louder
@@ -59,6 +61,8 @@ const latexHighlight = HighlightStyle.define([
 export type Mark = { line: number; severity: "error" | "warning" };
 
 export const setMarks = StateEffect.define<Mark[]>();
+/** Lines that differ from the live file, while an old version is on screen. */
+export const setDiff = StateEffect.define<number[]>();
 export const flashRange = StateEffect.define<{ from: number; to: number } | null>();
 /** Drop the fading highlight once it has finished fading. */
 export const clearFlash = StateEffect.define<null>();
@@ -89,6 +93,25 @@ const markField = StateField.define<DecorationSet>({
       return Decoration.set(builder, true);
     }
     return tr.docChanged ? marks.map(tr.changes) : marks;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+const diffField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(current, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setDiff)) continue;
+      const marks = effect.value
+        .filter((line) => line >= 1 && line <= tr.state.doc.lines)
+        .map((line) =>
+          Decoration.line({ class: "cm-version-changed" }).range(
+            tr.state.doc.line(line).from,
+          ),
+        );
+      return Decoration.set(marks, true);
+    }
+    return current;
   },
   provide: (field) => EditorView.decorations.from(field),
 });
@@ -146,10 +169,8 @@ export function marksFor(
     }));
 }
 
-export function extensions(
-  onChange: () => void,
-  onCursor: (line: number, column: number, selection: string) => void,
-): Extension[] {
+/** Everything both the live editor and a historical view want. */
+function base(symbols: () => Symbols | null): Extension[] {
   return [
     lineNumbers(),
     history(),
@@ -171,6 +192,18 @@ export function extensions(
     StreamLanguage.define(stex),
     syntaxHighlighting(latexHighlight),
     EditorView.lineWrapping,
+    mathHover(symbols),
+  ];
+}
+
+export function extensions(
+  onChange: () => void,
+  onCursor: (line: number, column: number, selection: string) => void,
+  symbols: () => Symbols | null,
+): Extension[] {
+  return [
+    ...base(symbols),
+    latexCompletions(symbols),
     markField,
     flashField,
     EditorView.updateListener.of((update) => {
@@ -186,6 +219,23 @@ export function extensions(
         onCursor(line.number, range.head - line.from + 1, selection);
       }
     }),
+  ];
+}
+
+/** For showing an old version.
+ *
+ *  The update listener is *absent*, not disabled.  That listener is what
+ *  arms the autosave, and the one unacceptable failure here is writing
+ *  last week's chapter over today's: with no listener in the state, no
+ *  dispatch of any kind can start a save.  readOnly and editable are the
+ *  second and third locks on the same door.
+ */
+export function viewExtensions(symbols: () => Symbols | null): Extension[] {
+  return [
+    ...base(symbols),
+    diffField,
+    EditorState.readOnly.of(true),
+    EditorView.editable.of(false),
   ];
 }
 

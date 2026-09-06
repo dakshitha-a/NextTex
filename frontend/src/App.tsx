@@ -7,6 +7,8 @@ import {
   handlers,
   refreshContext,
   refreshGit,
+  refreshHistory,
+  refreshTrash,
   replayTranscript,
   set,
   useStore,
@@ -22,6 +24,9 @@ import Projects from "./panes/Projects";
 import SignIn from "./panes/SignIn";
 import ContextPanel from "./panes/ContextPanel";
 import Collapsed from "./panes/Collapsed";
+import HistoryPanel, { ViewingBanner } from "./panes/History";
+import TrashPanel from "./panes/TrashPanel";
+import Logo from "./Logo";
 import { applyTheme, storedTheme, type Theme } from "./theme";
 import GitPanel from "./panes/GitPanel";
 
@@ -37,7 +42,6 @@ export default function App() {
   );
   const [widths, setWidths] = useState<Widths>(DEFAULTS);
   const [drawer, setDrawer] = useState(DRAWER_CLOSED);
-  const [drawerDismissed, setDrawerDismissed] = useState(false);
   const [railHidden, setRailHidden] = useState(false);
   // Three widths matter: below 1400 the chat stops being a docked column,
   // below 1100 the rail folds away, and below 900 the editor and the PDF
@@ -50,6 +54,9 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => storedTheme());
   const [contextRequest, setContextRequest] =
     useState<"style" | "voice" | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [showingChanges, setShowingChanges] = useState(false);
+  const [mainFile, setMainFile] = useState("main.tex");
   // Every pane folds away, and says where it went.  Editor and preview are
   // mutually exclusive: folding one gives the other the whole space, and
   // folding both would leave nothing to work in.
@@ -74,6 +81,7 @@ export default function App() {
   const tabs = useStore((s) => s.tabs);
   const activePath = useStore((s) => s.activePath);
   const error = useStore((s) => s.error);
+  const viewing = useStore((s) => s.viewing);
 
   // ---- first load -------------------------------------------------------
   useEffect(() => {
@@ -94,6 +102,7 @@ export default function App() {
   // ---- opening a project ------------------------------------------------
   const openProject = useCallback(async (id: string) => {
     const project = await api.open(id);
+    setMainFile(project.main ?? "main.tex");
     set({
       projectId: id,
       projectName: project.name ?? "",
@@ -157,6 +166,38 @@ export default function App() {
     if (next) set({ pendingOpen: { path: next, nonce: Date.now() } });
   }, []);
 
+  const viewVersion = useCallback(async (sha: string | null) => {
+    const path = get().activePath;
+    if (!path) return;
+    setShowingChanges(false);
+    if (!sha) {
+      editor.current?.backToNow();
+      return;
+    }
+    const version = get().history.find((item) => item.sha === sha) ?? null;
+    if (!version) return;
+    try {
+      await editor.current?.view(path, sha);
+      set({ viewing: { path, sha, version } });
+    } catch (error: any) {
+      set({ error: `Could not open that version: ${error.message}` });
+    }
+  }, []);
+
+  const restoreVersion = useCallback(async () => {
+    const state = get();
+    const viewingNow = state.viewing;
+    if (!state.projectId || !viewingNow) return;
+    try {
+      await api.restoreVersion(state.projectId, viewingNow.path, viewingNow.sha);
+      editor.current?.backToNow();
+      set({ viewing: null });
+      await refreshHistory(state.projectId, viewingNow.path);
+    } catch (error: any) {
+      set({ error: `Could not restore that version: ${error.message}` });
+    }
+  }, []);
+
   const refreshTree = useCallback(async () => {
     const id = get().projectId;
     if (!id) return;
@@ -172,24 +213,36 @@ export default function App() {
     handlers.onReveal = (path, line) => {
       openFile(path, line);
     };
-    handlers.onAgentEdit = (path) => {
+    handlers.onAgentEdit = (path, line) => {
       editor.current?.reload(path);
       refreshTree();
+      // Go to what Claude changed.  The caret follows unless the writer is
+      // mid-sentence in the composer, in which case moving focus would
+      // interrupt a question they are still asking.
+      const composerHasFocus =
+        document.activeElement?.tagName === "TEXTAREA";
+      openFile(path, line).then(() => {
+        if (composerHasFocus) {
+          (document.querySelector("textarea") as HTMLTextAreaElement | null)?.focus();
+        }
+      });
     };
-    handlers.onCompileDone = (result) => {
-      const errors = result.diagnostics?.some((item) => item.severity === "error");
-      // Auto-open once per build that has errors; a user who closes it is
-      // not overruled until the next failing build.
-      if (errors && !drawerDismissed) setDrawer(DRAWER_OPEN);
-      if (!errors) setDrawerDismissed(false);
+    handlers.onProjectChanged = () => {
+      const id = get().projectId;
+      if (id) api.open(id).then((project) => setMainFile(project.main ?? "main.tex"));
     };
+    // The drawer is never opened for you.  A build fires while you are
+    // still typing an equation, and having the error list jump up over the
+    // document at that moment is the most irritating thing this app can do.
+    // The status strip colours its dot; opening the list stays your choice.
     return () => {
       handlers.onFilesChanged = undefined;
       handlers.onReveal = undefined;
       handlers.onAgentEdit = undefined;
+      handlers.onProjectChanged = undefined;
       handlers.onCompileDone = undefined;
     };
-  }, [refreshTree, drawerDismissed, openFile]);
+  }, [refreshTree, openFile]);
 
   useEffect(() => () => disconnect(), []);
 
@@ -388,11 +441,12 @@ export default function App() {
           >
             <div className="flex h-[32px] shrink-0 items-center justify-between border-b border-line px-[10px]">
               <button
-                className="t-ui-lg truncate font-serif transition-colors duration-[90ms] hover:text-hint"
+                className="flex min-w-0 items-center gap-2 transition-colors duration-[90ms] hover:text-hint"
                 onClick={() => setView("projects")}
                 title="Switch project"
               >
-                {projectName}
+                <Logo size={18} />
+                <span className="t-ui-lg truncate font-serif">{projectName}</span>
               </button>
               <div className="flex items-center">
                 <ThemeToggle theme={theme} onChange={setTheme} />
@@ -420,12 +474,18 @@ export default function App() {
                 />
               </div>
             </div>
-            <FileTree onOpen={openFile} onRefresh={refreshTree} />
+            <FileTree
+              onOpen={openFile}
+              onRefresh={refreshTree}
+              onHistory={() => setHistoryOpen(true)}
+              mainFile={mainFile}
+            />
+            <TrashPanel onRefresh={refreshTree} />
             <ContextPanel
               openFor={contextRequest}
               onHandled={() => setContextRequest(null)}
             />
-            <GitPanel />
+            <GitPanel onOpen={openFile} />
           </div>
           <Handle
             onPointerDown={startDrag("rail")}
@@ -491,8 +551,33 @@ export default function App() {
               </button>
             ) : null}
           </div>
+          {viewing ? (
+            <ViewingBanner
+              version={viewing.version}
+              showingChanges={showingChanges}
+              onRestore={restoreVersion}
+              onBack={() => {
+                editor.current?.backToNow();
+                setShowingChanges(false);
+              }}
+              onToggleChanges={() => {
+                const next = !showingChanges;
+                setShowingChanges(next);
+                editor.current?.showChanges(next);
+              }}
+            />
+          ) : null}
           <div className="relative min-h-0 flex-1">
             <Editor handleRef={(handle) => (editor.current = handle)} />
+            {historyOpen ? (
+              <HistoryPanel
+                onView={viewVersion}
+                onClose={() => {
+                  editor.current?.backToNow();
+                  setHistoryOpen(false);
+                }}
+              />
+            ) : null}
             {tabs.length === 0 ? (
               <div className="absolute inset-0 flex items-center justify-center bg-surface">
                 <p className="t-display text-ink-3">Open a file from the list.</p>
@@ -500,6 +585,8 @@ export default function App() {
             ) : null}
           </div>
           <Status
+            onHistory={() => setHistoryOpen(!historyOpen)}
+            historyOpen={historyOpen}
             // §4: nothing is lost when the rail folds -- the dirty count
             // comes here instead of disappearing with the git panel.
             git={railFolded && git?.repository ? git : null}
@@ -518,10 +605,7 @@ export default function App() {
             onJump={(file, line) => openFile(file, line)}
             onFix={(text) => chat.current?.seed(text)}
             onResize={setDrawer}
-            onClose={() => {
-              setDrawer(DRAWER_CLOSED);
-              setDrawerDismissed(true);
-            }}
+            onClose={() => setDrawer(DRAWER_CLOSED)}
           />
         </div>
 
@@ -591,6 +675,16 @@ export default function App() {
           <Pdf
             handleRef={(handle) => (pdf.current = handle)}
             onNavigate={(file, line) => openFile(file, line)}
+            onLoadTemplate={async () => {
+              const id = get().projectId;
+              if (!id) return;
+              try {
+                await api.loadTemplate(id);
+                refreshTree();
+              } catch (error: any) {
+                set({ error: error.message });
+              }
+            }}
           />
         </div>
         {folded.pdf && !tight ? (
@@ -625,7 +719,18 @@ export default function App() {
         aria-hidden={chatOver && !chatOpen}
       >
         <Chat
-          onAddContext={(kind) => {
+          onAddContext={async (kind) => {
+            if (kind === "template") {
+              const id = get().projectId;
+              if (!id) return;
+              try {
+                await api.loadTemplate(id);
+                refreshTree();
+              } catch (error: any) {
+                set({ error: error.message });
+              }
+              return;
+            }
             // The panel lives in the rail, so it has to be open to be used.
             railByHand.current = true;
             setRailHidden(false);

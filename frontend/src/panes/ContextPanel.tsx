@@ -96,7 +96,7 @@ export default function ContextPanel({
                   mine.map((document) => (
                     <div
                       key={document.id}
-                      className="group flex items-center gap-2"
+                      className="group flex items-center gap-2 rounded-[3px] px-1 hover:bg-surface-2"
                     >
                       <span className="t-code-sm min-w-0 flex-1 truncate text-ink">
                         {document.filename}
