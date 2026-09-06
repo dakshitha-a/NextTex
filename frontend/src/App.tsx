@@ -910,6 +910,7 @@ export default function App() {
             : undefined,
         }}
         aria-hidden={chatOver && !chatOpen}
+        data-testid="chat-panel"
       >
         <Chat
           onAddContext={async (kind) => {
@@ -1130,7 +1131,10 @@ function Segmented({
   onChange: (value: "source" | "preview") => void;
 }) {
   return (
-    <div className="mr-2 flex shrink-0 overflow-hidden rounded-[3px] border border-line">
+    <div
+      data-testid="view-toggle"
+      className="mr-2 flex shrink-0 overflow-hidden rounded-[3px] border border-line"
+    >
       {(["source", "preview"] as const).map((option) => (
         <button
           key={option}

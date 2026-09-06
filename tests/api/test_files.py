@@ -195,3 +195,21 @@ def test_creating_a_file_tells_the_other_tabs_a_name_appeared(client, opened):
 
     told = [e for e in seen if e["type"] == "files_changed"]
     assert told and told[-1]["structural"] is True
+
+
+def test_lint_answers_with_a_list_whether_or_not_chktex_is_installed(client, opened):
+    """The route is optional by design: no chktex, no findings, and the
+    editor simply shows nothing rather than an error.  What the findings
+    themselves look like is not asserted here -- this machine has no chktex,
+    and a test that only runs where a tool happens to be installed is worse
+    than no test."""
+    answer = client.get(f"/api/projects/{opened['id']}/lint",
+                        params={"path": "main.tex"})
+    assert answer.status_code == 200
+    assert isinstance(answer.json()["diagnostics"], list)
+
+
+def test_lint_will_not_read_outside_the_project(client, opened):
+    answer = client.get(f"/api/projects/{opened['id']}/lint",
+                        params={"path": "../../etc/passwd"})
+    assert answer.status_code in (400, 403)
