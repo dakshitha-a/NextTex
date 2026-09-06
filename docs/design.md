@@ -232,12 +232,19 @@ rather than attempted and reported.
 
 ### Reading mode and writing mode
 
-A **double click on a pane's header gives that pane the window**: everything else folds to
-its strip, and a second double click restores the layout exactly as it was rather than
-unfolding everything. A writer who had the agent hidden before they started reading does
-not want it back for having read a page. The preview's header and the source's tab strip
-both do this; the agent's does not, because a column of conversation with nothing to
-converse about is not a mode anybody wants.
+A **double click on a pane's header gives that pane the window**, and a second double click
+restores the layout exactly as it was rather than unfolding everything. A writer who had
+the agent hidden before they started reading does not want it back for having read a page.
+The preview's header and the source's tab strip both do this; the agent's does not, because
+a column of conversation with nothing to converse about is not a mode anybody wants.
+
+The two modes are not symmetric. **Reading folds everything but the page.** **Writing folds
+everything but the source and the file list** — somebody writing is still moving between
+chapters, and a mode that hides the way to the next one is a mode they leave immediately;
+somebody reading the typeset page has nothing to navigate to. Writing mode brings the file
+list back even at a width where the window had folded it away on its own, because asking
+for the mode is an explicit request for it — and leaving the mode gives the window its
+own behaviour back.
 
 It is deliberately **not persisted**. What reaches `localStorage` is the arrangement the
 writer chose, so a reload in the middle of a mode comes back to their real layout rather
