@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
+import { statusFor } from "./status-dot";
 
 /** A spinner shown at 0ms on a one-second task is what tells the user the
- *  task is slow.  The hairline only appears once a build crosses this. */
-const HAIRLINE_AFTER = 400;
+ *  task is slow.  The dot only starts breathing once a build crosses this;
+ *  below it, a build comes and goes without anything moving. */
+const BREATHE_AFTER = 400;
 
 export default function Status({
   onToggleDrawer,
@@ -16,7 +18,7 @@ export default function Status({
   git,
 }: {
   onToggleDrawer: () => void;
-  onRebuild: () => void;
+  onRebuild: (full: boolean) => void;
   words: number | null;
   wordScope: "file" | "document";
   onToggleWordScope: () => void;
@@ -29,10 +31,12 @@ export default function Status({
   } | null;
 }) {
   const compiling = useStore((s) => s.compiling);
+  const stale = useStore((s) => s.stale);
   const result = useStore((s) => s.compile);
   const diagnostics = useStore((s) => s.diagnostics);
   const activePath = useStore((s) => s.activePath);
   const cursor = useStore((s) => s.cursor);
+  const autocompile = useStore((s) => s.settings.autocompile);
   const [slow, setSlow] = useState(false);
 
   useEffect(() => {
@@ -40,7 +44,7 @@ export default function Status({
       setSlow(false);
       return;
     }
-    const timer = window.setTimeout(() => setSlow(true), HAIRLINE_AFTER);
+    const timer = window.setTimeout(() => setSlow(true), BREATHE_AFTER);
     return () => window.clearTimeout(timer);
   }, [compiling]);
 
@@ -51,29 +55,9 @@ export default function Status({
   // read.  Asserting on the colour class would pass on a dot that is the
   // right shade of nothing; asserting on the label would break the moment
   // the wording changes.
-  let state = "ready";
-  let dot = "border border-ink-3";
-  let label = "Ready";
-  let clickable = false;
-  if (compiling) {
-    state = "compiling";
-    dot = "bg-pen";
-    label = "Compiling";
-  } else if (errors) {
-    state = "errors";
-    dot = "bg-error";
-    label = `${errors} ${errors === 1 ? "error" : "errors"}`;
-    clickable = true;
-  } else if (warnings) {
-    state = "warnings";
-    dot = "bg-warn";
-    label = `${warnings} ${warnings === 1 ? "warning" : "warnings"}`;
-    clickable = true;
-  } else if (result) {
-    state = "built";
-    dot = "bg-ink-3";
-    label = `Built ${(result.durationMs / 1000).toFixed(2)}s`;
-  }
+  const { state, dot, label, clickable, hint } = statusFor({
+    compiling, slow, stale, result, errors, warnings, autocompile,
+  });
   // The duration is already in the label when a build succeeded; it earns a
   // segment of its own only when the label is saying something else.
   const showDuration = Boolean(result) && !compiling && !label.startsWith("Built");
@@ -83,13 +67,12 @@ export default function Status({
     // editor pane, which the user drags.  Segments drop out in order of how
     // little they are missed -- the path first, since the tab above says it.
     <div
-      className={`@container group relative flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px] ${
-        slow ? "hairline" : ""
-      }`}
+      className="@container group flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]"
     >
       <button
         data-testid="status"
         data-state={state}
+        title={hint || undefined}
         className="flex shrink-0 items-center gap-2"
         onClick={() => clickable && onToggleDrawer()}
       >
@@ -139,11 +122,28 @@ export default function Status({
       </span>
       {/* Permanent, not hover-only: it is one word, it is the answer when
           the preview looks stale, and a strip that gains a segment on hover
-          is a strip that jitters. */}
-      <span className="hidden shrink-0 items-center gap-3 @[420px]:flex">
+          is a strip that jitters.
+
+          One control, not two.  With compile-as-you-type off this is the
+          only way to build anything, so it says Compile and it stops being
+          droppable at narrow widths -- a `Compile` button beside a
+          `Rebuild` button would only ask the writer which of two words for
+          the same thing they meant.  Shift-click still forces a full
+          build either way. */}
+      <span
+        className={
+          autocompile
+            ? "hidden shrink-0 items-center gap-3 @[420px]:flex"
+            : "flex shrink-0 items-center gap-3"
+        }
+      >
         <Rule />
-        <button className="quiet t-micro" onClick={onRebuild}>
-          Rebuild
+        <button
+          className="quiet t-micro"
+          title="Shift-click to rebuild everything"
+          onClick={(event) => onRebuild(event.shiftKey)}
+        >
+          {autocompile ? "Rebuild" : "Compile"}
         </button>
       </span>
       <Rule />

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import socket
 import sys
 from pathlib import Path
@@ -57,6 +58,17 @@ def in_use(host: str, port: int) -> bool:
 
 
 async def serve(settings: Settings) -> None:
+    # uvicorn is kept quiet -- an access log line per keystroke is noise --
+    # but that left NextTex's own warnings with nowhere to go, and the app
+    # was silent through failures the writer could see on screen: a wedged
+    # agent turn, a build task that died, a subscriber dropped.  Warnings
+    # and worse now carry a timestamp and the name of what went wrong.
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
     servers: list[uvicorn.Server] = []
     urls: list[str] = []
 

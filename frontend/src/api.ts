@@ -16,6 +16,10 @@ export type Diagnostic = {
   message: string;
   file: string | null;
   line: number | null;
+  /** 1-based, where the tool that found it knew.  chktex usually does; the
+   *  LaTeX log never does.  It is what lets a mark point at the token that
+   *  is wrong instead of underlining the whole line. */
+  column?: number | null;
   endLine?: number | null;
   context?: string;
   package?: string | null;
@@ -308,6 +312,22 @@ const api = {
   setMain: (id: string, path: string) =>
     request<{ ok: boolean; main: string }>(`/projects/${id}/main`, json({ path })),
 
+  /** One or more of the three per-project switches. */
+  setProjectSettings: (
+    id: string,
+    patch: Partial<{
+      autocompile: boolean;
+      markErrors: boolean;
+      markWarnings: boolean;
+    }>,
+  ) =>
+    request<{
+      main: string;
+      autocompile: boolean;
+      markErrors: boolean;
+      markWarnings: boolean;
+    }>(`/projects/${id}/settings`, json(patch)),
+
   words: (id: string, path: string, scope: "file" | "document") =>
     request<{ words: number | null; scope: string }>(
       `/projects/${id}/words?scope=${scope}&path=${encodeURIComponent(path)}`,
@@ -368,9 +388,12 @@ const api = {
       };
       model: string;
       models: { id: string; name: string; note: string }[];
+      /** Whether a turn is really running.  A browser that thinks one is
+       *  has no other way to find out that it is wrong. */
+      busy: boolean;
     }>(`/projects/${id}/agent/usage`),
   setModel: (id: string, model: string) =>
-    request<{ ok: boolean; model: string }>(
+    request<{ ok: boolean; model: string; deferred: boolean }>(
       `/projects/${id}/agent/model`,
       json({ model }),
     ),

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import Appearance from "./Appearance";
+import Settings from "./Settings";
 import api from "../api";
 
 /** Choosing what, if anything, writes alongside you.
@@ -36,7 +36,7 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
           </div>
           {/* One 26px control on a first-run screen is the right price for a
               first-run reader who cannot comfortably read 13px. */}
-          <Appearance />
+          <Settings />
         </div>
 
         {choice === null ? (

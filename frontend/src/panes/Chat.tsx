@@ -192,8 +192,22 @@ export default function Chat({
             const chosen = event.target.value;
             if (!projectId) return;
             try {
-              await api.setModel(projectId, chosen);
+              const answer = await api.setModel(projectId, chosen);
               setUsage(await api.usage(projectId));
+              // The client carries the model it was started with, so a
+              // change made mid-answer is held back rather than applied --
+              // applying it used to close the transport the running turn
+              // was reading from, and that turn then ended without ever
+              // saying so.  A dropdown that appears to do nothing is worse
+              // than one that explains itself.
+              if (answer.deferred) {
+                pushChat({
+                  kind: "notice",
+                  id: `model-${Date.now()}`,
+                  text: "The model changes for your next question — this answer finishes on the one it started with.",
+                  tone: "plain",
+                });
+              }
             } catch (error: any) {
               set({ error: error.message });
             }

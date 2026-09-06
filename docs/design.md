@@ -26,25 +26,44 @@ Relationship to NexusQC, the sibling app, is deliberate:
 
 ## 2. Palette
 
-Ten tokens per theme. `--paper` is a constant `#FFFFFF` in both themes — it is painted by
-PDF.js and is never themed. `--line` and `--pen-wash` are derived, not authored:
-`--line: color-mix(in oklab, var(--ink-3) 35%, transparent)`,
-`--pen-wash: color-mix(in oklab, var(--pen) 12%, transparent)`.
+Twelve tokens per theme. `--paper` is a constant `#FFFFFF` in both themes — it is painted by
+PDF.js and is never themed. `--line` and the washes are derived, not authored:
+`--line: color-mix(in oklab, var(--ink-3) 55%, transparent)`,
+`--pen-wash: color-mix(in oklab, var(--pen) 12%, transparent)`,
+`--hint-wash: color-mix(in oklab, var(--hint) 14%, transparent)`.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--surround` | `#C7CCC7` | `#0D0F0E` | App background; the field the PDF sits on |
-| `--surface` | `#E3E7E2` | `#161A18` | Panes: rail, editor body, chat column |
-| `--surface-2` | `#D7DCD6` | `#1E2320` | Raised/inset: tab bar, status strip, hover fills, code blocks |
-| `--surface-3` | `#CDD3CC` | `#272D29` | Pressed and selected states inside a raised surface |
+| `--surround` | `#B9BEB8` | `#0A0C0B` | App background; the field the PDF sits on |
+| `--surface` | `#E3E7E2` | `#121614` | Panes: rail, editor body, chat column |
+| `--surface-2` | `#D4D9D3` | `#1E2320` | Raised/inset: tab bar, status strip, hover fills, code blocks |
+| `--surface-3` | `#C6CBC5` | `#2A302C` | Pressed and selected states inside a raised surface |
 | `--ink` | `#141715` | `#E3E8E2` | Primary text |
-| `--ink-2` | `#4C534E` | `#9CA49E` | Secondary text, user messages, consequences |
-| `--ink-3` | `#626963` | `#7F8781` | Metadata, file extensions, line numbers, idle dot |
-| `--pen` | `#6B3A87` | `#C08CE8` | Agent identity, SyncTeX highlight, active-file bar, primary button |
-| `--hint` | `#1B6B72` | `#56C7C0` | Live and interactive states that are *not* the agent: streaming stopped, a control the eye should find |
-| `--error` | `#9C2521` | `#F0776D` | Compile errors, destructive hover |
-| `--warn` | `#74590C` | `#D6B155` | chktex warnings, permission gate bar |
-| `--ok` | `#2A6144` | `#6BC79A` | Git clean, added diff lines, resolved-allow dot |
+| `--ink-2` | `#373B36` | `#B0B5B0` | Secondary text, user messages, consequences |
+| `--ink-3` | `#4E534D` | `#909892` | Metadata, file extensions, line numbers, idle dot |
+| `--pen` | `#6F2998` | `#C988E7` | Agent identity, SyncTeX highlight, active-file bar, primary button |
+| `--hint` | `#00626D` | `#3FC6D2` | Live and interactive states that are *not* the agent: streaming stopped, a switch that is on, a control the eye should find |
+| `--error` | `#9F1912` | `#F47365` | Compile errors, destructive hover |
+| `--warn` | `#7D5300` | `#D9A539` | The preview is behind the source; chktex severity bars; permission gate bar |
+| `--ok` | `#196131` | `#5ABD7B` | The preview matches the source; git clean, added diff lines, resolved-allow dot |
+
+Two constraints govern any change to these, both arithmetic rather than taste, and
+both asserted in `frontend/src/contrast.test.ts`.
+
+**The light accents cannot be separated by lightness.** Every one of them has to
+clear 4.5:1 on `--surface-2`, which caps all five at a relative luminance of about
+0.11 — so they sit within seven L\* of one another and always will, in any light
+theme that rule governs. The separation is carried by hue and chroma instead:
+violet 278°, red 3°, amber 40°, green 140°, teal 186°, each at or near the chroma
+ceiling its hue allows at that lightness. Anyone reading the palette and wondering
+why the light accents look so close together should stop before reaching for a
+brighter value; the value is not available.
+
+**The ink hierarchy can only be opened from the middle.** `--ink-3` sits a quarter
+of a point under its own ceiling on `--surface-3` in light, and on its floor in
+dark. When the three inks need more separation — and light's `--ink-2` and
+`--ink-3` were once 3.5 L\* apart, two steps pretending to be three — it is
+`--ink-2` that moves.
 
 **Both themes are authored and chosen, not inherited.** A toggle in the rail
 header stamps `data-theme` and the choice is remembered per browser; dark is the
@@ -606,6 +625,58 @@ segment was indistinguishable from an unselected one. The steps are now 5–7
 L\* apart in both themes and `--line` clears 3:1. `--ink-3` was below 4.5:1 on
 `--surface-2` — the surface most of the app's metadata actually sits on — and
 is now 5.2:1 in both.
+
+**Green means the preview is current.** §5 says a clean build renders in no
+colour at all, and §7 argues that a green tick firing on every debounced
+rebuild becomes noise within an hour. That argument is about a *success
+flash*; the dot is a *resting state*, and the two are different objects.
+Green here does not fire — it sits, for hours, and says the picture beside
+the text is the text. What fires is the departure from it: the dot goes
+`--warn` on the first keystroke after a build and stays there until the next
+one lands. Colour now answers one question, does the preview match the
+source, and the label beside it answers the other, which is what the last
+build had to say. `--ok` therefore carries a fourth job beyond git, diffs and
+resolved permissions.
+
+**Warnings no longer colour the dot.** §5 gave `--warn` to chktex counts. It
+now means the preview is behind, in both the stale and the compiling states.
+A document with warnings and a current preview shows a green dot and the
+label `2 warnings`, which is accurate on both counts: nothing is out of date,
+and there are two things to read if you want them. Warnings keep their
+`--warn` severity bar in the diagnostics drawer, and their gutter bar in the
+editor when the writer has that switched on.
+
+**The compiling dot breathes, and it is the only animation in the app that
+repeats without being asked.** §6 lists every status strip dot change under
+*does not animate*, and §7 says there are no spinners anywhere. Both stand,
+with one exception written down here: a build that has already run for 400 ms
+is the one case where the strip has to say *still working* rather than *this
+is the state*, and the 2 px hairline that used to say it swept the full width
+of the strip, in the corner of the eye, for as long as the build took. The
+dot breathes instead — opacity 1 → 0.32 over 700 ms, alternating, on the
+app's single curve — on the same 400 ms threshold the hairline used, so a
+130 ms build still shows nothing at all. Under `prefers-reduced-motion` it
+becomes a hollow `--warn` ring, the same disc-versus-ring distinction the
+idle dot already uses, for the same reason the hairline became a static bar.
+The sweeping hairline itself survives, on the one operation that genuinely
+takes minutes: installing an update.
+
+**The underline points at a token, or there is no underline.** §4 already
+says the gutter carries the news and the writer comes to the detail. A dotted
+rule under a whole line of LaTeX was not pointing at anything the gutter bar
+had not already said, and it was drawn through text somebody was trying to
+read. It now covers the token at the column the tool reported, and where
+there is no usable column — every compile error, since the LaTeX log has none
+— the gutter bar is the whole in-text signal.
+
+**Two drifts, recorded rather than fixed.** `--line` composites to about
+2.4:1 in light and 2.6:1 in dark against the surfaces it sits on; the note
+below claiming it "clears 3:1" has not been true since the mix was set at
+55%. Raising it to about 68% would make the claim true and visibly thicken
+every border in the app, which is a separate decision from this one. And this
+table's `--pen` values had drifted from the stylesheet's twice before this
+revision, which is why the contrast test now parses the palette out of
+`styles.css` rather than trusting anything written here.
 
 **`--pen` is back to meaning one thing.** It had spread to eight filled
 buttons, of which five had nothing to do with the agent; the loudest object in

@@ -9,6 +9,7 @@ watch the same project.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 from pathlib import Path
@@ -24,6 +25,8 @@ from nexttex.symbols import SymbolCache
 from nexttex.trash import Trash
 from server.transcript import Transcript
 from nexttex.project import Project
+
+log = logging.getLogger("nexttex.session")
 
 # How long an idle project keeps its Claude session alive. Each one is a
 # node subprocess holding real memory, and a conversation resumes from disk
@@ -66,6 +69,12 @@ def mid_construct(text: str) -> bool:
     return sorted(opened) != sorted(closed)
 
 
+#: What a subscriber's queue receives instead of an event when the server
+#: has given up on it.  The SSE generator ends its response on seeing this,
+#: which is what makes the browser's EventSource reconnect.
+CLOSED = object()
+
+
 class Broadcaster:
     """Fan out one event stream to every connected browser tab."""
 
@@ -86,9 +95,52 @@ class Broadcaster:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
                 # A tab that has stopped reading must not stall the server
-                # or block every other tab. Drop it; the client reconnects
-                # and re-reads state.
+                # or block every other tab.
+                #
+                # Dropping it from the set is not enough on its own, and the
+                # comment that used to sit here claimed otherwise: the
+                # generator is still reading that queue, so it would serve
+                # 512 stale events and then keepalive on a queue nobody ever
+                # writes to again.  EventSource never sees an error, so it
+                # never reconnects, and the tab shows a frozen project for
+                # as long as it stays open.  Emptying the queue and leaving
+                # a sentinel ends the response instead, which is the event
+                # the browser actually reacts to.
                 self._subscribers.discard(queue)
+                self._close(queue)
+
+    @staticmethod
+    def _close(queue: asyncio.Queue) -> None:
+        while True:
+            try:
+                queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        try:
+            queue.put_nowait(CLOSED)
+        except asyncio.QueueFull:  # pragma: no cover -- just emptied
+            pass
+
+
+def spawn(coro, what: str) -> asyncio.Task:
+    """Start a task nobody awaits, and make sure it cannot fail in silence.
+
+    Without the callback, an exception in one of these is delivered when
+    the task is garbage collected -- as a warning, on a thread nobody is
+    reading, possibly minutes later and possibly never.  Every one of these
+    tasks is doing something the interface depends on.
+    """
+    task = asyncio.create_task(coro)
+
+    def done(finished: asyncio.Task) -> None:
+        if finished.cancelled():
+            return
+        error = finished.exception()
+        if error is not None:
+            log.error("%s failed: %s: %s", what, type(error).__name__, error)
+
+    task.add_done_callback(done)
+    return task
 
 
 class ProjectSession:
@@ -145,6 +197,9 @@ class ProjectSession:
         self._debounce: asyncio.Task | None = None
         self._unsettled = False
         self._agent_pump: asyncio.Task | None = None
+        # Counts builds, so a result can be matched to the build it came
+        # from.  See `compile()`.
+        self._build_id = 0
         self._focus: Path | None = None
 
     # -- editor -----------------------------------------------------------
@@ -189,7 +244,14 @@ class ProjectSession:
 
     # -- compiling --------------------------------------------------------
     async def compile(self, force_full: bool = False) -> CompileResult:
-        await self.events.publish({"type": "compile_start"})
+        # Every build carries an id, and its result carries the same one.
+        # A cancelled build's result arrives *after* its replacement has
+        # already started, so a client clearing "compiling" on any cancelled
+        # result would clear it for the build that is still running -- which
+        # under the status dot means a dot that breathes for ever.
+        self._build_id += 1
+        build = self._build_id
+        await self.events.publish({"type": "compile_start", "build": build})
         result = await self.compiler.build(focus=self._focus, force_full=force_full)
         payload = self.as_client_dict(result)
         # A superseded build carries no log.  Keeping its empty diagnostics
@@ -198,11 +260,23 @@ class ProjectSession:
         if result.outcome is not Outcome.CANCELLED:
             self.last_result = result
             self._diagnostics = payload.get("diagnostics", [])
-        await self.events.publish({"type": "compile_done", **payload})
+        await self.events.publish({"type": "compile_done", "build": build, **payload})
         return result
 
     def schedule_compile(self) -> None:
-        """Build once typing has settled, replacing any pending build."""
+        """Build once typing has settled, replacing any pending build.
+
+        Gated here rather than in the editor because only two of the twelve
+        callers are the writer's own keystrokes: the rest are the agent's
+        edits, uploads, restores and template loads, and a switch called
+        "compile as you type" that let those keep building would not be the
+        switch it says it is.  The three paths that reach `compile()`
+        directly -- the manual button, the agent's own compile tool, and
+        the build on opening a project -- are deliberately unaffected;
+        none of them is "as you type".
+        """
+        if not self.project.config.autocompile:
+            return
         if self._debounce is not None and not self._debounce.done():
             self._debounce.cancel()
         delay = UNSETTLED_DEBOUNCE if self._unsettled else COMPILE_DEBOUNCE
@@ -214,7 +288,16 @@ class ProjectSession:
                 return
             await self.compile()
 
-        self._debounce = asyncio.create_task(wait_then_build())
+        # Told now rather than when the build starts.  Between a keystroke
+        # and the build there is a second and a half in which the preview is
+        # out of date and nothing on screen says so; with autocompile off
+        # there is no build coming at all, and "out of date" is where the
+        # document rests until the writer asks for one.
+        spawn(
+            self.events.publish({"type": "compile_scheduled"}),
+            "publishing compile_scheduled",
+        )
+        self._debounce = spawn(wait_then_build(), "the debounced build")
 
     def note_edit(
         self,
@@ -312,12 +395,13 @@ class ProjectSession:
         )
         self.note_edit(path, text, previous)
         self.schedule_compile()
-        asyncio.create_task(
+        spawn(
             self.events.publish({
                 "type": "files_changed",
                 "paths": [self.project.relative(path)],
                 "byAgent": True,
-            })
+            }),
+            "announcing an agent edit",
         )
 
     def note_agent_edit(self, path: Path, before: str | None, after: str | None) -> None:
@@ -335,8 +419,9 @@ class ProjectSession:
 
     def reveal_in_editor(self, path: str, line: int) -> None:
         """Ask the open editor to show a line."""
-        asyncio.create_task(
-            self.events.publish({"type": "reveal", "path": path, "line": line})
+        spawn(
+            self.events.publish({"type": "reveal", "path": path, "line": line}),
+            "revealing a line in the editor",
         )
 
     def mark_written(self, path: Path) -> None:
@@ -381,7 +466,7 @@ class ProjectSession:
                 except Exception:
                     continue
 
-        self._agent_pump = asyncio.create_task(pump())
+        self._agent_pump = spawn(pump(), "the agent event pump")
 
     async def reap_idle_agent(self) -> None:
         if self.agent.busy:

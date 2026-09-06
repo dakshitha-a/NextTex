@@ -113,3 +113,84 @@ test("the dark theme redefines every colour the light one names", () => {
     expect(DARK[name]).not.toBe(LIGHT[name]);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Structure, not just readability
+//
+// Everything above passed while the light theme had two inks pretending to
+// be three, a 44-point canyon between the frame and the panes, and -- in
+// dark -- two accents at the same luminance eight degrees apart in hue.
+// Three audits went past all of it, because a contrast ratio cannot see any
+// of it.  These are the assertions that can.
+
+/** CIE L*, which is how far apart two greys look rather than how far apart
+ *  their luminances are.  A 3.5-point gap is invisible; 8 is a step. */
+function lightness(hex: string): number {
+  const y = luminance(hex);
+  return y > 216 / 24389 ? 116 * y ** (1 / 3) - 16 : (24389 / 27) * y;
+}
+
+/** OKLCh chroma and hue, which is where the accents have to be separated
+ *  because in a light theme their lightness is spoken for. */
+function oklch(hex: string): { chroma: number; hue: number } {
+  const lin = (i: number) => channel(hex, i);
+  const [r, g, b] = [lin(0), lin(1), lin(2)];
+  const cbrt = (x: number) => Math.cbrt(x);
+  const l = cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+  return {
+    chroma: Math.hypot(a, bb),
+    hue: ((Math.atan2(bb, a) * 180) / Math.PI + 360) % 360,
+  };
+}
+
+const ACCENTS = ["pen", "hint", "error", "warn", "ok"];
+
+describe.each([
+  ["light", LIGHT],
+  ["dark", DARK],
+])("%s theme structure", (_name, tokens) => {
+  test("secondary and tertiary text are visibly different", () => {
+    const gap = Math.abs(lightness(tokens["ink-2"]) - lightness(tokens["ink-3"]));
+    expect(Number(gap.toFixed(1)), `--ink-2 to --ink-3 is ${gap.toFixed(1)} L*`)
+      .toBeGreaterThanOrEqual(8);
+  });
+
+  test("no accent is so grey that its hue cannot be read", () => {
+    for (const name of ACCENTS) {
+      const { chroma } = oklch(tokens[name]);
+      expect(Number(chroma.toFixed(3)), `--${name} chroma is ${chroma.toFixed(3)}`)
+        .toBeGreaterThanOrEqual(0.07);
+    }
+  });
+
+  test("no two accents are the same colour", () => {
+    // In hue, because lightness is not available as a separator: the 4.5:1
+    // rule on --surface-2 caps every light accent at about 0.11 luminance,
+    // so they are all within seven L* of one another by construction.
+    const hues = ACCENTS.map((name) => ({ name, ...oklch(tokens[name]) })).sort(
+      (a, b) => a.hue - b.hue,
+    );
+    for (let i = 0; i < hues.length; i += 1) {
+      const here = hues[i];
+      const next = hues[(i + 1) % hues.length];
+      const gap = (next.hue - here.hue + 360) % 360;
+      expect(
+        Number(gap.toFixed(1)),
+        `--${here.name} and --${next.name} are ${gap.toFixed(1)}° apart`,
+      ).toBeGreaterThanOrEqual(35);
+    }
+  });
+});
+
+test("the frame and the panes are one ramp, not a cliff", () => {
+  // Only in light: the dark surround is deliberately near-black so the
+  // sheet reads as lit, and the panes take their separation from --line and
+  // the page shadow instead.
+  const gap = 100 * (luminance(LIGHT["surface"]) - luminance(LIGHT["surround"]));
+  expect(Number(gap.toFixed(1)), `--surround to --surface is ${gap.toFixed(1)} points`)
+    .toBeLessThanOrEqual(30);
+});

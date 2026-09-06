@@ -51,6 +51,11 @@ def load_script(name: str) -> list[dict]:
     return data if isinstance(data, list) else data.get("steps", [])
 
 
+class Vanish(Exception):
+    """A scripted turn stopping the way the real one did: mid-answer, with
+    no result and nothing raised that anybody would have logged."""
+
+
 class ScriptedAgent:
     """A stand-in for ProjectAgent that replays a script."""
 
@@ -159,16 +164,26 @@ class ScriptedAgent:
     async def _run(self, prompt: str) -> None:
         started = time.monotonic()
         await self._emit({"type": "turn_start", "prompt": prompt})
+        vanished = False
         try:
             for step in load_script(self.script_name):
                 await self._step(step)
         except asyncio.CancelledError:
             return
+        except Vanish:
+            # The one fault the real agent had and nothing could reproduce:
+            # a turn that stops without a result and without an error.  It
+            # is what a mid-turn disconnect looks like from inside
+            # `_stream`, and the interface has to settle anyway.
+            vanished = True
         except Exception as error:                       # a broken script
             await self._emit({"type": "error", "message": str(error)})
         self.usage["turns"] += 1
         self.usage["durationMs"] += int((time.monotonic() - started) * 1000)
         self._last_used = time.monotonic()
+        if vanished:
+            await self._emit({"type": "done", "subtype": "no_result"})
+            return
         await self._emit({
             "type": "done", "subtype": "success",
             "costUsd": self.usage["costUsd"], "usage": self.usage,
@@ -210,6 +225,9 @@ class ScriptedAgent:
 
         elif kind == "wait":
             await asyncio.sleep(float(step.get("seconds", 0.1)))
+
+        elif kind == "vanish":
+            raise Vanish
 
     async def _edit(self, step: dict) -> None:
         """A real write, so everything downstream of one runs for real."""

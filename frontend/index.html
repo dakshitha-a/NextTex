@@ -6,6 +6,21 @@
     <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%237B45A0"/><path d="M11 7.5h7.5L23 12v12.5H11V19.5l3.5-3.5L11 12.5z" fill="%23fff"/><path d="M18.5 7.5V12H23" fill="%237B45A0" opacity=".4"/></svg>' />
     <meta name="theme-color" content="#121614" />
     <title>NextTex</title>
+    <script>
+      // Stamped before the stylesheet is applied, so the first frame is
+      // already in the right theme.  It has to be a blocking classic
+      // script: main.tsx is a module and therefore deferred, which is why
+      // the flash existed at all.  Dark is the app's default, so a machine
+      // set to prefer light is not consulted -- the previous approach
+      // guessed from prefers-color-scheme and guessed wrong for exactly
+      // the people the default was chosen for.
+      try {
+        var t = localStorage.getItem("nexttex.theme");
+        document.documentElement.dataset.theme = t === "light" ? "light" : "dark";
+      } catch (e) {
+        document.documentElement.dataset.theme = "dark";
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

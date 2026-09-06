@@ -23,18 +23,37 @@
    --paper is never themed.  PDF.js paints it, and it is white in both.
    ----------------------------------------------------------------------- */
 :root {
-  --surround: #ADB4AD;
-  --surface: #F0F3EF;
-  --surface-2: #DCE1DB;
-  --surface-3: #C6CDC5;
+  /* Four surfaces, five L* apart each, from the pane down to the frame:
+     91.2 / 86.2 / 81.2 / 76.4.  --surface used to sit at #F0F3EF, eleven
+     luminance points off white, which made the panes almost as bright as
+     the PDF and the claim above false in its own file; and --surround sat
+     44 points below them, so the frame read as a separate darker object
+     bolted around white boxes rather than as the table the page lies on. */
+  --surround: #B9BEB8;
+  --surface: #E3E7E2;
+  --surface-2: #D4D9D3;
+  --surface-3: #C6CBC5;
+  /* Three inks, 7.4 / 24.3 / 34.7 L*.  --ink-2 and --ink-3 used to be 3.5
+     apart -- two steps pretending to be three, which is why secondary and
+     tertiary text were indistinguishable.  The gap could only be opened
+     downwards: --ink-3 is a quarter of a point under its own 4.5:1 ceiling
+     on --surface-3 and has nowhere to go. */
   --ink: #141715;
-  --ink-2: #474E49;
-  --ink-3: #505651;
-  --pen: #6B3A87;
-  --hint: #1B6B72;
-  --error: #9C2521;
-  --warn: #74590C;
-  --ok: #2A6144;
+  --ink-2: #373B36;
+  --ink-3: #4E534D;
+  /* The five accents cannot be separated by lightness.  Every one of them
+     has to clear 4.5:1 on --surface-2, which caps them all at a relative
+     luminance of about 0.11 -- so they sit within seven L* of one another
+     and always will.  Hue and chroma carry the separation instead: violet
+     278, red 3, amber 40, green 140, teal 186, each at or near the chroma
+     ceiling its hue allows at that lightness.  --warn in particular is an
+     amber-brown rather than the olive it was, because olive at this
+     luminance reads as dirty grey-green rather than as caution. */
+  --pen: #6F2998;
+  --hint: #00626D;
+  --error: #9F1912;
+  --warn: #7D5300;
+  --ok: #196131;
 
   --paper: #ffffff;
   --line: color-mix(in oklab, var(--ink-3) 55%, transparent);
@@ -53,41 +72,39 @@
   color-scheme: light;
 }
 
-/* Only covers the first frame, before the app stamps its own choice. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --surround: #0A0C0B;
-    --surface: #121614;
-    --surface-2: #1E2320;
-    --surface-3: #2A302C;
-    --ink: #E3E8E2;
-    --ink-2: #A2AAA4;
-    --ink-3: #909892;
-    --pen: #C08CE8;
-    --hint: #56C7C0;
-    --error: #F0776D;
-    --warn: #D6B155;
-    --ok: #6BC79A;
-    --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
-    --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --float: 0 4px 16px rgba(0, 0, 0, 0.55);
-    color-scheme: dark;
-  }
-}
-
+/* The dark palette is declared once.  There used to be a second copy under
+   `@media (prefers-color-scheme: dark)`, to cover the frame before the app
+   stamped its own choice -- but the contrast test only ever parsed one of
+   the two, so the copies were free to drift, and the guess was wrong for
+   exactly the people the default was chosen for: dark is the app default,
+   so a first-time user on a light-preferenced machine got light on frame
+   one and dark on frame two.  A blocking script in index.html stamps
+   data-theme before this stylesheet is applied, which is both a smaller
+   flash and an honest one. */
 :root[data-theme="dark"] {
   --surround: #0A0C0B;
   --surface: #121614;
   --surface-2: #1E2320;
   --surface-3: #2A302C;
   --ink: #E3E8E2;
-  --ink-2: #A2AAA4;
+  /* Lifted 4.4 L*, opening the --ink-2 / --ink-3 gap from 6.7 to 11.1.
+     Upwards here for the same reason it went downwards in light: --ink-3
+     is at 4.55:1 on --surface-3, the tightest pair in either theme. */
+  --ink-2: #B0B5B0;
   --ink-3: #909892;
-  --pen: #C08CE8;
-  --hint: #56C7C0;
-  --error: #F0776D;
-  --warn: #D6B155;
-  --ok: #6BC79A;
+  --pen: #C988E7;
+  /* --hint and --ok used to be eight degrees apart in hue with identical
+     luminance.  That was survivable while --ok was rare; it is now the
+     resting state of the build dot while --hint is on every hover, and two
+     colours meaning "up to date" and "touch me" cannot be the same green.
+     45 degrees and 4.1 L* apart now. */
+  --hint: #3FC6D2;
+  --error: #F47365;
+  /* Deeper and more chromatic: yellow is on screen after every keystroke
+     now, and at its old lightness it was the second-brightest thing in the
+     dark theme after body text. */
+  --warn: #D9A539;
+  --ok: #5ABD7B;
   --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
   --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
   --float: 0 4px 16px rgba(0, 0, 0, 0.55);
@@ -184,16 +201,13 @@ button { font: inherit; color: inherit; }
 .nx-handle { background: var(--line); transition: background-color 90ms var(--ease); }
 .nx-handle:hover { background: var(--hint); }
 
-/* A filled --pen button.  In dark, --pen is #C48EDA and white on it is
-   2.6:1 -- unreadable -- so the label takes the darkest surface instead. */
+/* A filled --pen button.  In dark, white on --pen is 2.6:1 -- unreadable --
+   so the label takes the darkest surface instead. */
 .pen-button {
   background: var(--pen);
   color: #ffffff;
   border-radius: 3px;
   font-weight: 500;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .pen-button { color: var(--surround); }
 }
 :root[data-theme="dark"] .pen-button { color: var(--surround); }
 .pen-button { transition: transform 90ms var(--ease), filter 90ms var(--ease); }
@@ -247,14 +261,33 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   background: color-mix(in oklab, var(--ink-3) 24%, transparent) !important;
 }
 .cm-editor .cm-content { padding: 6px 0 40vh 0; }
-/* Diagnostic marks: a 3px bar in the gutter, a dotted underline in the text.
-   Dotted, not wavy -- a wavy underline under 13.5px LaTeX is mush. */
+/* Diagnostic marks: a bar in the gutter, and an underline in the text only
+   where there is a token to point at.  Dotted, not wavy -- a wavy underline
+   under 13.5px LaTeX is mush.
+
+   The underline used to span the whole line, at full strength and 1.5px,
+   which highlighted a line the gutter bar had already marked and drew a
+   rule through text the writer was trying to read.  It is now 1px, at the
+   60%-ish opacity the design has specified from the beginning and never
+   had, offset closer so it sits with its word rather than floating between
+   lines, and unbroken by descenders -- a dotted rule chopped up by every
+   descender in \subsubsection is noise rather than information. */
 .cm-gutter-error { box-shadow: inset 3px 0 0 var(--error); }
-.cm-gutter-warn  { box-shadow: inset 3px 0 0 var(--warn); }
-.cm-mark-error { text-decoration: underline dotted var(--error) 1.5px;
-  text-underline-offset: 3px; }
-.cm-mark-warn { text-decoration: underline dotted var(--warn) 1.5px;
-  text-underline-offset: 3px; }
+.cm-gutter-warn  {
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--warn) 70%, transparent);
+}
+.cm-mark-error {
+  text-decoration: underline dotted 1px;
+  text-decoration-color: color-mix(in oklab, var(--error) 62%, transparent);
+  text-underline-offset: 2px;
+  text-decoration-skip-ink: none;
+}
+.cm-mark-warn {
+  text-decoration: underline dotted 1px;
+  text-decoration-color: color-mix(in oklab, var(--warn) 55%, transparent);
+  text-underline-offset: 2px;
+  text-decoration-skip-ink: none;
+}
 .cm-line-flash {
   background: var(--pen-wash);
   transition: background 700ms var(--ease);
@@ -319,9 +352,9 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
     transition-duration: 90ms !important;
     transition-property: opacity, background-color, color !important;
   }
-  /* Without its sweep the compile indicator would disappear entirely, so it
-     becomes a static bar: the point is to say a build is running, and that
-     is worth saying whether or not anything is allowed to move. */
+  /* Without its sweep the update indicator would disappear entirely, so it
+     becomes a static bar: the point is to say something long is running,
+     and that is worth saying whether or not anything is allowed to move. */
   .hairline::after {
     content: "";
     position: absolute;
@@ -331,15 +364,42 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
     height: 2px;
     background: var(--pen);
   }
+  /* Without its breath the compiling dot is the stale dot -- both are
+     --warn, which is the whole reason the ordinary writing loop has no
+     animation in it.  It becomes a ring instead: the same disc-versus-ring
+     distinction the idle dot already uses, and the point (that a build is
+     running) survives whether or not anything is allowed to move. */
+  .nx-breathe {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--warn);
+  }
   /* And the SyncTeX rectangle stays put for its full 700 ms rather than
      blinking out in 90: the eye still has to find it. */
   .nx-flash { transition: none !important; }
 }
 
+/* A bar sweeping the full width of a strip, for the one operation that
+   genuinely takes minutes: installing an update.  It used to mark a compile
+   too, which is what made it wrong -- a two-second build does not deserve
+   something moving in the corner of the eye, and the status dot says the
+   same thing in the place the writer is already looking. */
 @keyframes sweep { 0% { left: -30% } 100% { left: 100% } }
 .hairline::after {
   content: ""; position: absolute; top: 0; height: 2px; width: 30%;
   background: var(--pen); animation: sweep 900ms linear infinite;
+}
+
+/* The one animation in the app that repeats without being asked, and the
+   only thing on screen that says "still working".  It starts 400ms into a
+   build, so the ordinary sub-second rebuild comes and goes without it.
+   `alternate` gives a real ease-in-out from the app's single curve rather
+   than introducing a second one.  The background lives in the class rather
+   than in a `bg-warn` utility beside it, because this rule is unlayered
+   and would otherwise fight the reduced-motion override above. */
+@keyframes breathe { from { opacity: 1 } to { opacity: 0.32 } }
+.nx-breathe {
+  background: var(--warn);
+  animation: breathe 700ms var(--ease) infinite alternate;
 }
 @keyframes blink { 50% { opacity: 0 } }
 .caret-paused { animation: blink 1.06s steps(1) infinite; }

@@ -98,6 +98,18 @@ class ProjectConfig:
     # Directories excluded from the tree beyond the built-in list.
     exclude: list[str] = field(default_factory=list)
 
+    # Three switches the writer sets from the settings card.  Per project
+    # rather than per browser: whether a document compiles as you type is a
+    # fact about the document -- a 40-file dissertation takes nineteen
+    # seconds to build and a one-page note takes one -- not about the
+    # machine it is being read on.
+    autocompile: bool = True
+    mark_errors: bool = True
+    # Off by default.  chktex is right often enough to be worth reading and
+    # wrong often enough that marking every finding in the text is noise
+    # while writing; the drawer keeps all of them either way.
+    mark_warnings: bool = False
+
     @classmethod
     def load(cls, root: Path) -> "ProjectConfig":
         path = root / CONFIG_NAME
@@ -115,6 +127,9 @@ class ProjectConfig:
             build_dir=section.get("build_dir", "build"),
             check_command=section.get("check_command", ""),
             exclude=list(section.get("exclude", [])),
+            autocompile=bool(section.get("autocompile", True)),
+            mark_errors=bool(section.get("mark_errors", True)),
+            mark_warnings=bool(section.get("mark_warnings", False)),
         )
 
     @staticmethod
@@ -156,6 +171,13 @@ class ProjectConfig:
             f"name = {_toml(self.name)}",
             f"main = {_toml(self.main)}",
             f"build_dir = {_toml(self.build_dir)}",
+            # Written whether or not they are true.  The optional fields
+            # below are omitted when falsy, which is right for a string or a
+            # list and wrong for a switch: `autocompile = false` would be
+            # dropped on every save and the setting would never stick.
+            f"autocompile = {str(self.autocompile).lower()}",
+            f"mark_errors = {str(self.mark_errors).lower()}",
+            f"mark_warnings = {str(self.mark_warnings).lower()}",
         ]
         if self.check_command:
             lines.append(f"check_command = {_toml(self.check_command)}")
@@ -311,6 +333,9 @@ class Project:
             "main": self.config.main,
             "buildDir": self.config.build_dir,
             "checkCommand": self.config.check_command,
+            "autocompile": self.config.autocompile,
+            "markErrors": self.config.mark_errors,
+            "markWarnings": self.config.mark_warnings,
         }
 
 

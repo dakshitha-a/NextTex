@@ -1,0 +1,5 @@
+[
+  { "kind": "text", "text": "Let me look at that. " },
+  { "kind": "tool", "name": "Read", "input": { "file_path": "main.tex" } },
+  { "kind": "vanish" }
+]

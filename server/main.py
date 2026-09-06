@@ -48,7 +48,7 @@ from nexttex.project import (
     IGNORED_FILES, Project, ProjectConfig, Registry, instance_name,
 )
 from nexttex import updates
-from server.session import ProjectSession
+from server.session import CLOSED, ProjectSession, spawn
 
 SESSIONS: dict[str, ProjectSession] = {}
 # One folder-read per project at a time.  A second would race the first
@@ -1007,7 +1007,7 @@ async def library_scan(project_id: str, path: str = Body(..., embed=True)):
         finally:
             LIBRARY_JOBS.pop(project_id, None)
 
-    asyncio.create_task(work())
+    spawn(work(), "the library scan")
     return JSONResponse({"started": True}, status_code=202)
 
 
@@ -1456,9 +1456,57 @@ async def set_main_document(project_id: str, path: str = Body(..., embed=True)):
     if not target.is_file() or target.suffix.lower() not in {".tex", ".ltx"}:
         raise HTTPException(400, "the main document has to be a .tex file")
     await session.set_main(path)
-    await session.events.publish({"type": "project_changed", "main": path})
+    await session.events.publish(
+        {"type": "project_changed", **_project_settings(session)}
+    )
     session.schedule_compile()
     return {"ok": True, "main": path}
+
+
+def _project_settings(session) -> dict:
+    """Everything `project_changed` carries.
+
+    Carried in the event rather than looked up afterwards.  The browser
+    used to answer this event by re-fetching `open` -- the whole file tree
+    and the whole transcript -- to learn one string, which on a forty-file
+    project with a long conversation is a real cost for a switch being
+    flipped.
+    """
+    config = session.project.config
+    return {
+        "main": config.main,
+        "autocompile": config.autocompile,
+        "markErrors": config.mark_errors,
+        "markWarnings": config.mark_warnings,
+    }
+
+
+@app.post("/api/projects/{project_id}/settings")
+async def set_project_settings(
+    project_id: str,
+    autocompile: bool | None = Body(None),
+    markErrors: bool | None = Body(None),
+    markWarnings: bool | None = Body(None),
+):
+    """The three switches on the settings card.
+
+    Any subset: the card sends the one that changed.
+    """
+    session = session_for(project_id)
+    config = session.project.config
+    if autocompile is not None:
+        config.autocompile = bool(autocompile)
+    if markErrors is not None:
+        config.mark_errors = bool(markErrors)
+    if markWarnings is not None:
+        config.mark_warnings = bool(markWarnings)
+    try:
+        config.save(session.project.root)
+    except OSError as error:
+        raise HTTPException(500, f"could not save the project settings: {error}")
+    settings = _project_settings(session)
+    await session.events.publish({"type": "project_changed", **settings})
+    return settings
 
 
 # ---------------------------------------------------------------------------
@@ -1581,7 +1629,22 @@ async def lint(project_id: str, path: str):
     if not shutil.which("chktex"):
         return {"diagnostics": []}
     rcfile = Path(__file__).resolve().parent.parent / ".chktexrc"
-    argv = ["chktex", "-q", "-f", "%l:%c:%k:%n:%m\n"]
+    # `-I0` is the fix and `%f` is the guard.
+    #
+    # chktex follows \input and \include by default, so asking it about
+    # main.tex asked it about the whole dissertation -- and this route then
+    # stamped the requested path onto every finding, because the format
+    # captured no filename.  A warning at line 34 of a chapter was reported
+    # as line 34 of main.tex, which on a real document is a comment banner.
+    # That is where the underlined comments came from: chktex does not lint
+    # inside comments, so a decorated comment was always misattribution.
+    #
+    # This route is per-file -- it runs on whichever tab is open -- so `-I0`
+    # is the answer that matches it: a chapter's warnings appear when that
+    # chapter is open.  `%f` is then read only to discard anything chktex
+    # attributes elsewhere, so a future change to these flags cannot quietly
+    # bring the bug back.
+    argv = ["chktex", "-q", "-I0", "-f", "%f:%l:%c:%k:%n:%m\n"]
     if rcfile.exists():
         argv += ["-l", str(rcfile)]
     argv.append(str(target))
@@ -1589,17 +1652,29 @@ async def lint(project_id: str, path: str):
         out = await asyncio.to_thread(
             lambda: subprocess.run(
                 argv, capture_output=True, text=True, timeout=15,
+                cwd=session.project.root,
             ).stdout
         )
     except (subprocess.SubprocessError, OSError):
         return {"diagnostics": []}
     diagnostics = []
     for row in out.splitlines():
-        parts = row.split(":", 4)
-        if len(parts) != 5:
+        # Six fields, and the message is whatever is left -- it contains
+        # colons routinely.  A filename with a colon in it would split
+        # wrongly and then fail the containment check below, which drops the
+        # row: the safe direction for a guard to fail in.
+        parts = row.split(":", 5)
+        if len(parts) != 6:
             continue
-        line, column, kind, _number, message = parts
+        found_in, line, column, kind, _number, message = parts
         if not line.isdigit():
+            continue
+        try:
+            where = (session.project.root / found_in).resolve()
+            where.relative_to(session.project.root.resolve())
+        except (OSError, ValueError):
+            continue
+        if where != target.resolve():
             continue
         diagnostics.append({
             "severity": "warning" if kind.strip().lower() == "warning" else "info",
@@ -1651,7 +1726,7 @@ CLAUDE_MODELS = [
     {"id": "", "name": "Default", "note": "Whatever your Claude plan gives"},
     {"id": "claude-opus-5", "name": "Opus 5", "note": "The most careful"},
     {"id": "claude-sonnet-5", "name": "Sonnet 5", "note": "Quick, and good at prose"},
-    {"id": "claude-haiku-4-5-20251001", "name": "Haiku 4.5", "note": "Fastest, for small edits"},
+    {"id": "claude-haiku-4-5", "name": "Haiku 4.5", "note": "Fastest, for small edits"},
 ]
 
 OPENAI_MODELS = [
@@ -1686,6 +1761,11 @@ async def agent_usage(project_id: str):
         "usage": session.agent.usage,
         "model": session.agent.model or "",
         "models": _models_for(SETTINGS.provider),
+        # Whether a turn is actually running, so a browser that thinks one
+        # is can find out that it is wrong.  A turn that ends without
+        # saying so is the one failure this cannot detect from the event
+        # stream alone -- there is nothing to detect, which is the bug.
+        "busy": session.agent.busy,
     }
 
 
@@ -1703,7 +1783,11 @@ async def agent_model(project_id: str, model: str = Body("", embed=True)):
     await session.agent.set_model(model)
     SETTINGS.model = model
     SETTINGS.save()
-    return {"ok": True, "model": model}
+    # Changing the model closes the client the running turn is reading
+    # from, so a change made mid-answer is remembered and taken up when
+    # that answer finishes.  Say which happened; a dropdown that appears
+    # to do nothing is worse than one that explains itself.
+    return {"ok": True, "model": model, "deferred": session.agent.model != (model or None)}
 
 
 @app.post("/api/projects/{project_id}/agent/interrupt")
@@ -1810,7 +1894,7 @@ async def update_start():
 
     UPDATE_JOB.clear()
     UPDATE_JOB.update({"state": "running", "log": [], "step": "", "queue": []})
-    asyncio.create_task(_run_update(report))
+    spawn(_run_update(report), "the update")
     return JSONResponse({"started": True}, status_code=202)
 
 
@@ -1980,9 +2064,24 @@ async def agent_provider(
     except OSError as error:
         raise HTTPException(500, f"could not save settings: {error}")
 
-    # Every open project is holding an agent built for the old provider.
-    for session in list(SESSIONS.values()):
-        await session.agent.disconnect()
+    # Every open project is holding an agent built for the old provider, so
+    # all of them go.  Two things this used to get wrong.  A project with a
+    # turn running had its transport closed underneath it, and that turn
+    # then ended without ever saying so -- `interrupt()` ends it visibly
+    # instead.  And clearing the registry without closing the sessions
+    # orphaned each one's event pump, which went on running against an
+    # agent nothing could reach.
+    open_sessions = list(SESSIONS.values())
+    # Interrupted first and closed second, with a turn of the loop between,
+    # so that each `done` has a live event pump to travel out on.  Closing a
+    # session cancels that pump, so doing both in one pass would end the
+    # turns and then swallow the news of it.
+    for session in open_sessions:
+        if session.agent.busy:
+            await session.agent.interrupt()
+    await asyncio.sleep(0)
+    for session in open_sessions:
+        await session.close()
     SESSIONS.clear()
     return await agent_status()
 
@@ -2039,6 +2138,13 @@ async def events(project_id: str, request: Request):
                     return
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=15)
+                    if event is CLOSED:
+                        # The server gave up on this subscriber because it
+                        # had stopped reading.  Ending the response is what
+                        # makes EventSource reconnect and re-read state; the
+                        # alternative is keepalives on a queue nothing
+                        # writes to, which looks alive and is not.
+                        return
                     yield f"data: {_json.dumps(event)}\n\n"
                 except asyncio.TimeoutError:
                     # A comment frame keeps intermediaries from closing an
