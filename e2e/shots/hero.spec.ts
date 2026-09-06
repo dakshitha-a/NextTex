@@ -2,10 +2,15 @@ import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
 
 /** The README's screenshots, captured against a real instance rather than
- *  mocked up.  Not part of any tier: run it by hand with
- *  `playwright test specs/shots.spec.ts` when the interface changes. */
-
-test.skip(!process.env.NEXTTEX_SHOTS, "set NEXTTEX_SHOTS=1 to capture");
+ *  mocked up.
+ *
+ *  Outside `specs/` on purpose, so no tier picks it up: it writes files
+ *  into the repository, and it is two more browsers competing for the
+ *  machine during a run that already starts a server and a LaTeX build per
+ *  spec.  Run it by hand when the interface changes:
+ *
+ *      cd e2e && node_modules/.bin/playwright test --config shots.config.ts
+ */
 
 async function stage(tab: Page) {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
@@ -20,10 +25,16 @@ async function stage(tab: Page) {
 }
 
 for (const theme of ["light", "dark"] as const) {
-  test(`hero, ${theme}`, async ({ page, tab }) => {
-    await page.emulateMedia({ colorScheme: theme });
+  test(`hero, ${theme}`, async ({ tab }) => {
+    // The app chooses its own theme rather than following the OS, and
+    // stamps it on the root element before React renders -- so
+    // `emulateMedia` does nothing here and the light shot came out dark.
+    await tab.evaluate((wanted) => {
+      window.localStorage.setItem("nexttex.theme", wanted);
+    }, theme);
     await tab.setViewportSize({ width: 1680, height: 1000 });
+    await tab.reload();
     await stage(tab);
-    await tab.screenshot({ path: `../docs/screenshot-${theme}.png` });
+    await tab.screenshot({ path: `../../docs/screenshot-${theme}.png` });
   });
 }

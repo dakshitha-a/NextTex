@@ -113,6 +113,28 @@ claims to come from. A fabricated reference in a thesis is an academic
 integrity failure, so the defence is structural rather than a matter of care:
 there is no path from the model's memory to your `.bib` file.
 
+**Point it at a folder of papers.** `⋯` on your `.bib` file, *Add papers from
+a folder*, and NextTex walks the folder — a Zotero library, a Downloads
+folder, whatever you have — finds each paper's DOI in its own text, fetches
+that DOI's record from the publisher and appends it. Nothing is added twice:
+a DOI already in the file is counted and skipped, the same paper filed under
+two collections is one paper, and two papers that would collide on a citation
+key get different ones. A PDF whose DOI cannot be found is reported rather
+than guessed at, with a box to paste one into.
+
+The safeguard worth knowing about: a DOI printed on page one is sometimes a
+DOI the paper *cites*. So after the publisher's record comes back, its title
+is checked against the paper's own first pages, and a record that does not
+describe the paper it was found in is refused. That check is what makes
+importing two hundred papers as trustworthy as adding one by hand.
+
+This works with no agent at all — the extraction and the lookup are the
+server's job. **When there is an agent, the same papers become a library it
+can search**: it can ask what you have already read on a subject before it
+goes looking at the whole literature, and every hit is either already
+citable or one DOI away. What it gets back is labelled as quotation rather
+than instruction, because the text came out of files you downloaded.
+
 **Choose your agent, or none.** Claude, through the Claude CLI's own sign-in.
 OpenAI, with an API key. Or nothing at all — and *nothing at all* is a real
 option rather than a degraded one: the editor, the preview, the version
@@ -216,6 +238,7 @@ permission card and a GitHub backup — is in
 | `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | TinyTeX or MiKTeX, if you let it |
 | `biber` | biblatex bibliographies | yes, via `tlmgr` |
 | `chktex`, `texcount` | Linting and word counts | yes, via `tlmgr` |
+| `pdftotext` | Only for reading a folder of papers into your `.bib` | no — it comes with poppler-utils |
 | The [Claude CLI](https://claude.ai/download) | Only if you choose the Claude agent | yes, if you let it |
 | An OpenAI API key | Only if you choose the OpenAI agent | no |
 | `gh`, signed in | Only for *Back this up to GitHub* | no |
@@ -229,10 +252,12 @@ NextTex serves your own files from your own machine, and ships its own
 typefaces rather than loading them from Google, so the interface works on a
 host with no route to the internet. Three things do go out, and all three are
 things you asked for: what you send the agent goes to Anthropic or to OpenAI,
-depending on which you chose; a literature search asks Crossref, OpenAlex or
-Semantic Scholar for real DOIs; and the installer fetches TinyTeX and the
-Claude CLI if you do not already have them. There is no telemetry and no
-analytics of any kind.
+depending on which you chose; the reference tools ask Crossref, OpenAlex,
+Semantic Scholar, arXiv and `doi.org` for real records; and the installer
+fetches TinyTeX and the Claude CLI if you do not already have them. That is
+the whole list, and a test fails if a new host appears in the source without
+this paragraph changing. There is no telemetry and no analytics of any kind
+— not disabled by default, not present.
 
 The server is protected by a token printed at install time and exchanged for a
 cookie on first load. On localhost it is plain HTTP; any address another

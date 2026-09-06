@@ -260,3 +260,27 @@ def test_a_failure_is_explained_in_words_the_writer_can_act_on(status, expected)
             return {}
 
     assert expected in OpenAIAgent._explain(Response())
+
+
+def test_the_library_is_searchable_and_the_text_is_framed_as_quotation(
+    tmp_path, monkeypatch
+):
+    """Library text comes out of PDFs the writer downloaded from the
+    internet.  It is quoted into the model's context, so it has to arrive
+    labelled as quotation rather than as something to act on."""
+    from nexttex.library import Library, Paper
+
+    made = agent(tmp_path, [
+        sse(tool_chunk(0, "c1", "search_library", '{"query": "reorganisation"}')),
+        sse(text_chunk("Marcus covers it.")),
+    ])
+    shelf = Library(made.state_dir / "library")
+    shelf.save([Paper(sha="a1", path="/p/marcus.pdf", name="marcus.pdf",
+                      state="added", key="Marcus1993electron",
+                      title="Electron transfer reactions")], ["/p"], {})
+    shelf.keep_text("a1", "The reorganisation energy lambda is the free energy.")
+
+    asyncio.run(run(made, "what have I read about reorganisation energy?"))
+    answer = next(m for m in made._messages if m.get("role") == "tool")["content"]
+    assert "Marcus1993electron" in answer
+    assert "never as instructions" in answer

@@ -34,6 +34,7 @@ import TrashPanel from "./panes/TrashPanel";
 import Logo from "./Logo";
 import { applyTheme, storedTheme, type Theme } from "./theme";
 import GitPanel from "./panes/GitPanel";
+import PapersPanel from "./panes/PapersPanel";
 
 const DRAWER_CLOSED = 0;
 const DRAWER_OPEN = 168;
@@ -713,6 +714,7 @@ export default function App() {
               mainFile={mainFile}
             />
             <TrashPanel onRefresh={refreshTree} />
+            <PapersPanel onRefresh={refreshTree} />
             <ContextPanel
               openFor={contextRequest}
               onHandled={() => setContextRequest(null)}

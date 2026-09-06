@@ -43,6 +43,18 @@ export type CompileResult = {
   pdf?: string | null;
 };
 
+/** A folder-read in flight, as it reports itself on the event stream. */
+export type LibraryProgress = {
+  phase: "walking" | "reading" | "done" | "stopped" | "failed";
+  done: number;
+  total: number;
+  name: string;
+  added: number;
+  duplicate: number;
+  unidentified: number;
+  message: string;
+};
+
 export type Symbols = {
   labels: { name: string; file: string; line: number }[];
   citations: { key: string; type: string; title: string; author: string; year: string }[];
@@ -433,6 +445,39 @@ const api = {
     if (!response.ok) throw new ApiError(response.status, "upload failed");
     return response.json();
   },
+
+  /** Folders on the machine running NextTex, for picking one to read
+   *  papers out of.  Not project-scoped, because it is not about one. */
+  browse: (path: string, count = false) =>
+    request<{
+      path: string;
+      parent: string | null;
+      home: string;
+      folders: { name: string; path: string; pdfs: number }[];
+      pdfsHere: number;
+      deep: { pdfs: number; unreadable: number; capped: boolean } | null;
+    }>(`/browse?path=${encodeURIComponent(path)}&count=${count ? 1 : 0}`),
+
+  library: (id: string) =>
+    request<{
+      count: number;
+      sources: string[];
+      lastRun: { at?: number; added?: number; duplicate?: number;
+                 unidentified?: number; stopped?: boolean };
+      running: LibraryProgress | null;
+      unidentified: { sha: string; name: string; reason: string; path: string }[];
+      haveReader: boolean;
+    }>(`/projects/${id}/library`),
+  scanPapers: (id: string, path: string) =>
+    request<any>(`/projects/${id}/library/scan`, json({ path })),
+  stopPapers: (id: string) =>
+    request<any>(`/projects/${id}/library/stop`, { method: "POST" }),
+  resolvePaper: (id: string, sha: string, doi: string) =>
+    request<{ added: boolean; key?: string; reason?: string; warning?: string }>(
+      `/projects/${id}/library/resolve`, json({ sha, doi }),
+    ),
+  forgetUnidentified: (id: string) =>
+    request<any>(`/projects/${id}/library/unidentified`, { method: "DELETE" }),
 
   downloadUrl: (id: string, options: { path?: string; format?: string } = {}) => {
     const params = new URLSearchParams();

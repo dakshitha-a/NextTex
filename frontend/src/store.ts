@@ -91,6 +91,8 @@ export type State = {
   /** Which agent this instance uses, and whether it is ready.  Named
    *  `agent` rather than `claude` since there are three answers now, one
    *  of which is that there is deliberately no agent at all. */
+  /** A folder-read in flight, or the one that just finished. */
+  library: import("./api").LibraryProgress | null;
   agent: {
     provider: "claude" | "openai" | "none";
     ready: boolean;
@@ -132,6 +134,7 @@ const state: State = {
   contextDocs: [],
   contextStale: [],
   agent: null,
+  library: null,
   cursor: { line: 1, column: 1 },
   conflict: null,
   words: null,
@@ -352,6 +355,9 @@ export function disconnect() {
 
 function receive(event: any) {
   switch (event.type) {
+    case "library_scan":
+      set({ library: event as any });
+      break;
     case "compile_start":
       set({ compiling: true });
       break;
