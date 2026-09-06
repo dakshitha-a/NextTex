@@ -812,6 +812,23 @@ class ProjectAgent:
         # the insertion goes after it -- which is what "here" means when
         # somebody is sitting at the end of a paragraph.
         at = max(0, min(int(state.get("line") or len(lines)), len(lines)))
+
+        # Text after \end{document} is typeset by nothing.  A cursor left
+        # there -- which happens constantly, since it is the last line of a
+        # new project -- would otherwise produce an edit that appears to
+        # work, shows a diff, and changes no page.
+        ended = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if line.lstrip().startswith("\\end{document}")
+            ),
+            None,
+        )
+        moved = False
+        if ended is not None and at > ended:
+            at = ended
+            moved = True
         body = text if text.endswith("\n") else text + "\n"
         after = "\n".join(lines[:at]) + ("\n" if at else "") + body + "\n".join(lines[at:])
 
@@ -819,9 +836,15 @@ class ProjectAgent:
             return self._text("The editor is not connected.")
         self.apply_edit(path, after)
         self._edits.append(EditRecord("insert", self._display(path), before, after))
+        note = (
+            " Your cursor was past \\end{document}, where nothing is typeset, "
+            "so it went in just above that line instead."
+            if moved
+            else ""
+        )
         return self._text(
             f"Inserted {len(body.splitlines())} lines into {self._display(path)} "
-            f"after line {at}."
+            f"after line {at}.{note}"
         )
 
     # -- lifecycle ---------------------------------------------------------
