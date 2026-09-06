@@ -7,6 +7,8 @@ version on top, so the state you restored *from* is still there to return
 to if the restore was a mistake.
 """
 
+import json
+
 import pytest
 
 
@@ -177,3 +179,154 @@ def test_restoring_a_figure_gives_back_the_bytes_not_a_decoding_of_them(
                        json={"path": "figures/plot.png",
                              "sha": old["sha"]}).status_code == 200
     assert figure.read_bytes() == original
+
+
+def test_two_uploads_of_one_figure_in_a_minute_leave_two_versions(
+    client, opened, project_dir
+):
+    """The re-export loop: export a plot, notice the axes are wrong, export
+    again.  Both uploads are "you", both land inside the 90-second window
+    an editing burst collapses over -- so the second replacement swallowed
+    the first version and took the original figure with it, which is the
+    one version the whole feature exists to keep."""
+    figure = project_dir / "figures" / "plot.png"
+    figure.parent.mkdir(parents=True, exist_ok=True)
+    figure.write_bytes(b"\x89PNG the original")
+
+    for body in (b"\x89PNG the second export", b"\x89PNG the third export"):
+        client.post(
+            f"/api/projects/{opened['id']}/upload",
+            data={"directory": "figures"},
+            files=[("files", ("plot.png", body, "image/png"))],
+        )
+
+    versions = client.get(f"/api/projects/{opened['id']}/history",
+                          params={"path": "figures/plot.png"}).json()["versions"]
+    kept = [
+        client.get(f"/api/projects/{opened['id']}/history/blob",
+                   params={"path": "figures/plot.png", "sha": v["sha"]})
+        for v in versions
+    ]
+    assert len(versions) == 2, f"{len(versions)} version(s); the original was eaten"
+
+
+def upload(client, project_id, name, body, *, policy=None, directory="figures"):
+    data = {"directory": directory}
+    if policy is not None:
+        data["policy"] = json.dumps(policy)
+    return client.post(
+        f"/api/projects/{project_id}/upload",
+        data=data,
+        files=[("files", (name, body, "image/png"))],
+    ).json()
+
+
+def test_keeping_both_writes_the_name_the_chooser_promised(client, opened, project_dir):
+    """The popover tells the writer "the new one comes in as plot (2).png"
+    before anything is written, so the server has to actually call it that.
+    One naming rule, shared with the trash, is how that stays true."""
+    (project_dir / "figures").mkdir(parents=True, exist_ok=True)
+    (project_dir / "figures" / "plot.png").write_bytes(b"the original")
+
+    body = upload(client, opened["id"], "plot.png", b"the new one",
+                  policy={"plot.png": "keep-both"})
+    assert body["results"][0]["outcome"] == "renamed"
+    assert body["results"][0]["renamedTo"] == "plot (2).png"
+    assert (project_dir / "figures" / "plot (2).png").read_bytes() == b"the new one"
+    assert (project_dir / "figures" / "plot.png").read_bytes() == b"the original"
+
+
+def test_skipping_writes_nothing_at_all(client, opened, project_dir):
+    (project_dir / "figures").mkdir(parents=True, exist_ok=True)
+    (project_dir / "figures" / "plot.png").write_bytes(b"the original")
+
+    body = upload(client, opened["id"], "plot.png", b"ignored",
+                  policy={"plot.png": "skip"})
+    assert body["results"][0]["outcome"] == "skipped"
+    assert body["written"] == []
+    assert (project_dir / "figures" / "plot.png").read_bytes() == b"the original"
+
+
+def test_an_unlisted_file_replaces_because_that_is_what_a_drop_has_always_done(
+    client, opened, project_dir
+):
+    (project_dir / "figures").mkdir(parents=True, exist_ok=True)
+    (project_dir / "figures" / "plot.png").write_bytes(b"the original")
+    body = upload(client, opened["id"], "plot.png", b"the new one", policy={})
+    assert body["results"][0]["outcome"] == "replaced"
+    assert (project_dir / "figures" / "plot.png").read_bytes() == b"the new one"
+
+
+def test_a_nonsense_policy_is_ignored_rather_than_fatal(client, opened, project_dir):
+    (project_dir / "figures").mkdir(parents=True, exist_ok=True)
+    answer = client.post(
+        f"/api/projects/{opened['id']}/upload",
+        data={"directory": "figures", "policy": "{not json"},
+        files=[("files", ("plot.png", b"x", "image/png"))],
+    )
+    assert answer.status_code == 200
+
+
+def test_an_upload_cannot_climb_out_of_the_project(client, opened, project_dir):
+    answer = client.post(
+        f"/api/projects/{opened['id']}/upload",
+        data={"directory": "figures"},
+        files=[("files", ("../../escaped.png", b"x", "image/png"))],
+    )
+    assert answer.status_code == 200
+    assert not (project_dir.parent / "escaped.png").exists()
+    assert (project_dir / "figures" / "escaped.png").exists()
+
+
+def test_a_figures_old_version_can_be_fetched_as_the_bytes_it_was(
+    client, opened, project_dir
+):
+    """A figure's history is unreachable through the text form: `content`
+    decodes with errors="replace", so an old PNG comes back as a string of
+    replacement characters.  The panel's thumbnails need the real bytes."""
+    figure = project_dir / "figures" / "plot.png"
+    figure.parent.mkdir(parents=True, exist_ok=True)
+    original = b"\x89PNG\r\n\x1a\n" + bytes(range(256))
+    figure.write_bytes(original)
+    upload(client, opened["id"], "plot.png", b"\x89PNG the new one")
+
+    old = client.get(f"/api/projects/{opened['id']}/history",
+                     params={"path": "figures/plot.png"}).json()["versions"][-1]
+    answer = client.get(f"/api/projects/{opened['id']}/history/blob",
+                        params={"path": "figures/plot.png", "sha": old["sha"],
+                                "raw": True})
+    assert answer.status_code == 200
+    assert answer.content == original
+    assert answer.headers["content-type"].startswith("image/png")
+    # A sha names one set of bytes for ever, so the panel fetches each
+    # thumbnail once however often it is reopened.
+    assert "immutable" in answer.headers["cache-control"]
+
+
+def test_downloading_a_version_offers_it_under_the_files_own_name(client, opened,
+                                                                  project_dir):
+    figure = project_dir / "figures" / "plot.png"
+    figure.parent.mkdir(parents=True, exist_ok=True)
+    figure.write_bytes(b"\x89PNG the original")
+    upload(client, opened["id"], "plot.png", b"\x89PNG the new one")
+
+    old = client.get(f"/api/projects/{opened['id']}/history",
+                     params={"path": "figures/plot.png"}).json()["versions"][-1]
+    answer = client.get(f"/api/projects/{opened['id']}/history/blob",
+                        params={"path": "figures/plot.png", "sha": old["sha"],
+                                "download": True})
+    assert 'attachment; filename="plot.png"' in answer.headers["content-disposition"]
+
+
+def test_raw_will_not_serve_a_version_of_another_file(client, opened, project_dir):
+    """A sha is not a capability: it only reads inside the file it belongs
+    to, and that has to hold for the bytes form as well as the text one."""
+    (project_dir / "secret.tex").write_text("confidential", encoding="utf-8")
+    client.put(f"/api/projects/{opened['id']}/file",
+               json={"path": "secret.tex", "text": "confidential and changed",
+                     "compile": False})
+    sha = client.get(f"/api/projects/{opened['id']}/history",
+                     params={"path": "secret.tex"}).json()["versions"][0]["sha"]
+    answer = client.get(f"/api/projects/{opened['id']}/history/blob",
+                        params={"path": "main.tex", "sha": sha, "raw": True})
+    assert answer.status_code == 404
