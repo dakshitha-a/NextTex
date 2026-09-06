@@ -37,6 +37,57 @@ test("the files that were open are open again, with the same one in front", asyn
   await expect(tab.locator(".cm-content")).toContainText("@book{knuth1984");
 });
 
+test("a strip of three comes back whole", async ({ app, project, tab }) => {
+  // More than two, because the restore adds the tabs in one go and opens
+  // only the file that was in front -- with two open, a bug that dropped
+  // every tab but the last would still look right.
+  await fetch(`${app.base}/api/projects/${project.id}/file`, {
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+      "x-nexttex-token": app.token,
+    },
+    body: JSON.stringify({
+      path: "notes.tex",
+      text: "% notes to myself\n",
+      compile: false,
+      create: true,
+    }),
+  });
+  await tab.getByText("notes.tex").first().click({ timeout: 15_000 });
+  await tab.getByText("references.bib").first().click();
+  await expect(tab.locator(".cm-content")).toContainText("@book{knuth1984", {
+    timeout: 15_000,
+  });
+
+  // Put the middle one in front, so the order and the active tab are two
+  // separate claims.
+  await tab.locator('[data-tab][data-path="notes.tex"] button').first().click();
+  await expect(tab.locator(".cm-content")).toContainText("notes to myself");
+
+  await tab.reload();
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 20_000 });
+  await expect(tab.locator("[data-tab]")).toHaveCount(3, { timeout: 15_000 });
+  // In the order they were left in.  Adding the active one last moved
+  // whatever was being worked on to the far right on every reload.
+  expect(
+    await tab.locator("[data-tab]").evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute("data-path")),
+    ),
+  ).toEqual(["main.tex", "notes.tex", "references.bib"]);
+  await expect(
+    tab.locator('[data-tab][data-path="notes.tex"] button[aria-current]'),
+  ).toBeVisible();
+
+  // A tab that was not in front is a name until it is clicked: no buffer
+  // was read for it, and clicking it reads one now.
+  await tab
+    .locator('[data-tab][data-path="references.bib"] button')
+    .first()
+    .click();
+  await expect(tab.locator(".cm-content")).toContainText("@book{knuth1984");
+});
+
 test("leaving for the project list is remembered too", async ({ tab }) => {
   await tab.getByTestId("switch-project").click();
   await expect(tab.locator(".cm-editor")).toHaveCount(0);

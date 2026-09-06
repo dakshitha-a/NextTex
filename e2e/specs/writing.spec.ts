@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
+import { watchEvents } from "../events";
 
 /** The loop the whole app exists for: type, see it typeset, click back. */
 
@@ -55,20 +56,46 @@ test("a mistake is marked in the margin, and the drawer stays shut", async ({
   expect(await tab.locator("[data-drawer-open]").count()).toBe(0);
 });
 
-test("an unbalanced equation does not trigger a build while it is unbalanced", async ({
-  tab,
+test("an unbalanced equation holds the build back until it is finished", async ({
+  app, project, tab,
 }) => {
-  let builds = 0;
-  tab.on("request", (r) => {
-    if (r.url().includes("/compile")) builds += 1;
-  });
+  // A build fired mid-equation typesets a document with an unclosed $, so
+  // the writer gets a screenful of errors about the sentence they are in
+  // the middle of writing.  The debounce stretches from 1.6s to 4.0s until
+  // the maths balances again.
+  const status = tab.getByTestId("status");
+  await expect
+    .poll(async () => (await status.getAttribute("data-state")) !== "compiling",
+          { timeout: 45_000 })
+    .toBe(true);
+
+  // Inside the body, and it matters: `mid_construct` looks only between
+  // \begin{document} and \end{document}, because a package's braces in the
+  // preamble are not somebody's unfinished sentence.  Clicking the editor
+  // and typing lands in whatever is on screen, which is the preamble.
   await tab.locator(".cm-content").click();
-  await tab.keyboard.type("\nHalf an equation: $x = ");
-  // Under the ordinary debounce, past the unsettled one.
-  await tab.waitForTimeout(2_500);
-  const halfway = builds;
-  await tab.waitForTimeout(3_000);
-  expect(halfway).toBeLessThanOrEqual(builds);
+  await tab.keyboard.press("Control+End");
+  await tab.getByText("What the results mean").click();
+  await tab.keyboard.press("End");
+
+  const events = await watchEvents(app, project.id);
+  try {
+    await tab.keyboard.type("\nHalf an equation: $x = ");
+    // Past the ordinary debounce, well short of the unsettled one.
+    await tab.waitForTimeout(2_500);
+    expect(
+      events.count("compile_start"),
+      "a build started while the maths was still half-written",
+    ).toBe(0);
+
+    // Close it, and the ordinary debounce applies again.
+    await tab.keyboard.type("1$");
+    await expect
+      .poll(() => events.count("compile_start"), { timeout: 15_000 })
+      .toBeGreaterThan(0);
+  } finally {
+    events.stop();
+  }
 });
 
 test("find and replace opens on the first press", async ({ tab }) => {

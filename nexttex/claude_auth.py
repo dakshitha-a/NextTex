@@ -60,6 +60,14 @@ _current: _Login | None = None
 
 
 def _claude() -> str | None:
+    # A test points this at a stand-in that answers `auth status` and `auth
+    # login` predictably.  Everything else about the sign-in -- the
+    # pseudo-terminal, the pump, the URL it finds, the `done` it ends with
+    # -- then runs exactly as it does in earnest, which is the only way the
+    # seam between the two halves is worth testing at all.
+    stand_in = os.environ.get("NEXTTEX_CLAUDE_BINARY", "")
+    if stand_in:
+        return stand_in if os.path.exists(stand_in) else None
     return shutil.which("claude") or (
         str(p) if (p := os.path.expanduser("~/.local/bin/claude")) and os.path.exists(p) else None
     )

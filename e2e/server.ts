@@ -24,6 +24,9 @@ export type Instance = {
   base: string;
   token: string;
   projects: string;
+  /** The temporary directory holding this instance's state, for a test
+   *  that needs to put a file where the server can see it. */
+  sandbox: string;
   stop(): Promise<void>;
 };
 
@@ -33,7 +36,12 @@ export type Instance = {
  *  and XDG_CONFIG_HOME are redirected, and the config file is written
  *  before the server starts so the token is known rather than scraped out
  *  of a log line. */
-export async function startServer(): Promise<Instance> {
+export async function startServer(
+  /** Overrides for the server's environment.  An empty value unsets the
+   *  variable, which is how the sign-in spec gets a server that has *not*
+   *  been told to pretend somebody is already signed in. */
+  overrides: Record<string, string> = {},
+): Promise<Instance> {
   const sandbox = mkdtempSync(join(tmpdir(), "nexttex-e2e-"));
   const data = join(sandbox, "data");
   const config = join(sandbox, "config");
@@ -48,22 +56,24 @@ export async function startServer(): Promise<Instance> {
     JSON.stringify({ port, localhost: true, tailscale: false, token, model: "" }),
   );
 
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    XDG_DATA_HOME: data,
+    XDG_CONFIG_HOME: config,
+    // Deterministic, offline, instant.  The real agent needs an account
+    // and answers differently every time.
+    NEXTTEX_SCRIPTED_AGENT: "reply",
+    NEXTTEX_FAKE_CLAUDE_AUTH: "1",
+    ...overrides,
+  };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === "") delete env[key];
+  }
+
   const child: ChildProcess = spawn(
     join(ROOT, ".venv", "bin", "python"),
     ["-m", "server.run"],
-    {
-      cwd: ROOT,
-      env: {
-        ...process.env,
-        XDG_DATA_HOME: data,
-        XDG_CONFIG_HOME: config,
-        // Deterministic, offline, instant.  The real agent needs an account
-        // and answers differently every time.
-        NEXTTEX_SCRIPTED_AGENT: "reply",
-        NEXTTEX_FAKE_CLAUDE_AUTH: "1",
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
+    { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] },
   );
   let log = "";
   child.stdout?.on("data", (chunk) => (log += chunk));
@@ -91,6 +101,7 @@ export async function startServer(): Promise<Instance> {
     base,
     token,
     projects,
+    sandbox,
     async stop() {
       child.kill("SIGTERM");
       await new Promise((resolve) => setTimeout(resolve, 400));

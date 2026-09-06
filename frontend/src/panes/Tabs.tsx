@@ -85,6 +85,7 @@ export default function Tabs({
             key={tab.path}
             data-tab="1"
             data-path={tab.path}
+            data-dirty={tab.dirty ? "1" : "0"}
             className={[
               "relative flex min-w-[96px] max-w-[200px] shrink-0 items-center gap-2 border-r border-line pr-[10px]",
               active

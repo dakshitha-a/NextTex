@@ -222,11 +222,23 @@ export default function App() {
     }
     const main = project.main ?? "main.tex";
     const inTree = new Set(pathsIn(project.tree));
-    const wanted = reopened.filter((path) => inTree.has(path));
-    for (const path of wanted) {
-      if (path !== front) await openFile(path).catch(() => undefined);
-    }
-    openFile(inTree.has(front) ? front : main).catch(() => undefined);
+    const active = inTree.has(front) ? front : main;
+    // The strip comes back whole and in the order it was left in -- adding
+    // the tabs one at a time and the active one last reordered the strip
+    // under the writer on every reload, moving whatever they were working
+    // on to the far right.
+    //
+    // Only the file in front is read.  A tab is a name until it is clicked;
+    // its buffer is fetched then.  This used to loop over `openFile`, which
+    // reads as though it loaded each one -- it does not, and could not:
+    // `pendingOpen` holds a single file and the editor consumes it once per
+    // render, so all but the last were overwritten before anything saw
+    // them.  Six remembered tabs must not cost six reads before the window
+    // can be used, so say what happens.
+    const strip = reopened.filter((path) => inTree.has(path));
+    if (!strip.includes(active)) strip.push(active);
+    set({ tabs: strip.map((path) => ({ path, dirty: false })) });
+    openFile(active).catch(() => undefined);
     api.compile(id).catch(() => undefined);
   }, []);
   openProjectRef.current = openProject;

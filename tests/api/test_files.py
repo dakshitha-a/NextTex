@@ -168,3 +168,30 @@ def test_history_follows_a_file_across_a_rename(client, opened):
     assert versions
     assert client.get(f"/api/projects/{opened['id']}/history",
                       params={"path": "main.tex"}).json()["versions"] == []
+
+
+def test_creating_a_file_tells_the_other_tabs_a_name_appeared(client, opened):
+    """An ordinary save is not structural -- nothing appeared, so the other
+    windows reload that one file rather than walking the whole tree.  A
+    *creation* is, and calling it otherwise left the new file missing from
+    every open tab's tree until somebody reloaded the page."""
+    from conftest import server_main
+
+    session = server_main.SESSIONS[opened["id"]]
+    seen = []
+    original = session.events.publish
+
+    async def spy(event):
+        seen.append(event)
+        await original(event)
+
+    session.events.publish = spy
+    try:
+        client.put(f"/api/projects/{opened['id']}/file",
+                   json={"path": "notes.tex", "text": "new\n",
+                         "compile": False, "create": True})
+    finally:
+        session.events.publish = original
+
+    told = [e for e in seen if e["type"] == "files_changed"]
+    assert told and told[-1]["structural"] is True
