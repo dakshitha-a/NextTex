@@ -124,3 +124,76 @@ test("emptying the trash asks before it destroys anything", async ({ tab }) => {
   await entry.getByRole("button", { name: "Keep" }).click();
   await expect(entry).toBeVisible();
 });
+
+test("naming a version makes it findable later", async ({ tab }) => {
+  // The one thing that turns a wall of timestamps into something a writer
+  // can navigate: "the version that went to the committee".
+  await typeAndSave(tab, "the version that went to the committee");
+  await openHistory(tab);
+
+  const row = tab.getByTestId("version").first();
+  await row.hover();
+  await row.getByRole("button", { name: /name it/i }).click();
+  await tab.keyboard.type("sent to the committee");
+  await tab.keyboard.press("Enter");
+
+  await expect(tab.getByText("sent to the committee")).toBeVisible({
+    timeout: 10_000,
+  });
+  // And it survives being reopened, because it is on disk rather than in
+  // the panel's state.
+  await tab.reload();
+  await openHistory(tab);
+  await expect(tab.getByText("sent to the committee")).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
+test("the panel marks what an old version had that the file no longer does",
+  async ({ tab }) => {
+    await typeAndSave(tab, "something else entirely");
+    await openHistory(tab);
+
+    // The comparison only means anything against a particular version, so
+    // the control lives on the strip that says which one is being read.
+    // The oldest is the file as it stood before NextTex ever opened it.
+    await tab.getByTestId("version").last().click();
+    await expect(tab.getByText(/viewing/i).first()).toBeVisible();
+    await expect(tab.locator(".cm-version-changed")).toHaveCount(0);
+
+    await tab.getByRole("button", { name: /show what's gone/i }).click();
+    // Marked in place, in the paragraph it happened to, rather than shown
+    // in a pane of its own -- which is the difference between reading a
+    // change and reading a diff.
+    await expect(tab.locator(".cm-version-changed").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await tab.getByRole("button", { name: /hide what's gone/i }).click();
+    await expect(tab.locator(".cm-version-changed")).toHaveCount(0);
+  });
+
+test("purging asks once, and then really destroys it", async ({
+  app, project, tab,
+}) => {
+  await tab.getByLabel("Actions for references.bib").click();
+  await tab.getByRole("button", { name: "Move to trash" }).click();
+  await tab.getByRole("button", { name: /deleted/ }).click();
+
+  const entry = tab.getByTestId("trash-entry").first();
+  await expect(entry).toBeVisible({ timeout: 10_000 });
+  await entry.hover();
+  await entry.getByRole("button", { name: "Delete" }).click();
+  await expect(entry.getByText("For good?")).toBeVisible();
+  await entry.getByRole("button", { name: "Delete" }).click();
+
+  await expect(tab.getByTestId("trash-entry")).toHaveCount(0, {
+    timeout: 10_000,
+  });
+  // Gone from the server too, not just from the panel.
+  const trash = await fetch(
+    `${app.base}/api/projects/${project.id}/trash`,
+    { headers: { "x-nexttex-token": app.token } },
+  ).then((r) => r.json());
+  expect(trash.entries ?? []).toHaveLength(0);
+});

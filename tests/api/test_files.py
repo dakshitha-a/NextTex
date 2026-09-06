@@ -213,3 +213,45 @@ def test_lint_will_not_read_outside_the_project(client, opened):
     answer = client.get(f"/api/projects/{opened['id']}/lint",
                         params={"path": "../../etc/passwd"})
     assert answer.status_code in (400, 403)
+
+
+def test_lint_reports_what_chktex_finds(client, opened, project_dir):
+    """The rules in `.chktexrc` are load-bearing, and were inert for the
+    whole life of the file: it used a `WarnOff` keyword chktex has never
+    had, so chktex refused to start, wrote one line to stderr, and the app
+    read its empty stdout as "nothing to report".  Linting looked like a
+    feature with nothing to say."""
+    (project_dir / "rough.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "A sentence with a space before punctuation , like that.\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    body = client.get(f"/api/projects/{opened['id']}/lint",
+                      params={"path": "rough.tex"}).json()
+    messages = [item["message"] for item in body["diagnostics"]]
+    assert any("punctuation" in message for message in messages), messages
+    # One finding per line, not one blob: the format string carries a real
+    # newline, and every diagnostic needs its own line and column.
+    assert all(item["line"] and "\n" not in item["message"]
+               for item in body["diagnostics"])
+
+
+def test_lint_honours_the_projects_own_suppressions(client, opened, project_dir):
+    """Warning 11 -- "you should use \\ldots" -- is style rather than
+    correctness, and is switched off on purpose.  It is the cheapest proof
+    that the rc file is being read at all."""
+    (project_dir / "dots.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "A sentence trailing off ... and a space before punctuation , here.\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    body = client.get(f"/api/projects/{opened['id']}/lint",
+                      params={"path": "dots.tex"}).json()
+    messages = [item["message"] for item in body["diagnostics"]]
+    # chktex ran and had something to say about this line...
+    assert any("punctuation" in message for message in messages), messages
+    # ...and what it chose not to say is the suppression working, rather
+    # than chktex having failed to start.
+    assert not any("ldots" in message for message in messages), messages

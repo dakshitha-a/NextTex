@@ -86,6 +86,11 @@ export default function History({
                 }`}
                 onClick={() => onView(selected ? null : version.sha)}
                 onKeyDown={(event) => {
+                  // Only keys aimed at the row itself.  The naming input is
+                  // a child of it, so without this every space typed into a
+                  // name was swallowed by the row's own Space handler --
+                  // and toggled the version being viewed on the way past.
+                  if (event.target !== event.currentTarget) return;
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onView(selected ? null : version.sha);
