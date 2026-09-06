@@ -831,6 +831,18 @@ screen saying so. "Open" is what a user does to a window, not a
 precondition the server keeps: `session_for` opens a registered project on
 demand, and only the open route marks one as recently opened.
 
+**The preview zooms with the wheel and with a pinch.** Ctrl with the wheel,
+or two fingers on a trackpad, which every browser reports as a wheel event
+with `ctrlKey` set. Two things make it more than ten lines. The listener has
+to be a native, non-passive one: React registers `wheel` passively on its
+root, so `preventDefault` inside `onWheel` is ignored and the browser zooms
+the whole application instead of the document. And a gesture must not
+relayout the document sixty times a second — each page is a canvas sized by
+its container, so the handler resizes the containers, which rescales what is
+already drawn at the right scroll extents, and the crisp redraw runs once,
+140 ms after the gesture stops. The point under the pointer stays under the
+pointer, and the range is the one the zoom buttons already offered.
+
 **A file created through the API never appeared in the tree.** A save
 broadcasts `structural: False` so that a keystroke burst in one window does
 not cost every other window a full tree request. Creating a file went

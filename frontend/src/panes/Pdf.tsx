@@ -12,6 +12,15 @@ const RESOLUTION = Math.min(window.devicePixelRatio || 1, 2);
 /** How far outside the viewport a page is still worth drawing. */
 const NEAR = 400;
 
+/** The range the zoom controls and the wheel share, so a pinch cannot
+ *  reach a scale the buttons will not admit to. */
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 3;
+
+/** How long after the last wheel event the crisp redraw runs.  Short
+ *  enough to feel immediate, long enough that one pinch is one redraw. */
+const ZOOM_SETTLE = 140;
+
 export type PdfHandle = {
   reveal(path: string, line: number): Promise<boolean>;
 };
@@ -54,6 +63,10 @@ export default function Pdf({
   const [scale, setScale] = useState(0);
   const [fitScale, setFitScale] = useState(1);
   const [pageFitScale, setPageFitScale] = useState(1);
+  // What the footer shows mid-gesture.  The committed `scale` only catches
+  // up when the pinch stops, and a percentage frozen at the old number for
+  // the whole gesture reads as though the zoom is not working.
+  const [zoomLabel, setZoomLabel] = useState<number | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [current, setCurrent] = useState(1);
   const [missing, setMissing] = useState(false);
@@ -352,6 +365,71 @@ export default function Pdf({
     };
   }, [drawVisible, scale]);
 
+  // ---- zooming with the wheel or a trackpad -----------------------------
+  // A reader zooms a page the way they zoom everything else: ctrl with the
+  // wheel, or a pinch on a trackpad -- which every browser delivers as a
+  // wheel event with `ctrlKey` set.  Two things make this worth more than
+  // ten lines.
+  //
+  // The listener has to be a native one.  React registers `wheel` passively
+  // on its root, so `preventDefault` inside `onWheel` is ignored and the
+  // browser zooms the whole application instead of the document.
+  //
+  // And the gesture must not relayout the document sixty times a second.
+  // Each page is a canvas sized by its container, so resizing the
+  // containers rescales what is already drawn -- instantly, at the right
+  // scroll extents, slightly soft.  The crisp redraw happens once, when the
+  // gesture stops.
+  const liveScale = useRef(0);
+  const commit = useRef(0);
+  useEffect(() => {
+    const root = scroller.current;
+    if (!root) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      const from = liveScale.current || drawn.current || 1;
+      // A trackpad reports pixels; a wheel may report lines or pages.
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 100 : 1;
+      const next = Math.min(
+        MAX_ZOOM,
+        Math.max(MIN_ZOOM, +(from * Math.exp(-event.deltaY * unit * 0.002)).toFixed(3)),
+      );
+      if (next === from) return;
+      liveScale.current = next;
+
+      // Keep what is under the pointer under the pointer.  Sizes come from
+      // each page's committed scale rather than the last frame's, so a long
+      // gesture cannot drift by accumulating rounding.
+      for (const view of pages.current) {
+        if (!view.scale) continue;
+        view.container.style.width = `${Math.floor((view.width / view.scale) * next)}px`;
+        view.container.style.height = `${Math.floor((view.height / view.scale) * next)}px`;
+      }
+      const box = root.getBoundingClientRect();
+      const offsetX = event.clientX - box.left;
+      const offsetY = event.clientY - box.top;
+      const ratio = next / from;
+      root.scrollLeft = (root.scrollLeft + offsetX) * ratio - offsetX;
+      root.scrollTop = (root.scrollTop + offsetY) * ratio - offsetY;
+
+      setZoomLabel(next);
+      window.clearTimeout(commit.current);
+      commit.current = window.setTimeout(() => {
+        liveScale.current = 0;
+        setZoomLabel(null);
+        setScale(next);
+      }, ZOOM_SETTLE);
+    };
+
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      root.removeEventListener("wheel", onWheel);
+      window.clearTimeout(commit.current);
+    };
+  }, []);
+
   // ---- SyncTeX ----------------------------------------------------------
   const onDoubleClick = useCallback(
     async (event: React.MouseEvent) => {
@@ -522,21 +600,26 @@ export default function Pdf({
           className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
           onClick={() =>
             setScale((value) =>
-              Math.max(0.25, +((value === -1 ? pageFitScale : value || fitScale) - 0.15).toFixed(2)),
+              Math.max(MIN_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) - 0.15).toFixed(2)),
             )
           }
           aria-label="Zoom out"
         >
           −
         </button>
-        <span className="t-micro tnum w-[38px] text-center text-ink-3">
-          {Math.round((scale === -1 ? pageFitScale : scale || fitScale) * 100)}%
+        <span
+          className="t-micro tnum w-[38px] text-center text-ink-3"
+          data-testid="zoom"
+        >
+          {Math.round(
+            (zoomLabel ?? (scale === -1 ? pageFitScale : scale || fitScale)) * 100,
+          )}%
         </span>
         <button
           className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
           onClick={() =>
             setScale((value) =>
-              Math.min(3, +((value === -1 ? pageFitScale : value || fitScale) + 0.15).toFixed(2)),
+              Math.min(MAX_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) + 0.15).toFixed(2)),
             )
           }
           aria-label="Zoom in"
