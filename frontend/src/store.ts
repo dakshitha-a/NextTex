@@ -93,6 +93,9 @@ export type State = {
    *  of which is that there is deliberately no agent at all. */
   /** A folder-read in flight, or the one that just finished. */
   library: import("./api").LibraryProgress | null;
+  /** Set only on an install started with `--instance`: a second NextTex
+   *  on the same machine, which has to be tellable from the first. */
+  instance: string;
   agent: {
     provider: "claude" | "openai" | "none";
     ready: boolean;
@@ -131,6 +134,7 @@ const state: State = {
   thinking: false,
   awaitingPermission: false,
   git: null,
+  instance: "",
   contextDocs: [],
   contextStale: [],
   agent: null,

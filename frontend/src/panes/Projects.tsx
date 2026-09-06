@@ -3,6 +3,7 @@ import api, { saveBlob, startDownload, type ProjectSummary } from "../api";
 import Logo from "../Logo";
 import Appearance from "./Appearance";
 import UpdateFooter from "./UpdateFooter";
+import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
 import { useStore } from "../store";
 
@@ -101,6 +102,7 @@ export default function Projects({
             <h1 className="t-display flex items-center gap-3">
               <Logo size={26} />
               NextTex
+              <InstanceBadge />
             </h1>
             <p className="t-meta mt-1 text-ink-2">{tagline}</p>
           </div>
