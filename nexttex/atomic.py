@@ -68,3 +68,26 @@ def read_bytes(target: Path) -> bytes | None:
         return target.read_bytes()
     except OSError:
         return None
+
+
+def unique_name(target: Path, tag: str = "") -> Path:
+    """A path beside `target` that nothing occupies yet.
+
+    One rule, in one place, because the string it produces is quoted back
+    to the user before the file is written -- the upload chooser says "the
+    new one comes in as plot (2).png" and then the server has to actually
+    call it that.  Two implementations of this would drift, and the drift
+    would be a sentence that lies.
+
+    `tag` names why the copy exists: the trash restores as
+    `plot (restored).png`, an upload that keeps both writes `plot (2).png`.
+    """
+    stem, suffix = target.stem, target.suffix
+    inside = f" ({tag})" if tag else " (2)"
+    candidate = target.with_name(f"{stem}{inside}{suffix}")
+    index = 2 if tag else 3
+    while candidate.exists():
+        inside = f" ({tag} {index})" if tag else f" ({index})"
+        candidate = target.with_name(f"{stem}{inside}{suffix}")
+        index += 1
+    return candidate

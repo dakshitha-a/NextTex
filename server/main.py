@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import mimetypes
 import secrets
 import shutil
@@ -28,7 +29,9 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 
 from nexttex import claude_auth, gitrepo, synctex
-from nexttex.atomic import NotAFile, read_bytes, read_text, write_atomically
+from nexttex.atomic import (
+    NotAFile, read_bytes, read_text, unique_name, write_atomically,
+)
 from nexttex.compile import CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
 from nexttex.context import KINDS
@@ -605,9 +608,36 @@ async def file_history(project_id: str, path: str):
 
 
 @app.get("/api/projects/{project_id}/history/blob")
-async def history_blob(project_id: str, path: str, sha: str):
+async def history_blob(
+    project_id: str, path: str, sha: str, raw: bool = False, download: bool = False
+):
+    """One version, as text for the editor or as bytes for everything else.
+
+    A figure's history is unreachable through the text form: `content`
+    decodes with errors="replace", so an old PNG comes back as a string of
+    replacement characters.  `raw=1` serves the stored bytes with the
+    file's own media type, which is what the History panel's thumbnails
+    and its Download both ask for.
+    """
     session = session_for(project_id)
     _safe(session, path)
+    if raw or download:
+        data = session.history.bytes_of(path, sha)
+        if data is None:
+            raise HTTPException(404, "that version is no longer stored")
+        name = Path(path).name
+        disposition = "attachment" if download else "inline"
+        return Response(
+            content=data,
+            media_type=mimetypes.guess_type(name)[0] or "application/octet-stream",
+            headers={
+                "content-disposition": f'{disposition}; filename="{name}"',
+                # The URL names a sha, so these bytes can never be different
+                # bytes.  Twenty thumbnails in the panel cost one fetch each,
+                # once, however often the panel is reopened.
+                "cache-control": "private, max-age=31536000, immutable",
+            },
+        )
     text = session.history.content(path, sha)
     if text is None:
         raise HTTPException(404, "that version is no longer stored")
@@ -662,38 +692,96 @@ async def history_timeline(project_id: str, limit: int = 80):
 
 
 @app.post("/api/projects/{project_id}/upload")
-async def upload(project_id: str, directory: str = Form(""), files: list[UploadFile] = File(...)):
+async def upload(
+    project_id: str,
+    directory: str = Form(""),
+    policy: str = Form(""),
+    files: list[UploadFile] = File(...),
+):
+    """Put files into the project, saying what happened to each.
+
+    `policy` is a JSON object naming what to do about a file that is
+    already there: {"plot.png": "replace" | "keep-both" | "skip"}.  The
+    browser decides from the tree it already has, so the common upload
+    costs no round trip to find out there is nothing to ask about -- but
+    the tree can be stale, so the decision travels with the request and
+    this is where it is enforced.  Anything unlisted replaces, which is
+    what dropping a file on a folder has always done.
+    """
     session = session_for(project_id)
     destination = _safe(session, directory) if directory else session.project.root
+    if destination.exists() and not destination.is_dir():
+        raise HTTPException(400, "that is a file, not a folder")
     destination.mkdir(parents=True, exist_ok=True)
-    written = []
+
+    try:
+        wanted = json.loads(policy) if policy else {}
+    except json.JSONDecodeError:
+        wanted = {}
+    if not isinstance(wanted, dict):
+        wanted = {}
+
+    written: list[str] = []
+    results: list[dict] = []
     for item in files:
         # The name is taken apart, never trusted: an upload called
         # "../../.bashrc" lands in this directory like anything else.
         name = Path(item.filename or "upload").name
         target = destination / name
+        choice = str(wanted.get(name, "replace"))
+
+        if target.exists() and choice == "skip":
+            results.append({"name": name, "path": "", "outcome": "skipped"})
+            continue
+
+        outcome = "written"
+        renamed_to = ""
         if target.is_file():
-            # An upload of the same name is a replacement; the old one is
-            # still worth being able to get back.  Bytes, not text: this
-            # read the file as UTF-8 and swallowed the UnicodeDecodeError,
-            # so replacing a figure -- which is most of what gets uploaded
-            # -- destroyed the previous one with no version, no trash entry
-            # and nothing said.  The blob store never had trouble with
-            # arbitrary bytes; only this line did.
-            try:
-                session.record_version(
-                    target, target.read_bytes(),
-                    by="you", why="replaced by an upload",
-                )
-            except OSError:
-                pass
+            if choice == "keep-both":
+                target = unique_name(target)
+                renamed_to = target.name
+                outcome = "renamed"
+            else:
+                # An upload of the same name is a replacement; the old one
+                # is still worth being able to get back.  Bytes, not text:
+                # this read the file as UTF-8 and swallowed the
+                # UnicodeDecodeError, so replacing a figure -- which is
+                # most of what gets uploaded -- destroyed the previous one
+                # with no version, no trash entry and nothing said.  The
+                # blob store never had trouble with arbitrary bytes; only
+                # this line did.  `op="replace"` keeps two exports a minute
+                # apart from collapsing into one version and losing the
+                # original, which is the version this is all for.
+                try:
+                    session.record_version(
+                        target, target.read_bytes(),
+                        by="you", why="replaced by an upload", op="replace",
+                    )
+                except OSError:
+                    pass
+                outcome = "replaced"
+        elif target.exists():
+            raise HTTPException(409, f"{name} is a folder")
+
         temp = target.with_name(target.name + ".part")
         with temp.open("wb") as handle:
             while chunk := await item.read(1 << 20):
                 handle.write(chunk)
         temp.replace(target)
-        written.append(session.project.relative(target))
-    return {"written": written}
+        session.mark_written(target)
+        relative = session.project.relative(target)
+        written.append(relative)
+        results.append({
+            "name": name, "path": relative, "outcome": outcome,
+            **({"renamedTo": renamed_to} if renamed_to else {}),
+        })
+
+    if written:
+        session.schedule_compile()
+        await session.events.publish({
+            "type": "files_changed", "paths": written, "structural": True,
+        })
+    return {"written": written, "results": results}
 
 
 # ---------------------------------------------------------------------------

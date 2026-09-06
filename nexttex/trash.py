@@ -28,7 +28,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .atomic import write_atomically
+from .atomic import unique_name, write_atomically
 from .history import History
 
 # Names that are never carried into the trash: they are regenerated, and
@@ -306,10 +306,4 @@ class Trash:
 
     @staticmethod
     def _free_name(target: Path) -> Path:
-        stem, suffix = target.stem, target.suffix
-        candidate = target.with_name(f"{stem} (restored){suffix}")
-        index = 2
-        while candidate.exists():
-            candidate = target.with_name(f"{stem} (restored {index}){suffix}")
-            index += 1
-        return candidate
+        return unique_name(target, "restored")

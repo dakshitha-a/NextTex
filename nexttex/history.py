@@ -362,7 +362,7 @@ class History:
         sha = hashlib.sha256(data).hexdigest()
 
         existing = self.versions(relative_path)
-        if existing and existing[-1].sha == sha and op == "edit":
+        if existing and existing[-1].sha == sha and op in ("edit", "replace"):
             return None   # nothing changed since the last version
 
         self.blobs.put(data)
@@ -383,6 +383,12 @@ class History:
             # paragraph it overwrote was gone from the history as well as
             # from the file.  A burst only collapses within one window.
             and previous.source == source
+            # "replace" is deliberately excluded, which is the whole reason
+            # it is not just an edit.  Two uploads of the same figure a
+            # minute apart are both "you" and both inside this window, so
+            # coalescing them dropped the version holding the *original*
+            # figure -- the one version a replaced file's history exists
+            # for -- and kept the intermediate.
             and previous.op == "edit" == op
             and previous.label is None
             and (version.at - previous.at) < COALESCE_SECONDS * 1000
