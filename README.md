@@ -166,6 +166,31 @@ machine yet. Signing in to Claude from the browser needs a pseudo-terminal,
 which Windows does not have — run `claude auth login` in a terminal once, or
 use an OpenAI key instead. Reports welcome.
 
+## Keeping it up to date
+
+`scripts/update.sh` pulls, reinstalls, rebuilds and restarts. You can also do
+it from the project list: NextTex checks once when that screen opens and, if
+the repository is ahead, says so at the foot of the page with the commit
+subjects and an Update button. It restarts itself afterwards and the page
+comes back on its own.
+
+It is deliberately quiet about it. Most commits to a project like this one
+change documentation or tests, so those are reported as *"three new commits,
+none of which change NextTex"* — a grey line rather than an alert. A check
+that cannot reach GitHub says nothing at all unless you asked for it, because
+an install on an offline tailnet should not open onto an error every morning.
+An update that would need the interface rebuilt refuses outright when Node is
+not available, rather than leaving you half-updated.
+
+## Running two of them
+
+`scripts/install.sh --instance NAME` installs a second, separate NextTex on
+the same machine — its own state directory, its own port, its own service,
+and a badge in the interface so you can tell which one you are looking at.
+Useful if you want somewhere to try things that is not the install you write
+in. Without the flag you get the ordinary one, which is what almost everybody
+wants.
+
 ## Installing
 
 ```bash
@@ -242,7 +267,7 @@ permission card and a GitHub backup — is in
 | The [Claude CLI](https://claude.ai/download) | Only if you choose the Claude agent | yes, if you let it |
 | An OpenAI API key | Only if you choose the OpenAI agent | no |
 | `gh`, signed in | Only for *Back this up to GitHub* | no |
-| `tailscale` | Only if you choose tailnet access | no |
+| `tailscale` | Only to reach this install from another machine | no |
 
 Nothing in the bottom half of that table is needed to write and typeset.
 
@@ -258,6 +283,24 @@ fetches TinyTeX and the Claude CLI if you do not already have them. That is
 the whole list, and a test fails if a new host appears in the source without
 this paragraph changing. There is no telemetry and no analytics of any kind
 — not disabled by default, not present.
+
+### Why Tailscale is in here
+
+Because the machine you want to write on is often not the machine you are
+sitting at. A lab workstation, a compute server, the box the data already
+lives on — the LaTeX toolchain and the files are there, and you are on a
+laptop somewhere else. NextTex is a local editor, so the usual answer is an
+SSH tunnel each time, or a reverse proxy and a certificate and a hostname
+that has to be kept pointing somewhere.
+
+Tailscale replaces all of that. Choose it at install time and the server also
+answers on your tailnet address, over TLS, reachable from your own devices and
+from nothing else — no port forwarded, no nginx, no DNS to maintain. The
+machine can sit behind a university firewall with no inbound route at all and
+still be the machine you write on from a train.
+
+If you only ever write at the desk NextTex is installed on, say localhost and
+skip it. Nothing else in the app changes.
 
 The server is protected by a token printed at install time and exchanged for a
 cookie on first load. On localhost it is plain HTTP; any address another

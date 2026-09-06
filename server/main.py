@@ -43,7 +43,10 @@ from nexttex.library import (
 from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS
-from nexttex.project import IGNORED_FILES, Project, ProjectConfig, Registry
+from nexttex.project import (
+    IGNORED_FILES, Project, ProjectConfig, Registry, instance_name,
+)
+from nexttex import updates
 from server.session import ProjectSession
 
 SESSIONS: dict[str, ProjectSession] = {}
@@ -55,6 +58,21 @@ LIBRARY_JOBS: dict[str, Scan] = {}
 WATCH_RESTART: list[asyncio.Event] = []
 SETTINGS = Settings.load()
 REGISTRY = Registry()
+
+# Where this install lives, which is the thing an update updates.  The
+# override exists for the browser tests, which need a repository whose
+# remote they control rather than the real one.
+INSTALL_ROOT = Path(
+    os.environ.get("NEXTTEX_INSTALL_ROOT") or Path(__file__).resolve().parent.parent
+)
+UPDATES = updates.Cache(INSTALL_ROOT)
+# Regenerated every time the process starts.  A page waiting for a restart
+# asks "is this a different process", not "is the code different": an update
+# that pulls nothing still restarts, and the commit would not have moved.
+BOOT = secrets.token_hex(8)
+# One update at a time, and the log is kept so a tab that arrives late -- or
+# reloads mid-update -- can be shown what has happened so far.
+UPDATE_JOB: dict[str, object] = {}
 
 COOKIE = "nexttex_token"
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "dist"
@@ -216,7 +234,8 @@ def _token_page() -> str:
         "<h1>NextTex</h1><p>This link needs the access token that was printed "
         "when the server started.</p><p>Open the URL it gave you, which looks "
         "like <code>?token=…</code>. If you have lost it, run "
-        "<code>nexttex token</code> on the machine running the server.</p>"
+        "<code>.venv/bin/python server/run.py --print-url</code> in the "
+        "install directory on the machine running the server.</p>"
     )
 
 
@@ -1739,6 +1758,167 @@ async def agent_undo(
 
 # ---------------------------------------------------------------------------
 # Signing in to Claude
+
+
+# ---------------------------------------------------------------------------
+# This install: which one it is, and whether it is behind
+
+
+@app.get("/api/instance")
+async def instance():
+    """Who this server is.  Cheap, no network, answered while restarting.
+
+    `boot` is the interesting field: a page that has just asked for an
+    update polls this until the nonce changes, which is how it knows the
+    process it is talking to is a new one.
+    """
+    try:
+        head = gitrepo._run(INSTALL_ROOT, "rev-parse", "--short", "HEAD").strip()
+    except gitrepo.GitError:
+        head = ""
+    return {
+        "instance": instance_name(),
+        "head": head,
+        "boot": BOOT,
+        "supervised": updates.supervised(),
+        "root": str(INSTALL_ROOT),
+    }
+
+
+@app.get("/api/update")
+async def update_check(force: bool = False):
+    """What updating would do.  Cached, because the screen that asks is the
+    one the writer opens every session."""
+    report = await asyncio.to_thread(UPDATES.get, force)
+    body = report.as_dict()
+    job = UPDATE_JOB.get("state")
+    body["updating"] = job in ("running", "restarting")
+    body["phase"] = job or ""
+    return body
+
+
+@app.post("/api/update")
+async def update_start():
+    """Pull, reinstall, rebuild, and then get out of the way so the
+    supervisor can start a new process."""
+    if UPDATE_JOB.get("state") in ("running", "restarting"):
+        raise HTTPException(409, "An update is already running.")
+    report = await asyncio.to_thread(UPDATES.get, True)
+    if not report.can_update:
+        raise HTTPException(400, report.reason or "There is nothing to update.")
+
+    UPDATE_JOB.clear()
+    UPDATE_JOB.update({"state": "running", "log": [], "step": "", "queue": []})
+    asyncio.create_task(_run_update(report))
+    return JSONResponse({"started": True}, status_code=202)
+
+
+def _update_say(kind: str, **fields) -> None:
+    """Record a line and hand it to whoever is watching."""
+    event = {"type": kind, **fields}
+    if kind == "output":
+        log = UPDATE_JOB.setdefault("log", [])
+        assert isinstance(log, list)
+        log.append(fields.get("text", ""))
+    if kind == "step":
+        UPDATE_JOB["step"] = fields.get("label", "")
+    for queue in list(UPDATE_JOB.get("queue", [])):      # type: ignore[arg-type]
+        try:
+            queue.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
+
+
+# What the raw output means, so the screen can say something better than the
+# last line of pip's chatter.
+_STEPS = (
+    ("Fetching", "Fetching the new version"),
+    ("Dependencies", "Installing Python packages"),
+    ("interface", "Building the interface"),
+    ("Restarting", "Finishing"),
+    ("Done", "Finishing"),
+)
+
+
+async def _run_update(report) -> None:
+    loop = asyncio.get_running_loop()
+
+    def pump() -> int:
+        script = INSTALL_ROOT / "scripts" / "update.sh"
+        process = subprocess.Popen(
+            ["bash", str(script), "--no-restart"]
+            + ([f"--instance={instance_name()}"] if instance_name() else []),
+            cwd=INSTALL_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1,
+        )
+        assert process.stdout is not None
+        for line in process.stdout:
+            text = line.rstrip()
+            for needle, label in _STEPS:
+                if needle in text:
+                    loop.call_soon_threadsafe(_update_say, "step", label=label)
+                    break
+            loop.call_soon_threadsafe(_update_say, "output", text=text)
+        return process.wait()
+
+    try:
+        code = await asyncio.to_thread(pump)
+    except OSError as error:
+        code, _ = 1, _update_say("output", text=str(error))
+
+    if code != 0:
+        UPDATE_JOB["state"] = "failed"
+        _update_say("failed", message="The update did not finish.")
+        UPDATES.forget()
+        return
+
+    UPDATE_JOB["state"] = "restarting"
+    restart = "auto" if updates.supervised() else "manual"
+    _update_say("done", ok=True, restart=restart)
+    UPDATES.forget()
+
+    if restart == "auto":
+        # There is no way to ask uvicorn to stop from in here -- `serve()`
+        # keeps its servers as locals -- so the exit *is* the restart.  Both
+        # supervisors this app installs bring a service back after a
+        # non-zero exit and leave it down after a clean one.
+        await asyncio.sleep(0.6)          # let the stream flush
+        os._exit(3)
+
+
+@app.get("/api/update/stream")
+async def update_stream():
+    """Progress, joinable late: a tab that reloads mid-update is shown
+    everything that has happened rather than an empty box."""
+
+    async def events():
+        queue: asyncio.Queue = asyncio.Queue(maxsize=512)
+        UPDATE_JOB.setdefault("queue", []).append(queue)   # type: ignore[union-attr]
+        try:
+            yield "retry: 2000\n\n"
+            for line in list(UPDATE_JOB.get("log", [])):   # type: ignore[arg-type]
+                yield f"data: {json.dumps({'type': 'output', 'text': line})}\n\n"
+            if UPDATE_JOB.get("step"):
+                yield f"data: {json.dumps({'type': 'step', 'label': UPDATE_JOB['step']})}\n\n"
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
+                yield f"data: {json.dumps(event)}\n\n"
+                if event["type"] in ("done", "failed"):
+                    break
+        finally:
+            watchers = UPDATE_JOB.get("queue", [])
+            if isinstance(watchers, list) and queue in watchers:
+                watchers.remove(queue)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/agent/status")

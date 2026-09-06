@@ -7,52 +7,87 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# If the Node on PATH is too old -- which it is on plenty of distributions --
+# point NEXTTEX_NODE_BIN at a newer one rather than changing the system's.
+# The installer writes whichever it used into the service file, so an update
+# triggered from the page can still rebuild the interface.
+if [ -n "${NEXTTEX_NODE_BIN:-}" ] && [ -d "$NEXTTEX_NODE_BIN" ]; then
+  PATH="$NEXTTEX_NODE_BIN:$PATH"
+fi
+export PATH
+
+INSTANCE=""
+RESTART=1
+for argument in "$@"; do
+  case "$argument" in
+    --instance=*) INSTANCE="${argument#--instance=}" ;;
+    --no-restart) RESTART=0 ;;
+    --help|-h)
+      echo "usage: update.sh [--instance=NAME] [--no-restart]"
+      exit 0 ;;
+    *) printf 'unknown option: %s\n' "$argument" >&2; exit 1 ;;
+  esac
+done
+UNIT="nexttex${INSTANCE:+-$INSTANCE}"
+
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
 
-RUNNING=0
-if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet nexttex 2>/dev/null; then
-  RUNNING=1
-fi
-
-say "Fetching"
-if [ -d .git ]; then
-  if [ -n "$(git status --porcelain)" ]; then
-    note "you have local changes; stashing them"
-    git stash push -u -m "nexttex update $(date -Is)" >/dev/null
-    note "restore them later with: git stash pop"
+# Everything below runs inside a function so bash parses the whole file
+# before executing any of it.  Without that, `git pull` replaces this
+# script while bash is part-way through reading it, and bash carries on
+# at its old byte offset in the new file.
+main() {
+  RUNNING=0
+  if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
+    RUNNING=1
   fi
-  before=$(git rev-parse --short HEAD)
-  git pull --ff-only
-  after=$(git rev-parse --short HEAD)
-  if [ "$before" = "$after" ]; then
-    note "already up to date at $after"
+
+  say "Fetching"
+  if [ -d .git ]; then
+    if [ -n "$(git status --porcelain)" ]; then
+      note "you have local changes; stashing them"
+      git stash push -u -m "nexttex update $(date -Is)" >/dev/null
+      note "restore them later with: git stash pop"
+    fi
+    before=$(git rev-parse --short HEAD)
+    git pull --ff-only
+    after=$(git rev-parse --short HEAD)
+    if [ "$before" = "$after" ]; then
+      note "already up to date at $after"
+    else
+      note "$before -> $after"
+      git log --oneline "$before..$after" | sed 's/^/    /'
+    fi
   else
-    note "$before -> $after"
-    git log --oneline "$before..$after" | sed 's/^/    /'
+    note "not a git checkout; skipping"
   fi
-else
-  note "not a git checkout; skipping"
-fi
 
-say "Dependencies"
-.venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
-.venv/bin/python -m pip install --quiet --upgrade -r requirements.txt
-note "python packages up to date"
+  say "Dependencies"
+  .venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
+  .venv/bin/python -m pip install --quiet --upgrade -r requirements.txt
+  note "python packages up to date"
 
-if command -v node >/dev/null 2>&1 && [ "$(node -v | sed 's/^v//; s/\..*//')" -ge 20 ]; then
-  (cd frontend && npm install --no-audit --no-fund --silent && npm run build >/dev/null)
-  note "interface rebuilt"
-else
-  note "no usable Node; keeping the interface as it is"
-fi
+  if command -v node >/dev/null 2>&1 && [ "$(node -v | sed 's/^v//; s/\..*//')" -ge 20 ]; then
+    (cd frontend && npm install --no-audit --no-fund --silent && npm run build >/dev/null)
+    note "interface rebuilt"
+  else
+    note "no usable Node; keeping the interface as it is"
+  fi
 
-if [ "$RUNNING" = 1 ]; then
-  say "Restarting"
-  systemctl --user restart nexttex
-  note "running"
-fi
+  if [ "$RUNNING" = 1 ] && [ "$RESTART" = 1 ]; then
+    say "Restarting"
+    systemctl --user restart "$UNIT"
+    note "running"
+  elif [ "$RESTART" = 0 ]; then
+    # The server is running this script and will restart itself: asking
+    # systemd to restart it now would kill the process mid-update.
+    note "not restarting; the caller will"
+  fi
 
-say "Done"
-.venv/bin/python server/run.py --print-url | sed 's/^/  /'
-echo
+  say "Done"
+  .venv/bin/python server/run.py --print-url | sed 's/^/  /'
+  echo
+}
+
+main

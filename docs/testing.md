@@ -6,20 +6,12 @@ sees.
 ```bash
 scripts/check.sh          # types, frontend and Python: about twenty seconds
 scripts/check.sh --all    # adds the browser tier: about two minutes
-scripts/check.sh --bench  # what the slow parts cost, on a thesis-shaped project
+scripts/check.sh --bench  # what the slow parts cost, on a project shaped like a long document
 ```
 
 If the Node on your PATH is older than 20, point `NEXTTEX_NODE_BIN` at a
 newer one rather than changing the system's.
 
-```bash
-scripts/check.sh          # types, frontend and Python: about twenty seconds
-scripts/check.sh --all    # adds the browser tier: about two minutes
-scripts/check.sh --bench  # what the slow parts cost, on a thesis-shaped project
-```
-
-Three layers, and each exists because the one above it cannot see what it
-sees.
 
 `tests/` is Python: the retention rules, the path fence, the log parser, the
 compile paths, and — under `tests/api/` — every HTTP route, its documented

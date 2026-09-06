@@ -72,7 +72,9 @@ function pathsIn(node: any): string[] {
 }
 
 export default function App() {
-  const [view, setView] = useState<"loading" | "signin" | "projects" | "editor">(
+  const [view, setView] = useState<
+    "loading" | "offline" | "signin" | "projects" | "editor"
+  >(
     "loading",
   );
   // Configured with no writing agent at all.  Read here with every other
@@ -166,15 +168,35 @@ export default function App() {
   // ---- first load -------------------------------------------------------
   useEffect(() => {
     captureToken();
+    let stopped = false;
     (async () => {
-      const status = await api.agentStatus().catch(() => null);
-      set({ agent: status });
-      if (!status?.ready) {
-        setView("signin");
-        return;
+      // "Could not reach the server" and "no agent is configured" used to
+      // be the same branch, so a server that was down put the writer on the
+      // sign-in screen -- a question they cannot answer about a machine
+      // that is not listening.  An `ApiError` carries a status; a fetch
+      // that never got an answer throws a bare TypeError instead.
+      for (let attempt = 0; !stopped; attempt += 1) {
+        try {
+          const status = await api.agentStatus();
+          set({ agent: status });
+          if (!status?.ready) setView("signin");
+          else await resumeOrList();
+          return;
+        } catch (problem: any) {
+          if (problem?.status !== undefined) {
+            // The server answered, and said no.
+            set({ agent: null });
+            setView("signin");
+            return;
+          }
+          setView("offline");
+          await new Promise((wake) => window.setTimeout(wake, Math.min(500 * 2 ** attempt, 4000)));
+        }
       }
-      await resumeOrList();
     })();
+    return () => {
+      stopped = true;
+    };
   }, [resumeOrList]);
 
   useEffect(() => {
@@ -616,6 +638,20 @@ export default function App() {
 
   if (view === "loading") {
     return <div className="h-full bg-surround" />;
+  }
+  if (view === "offline") {
+    // Said plainly and without a button: there is nothing the reader can
+    // press that would help, and the app reconnects on its own.
+    return (
+      <div className="flex h-full items-center justify-center bg-surround">
+        <div className="text-center">
+          <p className="t-ui text-ink">Waiting for NextTex</p>
+          <p className="t-meta mt-1 text-ink-2">
+            The server is not answering. This page reconnects on its own.
+          </p>
+        </div>
+      </div>
+    );
   }
   if (view === "signin") {
     return (
