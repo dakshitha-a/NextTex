@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
 import api, { captureToken, startDownload } from "./api";
 import {
   connect,
@@ -14,7 +14,11 @@ import {
   useStore,
 } from "./store";
 import Editor, { type EditorHandle } from "./panes/Editor";
-import Pdf, { type PdfHandle } from "./panes/Pdf";
+// Loaded when the editor opens, not when the app does.  PDF.js is a third
+// of the bundle and the first screen is the project list, which has no
+// preview on it at all.
+const Pdf = lazy(() => import("./panes/Pdf"));
+import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
 import Tabs from "./panes/Tabs";
 import Status from "./panes/Status";
@@ -698,6 +702,7 @@ export default function App() {
               <Segmented value={showing} onChange={setShowing} />
             </div>
           ) : null}
+          <Suspense fallback={<div className="h-full bg-surface-2" />}>
           <Pdf
             handleRef={(handle) => (pdf.current = handle)}
             onNavigate={(file, line) => openFile(file, line)}
@@ -712,6 +717,7 @@ export default function App() {
               }
             }}
           />
+          </Suspense>
         </div>
         {folded.pdf && !tight ? (
           <Collapsed label="Preview" side="right" onExpand={() => fold("pdf")} />

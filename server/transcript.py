@@ -22,6 +22,16 @@ from pathlib import Path
 # growing without bound.
 MAX_ITEMS = 4000
 
+# How much of the file's end is read when the panel is rebuilt.  Every edit
+# stores the whole file before and after, so a hundred edits to a chapter is
+# ten megabytes -- and this used to read all of it, parse all of it, and
+# then keep the last four thousand lines.
+TAIL_BYTES = 4_000_000
+
+# Above this the file is rewritten down to what `items()` would return.
+# Checked on append, which is cheap: one stat.
+COMPACT_ABOVE_BYTES = 24_000_000
+
 
 class Transcript:
     def __init__(self, path: Path):
@@ -29,15 +39,38 @@ class Transcript:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._buffer: list[str] = []
         self._counter = 0
+        self._appends = 0
 
     # -- writing -----------------------------------------------------------
     def _append(self, item: dict) -> None:
         item.setdefault("at", time.time() * 1000)
         try:
             with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(item) + "\n")
+                handle.write(json.dumps(item, default=str) + "\n")
+        except (OSError, TypeError, ValueError):
+            # A tool argument that will not serialise must not cost the
+            # record of everything after it; `default=str` handles almost
+            # all of them, and the rest are dropped rather than fatal.
+            return
+        self._appends += 1
+        if self._appends % 64 == 0:
+            self._compact_if_large()
+
+    def _compact_if_large(self) -> None:
+        """Cut the file down to what would ever be read back."""
+        try:
+            if self.path.stat().st_size < COMPACT_ABOVE_BYTES:
+                return
+            lines = self.path.read_text(encoding="utf-8").splitlines()
         except OSError:
-            pass
+            return
+        keep = lines[-MAX_ITEMS * 2:]
+        temp = self.path.with_name(self.path.name + ".tmp")
+        try:
+            temp.write_text("\n".join(keep) + "\n", encoding="utf-8")
+            temp.replace(self.path)
+        except OSError:
+            temp.unlink(missing_ok=True)
 
     def _flush_text(self) -> None:
         if not self._buffer:
@@ -104,12 +137,26 @@ class Transcript:
         self._append({"kind": "edit_state", "id": edit_id, "state": state})
 
     # -- reading -----------------------------------------------------------
-    def items(self) -> list[dict]:
-        """The transcript, with decisions and reverts already applied."""
+    def _tail(self) -> list[str]:
+        """The end of the file, without reading the beginning of it."""
         try:
-            lines = self.path.read_text(encoding="utf-8").splitlines()
+            with self.path.open("rb") as handle:
+                handle.seek(0, 2)
+                size = handle.tell()
+                handle.seek(max(0, size - TAIL_BYTES))
+                data = handle.read()
         except OSError:
             return []
+        text = data.decode("utf-8", errors="replace")
+        lines = text.splitlines()
+        # The first line is a fragment unless the read started at the top.
+        if size > TAIL_BYTES and lines:
+            lines = lines[1:]
+        return lines
+
+    def items(self) -> list[dict]:
+        """The transcript, with decisions and reverts already applied."""
+        lines = self._tail()
 
         items: list[dict] = []
         index: dict[str, dict] = {}

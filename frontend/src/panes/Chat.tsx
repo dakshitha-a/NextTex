@@ -66,6 +66,10 @@ export default function Chat({
   handleRef: (handle: ChatHandle) => void;
 }) {
   const chat = useStore((s) => s.chat);
+  // Collapsing repeated tool rows walks the whole transcript.  Streaming a
+  // long answer re-renders this panel twenty times a second, and without
+  // this it did that walk every time.
+  const shown = useMemo(() => tidy(chat), [chat]);
   const thinking = useStore((s) => s.thinking);
   const blocked = useStore((s) => s.awaitingPermission);
   const claude = useStore((s) => s.claude);
@@ -268,7 +272,7 @@ export default function Chat({
           </div>
         ) : null}
         <div className="flex flex-col gap-5">
-          {tidy(chat).map((item) => (
+          {shown.map((item) => (
             <Item
               key={item.id}
               item={item}

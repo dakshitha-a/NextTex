@@ -138,6 +138,12 @@ function inArgument(before: string): { command: string; typed: string } | null {
   return { command: match[1], typed: match[2] };
 }
 
+/** While the cursor is still inside the same braces, the list CodeMirror
+ *  already has is still the right list -- it filters it itself.  Without
+ *  this the source ran again on every keystroke and rebuilt four hundred
+ *  citation objects each time. */
+const INSIDE_BRACES = /^[^}{]*$/;
+
 export function latexCompletions(symbols: () => Symbols | null): Extension {
   const source = (context: CompletionContext): CompletionResult | null => {
     const line = context.state.doc.lineAt(context.pos);
@@ -156,7 +162,9 @@ export function latexCompletions(symbols: () => Symbols | null): Extension {
           info: entry.title || undefined,
           type: "constant",
         }));
-        return options.length ? { from, options } : null;
+        return options.length
+          ? { from, options, validFor: INSIDE_BRACES }
+          : null;
       }
 
       if (/^(eq|auto|page|c|name|v)?ref$/.test(command)) {
@@ -165,27 +173,34 @@ export function latexCompletions(symbols: () => Symbols | null): Extension {
           detail: entry.file.split("/").pop(),
           type: "variable",
         }));
-        return options.length ? { from, options } : null;
+        return options.length
+          ? { from, options, validFor: INSIDE_BRACES }
+          : null;
       }
 
       if (command === "includegraphics") {
         const options = (found?.images ?? []).map((path) => ({
           label: path, type: "text",
         }));
-        return options.length ? { from, options } : null;
+        return options.length
+          ? { from, options, validFor: INSIDE_BRACES }
+          : null;
       }
 
       if (command === "input" || command === "include") {
         const options = (found?.texfiles ?? []).map((path) => ({
           label: path.replace(/\.tex$/, ""), detail: path, type: "text",
         }));
-        return options.length ? { from, options } : null;
+        return options.length
+          ? { from, options, validFor: INSIDE_BRACES }
+          : null;
       }
 
       if (command === "begin" || command === "end") {
         const names = [...ENVIRONMENTS, ...(found?.environments ?? [])];
         return {
           from,
+          validFor: INSIDE_BRACES,
           options: [...new Set(names)].map((name) =>
             command === "begin"
               ? snippetCompletion(`${name}}\n  #{}\n\\end{${name}`, {
@@ -199,6 +214,7 @@ export function latexCompletions(symbols: () => Symbols | null): Extension {
       if (command === "usepackage" || command === "RequirePackage") {
         return {
           from,
+          validFor: INSIDE_BRACES,
           options: PACKAGES.map((name) => ({ label: name, type: "namespace" })),
         };
       }

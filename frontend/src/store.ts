@@ -231,11 +231,18 @@ function flushStream() {
   const id = streamingId;
   const chunk = streamBuffer;
   streamBuffer = "";
-  state.chat = state.chat.map((item) =>
-    item.id === id && item.kind === "claude"
-      ? { ...item, text: item.text + chunk }
-      : item,
-  );
+  // The message being streamed into is the last one in the list -- anything
+  // else arriving ends the text first.  Searching from the end and copying
+  // the array is a memcpy of pointers; the map this replaced ran a closure
+  // and a comparison over every item in the transcript, twenty times a
+  // second, for the whole of a long answer.
+  let index = state.chat.length - 1;
+  while (index >= 0 && state.chat[index].id !== id) index -= 1;
+  const item = index >= 0 ? state.chat[index] : null;
+  if (!item || item.kind !== "claude") return;
+  const next = state.chat.slice();
+  next[index] = { ...item, text: item.text + chunk };
+  state.chat = next;
   commit();
 }
 

@@ -204,9 +204,21 @@ export function macrosFrom(symbols: Symbols | null): Record<string, string> {
   return macros;
 }
 
+/** How much of the document either side of the pointer is looked at.
+ *
+ *  `mathAt` narrows to a paragraph anyway, and no paragraph in a thesis is
+ *  anywhere near this long.  What this avoids is materialising the whole
+ *  document as one string on every hover -- two megabytes of chapter, for a
+ *  span of at most a few hundred characters. */
+const HOVER_WINDOW = 20_000;
+
 export function mathHover(symbols: () => Symbols | null): Extension {
   return hoverTooltip((view, pos): Tooltip | null => {
-    const span = mathAt(view.state.doc.toString(), pos);
+    const doc = view.state.doc;
+    const from = Math.max(0, pos - HOVER_WINDOW);
+    const to = Math.min(doc.length, pos + HOVER_WINDOW);
+    const near = mathAt(doc.sliceString(from, to), pos - from);
+    const span = near && { ...near, from: near.from + from, to: near.to + from };
     if (!span || !span.body.trim()) return null;
 
     return {
