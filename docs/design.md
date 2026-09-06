@@ -591,3 +591,56 @@ something the general guidance discourages. A document is supposed to sound
 like its author, not like a house style. The precedence note is added to the
 prompt only when a voice summary exists, so nobody pays for it who has not
 uploaded a sample.
+
+
+## 12. Version history, a trash, and completion
+
+Added at the writer's request, after the second audit. Three of these are
+new surfaces; the rest are corrections to old ones.
+
+**History is browsed inside the editor.** A 264 px panel overlays the right
+edge of the editor pane — an overlay rather than a fourth column, so opening
+history does not reflow the preview and lose the reader's place in the PDF.
+Versions are grouped by day, because "some time on Tuesday" is how people
+remember losing a paragraph, and each row carries the time, who made it, the
+reason or the label, and the size. Selecting one puts the editor into a
+read-only viewing mode with a 26 px banner at the top of the pane, inside the
+editor rather than floating over it.
+
+The one unacceptable failure in this feature is autosaving historical text
+over the live file, and it is closed three independent ways: the historical
+text is loaded into a state built from a *different extension set with no
+update listener at all*, so no dispatch of any kind can arm a save;
+`EditorState.readOnly` and `EditorView.editable` are the second and third
+locks; and the live `EditorState` is never touched, which is also why undo
+history and cursor come back intact rather than being saved and restored.
+
+**Show changes** shades lines that are in the old version and not in the file
+as it stands, using `--error` at 12 % with a 2 px inset bar. Error red rather
+than a neutral wash on purpose: what you deleted is what you came looking
+for.
+
+**The trash is a section under the file tree**, appearing only when it holds
+something. Deleting asks nothing — the file moves to the trash with its
+history and the count goes up — because a confirmation before an action that
+is one click from being undone is friction for nothing. Deleting *from* the
+trash asks, in the app's own type, because that one is final.
+
+**Autocomplete belongs to the project, not to LaTeX.** Citation keys carry
+their author and year; labels carry the file they are defined in; the
+writer's own `\newcommand` macros are offered before the built-in list and
+marked `yours`. The popup is themed to the app — `--surface` on `--line`,
+the selected row on `--hint-wash` — so it does not read as a stock editor
+widget dropped into a designed application.
+
+**Equation previews** render with KaTeX on hover, lazily imported so nobody
+who never writes maths pays 260 KB for it, with the project's own macros
+passed through as KaTeX macros. `\npistar` renders as the notation it stands
+for rather than as an error.
+
+**The mark.** A sheet of paper with its corner turned, notched on the left so
+the negative space reads as a chevron — next. Hectograph violet on the tile,
+paper white inside, drawn on a 32-unit grid and checked at 16 px. It is
+inlined into the HTML as a `data:` favicon rather than served as a file,
+because the server routes every unknown path to the app shell and a
+`/logo.svg` would come back as HTML.

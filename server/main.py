@@ -106,6 +106,12 @@ async def _watch_projects() -> None:
                             ".nexttex-tmp", ".part", ".swp"
                         }:
                             continue
+                        # The agent SDK writes through its own temp files,
+                        # named like main.tex.tmp.31337.abcdef.  Announcing
+                        # those as changes tells the browser to reload a
+                        # file that has never existed.
+                        if ".tmp." in path.name or path.name.endswith("~"):
+                            continue
                         if session.is_own_write(path):
                             continue
                         touched.setdefault(session.project.id, set()).add(str(rel))

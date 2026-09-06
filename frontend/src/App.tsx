@@ -213,19 +213,20 @@ export default function App() {
     handlers.onReveal = (path, line) => {
       openFile(path, line);
     };
-    handlers.onAgentEdit = (path, line) => {
-      editor.current?.reload(path);
+    handlers.onAgentEdit = async (path, line) => {
+      // Reload first, *then* jump.  A reload replaces the whole document,
+      // which throws away any selection set before it -- the caret landed
+      // on the change and was immediately dragged back to line one.
+      await editor.current?.reload(path);
       refreshTree();
       // Go to what Claude changed.  The caret follows unless the writer is
       // mid-sentence in the composer, in which case moving focus would
       // interrupt a question they are still asking.
-      const composerHasFocus =
-        document.activeElement?.tagName === "TEXTAREA";
-      openFile(path, line).then(() => {
-        if (composerHasFocus) {
-          (document.querySelector("textarea") as HTMLTextAreaElement | null)?.focus();
-        }
-      });
+      const composerHasFocus = document.activeElement?.tagName === "TEXTAREA";
+      await openFile(path, line);
+      if (composerHasFocus) {
+        (document.querySelector("textarea") as HTMLTextAreaElement | null)?.focus();
+      }
     };
     handlers.onProjectChanged = () => {
       const id = get().projectId;

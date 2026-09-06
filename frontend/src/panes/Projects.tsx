@@ -240,7 +240,7 @@ export default function Projects({
             className="h-[28px] pen-button px-3 t-ui"
             onClick={add}
           >
-            Add project
+            {mode === "create" ? "Create project" : "Open folder"}
           </button>
         </div>
         {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}
