@@ -1,0 +1,9 @@
+[
+  {"kind": "tool", "name": "Read", "input": {"file_path": "main.tex"}},
+  {"kind": "text", "text": "I will add a sentence to the Results section.", "pieces": 3},
+  {"kind": "tool", "name": "Edit", "input": {"file_path": "main.tex"}},
+  {"kind": "edit", "path": "main.tex",
+   "find": "A numbered equation",
+   "replace": "A sentence the scripted agent inserted. A numbered equation"},
+  {"kind": "text", "text": "Added it above the equation.", "pieces": 2}
+]

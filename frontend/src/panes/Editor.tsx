@@ -21,7 +21,14 @@ import { get, set, useStore } from "../store";
  *  the compile itself and not much else. */
 const SAVE_DELAY = 250;
 
-type Buffer = { state: EditorState; saved: string };
+type Buffer = {
+  state: EditorState;
+  saved: string;
+  /** What the file's modification time was when this tab last agreed with
+   *  the disk.  Sent with every save so the server can refuse to let this
+   *  buffer overwrite work done in another window. */
+  mtime: number;
+};
 
 export type EditorHandle = {
   open(path: string, line?: number): Promise<void>;
@@ -33,6 +40,8 @@ export type EditorHandle = {
   showChanges(on: boolean): void;
   close(path: string): Promise<void>;
   reload(path: string): Promise<void>;
+  /** Answer a refused save: keep this tab's text, or take what is on disk. */
+  resolveConflict(path: string, keep: "mine" | "theirs"): Promise<void>;
   flash(line: number, endLine?: number): void;
   saveNow(): Promise<void>;
   textOf(path: string): string | null;
@@ -80,8 +89,21 @@ export default function Editor({
       const projectId = get().projectId;
       if (!projectId) return;
       try {
-        await api.writeFile(projectId, path, text);
+        const answer = await api.writeFile(
+          projectId, path, text, true, buffer.mtime,
+        );
+        if (answer.conflict) {
+          // Nothing was written and nothing is thrown away: the buffer
+          // stays dirty and the writer picks which copy survives.
+          set({
+            conflict: {
+              path, theirs: answer.text ?? "", mtime: answer.mtime ?? 0,
+            },
+          });
+          return;
+        }
         buffer.saved = text;
+        buffer.mtime = answer.mtime ?? 0;
         set({
           tabs: get().tabs.map((tab) =>
             tab.path === path ? { ...tab, dirty: false } : tab,
@@ -203,7 +225,9 @@ export default function Editor({
       let buffer = buffers.current.get(path);
       if (!buffer) {
         const file = await api.readFile(projectId, path);
-        buffer = { state: freshState(file.text, ext), saved: file.text };
+        buffer = {
+          state: freshState(file.text, ext), saved: file.text, mtime: file.mtime,
+        };
         buffers.current.set(path, buffer);
       }
       if (current.current && view.current) {
@@ -219,7 +243,7 @@ export default function Editor({
     openRef.current = openBuffer;
 
     /** Replace a buffer's text with what is on disk, keeping the history. */
-    const replaceText = (path: string, text: string) => {
+    const replaceText = (path: string, text: string, mtime?: number) => {
       const buffer = buffers.current.get(path);
       if (!buffer) return;
       if (current.current === path && view.current && !viewing.current) {
@@ -245,6 +269,7 @@ export default function Editor({
         }).state;
       }
       buffer.saved = text;
+      if (mtime !== undefined) buffer.mtime = mtime;
     };
 
     const viewVersion = async (path: string, sha: string) => {
@@ -324,10 +349,54 @@ export default function Editor({
           ? view.current!.state.doc.toString()
           : buffer.state.doc.toString();
         // Never overwrite unsaved work with what is on disk.  The tab stays
-        // dirty and the user decides.
-        if (live !== buffer.saved) return;
+        // dirty and the user decides -- but they are told, or an edit
+        // Claude just made would vanish under the next autosave with
+        // nothing on screen having changed.
+        if (live !== buffer.saved) {
+          const file = await api.readFile(projectId, path);
+          if (file.text !== live) {
+            set({ conflict: { path, theirs: file.text, mtime: file.mtime } });
+          }
+          return;
+        }
         const file = await api.readFile(projectId, path);
-        if (file.text !== live) replaceText(path, file.text);
+        // Anything typed during that fetch would be destroyed by the
+        // replacement below, and the tab marked clean over the top of it.
+        const stillLive = showing
+          ? view.current!.state.doc.toString()
+          : buffer.state.doc.toString();
+        if (stillLive !== buffer.saved) return;
+        if (file.text !== stillLive) replaceText(path, file.text, file.mtime);
+      },
+      resolveConflict: async (path, keep) => {
+        const projectId = get().projectId;
+        const conflict = get().conflict;
+        const buffer = buffers.current.get(path);
+        set({ conflict: null });
+        if (!projectId || !conflict || !buffer) return;
+        if (keep === "theirs") {
+          replaceText(path, conflict.theirs, conflict.mtime);
+          return;
+        }
+        // Keeping ours: save again against the version we were just shown,
+        // so the write is deliberate rather than a race won by luck.
+        buffer.mtime = conflict.mtime;
+        const text =
+          current.current === path && view.current
+            ? view.current.state.doc.toString()
+            : buffer.state.doc.toString();
+        const answer = await api
+          .writeFile(projectId, path, text, true, conflict.mtime)
+          .catch(() => null);
+        if (answer?.ok) {
+          buffer.saved = text;
+          buffer.mtime = answer.mtime ?? 0;
+          set({
+            tabs: get().tabs.map((tab) =>
+              tab.path === path ? { ...tab, dirty: false } : tab,
+            ),
+          });
+        }
       },
       flash: jump,
       saveNow: flush,

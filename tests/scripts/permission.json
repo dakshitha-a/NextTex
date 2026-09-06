@@ -1,0 +1,8 @@
+[
+  {"kind": "text", "text": "I need to run a command for that.", "pieces": 2},
+  {"kind": "tool", "name": "Bash", "input": {"command": "echo hello-from-the-script"}},
+  {"kind": "permission", "tool": "Bash", "rule": "Bash:echo",
+   "headline": "Run a shell command", "detail": "echo hello-from-the-script",
+   "consequence": "Prints one word.", "stop_if_denied": false},
+  {"kind": "text", "text": "Done.", "pieces": 1}
+]

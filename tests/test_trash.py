@@ -138,3 +138,51 @@ def test_build_output_is_not_listed_in_an_entry(tmp_path):
     (folder / "__pycache__" / "junk.pyc").write_bytes(b"junk")
     entry = trash.delete(folder)
     assert [f.path for f in entry.files] == ["chapter/text.tex"]
+
+
+def test_emptying_the_trash_spares_a_new_file_with_the_same_name(tmp_path):
+    """History is keyed by path.  Deleting a chapter, writing a new one
+    under that name, and then emptying the trash used to unlink the new
+    file's entire history -- a week of versions, unrecoverably."""
+    trash, project = bin(tmp_path)
+    (project / "chapter.tex").write_text("the old one", encoding="utf-8")
+    trash.delete(project / "chapter.tex")
+
+    (project / "chapter.tex").write_text("a new chapter entirely", encoding="utf-8")
+    trash.history.record("chapter.tex", "a new chapter entirely")
+
+    trash.empty()
+    kept = trash.history.versions("chapter.tex")
+    texts = [trash.history.content("chapter.tex", version.sha) for version in kept]
+    assert "a new chapter entirely" in texts
+
+
+def test_purging_spares_a_new_file_with_the_same_name(tmp_path):
+    trash, project = bin(tmp_path)
+    (project / "one.tex").write_text("old", encoding="utf-8")
+    entry = trash.delete(project / "one.tex")
+    (project / "one.tex").write_text("new", encoding="utf-8")
+    trash.history.record("one.tex", "new")
+    trash.purge(entry.id)
+    texts = [trash.history.content("one.tex", v.sha)
+             for v in trash.history.versions("one.tex")]
+    assert "new" in texts
+
+
+def test_a_symlink_in_a_deleted_folder_does_not_break_the_restore(tmp_path):
+    """It follows to a file outside the folder, so recording it as a member
+    named a path that is not under the entry -- which made the restore raise
+    and the entry impossible to get back."""
+    trash, project = bin(tmp_path)
+    (project / "elsewhere.tex").write_text("still here", encoding="utf-8")
+    folder = project / "chapter"
+    folder.mkdir()
+    (folder / "text.tex").write_text("prose", encoding="utf-8")
+    (folder / "link.tex").symlink_to(project / "elsewhere.tex")
+
+    entry = trash.delete(folder)
+    assert [f.path for f in entry.files] == ["chapter/text.tex"]
+    trash.restore(entry.id)
+    assert (folder / "text.tex").read_text(encoding="utf-8") == "prose"
+    # And the file it pointed at was never given a deletion it did not have.
+    assert trash.history.versions("elsewhere.tex") == []

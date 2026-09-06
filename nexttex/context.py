@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import secrets
 import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -112,7 +113,10 @@ class ProjectContext:
         # upload called "../../.bashrc" must land in the context directory
         # like anything else.
         safe = Path(filename).name or "document"
-        document_id = f"{int(time.time() * 1000):x}"
+        # The millisecond alone is not unique: dropping two text documents
+        # at once extracted both into one file and removing either deleted
+        # the other's bytes as well.
+        document_id = f"{int(time.time() * 1000):x}{secrets.token_hex(2)}"
         target = self._dir(kind) / f"{document_id}__{safe}"
         # Through a temporary file: an upload cut off partway would
         # otherwise leave a truncated PDF that pdftotext extracts as
@@ -348,4 +352,14 @@ class ProjectContext:
             )
             output = self.voice_summary
 
-        return f"{instruction}\n\n---\n\n{body}", output
+        # The summary has to end up in a file, or nothing downstream can
+        # read it: the prompt section is built from these two paths, and a
+        # distillation that only replied in the chat left the panel saying
+        # the documents still needed reading, forever.
+        delivery = (
+            f"Write the result to `{output}` with the Write tool, creating "
+            "the file if it does not exist and replacing it if it does. "
+            "Write the file and then say one short sentence confirming it; "
+            "do not print the summary itself into the conversation."
+        )
+        return f"{instruction}\n\n{delivery}\n\n---\n\n{body}", output

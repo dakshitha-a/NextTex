@@ -1,0 +1,4 @@
+[
+  {"kind": "text", "text": "Working on it.", "pieces": 1},
+  {"kind": "wait", "seconds": 30}
+]

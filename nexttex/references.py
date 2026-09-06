@@ -20,6 +20,8 @@ import sys
 from contextlib import redirect_stdout
 from pathlib import Path
 
+from .atomic import write_atomically
+
 _VENDOR = Path(__file__).resolve().parent / "vendor"
 
 
@@ -106,9 +108,7 @@ def add(doi: str, bib_path: Path) -> dict:
 
     separator = "" if not existing or existing.endswith("\n\n") else "\n"
     text = existing + separator + entry + "\n"
-    temp = bib_path.with_name(bib_path.name + ".nexttex-tmp")
-    temp.write_text(text, encoding="utf-8")
-    temp.replace(bib_path)
+    write_atomically(bib_path, text)
     return {
         "added": True,
         "key": key,

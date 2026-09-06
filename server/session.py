@@ -14,8 +14,10 @@ import time
 from pathlib import Path
 
 from nexttex.agent import ProjectAgent
+from nexttex.scripted_agent import ScriptedAgent, scripted_name
 from nexttex.compile import CompileResult, CompileScheduler, Outcome, ProjectPaths
 from nexttex.context import ProjectContext
+from nexttex.atomic import read_text, write_atomically
 from nexttex.history import History
 from nexttex.symbols import SymbolCache
 from nexttex.trash import Trash
@@ -103,7 +105,11 @@ class ProjectSession:
         )
         self.compiler = CompileScheduler(self.paths)
 
-        self.agent = ProjectAgent(
+        # A scripted stand-in when one is asked for, so the whole agent
+        # interface can be driven by a test without a model, an account or
+        # a network.  Unreachable in an ordinary run.
+        agent_class = ScriptedAgent if scripted_name() else ProjectAgent
+        self.agent = agent_class(
             project.root,
             project.state_dir,
             context_prompt=self.context.prompt_section,
@@ -201,7 +207,7 @@ class ProjectSession:
         self._unsettled = text is not None and mid_construct(text)
         self.compiler.note_edit(path, text, previous)
 
-    def set_main(self, relative_path: str) -> None:
+    async def set_main(self, relative_path: str) -> None:
         """Point the build at a different file.
 
         The scheduler holds the paths it was built with, and the jobname
@@ -211,6 +217,15 @@ class ProjectSession:
         """
         self.project.config.main = relative_path
         self.project.config.save(self.project.root)
+        # Whatever is building now is building the old main file into the
+        # old jobname.  Left running it writes into the same build
+        # directory as its replacement, and nothing holds a reference to
+        # stop it -- so it is stopped here, before the swap.
+        outgoing = self.compiler
+        if self._debounce is not None:
+            self._debounce.cancel()
+            self._debounce = None
+        await outgoing.cancel()
         self.paths = ProjectPaths(
             root=self.project.root,
             main=self.project.main,
@@ -257,13 +272,8 @@ class ProjectSession:
         rebuild.  Anything less and the pane would go stale under an edit
         the user just watched arrive.
         """
-        try:
-            previous = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            previous = None
-        temp = path.with_name(path.name + ".nexttex-tmp")
-        temp.write_text(text, encoding="utf-8")
-        temp.replace(path)
+        previous = read_text(path)
+        write_atomically(path, text)
         self.mark_written(path)
         self.record_version(
             path, text, by="claude", why=self.agent.current_why(), previous=previous,
@@ -325,8 +335,19 @@ class ProjectSession:
                 # Recorded before it is broadcast, so the panel and the file
                 # on disk always show the same conversation -- and so an
                 # event that arrives while nobody is watching is still kept.
-                event = self.transcript.record(event)
-                await self.events.publish({"scope": "agent", **event})
+                # One unserialisable tool argument used to kill this task,
+                # and with it every later event including `done`: the panel
+                # then said Claude was thinking, forever.
+                try:
+                    event = self.transcript.record(event)
+                except Exception:
+                    pass
+                try:
+                    await self.events.publish({"scope": "agent", **event})
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    continue
 
         self._agent_pump = asyncio.create_task(pump())
 

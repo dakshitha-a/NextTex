@@ -11,6 +11,7 @@ first keystroke of the first document.
 from __future__ import annotations
 
 import json
+import sys
 import os
 import secrets
 import shutil
@@ -58,7 +59,26 @@ class Settings:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
-            return cls()
+            # A settings file that cannot be read used to be replaced by a
+            # fresh one on every start -- a new token each time, so every
+            # saved link and every open tab stopped working with nothing
+            # said about why.  Keep the broken file, say so once, and write
+            # a replacement that then stays put.
+            broken = path.with_name(path.name + ".broken")
+            try:
+                path.replace(broken)
+            except OSError:
+                pass
+            else:
+                print(
+                    f"  Settings file could not be read; kept as {broken.name}.\n"
+                    "  A new access token has been generated, so any saved "
+                    "NextTex link will need the new one.",
+                    file=sys.stderr,
+                )
+            settings = cls()
+            settings.save()
+            return settings
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in data.items() if k in known})
 

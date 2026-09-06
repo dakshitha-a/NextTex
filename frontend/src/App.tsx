@@ -85,6 +85,7 @@ export default function App() {
   const tabs = useStore((s) => s.tabs);
   const activePath = useStore((s) => s.activePath);
   const error = useStore((s) => s.error);
+  const conflict = useStore((s) => s.conflict);
   const viewing = useStore((s) => s.viewing);
 
   // ---- first load -------------------------------------------------------
@@ -772,6 +773,33 @@ export default function App() {
           }}
         />
       </div>
+
+      {conflict ? (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 max-w-lg rounded-[3px] border border-warn bg-surface px-3 py-2">
+          <div className="t-meta text-ink">
+            <span className="text-warn">{conflict.path}</span> changed somewhere
+            else while you were editing it. Nothing has been overwritten.
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              className="pen-button t-micro"
+              onClick={() =>
+                editor.current?.resolveConflict(conflict.path, "mine")
+              }
+            >
+              Keep what I typed
+            </button>
+            <button
+              className="ghost-button t-micro"
+              onClick={() =>
+                editor.current?.resolveConflict(conflict.path, "theirs")
+              }
+            >
+              Use the saved file
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-[3px] border border-error bg-surface px-3 py-2">
