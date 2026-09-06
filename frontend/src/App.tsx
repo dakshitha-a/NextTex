@@ -37,6 +37,7 @@ import InstanceBadge from "./panes/InstanceBadge";
 import { toShell, uiScale, viewportWidth } from "./viewport";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
+import SectionsPanel, { includePath } from "./panes/SectionsPanel";
 import { agentName } from "./agent-name";
 
 const DRAWER_CLOSED = 0;
@@ -110,6 +111,10 @@ export default function App() {
   const [editorWide, setEditorWide] = useState(true);
   const [showingChanges, setShowingChanges] = useState(false);
   const [mainFile, setMainFile] = useState("main.tex");
+  /** Which of the rail's two navigation panels are open.  Kept apart from
+   *  `folded`, which is the pane layout the focus modes save and restore:
+   *  these are sections inside one pane and have nothing to do with it. */
+  const [railOpen, setRailOpen] = useState({ files: true, sections: true });
   // Every pane folds away, and says where it went.  Editor and preview are
   // mutually exclusive: folding one gives the other the whole space, and
   // folding both would leave nothing to work in.
@@ -267,6 +272,16 @@ export default function App() {
     } catch {
       /* private browsing: the app works, it just forgets */
     }
+    // Reset first: a project with nothing stored gets the default, not
+    // whatever the project before it was left in.
+    let rail = { files: true, sections: true };
+    try {
+      const storedRail = window.localStorage.getItem(`nexttex.rail.${id}`);
+      if (storedRail) rail = { ...rail, ...JSON.parse(storedRail) };
+    } catch {
+      /* a corrupt entry is not worth reporting */
+    }
+    setRailOpen(rail);
     const storedFolds = window.localStorage.getItem(`nexttex.folded.${id}`);
     if (storedFolds) {
       try {
@@ -350,6 +365,47 @@ export default function App() {
         : {}),
     });
   }, []);
+
+  /** Open or fold one of the rail's navigation panels, and remember which.
+   *  Kept out of `folded`, which the focus modes save and restore: these
+   *  are sections inside one pane rather than panes. */
+  const toggleRail = useCallback((which: "files" | "sections") => {
+    setRailOpen((current) => {
+      const next = { ...current, [which]: !current[which] };
+      const id = get().projectId;
+      try {
+        if (id) {
+          window.localStorage.setItem(`nexttex.rail.${id}`, JSON.stringify(next));
+        }
+      } catch {
+        /* private browsing: the app works, it just forgets */
+      }
+      return next;
+    });
+  }, []);
+
+  /** Go to a heading in the Sections list.  A row standing for an
+   *  `\include` opens the file it names; every other row moves the caret
+   *  inside the document already in front. */
+  const resolveInclude = useCallback(
+    (path: string) => includePath(get().tree, mainFile, path),
+    [mainFile],
+  );
+
+  const jumpToHeading = useCallback(
+    (heading: { line: number; path?: string }) => {
+      if (heading.path) {
+        // A row whose file is not in the project is drawn as unavailable
+        // and cannot be clicked, so this only ever has somewhere to go.
+        const target = includePath(get().tree, mainFile, heading.path);
+        if (target) openFile(target);
+        return;
+      }
+      const path = get().activePath;
+      if (path) openFile(path, heading.line);
+    },
+    [mainFile, openFile],
+  );
 
   const closeFile = useCallback(async (path: string) => {
     const state = get();
@@ -946,8 +1002,8 @@ export default function App() {
             className="nx-pane flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: widths.rail }}
           >
-            {/* No rule under this: the Files bar below carries it, so the
-                project name and the file actions read as one masthead. */}
+            {/* No rule under this: the Files header below carries it, so
+                the project name and the panel stack are divided once. */}
             <div className="flex h-[32px] shrink-0 items-center justify-between px-[10px]">
               <button
                 className="flex min-w-0 items-center gap-2 transition-colors duration-[90ms] hover:text-hint"
@@ -985,12 +1041,38 @@ export default function App() {
                 />
               </div>
             </div>
-            <FileTree
-              onOpen={openFile}
-              onRefresh={refreshTree}
-              onRename={renameOpenFile}
-              onHistory={() => setHistoryOpen(true)}
-              mainFile={mainFile}
+            {/* Files and Sections are both navigation, and both fold, so
+                the rail reads as one stack of panels rather than a tree
+                with some panels bolted underneath it. */}
+            <button
+              className="flex h-[26px] shrink-0 items-center justify-between border-t border-line px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+              aria-expanded={railOpen.files}
+              data-testid="files-toggle"
+              onClick={() => toggleRail("files")}
+            >
+              <span className="t-micro text-ink-2">Files</span>
+              <span className={`text-ink-3 ${railOpen.files ? "rotate-180" : ""}`}>
+                <Chevron direction="down" />
+              </span>
+            </button>
+            {/* Unmounted rather than hidden when folded: the tree owns a
+                type-ahead and a roving tab stop, and both would still be
+                reachable from the keyboard behind a closed panel. */}
+            {railOpen.files ? (
+              <FileTree
+                onOpen={openFile}
+                onRefresh={refreshTree}
+                onRename={renameOpenFile}
+                onHistory={() => setHistoryOpen(true)}
+                mainFile={mainFile}
+              />
+            ) : null}
+            <SectionsPanel
+              open={railOpen.sections}
+              onToggle={() => toggleRail("sections")}
+              onJump={jumpToHeading}
+              grow={!railOpen.files}
+              resolve={resolveInclude}
             />
             <TrashPanel onRefresh={refreshTree} />
             <PapersPanel onRefresh={refreshTree} />

@@ -19,6 +19,7 @@ import {
   setMarks,
   viewExtensions,
 } from "./editor-setup";
+import { outline as sectionsOf, sameOutline } from "../outline";
 import { get, markStale, set, useStore } from "../store";
 
 
@@ -136,6 +137,20 @@ export default function Editor({
       if (path) await saveFile(path);
     };
 
+    /** The section list for whatever is on screen.  Read from the buffer
+     *  rather than from a compiled .toc: a .toc only exists after a build
+     *  and lags the text by a whole compile, and the outline is wanted
+     *  while the section is still being typed. */
+    const refreshOutline = () => {
+      const editor = view.current;
+      const path = viewing.current?.path ?? current.current;
+      const next = editor && path ? sectionsOf(editor.state.doc.toString()) : [];
+      const now = get().outline;
+      // Typing prose changes the text on every keystroke and the section
+      // list almost never; keeping the old array keeps the panel still.
+      if (!sameOutline(now, next)) set({ outline: next });
+    };
+
     const onChange = () => {
       const path = current.current;
       if (!path) return;
@@ -162,6 +177,11 @@ export default function Editor({
       cancelTimer();
       timer.current = window.setTimeout(() => {
         timer.current = null;
+        // Before the save, not after it: a file whose save is refused
+        // because it changed underneath would otherwise show the outline
+        // it had when it was last written, for as long as the conflict
+        // stands.
+        refreshOutline();
         saveFile(path);
       }, SAVE_DELAY);
     };
@@ -227,6 +247,7 @@ export default function Editor({
       }
       current.current = parked.path;
       set({ viewing: null });
+      refreshOutline();
       view.current.focus();
     };
 
@@ -236,6 +257,7 @@ export default function Editor({
       if (viewing.current) backToNow();
       if (current.current === path) {
         if (line !== undefined) jump(line);
+        refreshOutline();
         return;
       }
       // The outgoing file is written before its state leaves the view, or an
@@ -255,6 +277,7 @@ export default function Editor({
       }
       current.current = path;
       view.current.setState(buffer.state);
+      refreshOutline();
       if (line !== undefined) jump(line);
       api.setFocus(projectId, path).catch(() => undefined);
       lintFile(projectId, path);
@@ -273,6 +296,7 @@ export default function Editor({
         });
         editor.scrollDOM.scrollTop = scroll;
         buffer.state = editor.state;
+        refreshOutline();
         // The dispatch above ran the shared update listener, which marked
         // the tab dirty and armed a save; the save then returns early
         // because nothing changed, leaving a dot that means nothing.
@@ -323,6 +347,7 @@ export default function Editor({
       const version = get().history.find((item) => item.sha === sha) ?? null;
       if (version) set({ viewing: { path, sha, version } });
       editor.setState(freshState(file.text, readOnlyExt));
+      refreshOutline();
       const target = Math.min(anchorLine, editor.state.doc.lines);
       editor.dispatch({
         effects: EditorView.scrollIntoView(editor.state.doc.line(target).from, {
@@ -365,7 +390,10 @@ export default function Editor({
           }
         }
         buffers.current.delete(path);
-        if (current.current === path) current.current = null;
+        if (current.current === path) {
+          current.current = null;
+          refreshOutline();
+        }
       },
       reload: async (path) => {
         const projectId = get().projectId;
