@@ -1487,3 +1487,67 @@ A named instance carries a badge in the rail, on the project list and in the
 tab title, in `--warn` rather than the accent, because it is a caution rather
 than a feature. The ordinary install shows nothing — almost every install is
 the only one on its machine, and a badge reading "the normal one" is noise.
+
+## 19. Navigating a long document, and where the agent's controls belong
+
+Three changes, all of them about a project that has grown past the size the
+first design assumed: a rail that could only list files, an agent header with
+five things in it, and a panel that had to be folded by hand.
+
+### The rail is a stack of panels, and Files is one of them
+
+The rail held one thing that could not fold — the file tree — and four that
+could: the trash, the papers, what the agent reads, and git. That was right
+when a project was a handful of files. It stops being right the moment a
+document is long enough that finding a section matters more than finding a
+file, because the tree then occupies the whole rail to answer a question
+nobody is asking.
+
+So **Files becomes a panel like the others**: a 26px header with a label and a
+chevron, in the same idiom as `TrashPanel`. It keeps `flex-1` when open, so
+nothing about the ordinary arrangement changes. Folded, it gives its height to
+Sections.
+
+The tree is **unmounted when folded rather than hidden**. It owns a 700ms
+type-ahead and a roving tab stop, and both would still answer the keyboard
+from behind a closed panel — a key press that jumps a list you cannot see is
+worse than one that does nothing. The cost is that the tree's expanded
+folders reset when it comes back; that state was never persisted across a
+reload either, so this loses nothing that survived a refresh.
+
+### Sections reads the source, not the .toc
+
+LaTeX already writes a table of contents, into `main.toc`. Using it was the
+obvious first thought and the wrong one: a `.toc` exists only after a
+successful build and describes the document as it was when that build
+started. A writer adding a section wants it in the outline while they are
+still typing the title, not one compile later — and a document that does not
+currently compile would have no outline at all, which is exactly when
+navigating it is hardest.
+
+`frontend/src/outline.ts` therefore parses the buffer. It scans once with an
+index rather than matching per line, because three things fall out of that for
+free: a title can run across lines, a `%` can hide a heading, and a
+`verbatim` block can contain something shaped like one. Line numbers stay
+exact, which is what the jump needs.
+
+`\include` and `\input` are listed alongside the sectioning commands and sit
+at chapter depth, because **in a skeleton document they are the outline**. A
+dissertation's `main.tex` contains no prose and eight `\include` lines; its
+table of contents is that list. Clicking one opens the file it names,
+resolved against the main file's directory rather than the including file's,
+which is how LaTeX itself resolves it.
+
+The outline is recomputed on the editor's existing 250ms change timer, and
+**before the save rather than after it** — a file whose save is refused
+because it changed underneath would otherwise show the outline it had when it
+was last written, for as long as the conflict stood. `sameOutline` compares
+the result and keeps the old array when nothing moved, so typing prose does
+not re-render the panel on every keystroke.
+
+The row under the caret is marked with `aria-current` and a small dot rather
+than a rule or a heavier weight: the mark moves as the writer types, and a
+mark that changes a row's size would shift every row below it several times a
+minute. Above the first heading nothing is marked, because that is a real
+place to be in a file and not a reason to point at the first section.
+

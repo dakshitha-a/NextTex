@@ -4,6 +4,7 @@
 // lets components subscribe to exactly the slice they draw.
 
 import { useSyncExternalStore } from "react";
+import type { Heading } from "./outline";
 import api, {
   clientId,
   type CompileResult,
@@ -114,6 +115,9 @@ export type State = {
     plan?: string;
   } | null;
   cursor: { line: number; column: number };
+  /** The section list of whatever the editor is showing, parsed from the
+   *  buffer on the same debounce as the save.  Empty with no file open. */
+  outline: Heading[];
   words: number | null;
   // Set when a save was refused because the file changed underneath this
   // tab.  Nothing is written and nothing is thrown away until the writer
@@ -152,6 +156,7 @@ const state: State = {
   agent: null,
   library: null,
   cursor: { line: 1, column: 1 },
+  outline: [],
   conflict: null,
   words: null,
   error: null,

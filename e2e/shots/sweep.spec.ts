@@ -108,23 +108,35 @@ test("every pane at every width, in both themes", async ({
         await tab.waitForTimeout(200);
         await shot(tab, "04-row-menu", theme, width);
         await tab.keyboard.press("Escape");
+
+        // The rail as navigation: sections beside the files, and sections
+        // with the whole rail once the files are folded away.
+        await tab.getByTestId("files-toggle").click();
+        await tab.waitForTimeout(200);
+        await shot(tab, "07-sections-alone", theme, width);
+        await tab.getByTestId("files-toggle").click();
+        await tab.getByTestId("sections-toggle").click();
+        await tab.waitForTimeout(200);
+        await shot(tab, "08-sections-folded", theme, width);
+        await tab.getByTestId("sections-toggle").click();
       }
 
-      // The agent column: the menu, and the working indicator.
-      const menu = tab.getByTestId("chat-menu-open");
-      if (await menu.count()) {
-        if (!(await menu.isVisible())) {
+      // The agent column: the controls under the composer.
+      const model = tab.getByTestId("model-open");
+      if (await model.count()) {
+        if (!(await model.isVisible())) {
           await tab.getByRole("button", { name: /^Claude$/ }).first()
             .click({ trial: false }).catch(() => undefined);
         }
-        if (await menu.isVisible()) {
-          await menu.click();
+        if (await model.isVisible()) {
+          await model.click();
           await tab.waitForTimeout(200);
-          await shot(tab, "05-chat-menu", theme, width);
+          await shot(tab, "05-model-menu", theme, width);
+          await tab.keyboard.press("Escape");
           await tab.getByTestId("clear-chat").click();
           await tab.waitForTimeout(200);
           await shot(tab, "06-clear-confirm", theme, width);
-          await tab.keyboard.press("Escape");
+          await tab.getByTestId("clear-chat").click();
         }
       }
     }
