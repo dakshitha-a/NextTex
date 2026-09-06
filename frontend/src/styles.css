@@ -42,6 +42,9 @@
   --hint-wash: color-mix(in oklab, var(--hint) 14%, transparent);
   --page-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
   --lift: 0 1px 2px rgba(0, 0, 0, 0.07);
+  /* One recipe for anything that floats above a pane: menus, popups,
+     tooltips, the history panel. */
+  --float: 0 4px 16px rgba(0, 0, 0, 0.18);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   color-scheme: light;
 }
@@ -63,6 +66,7 @@
     --ok: #6BC79A;
     --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
     --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --float: 0 4px 16px rgba(0, 0, 0, 0.55);
     color-scheme: dark;
   }
 }
@@ -82,6 +86,7 @@
   --ok: #6BC79A;
   --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
   --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --float: 0 4px 16px rgba(0, 0, 0, 0.55);
   color-scheme: dark;
 }
 
@@ -103,6 +108,7 @@
   --color-warn: var(--warn);
   --color-ok: var(--ok);
   --color-line: var(--line);
+  --shadow-float: var(--float);
   --color-paper: var(--paper);
 
   --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
@@ -159,12 +165,17 @@ button { font: inherit; color: inherit; }
 }
 .ghost-button:disabled { opacity: 0.4; }
 
-/* Quiet text controls -- fold chevrons, strip actions, chip actions. */
+/* Quiet text controls -- fold chevrons, strip actions, chip actions.
+   The hover rule deliberately excludes elements that carry their own, or
+   it wins on specificity and silently repaints them: a Delete control was
+   hovering to --hint, the colour that means "safe and interactive". */
 .quiet {
   color: var(--ink-3);
   transition: color 90ms var(--ease), background-color 90ms var(--ease);
 }
-.quiet:hover:not(:disabled) { color: var(--hint); }
+.quiet:hover:not(:disabled):not([data-tone]) { color: var(--hint); }
+.quiet[data-tone="danger"]:hover:not(:disabled) { color: var(--error); }
+.quiet[data-tone="on"] { color: var(--ink); }
 
 .nx-handle { background: var(--line); transition: background-color 90ms var(--ease); }
 .nx-handle:hover { background: var(--hint); }
@@ -317,19 +328,24 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    finding it again is the reason anyone opens history. */
 .cm-version-changed {
   background: color-mix(in oklab, var(--error) 12%, transparent);
-  box-shadow: inset 2px 0 0 var(--error);
 }
 
 /* ---- equation previews -------------------------------------------------- */
 .nx-math-tooltip {
   max-width: 480px;
+  box-shadow: var(--float);
   padding: 10px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 5px;
-  box-shadow: var(--lift);
   color: var(--ink);
-  overflow-x: auto;
+  overflow-wrap: anywhere;
+}
+.nx-math-loading {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: pre-wrap;
 }
 .nx-math-failed {
   font-family: var(--font-sans);
@@ -337,16 +353,18 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   color: var(--ink-3);
 }
 /* KaTeX ships its own colours; make it take the theme's ink instead. */
-.nx-math-tooltip .katex { color: var(--ink); font-size: 1.05em; }
+.nx-math-tooltip .katex { color: var(--ink); font-size: 1.18em; }
 
 /* ---- autocomplete ------------------------------------------------------- */
 .cm-tooltip.cm-tooltip-autocomplete {
   background: var(--surface) !important;
   border: 1px solid var(--line) !important;
   border-radius: 5px;
-  box-shadow: var(--lift);
+  box-shadow: var(--float);
   overflow: hidden;
+  max-width: 340px;
 }
+.cm-tooltip-autocomplete > ul { max-height: 260px; }
 .cm-tooltip-autocomplete > ul { font-family: var(--font-mono); font-size: 12px; }
 .cm-tooltip-autocomplete > ul > li {
   padding: 3px 8px;
@@ -384,7 +402,8 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   padding: 8px;
   background: var(--surface-2);
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: 5px;
+  box-shadow: var(--float);
   color: var(--ink-2);
 }
 .cm-snippetFieldPosition { border-left: 1px solid var(--hint); }

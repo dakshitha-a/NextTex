@@ -527,13 +527,15 @@ export default function Pdf({
         </button>
         <Rule />
         <button
-          className={`quiet t-micro ${scale === 0 ? "text-ink" : ""}`}
+          className="quiet t-micro"
+          data-tone={scale === 0 ? "on" : undefined}
           onClick={() => setScale(0)}
         >
           Fit width
         </button>
         <button
-          className={`quiet t-micro ${scale === -1 ? "text-ink" : ""}`}
+          className="quiet t-micro"
+          data-tone={scale === -1 ? "on" : undefined}
           onClick={() => setScale(-1)}
         >
           Fit page

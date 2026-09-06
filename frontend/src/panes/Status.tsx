@@ -137,7 +137,8 @@ export default function Status({
       </span>
       <Rule />
       <button
-        className={`t-micro shrink-0 ${historyOpen ? "text-ink" : "quiet"}`}
+        className="quiet t-micro shrink-0"
+        data-tone={historyOpen ? "on" : undefined}
         title="What this file used to say"
         onClick={onHistory}
       >

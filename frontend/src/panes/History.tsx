@@ -10,9 +10,12 @@ import { Chevron } from "../App";
 export default function History({
   onView,
   onClose,
+  docked,
 }: {
   onView: (sha: string | null) => void;
   onClose: () => void;
+  /** Docked beside the editor when there is room; over it when there is not. */
+  docked: boolean;
 }) {
   const versions = useStore((s) => s.history);
   const viewing = useStore((s) => s.viewing);
@@ -28,16 +31,27 @@ export default function History({
   const name = activePath?.split("/").pop() ?? "";
 
   return (
-    <div className="absolute right-0 top-0 z-20 flex h-full w-[264px] flex-col border-l border-line bg-surface shadow-[0_0_8px_rgba(0,0,0,0.25)]">
+    <div
+      className={
+        docked
+          ? "nx-arrive flex h-full w-[264px] shrink-0 flex-col border-l border-line bg-surface-2"
+          : "nx-arrive absolute right-0 top-0 z-20 flex h-full w-[264px] flex-col border-l border-line bg-surface-2 shadow-float"
+      }
+    >
       <div
-        className="flex h-[32px] shrink-0 cursor-pointer items-center justify-between border-b border-line bg-surface-2 px-[10px] transition-colors duration-[90ms] hover:bg-surface-3"
+        className="flex h-[32px] shrink-0 cursor-pointer items-center justify-between border-b border-line bg-surface-3 px-[10px] transition-colors duration-[90ms] hover:bg-surface"
         title="Close the history"
         onClick={(event) => {
           if ((event.target as HTMLElement).closest("button")) return;
           onClose();
         }}
       >
-        <span className="t-ui-lg truncate font-serif">History</span>
+        <span className="min-w-0">
+          <span className="t-ui-lg font-serif">History</span>
+          {name ? (
+            <span className="t-meta ml-2 truncate text-ink-3">{name}</span>
+          ) : null}
+        </span>
         <button className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px]" aria-label="Close the history" onClick={onClose}>
           <Chevron direction="right" />
         </button>
@@ -138,7 +152,12 @@ export default function History({
   );
 }
 
-/** The strip that says you are not looking at now. */
+/** The strip that says you are not looking at now.
+ *
+ *  It has to be unmistakably not the tab bar: read-only, historical text
+ *  in the editor is the single most consequential state this app has, and
+ *  announcing it in the same fill as more toolbar is how somebody types
+ *  into last Tuesday and wonders why nothing happens. */
 export function ViewingBanner({
   version,
   onRestore,
@@ -152,33 +171,80 @@ export function ViewingBanner({
   onToggleChanges: () => void;
   showingChanges: boolean;
 }) {
+  const [confirming, setConfirming] = useState(false);
+
+  // Escape leaves, as it does everywhere else in the app.
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active?.tagName === "TEXTAREA" || active?.tagName === "INPUT") return;
+      onBack();
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [onBack]);
+
   return (
     <div
       className={`nx-arrive flex h-[26px] shrink-0 items-center gap-3 border-b border-line px-[10px] ${
-        version.by === "claude" ? "bg-pen-wash" : "bg-surface-2"
+        version.by === "claude" ? "bg-pen-wash" : "bg-hint-wash"
       }`}
+      style={{ boxShadow: "inset 0 2px 0 var(--hint)" }}
     >
       <span className="t-micro text-ink">
-        Viewing {timeOf(version.at)} · {version.by === "claude" ? "Claude" : "you"}
+        Viewing {timeOf(version.at)}
+      </span>
+      <Rule />
+      <span className="t-micro text-ink-2">
+        {version.by === "claude" ? "Claude" : "you"}
       </span>
       {version.label || version.why ? (
-        <span className="t-micro min-w-0 flex-1 truncate text-ink-2">
-          {version.label || version.why}
-        </span>
+        <>
+          <Rule />
+          <span className="t-micro min-w-0 flex-1 truncate text-ink-2">
+            {version.label || version.why}
+          </span>
+        </>
       ) : (
         <span className="flex-1" />
       )}
       <button className="quiet t-micro" onClick={onToggleChanges}>
-        {showingChanges ? "Hide changes" : "Show changes"}
+        {showingChanges ? "Hide what's gone" : "Show what's gone"}
       </button>
-      <button className="quiet t-micro" onClick={onRestore}>
-        Restore this
-      </button>
-      <button className="quiet t-micro" onClick={onBack}>
+      <Rule />
+      {confirming ? (
+        <>
+          <span className="t-micro text-ink-2">Replace the file with this?</span>
+          <button
+            className="quiet t-micro"
+            data-tone="danger"
+            onClick={() => {
+              setConfirming(false);
+              onRestore();
+            }}
+          >
+            Restore
+          </button>
+          <button className="quiet t-micro" onClick={() => setConfirming(false)}>
+            Keep
+          </button>
+        </>
+      ) : (
+        <button className="quiet t-micro" onClick={() => setConfirming(true)}>
+          Restore this
+        </button>
+      )}
+      <Rule />
+      <button className="quiet t-micro" data-tone="on" onClick={onBack}>
         Back to now
       </button>
     </div>
   );
+}
+
+function Rule() {
+  return <span className="h-[10px] w-px shrink-0 bg-line" />;
 }
 
 function timeOf(at: number): string {

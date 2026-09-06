@@ -55,6 +55,10 @@ export default function App() {
   const [contextRequest, setContextRequest] =
     useState<"style" | "voice" | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Docked when the editor can spare the width; over it when it cannot.
+  // The panel exists to be read *beside* the file, and an overlay that
+  // covers the right third of a wrapped LaTeX line defeats it.
+  const [editorWide, setEditorWide] = useState(true);
   const [showingChanges, setShowingChanges] = useState(false);
   const [mainFile, setMainFile] = useState("main.tex");
   // Every pane folds away, and says where it went.  Editor and preview are
@@ -198,6 +202,13 @@ export default function App() {
     }
   }, []);
 
+  const closeHistory = useCallback(() => {
+    // Every way out of the panel is also a way out of viewing a version.
+    editor.current?.backToNow();
+    setShowingChanges(false);
+    setHistoryOpen(false);
+  }, []);
+
   const refreshTree = useCallback(async () => {
     const id = get().projectId;
     if (!id) return;
@@ -320,6 +331,7 @@ export default function App() {
       const pdfWidth = pdfPane.current?.getBoundingClientRect().width ?? 0;
       const pair = editorWidth + pdfWidth;
       if (which === "split") bounds.max = Math.max(pair - MIN_PDF, MIN_EDITOR);
+      setEditorWide(editorWidth > 700);
 
       let anchorX = event.clientX;
       let anchorWidth =
@@ -371,6 +383,17 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  // The editor's width decides whether history docks or overlays.
+  useEffect(() => {
+    const pane = editorPane.current;
+    if (!pane) return;
+    const observer = new ResizeObserver((entries) => {
+      setEditorWide((entries[0]?.contentRect.width ?? 0) > 700);
+    });
+    observer.observe(pane);
+    return () => observer.disconnect();
+  }, [view]);
 
   const fold = useCallback((pane: "rail" | "editor" | "pdf" | "chat") => {
     setFolded((current) => {
@@ -568,25 +591,26 @@ export default function App() {
               }}
             />
           ) : null}
-          <div className="relative min-h-0 flex-1">
-            <Editor handleRef={(handle) => (editor.current = handle)} />
+          <div className="relative flex min-h-0 flex-1">
+            <div className="relative min-h-0 flex-1">
+              <Editor handleRef={(handle) => (editor.current = handle)} />
+
+              {tabs.length === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-surface">
+                  <p className="t-display text-ink-3">Open a file from the list.</p>
+                </div>
+              ) : null}
+            </div>
             {historyOpen ? (
               <HistoryPanel
+                docked={!tight && editorWide}
                 onView={viewVersion}
-                onClose={() => {
-                  editor.current?.backToNow();
-                  setHistoryOpen(false);
-                }}
+                onClose={closeHistory}
               />
-            ) : null}
-            {tabs.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-surface">
-                <p className="t-display text-ink-3">Open a file from the list.</p>
-              </div>
             ) : null}
           </div>
           <Status
-            onHistory={() => setHistoryOpen(!historyOpen)}
+            onHistory={() => (historyOpen ? closeHistory() : setHistoryOpen(true))}
             historyOpen={historyOpen}
             // §4: nothing is lost when the rail folds -- the dirty count
             // comes here instead of disappearing with the git panel.

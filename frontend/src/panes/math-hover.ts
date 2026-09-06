@@ -38,7 +38,39 @@ const ENVIRONMENTS = [
 ];
 
 /** The maths the cursor is inside, if it is inside any. */
-export function mathAt(text: string, pos: number): Span | null {
+export function mathAt(whole: string, pos: number): Span | null {
+  // Scan the paragraph the pointer is in, not the file.  An unclosed $ --
+  // the commonest LaTeX typo there is -- would otherwise invert the
+  // pairing for everything after it, so hovering prose would render maths
+  // and hovering maths would render nothing.  It also keeps this cheap
+  // enough to run on every pointer move.
+  const start = paragraphStart(whole, pos);
+  const end = paragraphEnd(whole, pos);
+  const span = scan(whole.slice(start, end), pos - start);
+  if (!span) return null;
+  return { ...span, from: span.from + start, to: span.to + start };
+}
+
+const BLOCK_BREAK = /\n[ \t]*\n/g;
+
+function paragraphStart(text: string, pos: number): number {
+  let found = 0;
+  BLOCK_BREAK.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = BLOCK_BREAK.exec(text)) !== null) {
+    if (match.index >= pos) break;
+    found = match.index + match[0].length;
+  }
+  return found;
+}
+
+function paragraphEnd(text: string, pos: number): number {
+  BLOCK_BREAK.lastIndex = pos;
+  const match = BLOCK_BREAK.exec(text);
+  return match ? match.index : text.length;
+}
+
+function scan(text: string, pos: number): Span | null {
   // \begin{equation} ... \end{equation}
   for (const name of ENVIRONMENTS) {
     const open = `\\begin{${name}}`;
@@ -79,10 +111,32 @@ export function mathAt(text: string, pos: number): Span | null {
   // read as two empty inline spans.
   for (const marker of ["$$", "$"]) {
     const spans = delimited(text, marker);
+    // An odd number of delimiters in this block means somebody is still
+    // typing; guessing which pair they meant is worse than saying nothing.
+    if (spans.length && countUnescaped(text, marker) % 2) continue;
     const hit = spans.find((span) => pos > span.from && pos < span.to);
     if (hit) return hit;
   }
   return null;
+}
+
+function countUnescaped(text: string, marker: string): number {
+  let count = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === "\\") {
+      index += 1;
+      continue;
+    }
+    if (text.startsWith(marker, index)) {
+      if (marker === "$" && text.startsWith("$$", index)) {
+        index += 1;
+        continue;
+      }
+      count += 1;
+      index += marker.length - 1;
+    }
+  }
+  return count;
 }
 
 function delimited(text: string, marker: string): Span[] {
@@ -162,10 +216,14 @@ export function mathHover(symbols: () => Symbols | null): Extension {
       create() {
         const dom = document.createElement("div");
         dom.className = "nx-math-tooltip";
-        dom.textContent = "…";
+        // The source, not a spinner: it is the right size, it is useful
+        // while KaTeX loads, and the box does not jump when it lands.
+        dom.textContent = span.body.trim().slice(0, 200);
+        dom.classList.add("nx-math-loading");
         load()
           .then((renderer) => {
             try {
+              dom.classList.remove("nx-math-loading");
               renderer.render(prepare(span.body), dom, {
                 displayMode: span.display,
                 throwOnError: false,
