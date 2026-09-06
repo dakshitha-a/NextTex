@@ -755,6 +755,37 @@ never a clock. The exception is written down: one spec has to prove a build
 *does not* happen while an equation is unbalanced, and a negative assertion
 needs a clock.
 
+That spec is worth a paragraph, because two versions of it passed while
+testing nothing. The first counted `/compile` requests -- but an ordinary
+save carries `compile: true` in its own body, so the server starts the build
+itself and no such request is ever made; the count stayed at zero whatever
+the app did. The second watched the status dot, which does say "Compiling"
+-- for the 130 milliseconds a build of a short document takes, which a poll
+cannot be relied on to catch. Both passed with the debounce deliberately
+disabled. The third subscribes to the event stream from the test process and
+counts `compile_start`, which is the thing actually being asserted, and it
+fails when the debounce is removed. The same helper is there for any spec
+that needs to assert on something the page never displays.
+
+The same rewrite turned up why the second version could not have worked
+either: it clicked the editor and typed, which lands wherever the viewport
+happens to be -- the preamble. `mid_construct` looks only between
+`\begin{document}` and `\end{document}`, on purpose, so an unbalanced `$`
+typed into the preamble is not unfinished work and never was. The spec now
+puts the cursor in the body deliberately.
+
+**A sign-in that is driven end to end.** The bug on that screen -- waiting
+for an `exit` event that nothing published -- lived in the seam between a
+real interactive program under a pseudo-terminal and a browser waiting on
+its output. Both halves were individually correct, and a mock of either
+would have had no seam to get wrong. So `tests/fake_claude.py` is a real
+program, run under the real pseudo-terminal, through the real pump: it
+prints a verification URL without a trailing newline the way the CLI does,
+waits for a code on stdin, and reports itself signed in afterwards. The
+server finds it through `NEXTTEX_CLAUDE_BINARY`, which is the whole of the
+production change. Two tests then cover the flow, one over the API and one
+in a browser, and both fail if the event is renamed on either side.
+
 **Property tests** over the two places where being right for the cases
 somebody thought of is not enough: the path fence, and what retention is
 allowed to throw away.
@@ -799,6 +830,15 @@ restart the browser retried a 404 every two seconds forever with nothing on
 screen saying so. "Open" is what a user does to a window, not a
 precondition the server keeps: `session_for` opens a registered project on
 demand, and only the open route marks one as recently opened.
+
+**A file created through the API never appeared in the tree.** A save
+broadcasts `structural: False` so that a keystroke burst in one window does
+not cost every other window a full tree request. Creating a file went
+through the same line, so the new name was not in any open tab's tree until
+somebody reloaded the page -- the file existed, was being edited, and could
+not be reached. The broadcast now says structural when the file was not
+there before. Found by a browser spec written for something else entirely,
+which is the argument for the tier.
 
 **A reload lost your place.** Not a bug, and it read as one. NextTex now
 comes back to the document with the same files open and the same one in

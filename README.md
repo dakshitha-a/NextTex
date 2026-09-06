@@ -149,6 +149,19 @@ conversation from the transcript on disk.
 If a browser test needs the agent to do something particular, the first line
 of the question names the script: `#script:permission`.
 
+The sign-in screen gets the same treatment from the other direction.
+`tests/fake_claude.py` is a real program that answers `auth status` and
+`auth login` predictably; pointing `NEXTTEX_CLAUDE_BINARY` at it leaves the
+pseudo-terminal, the output pump and the screen running exactly as they do
+in earnest. That seam is where the first-run bug was, and mocking either
+side of it would have removed the thing worth testing.
+
+For anything the page never displays, `e2e/events.ts` subscribes to the
+server's event stream from the test process and counts what arrives. A build
+of a short document takes about 130 milliseconds, which is less time than
+the status dot can be reliably polled for — so a spec that has to prove a
+build did *not* happen counts `compile_start` instead of watching pixels.
+
 `frontend/src/**/*.test.ts` is vitest over the frontend's pure logic —
 finding the maths under the pointer, where a diff begins, which completion
 list belongs at the cursor — plus a contrast check that parses the palette

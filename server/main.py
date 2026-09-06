@@ -416,6 +416,7 @@ async def write_file(
         # an orphan nothing includes.
         raise HTTPException(404, "no such file")
     previous = read_text(target)
+    created = previous is None
     if base and previous is not None and previous != text:
         current = _tag(previous)
         if current != base:
@@ -439,11 +440,13 @@ async def write_file(
     if previous != text:
         await session.events.publish({
             "type": "files_changed", "paths": [path], "origin": origin,
-            # Nothing appeared or disappeared, so the other tabs need to
+            # An ordinary save changes no names, so the other tabs need to
             # reload this file and nothing else.  Without this every
             # keystroke burst in one window cost every other one a full
-            # tree request.
-            "structural": False,
+            # tree request.  Creating a file is the exception: the name is
+            # new, and a tree that does not show it leaves the writer with
+            # a file they cannot reach until they reload the page.
+            "structural": created,
         })
     return {"ok": True, "tag": tag, "mtime": target.stat().st_mtime}
 

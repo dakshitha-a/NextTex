@@ -47,21 +47,30 @@ export default function Status({
   const errors = diagnostics.filter((item) => item.severity === "error").length;
   const warnings = diagnostics.filter((item) => item.severity === "warning").length;
 
+  // `state` says the same thing as the dot's colour, in a form a test can
+  // read.  Asserting on the colour class would pass on a dot that is the
+  // right shade of nothing; asserting on the label would break the moment
+  // the wording changes.
+  let state = "ready";
   let dot = "border border-ink-3";
   let label = "Ready";
   let clickable = false;
   if (compiling) {
+    state = "compiling";
     dot = "bg-pen";
     label = "Compiling";
   } else if (errors) {
+    state = "errors";
     dot = "bg-error";
     label = `${errors} ${errors === 1 ? "error" : "errors"}`;
     clickable = true;
   } else if (warnings) {
+    state = "warnings";
     dot = "bg-warn";
     label = `${warnings} ${warnings === 1 ? "warning" : "warnings"}`;
     clickable = true;
   } else if (result) {
+    state = "built";
     dot = "bg-ink-3";
     label = `Built ${(result.durationMs / 1000).toFixed(2)}s`;
   }
@@ -79,6 +88,8 @@ export default function Status({
       }`}
     >
       <button
+        data-testid="status"
+        data-state={state}
         className="flex shrink-0 items-center gap-2"
         onClick={() => clickable && onToggleDrawer()}
       >
