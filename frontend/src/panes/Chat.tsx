@@ -239,7 +239,7 @@ export default function Chat({
         <span className="t-ui-lg shrink-0 font-serif">{name}</span>
         {thinking || blocked ? (
           <span
-            className="flex min-w-0 items-center gap-[6px]"
+            className="flex min-w-0 flex-1 items-center gap-[6px]"
             data-testid="working"
             aria-live="polite"
           >
@@ -275,46 +275,11 @@ export default function Chat({
             Stop
           </button>
         ) : null}
-        <select
-          id="nx-model"
-          aria-label="Which model answers here"
-          className="t-micro cursor-pointer rounded-[3px] border border-line bg-surface-2 px-1 py-[2px] text-ink-2 hover:border-hint hover:text-ink"
-          value={usage?.model ?? ""}
-          title="Which model answers here"
-          onChange={async (event) => {
-            const chosen = event.target.value;
-            if (!projectId) return;
-            try {
-              const answer = await api.setModel(projectId, chosen);
-              setUsage(await api.usage(projectId));
-              // The client carries the model it was started with, so a
-              // change made mid-answer is held back rather than applied --
-              // applying it used to close the transport the running turn
-              // was reading from, and that turn then ended without ever
-              // saying so.  A dropdown that appears to do nothing is worse
-              // than one that explains itself.
-              if (answer.deferred) {
-                pushChat({
-                  kind: "notice",
-                  id: `model-${Date.now()}`,
-                  text: "The model changes for your next question — this answer finishes on the one it started with.",
-                  tone: "plain",
-                });
-              }
-            } catch (error: any) {
-              set({ error: error.message });
-            }
-          }}
-        >
-          {(usage?.models ?? [{ id: "", name: "Default", note: "" }]).map((entry) => (
-            <option key={entry.id} value={entry.id}>
-              {entry.name}
-            </option>
-          ))}
-        </select>
         <button
           ref={usageButton}
-          className="quiet t-micro flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3"
+          className={`quiet t-micro flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3 ${
+            showUsage ? "bg-surface-3 text-ink" : ""
+          }`}
           title="What this project has used"
           aria-expanded={showUsage}
           onClick={() => setShowUsage(!showUsage)}
@@ -326,7 +291,9 @@ export default function Chat({
         </button>
         <button
           ref={menuButton}
-          className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3"
+          className={`quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3 ${
+            menuOpen ? "bg-surface-3 text-ink" : ""
+          }`}
           aria-label="More"
           aria-expanded={menuOpen}
           data-testid="chat-menu-open"
@@ -363,7 +330,7 @@ export default function Chat({
               </p>
               <div className="mt-2 flex gap-[6px]">
                 <button
-                  className="pen-button h-[26px] px-3 t-ui"
+                  className="ghost-button h-[26px] px-3 t-ui"
                   data-testid="clear-confirm"
                   onClick={async () => {
                     if (!projectId) return;
@@ -379,19 +346,19 @@ export default function Chat({
                     }
                   }}
                 >
-                  Yes
+                  Start new
                 </button>
                 <button
                   className="quiet t-ui h-[26px] rounded-[3px] border border-line px-3"
                   onClick={() => setConfirmClear(false)}
                 >
-                  Cancel
+                  Keep this one
                 </button>
               </div>
             </div>
           ) : (
             <button
-              className="quiet t-ui block w-full text-left disabled:opacity-40"
+              className="t-ui flex h-[26px] w-full items-center rounded-[3px] px-1 text-left text-ink hover:bg-surface-3 disabled:opacity-40 disabled:hover:bg-transparent"
               data-testid="clear-chat"
               disabled={thinking}
               title={thinking ? "Wait for this answer to finish" : undefined}
@@ -400,6 +367,46 @@ export default function Chat({
               New conversation
             </button>
           )}
+          <label className="mt-3 flex items-center gap-2 border-t border-line pt-3">
+            <span className="t-ui shrink-0 text-ink">Model</span>
+            <select
+                  id="nx-model"
+                  aria-label="Which model answers here"
+                  className="t-micro cursor-pointer rounded-[3px] border border-line bg-surface-2 px-1 py-[2px] text-ink-2 hover:border-hint hover:text-ink"
+                  value={usage?.model ?? ""}
+                  title="Which model answers here"
+                  onChange={async (event) => {
+                const chosen = event.target.value;
+                if (!projectId) return;
+                try {
+                  const answer = await api.setModel(projectId, chosen);
+                  setUsage(await api.usage(projectId));
+                  // The client carries the model it was started with, so a
+                  // change made mid-answer is held back rather than applied --
+                  // applying it used to close the transport the running turn
+                  // was reading from, and that turn then ended without ever
+                  // saying so.  A dropdown that appears to do nothing is worse
+                  // than one that explains itself.
+                  if (answer.deferred) {
+                    pushChat({
+                      kind: "notice",
+                      id: `model-${Date.now()}`,
+                      text: "The model changes for your next question — this answer finishes on the one it started with.",
+                      tone: "plain",
+                    });
+                  }
+                } catch (error: any) {
+                  set({ error: error.message });
+                }
+          }}
+        >
+              {(usage?.models ?? [{ id: "", name: "Default", note: "" }]).map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
+                </option>
+              ))}
+                </select>
+          </label>
           {asks ? (
             <button
               className="mt-3 block w-full border-t border-line pt-3 text-left"
@@ -525,7 +532,7 @@ export default function Chat({
           value={draft}
           disabled={blocked}
           placeholder={blocked ? "Waiting on your approval" : `Ask ${name}`}
-          className="t-ui w-full resize-none rounded-[3px] border border-line bg-surface-2 px-2 py-[6px] outline-none placeholder:text-ink-3 disabled:text-ink-3"
+          className="t-ui w-full resize-none rounded-[3px] border border-line bg-surface-2 px-2 py-[6px] outline-none transition-colors duration-[90ms] placeholder:text-ink-3 disabled:border-warn disabled:bg-surface disabled:text-ink-3"
           onFocus={() => setFocusedComposer(true)}
           onBlur={() => setFocusedComposer(false)}
           onChange={(event) => setDraft(event.target.value)}
@@ -966,8 +973,13 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         data-testid={`decided-${item.decision}`}
       >
         <span className={`h-[6px] w-[6px] rounded-full ${dot}`} />
-        <span className="t-micro truncate text-ink-3">
-          {label} — {item.detail || item.headline}
+        <span className="t-micro min-w-0 truncate text-ink-3">
+          {label} —{" "}
+          {item.detail ? (
+            <span className="t-code-sm">{item.detail}</span>
+          ) : (
+            item.headline
+          )}
         </span>
       </div>
     );

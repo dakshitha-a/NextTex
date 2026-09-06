@@ -120,18 +120,7 @@ export default function ContextPanel({
                   Edit
                 </button>
               ) : (
-                <span className="flex items-center gap-2">
-                  <button className="quiet t-micro" onClick={() => setEditing(null)}>
-                    Cancel
-                  </button>
-                  <button
-                    className="quiet t-micro text-pen"
-                    data-testid="memory-save"
-                    onClick={saveMemory}
-                  >
-                    Save
-                  </button>
-                </span>
+                <span className="t-micro text-ink-3">Editing</span>
               )}
             </div>
             {editing === null ? (
@@ -156,21 +145,41 @@ export default function ContextPanel({
             ) : (
               <>
                 <textarea
-                  className="t-ui mt-1 w-full resize-y rounded-[3px] border border-line bg-surface-2 p-2 text-ink outline-none focus:border-pen"
+                  // No resize grip: Chrome draws its own diagonal handle,
+                  // which is the one piece of unthemed browser chrome in
+                  // the rail.
+                  className="t-ui mt-1 w-full resize-none rounded-[3px] border border-line bg-surface-2 p-2 text-ink outline-none focus:border-pen"
                   rows={6}
+                  autoFocus
                   data-testid="memory-editor"
                   value={editing}
                   onChange={(event) => setEditing(event.target.value)}
                 />
-                <span
-                  className={`t-micro ${
-                    memory && editing.length > memory.limit * 0.9
-                      ? "text-warn"
-                      : "text-ink-3"
-                  }`}
-                >
-                  {editing.length} / {memory?.limit ?? 4000}
-                </span>
+                <div className="mt-1 flex items-center gap-2">
+                  <button
+                    className="ghost-button h-[26px] px-3 t-ui"
+                    data-testid="memory-save"
+                    onClick={saveMemory}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="quiet t-micro"
+                    onClick={() => setEditing(null)}
+                  >
+                    Discard
+                  </button>
+                  <span className="flex-1" />
+                  <span
+                    className={`t-micro tabular-nums ${
+                      memory && editing.length > memory.limit * 0.9
+                        ? "text-warn"
+                        : "text-ink-3"
+                    }`}
+                  >
+                    {editing.length} / {memory?.limit ?? 4000}
+                  </span>
+                </div>
               </>
             )}
           </div>
