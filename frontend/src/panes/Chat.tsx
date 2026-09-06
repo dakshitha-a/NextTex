@@ -271,7 +271,7 @@ export default function Chat({
             <div className="ml-3 min-w-0 flex-1">
               <div className="t-micro mb-1 text-pen">{name}</div>
               <div className="t-prose text-ink">
-                <Prose text={welcome(name)} />
+                <Prose text={welcome(name, provider !== "openai")} />
               </div>
               <div className="mt-3 flex flex-col gap-2">
                 {WELCOME_ACTIONS.map((action) => (

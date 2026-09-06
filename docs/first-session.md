@@ -109,19 +109,20 @@ which is very often mid-thought, and a list of errors jumping up over the
 document about a sentence you already know is unfinished is the most
 irritating thing this app could do. Open it yourself by clicking the strip.
 
-Inside, the first thing is not what LaTeX said. It is what LaTeX meant:
+Inside, a strip at the top says where to start and what to do about it, in
+words rather than in LaTeX's:
 
-> **A command LaTeX does not know**
-> The command shown below was not defined by anything this document loads.
-> Almost always it is either a typo, or a command that needs a package the
-> preamble does not have yet.
+> **Start here — A command LaTeX does not know**  `main.tex:12`
 > *What to do —* Check the spelling first. If it is spelt right, find which
 > package provides it and add `\usepackage` for it near the top of the file.
 
-If several errors appear at once, the strip at the top of the drawer names
-which one to start with. LaTeX reports everything after a mistake as a mistake
-too, so the list below the first error is usually its own consequence — start
-at the bottom and you will spend the evening fixing noise.
+Click the row beneath it for the fuller explanation — what the command was,
+and why LaTeX could not find it.
+
+The strip appears for any error, and when several arrive at once it also says
+how many followed the first. LaTeX reports everything after a mistake as a
+mistake too, so the list below the first error is usually its own consequence —
+start at the bottom and you will spend the evening fixing noise.
 
 None of this involves a model. It works with no agent signed in.
 
@@ -184,6 +185,9 @@ every save is a version, and an old one can be read; a version being read
 cannot be typed into; naming a version makes it findable later.*
 
 ## 10. Ask it to run something
+
+This one is the Claude agent only: the OpenAI agent is built without a shell,
+so it reads and writes files in the project and nothing else.
 
 > run texcount on main.tex and tell me the word count
 
