@@ -132,3 +132,27 @@ test("working alone leaves nothing on screen that needs an agent", async ({
   await expect(page.getByRole("treeitem", { name: /main\.tex/ }).first())
     .toBeVisible();
 });
+
+test("a writer who chose ChatGPT is never told they are talking to Claude", async ({
+  page,
+}) => {
+  const project = await seedProject(app, `openai-${Date.now()}`);
+  await fetch(`${app.base}/api/agent/provider`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({ provider: "openai", key: "sk-test-not-used" }),
+  });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText(project.root.split("/").pop()!, { exact: false })
+    .first().click();
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+
+  // Every label in this column is the provider's name, including the menu
+  // of models: offering an OpenAI writer `claude-opus-5` sends it to a
+  // service that answers with a 404 about a model they never chose.
+  const chat = page.getByTestId("chat");
+  await expect(chat.getByText("ChatGPT").first()).toBeVisible();
+  await expect(chat.getByText(/Claude/)).toHaveCount(0);
+  await expect(page.getByPlaceholder("Ask ChatGPT")).toBeVisible();
+  await expect(page.getByText("What ChatGPT reads")).toBeVisible();
+});

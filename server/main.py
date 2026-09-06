@@ -1623,12 +1623,40 @@ async def agent_permission(
 # The models a writer can choose between.  Names, not identifiers, because
 # the person picking is choosing how careful and how quick they want the
 # help to be -- not which build is deployed.
-MODELS = [
+# One list per provider.  A single shared list meant an OpenAI writer was
+# offered a menu of Claude models, and picking one sent `claude-opus-5` to
+# OpenAI -- which fails at the far end with a message about an unknown
+# model rather than anything the writer could act on.
+CLAUDE_MODELS = [
     {"id": "", "name": "Default", "note": "Whatever your Claude plan gives"},
     {"id": "claude-opus-5", "name": "Opus 5", "note": "The most careful"},
     {"id": "claude-sonnet-5", "name": "Sonnet 5", "note": "Quick, and good at prose"},
     {"id": "claude-haiku-4-5-20251001", "name": "Haiku 4.5", "note": "Fastest, for small edits"},
 ]
+
+OPENAI_MODELS = [
+    {"id": "", "name": "Default", "note": f"{OPENAI_DEFAULT_MODEL}"},
+    {"id": "gpt-4o", "name": "GPT-4o", "note": "The general one"},
+    {"id": "gpt-4o-mini", "name": "GPT-4o mini", "note": "Cheaper, for small edits"},
+]
+
+
+def _models_for(provider: str) -> list[dict]:
+    return OPENAI_MODELS if provider == "openai" else CLAUDE_MODELS
+
+
+def _model_is_wrong_provider(provider: str, model: str) -> bool:
+    """Would this model be sent to a service that has never heard of it?
+
+    Checked by prefix rather than by membership, because OpenAI ships
+    models faster than this app is updated: an id NextTex has never seen
+    is allowed through to OpenAI, but a `claude-` one is not.
+    """
+    if not model:
+        return False
+    if provider == "openai":
+        return model.startswith("claude-")
+    return not model.startswith("claude-")
 
 
 @app.get("/api/projects/{project_id}/agent/usage")
@@ -1637,14 +1665,20 @@ async def agent_usage(project_id: str):
     return {
         "usage": session.agent.usage,
         "model": session.agent.model or "",
-        "models": MODELS,
+        "models": _models_for(SETTINGS.provider),
     }
 
 
 @app.post("/api/projects/{project_id}/agent/model")
 async def agent_model(project_id: str, model: str = Body("", embed=True)):
     session = session_for(project_id)
-    if model and not any(entry["id"] == model for entry in MODELS):
+    if _model_is_wrong_provider(SETTINGS.provider, model):
+        raise HTTPException(400, "that model belongs to a different provider")
+    if (
+        model
+        and SETTINGS.provider != "openai"
+        and not any(entry["id"] == model for entry in CLAUDE_MODELS)
+    ):
         raise HTTPException(400, "unknown model")
     await session.agent.set_model(model)
     SETTINGS.model = model
@@ -1737,11 +1771,19 @@ async def agent_provider(
     """Choose the agent, and hand over a key if the choice needs one."""
     if provider not in PROVIDERS:
         raise HTTPException(400, f"provider must be one of {', '.join(PROVIDERS)}")
+    changed = SETTINGS.provider != provider
     SETTINGS.provider = provider
+    if changed and not model.strip():
+        # A model chosen for the old provider means nothing to the new one,
+        # and carrying it across is how `claude-opus-5` ends up in a request
+        # to OpenAI.  Falling back to empty means "this provider's default".
+        SETTINGS.model = ""
     if provider == "openai":
         if key:
             SETTINGS.openai_key = key.strip()
         SETTINGS.model = model.strip() or SETTINGS.model or OPENAI_DEFAULT_MODEL
+    if provider == "claude" and _model_is_wrong_provider("claude", SETTINGS.model):
+        SETTINGS.model = ""
     if provider == "none":
         # The key is not kept for a provider that is switched off.  Leaving
         # a credential in a config file for a feature nobody is using is

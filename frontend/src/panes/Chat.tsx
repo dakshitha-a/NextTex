@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDismiss } from "../useDismiss";
 import { createTwoFilesPatch } from "diff";
 import Prose from "./prose";
-import { WELCOME, WELCOME_ACTIONS } from "../welcome";
+import { welcome, WELCOME_ACTIONS } from "../welcome";
+import { agentName, usageNote } from "../agent-name";
 import { Chevron } from "../App";
 import api from "../api";
 import {
@@ -73,6 +74,8 @@ export default function Chat({
   const thinking = useStore((s) => s.thinking);
   const blocked = useStore((s) => s.awaitingPermission);
   const agent = useStore((s) => s.agent);
+  const provider = agent?.provider;
+  const name = agentName(provider);
   const [draft, setDraft] = useState("");
   const stream = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
@@ -152,7 +155,7 @@ export default function Chat({
   }, [thinking, projectId]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div className="flex h-full min-h-0 flex-col bg-surface" data-testid="chat">
       <div
         className={`flex h-[32px] shrink-0 items-center gap-2 border-b border-line px-[10px] ${
           onFold ? "cursor-pointer transition-colors duration-[90ms] hover:bg-surface-2" : ""
@@ -164,7 +167,7 @@ export default function Chat({
           onFold();
         }}
       >
-        <span className="t-ui-lg font-serif">Claude</span>
+        <span className="t-ui-lg font-serif">{name}</span>
         <span className="flex-1" />
         {thinking ? (
           <button
@@ -249,10 +252,7 @@ export default function Chat({
               : ""}{" "}
             · {compact(usage.usage.outputTokens)} out
           </div>
-          <p className="t-micro mt-2 text-ink-3">
-            On a Claude subscription this is what the same work would have
-            cost through the API, not a bill.
-          </p>
+          <p className="t-micro mt-2 text-ink-3">{usageNote(provider)}</p>
         </div>
       ) : null}
 
@@ -269,9 +269,9 @@ export default function Chat({
           <div className="nx-arrive flex">
             <span className="w-[3px] shrink-0 bg-pen" />
             <div className="ml-3 min-w-0 flex-1">
-              <div className="t-micro mb-1 text-pen">Claude</div>
+              <div className="t-micro mb-1 text-pen">{name}</div>
               <div className="t-prose text-ink">
-                <Prose text={WELCOME} />
+                <Prose text={welcome(name)} />
               </div>
               <div className="mt-3 flex flex-col gap-2">
                 {WELCOME_ACTIONS.map((action) => (
@@ -327,7 +327,7 @@ export default function Chat({
           rows={3}
           value={draft}
           disabled={blocked}
-          placeholder={blocked ? "Waiting on your approval" : "Ask Claude"}
+          placeholder={blocked ? "Waiting on your approval" : `Ask ${name}`}
           className="t-ui w-full resize-none rounded-[3px] border border-line bg-surface-2 px-2 py-[6px] outline-none placeholder:text-ink-3 disabled:text-ink-3"
           onFocus={() => setFocusedComposer(true)}
           onBlur={() => setFocusedComposer(false)}
@@ -345,8 +345,8 @@ export default function Chat({
               ? ""
               : thinking
                 ? queuedCount
-                  ? "Claude is writing · yours will go next"
-                  : "Claude is writing"
+                  ? `${name} is writing · yours will go next`
+                  : `${name} is writing`
                 : focusedComposer
                 ? "Enter to send, Shift-Enter for a new line"
                 : ""}
@@ -447,7 +447,7 @@ function Item({
   }
 
   if (item.kind === "claude") {
-    return <ClaudeMessage item={item} />;
+    return <AgentMessage item={item} />;
   }
 
   if (item.kind === "tool") {
@@ -477,7 +477,8 @@ function Item({
   return <Permission item={item} />;
 }
 
-function ClaudeMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> }) {
+function AgentMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> }) {
+  const name = agentName(useStore((s) => s.agent?.provider));
   // The caret is solid while tokens are arriving and blinks once they stop,
   // so a paused generation looks different from a finished one.
   const [paused, setPaused] = useState(false);
@@ -502,7 +503,7 @@ function ClaudeMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> }
       <span className="w-[3px] shrink-0 bg-pen" />
       <div className="ml-3 min-w-0 flex-1">
         <div className="flex items-baseline justify-between">
-          <span className="t-micro text-pen">Claude</span>
+          <span className="t-micro text-pen">{name}</span>
           {hover ? (
             <span className="t-micro tnum text-ink-3">
               {new Date(item.at).toLocaleTimeString([], {

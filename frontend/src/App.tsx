@@ -35,9 +35,14 @@ import Logo from "./Logo";
 import { applyTheme, storedTheme, type Theme } from "./theme";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
+import { agentName } from "./agent-name";
 
 const DRAWER_CLOSED = 0;
 const DRAWER_OPEN = 168;
+// A build with an explanation puts a strip above the list, and 168px
+// left less than one row's height under it -- the drawer opened onto
+// its own summary with the errors it summarised out of sight.
+const DRAWER_WITH_SUMMARY = 248;
 
 type Widths = { rail: number; editor: number; chat: number };
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
@@ -73,7 +78,11 @@ export default function App() {
   // hook, above the early returns: a `useStore` further down runs only on
   // the renders that get that far, which is React error #310 and took the
   // whole editor with it.
-  const noAgent = useStore((s) => s.agent)?.provider === "none";
+  const agentProvider = useStore((s) => s.agent)?.provider;
+  const noAgent = agentProvider === "none";
+  // Read here too, and for the same reason: the drawer opens taller
+  // when the build left an explanation to sit above the list.
+  const hasSummary = !!useStore((s) => s.compile?.summary);
   const [widths, setWidths] = useState<Widths>(DEFAULTS);
   const [drawer, setDrawer] = useState(DRAWER_CLOSED);
   const [railHidden, setRailHidden] = useState(false);
@@ -847,7 +856,9 @@ export default function App() {
               setWordScope((value) => (value === "file" ? "document" : "file"))
             }
             onToggleDrawer={() =>
-              setDrawer((value) => (value ? DRAWER_CLOSED : DRAWER_OPEN))
+              setDrawer((value) =>
+                value ? DRAWER_CLOSED : hasSummary ? DRAWER_WITH_SUMMARY : DRAWER_OPEN,
+              )
             }
             onRebuild={() => projectId && api.compile(projectId, true)}
           />
@@ -955,7 +966,11 @@ export default function App() {
         />
       ) : null}
       {!noAgent && folded.chat && !chatOver ? (
-        <Collapsed label="Claude" side="right" onExpand={() => fold("chat")} />
+        <Collapsed
+          label={agentName(agentProvider)}
+          side="right"
+          onExpand={() => fold("chat")}
+        />
       ) : null}
       {noAgent ? null : (
       <div
