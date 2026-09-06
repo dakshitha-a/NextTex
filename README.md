@@ -105,6 +105,33 @@ travelling towards the composer cannot be approved on the way past. *Allow
 always* is scoped to a command's first word, and a command carrying shell
 syntax gets no rule at all and is asked about every time.
 
+If that is more asking than you want, there is a switch that approves
+everything — with three things holding it honest. A write outside the project
+still asks, because that is the one action that leaves the thing you pointed
+the agent at. Every automatic approval still appears in the transcript,
+marked as one, so the record of what was done to your document stays whole.
+And while it is on, an **Auto** chip sits beside the agent's name: a fence
+that is down and says nothing is worse than no fence.
+
+**It says what it is doing.** A turn can spend twenty seconds inside a tool
+with no prose arriving, so the header carries a live line — *Reading
+02_theory.tex*, *Searched the literature*, *Writing* — rather than a single
+message that claims prose is being written whatever is happening.
+
+**It remembers the project, not just the conversation.** Tell it something
+worth keeping — that chapter three is frozen, which measurements came from a
+collaborator, who your supervisor is — and it writes that down where the next
+conversation will read it. So you can start a fresh conversation whenever the
+current one has wandered, without teaching it your project again. The memory
+is a plain file, shown in the panel that lists what the agent reads, and
+correcting it by hand is the fastest way to change what follows from it.
+
+**A conversation can be ended.** *New conversation* clears the panel and the
+model's own recollection, and files the transcript away under a timestamp
+rather than deleting it — it is the record of what an assistant did to your
+document. What the project has cost carries over, and so do the permission
+rules you have already set.
+
 **It cannot invent a citation.** The agent can search Crossref, OpenAlex or
 Semantic Scholar and gets back real DOIs; it adds an entry by DOI, and the
 BibTeX comes from the publisher's own record rather than from the model. It
@@ -112,6 +139,13 @@ can then re-check every entry in your bibliography against the record it
 claims to come from. A fabricated reference in a paper is an academic
 integrity failure, so the defence is structural rather than a matter of care:
 there is no path from the model's memory to your `.bib` file.
+
+**The file list finds things and moves them.** A magnifier opens a filter row:
+type and the tree narrows to what matches, through folders you had collapsed,
+and clearing it gives back exactly the tree you had. Typing straight into the
+tree still jumps to a file, as before. Rows drag onto folders, and a folder
+takes everything under it — including the files you have open, which follow
+it rather than being left pointing at a name that no longer exists.
 
 **Point it at a folder of papers.** `⋯` on your `.bib` file, *Add papers from
 a folder*, and NextTex walks the folder — a Zotero library, a Downloads

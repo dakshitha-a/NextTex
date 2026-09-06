@@ -222,6 +222,14 @@ Drag-drop upload highlights the target folder row only, never the whole panel. T
 root has no row, so a drop aimed at it — on the empty area below the tree, or on the Files
 bar — highlights the **Upload button** instead, which stands in as the root's row.
 
+**Dragging.** A row is draggable onto any folder, and onto the Files bar for the project
+root. The row being dragged drops to 50 % opacity so the gesture has a visible subject; the
+folder under the pointer takes the same `--pen-wash` fill and `--pen` underline a file drop
+from the desktop gets, because to the writer they are the same act. A destination that
+cannot take it — the folder itself, its own descendant, or the folder it already sits in —
+shows no highlight at all and the cursor says *no*: refused while it is being dragged
+rather than attempted and reported.
+
 ### Files bar
 
 26 px, directly under the 32 px project header, and the header's bottom rule moves down
@@ -232,7 +240,8 @@ band of it above rows that hover to it reads as a stuck hover.
 Three controls, abutting, no gap, in the header's own button style (`quiet t-micro
 h-[26px] rounded-[3px] px-2`): **New file**, **New folder**, **Upload**. A container query
 shortens the first two to *File* and *Folder* below 208 px; both short forms are substrings
-of the accessible name, so a spoken command matching what is on screen still works.
+of the accessible name, so a spoken command matching what is on screen still works. A 22 px
+magnifier sits at the right end, past the spacer, and opens the filter row below.
 
 It exists because the alternative was a reachability hole rather than a convenience gap.
 Every file operation hung off a row's `⋯` menu, so there had to *be* a row: a new project is
@@ -240,9 +249,18 @@ created as one empty document, and its first folder could only be made by openin
 on `main.tex` and knowing that "New folder here" resolves to the folder containing it. The
 cost is one tree row of a rail that is usually 800–1000 px tall.
 
-The bar does not grow. No filter box — tree type-ahead does that job for nothing, and a
-thesis has tens of files, not thousands. No collapse-all — ArrowLeft already collapses a
-folder.
+The bar does not grow. No collapse-all — ArrowLeft already collapses a folder.
+
+**The filter row.** One 26 px row under the bar, shown only when the magnifier is pressed:
+a full-width borderless input on `--surface-2` reading *Find a file*, with a match count in
+`t-micro` at the right. Typing filters the tree to the matching rows and the folders on the
+way down to them, drawing every folder open without touching what the writer had collapsed
+— so clearing the box gives back the tree they had rather than one unfolded on their
+behalf. Escape clears the query, and Escape again closes the row and returns focus to the
+tree. Rows keep their ordinary indent and typography; there is no match highlight, because
+`--pen` means *the agent touched this* and a second accent would be a new colour. A query
+that matches nothing gets one `t-meta` row saying so, in the writer's own words back to
+them.
 
 ### Upload chooser
 
@@ -498,6 +516,28 @@ you are looking at).
 Each of these departs from the specification above. They are written down
 rather than left implicit, so the next person to read both can tell a
 decision from a drift.
+
+**There is a filter box after all.** §5 said there would not be one: "tree type-ahead does
+that job for nothing, and a thesis has tens of files, not thousands." That reasoning holds
+for a thesis the writer is holding in their head, and stops holding for one reorganised
+over a year. Type-ahead can only jump to a name you can already spell from its first
+letter, in a tree you can already see; it cannot answer *where did the o-nitrophenol figure
+end up*. The box was asked for by the writer using the app daily. It costs one 26 px row,
+shown only when the magnifier is pressed, and type-ahead is kept exactly as it was for the
+keyboard path.
+
+**The permission fence has a switch.** §5's permission card is written as though a card is
+unconditional, and for the actions that matter it still is. But a card for every action is
+how a card stops being read — the same argument this document already makes for waving
+read-only tools through — and a writer who has approved the same build command forty times
+is being trained to click *Allow* without looking. Auto mode is therefore offered, with
+three things holding it honest: a write outside the project root still asks, because that is
+the one action that leaves the thing the writer pointed the agent at; every automatic
+approval is still emitted as a card that arrives already answered, so nothing vanishes from
+the record; and while the mode is on a persistent `--warn` **Auto** chip sits beside the
+agent's name, because a fence that is down and silent is worse than no fence. The same
+change made the rules from *Allow always* visible too — those were previously allowed in
+silence, which was the same hole, unnoticed.
 
 **Fonts are self-hosted, not loaded from Google Fonts.** §3 says "Google Fonts
 only". NextTex is a self-hosted tool that people run on a private tailnet, and

@@ -82,6 +82,7 @@ class ScriptedAgent:
         self.remember_note = remember or (
             lambda _note: (False, "This project has nowhere to keep a memory.")
         )
+        self.auto = False
         self.compile_now = compile_now
         self.apply_edit = apply_edit
         self.on_edit = on_edit
@@ -129,6 +130,9 @@ class ScriptedAgent:
 
     async def reset(self) -> None:
         self.asked.clear()
+
+    def set_auto(self, on: bool) -> None:
+        self.auto = bool(on)
 
     async def disconnect(self) -> None:
         return None
@@ -227,6 +231,21 @@ class ScriptedAgent:
             if decision == "deny" and step.get("stop_if_denied", True):
                 raise asyncio.CancelledError
 
+        elif kind == "remember":
+            # Writes for real, through the same callback the model's tool
+            # uses, so the panel and the prompt section are both exercised.
+            self._counter += 1
+            note = str(step.get("note", ""))
+            _kept, message = self.remember_note(note)
+            await self._emit({
+                "type": "tool_use",
+                "id": f"scripted-tool-{self._counter}",
+                "name": "mcp__nexttex__remember",
+                "input": {"note": note},
+            })
+            await self._emit({"type": "text", "text": message})
+            await self._emit({"type": "text_end"})
+
         elif kind == "error":
             await self._emit({"type": "error", "message": step.get("message", "")})
 
@@ -266,6 +285,20 @@ class ScriptedAgent:
     async def _permission(self, step: dict) -> str:
         self._counter += 1
         request_id = f"scripted-perm-{self._counter}"
+        if self.auto:
+            # The same pre-decided card the real fence emits, so the browser
+            # specs exercise what a writer would actually see.
+            await self._emit({
+                "type": "permission",
+                "id": f"auto-{self._counter}",
+                "tool": step.get("tool", "Bash"),
+                "rule": step.get("rule", "Bash:echo"),
+                "decision": "auto",
+                "headline": step.get("headline", "Run a shell command"),
+                "detail": step.get("detail", "echo hello"),
+                "consequence": step.get("consequence", ""),
+            })
+            return "allow"
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
         await self._emit({

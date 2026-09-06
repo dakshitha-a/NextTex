@@ -1,0 +1,5 @@
+[
+  {"kind": "tool", "name": "Read", "input": {"file_path": "chapters/02_theory.tex"}},
+  {"kind": "wait", "seconds": 6},
+  {"kind": "text", "text": "Read it.", "pieces": 1}
+]
