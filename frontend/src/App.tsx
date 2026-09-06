@@ -33,6 +33,7 @@ import HistoryPanel, { ViewingBanner } from "./panes/History";
 import TrashPanel from "./panes/TrashPanel";
 import Logo from "./Logo";
 import Appearance from "./panes/Appearance";
+import InstanceBadge from "./panes/InstanceBadge";
 import { toShell, uiScale, viewportWidth } from "./viewport";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
@@ -177,8 +178,14 @@ export default function App() {
       // that never got an answer throws a bare TypeError instead.
       for (let attempt = 0; !stopped; attempt += 1) {
         try {
-          const status = await api.agentStatus();
-          set({ agent: status });
+          // One round trip for both: who the agent is, and which install
+          // this is.  The second only matters when a machine carries two.
+          const [status, self] = await Promise.all([
+            api.agentStatus(),
+            api.instance().catch(() => null),
+          ]);
+          set({ agent: status, instance: self?.instance ?? "" });
+          if (self?.instance) document.title = `NextTex · ${self.instance}`;
           if (!status?.ready) setView("signin");
           else await resumeOrList();
           return;
@@ -726,6 +733,7 @@ export default function App() {
               >
                 <Logo size={18} />
                 <span className="t-ui-lg truncate font-serif">{projectName}</span>
+                <InstanceBadge />
               </button>
               <div className="flex items-center">
                 <Appearance align="left" />

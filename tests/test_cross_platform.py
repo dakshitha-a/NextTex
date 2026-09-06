@@ -323,3 +323,34 @@ def test_choosing_openai_never_loads_the_claude_sdk(monkeypatch, tmp_path):
     monkeypatch.delenv("NEXTTEX_SCRIPTED_AGENT", raising=False)
     agent = agent_for("openai", tmp_path, tmp_path, api_key="k")
     assert type(agent).__name__ == "OpenAIAgent"
+
+
+def test_two_installs_never_default_to_the_same_port(monkeypatch):
+    """A second NextTex that defaults to 8450 does not start; it says the
+    port is taken, which is a message about the wrong thing entirely."""
+    import importlib
+    from nexttex import config, project
+
+    ports = set()
+    for name in ("", "dev", "test", "scratch"):
+        monkeypatch.setenv("NEXTTEX_INSTANCE", name)
+        importlib.reload(project)
+        importlib.reload(config)
+        ports.add(config.default_port())
+    assert len(ports) == 4
+    monkeypatch.delenv("NEXTTEX_INSTANCE", raising=False)
+    importlib.reload(project)
+    importlib.reload(config)
+    assert config.default_port() == 8450
+
+
+def test_an_instance_name_cannot_escape_its_directory(monkeypatch):
+    import importlib
+    from nexttex import project
+
+    for hostile in ("../..", "a/b", "..", "x" * 40, "  ", "a b"):
+        monkeypatch.setenv("NEXTTEX_INSTANCE", hostile)
+        importlib.reload(project)
+        assert project.state_home().name == "nexttex", hostile
+    monkeypatch.delenv("NEXTTEX_INSTANCE", raising=False)
+    importlib.reload(project)

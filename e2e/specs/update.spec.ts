@@ -154,3 +154,30 @@ test("an install that is not a checkout says nothing at all", async ({ page }) =
     rmSync(plain, { recursive: true, force: true });
   }
 });
+
+test("a second install says which one it is", async ({ page }) => {
+  buildRepo();
+  const app = await startServer({
+    NEXTTEX_INSTALL_ROOT: clone,
+    NEXTTEX_INSTANCE: "dev",
+  });
+  try {
+    await open(app, page);
+    await expect(page.getByTestId("instance-badge")).toHaveText("dev");
+    // The tab title too: that is where confusion actually happens.
+    await expect(page).toHaveTitle(/dev/);
+  } finally {
+    await app.stop();
+  }
+});
+
+test("the ordinary install carries no badge at all", async ({ page }) => {
+  buildRepo();
+  const app = await startServer({ NEXTTEX_INSTALL_ROOT: clone });
+  try {
+    await open(app, page);
+    await expect(page.getByTestId("instance-badge")).toHaveCount(0);
+  } finally {
+    await app.stop();
+  }
+});

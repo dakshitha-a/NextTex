@@ -50,9 +50,16 @@ export async function startServer(
 
   const port = await freePort();
   const token = "e2e-token";
-  mkdirSync(join(data, "nexttex"), { recursive: true });
+  // A named instance keeps its state in a directory of its own, so the
+  // config has to be written where that instance will look for it -- or the
+  // server generates a fresh one and listens somewhere nobody is watching.
+  const stateDir = join(
+    data,
+    overrides.NEXTTEX_INSTANCE ? `nexttex-${overrides.NEXTTEX_INSTANCE}` : "nexttex",
+  );
+  mkdirSync(stateDir, { recursive: true });
   writeFileSync(
-    join(data, "nexttex", "config.json"),
+    join(stateDir, "config.json"),
     JSON.stringify({
       port, localhost: true, tailscale: false, token, model: "",
       provider: "claude", openai_key: "",

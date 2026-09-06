@@ -10,6 +10,7 @@ first keystroke of the first document.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import os
@@ -18,10 +19,26 @@ import shutil
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
-from .project import state_home
+from .project import instance_name, state_home
 
 CONFIG_FILE = "config.json"
 DEFAULT_PORT = 8450
+
+
+def default_port() -> int:
+    """The port a fresh install listens on.
+
+    A named instance never defaults to the main install's port: two NextTex
+    on one machine that both start on 8450 means the second simply refuses
+    to start, with a message about a port rather than about the thing the
+    person was actually doing.  Derived from the name so it is the same
+    every time, and so two named instances do not collide either.
+    """
+    name = instance_name()
+    if not name:
+        return DEFAULT_PORT
+    digest = hashlib.blake2b(name.encode(), digest_size=2).digest()
+    return DEFAULT_PORT + 1 + int.from_bytes(digest, "big") % 40
 
 # Where a TeX installation usually lands, in the order worth trying.  All
 # three platforms are listed unconditionally: a path that does not exist
@@ -51,7 +68,7 @@ TEX_HINTS = [
 
 @dataclass
 class Settings:
-    port: int = DEFAULT_PORT
+    port: int = field(default_factory=default_port)
     # Bind addresses. Plain HTTP is only ever offered on loopback; anything
     # reachable from another machine gets TLS.
     localhost: bool = True
