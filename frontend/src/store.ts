@@ -304,7 +304,7 @@ export type EventHandlers = {
   onProjectChanged?: () => void;
   onFilesChanged?: (paths: string[]) => void;
   onCompileDone?: (result: CompileResult) => void;
-  onAgentEdit?: (path: string, line: number) => void;
+  onAgentEdit?: (path: string, line: number) => void | Promise<void>;
 };
 export const handlers: EventHandlers = {};
 

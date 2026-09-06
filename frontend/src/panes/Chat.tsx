@@ -73,6 +73,7 @@ export default function Chat({
   const stream = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
   const pinned = useRef(true);
+  const queued = useRef<string[]>([]);
   const projectId = useStore((s) => s.projectId);
   const [usage, setUsage] = useState<Awaited<ReturnType<typeof api.usage>> | null>(null);
   const [showUsage, setShowUsage] = useState(false);
@@ -108,12 +109,26 @@ export default function Chat({
     setDraft("");
     pushChat({ kind: "user", id: nextId(), text, at: Date.now() });
     pinned.current = true;
+    if (thinking) {
+      // A follow-up thought arrives while Claude is still answering the
+      // last one.  Hold it and send it when the turn ends, rather than
+      // refusing it and making the writer remember to ask again.
+      queued.current.push(text);
+      return;
+    }
     try {
       await api.ask(projectId, text);
     } catch (error: any) {
       set({ error: error.message });
     }
   };
+
+  // Whatever was said while Claude was talking goes now.
+  useEffect(() => {
+    if (thinking || !projectId || !queued.current.length) return;
+    const next = queued.current.shift();
+    if (next) api.ask(projectId, next).catch(() => undefined);
+  }, [thinking, projectId]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
@@ -287,7 +302,9 @@ export default function Chat({
             {blocked
               ? ""
               : thinking
-                ? "Claude is writing"
+                ? queued.current.length
+                  ? "Claude is writing · yours will go next"
+                  : "Claude is writing"
                 : focusedComposer
                 ? "Enter to send, Shift-Enter for a new line"
                 : ""}
