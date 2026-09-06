@@ -99,9 +99,9 @@ export default function Diagnostics({
               </button>
             ) : null}
           </p>
-          {summary.detail ? (
-            <p className="t-meta mt-1 text-ink-2">{summary.detail}</p>
-          ) : null}
+          {/* Deliberately not `summary.detail`: it is the same sentence the
+              row's own expansion shows, and repeating it here cost the
+              list the room it needed to show the row. */}
           {summary.fix ? (
             <p className="t-meta mt-1 text-ink-2">
               <span className="text-ink-3">What to do — </span>

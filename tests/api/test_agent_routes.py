@@ -6,6 +6,8 @@ worse than no test.  What the turn *did* is read back from the transcript,
 which is what the panel itself replays after a reload.
 """
 
+import pytest
+
 from conftest import use_script, wait_idle
 
 
@@ -191,3 +193,73 @@ def test_the_model_list_is_offered_with_usage(client, opened):
     body = client.get(f"/api/projects/{opened['id']}/agent/usage").json()
     assert [entry["id"] for entry in body["models"]][0] == ""
     assert all({"id", "name", "note"} <= set(entry) for entry in body["models"])
+
+
+# -- switching providers ----------------------------------------------------
+@pytest.fixture
+def back_to_claude(client):
+    """Whichever provider a test chooses, the next one starts on Claude.
+
+    The choice is written to the config file, so without this a test that
+    switches to OpenAI silently changes what every test after it is
+    testing.
+    """
+    yield
+    client.post("/api/agent/provider", json={"provider": "claude"})
+
+
+def test_a_claude_model_is_not_carried_over_to_openai(client, opened, back_to_claude):
+    """A model chosen for one provider means nothing to the other.
+
+    Left alone, `claude-opus-5` was handed to OpenAI, which answers with a
+    404 about an unknown model -- a failure the writer can do nothing with
+    and would have no reason to connect to a menu they used yesterday.
+    """
+    client.post("/api/agent/provider", json={"provider": "claude"})
+    client.post(f"/api/projects/{opened['id']}/agent/model",
+                json={"model": "claude-opus-5"})
+    body = client.post(
+        "/api/agent/provider", json={"provider": "openai", "key": "sk-test"}
+    ).json()
+    assert not body["model"].startswith("claude-")
+
+
+def test_an_openai_model_is_not_carried_back_to_claude(client, back_to_claude):
+    """Read from the settings rather than from the agent: the stand-in
+    agent reports whatever it was handed, so an assertion against it would
+    pass whether or not the setting was cleared."""
+    from server.main import SETTINGS
+
+    client.post("/api/agent/provider", json={"provider": "openai", "key": "sk-test"})
+    assert SETTINGS.model.startswith("gpt-")
+    client.post("/api/agent/provider", json={"provider": "claude"})
+    assert not SETTINGS.model.startswith("gpt-")
+
+
+def test_the_model_menu_follows_the_provider(client, opened, back_to_claude):
+    client.post("/api/agent/provider", json={"provider": "openai", "key": "sk-test"})
+    body = client.get(f"/api/projects/{opened['id']}/agent/usage").json()
+    ids = [entry["id"] for entry in body["models"]]
+    assert ids[0] == ""
+    assert not any(i.startswith("claude-") for i in ids)
+    assert "gpt-4o" in ids
+
+
+def test_a_claude_model_is_refused_while_openai_is_chosen(client, opened, back_to_claude):
+    client.post("/api/agent/provider", json={"provider": "openai", "key": "sk-test"})
+    response = client.post(
+        f"/api/projects/{opened['id']}/agent/model",
+        json={"model": "claude-opus-5"},
+    )
+    assert response.status_code == 400
+
+
+def test_an_unlisted_openai_model_is_allowed(client, opened, back_to_claude):
+    """OpenAI ships models faster than this app is updated, so an id NextTex
+    has never heard of goes through -- only another provider's does not."""
+    client.post("/api/agent/provider", json={"provider": "openai", "key": "sk-test"})
+    response = client.post(
+        f"/api/projects/{opened['id']}/agent/model",
+        json={"model": "gpt-5-something"},
+    )
+    assert response.status_code == 200, response.text

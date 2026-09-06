@@ -2,22 +2,27 @@ import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import { get, refreshContext, set, useStore } from "../store";
 import { Chevron } from "../App";
+import { agentName } from "../agent-name";
 
-const KINDS: { key: "style" | "voice" | "source"; label: string; hint: string }[] = [
+const KINDS: {
+  key: "style" | "voice" | "source";
+  label: string;
+  hint: (name: string) => string;
+}[] = [
   {
     key: "style",
     label: "Template and formatting",
-    hint: "A handbook, a style guide, a template Claude must follow.",
+    hint: (name) => `A handbook, a style guide, a template ${name} must follow.`,
   },
   {
     key: "voice",
     label: "Writing voice",
-    hint: "Papers or chapters you wrote, so new prose sounds like yours.",
+    hint: () => "Papers or chapters you wrote, so new prose sounds like yours.",
   },
   {
     key: "source",
     label: "Background reading",
-    hint: "Sources to draw on. Never copied — read and cited.",
+    hint: () => "Sources to draw on. Never copied — read and cited.",
   },
 ];
 
@@ -29,6 +34,7 @@ export default function ContextPanel({
   onHandled?: () => void;
 } = {}) {
   const documents = useStore((s) => s.contextDocs);
+  const name = agentName(useStore((s) => s.agent?.provider));
   const stale = useStore((s) => s.contextStale);
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"style" | "voice" | "source">("style");
@@ -66,7 +72,7 @@ export default function ContextPanel({
         onClick={() => setOpen(!open)}
       >
         <span className="t-micro text-ink-2">
-          What Claude reads {documents.length ? `(${documents.length})` : ""}
+          What {name} reads {documents.length ? `(${documents.length})` : ""}
         </span>
         <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
           <Chevron direction="down" />
@@ -91,7 +97,7 @@ export default function ContextPanel({
                   </button>
                 </div>
                 {mine.length === 0 ? (
-                  <p className="t-meta text-ink-3">{entry.hint}</p>
+                  <p className="t-meta text-ink-3">{entry.hint(name)}</p>
                 ) : (
                   mine.map((document) => (
                     <div

@@ -1,4 +1,4 @@
-/** What Claude says first, in a project with no conversation yet.
+/** What the agent says first, in a project with no conversation yet.
  *
  *  Written into the app rather than asked for: it is the same every time,
  *  it has to be right, and spending a model call on text the app already
@@ -6,7 +6,7 @@
  *  will not act on five -- with the two things worth doing turned into
  *  buttons beneath it rather than instructions to go and find something.
  */
-export const WELCOME = `I'm Claude, working inside this project. You write LaTeX on the left; the middle is the real typeset page, rebuilt about a second after you stop typing. Double-click anything on it to jump to the source that made it.
+export const welcome = (name: string) => `I'm ${name}, working inside this project. You write LaTeX on the left; the middle is the real typeset page, rebuilt about a second after you stop typing. Double-click anything on it to jump to the source that made it.
 
 Ask me for prose, tables, figures, citations, or a fix for whatever the compiler is complaining about. Edits to files in this project I make directly, and each one appears here with its diff and an undo. A shell command or a file outside the project I ask about first.
 
