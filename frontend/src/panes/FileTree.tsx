@@ -860,6 +860,7 @@ function FilesBar({
   onSearch,
   searching,
   dropping,
+  onDragEnter,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -870,6 +871,7 @@ function FilesBar({
   onSearch: () => void;
   searching: boolean;
   dropping: boolean;
+  onDragEnter: (event: React.DragEvent) => void;
   onDragOver: (event: React.DragEvent) => void;
   onDragLeave: () => void;
   onDrop: (event: React.DragEvent) => void;
@@ -880,6 +882,7 @@ function FilesBar({
       className={`@container flex h-[26px] shrink-0 items-center border-b border-line px-[10px] ${
         dropping ? "bg-pen-wash" : ""
       }`}
+      onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
