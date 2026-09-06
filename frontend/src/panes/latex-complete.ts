@@ -144,8 +144,16 @@ function inArgument(before: string): { command: string; typed: string } | null {
  *  citation objects each time. */
 const INSIDE_BRACES = /^[^}{]*$/;
 
-export function latexCompletions(symbols: () => Symbols | null): Extension {
-  const source = (context: CompletionContext): CompletionResult | null => {
+/** What the completion list would be at one position.
+ *
+ *  Separated from the extension so it can be asked a question without a
+ *  DOM, an editor or a keystroke: everything interesting about completion
+ *  is deciding *which* list, and that is pure.
+ */
+export function latexSource(
+  symbols: () => Symbols | null,
+): (context: CompletionContext) => CompletionResult | null {
+  return (context: CompletionContext): CompletionResult | null => {
     const line = context.state.doc.lineAt(context.pos);
     const before = line.text.slice(0, context.pos - line.from);
     const found = symbols();
@@ -247,9 +255,11 @@ export function latexCompletions(symbols: () => Symbols | null): Extension {
       validFor: /^\\[a-zA-Z@]*$/,
     };
   };
+}
 
+export function latexCompletions(symbols: () => Symbols | null): Extension {
   return autocompletion({
-    override: [source],
+    override: [latexSource(symbols)],
     activateOnTyping: true,
     icons: false,
     maxRenderedOptions: 60,

