@@ -564,3 +564,30 @@ findings", which also stops severity being carried by colour alone; the
 preview can fit a whole page; and reduced motion now makes the compile
 indicator and the SyncTeX highlight *static* rather than fast, which was the
 point of both.
+
+
+## 11. Where the writing instructions live
+
+Two things shape the prose the agent produces, and they are deliberately kept
+apart.
+
+The **system prompt** carries a long section on writing that does not read as
+machine-written: lead with the claim, prefer the specific number to the
+careful phrase, vary sentence length and opening, put a real subject early,
+and stop rather than restating the paragraph's first sentence in different
+words. It also names the tells outright — *delve*, *underscore*, *robust*,
+*It is important to note*, *plays a crucial role in*, stacked
+*Moreover/Furthermore*, paired near-synonyms — because a general instruction
+to write naturally does not survive contact with a first draft. It is
+explicit that swapping a banned word for a synonym fixes nothing.
+
+The **voice description**, when the writer has uploaded samples of their own
+work, outranks all of that. It is distilled once into eight headed sections —
+sentence length ranges, paragraph shape, person, the exact hedging words,
+connectives, characteristic vocabulary, how terms and citations are
+introduced, and what the author never does — and the prompt says plainly that
+where the two disagree the author wins, including where the author does
+something the general guidance discourages. A document is supposed to sound
+like its author, not like a house style. The precedence note is added to the
+prompt only when a voice summary exists, so nobody pays for it who has not
+uploaded a sample.
