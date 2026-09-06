@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import time
 import zipfile
+from functools import partial
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -1856,15 +1857,20 @@ async def _run_update(report) -> None:
             text = line.rstrip()
             for needle, label in _STEPS:
                 if needle in text:
-                    loop.call_soon_threadsafe(_update_say, "step", label=label)
+                    # `call_soon_threadsafe` forwards positional arguments
+                    # only, so the keywords have to be bound here.
+                    loop.call_soon_threadsafe(partial(_update_say, "step", label=label))
                     break
-            loop.call_soon_threadsafe(_update_say, "output", text=text)
+            loop.call_soon_threadsafe(partial(_update_say, "output", text=text))
         return process.wait()
 
     try:
         code = await asyncio.to_thread(pump)
-    except OSError as error:
-        code, _ = 1, _update_say("output", text=str(error))
+    except Exception as error:            # noqa: BLE001 -- the job must end
+        # Anything at all: the writer is looking at a progress card, and a
+        # card that never finishes is worse than one that says it failed.
+        code = 1
+        _update_say("output", text=f"{type(error).__name__}: {error}")
 
     if code != 0:
         UPDATE_JOB["state"] = "failed"
