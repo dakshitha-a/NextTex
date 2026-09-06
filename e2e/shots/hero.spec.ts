@@ -35,6 +35,6 @@ for (const theme of ["light", "dark"] as const) {
     await tab.setViewportSize({ width: 1680, height: 1000 });
     await tab.reload();
     await stage(tab);
-    await tab.screenshot({ path: `../../docs/screenshot-${theme}.png` });
+    await tab.screenshot({ path: `../docs/screenshot-${theme}.png` });
   });
 }
