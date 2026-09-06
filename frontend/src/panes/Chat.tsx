@@ -27,7 +27,12 @@ import {
   type ChatItem,
 } from "../store";
 
-export type ChatHandle = { seed(text: string): void };
+export type ChatHandle = {
+  seed(text: string): void;
+  /** Put the caret in the box.  The keyboard shortcut that opens the panel
+   *  is only worth having if it leaves you ready to type. */
+  focusComposer(): void;
+};
 
 /** Two kinds of noise the raw stream produces, removed before rendering:
  *  an `Edited main.tex` row immediately followed by the chip that says the
@@ -118,18 +123,34 @@ export default function Chat({
   const [showUsage, setShowUsage] = useState(false);
   const usageRef = useRef<HTMLDivElement | null>(null);
   const usageButton = useRef<HTMLButtonElement | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const menuButton = useRef<HTMLButtonElement | null>(null);
+  const modelRef = useRef<HTMLDivElement | null>(null);
+  const modelButton = useRef<HTMLButtonElement | null>(null);
+  // The two blocks that open *above* the composer.  They come before the
+  // box in the DOM and their buttons come after it, so Tab from a trigger
+  // walks away from the thing it just opened -- focus has to be moved by
+  // hand, and given back when it closes.
+  const confirmRef = useRef<HTMLDivElement | null>(null);
+  const clearButton = useRef<HTMLButtonElement | null>(null);
+  const keepButton = useRef<HTMLButtonElement | null>(null);
+  const setupRef = useRef<HTMLDivElement | null>(null);
+  const setupButton = useRef<HTMLButtonElement | null>(null);
+  const closeConfirm = useCallback(() => {
+    setConfirmClear(false);
+    clearButton.current?.focus();
+  }, []);
+  const closeSetup = useCallback(() => {
+    setSetupOpen(false);
+    setupButton.current?.focus();
+  }, []);
+  useDismiss(confirmRef, confirmClear, closeConfirm, clearButton);
+  useDismiss(setupRef, setupOpen, closeSetup, setupButton);
   useDismiss(
-    menuRef,
-    menuOpen,
-    useCallback(() => {
-      setMenuOpen(false);
-      setConfirmClear(false);
-    }, []),
-    menuButton,
+    modelRef,
+    modelOpen,
+    useCallback(() => setModelOpen(false), []),
+    modelButton,
   );
   const auto = useStore((s) => s.auto);
   // Only the Claude agent ever puts a card up, so only it is offered the
@@ -145,6 +166,31 @@ export default function Chat({
       set({ error: error.message });
     }
   };
+  /** Switch the model this project's agent answers on. */
+  const chooseModel = async (chosen: string) => {
+    if (!projectId) return;
+    setModelOpen(false);
+    try {
+      const answer = await api.setModel(projectId, chosen);
+      setUsage(await api.usage(projectId));
+      // The client carries the model it was started with, so a change made
+      // mid-answer is held back rather than applied -- applying it used to
+      // close the transport the running turn was reading from, and that
+      // turn then ended without ever saying so.  A control that appears to
+      // do nothing is worse than one that explains itself.
+      if (answer.deferred) {
+        pushChat({
+          kind: "notice",
+          id: `model-${Date.now()}`,
+          text: "The model changes for your next question — this answer finishes on the one it started with.",
+          tone: "plain",
+        });
+      }
+    } catch (error: any) {
+      set({ error: error.message });
+    }
+  };
+
   useDismiss(
     usageRef,
     showUsage,
@@ -173,6 +219,7 @@ export default function Chat({
         setDraft(text);
         composer.current?.focus();
       },
+      focusComposer: () => composer.current?.focus(),
     });
   }, [handleRef]);
 
@@ -290,21 +337,6 @@ export default function Chat({
             <Chevron direction="down" />
           </span>
         </button>
-        <button
-          ref={menuButton}
-          className={`quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3 ${
-            menuOpen ? "bg-surface-3 text-ink" : ""
-          }`}
-          aria-label="More"
-          aria-expanded={menuOpen}
-          data-testid="chat-menu-open"
-          onClick={() => {
-            setMenuOpen(!menuOpen);
-            setConfirmClear(false);
-          }}
-        >
-          ⋯
-        </button>
         {onFold ? (
           <button
             className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3"
@@ -316,122 +348,6 @@ export default function Chat({
           </button>
         ) : null}
       </div>
-
-      {menuOpen ? (
-        <div
-          ref={menuRef}
-          className="nx-arrive shrink-0 border-b border-line bg-surface-2 px-[10px] py-2"
-          data-testid="chat-menu"
-        >
-          {confirmClear ? (
-            <div>
-              <p className="t-meta text-ink-2">
-                Start a new conversation? The record of this one is kept on
-                disk.
-              </p>
-              <div className="mt-2 flex gap-[6px]">
-                <button
-                  className="ghost-button h-[26px] px-3 t-ui"
-                  data-testid="clear-confirm"
-                  onClick={async () => {
-                    if (!projectId) return;
-                    try {
-                      await api.resetChat(projectId);
-                      clearChat();
-                      queued.current = [];
-                      setQueuedCount(0);
-                      setMenuOpen(false);
-                      setConfirmClear(false);
-                    } catch (error: any) {
-                      set({ error: error.message });
-                    }
-                  }}
-                >
-                  Start new
-                </button>
-                <button
-                  className="quiet t-ui h-[26px] rounded-[3px] border border-line px-3"
-                  onClick={() => setConfirmClear(false)}
-                >
-                  Keep this one
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              className="t-ui flex h-[26px] w-full items-center rounded-[3px] px-1 text-left text-ink hover:bg-surface-3 disabled:opacity-40 disabled:hover:bg-transparent"
-              data-testid="clear-chat"
-              disabled={thinking}
-              title={thinking ? "Wait for this answer to finish" : undefined}
-              onClick={() => setConfirmClear(true)}
-            >
-              New conversation
-            </button>
-          )}
-          <label className="mt-3 flex items-center gap-2 border-t border-line pt-3">
-            <span className="t-ui shrink-0 text-ink">Model</span>
-            <select
-                  id="nx-model"
-                  aria-label="Which model answers here"
-                  className="t-micro cursor-pointer rounded-[3px] border border-line bg-surface-2 px-1 py-[2px] text-ink-2 hover:border-hint hover:text-ink"
-                  value={usage?.model ?? ""}
-                  title="Which model answers here"
-                  onChange={async (event) => {
-                const chosen = event.target.value;
-                if (!projectId) return;
-                try {
-                  const answer = await api.setModel(projectId, chosen);
-                  setUsage(await api.usage(projectId));
-                  // The client carries the model it was started with, so a
-                  // change made mid-answer is held back rather than applied --
-                  // applying it used to close the transport the running turn
-                  // was reading from, and that turn then ended without ever
-                  // saying so.  A dropdown that appears to do nothing is worse
-                  // than one that explains itself.
-                  if (answer.deferred) {
-                    pushChat({
-                      kind: "notice",
-                      id: `model-${Date.now()}`,
-                      text: "The model changes for your next question — this answer finishes on the one it started with.",
-                      tone: "plain",
-                    });
-                  }
-                } catch (error: any) {
-                  set({ error: error.message });
-                }
-          }}
-        >
-              {(usage?.models ?? [{ id: "", name: "Default", note: "" }]).map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name}
-                </option>
-              ))}
-                </select>
-          </label>
-          {asks ? (
-            <button
-              className="mt-3 block w-full border-t border-line pt-3 text-left"
-              role="switch"
-              aria-checked={auto}
-              data-testid="auto-toggle"
-              onClick={() => setAuto(!auto)}
-            >
-              <span className="t-ui flex items-center gap-2 text-ink">
-                <span
-                  className={`inline-block h-[10px] w-[10px] shrink-0 rounded-[2px] border ${
-                    auto ? "border-warn bg-warn" : "border-line"
-                  }`}
-                />
-                Approve everything automatically
-              </span>
-              <span className="t-meta ml-[18px] block text-ink-2">
-                Still recorded in the conversation. A write outside the
-                project is asked about either way.
-              </span>
-            </button>
-          ) : null}
-        </div>
-      ) : null}
 
       {showUsage && usage ? (
         <div
@@ -506,12 +422,14 @@ export default function Chat({
       </div>
 
       <div className="shrink-0 border-t border-line p-[8px]">
-        {/* The two things that most improve the help, kept reachable.  They
-            used to live only in the welcome message, which disappears the
-            moment anything is asked -- so after the first question there
-            was no way back to them at all. */}
         {setupOpen ? (
-          <div className="mb-2 flex flex-col gap-2 rounded-[3px] border border-line bg-surface-2 p-2">
+          <div
+            ref={setupRef}
+            id="nx-setup"
+            role="group"
+            aria-label="Template and voice"
+            className="mb-2 flex flex-col gap-2 rounded-[3px] border border-line bg-surface-2 p-2"
+          >
             {WELCOME_ACTIONS.map((action) => (
               <button
                 key={action.kind}
@@ -525,6 +443,47 @@ export default function Chat({
                 <span className="t-meta block text-ink-2">{action.detail}</span>
               </button>
             ))}
+          </div>
+        ) : null}
+        {confirmClear ? (
+          <div
+            ref={confirmRef}
+            id="nx-clear-confirm"
+            role="group"
+            aria-label="Start a new conversation"
+            className="mb-2 rounded-[3px] border border-line bg-surface-2 p-2"
+          >
+            <p className="t-meta text-ink-2">
+              Start a new conversation? The record of this one is kept on
+              disk.
+            </p>
+            <div className="mt-2 flex gap-[6px]">
+              <button
+                className="ghost-button h-[26px] px-3 t-ui"
+                data-testid="clear-confirm"
+                onClick={async () => {
+                  if (!projectId) return;
+                  try {
+                    await api.resetChat(projectId);
+                    clearChat();
+                    queued.current = [];
+                    setQueuedCount(0);
+                    setConfirmClear(false);
+                  } catch (error: any) {
+                    set({ error: error.message });
+                  }
+                }}
+              >
+                Start new
+              </button>
+              <button
+                ref={keepButton}
+                className="quiet t-ui h-[26px] rounded-[3px] border border-line px-3"
+                onClick={closeConfirm}
+              >
+                Keep this one
+              </button>
+            </div>
           </div>
         ) : null}
         <textarea
@@ -544,8 +503,150 @@ export default function Chat({
             }
           }}
         />
-        <div className="mt-[6px] flex items-center justify-between">
-          <span className="t-micro text-ink-3">
+        {/* The controls sit under the box rather than in the header: the
+            header is a 32px bar that already carries the name, what the
+            agent is doing, and the usage tally, and each of these is
+            something you reach for while writing the question. */}
+        <div className="mt-[6px] flex items-center gap-2">
+          <div className="flex shrink-0 items-center">
+            <button
+              ref={clearButton}
+              className={`${ICON} ${confirmClear ? ICON_ON : ""}`}
+              data-tone={confirmClear ? "on" : undefined}
+              aria-label="New conversation"
+              aria-expanded={confirmClear}
+              aria-controls={confirmClear ? "nx-clear-confirm" : undefined}
+              title={
+                thinking
+                  ? "Wait for this answer to finish"
+                  : "Start a new conversation"
+              }
+              data-testid="clear-chat"
+              disabled={thinking}
+              onClick={() => {
+                setSetupOpen(false);
+                setConfirmClear((asking) => {
+                  // Into the block, and onto the safe half of it: this
+                  // ends a conversation, so the default answer is no.
+                  if (!asking) {
+                    window.setTimeout(() => keepButton.current?.focus(), 0);
+                  }
+                  return !asking;
+                });
+              }}
+            >
+              <NewChat />
+            </button>
+            <div className="relative">
+              <button
+                ref={modelButton}
+                className={`${ICON} ${modelOpen ? ICON_ON : ""}`}
+                data-tone={modelOpen ? "on" : undefined}
+                aria-label="Which model answers here"
+                aria-expanded={modelOpen}
+                title={`Model: ${
+                  usage?.models?.find((entry) => entry.id === usage?.model)
+                    ?.name ?? "default"
+                }`}
+                data-testid="model-open"
+                onClick={() => setModelOpen((open) => !open)}
+              >
+                <Sliders />
+              </button>
+              {modelOpen ? (
+                <div
+                  ref={modelRef}
+                  data-testid="model-menu"
+                  className="nx-arrive absolute bottom-[30px] left-0 z-40 w-[230px] overflow-hidden rounded-[5px] border border-line bg-surface shadow-float"
+                >
+                  <div className="t-micro px-[10px] pb-1 pt-2 text-ink-2">
+                    Which model answers here
+                  </div>
+                  {(usage?.models ?? [{ id: "", name: "Default", note: "" }]).map(
+                    (entry) => (
+                      <button
+                        key={entry.id}
+                        className="flex w-full items-start gap-2 border-t border-line px-[10px] py-[6px] text-left transition-colors duration-[90ms] hover:bg-surface-2"
+                        aria-pressed={(usage?.model ?? "") === entry.id}
+                        onClick={() => chooseModel(entry.id)}
+                      >
+                        <span
+                          className={`mt-[6px] h-[4px] w-[4px] shrink-0 rounded-full ${
+                            (usage?.model ?? "") === entry.id
+                              ? "bg-pen"
+                              : "bg-transparent"
+                          }`}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="t-ui block truncate text-ink">
+                            {entry.name}
+                          </span>
+                          {entry.note ? (
+                            <span className="t-meta block text-ink-2">
+                              {entry.note}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    ),
+                  )}
+                </div>
+              ) : null}
+            </div>
+            {/* Only the Claude agent ever puts a card up, so only it is
+                offered the switch: a toggle on the others would promise a
+                change that does not happen. */}
+            {asks ? (
+              <button
+                className={`${ICON} ${auto ? ICON_ON : ""}`}
+                data-tone={auto ? "warn" : undefined}
+                role="switch"
+                aria-checked={auto}
+                aria-label="Approve everything automatically"
+                title={
+                  auto
+                    ? "Every action is approved without asking. Click to start asking again."
+                    : "Approve everything automatically. Still recorded; a write outside the project is asked about either way."
+                }
+                data-testid="auto-toggle"
+                onClick={() => setAuto(!auto)}
+              >
+                <Bolt />
+              </button>
+            ) : null}
+            {/* The two things that most improve the help, kept reachable.
+                They used to live only in the welcome message, which
+                disappears the moment anything is asked -- so after the
+                first question there was no way back to them at all. */}
+            <button
+              ref={setupButton}
+              className={`${ICON} ${setupOpen ? ICON_ON : ""}`}
+              data-tone={setupOpen ? "on" : undefined}
+              aria-label="Template and voice"
+              aria-expanded={setupOpen}
+              aria-controls={setupOpen ? "nx-setup" : undefined}
+              title="Give the agent a template to follow, or writing of yours to sound like"
+              data-testid="setup-open"
+              onClick={() => {
+                setConfirmClear(false);
+                setSetupOpen((open) => {
+                  if (!open) {
+                    window.setTimeout(
+                      () =>
+                        setupRef.current
+                          ?.querySelector<HTMLElement>("button")
+                          ?.focus(),
+                      0,
+                    );
+                  }
+                  return !open;
+                });
+              }}
+            >
+              <Page />
+            </button>
+          </div>
+          <span className="t-micro min-w-0 flex-1 truncate text-ink-3">
             {blocked
               ? ""
               : thinking
@@ -553,32 +654,83 @@ export default function Chat({
                   ? `${name} is working · yours will go next`
                   : ""
                 : focusedComposer
-                ? "Enter to send, Shift-Enter for a new line"
-                : ""}
+                  ? "Enter to send"
+                  : ""}
           </span>
-          <div className="flex items-center gap-2">
-          <button
-            className="quiet t-micro nx-hover"
-            aria-expanded={setupOpen}
-            onClick={() => setSetupOpen((open) => !open)}
-          >
-            {setupOpen ? "Hide setup" : "Template & voice"}
-          </button>
           <button
             className={
               draft.trim() && !blocked
-                ? "pen-button h-[28px] px-3 t-ui"
-                : "h-[28px] rounded-[3px] border border-line px-3 t-ui text-ink-3"
+                ? "pen-button h-[28px] shrink-0 px-3 t-ui"
+                : "h-[28px] shrink-0 rounded-[3px] border border-line px-3 t-ui text-ink-3"
             }
             disabled={blocked || !draft.trim()}
             onClick={send}
           >
             Send
           </button>
-          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+/** The controls under the composer.  Drawn here rather than pulled from an
+ *  icon set: five paths cost a few hundred bytes and a library costs tens
+ *  of kilobytes on a bundle that is already close to its budget. */
+const ICON =
+  "quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] transition-colors duration-[90ms] hover:bg-surface-3 disabled:opacity-40 disabled:hover:bg-transparent";
+const ICON_ON = "bg-surface-3";
+
+const stroke = {
+  width: 13,
+  height: 13,
+  viewBox: "0 0 13 13",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.3,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+
+/** A speech bubble with a plus in it: start another conversation. */
+function NewChat() {
+  return (
+    <svg {...stroke} aria-hidden="true">
+      <path d="M11.5 8.2a1 1 0 0 1-1 1H5.2L2.8 11.2V9.2h-.3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1z" />
+      <path d="M6.5 4.2v2.8M5.1 5.6h2.8" />
+    </svg>
+  );
+}
+
+/** Sliders: which model answers here. */
+function Sliders() {
+  return (
+    <svg {...stroke} aria-hidden="true">
+      <path d="M1.8 3.4h9.4M1.8 6.5h9.4M1.8 9.6h9.4" />
+      <circle cx="4.3" cy="3.4" r="1.15" />
+      <circle cx="8.4" cy="6.5" r="1.15" />
+      <circle cx="5.4" cy="9.6" r="1.15" />
+    </svg>
+  );
+}
+
+/** A bolt: the fence is down and nothing stops to ask. */
+function Bolt() {
+  return (
+    <svg {...stroke} aria-hidden="true">
+      <path d="M7.4 1.4 3.2 7.2h2.9l-.5 4.4 4.2-5.8H7z" />
+    </svg>
+  );
+}
+
+/** A page: the template to follow and the writing to sound like. */
+function Page() {
+  return (
+    <svg {...stroke} aria-hidden="true">
+      <path d="M3 1.6h4.4L10 4.2v7.2H3z" />
+      <path d="M7.4 1.6v2.6H10" />
+      <path d="M4.6 7h3.8M4.6 9.1h2.6" />
+    </svg>
   );
 }
 
