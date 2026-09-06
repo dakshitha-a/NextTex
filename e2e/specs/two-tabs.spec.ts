@@ -21,9 +21,12 @@ async function replaceAll(page: Page, text: string) {
  *  keeps the buffer dirty for as long as this needs -- which is what makes
  *  the race deterministic rather than a 250 ms window to aim at.
  */
+const MARKER = "UNSAVED-IN-THE-SECOND-WINDOW";
+
 async function holdingUnsavedWork(page: Page, work: () => Promise<void>) {
   let done = false;
   await page.locator(".cm-content").click();
+  await page.keyboard.type(MARKER);
   const keepTyping = (async () => {
     while (!done) {
       await page.keyboard.type("x");
@@ -105,7 +108,7 @@ test("keeping what you typed writes it, deliberately", async ({
 
   await expect
     .poll(async () => (await readFile(app, project.id)).text, { timeout: 15_000 })
-    .toContain("x");
+    .toContain(MARKER);
   expect((await readFile(app, project.id)).text).not.toContain(
     "the first window got there first",
   );

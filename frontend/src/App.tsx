@@ -40,6 +40,17 @@ const DRAWER_OPEN = 168;
 type Widths = { rail: number; editor: number; chat: number };
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 
+/** The project the writer was in, so a reload comes back to the document. */
+const LAST_PROJECT = "nexttex.lastProject";
+
+/** Every file path in a tree, flattened. */
+function pathsIn(node: any): string[] {
+  if (!node) return [];
+  const here = node.type === "file" && node.path ? [node.path as string] : [];
+  const below = (node.children ?? []).flatMap(pathsIn);
+  return [...here, ...below];
+}
+
 export default function App() {
   const [view, setView] = useState<"loading" | "signin" | "projects" | "editor">(
     "loading",
@@ -92,20 +103,65 @@ export default function App() {
   const conflict = useStore((s) => s.conflict);
   const viewing = useStore((s) => s.viewing);
 
+  /** Go back to what was being written, or to the list if there is nothing.
+   *
+   *  A reload, or a browser restoring its tabs the next morning, used to
+   *  land on the list of projects with no sign of which one had been open.
+   */
+  const resumeOrList = useCallback(async () => {
+    let last = "";
+    try {
+      last = window.localStorage.getItem(LAST_PROJECT) ?? "";
+    } catch {
+      /* nothing was remembered */
+    }
+    if (last) {
+      const known = await api.projects().catch(() => null);
+      const match = known?.projects.find(
+        (project) => project.id === last && !project.missing,
+      );
+      if (match?.id) {
+        try {
+          await openProjectRef.current?.(match.id);
+          return;
+        } catch {
+          /* it has gone or will not open: the list is the safe answer */
+        }
+      }
+    }
+    setView("projects");
+  }, []);
+
   // ---- first load -------------------------------------------------------
   useEffect(() => {
     captureToken();
     (async () => {
       const status = await api.claudeStatus().catch(() => null);
       set({ claude: status });
-      setView(status?.loggedIn ? "projects" : "signin");
+      if (!status?.loggedIn) {
+        setView("signin");
+        return;
+      }
+      await resumeOrList();
     })();
-  }, []);
+  }, [resumeOrList]);
 
   useEffect(() => {
     const onResize = () => setWidth(window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const openProjectRef = useRef<((id: string) => Promise<void>) | null>(null);
+
+  /** Go back to the list, and stop reopening this project on a reload. */
+  const leaveProject = useCallback(() => {
+    try {
+      window.localStorage.removeItem(LAST_PROJECT);
+    } catch {
+      /* nothing was remembered anyway */
+    }
+    setView("projects");
   }, []);
 
   // ---- opening a project ------------------------------------------------
@@ -126,6 +182,13 @@ export default function App() {
     connect(id);
     refreshContext(id);
     setView("editor");
+    // So a reload, or a browser restoring its tabs tomorrow morning, comes
+    // back to the document rather than to the list of projects.
+    try {
+      window.localStorage.setItem(LAST_PROJECT, id);
+    } catch {
+      /* private browsing: the app works, it just forgets */
+    }
     const storedFolds = window.localStorage.getItem(`nexttex.folded.${id}`);
     if (storedFolds) {
       try {
@@ -142,12 +205,31 @@ export default function App() {
         /* a corrupt entry is not worth reporting */
       }
     }
-    // Open the main file so the first frame shows the document, not an
-    // empty editor.
+    // The files that were open last time, and the one that was in front.
+    // Opening the main file instead would be right once and wrong every
+    // time after that.
+    let reopened: string[] = [];
+    let front = "";
+    try {
+      const remembered = window.localStorage.getItem(`nexttex.open.${id}`);
+      if (remembered) {
+        const parsed = JSON.parse(remembered);
+        reopened = Array.isArray(parsed.tabs) ? parsed.tabs.slice(0, 12) : [];
+        front = typeof parsed.active === "string" ? parsed.active : "";
+      }
+    } catch {
+      /* a corrupt entry is not worth reporting */
+    }
     const main = project.main ?? "main.tex";
-    openFile(main).catch(() => undefined);
+    const inTree = new Set(pathsIn(project.tree));
+    const wanted = reopened.filter((path) => inTree.has(path));
+    for (const path of wanted) {
+      if (path !== front) await openFile(path).catch(() => undefined);
+    }
+    openFile(inTree.has(front) ? front : main).catch(() => undefined);
     api.compile(id).catch(() => undefined);
   }, []);
+  openProjectRef.current = openProject;
 
   const openFile = useCallback(async (path: string, line?: number) => {
     const state = get();
@@ -236,6 +318,22 @@ export default function App() {
           : state.viewing,
     });
   }, []);
+
+  // Which files are open, kept up to date rather than written on exit: a
+  // browser tab that is closed, crashes or is restored tomorrow never gets
+  // to run an exit handler.
+  useEffect(() => {
+    const id = get().projectId;
+    if (!id || view !== "editor") return;
+    try {
+      window.localStorage.setItem(
+        `nexttex.open.${id}`,
+        JSON.stringify({ tabs: tabs.map((tab) => tab.path), active: activePath }),
+      );
+    } catch {
+      /* private browsing: the app works, it just forgets */
+    }
+  }, [tabs, activePath, view]);
 
   const refreshTree = useCallback(async () => {
     const id = get().projectId;
@@ -476,7 +574,10 @@ export default function App() {
       <SignIn
         onDone={async () => {
           set({ claude: await api.claudeStatus().catch(() => null) });
-          setView("projects");
+          // Back to whatever was being written, the same way a reload
+          // gets there.  Signing in again after a session expires should
+          // not cost the writer their place.
+          void resumeOrList();
         }}
       />
     );
@@ -517,7 +618,8 @@ export default function App() {
             <div className="flex h-[32px] shrink-0 items-center justify-between border-b border-line px-[10px]">
               <button
                 className="flex min-w-0 items-center gap-2 transition-colors duration-[90ms] hover:text-hint"
-                onClick={() => setView("projects")}
+                data-testid="switch-project"
+                onClick={leaveProject}
                 title="Switch project"
               >
                 <Logo size={18} />
@@ -601,7 +703,7 @@ export default function App() {
                   onTheme={setTheme}
                   projectId={projectId}
                   projectName={projectName}
-                  onSwitch={() => setView("projects")}
+                  onSwitch={leaveProject}
                 />
               </div>
             ) : null}
@@ -731,7 +833,7 @@ export default function App() {
                   onTheme={setTheme}
                   projectId={projectId}
                   projectName={projectName}
-                  onSwitch={() => setView("projects")}
+                  onSwitch={leaveProject}
                 />
               ) : (
                 <span className="t-ui-lg font-serif text-ink">Preview</span>

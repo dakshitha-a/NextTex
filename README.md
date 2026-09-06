@@ -110,3 +110,40 @@ NextTex is single-user by design. Do not put it on the open internet.
 ## Licence
 
 MIT. See `LICENSE`.
+
+## Tests
+
+```bash
+scripts/check.sh          # types + Python, under twenty seconds
+scripts/check.sh --all    # adds the browser tier
+```
+
+Three layers, and each exists because the one above it cannot see what it
+sees.
+
+`tests/` is Python: the retention rules, the path fence, the log parser, the
+compile paths, and — under `tests/api/` — every HTTP route, its documented
+failures, and a path-escape assertion on everything that takes a path. The
+fixtures redirect `XDG_DATA_HOME` and `XDG_CONFIG_HOME` **before** importing
+anything under `server/`, because `server/main.py` builds its settings and
+its registry at import time and writing a config file there would hand a
+different token to whatever tab the writer has open.
+
+The agent is replaced by `nexttex/scripted_agent.py`, which replays a list
+of steps from `tests/scripts/*.json` through the same event queue the real
+one writes to. Its `edit` step performs a real write, so the version, the
+rebuild, the chip and the undo all run for real; its `permission` step
+really does block until somebody answers. The real agent needs an account,
+costs money and answers differently every time, which is why none of that
+had ever been tested.
+
+`e2e/` is the browser. Each spec starts a NextTex of its own — own port, own
+state directories, own projects, and a config written before the server so
+the token is known rather than scraped out of a log line. Waits are on
+observables (a response, a DOM state), never on a clock. It exists mainly
+for the things that only exist in a browser: two windows on one project, the
+autosave race, the permission card's shield, a reload rebuilding the
+conversation from the transcript on disk.
+
+If a browser test needs the agent to do something particular, the first line
+of the question names the script: `#script:permission`.

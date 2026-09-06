@@ -48,8 +48,10 @@ KEEP_ALL_HOURS = 24
 HOURLY_DAYS = 7
 DAILY_DAYS = 90
 
-# A version of these kinds is never thinned away.
-PERMANENT_OPS = {"delete", "restore", "create", "undo", "redo"}
+# A version of these kinds is never thinned away.  "orphan" is text that
+# only ever existed in a window that has since closed: there is no file on
+# disk holding it, so this is the only copy there will ever be.
+PERMANENT_OPS = {"delete", "restore", "create", "undo", "redo", "orphan"}
 
 # A blob younger than this is not collected, so garbage collection cannot
 # race a record that has written its content but not yet its log line.
@@ -72,7 +74,7 @@ class Version:
     bytes: int
     by: str            # "you" or "claude"
     why: str = ""
-    op: str = "edit"   # edit | create | delete | restore | undo | redo
+    op: str = "edit"   # edit | create | delete | restore | undo | redo | orphan
     label: str | None = None
     # Which window a save came from.  Two browser tabs are both "you", and
     # coalescing merged them -- so the tab that saved second replaced the

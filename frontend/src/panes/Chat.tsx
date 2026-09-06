@@ -23,7 +23,7 @@ export type ChatHandle = { seed(text: string): void };
 /** Two kinds of noise the raw stream produces, removed before rendering:
  *  an `Edited main.tex` row immediately followed by the chip that says the
  *  same thing with a diff, and the same read repeated back to back. */
-function tidy(items: ChatItem[]): ChatItem[] {
+export function tidy(items: ChatItem[]): ChatItem[] {
   const out: ChatItem[] = [];
   for (const item of items) {
     if (item.kind === "tool" && HIDDEN_TOOLS.has(item.name)) continue;
@@ -679,7 +679,10 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
   const [armed, setArmed] = useState(false);
 
   // 350ms input shield: a card that appears under a cursor already moving
-  // toward the composer must not be approvable on the way past.
+  // toward the composer must not be approvable on the way past.  The
+  // buttons are really disabled for that moment rather than silently
+  // ignoring the click -- a control that looks live and does nothing reads
+  // as a broken app, and this one guards the fence.
   useEffect(() => {
     const timer = window.setTimeout(() => setArmed(true), 350);
     return () => window.clearTimeout(timer);
@@ -777,6 +780,8 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         <div className="mt-3 flex gap-[6px]">
           <button
             className="h-[28px] pen-button px-3 t-ui"
+            data-testid="allow"
+            disabled={!armed}
             onClick={() => decide("allow")}
           >
             Allow{focused ? <span className="t-micro opacity-70"> A</span> : null}
@@ -787,7 +792,9 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               keep, so the button is not there. */}
           {item.rule ? (
             <button
-              className="h-[28px] rounded-[3px] border border-line px-3 t-ui"
+              className="h-[28px] rounded-[3px] border border-line px-3 t-ui disabled:opacity-40"
+              data-testid="always"
+              disabled={!armed}
               onMouseEnter={() => setScope(true)}
               onMouseLeave={() => setScope(false)}
               onFocus={() => setScope(true)}
@@ -803,7 +810,9 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             </span>
           )}
           <button
-            className="h-[28px] rounded-[3px] border border-line px-3 t-ui text-ink-2 hover:border-error hover:text-error"
+            className="h-[28px] rounded-[3px] border border-line px-3 t-ui text-ink-2 hover:border-error hover:text-error disabled:opacity-40"
+            data-testid="deny"
+            disabled={!armed}
             onClick={() => decide("deny")}
           >
             Deny{focused ? <span className="t-micro text-ink-3"> D</span> : null}

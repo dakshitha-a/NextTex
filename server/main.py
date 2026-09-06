@@ -9,6 +9,7 @@ between someone cloning the repository and having an editor open.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import mimetypes
 import secrets
 import shutil
@@ -239,20 +240,19 @@ def session_for(project_id: str) -> ProjectSession:
     return _open_session(project)
 
 
-def _tag(target: Path) -> str:
-    """What a file looked like, for a browser to hand back on its next save.
+def _tag(text: str | None) -> str:
+    """What a file said, for a browser to hand back on its next save.
 
-    Nanosecond mtime and size, as an opaque string.  A float second was
-    tried first and was not precise enough to be useful: saves land a
-    quarter of a second apart, so any slack wide enough to absorb filesystem
-    differences was also wide enough to wave through the clobber this
-    exists to catch.
+    A hash of the contents, not a timestamp.  Modification time was tried
+    twice: a float second was far too coarse, and even `st_mtime_ns` is only
+    as fine as the filesystem chooses to record -- two saves a millisecond
+    apart share one on plenty of them, which is exactly the interval this
+    has to tell apart.  Content answers the real question anyway: does this
+    file still say what the browser last agreed it said.
     """
-    try:
-        stat = target.stat()
-    except OSError:
+    if text is None:
         return ""
-    return f"{stat.st_mtime_ns}-{stat.st_size}"
+    return hashlib.blake2b(text.encode("utf-8"), digest_size=8).hexdigest()
 
 
 def _safe(session: ProjectSession, relative: str) -> Path:
@@ -380,7 +380,7 @@ async def read_file(project_id: str, path: str):
     return {
         "path": path, "text": text,
         "mtime": stat.st_mtime, "size": stat.st_size,
-        "tag": _tag(target),
+        "tag": _tag(text),
     }
 
 
@@ -417,8 +417,8 @@ async def write_file(
         raise HTTPException(404, "no such file")
     previous = read_text(target)
     if base and previous is not None and previous != text:
-        current = _tag(target)
-        if current and current != base:
+        current = _tag(previous)
+        if current != base:
             return {
                 "ok": False, "conflict": True,
                 "text": previous, "tag": current,
@@ -435,7 +435,7 @@ async def write_file(
     session.note_edit(target, text, previous)
     if compile:
         session.schedule_compile()
-    tag = _tag(target)
+    tag = _tag(text)
     if previous != text:
         await session.events.publish({
             "type": "files_changed", "paths": [path], "origin": origin,
@@ -471,15 +471,14 @@ async def file_beacon(project_id: str, request: Request):
         raise HTTPException(404, "no such file")
     previous = read_text(target)
     if isinstance(base, str) and base and previous is not None and previous != text:
-        current = _tag(target)
-        if current and current != base:
+        if _tag(previous) != base:
             # A closing tab cannot be asked anything, and it is the one that
             # is going away: the window that is still open keeps its work.
             # The text is not lost -- it is in the file's own history.
             session.record_version(
                 target, text, by="you",
                 why="from a tab that closed holding an older copy",
-                previous=previous,
+                op="orphan", previous=previous,
             )
             return {"ok": False, "conflict": True}
     try:

@@ -143,6 +143,14 @@ class ScriptedAgent:
     async def ask(self, prompt: str) -> None:
         if self.busy:
             raise RuntimeError("a turn is already running")
+        # A browser test cannot set an environment variable, so the script
+        # for one turn can be named in the question itself: a first line of
+        # `#script:permission` picks tests/scripts/permission.json and is
+        # then taken out of the prompt.
+        if prompt.startswith("#script:"):
+            first, _, rest = prompt.partition("\n")
+            self.script_name = first[len("#script:"):].strip() or self.script_name
+            prompt = rest.lstrip()
         self.asked.append(prompt)
         self._why = prompt.strip().splitlines()[0][:120] if prompt.strip() else ""
         self._turn = asyncio.create_task(self._run(prompt))

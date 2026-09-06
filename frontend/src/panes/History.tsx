@@ -78,6 +78,9 @@ export default function History({
               <div
                 role="button"
                 tabIndex={0}
+                data-testid="version"
+                data-sha={version.sha}
+                data-by={version.by}
                 className={`group relative flex cursor-pointer flex-col gap-[2px] px-[10px] py-[6px] ${
                   selected ? "bg-surface-2" : "hover:bg-surface-2"
                 }`}
