@@ -118,9 +118,32 @@ function delimited(text: string, marker: string): Span[] {
   return spans;
 }
 
+/** What KaTeX can render, out of what LaTeX accepts.
+ *
+ *  A numbered equation nearly always carries a \label, and KaTeX refuses
+ *  the whole expression when it meets one -- so the parts that exist for
+ *  the document rather than for the mathematics are removed first, and an
+ *  `equation` wrapper is unwrapped because KaTeX displays it either way.
+ */
+export function prepare(body: string): string {
+  let text = body
+    .replace(/\\label\s*\{[^}]*\}/g, "")
+    .replace(/\\(?:nonumber|notag)\b/g, "")
+    .replace(/\\intertext\s*\{[^}]*\}/g, "")
+    .replace(/%.*$/gm, "");
+  const wrapper = /^\s*\\begin\{(equation\*?|displaymath)\}([\s\S]*)\\end\{\1\}\s*$/.exec(text);
+  if (wrapper) text = wrapper[2];
+  return text.trim();
+}
+
 /** \newcommand definitions, in the form KaTeX wants them. */
 export function macrosFrom(symbols: Symbols | null): Record<string, string> {
-  const macros: Record<string, string> = {};
+  const macros: Record<string, string> = {
+    // Not a KaTeX command, and it appears in half the macros a chemist
+    // writes: \newcommand{\npistar}{\ensuremath{n\pi^{*}}}.
+    "\\ensuremath": "#1",
+    "\\text": "\\textrm{#1}",
+  };
   for (const command of symbols?.commands ?? []) {
     if (command.definition) macros[`\\${command.name}`] = command.definition;
   }
@@ -143,7 +166,7 @@ export function mathHover(symbols: () => Symbols | null): Extension {
         load()
           .then((renderer) => {
             try {
-              renderer.render(span.body, dom, {
+              renderer.render(prepare(span.body), dom, {
                 displayMode: span.display,
                 throwOnError: false,
                 macros: macrosFrom(symbols()),
