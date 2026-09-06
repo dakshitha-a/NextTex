@@ -376,12 +376,17 @@ const api = {
   distill: (id: string, kind: string) =>
     request<any>(`/projects/${id}/context/distill`, json({ kind })),
   memory: (id: string) =>
-    request<{ text: string; limit: number }>(`/projects/${id}/context/memory`),
+    request<{ text: string; notes: string[]; limit: number }>(
+      `/projects/${id}/context/memory`,
+    ),
   setMemory: (id: string, text: string) =>
-    request<{ text: string; limit: number }>(`/projects/${id}/context/memory`, {
-      ...json({ text }),
-      method: "PUT",
-    }),
+    request<{ text: string; notes: string[]; limit: number }>(
+      `/projects/${id}/context/memory`,
+      {
+        ...json({ text }),
+        method: "PUT",
+      },
+    ),
 
   resetChat: (id: string) =>
     request<{ ok: boolean; archived: string | null }>(

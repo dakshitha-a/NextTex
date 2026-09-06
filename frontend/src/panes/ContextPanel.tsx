@@ -55,7 +55,11 @@ export default function ContextPanel({
 
   // What the agent has been told to remember.  Fetched when the panel is
   // opened rather than on mount: most sessions never look at it.
-  const [memory, setMemory] = useState<{ text: string; limit: number } | null>(null);
+  const [memory, setMemory] = useState<{
+    text: string;
+    notes: string[];
+    limit: number;
+  } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   useEffect(() => {
     const projectId = get().projectId;
@@ -131,13 +135,18 @@ export default function ContextPanel({
               )}
             </div>
             {editing === null ? (
-              memory?.text ? (
-                <p
-                  className="t-meta whitespace-pre-wrap text-ink-2"
-                  data-testid="memory-text"
-                >
-                  {memory.text}
-                </p>
+              memory?.notes.length ? (
+                // The notes, not the file: its heading is scaffolding, and
+                // showing it made the panel read as a document rather than
+                // as a list of things that were said.
+                <ul className="t-meta text-ink-2" data-testid="memory-text">
+                  {memory.notes.map((note, index) => (
+                    <li key={index} className="mt-[2px] flex gap-[6px]">
+                      <span className="text-ink-3">·</span>
+                      <span className="min-w-0">{note}</span>
+                    </li>
+                  ))}
+                </ul>
               ) : (
                 <p className="t-meta text-ink-3">
                   Nothing yet. Ask {name} to remember something, or write it

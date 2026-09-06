@@ -1134,7 +1134,11 @@ async def add_context(
 async def read_memory(project_id: str):
     session = session_for(project_id)
     return {
+        # The text is what a hand edit works on; the notes are what the
+        # panel shows, because the file's own heading is scaffolding rather
+        # than something the writer asked to be remembered.
         "text": session.context.memory_text(),
+        "notes": session.context.memory_notes(),
         "limit": MEMORY_MAX_CHARS,
     }
 
@@ -1149,13 +1153,14 @@ async def write_memory(project_id: str, text: str = Body(..., embed=True)):
     """
     session = session_for(project_id)
     saved = session.context.set_memory(text)
+    notes = session.context.memory_notes()
     # The system prompt is fixed for a Claude client's lifetime, so the
     # agent has to be told the ground moved under it.
     changed = getattr(session.agent, "memory_changed", None)
     if callable(changed):
         changed()
     await session.events.publish({"type": "context_changed"})
-    return {"text": saved, "limit": MEMORY_MAX_CHARS}
+    return {"text": saved, "notes": notes, "limit": MEMORY_MAX_CHARS}
 
 
 @app.delete("/api/projects/{project_id}/context/{document_id}")
