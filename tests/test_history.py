@@ -155,3 +155,24 @@ def test_a_version_survives_a_restart(tmp_path):
     versions = reopened.versions("main.tex")
     assert len(versions) == 1
     assert reopened.content("main.tex", versions[0].sha) == "before the restart"
+
+
+def test_two_windows_do_not_collapse_into_one_version(tmp_path):
+    """Two browser tabs are both "you", so an editing burst in one used to
+    swallow the version the other had just written -- and with it the only
+    copy of the paragraph it overwrote."""
+    store = history(tmp_path)
+    store.record("main.tex", "what the first window wrote", source="tab-a")
+    store.record("main.tex", "what the second window wrote", source="tab-b")
+    texts = [
+        store.content("main.tex", version.sha)
+        for version in store.versions("main.tex")
+    ]
+    assert texts == ["what the first window wrote", "what the second window wrote"]
+
+
+def test_one_window_still_collapses_its_own_burst(tmp_path):
+    store = history(tmp_path)
+    for text in ("a", "ab", "abc"):
+        store.record("main.tex", text, source="tab-a")
+    assert len(store.versions("main.tex")) == 1

@@ -74,6 +74,11 @@ class Version:
     why: str = ""
     op: str = "edit"   # edit | create | delete | restore | undo | redo
     label: str | None = None
+    # Which window a save came from.  Two browser tabs are both "you", and
+    # coalescing merged them -- so the tab that saved second replaced the
+    # other one's version and its paragraph was gone from the history too.
+    # Never shown; it exists only to keep bursts apart.
+    source: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -84,6 +89,7 @@ class Version:
             "why": self.why,
             "op": self.op,
             "label": self.label,
+            "source": self.source,
         }
 
     @classmethod
@@ -95,7 +101,8 @@ class Version:
             by=str(data.get("by") or "you"),
             why=str(data.get("why") or ""),
             op=str(data.get("op") or "edit"),
-            label=data.get("label"),
+            label=data.get("label") or None,
+            source=str(data.get("source") or ""),
         )
 
     @property
@@ -328,6 +335,7 @@ class History:
         why: str = "",
         op: str = "edit",
         label: str | None = None,
+        source: str = "",
     ) -> Version | None:
         """Note what a file contains now. Returns the version, or None.
 
@@ -346,7 +354,8 @@ class History:
         self.blobs.put(data)
         self._remember_path(relative_path)
         version = Version(
-            at=now_ms(), sha=sha, bytes=len(data), by=by, why=why, op=op, label=label,
+            at=now_ms(), sha=sha, bytes=len(data), by=by, why=why, op=op,
+            label=label, source=source,
         )
 
         # One editing burst is one version.  Never across authors: what the
@@ -355,6 +364,11 @@ class History:
         coalesce = (
             previous is not None
             and previous.by == by
+            # Two browser windows are both "you", and merging them meant the
+            # one that saved second replaced the other's version -- so the
+            # paragraph it overwrote was gone from the history as well as
+            # from the file.  A burst only collapses within one window.
+            and previous.source == source
             and previous.op == "edit" == op
             and previous.label is None
             and (version.at - previous.at) < COALESCE_SECONDS * 1000

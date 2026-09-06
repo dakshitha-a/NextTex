@@ -71,6 +71,11 @@ def status() -> dict:
     Returns `installed: False` rather than raising when the CLI is absent,
     because that is a state the setup screen has to render, not an error.
     """
+    if os.environ.get("NEXTTEX_FAKE_CLAUDE_AUTH") == "1":
+        # For the browser tests, which need past this screen without a real
+        # account.  Set by the test harness and by nothing else.
+        return {"installed": True, "loggedIn": True,
+                "email": "tests@example.invalid", "plan": "test"}
     binary = _claude()
     if not binary:
         return {"installed": False, "loggedIn": False,

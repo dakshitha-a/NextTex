@@ -145,3 +145,24 @@ def test_a_save_that_changes_nothing_says_nothing(client, opened):
     save(client, opened["id"], "same")
     session.events.publish = original
     assert [e for e in seen if e["type"] == "files_changed"] == []
+
+
+def test_neither_window_loses_its_paragraph_to_the_others_burst(client, opened):
+    """History collapses an editing burst into one version, and both tabs
+    are "you" -- so the second tab's save replaced the first tab's version
+    and the paragraph it overwrote was gone from the history as well."""
+    save(client, opened["id"], "the first window's paragraph", origin="tab-a")
+    tag = client.get(f"/api/projects/{opened['id']}/file",
+                     params={"path": "main.tex"}).json()["tag"]
+    save(client, opened["id"], "the second window's paragraph",
+         base=tag, origin="tab-b")
+
+    versions = client.get(f"/api/projects/{opened['id']}/history",
+                          params={"path": "main.tex"}).json()["versions"]
+    texts = [
+        client.get(f"/api/projects/{opened['id']}/history/blob",
+                   params={"path": "main.tex", "sha": v["sha"]}).json()["text"]
+        for v in versions
+    ]
+    assert "the first window's paragraph" in texts
+    assert "the second window's paragraph" in texts

@@ -430,7 +430,7 @@ async def write_file(
     except OSError as error:
         raise HTTPException(500, f"could not save: {error}")
     session.mark_written(target)
-    session.record_version(target, text, by="you", previous=previous)
+    session.record_version(target, text, by="you", previous=previous, source=origin)
 
     session.note_edit(target, text, previous)
     if compile:
