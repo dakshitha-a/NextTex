@@ -20,6 +20,7 @@ export default function Collapsed({
         borderLeftWidth: side === "right" ? 1 : 0,
       }}
       onClick={onExpand}
+      data-testid={`collapsed-${label.toLowerCase()}`}
       title={`Show ${label.toLowerCase()}`}
       aria-label={`Show ${label.toLowerCase()}`}
     >

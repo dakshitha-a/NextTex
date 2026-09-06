@@ -119,6 +119,15 @@ export default function App() {
     pdf: false,
     chat: false,
   });
+  // Reading mode and writing mode: one pane with the window to itself.
+  const [focus, setFocus] = useState<"editor" | "pdf" | null>(null);
+  const beforeFocus = useRef<{
+    folded: { rail: boolean; editor: boolean; pdf: boolean; chat: boolean };
+    railHidden: boolean;
+    railByHand: boolean;
+    chatOpen: boolean;
+    showing: "source" | "preview";
+  } | null>(null);
   const [chatOver, setChatOver] = useState(false);
   const [wordScope, setWordScope] = useState<"file" | "document">("document");
   const [words, setWords] = useState<number | null>(null);
@@ -695,6 +704,14 @@ export default function App() {
 
   const chatOpenRef = useRef(chatOpen);
   chatOpenRef.current = chatOpen;
+  const foldedRef = useRef(folded);
+  foldedRef.current = folded;
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  const railHiddenRef = useRef(railHidden);
+  railHiddenRef.current = railHidden;
+  const showingRef = useRef(showing);
+  showingRef.current = showing;
 
   // What the chat panel was doing before the window got narrow, so that
   // widening it again gives back the layout the writer chose rather than
@@ -724,7 +741,16 @@ export default function App() {
     return () => observer.disconnect();
   }, [view]);
 
+  // The rail folds away when there is no room and comes back when there is,
+  // unless the user hid it themselves.
+  const railByHand = useRef(false);
+
   const fold = useCallback((pane: "rail" | "editor" | "pdf" | "chat") => {
+    // Folding anything by hand is the writer arranging the panes
+    // themselves, which is the end of whatever mode they were in: the
+    // layout it would restore is no longer the one they left.
+    setFocus(null);
+    beforeFocus.current = null;
     setFolded((current) => {
       const next = { ...current, [pane]: !current[pane] };
       // One of the two middle panes always stays open.
@@ -738,9 +764,99 @@ export default function App() {
     });
   }, []);
 
-  // The rail folds away when there is no room and comes back when there is,
-  // unless the user hid it themselves.
-  const railByHand = useRef(false);
+  /** Give one pane the whole window, and give it back.
+   *
+   *  Reading mode and writing mode are the same mechanism pointed at
+   *  different panes: everything else folds away, and a second double
+   *  click restores the layout exactly as it was rather than unfolding
+   *  everything -- a writer who had the agent hidden before does not want
+   *  it back for having read a page.
+   *
+   *  Deliberately not persisted. The folded state that reaches
+   *  localStorage is the arrangement the writer chose, so a reload in the
+   *  middle of a mode comes back to their real layout rather than to a
+   *  collapsed window with no memory of what preceded it. */
+  const toggleFocus = useCallback((pane: "editor" | "pdf") => {
+    if (focusRef.current === pane) {
+      const saved = beforeFocus.current;
+      if (saved) {
+        setFolded(saved.folded);
+        setRailHidden(saved.railHidden);
+        railByHand.current = saved.railByHand;
+        setChatOpen(saved.chatOpen);
+        setShowing(saved.showing);
+      }
+      beforeFocus.current = null;
+      setFocus(null);
+      return;
+    }
+    if (!beforeFocus.current) {
+      beforeFocus.current = {
+        folded: foldedRef.current,
+        railHidden: railHiddenRef.current,
+        railByHand: railByHand.current,
+        chatOpen: chatOpenRef.current,
+        showing: showingRef.current,
+      };
+    }
+    // The rail is hidden by hand, so the width-watching effect does not
+    // bring it back the moment the window is touched.
+    railByHand.current = true;
+    setRailHidden(true);
+    setChatOpen(false);
+    setFolded({
+      rail: true,
+      editor: pane !== "editor",
+      pdf: pane !== "pdf",
+      chat: true,
+    });
+    // Below 900px the two middle panes share one view rather than folding,
+    // so the mode picks which of them is showing.
+    setShowing(pane === "editor" ? "source" : "preview");
+    setFocus(pane);
+  }, []);
+
+  /** One header, two gestures.
+   *
+   *  A double click arrives as two clicks, so the fold has to wait long
+   *  enough to find out which one this is. 250 ms is the shortest wait
+   *  that does not turn a deliberate double click into a fold followed by
+   *  a mode, and it is short enough that a single click still feels like
+   *  a button rather than a request. */
+  // The pending click carries which header it was on: a click on the
+  // preview followed quickly by one on the source is two single clicks,
+  // not a double click on whichever came second.
+  const headerTimer = useRef<{ pane: "editor" | "pdf"; id: number } | null>(null);
+  const headerClick = useCallback(
+    (pane: "editor" | "pdf") => {
+      const pending = headerTimer.current;
+      if (pending) {
+        window.clearTimeout(pending.id);
+        headerTimer.current = null;
+        if (pending.pane === pane) {
+          toggleFocus(pane);
+          return;
+        }
+        // A different header: the first click was meant on its own.
+        fold(pending.pane);
+      }
+      const id = window.setTimeout(() => {
+        headerTimer.current = null;
+        fold(pane);
+      }, 250);
+      headerTimer.current = { pane, id };
+    },
+    [fold, toggleFocus],
+  );
+  useEffect(
+    () => () => {
+      if (headerTimer.current) window.clearTimeout(headerTimer.current.id);
+    },
+    [],
+  );
+
+  // The rail comes back when there is room again, unless it was hidden by
+  // hand -- which a focus mode counts as.
   useEffect(() => {
     if (railByHand.current) return;
     setRailHidden(width < 1100);
@@ -925,7 +1041,13 @@ export default function App() {
               </div>
             ) : null}
             <div className="min-w-0 flex-1">
-              <Tabs onSelect={(path) => openFile(path)} onClose={closeFile} />
+              <Tabs
+                onSelect={(path) => openFile(path)}
+                onClose={closeFile}
+                // Only the empty run of the strip, never a tab: this is the
+                // one header whose whole width is already a control.
+                onBlank={!tight ? () => headerClick("editor") : undefined}
+              />
             </div>
             {tight ? (
               <Segmented value={showing} onChange={setShowing} />
@@ -1050,11 +1172,12 @@ export default function App() {
           {!tight ? (
             <div
               className="flex h-[32px] shrink-0 cursor-pointer items-center gap-2 border-b border-line bg-surface-2 pl-2 pr-1 transition-colors duration-[90ms] hover:bg-surface-3"
-              title="Fold the preview away"
+              title="Click to fold the preview away, double-click to read"
+              data-testid="preview-header"
               onClick={(event) => {
                 // The header is the control; the chip inside it is not.
                 if ((event.target as HTMLElement).closest("button")) return;
-                fold("pdf");
+                headerClick("pdf");
               }}
             >
               {railFolded && folded.editor ? (

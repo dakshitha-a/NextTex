@@ -83,3 +83,118 @@ test("widening gives back the layout the writer chose, not the default", async (
   await tab.setViewportSize({ width: 1600, height: 1000 });
   await expect(tab.getByRole("button", { name: "Show claude" })).toBeVisible();
 });
+
+test("double-clicking the preview header gives the page the window", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await expect(tab.locator('[role="tree"]')).toBeVisible();
+
+  await tab.getByTestId("preview-header").dblclick();
+
+  // Everything else folds to a strip, and the page is what is left.
+  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-source")).toBeVisible();
+  await expect(tab.locator('[role="tree"]')).toBeHidden();
+  await expect(tab.locator(".cm-editor")).toBeHidden();
+  await expect(tab.getByTestId("preview-header")).toBeVisible();
+
+  // And a second double click gives back exactly what was there before.
+  await tab.getByTestId("preview-header").dblclick();
+  await expect(tab.locator('[role="tree"]')).toBeVisible();
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+  await expect(tab.getByTestId("chat")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+});
+
+test("double-clicking the empty tab strip gives the source the window", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await tab.getByTestId("tabs-blank").dblclick();
+
+  await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+  await expect(tab.locator('[role="tree"]')).toBeHidden();
+
+  await tab.getByTestId("tabs-blank").dblclick();
+  await expect(tab.locator('[role="tree"]')).toBeVisible();
+  await expect(tab.getByTestId("collapsed-preview")).toHaveCount(0);
+});
+
+test("a mode gives back the layout it was entered from, not a tidy one", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  // Put the agent away first: coming back from reading should not undo a
+  // decision the writer made before they started reading.
+  await tab.getByTestId("chat-header").click();
+  await expect(tab.getByTestId("chat")).toBeHidden();
+
+  await tab.getByTestId("preview-header").dblclick();
+  await expect(tab.locator(".cm-editor")).toBeHidden();
+
+  await tab.getByTestId("preview-header").dblclick();
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+  await expect(tab.getByTestId("chat")).toBeHidden();
+});
+
+test("one click on a pane header folds it away", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+
+  await tab.getByTestId("chat-header").click();
+  await expect(tab.getByTestId("chat")).toBeHidden();
+
+  await tab.getByTestId("tabs-blank").click();
+  await expect(tab.locator(".cm-editor")).toBeHidden({ timeout: 5_000 });
+  await tab.getByTestId("collapsed-source").click();
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+
+  await tab.getByTestId("preview-header").click();
+  await expect(tab.getByTestId("collapsed-preview")).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test("clicking a tab is not clicking the strip it sits in", async ({
+  app, project, tab,
+}) => {
+  // The empty run of the strip folds the pane; a tab must still just be a
+  // tab, however close to the blank space it sits.
+  await tab.evaluate(
+    async ({ base, token, id }) => {
+      await fetch(`${base}/api/projects/${id}/file`, {
+        method: "PUT",
+        headers: { "content-type": "application/json", "x-nexttex-token": token },
+        body: JSON.stringify({
+          path: "second.tex", text: "x\n", compile: false, create: true,
+        }),
+      });
+    },
+    { base: app.base, token: app.token, id: project.id },
+  );
+  await tab.locator('[role="tree"] [data-path="second.tex"]').click();
+  await expect(tab.locator('[data-tab][data-path="second.tex"]')).toBeVisible({
+    timeout: 15_000,
+  });
+
+  await tab.locator('[data-tab][data-path="main.tex"] button').first().click();
+  await tab.waitForTimeout(500);
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+});
+
+test("the error list closes from its own bar", async ({ tab }) => {
+  const editor = tab.locator(".cm-content");
+  await editor.click();
+  await tab.keyboard.press("End");
+  await tab.keyboard.type("\n\\badcommand{x}\n");
+  await expect(tab.getByTestId("status")).toHaveAttribute("data-state", /error|warn/, {
+    timeout: 30_000,
+  });
+  await tab.getByTestId("status").click();
+  await expect(tab.getByTestId("diagnostics-header")).toBeVisible();
+
+  await tab.getByTestId("diagnostics-header").click();
+  await expect(tab.getByTestId("diagnostics-header")).toHaveCount(0);
+});

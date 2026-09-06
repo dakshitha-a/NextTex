@@ -230,6 +230,33 @@ cannot take it — the folder itself, its own descendant, or the folder it alrea
 shows no highlight at all and the cursor says *no*: refused while it is being dragged
 rather than attempted and reported.
 
+### Reading mode and writing mode
+
+A **double click on a pane's header gives that pane the window**: everything else folds to
+its strip, and a second double click restores the layout exactly as it was rather than
+unfolding everything. A writer who had the agent hidden before they started reading does
+not want it back for having read a page. The preview's header and the source's tab strip
+both do this; the agent's does not, because a column of conversation with nothing to
+converse about is not a mode anybody wants.
+
+It is deliberately **not persisted**. What reaches `localStorage` is the arrangement the
+writer chose, so a reload in the middle of a mode comes back to their real layout rather
+than to a collapsed window with no memory of what preceded it. Folding anything by hand
+ends the mode for the same reason: the layout it would restore is no longer the one they
+left.
+
+A **single click on the same headers folds that pane away**, which means one target answers
+two gestures, and the fold has to wait 250 ms to find out which it is. That is the shortest
+wait that does not turn a deliberate double click into a fold followed by a mode. The
+agent's header, which has no second gesture, folds immediately.
+
+**On the source pane the target is the empty run of the tab strip**, never a tab. It is the
+only part of that row that is not already something, and it shrinks as tabs fill the strip
+— which is the right behaviour rather than a limitation: a writer with a dozen files open
+has not left themselves a place to click, and a fold they did not ask for is worse than a
+gesture they have to reach the chevron for. Below 900 px, where the two panes share one
+view, neither gesture exists: there is nothing to fold them into.
+
 ### Files bar
 
 26 px, directly under the 32 px project header, and the header's bottom rule moves down

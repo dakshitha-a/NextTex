@@ -140,6 +140,14 @@ claims to come from. A fabricated reference in a paper is an academic
 integrity failure, so the defence is structural rather than a matter of care:
 there is no path from the model's memory to your `.bib` file.
 
+**Double-click a pane's header to give it the window.** The preview's title
+bar puts you in something like a reading mode — the file list, the source
+and the agent all fold to strips and the typeset page gets the screen — and
+the empty part of the tab strip does the same for the source. Double-click
+again and your layout comes back exactly as you left it, including the
+things you had already folded away. A single click on either folds just that
+pane, as it does on the agent's header.
+
 **The file list finds things and moves them.** A magnifier opens a filter row:
 type and the tree narrows to what matches, through folders you had collapsed,
 and clearing it gives back exactly the tree you had. Typing straight into the
