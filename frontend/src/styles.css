@@ -353,9 +353,22 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   line-height: 18px;
   color: var(--ink);
 }
-.cm-tooltip-autocomplete > ul > li[aria-selected] {
-  background: var(--hint-wash);
-  color: var(--ink);
+/* CodeMirror's own theme sets the selected row to the browser's highlight
+   blue with a higher-specificity selector, which in the light theme made
+   the popup look like a stock widget dropped into a designed app. */
+.cm-editor .cm-tooltip-autocomplete > ul > li[aria-selected],
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--hint-wash) !important;
+  color: var(--ink) !important;
+}
+.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail {
+  color: var(--ink-2) !important;
+}
+.cm-completionLabel { color: inherit; }
+.cm-completionMatchedText {
+  color: var(--hint);
+  text-decoration: none;
+  font-weight: 600;
 }
 .cm-completionDetail {
   font-family: var(--font-sans);
