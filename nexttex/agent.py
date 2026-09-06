@@ -235,6 +235,7 @@ class ProjectAgent:
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
+        on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
         model: str | None = None,
     ):
@@ -249,7 +250,14 @@ class ProjectAgent:
         # as ours so the watcher does not echo it back, and scheduling the
         # rebuild.  Without this an MCP tool would leave the editor stale.
         self.apply_edit = apply_edit
+        # Called for edits the SDK makes directly.  Write, Edit and
+        # MultiEdit do not pass through the session at all, so without this
+        # they are versioned by nothing and rebuild nothing.
+        self.on_edit = on_edit
         self.reveal = reveal
+        # What the current turn was asked for, used to label the versions
+        # this turn produces.
+        self._why = ""
         self.model = model
 
         self._client: ClaudeSDKClient | None = None
@@ -478,7 +486,7 @@ class ProjectAgent:
     async def _post_tool(self, input_data: dict, tool_use_id: str | None, ctx: Any) -> dict:
         """Record what an edit did, for the chip and its undo."""
         tool_name = input_data.get("tool_name", "")
-        if tool_name not in {"Write", "Edit", "MultiEdit"}:
+        if tool_name not in self._WRITE_TOOLS:
             return {}
         raw = (input_data.get("tool_input") or {}).get("file_path")
         if not raw or not self._inside_project(raw):
@@ -498,7 +506,16 @@ class ProjectAgent:
         except (ValueError, OSError):
             display = str(path)
         self._edits.append(EditRecord(tool_name, display, before, after))
+        if self.on_edit:
+            try:
+                self.on_edit(path, before, after)
+            except Exception:
+                pass   # a bookkeeping failure must not break the edit
         return {}
+
+    def current_why(self) -> str:
+        """What this turn was asked to do, for the version it produces."""
+        return self._why
 
     def drain_edits(self) -> list[EditRecord]:
         edits, self._edits = self._edits, []
@@ -943,6 +960,7 @@ class ProjectAgent:
         if self.busy:
             raise RuntimeError("a turn is already running")
         self._cancelled = False
+        self._why = prompt.strip().splitlines()[0][:120] if prompt.strip() else ""
         await self._emit({"type": "turn_start", "prompt": prompt})
         self._turn = asyncio.create_task(self._run_turn(prompt))
 

@@ -349,6 +349,7 @@ async def write_file(
     temp.write_text(text, encoding="utf-8")
     temp.replace(target)
     session.mark_written(target)
+    session.record_version(target, text, by="you", previous=previous)
 
     session.note_edit(target, text, previous)
     if compile:
@@ -377,9 +378,16 @@ async def file_beacon(project_id: str, request: Request):
     if not target.is_file():
         raise HTTPException(404, "no such file")
     temp = target.with_name(target.name + ".nexttex-tmp")
+    try:
+        previous = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        previous = None
     temp.write_text(text, encoding="utf-8")
     temp.replace(target)
     session.mark_written(target)
+    session.record_version(
+        target, text, by="you", why="as the tab closed", previous=previous,
+    )
     return {"ok": True}
 
 
@@ -407,20 +415,137 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
         raise HTTPException(409, "a file of that name already exists")
     target.parent.mkdir(parents=True, exist_ok=True)
     source.rename(target)
+    session.history.note_rename(path, to)
     return {"ok": True}
 
 
 @app.delete("/api/projects/{project_id}/file")
-async def delete_entry(project_id: str, path: str):
+async def delete_file(project_id: str, path: str):
+    """Move a file or folder to the trash. Nothing is destroyed here."""
     session = session_for(project_id)
     target = _safe(session, path)
     if target == session.project.root:
         raise HTTPException(400, "refusing to delete the project root")
-    if target.is_dir():
-        shutil.rmtree(target)
-    else:
-        target.unlink(missing_ok=True)
+    if not target.exists():
+        raise HTTPException(404, "no such file")
+    entry = session.trash.delete(target)
+    await session.events.publish({"type": "trash_changed"})
+    return {"ok": True, "entry": entry.as_dict()}
+
+
+# ---------------------------------------------------------------------------
+# The trash
+
+
+@app.get("/api/projects/{project_id}/trash")
+async def list_trash(project_id: str):
+    session = session_for(project_id)
+    return {"entries": [entry.as_dict() for entry in session.trash.entries()]}
+
+
+@app.post("/api/projects/{project_id}/trash/{entry_id}/restore")
+async def restore_trash(project_id: str, entry_id: str):
+    session = session_for(project_id)
+    try:
+        result = session.trash.restore(entry_id)
+    except FileNotFoundError as error:
+        raise HTTPException(404, str(error))
+    await session.events.publish({"type": "trash_changed"})
+    await session.events.publish({"type": "files_changed", "paths": result["restored"]})
+    session.schedule_compile()
+    return {"ok": True, **result}
+
+
+@app.delete("/api/projects/{project_id}/trash/{entry_id}")
+async def purge_trash(project_id: str, entry_id: str):
+    """Delete one entry for good, along with the history of what it held."""
+    session = session_for(project_id)
+    if not session.trash.purge(entry_id):
+        raise HTTPException(404, "no such trash entry")
+    session.history.collect()
+    await session.events.publish({"type": "trash_changed"})
     return {"ok": True}
+
+
+@app.delete("/api/projects/{project_id}/trash")
+async def empty_trash(project_id: str):
+    session = session_for(project_id)
+    count = session.trash.empty()
+    session.history.collect()
+    await session.events.publish({"type": "trash_changed"})
+    return {"ok": True, "removed": count}
+
+
+# ---------------------------------------------------------------------------
+# Version history
+
+
+@app.get("/api/projects/{project_id}/history")
+async def file_history(project_id: str, path: str):
+    session = session_for(project_id)
+    _safe(session, path)   # refuse to describe anything outside the project
+    versions = [v.as_dict() for v in session.history.versions(path)]
+    versions.reverse()     # newest first, as the panel reads it
+    return {"path": path, "versions": versions}
+
+
+@app.get("/api/projects/{project_id}/history/blob")
+async def history_blob(project_id: str, path: str, sha: str):
+    session = session_for(project_id)
+    _safe(session, path)
+    text = session.history.content(path, sha)
+    if text is None:
+        raise HTTPException(404, "that version is no longer stored")
+    return {"path": path, "sha": sha, "text": text}
+
+
+@app.post("/api/projects/{project_id}/history/restore")
+async def restore_version(
+    project_id: str, path: str = Body(...), sha: str = Body(...)
+):
+    """Put an old version back, as a new version. Nothing is overwritten."""
+    session = session_for(project_id)
+    target = _safe(session, path)
+    text = session.history.content(path, sha)
+    if text is None:
+        raise HTTPException(404, "that version is no longer stored")
+    try:
+        previous = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        previous = None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp = target.with_name(target.name + ".nexttex-tmp")
+    temp.write_text(text, encoding="utf-8")
+    temp.replace(target)
+    session.mark_written(target)
+    session.record_version(
+        target, text, by="you", why="restored an earlier version",
+        op="restore", previous=previous,
+    )
+    session.note_edit(target, text, previous)
+    session.schedule_compile()
+    await session.events.publish({"type": "files_changed", "paths": [path]})
+    return {"ok": True}
+
+
+@app.post("/api/projects/{project_id}/history/label")
+async def label_version(
+    project_id: str,
+    path: str = Body(...),
+    sha: str = Body(...),
+    label: str = Body(""),
+):
+    session = session_for(project_id)
+    _safe(session, path)
+    if not session.history.set_label(path, sha, label.strip() or None):
+        raise HTTPException(404, "no such version")
+    return {"ok": True}
+
+
+@app.get("/api/projects/{project_id}/history/timeline")
+async def history_timeline(project_id: str, limit: int = 80):
+    session = session_for(project_id)
+    return {"versions": session.history.timeline(max(1, min(limit, 500)))}
 
 
 @app.post("/api/projects/{project_id}/upload")
@@ -434,6 +559,16 @@ async def upload(project_id: str, directory: str = Form(""), files: list[UploadF
         # "../../.bashrc" lands in this directory like anything else.
         name = Path(item.filename or "upload").name
         target = destination / name
+        if target.is_file():
+            # An upload of the same name is a replacement; the old one is
+            # still worth being able to get back.
+            try:
+                session.record_version(
+                    target, target.read_text(encoding="utf-8"),
+                    by="you", why="replaced by an upload",
+                )
+            except (OSError, UnicodeDecodeError):
+                pass
         temp = target.with_name(target.name + ".part")
         with temp.open("wb") as handle:
             while chunk := await item.read(1 << 20):
@@ -697,6 +832,102 @@ async def git_backup(
 
 
 # ---------------------------------------------------------------------------
+# What the project can complete to, and what it can start from
+
+
+@app.get("/api/projects/{project_id}/symbols")
+async def project_symbols(project_id: str):
+    """Labels, citation keys, figures and macros -- for autocomplete."""
+    session = session_for(project_id)
+    found = session.symbols.get(
+        excluded=session.project._excluded, build_dir=session.project.build_dir
+    )
+    return found.as_dict()
+
+
+TEMPLATES = Path(__file__).resolve().parent.parent / "nexttex" / "templates"
+
+
+@app.get("/api/templates")
+async def list_templates():
+    if not TEMPLATES.is_dir():
+        return {"templates": []}
+    return {"templates": sorted(p.name for p in TEMPLATES.iterdir() if p.is_dir())}
+
+
+@app.post("/api/projects/{project_id}/template")
+async def load_template(project_id: str, name: str = Body("basic", embed=True)):
+    """Fill a blank project with something to start writing in.
+
+    Refuses to touch a document that has anything in it: this is for the
+    first minute of a project, not a way to lose an afternoon's work.
+    """
+    session = session_for(project_id)
+    source = TEMPLATES / name
+    if not source.is_dir() or ".." in name or "/" in name:
+        raise HTTPException(404, "no such template")
+
+    main = session.paths.main
+    if main.exists():
+        body = main.read_text(encoding="utf-8", errors="replace")
+        body = body.split("\\begin{document}", 1)[-1]
+        body = body.rsplit("\\end{document}", 1)[0]
+        if body.strip():
+            raise HTTPException(
+                400,
+                "this document already has something in it; "
+                "the template would overwrite it",
+            )
+
+    written: list[str] = []
+    for path in sorted(source.rglob("*")):
+        if not path.is_file() or path.name == ".gitkeep":
+            continue
+        relative = path.relative_to(source)
+        # The template's main.tex becomes *this* project's main file,
+        # whatever it is called.
+        target = main if relative.name == "main.tex" else session.project.root / relative
+        if target.exists() and target.stat().st_size > 0 and target != main:
+            continue          # never overwrite a file the writer already has
+        target.parent.mkdir(parents=True, exist_ok=True)
+        text = path.read_text(encoding="utf-8")
+        if target.exists():
+            session.record_version(
+                target, target.read_text(encoding="utf-8", errors="replace"),
+                by="you", why="before the template was loaded",
+            )
+        temp = target.with_name(target.name + ".nexttex-tmp")
+        temp.write_text(text, encoding="utf-8")
+        temp.replace(target)
+        session.mark_written(target)
+        session.record_version(target, text, by="you", why=f"loaded the {name} template")
+        written.append(session.project.relative(target))
+
+    (session.project.root / "figures").mkdir(exist_ok=True)
+    session.note_edit(main, main.read_text(encoding="utf-8"), None)
+    session.schedule_compile()
+    await session.events.publish({"type": "files_changed", "paths": written})
+    return {"ok": True, "written": written, "main": session.project.config.main}
+
+
+@app.post("/api/projects/{project_id}/main")
+async def set_main_document(project_id: str, path: str = Body(..., embed=True)):
+    """Typeset a different file as the document.
+
+    A thesis is not always rooted at main.tex, and a writer working on one
+    chapter may want that chapter to be the document for a while.
+    """
+    session = session_for(project_id)
+    target = _safe(session, path)
+    if not target.is_file() or target.suffix.lower() not in {".tex", ".ltx"}:
+        raise HTTPException(400, "the main document has to be a .tex file")
+    session.set_main(path)
+    await session.events.publish({"type": "project_changed", "main": path})
+    session.schedule_compile()
+    return {"ok": True, "main": path}
+
+
+# ---------------------------------------------------------------------------
 # Compiling and the PDF
 
 
@@ -929,6 +1160,9 @@ async def agent_undo(
     temp.write_text(before, encoding="utf-8")
     temp.replace(target)
     session.mark_written(target)
+    session.record_version(
+        target, before, by="you", why="undid one of Claude's edits", op="undo",
+    )
     if edit_id:
         session.transcript.note_revert(edit_id, state)
     session.note_edit(target, before, current)

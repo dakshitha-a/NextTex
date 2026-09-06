@@ -9,12 +9,16 @@ watch the same project.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from pathlib import Path
 
 from nexttex.agent import ProjectAgent
 from nexttex.compile import CompileResult, CompileScheduler, Outcome, ProjectPaths
 from nexttex.context import ProjectContext
+from nexttex.history import History
+from nexttex.symbols import SymbolCache
+from nexttex.trash import Trash
 from server.transcript import Transcript
 from nexttex.project import Project
 
@@ -23,11 +27,40 @@ from nexttex.project import Project
 # anyway, so dropping it costs the user nothing but a moment's reconnect.
 AGENT_IDLE_TIMEOUT = 30 * 60
 
-# Typing settles, then we build.  This is only half the wait: the browser
-# already holds a keystroke for ~250 ms before saving, and a compile takes
-# about a second, so the number the user actually feels is the sum.  Keeping
-# this at 0.45 puts that total under 1.8 s rather than well over two.
-COMPILE_DEBOUNCE = 0.45
+# Typing settles, then we build.  The browser already holds a keystroke for
+# ~250 ms before saving, so what the writer feels is this plus that plus the
+# compile -- about two seconds, which is what they asked for.
+COMPILE_DEBOUNCE = 1.6
+
+# Longer, when the file looks like it is in the middle of something.  A
+# half-typed equation is not an error, and reporting it as one while the
+# writer is still typing it is the most irritating thing a preview can do.
+UNSETTLED_DEBOUNCE = 4.0
+
+
+MATH_DELIMITER = re.compile(r"(?<!\\)\$")
+BEGIN = re.compile(r"\\begin\s*\{([^}]+)\}")
+END = re.compile(r"\\end\s*\{([^}]+)\}")
+
+
+def mid_construct(text: str) -> bool:
+    """Does this file look like somebody is halfway through typing something?
+
+    An odd number of dollar signs, or a \\begin without its \\end, means the
+    next build will report errors the writer already knows about and is in
+    the middle of fixing.  Waiting a little longer is kinder than telling
+    them.
+    """
+    # Only the body: a package's braces in the preamble are not the
+    # writer's unfinished work, and \end{document} has no \begin to match.
+    body = text.split("\\begin{document}", 1)[-1]
+    body = body.rsplit("\\end{document}", 1)[0]
+    if len(MATH_DELIMITER.findall(body)) % 2:
+        return True
+    opened, closed = BEGIN.findall(body), END.findall(body)
+    if len(opened) != len(closed):
+        return True
+    return sorted(opened) != sorted(closed)
 
 
 class Broadcaster:
@@ -60,6 +93,9 @@ class ProjectSession:
         self.project = project
         self.context = ProjectContext(project.state_dir)
         self.transcript = Transcript(project.state_dir / "transcript.jsonl")
+        self.history = History(project.state_dir / "history")
+        self.symbols = SymbolCache(project.root)
+        self.trash = Trash(project.state_dir / "trash", self.history, project.root)
         self.events = Broadcaster()
 
         self.paths = ProjectPaths(
@@ -76,6 +112,7 @@ class ProjectSession:
             diagnostics=lambda: self._diagnostics,
             compile_now=self.compile,
             apply_edit=self.write_from_agent,
+            on_edit=self.note_agent_edit,
             reveal=self.reveal_in_editor,
             model=model or None,
         )
@@ -89,6 +126,7 @@ class ProjectSession:
         # browser must not be told to reload a buffer it just sent us.
         self.recently_written: dict[str, int] = {}
         self._debounce: asyncio.Task | None = None
+        self._unsettled = False
         self._agent_pump: asyncio.Task | None = None
         self._focus: Path | None = None
 
@@ -146,10 +184,11 @@ class ProjectSession:
         """Build once typing has settled, replacing any pending build."""
         if self._debounce is not None and not self._debounce.done():
             self._debounce.cancel()
+        delay = UNSETTLED_DEBOUNCE if self._unsettled else COMPILE_DEBOUNCE
 
         async def wait_then_build() -> None:
             try:
-                await asyncio.sleep(COMPILE_DEBOUNCE)
+                await asyncio.sleep(delay)
             except asyncio.CancelledError:
                 return
             await self.compile()
@@ -159,7 +198,56 @@ class ProjectSession:
     def note_edit(
         self, path: Path, text: str | None = None, previous: str | None = None
     ) -> None:
+        self._unsettled = text is not None and mid_construct(text)
         self.compiler.note_edit(path, text, previous)
+
+    def set_main(self, relative_path: str) -> None:
+        """Point the build at a different file.
+
+        The scheduler holds the paths it was built with, and the jobname
+        comes from the main file's stem, so both are rebuilt rather than
+        mutated -- the alternative is a compiler writing chapter.pdf while
+        the PDF route serves main.pdf.
+        """
+        self.project.config.main = relative_path
+        self.project.config.save(self.project.root)
+        self.paths = ProjectPaths(
+            root=self.project.root,
+            main=self.project.main,
+            build_dir=self.project.build_dir,
+        )
+        self.compiler = CompileScheduler(self.paths)
+
+    # -- version history ---------------------------------------------------
+    def record_version(
+        self,
+        path: Path,
+        text: str | None,
+        *,
+        by: str = "you",
+        why: str = "",
+        op: str = "edit",
+        previous: str | None = None,
+    ) -> None:
+        """Note a file's contents, before the next thing changes them.
+
+        `previous` seeds the file's history the first time NextTex sees it:
+        without it, the state a chapter was in before this app ever touched
+        it would be the one state nobody could get back to.
+        """
+        try:
+            relative = self.project.relative(path)
+        except (ValueError, OSError):
+            return
+        if previous is not None and not self.history.versions(relative):
+            # Recorded as a creation, not an edit, so the next save cannot
+            # coalesce it away: this is the one state of the file that
+            # existed before NextTex, and it has to stay reachable.
+            self.history.record(
+                relative, previous, by="you", op="create",
+                why="as it was when NextTex first saw it",
+            )
+        self.history.record(relative, text, by=by, why=why, op=op)
 
     def write_from_agent(self, path: Path, text: str) -> None:
         """A write made by one of the agent's own tools.
@@ -177,6 +265,9 @@ class ProjectSession:
         temp.write_text(text, encoding="utf-8")
         temp.replace(path)
         self.mark_written(path)
+        self.record_version(
+            path, text, by="claude", why=self.agent.current_why(), previous=previous,
+        )
         self.note_edit(path, text, previous)
         self.schedule_compile()
         asyncio.create_task(
@@ -186,6 +277,19 @@ class ProjectSession:
                 "byAgent": True,
             })
         )
+
+    def note_agent_edit(self, path: Path, before: str | None, after: str | None) -> None:
+        """An edit the SDK made directly, without going through this class.
+
+        Write, Edit and MultiEdit write to disk themselves, so this is the
+        only place those edits can be versioned or trigger a rebuild.
+        """
+        self.mark_written(path)
+        self.record_version(
+            path, after, by="claude", why=self.agent.current_why(), previous=before,
+        )
+        self.note_edit(path, after, before)
+        self.schedule_compile()
 
     def reveal_in_editor(self, path: str, line: int) -> None:
         """Ask the open editor to show a line."""
