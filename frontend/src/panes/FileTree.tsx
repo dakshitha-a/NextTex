@@ -177,6 +177,11 @@ export default function FileTree({
         onClick={() => (isDirectory ? toggle(node.path) : onOpen(node.path))}
         onFocus={() => setFocusPath(node.path)}
         onKeyDown={(event) => {
+          // Only keys aimed at the row itself.  The rename box is a child
+          // of it, so without this a space in a new name was swallowed and
+          // the arrow keys moved the tree's focus instead of the caret --
+          // a file could not be renamed to anything with a space in it.
+          if (event.target !== event.currentTarget) return;
           const rows = order.current;
           const at = rows.findIndex((row) => row.path === node.path);
           if (event.key === "Enter" || event.key === " ") {

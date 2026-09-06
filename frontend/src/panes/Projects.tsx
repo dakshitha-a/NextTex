@@ -116,6 +116,9 @@ export default function Projects({
                 if (project.id && !project.missing) onOpen(project.id);
               }}
               onKeyDown={(event) => {
+                // As above: only keys aimed at the row, never at a control
+                // inside it.  The click handler already says the same thing.
+                if (event.target !== event.currentTarget) return;
                 if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
                 if (project.id && !project.missing) onOpen(project.id);

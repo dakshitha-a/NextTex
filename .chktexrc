@@ -6,32 +6,61 @@
 # than the warnings are worth.
 #
 # What stays on: the things that silently produce wrong output.
+#
+# Format notes, both of which this file got wrong for its whole life and
+# which cost the lint feature entirely -- chktex refused to start, printed
+# one line on stderr, and the app read its empty stdout as "nothing to
+# report":
+#
+#   * There is no `WarnOff'/`WarnOn'.  Warnings are turned off with `-n<n>'
+#     inside CmdLine, and everything not turned off is already on.
+#   * List items are separated by SPACES, not commas.  `{ e.g., i.e. }' is
+#     two items named "e.g.," and "i.e." -- neither of which ever matches.
+#   * A list written without `=' appends to the stock list rather than
+#     replacing it, which is what these want.
 
-# Warnings suppressed, and why.
-#   1  "Command terminated with space"       -- fires on every \LaTeX\ use
-#   8  "Wrong length of dash"                -- wrong about ranges in maths
-#  11  "You should use \\dots"               -- style, not correctness
-#  17  "Number of `character' does not match"-- false on mhchem and siunitx
-#  18  "Use `` or '' for quotes"             -- wrong inside verbatim/urls
-#  22  "Comment displayed"                   -- commented-out outlines are
-#                                               a normal way to draft
-#  30  "Multiple spaces detected"            -- alignment in tabulars
-#  36  "You should not use ~ before/after"   -- disagrees with itself
-#  44  "User-specified pattern"              -- nothing specified
-WarnOff { 1, 8, 11, 17, 18, 22, 30, 36, 44 }
-
-# What is worth interrupting for: an unmatched brace or environment, a
-# missing space after a full stop that will silently set as an abbreviation,
-# and \label/\ref hygiene.
-WarnOn { 2, 3, 12, 13, 16, 19, 23, 24, 26, 32, 38, 39, 46 }
+CmdLine
+{
+    # 1  "Command terminated with space"        -- fires on every \LaTeX\ use
+    -n1
+    # 8  "Wrong length of dash"                 -- wrong about ranges in maths
+    -n8
+    # 11 "You should use \ldots"                -- style, not correctness
+    -n11
+    # 17 "Number of `character' does not match" -- false on mhchem and siunitx
+    -n17
+    # 18 "Use `` or '' for quotes"              -- wrong inside verbatim and urls
+    -n18
+    # 22 "Comment displayed"                    -- commented-out outlines are
+    #                                              a normal way to draft
+    -n22
+    # 30 "Multiple spaces detected"             -- alignment in tabulars
+    -n30
+    # 36 "You should not use ~ before/after"    -- disagrees with itself
+    -n36
+    # 44 "User-specified pattern"               -- nothing specified
+    -n44
+}
 
 # Abbreviations that legitimately end in a period mid-sentence, so the
-# inter-sentence spacing check does not fire on them.
-Abbrev { e.g., i.e., cf., et al., etc., vs., Fig., Eq., Ref., Refs., Sec., Ch., approx., ca., viz. }
+# inter-sentence spacing check does not fire on them.  Single tokens only:
+# chktex matches the word before the period, so "et al." is listed as "al.".
+Abbrev
+{
+    e.g. i.e. cf. al. etc. vs. approx. ca. viz. resp. Fig. Figs. Eq. Eqs.
+    Ref. Refs. Sec. Secs. Ch. Chs. Tab. App. Eqn. Eqns.
+}
 
-# Verbatim-like environments whose contents are not LaTeX.
-VerbEnvir { verbatim, lstlisting, minted, Verbatim, alltt, comment }
+# Verbatim-like environments whose contents are not LaTeX.  Appended to the
+# stock list, which already carries verbatim, lstlisting and minted.
+VerbEnvir
+{
+    Verbatim alltt
+}
 
 # Maths environments: quoting and dash rules do not apply inside them.
-MathEnvir { math, displaymath, equation, eqnarray, align, gather, multline,
-            alignat, split, array, matrix, pmatrix, bmatrix, cases }
+MathEnvir
+{
+    math displaymath equation eqnarray align gather multline
+    alignat split array matrix pmatrix bmatrix cases
+}
