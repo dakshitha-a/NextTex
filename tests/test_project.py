@@ -64,3 +64,10 @@ def test_the_tree_hides_build_output_and_our_own_files(tmp_path):
     assert "main.tex" in names
     assert "build" not in names
     assert ".nexttex-preview.tex" not in names
+
+
+def test_our_own_state_directory_ignores_itself_in_git(tmp_path):
+    """A project whose .gitignore predates NextTex would otherwise commit
+    every version blob and every deleted file on its next `git add -A`."""
+    p = project(tmp_path)
+    assert (p.state_dir / ".gitignore").read_text(encoding="utf-8").strip() == "*"

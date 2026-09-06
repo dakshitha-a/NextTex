@@ -14,6 +14,7 @@ produces hundreds of fragments and one paragraph.
 from __future__ import annotations
 
 import json
+import secrets
 import time
 from pathlib import Path
 
@@ -67,7 +68,12 @@ class Transcript:
             })
         elif kind == "edit":
             self._counter += 1
-            event["id"] = event.get("id") or f"edit-{int(time.time()*1000)}-{self._counter}"
+            # Unique across restarts, not just within one process: an undo
+            # recorded against an id has to still mean this edit tomorrow.
+            event["id"] = (
+                event.get("id")
+                or f"edit-{int(time.time() * 1000)}-{secrets.token_hex(3)}"
+            )
             self._append({
                 "kind": "edit",
                 "id": event["id"],

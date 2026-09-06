@@ -120,6 +120,26 @@ class ProjectConfig:
         return max(candidates)[1]
 
 
+    def save(self, root: Path) -> None:
+        """Write nexttex.toml, keeping every field somebody set by hand."""
+        lines = [
+            "# NextTex reads this when the project is opened.",
+            "[project]",
+            f'name = "{self.name}"',
+            f'main = "{self.main}"',
+            f'build_dir = "{self.build_dir}"',
+        ]
+        if self.check_command:
+            lines.append(f'check_command = "{self.check_command}"')
+        if self.exclude:
+            listed = ", ".join(f'"{item}"' for item in self.exclude)
+            lines.append(f"exclude = [{listed}]")
+        target = root / CONFIG_NAME
+        temp = target.with_name(target.name + ".tmp")
+        temp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        temp.replace(target)
+
+
 @dataclass
 class Project:
     root: Path
@@ -150,6 +170,16 @@ class Project:
     def state_dir(self) -> Path:
         path = self.root / STATE_DIR
         path.mkdir(parents=True, exist_ok=True)
+        # A .gitignore of "*" ignores everything here including itself, no
+        # matter what the project's own .gitignore says.  Without it, a
+        # project whose .gitignore predates NextTex would have every version
+        # blob and every deleted file swept into its next commit.
+        ignore = path / ".gitignore"
+        if not ignore.exists():
+            try:
+                ignore.write_text("*\n", encoding="utf-8")
+            except OSError:
+                pass
         return path
 
     # -- path safety ----------------------------------------------------
