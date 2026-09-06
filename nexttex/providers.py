@@ -109,6 +109,36 @@ def agent_for(provider: str, project_root: Path, state_dir: Path, **kwargs: Any)
 
     # The default, and what an unrecognised setting falls back to: a
     # configuration typo should not silently turn the agent off.
-    from .agent import ProjectAgent
+    #
+    # Imported here rather than at the top so that an install which chose
+    # OpenAI, or no agent at all, never loads the Claude SDK -- and so that
+    # an install missing it says something a person can act on instead of
+    # failing with an ImportError on the first question asked.
+    try:
+        from .agent import ProjectAgent
+    except ImportError:
+        return Unavailable(
+            "The Claude agent needs the claude-agent-sdk package, which is "
+            "not installed. Run scripts/install.sh again, or choose OpenAI "
+            "or no agent in the sign-in screen."
+        )
 
     return ProjectAgent(project_root, state_dir, **kwargs)
+
+
+class Unavailable(NoAgent):
+    """An agent that was asked for and cannot be built.
+
+    Not an exception: the writer's project has to open, their document has
+    to typeset, and the reason the chat panel is not answering belongs in
+    the chat panel rather than in a 500 from whatever route happened to
+    touch a session first.
+    """
+
+    def __init__(self, why: str):
+        super().__init__()
+        self.why = why
+
+    async def ask(self, prompt: str) -> None:
+        await self._queue().put({"type": "error", "message": self.why})
+        await self._queue().put({"type": "done", "subtype": "success"})
