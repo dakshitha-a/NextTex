@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startServer, ROOT, type Instance } from "../server";
+import { seedProject, startServer, ROOT, type Instance } from "../server";
 
 /** The first screen a new user sees.
  *
@@ -105,4 +105,30 @@ test("signing in shows the link, takes the code, and lets the writer in", async 
   await expect(page.getByText("Connect your Claude account")).toHaveCount(0, {
     timeout: 25_000,
   });
+});
+
+test("working alone leaves nothing on screen that needs an agent", async ({
+  page,
+}) => {
+  const project = await seedProject(app, `alone-${Date.now()}`);
+  // The whole promise of the third option: not a degraded app with dead
+  // controls in it, but the same app with one column absent.
+  await fetch(`${app.base}/api/agent/provider`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({ provider: "none" }),
+  });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText(project.root.split("/").pop()!, { exact: false })
+    .first().click();
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+
+  await expect(page.locator("textarea")).toHaveCount(0);
+  await expect(page.getByText("What Claude reads")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Show claude" })).toHaveCount(0);
+
+  // And everything that is not about a model is still there.
+  await expect(page.getByTestId("new-file")).toBeVisible();
+  await expect(page.getByRole("treeitem", { name: /main\.tex/ }).first())
+    .toBeVisible();
 });

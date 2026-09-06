@@ -715,10 +715,15 @@ export default function App() {
             />
             <TrashPanel onRefresh={refreshTree} />
             <PapersPanel onRefresh={refreshTree} />
-            <ContextPanel
-              openFor={contextRequest}
-              onHandled={() => setContextRequest(null)}
-            />
+            {/* What the agent reads is nothing to offer when there is no
+                agent.  The trash, the papers and the git panel all stay:
+                none of them is about a model. */}
+            {noAgent ? null : (
+              <ContextPanel
+                openFor={contextRequest}
+                onHandled={() => setContextRequest(null)}
+              />
+            )}
             <GitPanel onOpen={openFile} />
           </div>
           <Handle
@@ -952,8 +957,8 @@ export default function App() {
       {!noAgent && folded.chat && !chatOver ? (
         <Collapsed label="Claude" side="right" onExpand={() => fold("chat")} />
       ) : null}
+      {noAgent ? null : (
       <div
-        hidden={noAgent}
         className={
           chatOver
             ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)]"
@@ -1000,6 +1005,7 @@ export default function App() {
           }}
         />
       </div>
+      )}
 
       {conflict ? (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 max-w-lg rounded-[3px] border border-warn bg-surface px-3 py-2">

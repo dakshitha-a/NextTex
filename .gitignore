@@ -25,6 +25,9 @@ examples/**/.nexttex/
 venv/
 
 # Browser tests
+# Renders from e2e/shots are for looking at, not for committing.  The two
+# the README uses live in docs/ and are written there deliberately.
+e2e/shots/*.png
 e2e/node_modules/
 e2e/test-results/
 e2e/playwright-report/
