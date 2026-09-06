@@ -34,6 +34,8 @@ from nexttex.atomic import (
 )
 from nexttex.compile import CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
+from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
+from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS
 from nexttex.project import IGNORED_FILES, Project, ProjectConfig, Registry
 from server.session import ProjectSession
@@ -215,7 +217,12 @@ def _token_page() -> str:
 
 def _open_session(project: Project) -> ProjectSession:
     """Build a session for a project and put it in service."""
-    session = ProjectSession(project, model=SETTINGS.model)
+    session = ProjectSession(
+        project,
+        model=SETTINGS.model,
+        provider=SETTINGS.provider,
+        api_key=SETTINGS.openai_key,
+    )
     SESSIONS[project.id] = session
     session.start_agent_pump()
     _restart_watch()
@@ -1426,6 +1433,58 @@ async def agent_undo(
 
 # ---------------------------------------------------------------------------
 # Signing in to Claude
+
+
+@app.get("/api/agent/status")
+async def agent_status():
+    """Which agent this instance uses, and whether it can be used yet.
+
+    One route for all three providers, because the sign-in screen has one
+    question to answer -- can the writer get to work -- and the answer for
+    "no agent" is yes, immediately.
+    """
+    provider = SETTINGS.provider if SETTINGS.provider in PROVIDERS else "claude"
+    if provider == "none":
+        return {"provider": "none", "ready": True}
+    if provider == "openai":
+        return {
+            "provider": "openai",
+            "ready": bool(SETTINGS.openai_key),
+            "model": SETTINGS.model or OPENAI_DEFAULT_MODEL,
+            # Never the key itself.  Enough to show that one is set.
+            "keyTail": SETTINGS.openai_key[-4:] if SETTINGS.openai_key else "",
+        }
+    status = claude_auth.status()
+    return {"provider": "claude", "ready": bool(status.get("loggedIn")), **status}
+
+
+@app.post("/api/agent/provider")
+async def agent_provider(
+    provider: str = Body(...), key: str = Body(""), model: str = Body("")
+):
+    """Choose the agent, and hand over a key if the choice needs one."""
+    if provider not in PROVIDERS:
+        raise HTTPException(400, f"provider must be one of {', '.join(PROVIDERS)}")
+    SETTINGS.provider = provider
+    if provider == "openai":
+        if key:
+            SETTINGS.openai_key = key.strip()
+        SETTINGS.model = model.strip() or SETTINGS.model or OPENAI_DEFAULT_MODEL
+    if provider == "none":
+        # The key is not kept for a provider that is switched off.  Leaving
+        # a credential in a config file for a feature nobody is using is
+        # how credentials outlive the reason they existed.
+        SETTINGS.openai_key = ""
+    try:
+        SETTINGS.save()
+    except OSError as error:
+        raise HTTPException(500, f"could not save settings: {error}")
+
+    # Every open project is holding an agent built for the old provider.
+    for session in list(SESSIONS.values()):
+        await session.agent.disconnect()
+    SESSIONS.clear()
+    return await agent_status()
 
 
 @app.get("/api/claude/status")

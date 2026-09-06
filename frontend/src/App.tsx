@@ -68,6 +68,11 @@ export default function App() {
   const [view, setView] = useState<"loading" | "signin" | "projects" | "editor">(
     "loading",
   );
+  // Configured with no writing agent at all.  Read here with every other
+  // hook, above the early returns: a `useStore` further down runs only on
+  // the renders that get that far, which is React error #310 and took the
+  // whole editor with it.
+  const noAgent = useStore((s) => s.agent)?.provider === "none";
   const [widths, setWidths] = useState<Widths>(DEFAULTS);
   const [drawer, setDrawer] = useState(DRAWER_CLOSED);
   const [railHidden, setRailHidden] = useState(false);
@@ -149,9 +154,9 @@ export default function App() {
   useEffect(() => {
     captureToken();
     (async () => {
-      const status = await api.claudeStatus().catch(() => null);
-      set({ claude: status });
-      if (!status?.loggedIn) {
+      const status = await api.agentStatus().catch(() => null);
+      set({ agent: status });
+      if (!status?.ready) {
         setView("signin");
         return;
       }
@@ -604,7 +609,7 @@ export default function App() {
     return (
       <SignIn
         onDone={async () => {
-          set({ claude: await api.claudeStatus().catch(() => null) });
+          set({ agent: await api.agentStatus().catch(() => null) });
           // Back to whatever was being written, the same way a reload
           // gets there.  Signing in again after a session expires should
           // not cost the writer their place.
@@ -933,16 +938,20 @@ export default function App() {
         ) : null}
       </div>
 
-      {!chatOver && !folded.chat ? (
+      {/* No agent means no column, not an empty one.  Somebody who chose to
+          write without a model gets the whole width for the document and
+          the page, which is the point of offering the choice at all. */}
+      {noAgent ? null : !chatOver && !folded.chat ? (
         <Handle
           onPointerDown={startDrag("chat")}
           onReset={() => setWidths((current) => ({ ...current, chat: DEFAULTS.chat }))}
         />
       ) : null}
-      {folded.chat && !chatOver ? (
+      {!noAgent && folded.chat && !chatOver ? (
         <Collapsed label="Claude" side="right" onExpand={() => fold("chat")} />
       ) : null}
       <div
+        hidden={noAgent}
         className={
           chatOver
             ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)]"

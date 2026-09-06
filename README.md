@@ -1,75 +1,252 @@
 # NextTex
 
-A LaTeX editor you run yourself, with Claude sitting beside the document.
+A LaTeX editor you run yourself, with an AI writing agent beside the document.
 
-Source on the left, the real typeset PDF on the right, a file list, and a
-Claude session that can read and edit the project you are writing. It is
-meant for one person and their thesis, not for a team and a hosted service:
-no database, no Docker, no nginx, one Python process and a folder of files
-that stay ordinary LaTeX the whole time.
+Source on the left, the real typeset PDF in the middle, and — if you want one
+— an agent on the right that can read and edit the project you are writing.
+NextTex is built for one person and one machine: there is no collaboration, no
+shared cursor and no hosted service. There is also no database, no Docker and
+no nginx — one Python process and a folder of files that stay ordinary LaTeX
+the whole time, so the project compiles the same way from a terminal, or on
+Overleaf, after you close the tab.
 
-![NextTex](docs/screenshot.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+  <img alt="NextTex: the file list, the source, the typeset page and the agent" src="docs/screenshot-light.png">
+</picture>
 
 ## What it does
 
-**Types as fast as you do.** A change reaches the PDF about 1.8 seconds after
-you stop typing, of which the compile itself is roughly one second. When a
-document uses `\include`, an ordinary edit typesets only the chapter you are
-in; a new citation key or label pays for the full run with `biber`, and
-nothing else does. The status strip says which of the two you are looking at.
+**The page follows your typing.** The editor holds a keystroke for 250 ms
+before it saves, the server waits 1.6 s for typing to settle, and then it
+builds. When a document uses `\include`, an ordinary edit typesets only the
+chapter you are in — measured at **357 ms** on a forty-file thesis — so the
+page redraws about two seconds after you stop. A new citation key or a new
+label pays for the full run with `biber`, and nothing else does. A
+half-finished equation holds the build back for four seconds rather than
+reporting an error you already know about.
+
+<details><summary>The measured numbers</summary>
+
+`bench/thresholds.json` holds a budget for every slow path and `bench/bench.py`
+measures against it, on a synthetic project of forty source files, two
+megabytes of LaTeX, a populated build directory and a `.git` with a working
+tree. They are budgets, not records: the point is to notice the change that
+makes typing slower on the day it happens.
+
+| | measured | budget |
+|---|---|---|
+| Chapter build, as an edit triggers | 357 ms | 4 s |
+| Full build with `biber` | 19.1 s | 30 s |
+| Full symbol scan | 19.4 ms | 400 ms |
+| Symbol lookup, cached | 0.93 ms | 6 ms |
+| Symbol lookup after a build | 0.97 ms | 6 ms |
+| Recording a version | 1.87 ms | 8 ms |
+| Listing a file's versions | 0.02 ms | 3 ms |
+| Rebuilding a transcript | 9.74 ms | 120 ms |
+| Project file tree | 3.21 ms | 250 ms |
+| Whole project as a zip | 70 ms | 3 s |
+| Interface bundle | 700 kB | 760 kB |
+
+The third row is the one worth keeping. The compile rewrites `build/main.pdf`,
+the symbol cache's stamp walk used to count it, and every build therefore threw
+the index away and rescanned the project — 1.6 seconds after every pause in
+typing. If that comes back, that number goes from about one millisecond to
+about twenty.
+
+`scripts/check.sh --bench` runs it.
+</details>
 
 **Double-click the page to reach the source.** SyncTeX both ways: click a
-paragraph in the PDF and the editor opens that file at that line; ask for the
-reverse and the page scrolls to where the line landed.
+paragraph in the PDF and the editor opens that file at that line; press `⌘↵`
+and the page scrolls to where the line you are on landed, and flashes it.
 
-**Tells you where the error is.** `chktex` runs while you type; the LaTeX log
-is parsed into `file:line` diagnostics with the right file attribution even
-inside `\include`d chapters. Findings appear in a drawer under the editor,
-and `Fix` writes the message into the Claude composer for you to send.
+**It tells you what the error means, with or without an agent.** `chktex` runs
+while you type, and the LaTeX log is parsed into `file:line` diagnostics with
+the right file attribution even inside `\include`d chapters. Every message is
+matched against a table of the errors that actually happen, so the drawer says
+*Maths outside maths mode* and *put the expression between dollar signs, or
+write `\_` if you meant a literal underscore* rather than `Missing $ inserted`.
+It also names which error to start with: LaTeX reports everything after a
+mistake as a mistake too, and a writer who starts at the bottom of the list
+spends the evening fixing consequences. None of this involves a model.
 
-**Claude edits the project, and asks about everything else.** Edits inside the
-project directory happen directly and appear as a chip in the transcript with
-a diff and an undo. A shell command, or a write outside the project, produces
-a card you have to answer first. The fence is a `PreToolUse` hook, so it holds
-whatever the model tries.
+**Every save is a version, and you did not have to ask.** A version is the
+sha256 of the file's bytes, stored once, compressed, on your own disk — so
+going back to something you had before costs nothing. An editing burst
+collapses into one version rather than forty, and old ones thin as they age:
+everything from the last day, hourly for a week, daily for three months,
+weekly after that. Some are never thinned at all — one you gave a name, one
+the agent made, a deletion, a restore — because those are the ones people come
+back for. Figures are versioned too, not just prose: replace a plot and the
+one it replaced is still there, byte for byte. A deleted file goes to a trash
+that never empties itself, because a trash that clears after thirty days is a
+trash that loses the thing you went looking for on day thirty-one. None of it
+is git, and none of it needs you to have committed.
 
-**Knows how you write.** Upload the template or handbook you must follow, and
-papers you have already written; Claude reads them once, distils them, and
-keeps the result in its own instructions from then on.
+**Four git commands, and the fifth one is a terminal.** See what changed,
+commit it, push it, pull it back on another machine — that is a thesis's whole
+relationship with git, and each is one button in the rail footer. A project
+with no repository is offered one, with a first commit and a `.gitignore` that
+already knows about `build/` and `.nexttex/`. With the GitHub CLI signed in,
+*Back this up to GitHub* creates the repository — private by default — and
+pushes into it. A token you supply goes to your git credential store rather
+than into the remote URL, so it never turns up in `git remote -v`. Branching,
+merging and rewriting history stay in the terminal, where the tools are better
+and the mistakes are recoverable.
 
-**Everything is a file, and everything comes back out.** Upload by dragging
-onto a folder. Download a file, a folder, the whole project as a zip, or the
-typeset PDF — from inside a project or straight from the project list.
+**The agent edits the project, and asks about everything else.** An edit to a
+file inside the project happens directly and appears in the transcript as a
+chip with its diff and an undo; hovering the chip flashes the lines it
+changed. A shell command, or a write anywhere outside the project, produces a
+card you have to answer before the turn continues — and the card ignores
+clicks for 350 ms after it appears, so a card arriving under a cursor already
+travelling towards the composer cannot be approved on the way past. *Allow
+always* is scoped to a command's first word, and a command carrying shell
+syntax gets no rule at all and is asked about every time.
+
+**It cannot invent a citation.** The agent can search Crossref, OpenAlex or
+Semantic Scholar and gets back real DOIs; it adds an entry by DOI, and the
+BibTeX comes from the publisher's own record rather than from the model. It
+can then re-check every entry in your bibliography against the record it
+claims to come from. A fabricated reference in a thesis is an academic
+integrity failure, so the defence is structural rather than a matter of care:
+there is no path from the model's memory to your `.bib` file.
+
+**Choose your agent, or none.** Claude, through the Claude CLI's own sign-in.
+OpenAI, with an API key. Or nothing at all — and *nothing at all* is a real
+option rather than a degraded one: the editor, the preview, the version
+history, the trash, the diagnostics, the reference tools and the git panel all
+work with no model behind them, and the chat column is removed rather than
+left sitting there greyed out.
+
+**It learns how you write.** Give it the template or handbook you have to
+follow, and a paper you have already written; it reads them once, distils
+them, and keeps the result in its own instructions from then on.
+
+## What it is not
+
+**NextTex is not collaborative.** One writer, one machine — a design decision
+rather than a missing feature. Two people cannot edit a document at the same
+time; there are no accounts, no comments, no suggestions and no shared
+cursors. Two tabs of your own on one project do work, and a save from a stale
+tab is refused and offered as a choice rather than allowed to overwrite the
+other. If you need real co-authoring, use Overleaf. NextTex is for the writer
+whose thesis lives on their own disk.
+
+It is also not a git client — branching and merging stay in the terminal — and
+not a general-purpose editor.
+
+It is built and used on Linux, and runs on macOS. **Windows support is written
+but unverified**: `scripts/install.ps1` exists and the server no longer
+imports POSIX-only modules at startup, but nobody has run it on a Windows
+machine yet. Signing in to Claude from the browser needs a pseudo-terminal,
+which Windows does not have — run `claude auth login` in a terminal once, or
+use an OpenAI key instead. Reports welcome.
 
 ## Installing
 
 ```bash
 git clone https://github.com/dakshitha-a/nexttex.git
 cd nexttex
-./scripts/install.sh
+./scripts/install.sh          # Linux and macOS
 ```
 
-It checks for Python 3.10+, builds the interface with Node 20+, offers to
-install TinyTeX if there is no LaTeX, offers to install the Claude CLI if it
-is missing, asks whether the server should answer on localhost only or also
-on your tailnet, writes a `systemd --user` unit, and prints a URL with an
-access token in it. Open that URL and sign in to Claude from the page — no
-terminal, which is what makes this work on a headless machine you reach from
-a laptop.
+On Windows, in PowerShell:
 
-To update:
-
-```bash
-./scripts/update.sh
+```powershell
+git clone https://github.com/dakshitha-a/nexttex.git
+cd nexttex
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
 
-Your projects are not inside this directory and are never touched by either
-script: NextTex stores their paths, and the files stay where you put them.
+<details><summary>What the installer actually does</summary>
 
-## Using it
+Checks for Python 3.10+ and makes a virtual environment. Installs the Python
+dependencies into it. Looks for a TeX installation in the places TinyTeX,
+MacTeX, MiKTeX and TeX Live put one, and offers to install TinyTeX (Linux and
+macOS) or MiKTeX (Windows) if there is none. Uses `tlmgr` to add `latexmk`,
+`biber`, `synctex`, `chktex` and `texcount` if they are missing. Offers to
+install the Claude CLI. Builds the interface with Node 20+. Asks whether the
+server should answer on localhost only or also on your tailnet. Writes a
+`systemd --user` unit on Linux, a launchd agent on macOS, or a scheduled task
+on Windows. Then prints a URL with an access token in it.
 
-Point NextTex at a folder that contains a LaTeX document. `examples/minimal-article`
-is there to try it on. A project can carry a `nexttex.toml`:
+Everything in it is idempotent: run it again after installing something it
+said was missing, and it picks up where it left off without touching your
+projects.
+</details>
+
+> [!WARNING]
+> The URL it prints contains your access token. Anyone who has it can read and
+> edit your projects. Treat it like a password, and do not put NextTex on the
+> open internet.
+
+To update: `./scripts/update.sh`, or `scripts\update.ps1` on Windows. Your
+projects are not inside this directory and neither script touches them —
+NextTex stores their paths, and the files stay where you put them.
+
+## Your first session
+
+About twenty minutes, most of it TinyTeX downloading.
+
+1. Clone, run the installer, open the URL it prints.
+2. Choose how you want to work: a Claude account, an OpenAI API key, or on
+   your own. You can change it later, and everything except the chat column is
+   the same either way.
+3. Add `examples/minimal-article` as a project. It typesets as it opens.
+4. Type a sentence into the abstract. The page follows about two seconds after
+   you stop. Double-click a paragraph on the page to jump back to the line
+   that set it.
+5. If you have an agent: ask it to *find a recent paper on singlet fission and
+   cite it in the introduction*. It searches Crossref, adds the entry from the
+   publisher's own record, edits the file, and shows you the diff with an undo
+   beside it.
+
+The longer walkthrough — a deliberate error, the version history, the trash, a
+permission card and a GitHub backup — is in
+[docs/first-session.md](docs/first-session.md).
+
+## Requirements
+
+| What | Why | Supplied by the installer? |
+|---|---|---|
+| Python 3.10+ | The server | no |
+| Node 20+ | Builds the interface once | no |
+| `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | TinyTeX or MiKTeX, if you let it |
+| `biber` | biblatex bibliographies | yes, via `tlmgr` |
+| `chktex`, `texcount` | Linting and word counts | yes, via `tlmgr` |
+| The [Claude CLI](https://claude.ai/download) | Only if you choose the Claude agent | yes, if you let it |
+| An OpenAI API key | Only if you choose the OpenAI agent | no |
+| `gh`, signed in | Only for *Back this up to GitHub* | no |
+| `tailscale` | Only if you choose tailnet access | no |
+
+Nothing in the bottom half of that table is needed to write and typeset.
+
+## What leaves this machine
+
+NextTex serves your own files from your own machine, and ships its own
+typefaces rather than loading them from Google, so the interface works on a
+host with no route to the internet. Three things do go out, and all three are
+things you asked for: what you send the agent goes to Anthropic or to OpenAI,
+depending on which you chose; a literature search asks Crossref, OpenAlex or
+Semantic Scholar for real DOIs; and the installer fetches TinyTeX and the
+Claude CLI if you do not already have them. There is no telemetry and no
+analytics of any kind.
+
+The server is protected by a token printed at install time and exchanged for a
+cookie on first load. On localhost it is plain HTTP; any address another
+machine can reach is served over TLS, with a certificate from `tailscale cert`
+where your tailnet has HTTPS and a self-signed one otherwise. Signing in to
+Claude drives the CLI's own login and the credentials land where the CLI keeps
+them — NextTex never sees or stores them. An OpenAI key is written to the
+instance's own config file, which is `chmod 600`.
+
+## A project on disk
+
+Point NextTex at any folder containing a LaTeX document.
+`examples/minimal-article` is there to try it on. A project can carry a
+`nexttex.toml`:
 
 ```toml
 [project]
@@ -78,108 +255,50 @@ main = "main.tex"
 build_dir = "build"
 ```
 
-Without one, NextTex looks for the file containing `\documentclass` and
+Without one, NextTex finds the file containing `\documentclass` and
 `\begin{document}` and uses that.
 
+Everything NextTex adds lives in one directory beside your files, and none of
+it is needed to compile:
+
+```
+your-thesis/
+├── main.tex                 your files, untouched
+├── chapters/
+├── references.bib
+├── build/                   latexmk's output
+└── .nexttex/                everything NextTex adds
+    ├── history/             versions, content-addressed
+    ├── trash/               deleted files, kept until you say otherwise
+    ├── transcript.jsonl     the conversation
+    └── context/             what you gave the agent to read
+```
+
+Delete `.nexttex/` and you have exactly the LaTeX project you started with.
+
 Keyboard: `⌘S` / `Ctrl-S` saves now rather than waiting for the pause, `⌘B`
-hides the file list, `⌘↵` scrolls the PDF to the line you are on. In a
-permission card, `A` allows, `⇧A` allows that kind of command from now on,
-`D` denies.
+hides the file list, `⌘↵` scrolls the PDF to the line you are on, `Ctrl-F`
+finds and replaces. In the file tree, typing jumps to a file, `F2` renames and
+`Delete` moves to the trash. In a permission card, `A` allows, `⇧A` allows
+that kind of command from now on, `D` denies.
 
-## Requirements
+## Documentation
 
-- Python 3.10 or newer
-- Node 20 or newer, to build the interface
-- A TeX installation with `pdflatex`, `latexmk` and `synctex`; `biber` for
-  biblatex bibliographies, `chktex` and `texcount` for linting and word
-  counts. The installer can put TinyTeX in place if you have none.
-- The [Claude CLI](https://claude.ai/download), for the agent. NextTex never
-  stores your credentials: signing in from the browser drives the CLI's own
-  login, and the credentials land where the CLI keeps them.
-
-## Security
-
-The server is protected by a token printed at install time and exchanged for
-a cookie on first load. Anyone with that URL can read and edit your projects.
-On localhost it is served over plain HTTP; any address reachable from another
-machine is served over TLS, with a certificate from `tailscale cert` when your
-tailnet has HTTPS enabled and a self-signed one otherwise.
-
-NextTex is single-user by design. Do not put it on the open internet.
+- [docs/first-session.md](docs/first-session.md) — the long version of the
+  walkthrough above.
+- [docs/design.md](docs/design.md) — the specification the interface was built
+  against, the audits it was reviewed in, and every decision with its reason.
+- [docs/project-context.md](docs/project-context.md) — how a template, a
+  handbook and a sample of your own writing change what the agent produces.
+- [docs/testing.md](docs/testing.md) — the four test tiers, why each exists,
+  and the bugs they found.
 
 ## Licence
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
 
-## Tests
-
-```bash
-scripts/check.sh          # types, frontend and Python: about twenty seconds
-scripts/check.sh --all    # adds the browser tier: about two minutes
-scripts/check.sh --bench  # what the slow parts cost, on a thesis-shaped project
-```
-
-Three layers, and each exists because the one above it cannot see what it
-sees.
-
-`tests/` is Python: the retention rules, the path fence, the log parser, the
-compile paths, and — under `tests/api/` — every HTTP route, its documented
-failures, and a path-escape assertion on everything that takes a path. The
-fixtures redirect `XDG_DATA_HOME` and `XDG_CONFIG_HOME` **before** importing
-anything under `server/`, because `server/main.py` builds its settings and
-its registry at import time and writing a config file there would hand a
-different token to whatever tab the writer has open.
-
-The agent is replaced by `nexttex/scripted_agent.py`, which replays a list
-of steps from `tests/scripts/*.json` through the same event queue the real
-one writes to. Its `edit` step performs a real write, so the version, the
-rebuild, the chip and the undo all run for real; its `permission` step
-really does block until somebody answers. The real agent needs an account,
-costs money and answers differently every time, which is why none of that
-had ever been tested.
-
-`e2e/` is the browser. Each spec starts a NextTex of its own — own port, own
-state directories, own projects, and a config written before the server so
-the token is known rather than scraped out of a log line. Waits are on
-observables (a response, a DOM state), never on a clock. It exists mainly
-for the things that only exist in a browser: two windows on one project, the
-autosave race, the permission card's shield, a reload rebuilding the
-conversation from the transcript on disk.
-
-If a browser test needs the agent to do something particular, the first line
-of the question names the script: `#script:permission`.
-
-The sign-in screen gets the same treatment from the other direction.
-`tests/fake_claude.py` is a real program that answers `auth status` and
-`auth login` predictably; pointing `NEXTTEX_CLAUDE_BINARY` at it leaves the
-pseudo-terminal, the output pump and the screen running exactly as they do
-in earnest. That seam is where the first-run bug was, and mocking either
-side of it would have removed the thing worth testing.
-
-For anything the page never displays, `e2e/events.ts` subscribes to the
-server's event stream from the test process and counts what arrives. A build
-of a short document takes about 130 milliseconds, which is less time than
-the status dot can be reliably polled for — so a spec that has to prove a
-build did *not* happen counts `compile_start` instead of watching pixels.
-
-`frontend/src/tree.ts` is read by the upload chooser rather than the
-server: which folders exist, what is already in one, and what "keep both"
-will call the new file are all answerable from the tree the rail is already
-drawing, so the chooser opens in the same frame the file picker closes in.
-The last of those has to agree with `unique_name` on the server exactly —
-the chooser quotes the name back before anything is written — which is why
-both are tested against the same cases.
-
-`frontend/src/**/*.test.ts` is vitest over the frontend's pure logic —
-finding the maths under the pointer, where a diff begins, which completion
-list belongs at the cursor — plus a contrast check that parses the palette
-out of `styles.css` and measures every text-on-surface pairing the app uses,
-in both themes. It found the readability problem that had already been
-caught by eye twice.
-
-`bench/` is not part of any tier. It builds a project shaped like a thesis —
-forty source files, two megabytes of LaTeX, a populated build directory, a
-`.git` with a working tree — and measures what the slow paths cost against
-the budgets in `bench/thresholds.json`. Those are budgets rather than
-records: the point is to notice a change that makes typing slower, on the
-day it happens.
+NextTex was built to write a chemistry PhD dissertation in, and that
+dissertation is still what it is tested against — a forty-file LaTeX project
+in git with its own Makefile, which NextTex has to leave working exactly as it
+was. Issues are welcome. This is a personal tool; I make no promises about
+pull requests.

@@ -2,6 +2,15 @@
 // `request`, so the token, the error shape and the JSON handling are decided
 // once rather than at each call site.
 
+/** What one LaTeX message means, from the server's own rule table.  No
+ *  model is involved: NextTex is a LaTeX editor before it is an AI tool,
+ *  and somebody running it with no agent still gets told what went wrong. */
+export type Explanation = {
+  title: string;
+  detail: string;
+  fix: string;
+};
+
 export type Diagnostic = {
   severity: "error" | "warning";
   message: string;
@@ -10,6 +19,18 @@ export type Diagnostic = {
   endLine?: number | null;
   context?: string;
   package?: string | null;
+  explain?: Explanation;
+};
+
+/** Where to start reading, and why the rest can wait: TeX reports
+ *  everything after a mistake as a mistake too. */
+export type BuildSummary = Explanation & {
+  headline: string;
+  message: string;
+  file: string | null;
+  line: number | null;
+  others: number;
+  note: string;
 };
 
 export type CompileResult = {
@@ -18,6 +39,7 @@ export type CompileResult = {
   enginePass: "fast" | "full";
   durationMs: number;
   diagnostics: Diagnostic[];
+  summary?: BuildSummary | null;
   pdf?: string | null;
 };
 
@@ -36,7 +58,7 @@ export type Version = {
   bytes: number;
   by: "you" | "claude";
   why: string;
-  op: "edit" | "create" | "delete" | "restore" | "undo";
+  op: "edit" | "create" | "delete" | "restore" | "undo" | "replace" | "import";
   label: string | null;
 };
 
@@ -329,6 +351,25 @@ const api = {
       `/projects/${id}/git/backup/github`,
       json(payload),
     ),
+
+  /** Which agent this instance uses, and whether it can be used yet.  One
+   *  route for all three providers, because the sign-in screen has one
+   *  question to answer -- can the writer get to work -- and for "no
+   *  agent" the answer is yes, immediately. */
+  agentStatus: () =>
+    request<{
+      provider: "claude" | "openai" | "none";
+      ready: boolean;
+      model?: string;
+      keyTail?: string;
+      installed?: boolean;
+      loggedIn?: boolean;
+      email?: string;
+      plan?: string;
+      reason?: string;
+    }>("/agent/status"),
+  chooseProvider: (provider: string, key = "", model = "") =>
+    request<any>("/agent/provider", json({ provider, key, model })),
 
   claudeStatus: () =>
     request<{ loggedIn: boolean; email?: string; plan?: string; method?: string }>(

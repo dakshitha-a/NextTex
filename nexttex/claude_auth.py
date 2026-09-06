@@ -18,17 +18,28 @@ and NextTex only ever asks it what the current state is.
 from __future__ import annotations
 
 import asyncio
-import fcntl
 import json
 import os
-import pty
 import re
 import shutil
 import signal
-import struct
 import subprocess
-import termios
 from typing import AsyncIterator
+
+# A pseudo-terminal is how the browser drives `claude auth login`, and
+# Windows has none of these modules.  Importing them at the top would make
+# the whole server fail to start there rather than one feature be absent,
+# so the login degrades to a message and everything else -- the status
+# check, signing out, and the entire rest of NextTex -- goes on working.
+try:
+    import fcntl
+    import pty
+    import struct
+    import termios
+
+    HAVE_PTY = True
+except ImportError:                                    # Windows
+    HAVE_PTY = False
 
 # Enough to render the CLI's output without wrapping mid-URL.
 TERM_ROWS, TERM_COLS = 40, 200
@@ -112,6 +123,15 @@ def status() -> dict:
 async def start_login(console: bool = False) -> dict:
     """Launch `claude auth login` under a pseudo-terminal."""
     global _current
+    if not HAVE_PTY:
+        return {
+            "ok": False,
+            "error": (
+                "Signing in from the browser needs a pseudo-terminal, which "
+                "Windows does not have. Run `claude auth login` in a terminal "
+                "once, then reload this page — or use an OpenAI key instead."
+            ),
+        }
     binary = _claude()
     if not binary:
         return {"ok": False, "error": "The Claude CLI is not installed."}

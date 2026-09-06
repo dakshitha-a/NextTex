@@ -24,6 +24,10 @@ export default function Diagnostics({
   onResize: (height: number) => void;
 }) {
   const compile = useStore((s) => s.diagnostics);
+  // Written by the server with no model involved: which error is the cause
+  // and which are its consequences.  A writer running NextTex without an
+  // agent still gets told where to start.
+  const summary = useStore((s) => s.compile?.summary);
   const lint = useStore((s) => s.lint);
   const activePath = useStore((s) => s.activePath);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -75,6 +79,40 @@ export default function Diagnostics({
           Close
         </button>
       </div>
+      {summary ? (
+        <div
+          className="shrink-0 border-b border-line bg-surface-2 px-3 py-2"
+          data-testid="build-summary"
+        >
+          <p className="t-ui text-ink">
+            <span className="text-error">Start here — </span>
+            {summary.headline}
+            {summary.file ? (
+              <button
+                className="quiet t-micro ml-2"
+                onClick={() =>
+                  summary.file && onJump(summary.file, summary.line ?? 1)
+                }
+              >
+                {summary.file.split("/").pop()}
+                {summary.line ? `:${summary.line}` : ""}
+              </button>
+            ) : null}
+          </p>
+          {summary.detail ? (
+            <p className="t-meta mt-1 text-ink-2">{summary.detail}</p>
+          ) : null}
+          {summary.fix ? (
+            <p className="t-meta mt-1 text-ink-2">
+              <span className="text-ink-3">What to do — </span>
+              {summary.fix}
+            </p>
+          ) : null}
+          {summary.note ? (
+            <p className="t-micro mt-1 text-ink-3">{summary.note}</p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 overflow-auto">
         {rows.map((item, index) => {
           const bar = item.severity === "error" ? "bg-error" : "bg-warn";
@@ -139,6 +177,16 @@ export default function Diagnostics({
                   Fix
                 </button>
               </div>
+              {open && item.explain ? (
+                <div className="ml-[40px] border-l border-line bg-surface-2 px-3 py-2">
+                  <p className="t-ui text-ink">{item.explain.title}</p>
+                  <p className="t-meta mt-1 text-ink-2">{item.explain.detail}</p>
+                  <p className="t-meta mt-2 text-ink-2">
+                    <span className="text-ink-3">What to do — </span>
+                    {item.explain.fix}
+                  </p>
+                </div>
+              ) : null}
               {open && item.context ? (
                 <pre className="t-code-sm ml-[40px] max-h-[54px] overflow-auto border-l border-line bg-surface-2 px-2 py-1 text-ink-2">
                   {item.context}

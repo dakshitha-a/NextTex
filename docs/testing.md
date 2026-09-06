@@ -1,0 +1,125 @@
+# Testing NextTex
+
+Four tiers, and each exists because the one above it cannot see what it
+sees.
+
+```bash
+scripts/check.sh          # types, frontend and Python: about twenty seconds
+scripts/check.sh --all    # adds the browser tier: about two minutes
+scripts/check.sh --bench  # what the slow parts cost, on a thesis-shaped project
+```
+
+If the Node on your PATH is older than 20, point `NEXTTEX_NODE_BIN` at a
+newer one rather than changing the system's.
+
+```bash
+scripts/check.sh          # types, frontend and Python: about twenty seconds
+scripts/check.sh --all    # adds the browser tier: about two minutes
+scripts/check.sh --bench  # what the slow parts cost, on a thesis-shaped project
+```
+
+Three layers, and each exists because the one above it cannot see what it
+sees.
+
+`tests/` is Python: the retention rules, the path fence, the log parser, the
+compile paths, and — under `tests/api/` — every HTTP route, its documented
+failures, and a path-escape assertion on everything that takes a path. The
+fixtures redirect `XDG_DATA_HOME` and `XDG_CONFIG_HOME` **before** importing
+anything under `server/`, because `server/main.py` builds its settings and
+its registry at import time and writing a config file there would hand a
+different token to whatever tab the writer has open.
+
+The agent is replaced by `nexttex/scripted_agent.py`, which replays a list
+of steps from `tests/scripts/*.json` through the same event queue the real
+one writes to. Its `edit` step performs a real write, so the version, the
+rebuild, the chip and the undo all run for real; its `permission` step
+really does block until somebody answers. The real agent needs an account,
+costs money and answers differently every time, which is why none of that
+had ever been tested.
+
+`e2e/` is the browser. Each spec starts a NextTex of its own — own port, own
+state directories, own projects, and a config written before the server so
+the token is known rather than scraped out of a log line. Waits are on
+observables (a response, a DOM state), never on a clock. It exists mainly
+for the things that only exist in a browser: two windows on one project, the
+autosave race, the permission card's shield, a reload rebuilding the
+conversation from the transcript on disk.
+
+If a browser test needs the agent to do something particular, the first line
+of the question names the script: `#script:permission`.
+
+The sign-in screen gets the same treatment from the other direction.
+`tests/fake_claude.py` is a real program that answers `auth status` and
+`auth login` predictably; pointing `NEXTTEX_CLAUDE_BINARY` at it leaves the
+pseudo-terminal, the output pump and the screen running exactly as they do
+in earnest. That seam is where the first-run bug was, and mocking either
+side of it would have removed the thing worth testing.
+
+For anything the page never displays, `e2e/events.ts` subscribes to the
+server's event stream from the test process and counts what arrives. A build
+of a short document takes about 130 milliseconds, which is less time than
+the status dot can be reliably polled for — so a spec that has to prove a
+build did *not* happen counts `compile_start` instead of watching pixels.
+
+`frontend/src/tree.ts` is read by the upload chooser rather than the
+server: which folders exist, what is already in one, and what "keep both"
+will call the new file are all answerable from the tree the rail is already
+drawing, so the chooser opens in the same frame the file picker closes in.
+The last of those has to agree with `unique_name` on the server exactly —
+the chooser quotes the name back before anything is written — which is why
+both are tested against the same cases.
+
+`frontend/src/**/*.test.ts` is vitest over the frontend's pure logic —
+finding the maths under the pointer, where a diff begins, which completion
+list belongs at the cursor — plus a contrast check that parses the palette
+out of `styles.css` and measures every text-on-surface pairing the app uses,
+in both themes. It found the readability problem that had already been
+caught by eye twice.
+
+`bench/` is not part of any tier. It builds a project shaped like a thesis —
+forty source files, two megabytes of LaTeX, a populated build directory, a
+`.git` with a working tree — and measures what the slow paths cost against
+the budgets in `bench/thresholds.json`. Those are budgets rather than
+records: the point is to notice a change that makes typing slower, on the
+day it happens.
+
+
+## The live check that is run by hand
+
+Everything above runs without an account, without a network and without
+spending anything, which is what makes it worth running on every change.
+The cost is that none of it can tell you whether the model providers still
+emit the message shapes the stand-ins replay.
+
+`tests/test_live_agent.py` is that check. It drives the real agent against
+a real account and asserts the *vocabulary* rather than the answer — that a
+turn still produces `turn_start`, `text`, `text_end` and `done`, and that
+`usage` still carries the fields the footer reads. It is skipped unless you
+ask for it:
+
+```bash
+NEXTTEX_LIVE=1 .venv/bin/python -m pytest tests/test_live_agent.py -q
+```
+
+Run it before a release, and after any agent SDK upgrade.
+
+The OpenAI provider has the same limit and no way to close it here: there
+is no account to test against, so `tests/test_openai_agent.py` stubs the
+transport and runs everything above it for real — the streaming parser, the
+tool loop, the path fence, the edits, the usage accounting and the event
+vocabulary. Whether OpenAI still returns those shapes is unproven.
+
+## Where the line is
+
+Worth its maintenance: anything that asserts a contract, anything that
+guards a safety property — path escape, atomic write, undo refusal, the
+permission fence, history permanence — anything that encodes a bug already
+paid for, and the handful of browser specs that prove the core loop still
+works end to end.
+
+Not worth it: snapshot tests of rendered React, which fail on every
+intentional design change and assert nothing about behaviour; a second
+browser spec for a variation the first already covers; tests that assert an
+exact duration rather than a budget; and anything a unit test can pin down.
+Every timing constant in the browser tier is a reason to prefer the layer
+below it.

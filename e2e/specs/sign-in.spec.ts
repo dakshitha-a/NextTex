@@ -31,10 +31,19 @@ test.beforeAll(async () => {
   });
 });
 
-test.beforeEach(() => {
-  // Each test starts from nobody being signed in, so neither depends on
-  // having run after the other.
+test.beforeEach(async () => {
+  // Each test starts from nobody being signed in and no provider chosen.
+  // Choosing one is a *persisted* setting, so without this the test that
+  // picks "On my own" leaves the next one looking at the project list.
   rmSync(join(sandbox, "signed-in"), { force: true });
+  await fetch(`${app.base}/api/agent/provider`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-nexttex-token": app.token,
+    },
+    body: JSON.stringify({ provider: "claude" }),
+  });
 });
 
 test.afterAll(async () => {
@@ -42,17 +51,46 @@ test.afterAll(async () => {
   rmSync(sandbox, { recursive: true, force: true });
 });
 
-test("a fresh install asks for a Claude account", async ({ page }) => {
+test("a fresh install asks how you want to work, not who you are", async ({
+  page,
+}) => {
   await page.goto(`${app.base}/?token=${app.token}`);
-  await expect(page.getByText("Connect your Claude account")).toBeVisible({
+  // Three choices, and the third is a real one rather than a way out of a
+  // nag screen: NextTex is a LaTeX editor before it is an AI tool.
+  await expect(page.getByText("How would you like to work?")).toBeVisible({
     timeout: 20_000,
   });
+  for (const option of ["With Claude", "With ChatGPT", "On my own"]) {
+    await expect(page.getByRole("button", { name: new RegExp(option) })).toBeVisible();
+  }
+});
+
+test("choosing to work alone gets straight to the projects", async ({ page }) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByRole("button", { name: /On my own/ }).click();
+  await expect(page.getByText(/project/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("How would you like to work?")).toHaveCount(0);
+});
+
+test("an OpenAI key is asked for as a key, not dressed up as a sign-in", async ({
+  page,
+}) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByRole("button", { name: /With ChatGPT/ }).click();
+  await expect(page.getByTestId("openai-key")).toBeVisible();
+  // Said plainly, because somebody expecting to log in to ChatGPT needs to
+  // know this bills an OpenAI account instead.
+  await expect(page.getByText(/billed to your OpenAI account/)).toBeVisible();
+  await expect(page.getByTestId("openai-key")).toHaveAttribute("type", "password");
 });
 
 test("signing in shows the link, takes the code, and lets the writer in", async ({
   page,
 }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByRole("button", { name: /With Claude/ }).click();
   await page.getByRole("button", { name: "Sign in with a Claude account" }).click();
 
   // The verification URL is what a headless machine cannot show any other

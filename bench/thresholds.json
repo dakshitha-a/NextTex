@@ -16,5 +16,7 @@
   "registry.list_ms": 40,
   "registry.find_ms": 40,
   "download.zip_ms": 3000,
+  "compile.chapter_ms": 4000,
+  "compile.full_ms": 30000,
   "bundle.initial_kb": 760
 }

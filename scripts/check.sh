@@ -10,8 +10,12 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-NODE_BIN="${NEXTTEX_NODE_BIN:-$HOME/apps/miniconda3/envs/node20/bin}"
-[ -d "$NODE_BIN" ] && PATH="$NODE_BIN:$PATH"
+# Node 20+ is needed for the frontend tiers.  If the one on PATH is older
+# -- which it is on plenty of distributions -- point NEXTTEX_NODE_BIN at a
+# newer one rather than changing the system's.
+if [ -n "${NEXTTEX_NODE_BIN:-}" ] && [ -d "$NEXTTEX_NODE_BIN" ]; then
+  PATH="$NEXTTEX_NODE_BIN:$PATH"
+fi
 export PATH
 
 step() { printf '\n\033[1m%s\033[0m\n' "$1"; }
