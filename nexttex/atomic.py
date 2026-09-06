@@ -56,3 +56,15 @@ def read_text(target: Path) -> str | None:
         return target.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
+
+
+def read_bytes(target: Path) -> bytes | None:
+    """The file's exact bytes, or None if it cannot be read at all.
+
+    What `read_text` is for a chapter, this is for a figure: a version of
+    a PNG that has been through a UTF-8 decode is not that PNG any more.
+    """
+    try:
+        return target.read_bytes()
+    except OSError:
+        return None

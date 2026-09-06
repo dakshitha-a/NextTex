@@ -127,3 +127,53 @@ def test_the_timeline_limit_is_clamped_rather_than_trusted(client, opened, limit
                         params={"limit": limit})
     assert answer.status_code == 200
     assert len(answer.json()["versions"]) >= 1
+
+
+def test_a_replaced_figure_is_recoverable(client, opened, project_dir):
+    """Uploading over a figure destroyed the previous one outright.  The
+    route recorded a version by reading the file as UTF-8 and swallowing
+    the UnicodeDecodeError, so a PNG -- which is most of what anybody
+    uploads -- got no version, no trash entry, and no warning."""
+    figure = project_dir / "figures" / "plot.png"
+    figure.parent.mkdir(parents=True, exist_ok=True)
+    original = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 4
+    figure.write_bytes(original)
+
+    answer = client.post(
+        f"/api/projects/{opened['id']}/upload",
+        data={"directory": "figures"},
+        files=[("files", ("plot.png", b"\x89PNG a different figure entirely",
+                          "image/png"))],
+    )
+    assert answer.status_code == 200
+    assert figure.read_bytes() != original
+
+    versions = client.get(f"/api/projects/{opened['id']}/history",
+                          params={"path": "figures/plot.png"}).json()["versions"]
+    assert versions, "the figure that was replaced has no history at all"
+    assert versions[-1]["bytes"] == len(original)
+
+
+def test_restoring_a_figure_gives_back_the_bytes_not_a_decoding_of_them(
+    client, opened, project_dir
+):
+    """`content()` decodes with errors="replace", which is right for
+    showing an old draft and turns every invalid byte of a PNG into U+FFFD.
+    A restore that went through it handed back a corrupt image."""
+    figure = project_dir / "figures" / "plot.png"
+    figure.parent.mkdir(parents=True, exist_ok=True)
+    original = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 4
+    figure.write_bytes(original)
+    client.post(
+        f"/api/projects/{opened['id']}/upload",
+        data={"directory": "figures"},
+        files=[("files", ("plot.png", b"a different figure", "image/png"))],
+    )
+    versions = client.get(f"/api/projects/{opened['id']}/history",
+                          params={"path": "figures/plot.png"}).json()["versions"]
+    old = versions[-1]
+
+    assert client.post(f"/api/projects/{opened['id']}/history/restore",
+                       json={"path": "figures/plot.png",
+                             "sha": old["sha"]}).status_code == 200
+    assert figure.read_bytes() == original

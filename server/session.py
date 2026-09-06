@@ -202,8 +202,20 @@ class ProjectSession:
         self._debounce = asyncio.create_task(wait_then_build())
 
     def note_edit(
-        self, path: Path, text: str | None = None, previous: str | None = None
+        self,
+        path: Path,
+        text: str | bytes | None = None,
+        previous: str | bytes | None = None,
     ) -> None:
+        if isinstance(text, bytes) or isinstance(previous, bytes):
+            # A figure rather than prose.  There is no half-finished
+            # equation to wait for, and the honest answer for the build is
+            # "rebuild everything" -- which is what None means to the
+            # compiler, and is right anyway: a new figure changes the
+            # layout of every page after it.
+            self._unsettled = False
+            self.compiler.note_edit(path, None, None)
+            return
         self._unsettled = text is not None and mid_construct(text)
         self.compiler.note_edit(path, text, previous)
 
@@ -237,12 +249,12 @@ class ProjectSession:
     def record_version(
         self,
         path: Path,
-        text: str | None,
+        text: str | bytes | None,
         *,
         by: str = "you",
         why: str = "",
         op: str = "edit",
-        previous: str | None = None,
+        previous: str | bytes | None = None,
         source: str = "",
     ) -> None:
         """Note a file's contents, before the next thing changes them.
