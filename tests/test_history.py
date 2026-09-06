@@ -8,7 +8,7 @@ version somebody labelled, one the agent made, or a deletion.
 
 import time
 
-from nexttex.history import COALESCE_SECONDS, History, Version, slug_for
+from nexttex.history import History, Version, slug_for
 
 
 def history(tmp_path) -> History:
@@ -145,3 +145,13 @@ def test_the_state_before_nexttex_is_never_coalesced_away(tmp_path):
     versions = store.versions("main.tex")
     assert [v.op for v in versions] == ["create", "edit"]
     assert store.content("main.tex", versions[0].sha) == "what the file said before"
+
+
+def test_a_version_survives_a_restart(tmp_path):
+    """The whole point: history is on disk, not in a session."""
+    store = history(tmp_path)
+    store.record("main.tex", "before the restart")
+    reopened = History(tmp_path / "history")
+    versions = reopened.versions("main.tex")
+    assert len(versions) == 1
+    assert reopened.content("main.tex", versions[0].sha) == "before the restart"
