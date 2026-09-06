@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Install NextTex.
+# Install NextTex on Linux or macOS.  Windows has scripts/install.ps1.
 #
 # Everything here is idempotent: run it again after a change of mind about
 # how the server should listen, or after installing a missing dependency,
 # and it will pick up where it left off without touching your projects.
 set -euo pipefail
+
+case "$(uname -s)" in
+  Darwin) PLATFORM=macos ;;
+  Linux)  PLATFORM=linux ;;
+  *) printf '\033[31mThis script is for Linux and macOS. On Windows run scripts/install.ps1 in PowerShell.\033[0m\n' >&2
+     exit 1 ;;
+esac
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
@@ -70,7 +77,10 @@ note "dependencies installed into .venv"
 say "LaTeX"
 
 have() { command -v "$1" >/dev/null 2>&1; }
-export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/bin:$PATH"
+# TinyTeX puts its binaries somewhere different on each platform, and MacTeX
+# somewhere different again.  All of them go on: a directory that does not
+# exist costs nothing.
+export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/Library/TinyTeX/bin/universal-darwin:$HOME/Library/TinyTeX/bin/x86_64-darwin:/Library/TeX/texbin:$HOME/bin:$PATH"
 
 if ! have pdflatex; then
   note "no TeX installation found"
@@ -80,7 +90,7 @@ if ! have pdflatex; then
   case "${reply:-y}" in
     [Nn]*) note "skipping; NextTex will start but cannot typeset until TeX is installed" ;;
     *) curl -fsSL https://yihui.org/tinytex/install-bin-unix.sh | sh
-       export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$PATH" ;;
+       export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/Library/TinyTeX/bin/universal-darwin:$PATH" ;;
   esac
 fi
 
@@ -184,7 +194,49 @@ PY
 # ---------------------------------------------------------------------------
 say "Starting on boot"
 
-if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+if [ "$PLATFORM" = macos ]; then
+  # launchd rather than systemd.  RunAtLoad plus KeepAlive is the closest
+  # equivalent to `Restart=on-failure` with `enable --now`.
+  PLIST="$HOME/Library/LaunchAgents/com.nexttex.server.plist"
+  mkdir -p "$(dirname "$PLIST")"
+  cat > "$PLIST" <<PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nexttex.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$ROOT/.venv/bin/python</string>
+    <string>$ROOT/server/run.py</string>
+  </array>
+  <key>WorkingDirectory</key><string>$ROOT</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>$HOME</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+    <key>PATH</key><string>$HOME/.local/bin:$HOME/Library/TinyTeX/bin/universal-darwin:/Library/TeX/texbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key>
+  <dict><key>SuccessfulExit</key><false/></dict>
+  <key>StandardOutPath</key><string>$STATE/server.log</string>
+  <key>StandardErrorPath</key><string>$STATE/server.log</string>
+</dict>
+</plist>
+PLIST_EOF
+  note "launch agent written to $PLIST"
+  if [ "$ASSUME_YES" = 1 ]; then reply=n; else
+    read -r -p "  Start NextTex now and on every login? [Y/n] " reply
+  fi
+  case "${reply:-y}" in
+    [Nn]*) note "start it yourself with: launchctl load $PLIST" ;;
+    *) launchctl unload "$PLIST" >/dev/null 2>&1 || true
+       launchctl load "$PLIST"
+       note "running; logs in $STATE/server.log" ;;
+  esac
+elif command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
   UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/nexttex.service"
   mkdir -p "$(dirname "$UNIT")"
   # The PATH is written out in full on purpose.  Under `systemd --user` it is

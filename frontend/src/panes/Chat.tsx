@@ -72,7 +72,7 @@ export default function Chat({
   const shown = useMemo(() => tidy(chat), [chat]);
   const thinking = useStore((s) => s.thinking);
   const blocked = useStore((s) => s.awaitingPermission);
-  const claude = useStore((s) => s.claude);
+  const agent = useStore((s) => s.agent);
   const [draft, setDraft] = useState("");
   const stream = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);

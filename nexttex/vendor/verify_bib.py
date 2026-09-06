@@ -26,6 +26,7 @@ import argparse
 import difflib
 import html
 import re
+import os
 import sys
 import time
 import unicodedata
@@ -34,8 +35,18 @@ from urllib.parse import quote
 
 import requests
 
-MAILTO = "user@example.com"
-UA = f"thesis-refcheck/1.0 (mailto:{MAILTO})"
+# Crossref and OpenAlex ask callers to identify themselves, and reward the
+# ones that do with a faster, less rate-limited pool.  This used to be the
+# author's own email address, which was fine while this was one person's
+# dissertation tooling and became a small privacy leak the moment it was
+# published: every user's searches identified as, and gave a contact
+# address for, somebody else.  Set NEXTTEX_CONTACT to join the polite pool.
+#
+# Inlined rather than imported: these are standalone scripts, loaded by
+# path and runnable on their own, and self-containment is the point of
+# this directory.
+MAILTO = os.environ.get("NEXTTEX_CONTACT", "").strip() or None
+UA = f"nexttex-refcheck/1.0" + (f" (mailto:{MAILTO})" if MAILTO else "")
 TIMEOUT = 30
 TITLE_THRESHOLD = 0.87      # below this, it is a different paper
 

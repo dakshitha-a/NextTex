@@ -17,6 +17,7 @@ skipped rather than duplicated.  Run tools/verify_bib.py afterwards.
 import argparse
 import html
 import re
+import os
 import sys
 import time
 import unicodedata
@@ -28,8 +29,18 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_bib import parse_bib  # noqa: E402  (same directory)
 
-MAILTO = "user@example.com"
-UA = f"nexttex-bibtool/1.0 (mailto:{MAILTO})"
+# Crossref and OpenAlex ask callers to identify themselves, and reward the
+# ones that do with a faster, less rate-limited pool.  This used to be the
+# author's own email address, which was fine while this was one person's
+# dissertation tooling and became a small privacy leak the moment it was
+# published: every user's searches identified as, and gave a contact
+# address for, somebody else.  Set NEXTTEX_CONTACT to join the polite pool.
+#
+# Inlined rather than imported: these are standalone scripts, loaded by
+# path and runnable on their own, and self-containment is the point of
+# this directory.
+MAILTO = os.environ.get("NEXTTEX_CONTACT", "").strip() or None
+UA = f"nexttex-bibtool/1.0" + (f" (mailto:{MAILTO})" if MAILTO else "")
 TIMEOUT = 30
 
 # Words too generic to identify a paper in a citation key.

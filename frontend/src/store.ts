@@ -88,7 +88,17 @@ export type State = {
   } | null;
   contextDocs: ContextDocument[];
   contextStale: string[];
-  claude: { loggedIn: boolean; email?: string; plan?: string } | null;
+  /** Which agent this instance uses, and whether it is ready.  Named
+   *  `agent` rather than `claude` since there are three answers now, one
+   *  of which is that there is deliberately no agent at all. */
+  agent: {
+    provider: "claude" | "openai" | "none";
+    ready: boolean;
+    model?: string;
+    keyTail?: string;
+    email?: string;
+    plan?: string;
+  } | null;
   cursor: { line: number; column: number };
   words: number | null;
   // Set when a save was refused because the file changed underneath this
@@ -121,7 +131,7 @@ const state: State = {
   git: null,
   contextDocs: [],
   contextStale: [],
-  claude: null,
+  agent: null,
   cursor: { line: 1, column: 1 },
   conflict: null,
   words: null,

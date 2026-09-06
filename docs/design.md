@@ -158,8 +158,19 @@ slide-over.
 
 **Diagnostics live in a drawer scoped to the editor pane**, docked below the status strip —
 not full-width, not inside the Claude panel. Height 0 when clean; 168 px (six rows) when
-open; drag to 320 px. It auto-opens on the *first* build that produces errors; if the user
-closes it, it does not reopen for that build. Warnings alone never auto-open it.
+open; drag to 320 px.
+
+**It never opens itself.** This section specified an auto-open on the first build that
+produced errors, and the implementation deliberately did not do it. The build fires 1.6
+seconds after you stop typing, which is very often mid-thought — and a list of errors
+jumping up over the document at that moment, about a sentence you already know is
+unfinished, is the most irritating thing this app could do. The strip says `2 errors` and
+the gutter marks the lines; opening the drawer is the reader's decision. When it does
+open, the first thing in it is the plain-English explanation of the *first* error, which
+is the one worth reading.
+
+The strip and the gutter carry the news instead, which is the general rule: say it where
+the writer already is, and let them come to the detail.
 
 ## 5. Component specs
 

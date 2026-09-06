@@ -53,7 +53,10 @@ export async function startServer(
   mkdirSync(join(data, "nexttex"), { recursive: true });
   writeFileSync(
     join(data, "nexttex", "config.json"),
-    JSON.stringify({ port, localhost: true, tailscale: false, token, model: "" }),
+    JSON.stringify({
+      port, localhost: true, tailscale: false, token, model: "",
+      provider: "claude", openai_key: "",
+    }),
   );
 
   const env: Record<string, string> = {

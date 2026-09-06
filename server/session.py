@@ -13,8 +13,8 @@ import re
 import time
 from pathlib import Path
 
-from nexttex.agent import ProjectAgent
-from nexttex.scripted_agent import ScriptedAgent, scripted_name
+from nexttex.explain import annotate, summarise
+from nexttex.providers import agent_for
 from nexttex.compile import CompileResult, CompileScheduler, Outcome, ProjectPaths
 from nexttex.context import ProjectContext
 from nexttex.atomic import read_text, write_atomically
@@ -91,7 +91,13 @@ class Broadcaster:
 
 
 class ProjectSession:
-    def __init__(self, project: Project, model: str | None = None):
+    def __init__(
+        self,
+        project: Project,
+        model: str | None = None,
+        provider: str = "claude",
+        api_key: str = "",
+    ):
         self.project = project
         self.context = ProjectContext(project.state_dir)
         self.transcript = Transcript(project.state_dir / "transcript.jsonl")
@@ -105,11 +111,11 @@ class ProjectSession:
         )
         self.compiler = CompileScheduler(self.paths)
 
-        # A scripted stand-in when one is asked for, so the whole agent
-        # interface can be driven by a test without a model, an account or
-        # a network.  Unreachable in an ordinary run.
-        agent_class = ScriptedAgent if scripted_name() else ProjectAgent
-        self.agent = agent_class(
+        # Which agent -- Claude, OpenAI, or none at all -- and a scripted
+        # stand-in ahead of all three when a test asks for one, so the whole
+        # interface can be driven without a model, an account or a network.
+        self.agent = agent_for(
+            provider,
             project.root,
             project.state_dir,
             context_prompt=self.context.prompt_section,
@@ -121,6 +127,7 @@ class ProjectSession:
             on_edit=self.note_agent_edit,
             reveal=self.reveal_in_editor,
             model=model or None,
+            api_key=api_key,
         )
 
         self._editor_state: dict = {}
@@ -155,10 +162,14 @@ class ProjectSession:
         never appear beside the line that caused them.
         """
         payload = result.as_dict()
-        payload["diagnostics"] = [
+        payload["diagnostics"] = annotate([
             {**item, "file": self.relative_or_none(item.get("file"))}
             for item in payload.get("diagnostics", [])
-        ]
+        ])
+        # Where to start, in words, with no model involved.  A writer using
+        # NextTex without an agent still gets told which error is the cause
+        # and which are its consequences.
+        payload["summary"] = summarise(payload["diagnostics"])
         payload.pop("pdf", None)   # a server path the browser cannot use
         return payload
 

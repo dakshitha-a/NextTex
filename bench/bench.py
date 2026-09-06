@@ -154,7 +154,60 @@ def measure(root: Path) -> list[dict]:
                          lambda: registry.find(project_id)))
 
     results.append(timed("download.zip_ms", lambda: zip_size(root), runs=1))
+    results.extend(compile_passes(root))
     return results
+
+
+def compile_passes(root: Path) -> list[dict]:
+    """What a build actually costs, which is the number people ask about.
+
+    Everything else here measures NextTex.  This measures LaTeX, which is
+    most of the wait between a keystroke and a redrawn page and was the one
+    figure the README quoted without ever having measured it.
+
+    Two passes, because they are different questions.  The fast one is what
+    an ordinary edit triggers -- one engine run over the chapter being
+    edited.  The full one is what a new citation or a new label forces:
+    latexmk driving biber and running the engine until the references stop
+    moving.  Skipped rather than failed where there is no TeX, so the
+    benchmark still runs on a machine that cannot typeset.
+    """
+    import asyncio
+    import shutil
+
+    if not shutil.which("pdflatex"):
+        print("   compile.*                  skipped (no pdflatex)")
+        return []
+
+    from nexttex.compile import CompileScheduler, ProjectPaths
+
+    paths = ProjectPaths(root=root, main=root / "main.tex",
+                         build_dir=root / "build")
+    scheduler = CompileScheduler(paths)
+
+    chapter = root / "chapters" / "05.tex"
+
+    def full() -> None:
+        asyncio.run(scheduler.build(force_full=True))
+
+    def edit_a_chapter() -> None:
+        # With a focus, which is the whole point.  An ordinary edit
+        # typesets the chapter being edited; without `focus` the scheduler
+        # has nothing to scope to and runs the engine over all forty files,
+        # which is not what anybody's keystroke does.  Measuring it that
+        # way said the fast pass was twice as slow as the full one -- true,
+        # and about a path the app never takes.
+        asyncio.run(scheduler.build(focus=chapter))
+
+    # Twice first: the scoped path only engages once a whole-document pass
+    # has been timed and found slow enough to be worth scoping, so a cold
+    # scheduler always runs the full thing.
+    full()
+    edit_a_chapter()
+    return [
+        timed("compile.chapter_ms", edit_a_chapter, runs=3),
+        timed("compile.full_ms", full, runs=2),
+    ]
 
 
 def zip_size(root: Path) -> int:

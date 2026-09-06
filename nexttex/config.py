@@ -23,12 +23,29 @@ from .project import state_home
 CONFIG_FILE = "config.json"
 DEFAULT_PORT = 8450
 
-# Where a user-local TeX Live usually lands, in the order worth trying.
+# Where a TeX installation usually lands, in the order worth trying.  All
+# three platforms are listed unconditionally: a path that does not exist
+# costs one stat, and branching on sys.platform is one more thing to get
+# wrong on the machine nobody is testing on.
 TEX_HINTS = [
+    # Linux, TinyTeX
     Path.home() / ".TinyTeX" / "bin" / "x86_64-linux",
     Path.home() / ".TinyTeX" / "bin" / "aarch64-linux",
+    # macOS, TinyTeX -- one universal binary directory, and the older
+    # per-architecture ones that installs from before 2022 still have
+    Path.home() / "Library" / "TinyTeX" / "bin" / "universal-darwin",
+    Path.home() / "Library" / "TinyTeX" / "bin" / "x86_64-darwin",
+    # macOS, MacTeX
+    Path("/Library/TeX/texbin"),
+    Path("/usr/local/texlive/2026/bin/universal-darwin"),
+    Path("/usr/local/texlive/2025/bin/universal-darwin"),
     Path.home() / "bin",
     Path("/usr/local/texlive/bin/x86_64-linux"),
+    # Windows: MiKTeX per-user and machine-wide, then TeX Live
+    Path.home() / "AppData" / "Local" / "Programs" / "MiKTeX" / "miktex" / "bin" / "x64",
+    Path("C:/Program Files/MiKTeX/miktex/bin/x64"),
+    Path("C:/texlive/2026/bin/windows"),
+    Path("C:/texlive/2025/bin/windows"),
 ]
 
 
@@ -44,6 +61,11 @@ class Settings:
     keyfile: str = ""
     token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     model: str = ""
+    # Which writing agent, if any: "claude", "openai" or "none".  The
+    # config file is already chmod 600 because it holds the access token,
+    # which is what makes it the right place for an API key too.
+    provider: str = "claude"
+    openai_key: str = ""
 
     @classmethod
     def path(cls) -> Path:

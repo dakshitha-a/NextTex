@@ -14,7 +14,13 @@ node_modules/
 *.pyc
 __pycache__/
 # Python
-# Runtime state (per-install, never committed)
+# Runtime state (per-install, never committed).  `.nexttex/` holds a
+# project's version history, its trash, its agent transcript and the id of
+# the Claude session that produced it -- none of which belongs to anyone
+# but the person who wrote it, and all of which was once committed here by
+# accident along with the example project.
+.nexttex/
+examples/**/.nexttex/
 .venv/
 venv/
 
