@@ -218,6 +218,12 @@ class CompileScheduler:
         # Set when an edit touches citations, labels or the preamble; the
         # next build then takes the full path and clears it.
         self._needs_full = True   # the first build of a session always is
+        # Bumped every time that flag is raised.  A build reads it before it
+        # starts and only clears the flag if nothing raised it again while
+        # the build was running -- otherwise an edit made during an eight
+        # second bibliography pass had its own full rebuild cancelled by the
+        # build that started before it, and the citation stayed [?].
+        self._full_mark = 1
         # How long one pdflatex pass over the whole document takes here.
         # Scoping the preview to a single chapter saves about 70 ms on a
         # twenty-page document -- not worth showing the writer a fragment --
@@ -235,23 +241,27 @@ class CompileScheduler:
         preview and a two-second one on every keystroke.
         """
         if path.suffix.lower() == ".bib":
-            self._needs_full = True
+            self._require_full()
             return
         if path.resolve() == self.paths.main.resolve():
-            self._needs_full = True
+            self._require_full()
             return
         if text is None:
-            self._needs_full = True
+            self._require_full()
             return
         if previous is None:
             # No baseline to compare against; assume the worst once.
-            self._needs_full = True
+            self._require_full()
             return
         if PREAMBLE_CHANGE.search(text) != PREAMBLE_CHANGE.search(previous):
-            self._needs_full = True
+            self._require_full()
             return
         if reference_fingerprint(text) != reference_fingerprint(previous):
-            self._needs_full = True
+            self._require_full()
+
+    def _require_full(self) -> None:
+        self._needs_full = True
+        self._full_mark += 1
 
     async def cancel(self) -> None:
         """Stop the build in flight, including anything it spawned."""
@@ -306,6 +316,7 @@ class CompileScheduler:
 
         source_file = write_shadow(self.paths, only)
         full_pass = force_full or self._needs_full
+        mark = self._full_mark
 
         # \include writes one .aux per included file, mirrored under the
         # output directory; the engine will not create those directories.
@@ -347,7 +358,7 @@ class CompileScheduler:
                 "full" if full_pass else "fast",
             )
 
-        if full_pass:
+        if full_pass and mark == self._full_mark:
             self._needs_full = False
 
         # Record whether the PDF on disk is the whole document or one scoped

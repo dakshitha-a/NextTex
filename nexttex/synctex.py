@@ -46,13 +46,23 @@ class PdfPosition:
 
 
 def _run(args: list[str], cwd: Path) -> str:
-    proc = subprocess.run(
-        ["synctex", *args],
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        timeout=TIMEOUT,
-    )
+    """Ask synctex a question, and take silence for an answer.
+
+    Every failure here means the same thing to the caller -- no location --
+    and none of them is worth a 500 in the middle of a click on the PDF.
+    synctex may not be installed at all; a large .synctex.gz may outrun the
+    timeout; the file may be unreadable.
+    """
+    try:
+        proc = subprocess.run(
+            ["synctex", *args],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+        )
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        return ""
     # synctex exits nonzero when it simply has no answer, which is not an
     # error worth raising -- the caller gets None and moves on.
     return proc.stdout

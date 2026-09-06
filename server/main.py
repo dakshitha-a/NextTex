@@ -26,10 +26,11 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 
 from nexttex import claude_auth, gitrepo, synctex
+from nexttex.atomic import NotAFile, read_text, write_atomically
 from nexttex.compile import CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
 from nexttex.context import KINDS
-from nexttex.project import IGNORED_FILES, Project, Registry
+from nexttex.project import IGNORED_FILES, Project, ProjectConfig, Registry
 from server.session import ProjectSession
 
 SESSIONS: dict[str, ProjectSession] = {}
@@ -219,7 +220,9 @@ def _safe(session: ProjectSession, relative: str) -> Path:
         return session.project.resolve(relative)
     except PermissionError:
         raise HTTPException(403, "path is outside the project")
-    except OSError:
+    except (OSError, ValueError):
+        # ValueError is what a NUL byte in the path raises out of resolve();
+        # a mistyped URL is a bad request, not a server error.
         raise HTTPException(400, "bad path")
 
 
@@ -272,10 +275,7 @@ async def create_project(
     (root / "references.bib").write_text("", encoding="utf-8")
     (root / "figures").mkdir(exist_ok=True)
     title = name.strip() or root.name
-    (root / "nexttex.toml").write_text(
-        f'[project]\nname = "{title}"\nmain = "main.tex"\nbuild_dir = "build"\n',
-        encoding="utf-8",
-    )
+    ProjectConfig(name=title, main="main.tex", build_dir="build").save(root)
     project = REGISTRY.add(root)
     _restart_watch()
     return project.as_dict()
@@ -347,26 +347,54 @@ async def write_file(
     path: str = Body(...),
     text: str = Body(...),
     compile: bool = Body(True),
+    base: float = Body(0.0),
+    origin: str = Body(""),
 ):
+    """Save one file.
+
+    `base` is the modification time the browser last saw.  Without it this
+    route was whole-file last-writer-wins with nothing watching: two tabs on
+    one project, or one tab and a `git checkout`, and a chapter written in
+    the other window was gone with no error and no dirty marker.  When the
+    file has moved on underneath the caller, nothing is written -- the
+    answer carries what is on disk now and the browser asks the writer.
+
+    `origin` names the tab that saved, so the broadcast below can tell every
+    *other* tab to reload without the saving tab reloading itself.
+    """
     session = session_for(project_id)
     target = _safe(session, path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    # Through a temporary file in the same directory, so a crash mid-save
-    # cannot truncate a chapter the user has been writing all afternoon.
+    previous = read_text(target)
+    if base and previous is not None and previous != text:
+        try:
+            current = target.stat().st_mtime
+        except OSError:
+            current = 0.0
+        # A whole second of slack: mtime resolution varies by filesystem and
+        # the number crosses JSON as a float.
+        if current and abs(current - base) > 1.0:
+            return {
+                "ok": False, "conflict": True,
+                "text": previous, "mtime": current,
+            }
     try:
-        previous = target.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        previous = None
-    temp = target.with_name(target.name + ".nexttex-tmp")
-    temp.write_text(text, encoding="utf-8")
-    temp.replace(target)
+        write_atomically(target, text)
+    except NotAFile as error:
+        raise HTTPException(400, str(error))
+    except OSError as error:
+        raise HTTPException(500, f"could not save: {error}")
     session.mark_written(target)
     session.record_version(target, text, by="you", previous=previous)
 
     session.note_edit(target, text, previous)
     if compile:
         session.schedule_compile()
-    return {"ok": True, "mtime": target.stat().st_mtime}
+    mtime = target.stat().st_mtime
+    if previous != text:
+        await session.events.publish({
+            "type": "files_changed", "paths": [path], "origin": origin,
+        })
+    return {"ok": True, "mtime": mtime}
 
 
 @app.post("/api/projects/{project_id}/file/beacon")
@@ -389,13 +417,11 @@ async def file_beacon(project_id: str, request: Request):
     target = _safe(session, path)
     if not target.is_file():
         raise HTTPException(404, "no such file")
-    temp = target.with_name(target.name + ".nexttex-tmp")
+    previous = read_text(target)
     try:
-        previous = target.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        previous = None
-    temp.write_text(text, encoding="utf-8")
-    temp.replace(target)
+        write_atomically(target, text)
+    except (NotAFile, OSError) as error:
+        raise HTTPException(400, str(error))
     session.mark_written(target)
     session.record_version(
         target, text, by="you", why="as the tab closed", previous=previous,
@@ -423,10 +449,15 @@ async def create_entry(
 async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(...)):
     session = session_for(project_id)
     source, target = _safe(session, path), _safe(session, to)
+    if not source.exists():
+        raise HTTPException(404, "no such file")
     if target.exists():
         raise HTTPException(409, "a file of that name already exists")
     target.parent.mkdir(parents=True, exist_ok=True)
-    source.rename(target)
+    try:
+        source.rename(target)
+    except OSError as error:
+        raise HTTPException(400, f"could not rename: {error}")
     session.history.note_rename(path, to)
     return {"ok": True}
 
@@ -464,6 +495,12 @@ async def restore_trash(project_id: str, entry_id: str):
         raise HTTPException(404, str(error))
     await session.events.publish({"type": "trash_changed"})
     await session.events.publish({"type": "files_changed", "paths": result["restored"]})
+    # Which build path a restore needs depends on what came back.  Without
+    # this the scheduler reused whatever the last edit left set, so
+    # restoring a .bib skipped the biber pass its citations needed.
+    for relative in result["restored"]:
+        restored = session.project.root / relative
+        session.note_edit(restored, read_text(restored), None)
     session.schedule_compile()
     return {"ok": True, **result}
 
@@ -521,14 +558,11 @@ async def restore_version(
     text = session.history.content(path, sha)
     if text is None:
         raise HTTPException(404, "that version is no longer stored")
+    previous = read_text(target)
     try:
-        previous = target.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        previous = None
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temp = target.with_name(target.name + ".nexttex-tmp")
-    temp.write_text(text, encoding="utf-8")
-    temp.replace(target)
+        write_atomically(target, text)
+    except (NotAFile, OSError) as error:
+        raise HTTPException(400, str(error))
     session.mark_written(target)
     session.record_version(
         target, text, by="you", why="restored an earlier version",
@@ -672,7 +706,11 @@ async def distill_context(project_id: str, kind: str = Body(..., embed=True)):
     if request is None:
         raise HTTPException(400, f"no {kind} documents to read")
     prompt, output = request
-    await session.agent.ask(prompt)
+    session.start_agent_pump()
+    try:
+        await session.agent.ask(prompt)
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc))
     return {"started": True, "writes": str(output)}
 
 
@@ -701,7 +739,9 @@ async def download(project_id: str, path: str = "", format: str = "auto"):
         target = project.resolve(path) if path else project.root
     except PermissionError:
         raise HTTPException(403, "path is outside the project")
-    except OSError:
+    except (OSError, ValueError):
+        # ValueError is what a NUL byte in the path raises out of resolve();
+        # a mistyped URL is a bad request, not a server error.
         raise HTTPException(400, "bad path")
 
     if target.is_file() and format != "zip":
@@ -908,15 +948,13 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
                 target, target.read_text(encoding="utf-8", errors="replace"),
                 by="you", why="before the template was loaded",
             )
-        temp = target.with_name(target.name + ".nexttex-tmp")
-        temp.write_text(text, encoding="utf-8")
-        temp.replace(target)
+        write_atomically(target, text)
         session.mark_written(target)
         session.record_version(target, text, by="you", why=f"loaded the {name} template")
         written.append(session.project.relative(target))
 
     (session.project.root / "figures").mkdir(exist_ok=True)
-    session.note_edit(main, main.read_text(encoding="utf-8"), None)
+    session.note_edit(main, read_text(main), None)
     session.schedule_compile()
     await session.events.publish({"type": "files_changed", "paths": written})
     return {"ok": True, "written": written, "main": session.project.config.main}
@@ -933,7 +971,7 @@ async def set_main_document(project_id: str, path: str = Body(..., embed=True)):
     target = _safe(session, path)
     if not target.is_file() or target.suffix.lower() not in {".tex", ".ltx"}:
         raise HTTPException(400, "the main document has to be a .tex file")
-    session.set_main(path)
+    await session.set_main(path)
     await session.events.publish({"type": "project_changed", "main": path})
     session.schedule_compile()
     return {"ok": True, "main": path}
@@ -1168,12 +1206,18 @@ async def agent_undo(
         raise HTTPException(404, "no such file")
     if current != after:
         return {"ok": False, "reason": "changed since"}
-    temp = target.with_name(target.name + ".nexttex-tmp")
-    temp.write_text(before, encoding="utf-8")
-    temp.replace(target)
+    try:
+        write_atomically(target, before)
+    except (NotAFile, OSError) as error:
+        raise HTTPException(400, str(error))
     session.mark_written(target)
+    # Redo is this same route with the arguments swapped, so `state` is the
+    # only thing that says which way round the writer meant it.
+    undoing = state != "live"
     session.record_version(
-        target, before, by="you", why="undid one of Claude's edits", op="undo",
+        target, before, by="you",
+        why="undid one of Claude's edits" if undoing else "put Claude's edit back",
+        op="undo" if undoing else "redo",
     )
     if edit_id:
         session.transcript.note_revert(edit_id, state)

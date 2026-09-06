@@ -28,6 +28,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .atomic import write_atomically
 from .history import History
 
 # Names that are never carried into the trash: they are regenerated, and
@@ -258,8 +259,7 @@ class Trash:
         if entry is None:
             return False
         shutil.rmtree(self.root / entry.id, ignore_errors=True)
-        for file in entry.files:
-            self.history.forget(file.path)
+        self._forget(entry)
         self._append({"id": entry.id, "removed": True, "at": time.time() * 1000})
         self._rewrite(self.entries())
         return True
@@ -270,21 +270,37 @@ class Trash:
         entries = self.entries()
         for entry in entries:
             shutil.rmtree(self.root / entry.id, ignore_errors=True)
-            for file in entry.files:
-                self.history.forget(file.path)
+            self._forget(entry)
         self._rewrite([])
         return len(entries)
 
     # -- helpers -----------------------------------------------------------
+    def _forget(self, entry: TrashEntry) -> None:
+        """Drop the version history of what this entry held.
+
+        Only where nothing lives at that path now.  History is keyed by
+        path, so deleting `chapters/03.tex`, writing a new file under the
+        same name for a week and then emptying the trash used to unlink the
+        new file's entire history along with the old one's.
+        """
+        for file in entry.files:
+            if not (self.project_root / file.path).exists():
+                self.history.forget(file.path)
+
     @staticmethod
     def _members(target: Path) -> list[Path]:
-        if target.is_file():
+        if target.is_file() and not target.is_symlink():
             return [target]
         found: list[Path] = []
         for path in sorted(target.rglob("*")):
             if any(part in SKIP_DIRS for part in path.parts):
                 continue
-            if path.is_file():
+            # A symlink is followed by is_file(), and resolve() below would
+            # then record its *target's* path -- a file that still exists,
+            # whose history a purge would forget and whose relative path a
+            # restore could not reconstruct.  The link travels with the
+            # folder either way; it is simply not listed as a member.
+            if path.is_file() and not path.is_symlink():
                 found.append(path)
         return found
 

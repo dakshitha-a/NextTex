@@ -5,6 +5,7 @@
 
 import { useSyncExternalStore } from "react";
 import api, {
+  clientId,
   type CompileResult,
   type ContextDocument,
   type Diagnostic,
@@ -90,6 +91,10 @@ export type State = {
   claude: { loggedIn: boolean; email?: string; plan?: string } | null;
   cursor: { line: number; column: number };
   words: number | null;
+  // Set when a save was refused because the file changed underneath this
+  // tab.  Nothing is written and nothing is thrown away until the writer
+  // says which copy they want.
+  conflict: { path: string; theirs: string; mtime: number } | null;
   error: string | null;
 };
 
@@ -118,6 +123,7 @@ const state: State = {
   contextStale: [],
   claude: null,
   cursor: { line: 1, column: 1 },
+  conflict: null,
   words: null,
   error: null,
 };
@@ -348,6 +354,9 @@ function receive(event: any) {
       break;
     }
     case "files_changed":
+      // Our own save, coming back around.  The buffer already holds it, and
+      // reloading would fight a caret that has moved on since.
+      if (event.origin && event.origin === clientId) break;
       handlers.onFilesChanged?.(event.paths ?? []);
       break;
     case "reveal":

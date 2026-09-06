@@ -97,6 +97,14 @@ export function captureToken(): void {
   window.history.replaceState({}, "", url.toString());
 }
 
+/** This tab, for the lifetime of the page.
+ *
+ *  A save is broadcast to every tab watching the project so a second window
+ *  cannot sit on a stale buffer and later write it over the first one's
+ *  work.  The tab that saved has the text already, so it names itself here
+ *  and ignores its own echo. */
+export const clientId = `tab-${Math.random().toString(36).slice(2, 10)}`;
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -146,10 +154,17 @@ const api = {
     request<{ path: string; text: string; mtime: number }>(
       `/projects/${id}/file?path=${encodeURIComponent(path)}`,
     ),
-  writeFile: (id: string, path: string, text: string, compile = true) =>
-    request<{ ok: true; mtime: number }>(
+  /** Save one file.
+   *
+   *  `base` is the modification time this tab last saw.  The server refuses
+   *  rather than overwrite when the file has moved on since, and hands back
+   *  what is on disk instead. */
+  writeFile: (
+    id: string, path: string, text: string, compile = true, base = 0,
+  ) =>
+    request<{ ok: boolean; mtime: number; conflict?: true; text?: string }>(
       `/projects/${id}/file`,
-      { ...json({ path, text, compile }), method: "PUT" },
+      { ...json({ path, text, compile, base, origin: clientId }), method: "PUT" },
     ),
   newFile: (id: string, path: string, directory = false) =>
     request<any>(`/projects/${id}/file/new`, json({ path, directory })),

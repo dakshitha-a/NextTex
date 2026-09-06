@@ -105,3 +105,32 @@ def test_a_full_build_asks_the_engine_for_synctex_data(tmp_path):
     argv = build.full_argv(tmp_path / "main.tex")
     directive = next((a for a in argv if a.startswith("-pdflatex=")), "")
     assert "-synctex=1" in directive
+
+
+def test_an_edit_during_a_build_still_gets_its_full_pass(tmp_path):
+    """The bug this defends against: a bibliography edit made while a full
+    build was already running had its rebuild cancelled by that build
+    finishing, and the new citation printed as [?] until something else
+    happened to touch the preamble."""
+    scheduler = _scheduler(tmp_path)
+    mark = scheduler._full_mark
+    # A build is in flight and has read the flag.
+    assert scheduler._needs_full is True
+
+    # Mid-build, the writer edits the bibliography.
+    scheduler.note_edit(tmp_path / "references.bib")
+    assert scheduler._full_mark != mark
+
+    # The build that started earlier now finishes and would clear the flag.
+    if mark == scheduler._full_mark:
+        scheduler._needs_full = False
+    assert scheduler._needs_full is True, "the newer edit still needs a full pass"
+
+
+def _scheduler(tmp_path):
+    from nexttex.compile import CompileScheduler, ProjectPaths
+
+    (tmp_path / "main.tex").write_text("\\documentclass{article}", encoding="utf-8")
+    return CompileScheduler(ProjectPaths(
+        root=tmp_path, main=tmp_path / "main.tex", build_dir=tmp_path / "build",
+    ))

@@ -49,7 +49,7 @@ HOURLY_DAYS = 7
 DAILY_DAYS = 90
 
 # A version of these kinds is never thinned away.
-PERMANENT_OPS = {"delete", "restore", "create"}
+PERMANENT_OPS = {"delete", "restore", "create", "undo", "redo"}
 
 # A blob younger than this is not collected, so garbage collection cannot
 # race a record that has written its content but not yet its log line.
@@ -72,7 +72,7 @@ class Version:
     bytes: int
     by: str            # "you" or "claude"
     why: str = ""
-    op: str = "edit"   # edit | create | delete | restore | undo
+    op: str = "edit"   # edit | create | delete | restore | undo | redo
     label: str | None = None
 
     def as_dict(self) -> dict:

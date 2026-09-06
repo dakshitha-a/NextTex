@@ -57,6 +57,20 @@ IGNORED_DIRS = {
 IGNORED_FILES = {".nexttex-preview.tex", ".DS_Store"}
 
 
+def _toml(value: str) -> str:
+    """A TOML basic string.  Project names are typed by people, and a quote
+    in one used to produce a file the parser then silently discarded --
+    taking the project's main file with it."""
+    escaped = (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+    )
+    return f'"{escaped}"'
+
+
 @dataclass
 class ProjectConfig:
     """The contents of nexttex.toml, with defaults for everything."""
@@ -125,14 +139,14 @@ class ProjectConfig:
         lines = [
             "# NextTex reads this when the project is opened.",
             "[project]",
-            f'name = "{self.name}"',
-            f'main = "{self.main}"',
-            f'build_dir = "{self.build_dir}"',
+            f"name = {_toml(self.name)}",
+            f"main = {_toml(self.main)}",
+            f"build_dir = {_toml(self.build_dir)}",
         ]
         if self.check_command:
-            lines.append(f'check_command = "{self.check_command}"')
+            lines.append(f"check_command = {_toml(self.check_command)}")
         if self.exclude:
-            listed = ", ".join(f'"{item}"' for item in self.exclude)
+            listed = ", ".join(_toml(item) for item in self.exclude)
             lines.append(f"exclude = [{listed}]")
         target = root / CONFIG_NAME
         temp = target.with_name(target.name + ".tmp")
@@ -304,7 +318,22 @@ class Registry:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return []
-        return [RegistryEntry(**e) for e in raw if isinstance(e, dict) and "path" in e]
+        # Only the fields this version knows about.  A registry written by
+        # a newer NextTex carries keys we have never heard of, and passing
+        # those to the dataclass would raise -- taking down the project
+        # list, which is the first thing every screen reads.
+        known = {field for field in RegistryEntry.__dataclass_fields__}
+        entries = []
+        for item in raw:
+            if not isinstance(item, dict) or "path" not in item:
+                continue
+            fields = {k: v for k, v in item.items() if k in known}
+            fields.setdefault("name", Path(str(fields["path"])).name)
+            try:
+                entries.append(RegistryEntry(**fields))
+            except (TypeError, ValueError):
+                continue
+        return entries
 
     def _write(self, entries: list[RegistryEntry]) -> None:
         # Written via a temporary file so an interrupted write cannot leave
