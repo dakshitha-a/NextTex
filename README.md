@@ -169,16 +169,16 @@ use an OpenAI key instead. Reports welcome.
 ## Installing
 
 ```bash
-git clone https://github.com/dakshitha-a/nexttex.git
-cd nexttex
+git clone https://github.com/dakshitha-a/NextTex.git
+cd NextTex
 ./scripts/install.sh          # Linux and macOS
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-git clone https://github.com/dakshitha-a/nexttex.git
-cd nexttex
+git clone https://github.com/dakshitha-a/NextTex.git
+cd NextTex
 powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
 

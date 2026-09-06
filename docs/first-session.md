@@ -16,8 +16,8 @@ names are the test titles in `e2e/specs/`.
 ## 0. Install
 
 ```bash
-git clone https://github.com/dakshitha-a/nexttex.git
-cd nexttex
+git clone https://github.com/dakshitha-a/NextTex.git
+cd NextTex
 ./scripts/install.sh
 ```
 
