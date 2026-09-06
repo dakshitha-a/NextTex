@@ -28,7 +28,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 
 from nexttex import claude_auth, gitrepo, synctex
-from nexttex.atomic import NotAFile, read_text, write_atomically
+from nexttex.atomic import NotAFile, read_bytes, read_text, write_atomically
 from nexttex.compile import CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
 from nexttex.context import KINDS
@@ -621,10 +621,11 @@ async def restore_version(
     """Put an old version back, as a new version. Nothing is overwritten."""
     session = session_for(project_id)
     target = _safe(session, path)
-    text = session.history.content(path, sha)
+    # Bytes rather than text, so restoring a figure gives back the figure.
+    text = session.history.bytes_of(path, sha)
     if text is None:
         raise HTTPException(404, "that version is no longer stored")
-    previous = read_text(target)
+    previous = read_bytes(target)
     try:
         write_atomically(target, text)
     except (NotAFile, OSError) as error:
@@ -673,13 +674,18 @@ async def upload(project_id: str, directory: str = Form(""), files: list[UploadF
         target = destination / name
         if target.is_file():
             # An upload of the same name is a replacement; the old one is
-            # still worth being able to get back.
+            # still worth being able to get back.  Bytes, not text: this
+            # read the file as UTF-8 and swallowed the UnicodeDecodeError,
+            # so replacing a figure -- which is most of what gets uploaded
+            # -- destroyed the previous one with no version, no trash entry
+            # and nothing said.  The blob store never had trouble with
+            # arbitrary bytes; only this line did.
             try:
                 session.record_version(
-                    target, target.read_text(encoding="utf-8"),
+                    target, target.read_bytes(),
                     by="you", why="replaced by an upload",
                 )
-            except (OSError, UnicodeDecodeError):
+            except OSError:
                 pass
         temp = target.with_name(target.name + ".part")
         with temp.open("wb") as handle:

@@ -291,12 +291,24 @@ class History:
             self._log_cache.pop(next(iter(self._log_cache)))
         return out
 
-    def content(self, relative_path: str, sha: str) -> str | None:
-        """One version's text, if it is still on disk."""
+    def bytes_of(self, relative_path: str, sha: str) -> bytes | None:
+        """One version's exact bytes, if it is still on disk.
+
+        A figure is a version like any other -- the blob store has always
+        kept arbitrary bytes perfectly -- but `content` below decodes with
+        `errors="replace"`, which is right for showing an old draft in a
+        text editor and destroys a PNG: every byte that is not valid UTF-8
+        becomes U+FFFD, and nothing re-encodes back to what it was.  A
+        restore or a download of a binary version has to come through here.
+        """
         known = {version.sha for version in self.versions(relative_path)}
         if sha not in known:
             return None
-        data = self.blobs.get(sha)
+        return self.blobs.get(sha)
+
+    def content(self, relative_path: str, sha: str) -> str | None:
+        """One version's text, if it is still on disk."""
+        data = self.bytes_of(relative_path, sha)
         if data is None:
             return None
         return data.decode("utf-8", errors="replace")
