@@ -180,11 +180,63 @@ keyboard focus a 1 px inset `--pen` outline; folder drag-over gets `--pen-wash` 
 
 Right slot (16 px), in priority order: error count in `--error` micro; unsaved dot (5 px
 solid `--ink-2`); git status letter (`M`/`A`/`?`) in `--ink-3` mono 10 px. On row hover that
-slot becomes a `⋯` opening rename / duplicate / download / delete / new file here. **Rename
-is inline** — the label becomes an input in place, same font, same position, 1 px `--pen`
-underline, Enter commits, Escape reverts. Never a modal.
+slot becomes a `⋯` opening, in order: rename, move to…, set as main document, history,
+download, upload here, new file here, new folder here, move to trash. (This paragraph
+described a menu of *rename / duplicate / download / delete / new file here* for some time
+after the built menu had stopped matching it, which is the sort of drift this document
+exists to avoid. Duplicate was specified and never built; it is dropped rather than left
+described.) **Rename is inline** — the label becomes an input in place, same font, same
+position, 1 px `--pen` underline, Enter commits, Escape reverts. Never a modal.
 
-Drag-drop upload highlights the target folder row only, never the whole panel.
+Drag-drop upload highlights the target folder row only, never the whole panel. The project
+root has no row, so a drop aimed at it — on the empty area below the tree, or on the Files
+bar — highlights the **Upload button** instead, which stands in as the root's row.
+
+### Files bar
+
+26 px, directly under the 32 px project header, and the header's bottom rule moves down
+onto it so the two read as one masthead rather than two stacked bands. Fill is `--surface`,
+the same plane as the tree: `--surface-2` is the tree row's own hover fill, and a permanent
+band of it above rows that hover to it reads as a stuck hover.
+
+Three controls, abutting, no gap, in the header's own button style (`quiet t-micro
+h-[26px] rounded-[3px] px-2`): **New file**, **New folder**, **Upload**. A container query
+shortens the first two to *File* and *Folder* below 208 px; both short forms are substrings
+of the accessible name, so a spoken command matching what is on screen still works.
+
+It exists because the alternative was a reachability hole rather than a convenience gap.
+Every file operation hung off a row's `⋯` menu, so there had to *be* a row: a new project is
+created as one empty document, and its first folder could only be made by opening the menu
+on `main.tex` and knowing that "New folder here" resolves to the folder containing it. The
+cost is one tree row of a rail that is usually 800–1000 px tall.
+
+The bar does not grow. No filter box — tree type-ahead does that job for nothing, and a
+thesis has tens of files, not thousands. No collapse-all — ArrowLeft already collapses a
+folder.
+
+### Upload chooser
+
+A popover (`fixed`, 264 px, radius 5, `shadow-float`), never a modal — this app has none.
+`role="dialog"` without `aria-modal`, because the page behind it stays live and is not
+inert; focus is not trapped, and Escape, Cancel or a click away all discard the picked
+files and return focus to whatever started the upload.
+
+**The file picker opens first, and this appears afterwards.** Asking "which folder?" before
+a file has been chosen is two deliberate steps every time; asking after means the popover
+already knows the filenames, so *where* and *one of these already exists* are answered in
+one surface instead of a wizard. It therefore only appears when there is something to ask:
+a file dropped on a folder has named its destination by being dropped there and goes
+straight in unless a name collides.
+
+Inside: a heading naming the file or counting them; a destination row that expands a
+`role="listbox"` of every folder, indented on the tree's own 13 px quad, selection following
+focus, with **New folder here** below a rule as a plain button outside the list; a manifest
+of one 22 px row per file, each with a `Skip` toggle; and, only when something collides, a
+count, a two-button group (**Replace** / **Keep both**) and a line saying what that will do.
+
+**Replace is the default.** The dominant case is re-exporting a figure, and it is only a
+safe default because what it replaces is now kept. "Keep both" as a default quietly fills a
+thesis with `plot (2).png` and then compiles the wrong one.
 
 ### Editor tab
 
@@ -928,3 +980,60 @@ browser spec for a variation the first already covers; tests that assert an
 exact duration rather than a budget; and anything a unit test can pin down.
 Every timing constant in the browser tier is a reason to prefer the layer
 below it.
+
+---
+
+## 15. Making files, and putting files in
+
+Everything above assumed files arrive somehow. They did — by drag-and-drop onto a row, or
+through a menu hanging off one — and the assumption held right up until somebody needed a
+folder in a project that had one file in it.
+
+The work in this section came from a design consult, and two of its decisions are worth
+keeping the reasoning for.
+
+**The file picker opens before the destination chooser.** The obvious order is to ask where
+the files should go and then open the picker. It is wrong: it costs two deliberate steps
+before a file has even been chosen, every single time, including the overwhelmingly common
+case where the answer is the same folder as last time. Opening the picker first means the
+chooser appears *already knowing the filenames* — so "where do these go" and "one of these
+is already there" become one question on one surface, instead of a two-page wizard. It also
+means the chooser can decline to appear at all, which is what it does for a drop onto a
+folder with no collisions: the gesture named the destination, so there is nothing to ask.
+
+**A replacement is `op="replace"`, not an edit.** This looks like bookkeeping and is the
+thing that keeps the feature honest. History collapses same-author edits inside ninety
+seconds, which is right for typing and catastrophic here: export a plot, notice the axes are
+wrong, export again inside a minute, and the coalescer merges the two replacements — keeping
+the intermediate and dropping the version that held the *original* figure, which is the one
+version the whole feature exists for. The coalescing test requires `previous.op == "edit" ==
+op`, so a distinct op closes it by construction rather than by a special case. It is
+deliberately *not* permanent: thinning a year of nightly re-exports is correct, and a
+version somebody names is already permanent by its label.
+
+Underneath both: replacing a figure used to destroy it. The route recorded a version by
+reading the file as UTF-8 inside a `try` that swallowed the `UnicodeDecodeError`, so it
+worked for a chapter and silently did nothing for a PNG. The blob store had never had
+trouble with arbitrary bytes — `content()`'s `errors="replace"` decode had, which is right
+for showing an old draft in an editor and turns every invalid byte of an image into U+FFFD.
+There is a `bytes_of` beside it now, a `raw=1` form of the blob route that serves a version
+with its own media type, and a read-only pane for files the editor cannot hold — without
+which a figure's history is unreachable, since the only route to any file's history is to
+make it the active document.
+
+Two bugs turned up while building it, both in code that predated it. Creating anything at
+the project root put a naming input under *every* file in the project, each one stealing
+focus from the last, and the blur that follows cancelled it — the row hosting the input
+compared a file's parent to `""` instead of only ever hanging off a folder. And the folder
+list's arrow keys collapsed the list, because selecting an option and confirming the choice
+were the same callback; selection has to follow focus with the list still open, or the
+keyboard path is one keystroke long and ends in the wrong place.
+
+What was added beyond the ask, and why each earns its place: the project root became a drop
+target, because dropping a file at the root was previously impossible; a file that lands in
+a collapsed folder is now revealed, expanded and flashed, because from the writer's seat it
+had otherwise not landed; typing in the tree jumps to a file, which is the reason there is
+no filter box in a bar 240 px wide; `Move to…` reuses the same folder chooser and the rename
+route, which already fenced both of its paths; and an image pasted onto the tree becomes a
+figure with a dated name, because screenshot-to-figure is a loop somebody runs all
+afternoon.

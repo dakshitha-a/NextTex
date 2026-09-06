@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import api, { type Version } from "../api";
+import api, { startDownload, type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
 import { Chevron } from "../App";
+import { isRenderable } from "./FileView";
 
 /** What this file used to say.
  *
@@ -23,12 +24,51 @@ export default function History({
   const projectId = useStore((s) => s.projectId);
   const compile = useStore((s) => s.compile);
   const [labelling, setLabelling] = useState<string | null>(null);
+  // A figure has no text to read, so selecting one of its versions opens
+  // it in place here instead of parking the editor in a viewing mode that
+  // would have nothing to show and nothing to diff.
+  const [opened, setOpened] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const binary = Boolean(activePath) && !isText(activePath!);
+  const blobUrl = (sha: string, download = false) =>
+    projectId && activePath
+      ? `/api/projects/${projectId}/history/blob?path=${encodeURIComponent(
+          activePath,
+        )}&sha=${sha}&${download ? "download=1" : "raw=1"}`
+      : "";
 
   useEffect(() => {
     if (projectId && activePath) refreshHistory(projectId, activePath);
   }, [projectId, activePath, compile]);
 
   const name = activePath?.split("/").pop() ?? "";
+
+  const choose = (sha: string, selected: boolean) => {
+    if (binary) {
+      // No viewing mode: there is no text to lock, nothing to diff, and no
+      // banner that could say anything true about a PNG.
+      setConfirming(null);
+      setOpened((current) => (current === sha ? null : sha));
+      return;
+    }
+    onView(selected ? null : sha);
+  };
+
+  const restore = async (sha: string) => {
+    const projectId = get().projectId;
+    if (!projectId || !activePath) return;
+    try {
+      await api.restoreVersion(projectId, activePath, sha);
+      setConfirming(null);
+      setOpened(null);
+      refreshHistory(projectId, activePath);
+      // The pane showing the file is keyed on this, so the restored figure
+      // appears rather than the browser's cached copy of the old one.
+      set({ pdfStamp: Date.now() });
+    } catch (error: any) {
+      set({ error: error.message });
+    }
+  };
 
   return (
     <div
@@ -60,8 +100,9 @@ export default function History({
       <div className="min-h-0 flex-1 overflow-auto">
         {versions.length === 0 ? (
           <p className="t-meta p-3 text-ink-3">
-            Nothing yet for {name || "this file"}. Versions are kept from the
-            moment you first change it.
+            {binary
+              ? `Nothing yet for ${name}. Versions are kept from the moment it is first replaced.`
+              : `Nothing yet for ${name || "this file"}. Versions are kept from the moment you first change it.`}
           </p>
         ) : null}
         {versions.map((version, index) => {
@@ -84,7 +125,7 @@ export default function History({
                 className={`group relative flex cursor-pointer flex-col gap-[2px] px-[10px] py-[6px] ${
                   selected ? "bg-surface-2" : "hover:bg-surface-2"
                 }`}
-                onClick={() => onView(selected ? null : version.sha)}
+                onClick={() => choose(version.sha, selected)}
                 onKeyDown={(event) => {
                   // Only keys aimed at the row itself.  The naming input is
                   // a child of it, so without this every space typed into a
@@ -93,7 +134,7 @@ export default function History({
                   if (event.target !== event.currentTarget) return;
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    onView(selected ? null : version.sha);
+                    choose(version.sha, selected);
                   }
                 }}
               >
@@ -101,6 +142,24 @@ export default function History({
                   <span className="absolute left-0 top-0 h-full w-[2px] bg-pen" />
                 ) : null}
                 <div className="flex items-baseline gap-2">
+                  {binary ? (
+                    <span
+                      aria-hidden
+                      className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center self-center overflow-hidden rounded-[3px] bg-surface-3"
+                    >
+                      {isRenderable(activePath ?? "") ? (
+                        <img
+                          src={blobUrl(version.sha)}
+                          alt=""
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <span className="nx-mono-11 text-ink-3">
+                          {(activePath ?? "").split(".").pop()?.slice(0, 3)}
+                        </span>
+                      )}
+                    </span>
+                  ) : null}
                   <span className="t-micro tnum text-ink">{timeOf(version.at)}</span>
                   <span
                     className={`t-micro ${
@@ -130,6 +189,64 @@ export default function History({
                   <span className="t-meta text-ink">{version.label}</span>
                 ) : version.why ? (
                   <span className="t-micro truncate text-ink-2">{version.why}</span>
+                ) : null}
+                {binary && opened === version.sha ? (
+                  <div className="mt-2" data-testid="version-open">
+                    {isRenderable(activePath ?? "") ? (
+                      <img
+                        src={blobUrl(version.sha)}
+                        alt={`${name} as it was at ${timeOf(version.at)}`}
+                        className="max-h-[180px] max-w-[244px] rounded-[3px] bg-surface-3 object-contain p-2"
+                      />
+                    ) : null}
+                    <div className="mt-2 flex items-center gap-3">
+                      {confirming === version.sha ? (
+                        <>
+                          <span className="t-micro text-ink-2">
+                            Replace the file with this?
+                          </span>
+                          <button
+                            className="quiet t-micro"
+                            data-tone="danger"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void restore(version.sha);
+                            }}
+                          >
+                            Restore
+                          </button>
+                          <button
+                            className="quiet t-micro"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setConfirming(null);
+                            }}
+                          >
+                            Keep
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="quiet t-micro"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setConfirming(version.sha);
+                          }}
+                        >
+                          Restore this
+                        </button>
+                      )}
+                      <button
+                        className="quiet t-micro"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          startDownload(blobUrl(version.sha, true));
+                        }}
+                      >
+                        Download
+                      </button>
+                    </div>
+                  </div>
                 ) : null}
                 {labelling === version.sha ? (
                   <input
@@ -272,4 +389,18 @@ function size(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Which files the editor can hold, and therefore which have text history
+ *  rather than the byte kind.  Kept beside the panel rather than read from
+ *  the tree: the panel is often open on a file whose row is scrolled out
+ *  of the tree, and a suffix is the same answer either way. */
+const TEXT_SUFFIXES = new Set([
+  ".tex", ".ltx", ".sty", ".cls", ".bib", ".bbl", ".txt", ".md", ".json",
+  ".yml", ".yaml", ".csv", ".toml", ".cfg", ".ini", ".log", ".py", ".sh",
+]);
+
+export function isText(path: string): boolean {
+  const dot = path.lastIndexOf(".");
+  return dot <= 0 || TEXT_SUFFIXES.has(path.slice(dot).toLowerCase());
 }

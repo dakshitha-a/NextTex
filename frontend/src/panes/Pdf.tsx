@@ -417,7 +417,6 @@ export default function Pdf({
       setZoomLabel(next);
       window.clearTimeout(commit.current);
       commit.current = window.setTimeout(() => {
-        liveScale.current = 0;
         setZoomLabel(null);
         setScale(next);
       }, ZOOM_SETTLE);
@@ -429,6 +428,18 @@ export default function Pdf({
       window.clearTimeout(commit.current);
     };
   }, []);
+
+  // The gesture's own idea of the scale outlives the commit on purpose: a
+  // pinch that lands between committing and the relayout finishing would
+  // otherwise read `drawn.current`, which is still the previous scale, and
+  // jump backwards.  It is cleared only when the zoom is changed by
+  // something that is not the wheel -- a button, fit width, a new document.
+  useEffect(() => {
+    const settled = scale === -1 ? pageFitScale : scale || fitScale;
+    if (liveScale.current && Math.abs(liveScale.current - settled) > 0.002) {
+      liveScale.current = 0;
+    }
+  }, [scale, fitScale, pageFitScale]);
 
   // ---- SyncTeX ----------------------------------------------------------
   const onDoubleClick = useCallback(

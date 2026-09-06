@@ -162,6 +162,14 @@ of a short document takes about 130 milliseconds, which is less time than
 the status dot can be reliably polled for — so a spec that has to prove a
 build did *not* happen counts `compile_start` instead of watching pixels.
 
+`frontend/src/tree.ts` is read by the upload chooser rather than the
+server: which folders exist, what is already in one, and what "keep both"
+will call the new file are all answerable from the tree the rail is already
+drawing, so the chooser opens in the same frame the file picker closes in.
+The last of those has to agree with `unique_name` on the server exactly —
+the chooser quotes the name back before anything is written — which is why
+both are tested against the same cases.
+
 `frontend/src/**/*.test.ts` is vitest over the frontend's pure logic —
 finding the maths under the pointer, where a diff begins, which completion
 list belongs at the cursor — plus a contrast check that parses the palette
