@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { viewportHeight, viewportWidth } from "../viewport";
 import { Chevron } from "../App";
 import api from "../api";
 import { get, set } from "../store";
@@ -110,8 +111,8 @@ export default function PapersChooser({
       data-testid="papers-chooser"
       className="nx-arrive fixed z-40 w-[320px] rounded-[5px] border border-line bg-surface shadow-float"
       style={{
-        left: Math.min(at.x, window.innerWidth - 328),
-        top: Math.min(at.y, window.innerHeight - 340),
+        left: Math.min(at.x, viewportWidth() - 328),
+        top: Math.min(at.y, viewportHeight() - 340),
       }}
     >
       <div id="papers-heading" className="t-ui truncate px-[10px] pt-2 text-ink">

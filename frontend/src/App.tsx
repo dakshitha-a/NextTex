@@ -32,7 +32,8 @@ import Collapsed from "./panes/Collapsed";
 import HistoryPanel, { ViewingBanner } from "./panes/History";
 import TrashPanel from "./panes/TrashPanel";
 import Logo from "./Logo";
-import { applyTheme, storedTheme, type Theme } from "./theme";
+import Appearance from "./panes/Appearance";
+import { toShell, uiScale, viewportWidth } from "./viewport";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
 import { agentName } from "./agent-name";
@@ -89,12 +90,14 @@ export default function App() {
   // Three widths matter: below 1400 the chat stops being a docked column,
   // below 1100 the rail folds away, and below 900 the editor and the PDF
   // take turns rather than splitting a space too small for either.
-  const [width, setWidth] = useState(window.innerWidth);
+  // In the space the layout is laid out in, not the viewport: at a 150%
+  // interface size a 1680px display has 1120px to arrange, and the
+  // narrow-layout breakpoints are written in those units.
+  const [width, setWidth] = useState(viewportWidth);
   const narrow = width < 1400;
   const tight = width < 900;
   const [chatOpen, setChatOpen] = useState(true);
   const [showing, setShowing] = useState<"source" | "preview">("source");
-  const [theme, setTheme] = useState<Theme>(() => storedTheme());
   const [contextRequest, setContextRequest] =
     useState<"style" | "voice" | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -175,7 +178,7 @@ export default function App() {
   }, [resumeOrList]);
 
   useEffect(() => {
-    const onResize = () => setWidth(window.innerWidth);
+    const onResize = () => setWidth(viewportWidth());
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -502,8 +505,10 @@ export default function App() {
             ? { min: 320, max: 560 }
             : { min: MIN_EDITOR, max: 0 };
 
-      const editorWidth = editorPane.current?.getBoundingClientRect().width ?? 0;
-      const pdfWidth = pdfPane.current?.getBoundingClientRect().width ?? 0;
+      // `getBoundingClientRect` reports viewport pixels even inside the
+      // zoomed shell, so bring it back into the space `bounds` is written in.
+      const editorWidth = toShell(editorPane.current?.getBoundingClientRect().width ?? 0);
+      const pdfWidth = toShell(pdfPane.current?.getBoundingClientRect().width ?? 0);
       const pair = editorWidth + pdfWidth;
       if (which === "split") bounds.max = Math.max(pair - MIN_PDF, MIN_EDITOR);
       setEditorWide(editorWidth > 700);
@@ -518,7 +523,8 @@ export default function App() {
 
       const move = (moveEvent: PointerEvent) => {
         const direction = which === "chat" ? -1 : 1;
-        const wanted = anchorWidth + direction * (moveEvent.clientX - anchorX);
+        const wanted =
+          anchorWidth + (direction * (moveEvent.clientX - anchorX)) / uiScale();
         const settled = Math.min(Math.max(wanted, bounds.min), bounds.max);
         if (settled !== wanted) {
           anchorX = moveEvent.clientX;
@@ -574,10 +580,6 @@ export default function App() {
     setChatOpen(foldedBeforeNarrow.current ?? true);
     foldedBeforeNarrow.current = null;
   }, [narrow]);
-
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
 
   // The editor's width decides whether history docks or overlays.
   useEffect(() => {
@@ -690,7 +692,7 @@ export default function App() {
                 <span className="t-ui-lg truncate font-serif">{projectName}</span>
               </button>
               <div className="flex items-center">
-                <ThemeToggle theme={theme} onChange={setTheme} />
+                <Appearance align="left" />
                 <button
                   className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
                   title="Download the whole project as a zip"
@@ -769,8 +771,6 @@ export default function App() {
               // its switcher, the theme and the downloads move here.
               <div className="flex h-[32px] shrink-0 items-center border-r border-line pl-1">
                 <AppControls
-                  theme={theme}
-                  onTheme={setTheme}
                   projectId={projectId}
                   projectName={projectName}
                   onSwitch={leaveProject}
@@ -912,8 +912,6 @@ export default function App() {
             >
               {railFolded && folded.editor ? (
                 <AppControls
-                  theme={theme}
-                  onTheme={setTheme}
                   projectId={projectId}
                   projectName={projectName}
                   onSwitch={leaveProject}
@@ -1082,14 +1080,10 @@ async function downloadPdf(projectId: string, name: string) {
 }
 
 function AppControls({
-  theme,
-  onTheme,
   projectId,
   projectName,
   onSwitch,
 }: {
-  theme: Theme;
-  onTheme: (theme: Theme) => void;
   projectId: string | null;
   projectName: string;
   onSwitch: () => void;
@@ -1104,7 +1098,7 @@ function AppControls({
         <span className="truncate text-ink">{projectName}</span>
         <Chevron direction="down" />
       </button>
-      <ThemeToggle theme={theme} onChange={onTheme} />
+      <Appearance align="left" />
       <button
         className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
         title="Download the whole project as a zip"
@@ -1122,42 +1116,6 @@ function AppControls({
         PDF
       </button>
     </div>
-  );
-}
-
-function ThemeToggle({
-  theme,
-  onChange,
-}: {
-  theme: Theme;
-  onChange: (theme: Theme) => void;
-}) {
-  return (
-    <button
-      className="quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
-      title={theme === "dark" ? "Switch to the light theme" : "Switch to the dark theme"}
-      aria-label={theme === "dark" ? "Switch to the light theme" : "Switch to the dark theme"}
-      onClick={() => onChange(theme === "dark" ? "light" : "dark")}
-    >
-      {theme === "dark" ? (
-        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden>
-          <path
-            d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8 5.6 5.6 0 1 0 13.2 9.6Z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinejoin="round"
-          />
-        </svg>
-      ) : (
-        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden>
-          <circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" strokeWidth="1.3" />
-          <g stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-            <path d="M8 1v1.8M8 13.2V15M1 8h1.8M13.2 8H15M3.1 3.1l1.3 1.3M11.6 11.6l1.3 1.3M12.9 3.1l-1.3 1.3M4.4 11.6l-1.3 1.3" />
-          </g>
-        </svg>
-      )}
-    </button>
   );
 }
 

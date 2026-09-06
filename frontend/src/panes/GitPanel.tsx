@@ -122,7 +122,7 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
         <div className="t-micro mt-3 text-ink-2">Or use a repository you already have</div>
         <input
           value={url}
-          placeholder="https://github.com/you/thesis.git"
+          placeholder="https://github.com/you/paper.git"
           className="t-code-sm mt-1 h-[26px] w-full rounded-[3px] border border-line px-2 outline-none placeholder:text-ink-3"
           onChange={(event) => setUrl(event.target.value)}
         />

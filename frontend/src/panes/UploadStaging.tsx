@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { viewportHeight, viewportWidth } from "../viewport";
 import { Chevron } from "../App";
 import api from "../api";
 import { get, set, useStore } from "../store";
@@ -113,8 +114,8 @@ export default function UploadStaging({
       aria-labelledby="upload-heading"
       className="nx-arrive fixed z-40 w-[264px] rounded-[5px] border border-line bg-surface shadow-float"
       style={{
-        left: Math.min(staging.at.x, window.innerWidth - 272),
-        top: Math.min(staging.at.y, window.innerHeight - 260),
+        left: Math.min(staging.at.x, viewportWidth() - 272),
+        top: Math.min(staging.at.y, viewportHeight() - 260),
       }}
       data-testid="upload-staging"
     >

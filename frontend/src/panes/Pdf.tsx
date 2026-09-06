@@ -3,11 +3,20 @@ import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import api from "../api";
 import { get, useStore } from "../store";
+import { uiScale } from "../viewport";
+import { APPEARANCE_CHANGED } from "../appearance";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
-/** Extra device pixels so text stays crisp without quadrupling the work. */
-const RESOLUTION = Math.min(window.devicePixelRatio || 1, 2);
+/** Extra device pixels so text stays crisp without quadrupling the work.
+ *
+ *  Read per render rather than once at module load, because the interface
+ *  size is a `zoom` on the shell: at 150% a CSS pixel covers half again as
+ *  many device pixels, and a canvas drawn for the old ratio is stretched by
+ *  the browser.  A soft page is the one thing this pane cannot ship. */
+function resolution(): number {
+  return Math.min((window.devicePixelRatio || 1) * uiScale(), 3);
+}
 
 /** How far outside the viewport a page is still worth drawing. */
 const NEAR = 400;
@@ -123,7 +132,7 @@ export default function Pdf({
     try {
       const page = await document.getPage(index + 1);
       if (mine !== generation.current) return;
-      const viewport = page.getViewport({ scale: view.scale * RESOLUTION });
+      const viewport = page.getViewport({ scale: view.scale * resolution() });
       const canvas = view.canvas;
       if (canvas.width !== Math.floor(viewport.width)) {
         canvas.width = Math.floor(viewport.width);
@@ -163,6 +172,17 @@ export default function Pdf({
     }
     if (first >= 0 && first + 1 !== currentRef.current) setCurrent(first + 1);
   }, [renderPage]);
+
+  // A change of interface size changes how many device pixels a page needs.
+  // Nothing else invalidates the canvases, so say so explicitly.
+  useEffect(() => {
+    const redraw = () => {
+      for (const view of pages.current) view.drawnFor = -1;
+      drawVisible();
+    };
+    window.addEventListener(APPEARANCE_CHANGED, redraw);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, redraw);
+  }, [drawVisible]);
 
   const onScroll = useCallback(() => {
     // One pass per frame at most: scroll events fire far faster than

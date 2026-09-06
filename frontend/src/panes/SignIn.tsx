@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Appearance from "./Appearance";
 import api from "../api";
 
 /** Choosing what, if anything, writes alongside you.
@@ -26,10 +27,17 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
   return (
     <div className="flex h-full items-center justify-center bg-surround px-6">
       <div className="w-full max-w-[560px] rounded-[5px] border border-line bg-surface p-6">
-        <h1 className="t-display">NextTex</h1>
-        <p className="t-meta mt-1 text-ink-2">
-          Write LaTeX with the typeset page beside you.
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="t-display">NextTex</h1>
+            <p className="t-meta mt-1 text-ink-2">
+              Write LaTeX with the typeset page beside you.
+            </p>
+          </div>
+          {/* One 26px control on a first-run screen is the right price for a
+              first-run reader who cannot comfortably read 13px. */}
+          <Appearance />
+        </div>
 
         {choice === null ? (
           <>
