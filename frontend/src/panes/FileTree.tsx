@@ -2,10 +2,17 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useDismiss } from "../useDismiss";
 import api, { startDownload, type TreeNode } from "../api";
 import { get, set, useStore } from "../store";
+import { ancestorsOf, collisions } from "../tree";
+import UploadStaging, { type Staging } from "./UploadStaging";
+import FolderChooser from "./FolderChooser";
 
 /** 13px is the width of a Source Sans lowercase n at 13px, so indentation
  *  reads as a typographic quad rather than an arbitrary gap. */
 const INDENT = 13;
+
+/** The drop target that is not a row.  The project root has no node of its
+ *  own, which is also why nothing could be created there until now. */
+const ROOT_DROP = "\u0000root";
 
 function splitName(name: string): [string, string] {
   const dot = name.lastIndexOf(".");
@@ -35,8 +42,9 @@ export default function FileTree({
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
-  const [creating, setCreating] =
-    useState<{ parent: string; directory: boolean } | null>(null);
+  const [creating, setCreating] = useState<
+    { parent: string; directory: boolean; fromBar?: boolean } | null
+  >(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   // A roving tabindex: the tree is one stop, and the arrow keys move
   // inside it.  Forty files should not be forty tab presses.
@@ -47,6 +55,19 @@ export default function FileTree({
   const closeMenu = useCallback(() => setMenu(null), []);
   useDismiss(menuRef, menu !== null, closeMenu);
   const uploadTo = useRef<string>("");
+  // Where the picker was started from, so focus can go back there when the
+  // chooser closes, and whether that gesture named a folder of its own.
+  const uploadFrom = useRef<HTMLElement | null>(null);
+  const uploadAsked = useRef(false);
+  const [staging, setStaging] = useState<Staging | null>(null);
+  // Moving a file is a rename with a folder in it.  Over months a
+  // dissertation does get reorganised, and the only route before this was
+  // to rename a file to a path and hope that worked.
+  const [moving, setMoving] =
+    useState<{ path: string; to: string; at: { x: number; y: number } } | null>(null);
+  // Typing in the tree jumps to a file, which is why there is no filter
+  // box taking up a third of a bar that is 240px wide.
+  const typed = useRef<{ text: string; at: number }>({ text: "", at: 0 });
 
   const errorsByFile = useMemo(() => {
     const counts = new Map<string, number>();
@@ -60,6 +81,58 @@ export default function FileTree({
   const dirty = useMemo(
     () => new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path)),
     [tabs],
+  );
+
+  /** Show a file that has just been written.
+   *
+   *  A file that lands inside a collapsed folder has, from where the
+   *  writer is sitting, not landed at all. */
+  const reveal = useCallback((paths: string[]) => {
+    if (!paths.length) return;
+    setCollapsed((current) => {
+      const next = new Set(current);
+      for (const path of paths) for (const parent of ancestorsOf(path)) next.delete(parent);
+      return next;
+    });
+    setFocusPath(paths[0]);
+    window.requestAnimationFrame(() => {
+      for (const path of paths) {
+        const row = document.querySelector<HTMLElement>(
+          `[data-path="${CSS.escape(path)}"]`,
+        );
+        if (!row) continue;
+        row.classList.remove("nx-row-flash");
+        void row.offsetWidth;            // restart it if it is already on
+        row.classList.add("nx-row-flash");
+        window.setTimeout(() => row.classList.remove("nx-row-flash"), 950);
+      }
+      document
+        .querySelector<HTMLElement>(`[data-path="${CSS.escape(paths[0])}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  }, []);
+
+  /** Start an upload.  The chooser opens only when there is something to
+   *  ask: which folder, or what to do about a name already taken. */
+  const stage = useCallback(
+    (files: File[], directory: string, ask: boolean, at: { x: number; y: number },
+     from: HTMLElement | null) => {
+      const projectId = get().projectId;
+      if (!projectId || !files.length) return;
+      const clash = collisions(get().tree, directory, files.map((f) => f.name));
+      if (!ask && !clash.length) {
+        api
+          .uploadFiles(projectId, directory, files)
+          .then((answer) => {
+            onRefresh();
+            reveal(answer.written ?? []);
+          })
+          .catch((error: any) => set({ error: error.message }));
+        return;
+      }
+      setStaging({ files, directory, askDestination: ask, at, returnTo: from });
+    },
+    [onRefresh, reveal],
   );
 
   const toggle = (path: string) =>
@@ -92,6 +165,11 @@ export default function FileTree({
         setRenaming(node.path);
       } else if (action === "newfile" || action === "newfolder") {
         const parent = isDir(node) ? node.path : dirname(node.path);
+        if (parent) setCollapsed((current) => {
+          const next = new Set(current);
+          next.delete(parent);
+          return next;
+        });
         setCreating({ parent, directory: action === "newfolder" });
       } else if (action === "main") {
         await api.setMain(projectId, node.path);
@@ -99,8 +177,19 @@ export default function FileTree({
       } else if (action === "history") {
         onOpen(node.path);
         onHistory?.();
+      } else if (action === "move") {
+        const box = menuRef.current?.getBoundingClientRect();
+        setMoving({
+          path: node.path,
+          to: dirname(node.path),
+          at: { x: box?.left ?? 120, y: box?.top ?? 120 },
+        });
       } else if (action === "upload") {
         uploadTo.current = isDir(node) ? node.path : dirname(node.path);
+        uploadAsked.current = false;
+        uploadFrom.current = document.querySelector<HTMLElement>(
+          `[data-path="${CSS.escape(node.path)}"] [aria-label^="Actions for"]`,
+        );
         uploadInput.current?.click();
       }
     } catch (error: any) {
@@ -123,20 +212,17 @@ export default function FileTree({
     }
   };
 
-  const drop = async (event: React.DragEvent, node: TreeNode) => {
+  const drop = (event: React.DragEvent, node: TreeNode | null) => {
     event.preventDefault();
     event.stopPropagation();
     setDropTarget(null);
-    const projectId = get().projectId;
     const files = Array.from(event.dataTransfer.files);
-    if (!projectId || !files.length) return;
-    const directory = isDir(node) ? node.path : dirname(node.path);
-    try {
-      await api.uploadFiles(projectId, directory, files);
-      onRefresh();
-    } catch (error: any) {
-      set({ error: error.message });
-    }
+    if (!files.length) return;
+    // A file dropped on a folder has named its destination by being
+    // dropped there, so nothing is asked unless a name collides.
+    const directory = node ? (isDir(node) ? node.path : dirname(node.path)) : "";
+    stage(files, directory, false,
+          { x: event.clientX, y: event.clientY }, null);
   };
 
   const moveFocus = (path: string) => {
@@ -287,6 +373,7 @@ export default function FileTree({
           >
             {[
               ["rename", "Rename"],
+              ["move", "Move to…"],
               ...(!isDirectory && /\.(tex|ltx)$/i.test(node.name) &&
               node.path !== mainFile
                 ? [["main", "Set as main document"]]
@@ -314,28 +401,19 @@ export default function FileTree({
       </div>,
     );
 
-    if (creating && creating.parent === (isDirectory ? node.path : "")) {
+    // Only a folder hosts the row for what is being created inside it.
+    // This compared a file row's parent to "", so creating anything at the
+    // root put an input under every file in the project -- each one
+    // stealing the focus from the last, and the blur cancelling it.
+    if (creating && isDirectory && creating.parent === node.path) {
       rows.push(
         <NewName
           key={`${node.path}-new`}
           depth={depth + 1}
           directory={creating.directory}
+          prefix={creating.fromBar ? creating.parent : ""}
           onCancel={() => setCreating(null)}
-          onCommit={async (name) => {
-            const projectId = get().projectId;
-            setCreating(null);
-            if (!projectId || !name) return;
-            try {
-              await api.newFile(
-                projectId,
-                creating.parent ? `${creating.parent}/${name}` : name,
-                creating.directory,
-              );
-              onRefresh();
-            } catch (error: any) {
-              set({ error: error.message });
-            }
-          }}
+          onCommit={(name) => createEntry(name, creating.parent, creating.directory)}
         />,
       );
     }
@@ -353,72 +431,390 @@ export default function FileTree({
         depth={0}
         directory={creating.directory}
         onCancel={() => setCreating(null)}
-        onCommit={async (name) => {
-          const projectId = get().projectId;
-          setCreating(null);
-          if (!projectId || !name) return;
-          try {
-            await api.newFile(projectId, name, creating.directory);
-            onRefresh();
-          } catch (error: any) {
-            set({ error: error.message });
-          }
-        }}
+        onCommit={(name) => createEntry(name, "", creating.directory)}
       />,
     );
   }
 
+  /** Make it, show it, and open it if it is a file worth typing into. */
+  const createEntry = async (
+    name: string,
+    parent: string,
+    directory: boolean,
+  ): Promise<string> => {
+    const projectId = get().projectId;
+    if (!projectId) return "";
+    const path = parent ? `${parent}/${name}` : name;
+    try {
+      await api.newFile(projectId, path, directory);
+    } catch (error: any) {
+      if (error.status === 409) {
+        return `There is already a ${name} here.`;
+      }
+      return error.message;
+    }
+    setCreating(null);
+    onRefresh();
+    if (directory) {
+      setCollapsed((current) => {
+        const next = new Set(current);
+        next.delete(path);
+        return next;
+      });
+      reveal([`${path}/`]);
+      setFocusPath(path);
+    } else {
+      // A new .tex file exists to be typed into.  Leaving it closed makes
+      // the writer click the thing they have just made.
+      reveal([path]);
+      onOpen(path);
+    }
+    return "";
+  };
+
+  const startCreate = (directory: boolean) => {
+    // Wherever the writer is looking, or the root.  "New file here" on a
+    // row means beside that file; from the bar it means the folder the
+    // tree is focused on, and the row that appears says which.
+    const anchor = focusPath ?? activePath ?? "";
+    const known = order.current.find((row) => row.path === anchor);
+    const parent = !anchor
+      ? ""
+      : known?.directory
+        ? anchor
+        : dirname(anchor);
+    if (parent) setCollapsed((current) => {
+      const next = new Set(current);
+      next.delete(parent);
+      return next;
+    });
+    setCreating({ parent, directory, fromBar: true });
+  };
+
   return (
-    <div className="min-h-0 flex-1 overflow-auto py-[6px]" role="tree">
-      {rows}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <FilesBar
+        onNewFile={() => startCreate(false)}
+        onNewFolder={() => startCreate(true)}
+        dropping={dropTarget === ROOT_DROP}
+        onUpload={(event) => {
+          uploadTo.current = rememberedUpload();
+          uploadAsked.current = true;
+          uploadFrom.current = event.currentTarget;
+          uploadInput.current?.click();
+        }}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          setDropTarget(ROOT_DROP);
+        }}
+        onDragLeave={() => setDropTarget(null)}
+        onDrop={(event) => drop(event, null)}
+      />
+      <div
+        className="min-h-0 flex-1 overflow-auto py-[6px]"
+        role="tree"
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          setDropTarget(ROOT_DROP);
+        }}
+        onDragLeave={() => setDropTarget(null)}
+        onDrop={(event) => drop(event, null)}
+        onPaste={(event) => {
+          // Screenshot to figure, which in chemistry writing is a loop
+          // somebody runs all afternoon.  The clipboard has no filename,
+          // so it gets a dated one and goes through the same chooser as
+          // everything else rather than landing somewhere by surprise.
+          const items = Array.from(event.clipboardData?.files ?? []);
+          const images = items.filter((file) => file.type.startsWith("image/"));
+          if (!images.length) return;
+          event.preventDefault();
+          const day = new Date().toISOString().slice(0, 10);
+          const named = images.map((file, index) => {
+            const extension = file.type.split("/")[1]?.split("+")[0] ?? "png";
+            return new File(
+              [file],
+              `pasted-${day}${images.length > 1 ? `-${index + 1}` : ""}.${extension}`,
+              { type: file.type },
+            );
+          });
+          stage(named, rememberedUpload(), true, { x: 120, y: 120 }, null);
+        }}
+        onKeyDown={(event) => {
+          // Type-ahead: the reason there is no filter box.  A printable
+          // character jumps to the next visible row that starts with what
+          // has been typed, and the buffer clears after a pause.
+          if (event.key.length !== 1 || event.metaKey || event.ctrlKey) return;
+          if ((event.target as HTMLElement).tagName === "INPUT") return;
+          const now = Date.now();
+          const buffer =
+            now - typed.current.at < 700 ? typed.current.text + event.key : event.key;
+          typed.current = { text: buffer, at: now };
+          const rows = order.current;
+          const from = rows.findIndex((row) => row.path === focusPath);
+          const search = buffer.toLowerCase();
+          const hit =
+            rows.slice(from + 1).find((row) => nameOf(row.path).startsWith(search)) ??
+            rows.find((row) => nameOf(row.path).startsWith(search));
+          if (hit) moveFocus(hit.path);
+        }}
+      >
+        {rows}
+      </div>
       <input
         ref={uploadInput}
         type="file"
         multiple
         className="hidden"
-        onChange={async (event) => {
-          const projectId = get().projectId;
+        onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
+          // Reset, or picking the same file twice fires no change event.
           event.target.value = "";
-          if (!projectId || !files.length) return;
-          try {
-            await api.uploadFiles(projectId, uploadTo.current, files);
-            onRefresh();
-          } catch (error: any) {
-            set({ error: error.message });
-          }
+          const box = uploadFrom.current?.getBoundingClientRect();
+          stage(
+            files,
+            uploadTo.current,
+            uploadAsked.current,
+            { x: box ? box.left : 120, y: box ? box.bottom + 4 : 120 },
+            uploadFrom.current,
+          );
         }}
       />
+      {moving ? (
+        <MoveTo
+          moving={moving}
+          onChange={(to) => setMoving((current) => current && { ...current, to })}
+          onCancel={() => setMoving(null)}
+          onMove={async () => {
+            const projectId = get().projectId;
+            const name = moving.path.split("/").pop()!;
+            const to = moving.to ? `${moving.to}/${name}` : name;
+            setMoving(null);
+            if (!projectId || to === moving.path) return;
+            try {
+              await api.renameFile(projectId, moving.path, to);
+              onRename?.(moving.path, to);
+              onRefresh();
+              reveal([to]);
+            } catch (error: any) {
+              set({
+                error:
+                  error.status === 409
+                    ? `There is already a ${name} in that folder.`
+                    : error.message,
+              });
+            }
+          }}
+        />
+      ) : null}
+      {staging ? (
+        <UploadStaging
+          staging={staging}
+          onClose={() => setStaging(null)}
+          onDone={(written) => {
+            setStaging(null);
+            onRefresh();
+            reveal(written);
+          }}
+        />
+      ) : null}
     </div>
   );
+}
+
+/** Where the last upload in this project went.  A thesis writer uploads
+ *  to `figures/` two hundred times and anywhere else five. */
+function rememberedUpload(): string {
+  const projectId = get().projectId;
+  if (!projectId) return "";
+  try {
+    return window.localStorage.getItem(`nexttex.upload.${projectId}`) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function nameOf(path: string): string {
+  return (path.split("/").pop() ?? "").toLowerCase();
+}
+
+/** The bar under the project name.
+ *
+ *  Every file operation used to hang off a row's menu, which means there
+ *  had to *be* a row: a new project holds one empty document, so its first
+ *  folder could only be made by opening the menu on `main.tex` and knowing
+ *  that "New folder here" resolves to the folder holding it.  That is a
+ *  reachability hole rather than a convenience gap, and it is worth 26px
+ *  of a rail -- one tree row -- to close.
+ *
+ *  The project root has no row of its own, so a drop aimed at it has
+ *  nowhere to show a highlight.  This bar stands in as that row. */
+function FilesBar({
+  onNewFile,
+  onNewFolder,
+  onUpload,
+  dropping,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: {
+  onNewFile: () => void;
+  onNewFolder: () => void;
+  onUpload: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  dropping: boolean;
+  onDragOver: (event: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (event: React.DragEvent) => void;
+}) {
+  const button = "quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3";
+  return (
+    <div
+      className={`@container flex h-[26px] shrink-0 items-center border-b border-line px-[10px] ${
+        dropping ? "bg-pen-wash" : ""
+      }`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <button
+        className={button}
+        aria-label="New file"
+        title="Create a new file in the project"
+        data-testid="new-file"
+        onClick={onNewFile}
+      >
+        {/* The short forms are substrings of the accessible name, so a
+            voice command matching what is on screen still works. */}
+        <span className="hidden @[208px]:inline">New file</span>
+        <span className="@[208px]:hidden">File</span>
+      </button>
+      <button
+        className={button}
+        aria-label="New folder"
+        title="Create a new folder in the project"
+        data-testid="new-folder"
+        onClick={onNewFolder}
+      >
+        <span className="hidden @[208px]:inline">New folder</span>
+        <span className="@[208px]:hidden">Folder</span>
+      </button>
+      <button
+        className={`${button} ${dropping ? "border-b border-pen text-hint" : ""}`}
+        title="Upload files into the project"
+        data-testid="upload"
+        onClick={onUpload}
+      >
+        Upload
+      </button>
+      <span className="flex-1" />
+    </div>
+  );
+}
+
+/** A file without an extension is almost always a .tex file somebody was
+ *  in a hurry about.  A folder called `v1.2` is not. */
+const HAS_EXTENSION = /\.[A-Za-z0-9]{1,8}$/;
+
+export function finishedName(typed: string, directory: boolean): string {
+  const name = typed.trim();
+  if (directory || !name || HAS_EXTENSION.test(name)) return name;
+  return `${name}.tex`;
+}
+
+export function nameProblem(typed: string): string {
+  const name = typed.trim();
+  if (!name) return "";
+  if (name.includes("/") || name.includes("\\")) {
+    return "A name cannot contain a slash.";
+  }
+  if (name.startsWith(".")) return "A name cannot start with a dot.";
+  if (name === "." || name === "..") return "A name cannot be just dots.";
+  return "";
 }
 
 function NewName({
   depth,
   directory,
+  prefix,
   onCommit,
   onCancel,
 }: {
   depth: number;
   directory: boolean;
-  onCommit: (name: string) => void;
+  /** Shown when the row was started from the bar rather than from a row,
+   *  where an indent alone does not say which folder it landed in --
+   *  especially if that folder is scrolled out of sight. */
+  prefix?: string;
+  /** Returns a message to show in place, or "" when it worked.  A
+   *  collision belongs at the point of the mistake rather than in a strip
+   *  at the other end of the app. */
+  onCommit: (name: string) => Promise<string>;
   onCancel: () => void;
 }) {
+  const [value, setValue] = useState("");
+  const [problem, setProblem] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const commit = async (typed: string) => {
+    const trouble = nameProblem(typed);
+    if (trouble) {
+      setProblem(trouble);
+      return;
+    }
+    const name = finishedName(typed, directory);
+    if (!name) {
+      onCancel();
+      return;
+    }
+    setBusy(true);
+    const failed = await onCommit(name);
+    setBusy(false);
+    if (failed) setProblem(failed);
+  };
+
+  const adding = !directory && value.trim() && !HAS_EXTENSION.test(value.trim());
+
   return (
     <div
-      className="flex h-[26px] items-center bg-surface-2"
-      style={{ paddingLeft: 10 + depth * INDENT }}
+      className={`flex flex-col justify-center bg-surface-2 ${
+        problem ? "h-[44px]" : "h-[26px]"
+      }`}
+      style={{ paddingLeft: 10 + depth * INDENT, paddingRight: 10 }}
     >
-      <input
-        autoFocus
-        placeholder={directory ? "new folder" : "new-file.tex"}
-        className="t-ui min-w-0 flex-1 border-b border-pen outline-none placeholder:text-ink-3"
-        onBlur={(event) => onCommit(event.target.value.trim())}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") onCommit(event.currentTarget.value.trim());
-          if (event.key === "Escape") onCancel();
-        }}
-      />
+      <div className="flex min-w-0 items-center gap-1">
+        {prefix ? (
+          <span className="t-ui shrink-0 truncate text-ink-3">{prefix}/</span>
+        ) : null}
+        <input
+          autoFocus
+          disabled={busy}
+          value={value}
+          placeholder={directory ? "figures" : "new-file.tex"}
+          className={`t-ui min-w-0 flex-1 border-b bg-transparent outline-none placeholder:text-ink-3 ${
+            problem ? "border-error" : "border-pen"
+          }`}
+          onChange={(event) => {
+            setValue(event.target.value);
+            if (problem) setProblem("");
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void commit(event.currentTarget.value);
+            if (event.key === "Escape") onCancel();
+          }}
+          // No commit on blur: a name that fails validation would vanish
+          // along with what was typed the moment the message was read.
+          onBlur={() => {
+              if (!value.trim() && !problem) onCancel();
+          }}
+        />
+        {adding ? (
+          <span aria-hidden className="t-micro shrink-0 text-ink-3">
+            adds .tex
+          </span>
+        ) : null}
+      </div>
+      {problem ? <p className="t-micro truncate text-error">{problem}</p> : null}
     </div>
   );
 }
@@ -430,4 +826,59 @@ function isDir(node: TreeNode): boolean {
 function dirname(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut < 0 ? "" : path.slice(0, cut);
+}
+
+/** Where this file should live instead. */
+function MoveTo({
+  moving,
+  onChange,
+  onCancel,
+  onMove,
+}: {
+  moving: { path: string; to: string; at: { x: number; y: number } };
+  onChange: (to: string) => void;
+  onCancel: () => void;
+  onMove: () => void;
+}) {
+  const tree = useStore((s) => s.tree);
+  const [open, setOpen] = useState(true);
+  const card = useRef<HTMLDivElement | null>(null);
+  useDismiss(card, true, onCancel);
+  const name = moving.path.split("/").pop() ?? moving.path;
+
+  return (
+    <div
+      ref={card}
+      role="dialog"
+      aria-labelledby="move-heading"
+      data-testid="move-to"
+      className="nx-arrive fixed z-40 w-[264px] rounded-[5px] border border-line bg-surface shadow-float"
+      style={{
+        left: Math.min(moving.at.x, window.innerWidth - 272),
+        top: Math.min(moving.at.y, window.innerHeight - 260),
+      }}
+    >
+      <div id="move-heading" className="t-ui truncate px-[10px] pt-2 text-ink">
+        Move {name}
+      </div>
+      <FolderChooser
+        tree={tree}
+        directory={moving.to}
+        open={open}
+        onToggle={() => setOpen((value) => !value)}
+        onSelect={(path, confirm) => {
+          onChange(path);
+          if (confirm) setOpen(false);
+        }}
+      />
+      <div className="flex h-[32px] items-center justify-end gap-2 border-t border-line px-[10px]">
+        <button className="ghost-button h-[28px] px-3 t-ui" onClick={onMove}>
+          Move
+        </button>
+        <button className="quiet h-[28px] px-2 t-ui" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
 }

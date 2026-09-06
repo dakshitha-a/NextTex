@@ -443,3 +443,22 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 }
 .cm-snippetFieldPosition { border-left: 1px solid var(--hint); }
 .cm-snippetField { background: var(--hint-wash); }
+
+/* A row that just arrived because you put it there.  --hint-wash, not
+   --pen-wash: pen means Claude touched this, and this was you.
+   An animation rather than a transition, so the fade lives entirely on
+   the row that is flashing -- a transition would have to be declared on
+   every row, where it would also slow the hover the rows already have.
+   Under reduced motion the rule above drops the animation, which is the
+   right outcome: the row simply does not flash. */
+@keyframes nx-row-arrived {
+  from {
+    background: var(--hint-wash);
+  }
+  to {
+    background: transparent;
+  }
+}
+.nx-row-flash {
+  animation: nx-row-arrived 900ms var(--ease);
+}

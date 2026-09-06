@@ -344,9 +344,19 @@ const api = {
   cancelLogin: () => request<any>("/claude/login/cancel", { method: "POST" }),
   logout: () => request<any>("/claude/logout", { method: "POST" }),
 
-  uploadFiles: async (id: string, directory: string, files: File[]) => {
+  uploadFiles: async (
+    id: string,
+    directory: string,
+    files: File[],
+    /** What to do about each name already taken: replace, keep-both or
+     *  skip.  Decided in the browser from the tree it already holds, so an
+     *  upload with nothing to ask about costs no extra round trip -- and
+     *  sent with the request, because that tree can be stale. */
+    policy?: Record<string, string>,
+  ) => {
     const form = new FormData();
     form.append("directory", directory);
+    if (policy) form.append("policy", JSON.stringify(policy));
     for (const file of files) form.append("files", file);
     const response = await fetch(`/api/projects/${id}/upload`, {
       method: "POST",
@@ -354,7 +364,15 @@ const api = {
       credentials: "same-origin",
     });
     if (!response.ok) throw new ApiError(response.status, "upload failed");
-    return response.json();
+    return response.json() as Promise<{
+      written: string[];
+      results: {
+        name: string;
+        path: string;
+        outcome: "written" | "replaced" | "renamed" | "skipped";
+        renamedTo?: string;
+      }[];
+    }>;
   },
   uploadContext: async (
     id: string,

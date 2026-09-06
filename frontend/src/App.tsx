@@ -14,6 +14,7 @@ import {
   useStore,
 } from "./store";
 import Editor, { type EditorHandle } from "./panes/Editor";
+import FileView from "./panes/FileView";
 // Loaded when the editor opens, not when the app does.  PDF.js is a third
 // of the bundle and the first screen is the project list, which has no
 // preview on it at all.
@@ -44,6 +45,18 @@ const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 const LAST_PROJECT = "nexttex.lastProject";
 
 /** Every file path in a tree, flattened. */
+/** How a file can be shown, from the tree the store already holds. */
+function kindOf(tree: any, path: string): string | undefined {
+  const find = (node: any): any =>
+    node?.path === path
+      ? node
+      : (node?.children ?? []).reduce(
+          (hit: any, child: any) => hit ?? find(child),
+          null,
+        );
+  return find(tree)?.kind;
+}
+
 function pathsIn(node: any): string[] {
   if (!node) return [];
   const here = node.type === "file" && node.path ? [node.path as string] : [];
@@ -248,9 +261,15 @@ export default function App() {
     if (!state.tabs.some((tab) => tab.path === path)) {
       set({ tabs: [...state.tabs, { path, dirty: false }] });
     }
+    // A figure gets a tab and becomes the active document like anything
+    // else -- that is how its history is reached -- but it is never handed
+    // to the editor, which would read its bytes as UTF-8 and report a
+    // failure for a file that is perfectly fine.
     set({
       activePath: path,
-      pendingOpen: { path, line, nonce: Date.now() },
+      ...(kindOf(get().tree, path) === "text" || !kindOf(get().tree, path)
+        ? { pendingOpen: { path, line, nonce: Date.now() } }
+        : {}),
     });
   }, []);
 
@@ -609,6 +628,22 @@ export default function App() {
   // has to be reachable from somewhere else.
   const railFolded = railHidden || folded.rail;
 
+  /** The active file, when it is one the editor cannot open. */
+  const activeBinary = (() => {
+    if (!activePath) return null;
+    const find = (node: any): any =>
+      node?.path === activePath
+        ? node
+        : (node?.children ?? []).reduce(
+            (hit: any, child: any) => hit ?? find(child),
+            null,
+          );
+    const node = find(get().tree);
+    return node && node.type === "file" && node.kind && node.kind !== "text"
+      ? node
+      : null;
+  })();
+
   return (
     <div ref={shell} className="relative flex h-full w-full overflow-hidden bg-surround">
       {railHidden || folded.rail ? (
@@ -627,7 +662,9 @@ export default function App() {
             className="nx-pane flex min-h-0 flex-col bg-surface"
             style={{ width: widths.rail }}
           >
-            <div className="flex h-[32px] shrink-0 items-center justify-between border-b border-line px-[10px]">
+            {/* No rule under this: the Files bar below carries it, so the
+                project name and the file actions read as one masthead. */}
+            <div className="flex h-[32px] shrink-0 items-center justify-between px-[10px]">
               <button
                 className="flex min-w-0 items-center gap-2 transition-colors duration-[90ms] hover:text-hint"
                 data-testid="switch-project"
@@ -760,6 +797,17 @@ export default function App() {
           <div className="relative flex min-h-0 flex-1">
             <div className="relative min-h-0 flex-1">
               <Editor handleRef={(handle) => (editor.current = handle)} />
+
+              {/* A figure is a file in this project like any other: it has
+                  a tab, a place in the tree, and -- since it can now be
+                  replaced without losing what it replaced -- a history.
+                  All three of those go through "the active document", so
+                  one that CodeMirror cannot hold has to be shown here. */}
+              {activeBinary ? (
+                <div className="absolute inset-0">
+                  <FileView path={activeBinary.path} size={activeBinary.size} />
+                </div>
+              ) : null}
 
               {tabs.length === 0 ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-surface">
@@ -1131,13 +1179,20 @@ function Segmented({
   onChange: (value: "source" | "preview") => void;
 }) {
   return (
+    // A group of two buttons with a pressed state, not a tablist: there is
+    // no panel associated with either and no arrow-key navigation between
+    // them, and claiming a role whose contract is not honoured tells a
+    // screen reader something untrue.
     <div
+      role="group"
+      aria-label="Show the source or the preview"
       data-testid="view-toggle"
       className="mr-2 flex shrink-0 overflow-hidden rounded-[3px] border border-line"
     >
       {(["source", "preview"] as const).map((option) => (
         <button
           key={option}
+          aria-pressed={value === option}
           className={`t-micro border-b-2 px-2 py-[3px] transition-colors duration-[90ms] ${
             value === option
               ? "border-hint bg-surface text-ink"

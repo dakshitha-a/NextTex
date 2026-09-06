@@ -93,3 +93,80 @@ test("the composer can be reached by keyboard from the editor", async ({ tab }) 
   }
   throw new Error("the composer is not reachable by tabbing");
 });
+
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test("the upload chooser is announced, including its conflicts", async ({
+  app, project, tab,
+}) => {
+  await tab.evaluate(
+    async ({ base, token, id }) => {
+      await fetch(`${base}/api/projects/${id}/file`, {
+        method: "PUT",
+        headers: { "content-type": "application/json", "x-nexttex-token": token },
+        body: JSON.stringify({
+          path: "figures/plot.png", text: "x\n", compile: false, create: true,
+        }),
+      });
+    },
+    { base: app.base, token: app.token, id: project.id },
+  );
+  await expect(
+    tab.getByRole("treeitem", { name: /plot\.png/ }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await tab.getByTestId("upload").click();
+  await tab
+    .locator('input[type="file"]')
+    .setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
+  const chooser = tab.getByTestId("upload-staging");
+  await expect(chooser).toBeVisible({ timeout: 10_000 });
+  await chooser.getByRole("button", { name: /Into/ }).click();
+  await chooser.getByRole("option", { name: "figures" }).click();
+  await expect(chooser.getByText("1 file is already there.")).toBeVisible();
+
+  const found = await violations(tab);
+  expect(describeAll(found)).toBe("");
+});
+
+test("the folder list can be worked without a mouse", async ({ tab }) => {
+  await tab.getByTestId("upload").click();
+  await tab
+    .locator('input[type="file"]')
+    .setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
+  const chooser = tab.getByTestId("upload-staging");
+  await expect(chooser).toBeVisible({ timeout: 10_000 });
+
+  // Focus lands on the destination, because "where" is the first question.
+  await expect(chooser.getByRole("button", { name: /Into/ })).toBeFocused();
+  await tab.keyboard.press("Enter");
+  await expect(chooser.getByRole("listbox")).toBeVisible();
+
+  // Selection follows focus, which is allowed for a single-select list and
+  // is one keystroke to reverse.
+  await chooser.getByRole("listbox").focus();
+  await tab.keyboard.press("ArrowDown");
+  await expect(
+    chooser.getByRole("option", { name: "figures" }),
+  ).toHaveAttribute("aria-selected", "true");
+  await tab.keyboard.press("Enter");
+  await expect(chooser.getByRole("listbox")).toHaveCount(0);
+  await expect(chooser.getByRole("button", { name: /Into/ })).toContainText(
+    "figures",
+  );
+});
+
+test("Escape closes the chooser and gives focus back", async ({ tab }) => {
+  await tab.getByTestId("upload").click();
+  await tab
+    .locator('input[type="file"]')
+    .setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
+  await expect(tab.getByTestId("upload-staging")).toBeVisible({ timeout: 10_000 });
+  await tab.keyboard.press("Escape");
+  await expect(tab.getByTestId("upload-staging")).toHaveCount(0);
+  // Back where it started, rather than at the top of the document.
+  await expect(tab.getByTestId("upload")).toBeFocused();
+});
