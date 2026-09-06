@@ -224,13 +224,142 @@ test("a file can be moved into another folder", async ({ tab }) => {
   await dialog.getByRole("button", { name: "Move", exact: true }).click();
 
   await expect(
-    tab.locator('[data-path="appendices/references.bib"]'),
+    row(tab, "appendices/references.bib"),
   ).toBeVisible({ timeout: 15_000 });
 });
 
 test("typing in the tree jumps to a file", async ({ tab }) => {
-  // The reason there is no filter box taking a third of a 240px bar.
+  // Kept as the keyboard path now that there is also a filter box.
   await tab.getByRole("treeitem", { name: /main\.tex/ }).first().click();
   await tab.keyboard.press("r");
-  await expect(tab.locator('[data-path="references.bib"]')).toBeFocused();
+  await expect(row(tab, "references.bib")).toBeFocused();
+});
+
+
+/** A row in the file list.  Tabs carry `data-path` too, so a bare selector
+ *  matches the open file twice and means neither. */
+const row = (tab: Page, path: string) =>
+  tab.locator(`[role="tree"] [data-path="${path}"]`);
+
+/** Drag one row onto another.
+ *
+ *  The events are dispatched rather than mimed with the mouse.  Chromium,
+ *  driven headlessly, raises `dragstart` and `dragover` for a real pointer
+ *  drag and then ends it with `dragend` instead of `drop`, so a mouse-driven
+ *  version of this passes only when the feature is broken.  What is under
+ *  test is what the tree does with the drop, and that is exercised here in
+ *  full: the same handlers, the same DataTransfer, the same server call.
+ *  That Chromium starts the drag at all is checked by hand in a real
+ *  browser instead. */
+async function dragRow(tab: Page, from: string, onto: string): Promise<void> {
+  await tab.evaluate(
+    ({ from, onto }) => {
+      const at = (path: string) =>
+        document.querySelector(`[role="tree"] [data-path="${path}"]`)!;
+      const data = new DataTransfer();
+      at(from).dispatchEvent(
+        new DragEvent("dragstart", { bubbles: true, dataTransfer: data }),
+      );
+      const target = at(onto);
+      target.dispatchEvent(
+        new DragEvent("dragover", { bubbles: true, dataTransfer: data }),
+      );
+      target.dispatchEvent(
+        new DragEvent("drop", { bubbles: true, dataTransfer: data }),
+      );
+    },
+    { from, onto },
+  );
+}
+
+test("the file list can be searched, and clearing it gives the tree back", async ({
+  app, project, tab,
+}) => {
+  await put(tab, app.base, app.token, project.id, "chapters/02_theory.tex");
+  await put(tab, app.base, app.token, project.id, "chapters/03_results.tex");
+  await expect(row(tab, "chapters")).toBeVisible({
+    timeout: 15_000,
+  });
+
+  // Collapse a folder first: clearing the search has to give this back
+  // rather than leaving the tree unfolded on the writer's behalf.
+  await row(tab, "chapters").click();
+  await expect(row(tab, "chapters/02_theory.tex")).toBeHidden();
+
+  await tab.getByTestId("file-search-open").click();
+  await tab.getByTestId("file-search").fill("theory");
+
+  // The match is shown, through a folder that is collapsed, and the file
+  // that does not match is not.
+  await expect(row(tab, "chapters/02_theory.tex")).toBeVisible();
+  await expect(row(tab, "chapters/03_results.tex")).toBeHidden();
+  await expect(row(tab, "main.tex")).toBeHidden();
+
+  await tab.getByTestId("file-search").press("Escape");
+  await expect(row(tab, "main.tex")).toBeVisible();
+  // Still collapsed, exactly as it was left.
+  await expect(row(tab, "chapters/02_theory.tex")).toBeHidden();
+});
+
+test("a search that finds nothing says so", async ({ tab }) => {
+  await tab.getByTestId("file-search-open").click();
+  await tab.getByTestId("file-search").fill("zzzz");
+  await expect(tab.getByTestId("no-matches")).toContainText("zzzz");
+});
+
+test("a file can be dragged into a folder", async ({ tab }) => {
+  await tab.getByTestId("new-folder").click();
+  await tab.keyboard.type("appendices");
+  await tab.keyboard.press("Enter");
+  await expect(row(tab, "appendices")).toBeVisible({
+    timeout: 15_000,
+  });
+
+  await dragRow(tab, "references.bib", "appendices");
+
+  await expect(row(tab, "appendices/references.bib")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(row(tab, "references.bib")).toBeHidden();
+});
+
+test("a folder dragged into itself is refused, and nothing moves", async ({
+  app, project, tab,
+}) => {
+  await put(tab, app.base, app.token, project.id, "chapters/figures/plot.tex");
+  await expect(row(tab, "chapters")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(row(tab, "chapters/figures")).toBeVisible();
+
+  await dragRow(tab, "chapters", "chapters/figures");
+
+  // Still where it was, and no error strip: an illegal drop is refused
+  // while it is being dragged rather than attempted and reported.
+  await expect(row(tab, "chapters/figures")).toBeVisible();
+  await expect(
+    row(tab, "chapters/figures/chapters"),
+  ).toHaveCount(0);
+});
+
+test("a tab follows the folder it was in", async ({ app, project, tab }) => {
+  // The bug this guards: a folder move remapped only the folder's own path,
+  // so an open file inside it kept pointing at a place that no longer
+  // existed -- and the next autosave wrote it back there.
+  await put(tab, app.base, app.token, project.id, "chapters/02_theory.tex");
+  await tab.getByTestId("new-folder").click();
+  await tab.keyboard.type("parts");
+  await tab.keyboard.press("Enter");
+  await expect(row(tab, "parts")).toBeVisible({ timeout: 15_000 });
+
+  await row(tab, "chapters/02_theory.tex").click();
+  await expect(
+    tab.locator('[data-tab][data-path="chapters/02_theory.tex"]'),
+  ).toBeVisible();
+
+  await dragRow(tab, "chapters", "parts");
+
+  await expect(
+    tab.locator('[data-tab][data-path="parts/chapters/02_theory.tex"]'),
+  ).toBeVisible({ timeout: 15_000 });
 });

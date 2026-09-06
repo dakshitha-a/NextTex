@@ -64,6 +64,9 @@ class NoAgent:
     async def disconnect(self) -> None:
         return None
 
+    async def reset(self) -> None:
+        return None
+
     async def interrupt(self) -> None:
         return None
 

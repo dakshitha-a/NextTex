@@ -156,6 +156,27 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "remember",
+            "description": (
+                "Remember something about this project so it survives into "
+                "later conversations. Use it when the writer tells you to "
+                "remember something, and on your own when you learn a "
+                "durable fact you would want in a fresh conversation -- who "
+                "the supervisor is, that a chapter is finished and must not "
+                "be touched, which citation style the journal wants. Not for "
+                "anything you can read off disk, and not for what is in the "
+                "file you are editing now."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"note": {"type": "string"}},
+                "required": ["note"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_library",
             "description": (
                 "Search the papers the writer has already collected for this "
@@ -195,6 +216,7 @@ class OpenAIAgent:
         *,
         context_prompt: Callable[[], str] | None = None,
         has_voice: Callable[[], bool] | None = None,
+        remember: Callable[[str], tuple[bool, str]] | None = None,
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
@@ -209,6 +231,9 @@ class OpenAIAgent:
         self.state_dir = state_dir
         self.context_prompt = context_prompt or (lambda: "")
         self.has_voice = has_voice or (lambda: False)
+        self.remember_note = remember or (
+            lambda _note: (False, "This project has nowhere to keep a memory.")
+        )
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
@@ -502,6 +527,13 @@ class OpenAIAgent:
         if name == "add_reference":
             return await asyncio.to_thread(self._add_reference, str(args.get("doi") or ""))
 
+        if name == "remember":
+            # The system prompt is rebuilt on every request here, so unlike
+            # the Claude path there is nothing to reconnect: the note is in
+            # the next turn's instructions already.
+            _kept, message = self.remember_note(str(args.get("note") or ""))
+            return message
+
         if name == "search_library":
             from .library import Library
             from .references import _load
@@ -641,6 +673,18 @@ class OpenAIAgent:
     @property
     def usage_path(self) -> Path:
         return self.state_dir / "openai-usage.json"
+
+    async def reset(self) -> None:
+        """Forget the conversation.
+
+        There is no session id here: the whole conversation is the message
+        list, replayed on every request, so clearing it in memory and on
+        disk is the entire job.
+        """
+        if self.busy:
+            raise RuntimeError("a turn is still running")
+        self._messages = []
+        self.messages_path.unlink(missing_ok=True)
 
     @property
     def messages_path(self) -> Path:

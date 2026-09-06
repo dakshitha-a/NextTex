@@ -53,6 +53,27 @@ export default function ContextPanel({
     return () => window.clearTimeout(timer);
   }, [openFor, onHandled]);
 
+  // What the agent has been told to remember.  Fetched when the panel is
+  // opened rather than on mount: most sessions never look at it.
+  const [memory, setMemory] = useState<{ text: string; limit: number } | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  useEffect(() => {
+    const projectId = get().projectId;
+    if (!open || !projectId) return;
+    api.memory(projectId).then(setMemory).catch(() => undefined);
+  }, [open, documents]);
+
+  const saveMemory = async () => {
+    const projectId = get().projectId;
+    if (!projectId || editing === null) return;
+    try {
+      setMemory(await api.setMemory(projectId, editing));
+      setEditing(null);
+    } catch (error: any) {
+      set({ error: error.message });
+    }
+  };
+
   const upload = async (files: File[]) => {
     const projectId = get().projectId;
     if (!projectId || !files.length) return;
@@ -80,6 +101,70 @@ export default function ContextPanel({
       </button>
       {open ? (
         <div className="px-[10px] pb-[8px]">
+          {/* First, because it is the one thing here the writer dictated
+              rather than uploaded -- and the only way to reach it: the
+              folder it lives in is hidden from the file list. */}
+          <div className="mt-2">
+            <div className="flex items-center justify-between">
+              <span className="t-micro text-ink-2">What {name} remembers</span>
+              {editing === null ? (
+                <button
+                  className="quiet t-micro"
+                  data-testid="memory-edit"
+                  onClick={() => setEditing(memory?.text ?? "")}
+                >
+                  Edit
+                </button>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <button className="quiet t-micro" onClick={() => setEditing(null)}>
+                    Cancel
+                  </button>
+                  <button
+                    className="quiet t-micro text-pen"
+                    data-testid="memory-save"
+                    onClick={saveMemory}
+                  >
+                    Save
+                  </button>
+                </span>
+              )}
+            </div>
+            {editing === null ? (
+              memory?.text ? (
+                <p
+                  className="t-meta whitespace-pre-wrap text-ink-2"
+                  data-testid="memory-text"
+                >
+                  {memory.text}
+                </p>
+              ) : (
+                <p className="t-meta text-ink-3">
+                  Nothing yet. Ask {name} to remember something, or write it
+                  here yourself.
+                </p>
+              )
+            ) : (
+              <>
+                <textarea
+                  className="t-ui mt-1 w-full resize-y rounded-[3px] border border-line bg-surface-2 p-2 text-ink outline-none focus:border-pen"
+                  rows={6}
+                  data-testid="memory-editor"
+                  value={editing}
+                  onChange={(event) => setEditing(event.target.value)}
+                />
+                <span
+                  className={`t-micro ${
+                    memory && editing.length > memory.limit * 0.9
+                      ? "text-warn"
+                      : "text-ink-3"
+                  }`}
+                >
+                  {editing.length} / {memory?.limit ?? 4000}
+                </span>
+              </>
+            )}
+          </div>
           {KINDS.map((entry) => {
             const mine = documents.filter((item) => item.kind === entry.key);
             return (

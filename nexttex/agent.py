@@ -255,6 +255,7 @@ class ProjectAgent:
         *,
         context_prompt: Callable[[], str] | None = None,
         has_voice: Callable[[], bool] | None = None,
+        remember: Callable[[str], tuple[bool, str]] | None = None,
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
@@ -267,6 +268,13 @@ class ProjectAgent:
         self.state_dir = state_dir
         self.context_prompt = context_prompt or (lambda: "")
         self.has_voice = has_voice or (lambda: False)
+        self.remember_note = remember or (
+            lambda _note: (False, "This project has nowhere to keep a memory.")
+        )
+        # A memory written mid-conversation does not reach the system prompt
+        # until the client is rebuilt, so the turn that wrote it says so at
+        # the end rather than reconnecting under its own answer.
+        self._memory_dirty = False
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
@@ -297,6 +305,11 @@ class ProjectAgent:
         self._pending: dict[str, asyncio.Future] = {}
         # Prefixes the user chose to always allow, e.g. "Bash:latexmk".
         self._always_allow: set[str] = set()
+        # Approve without asking.  Persisted per project, and deliberately
+        # not in `nexttex.toml`: that file is committed with the writing, and
+        # a switch that lowers the permission fence must not travel to
+        # somebody else's machine in a git clone.
+        self.auto = self._load_auto()
         # Edits made this turn, drained by the caller into the transcript.
         self._edits: list[EditRecord] = []
         self._file_snapshots: dict[str, str] = {}
@@ -335,6 +348,26 @@ class ProjectAgent:
             temp = self._session_path.with_suffix(".json.tmp")
             temp.write_text(json.dumps({"session_id": session_id}), encoding="utf-8")
             temp.replace(self._session_path)
+        except OSError:
+            pass
+
+    @property
+    def _auto_path(self) -> Path:
+        return self.state_dir / "agent-settings.json"
+
+    def _load_auto(self) -> bool:
+        try:
+            return bool(json.loads(self._auto_path.read_text()).get("auto", False))
+        except (OSError, json.JSONDecodeError):
+            return False
+
+    def set_auto(self, on: bool) -> None:
+        self.auto = bool(on)
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            temp = self._auto_path.with_suffix(".json.tmp")
+            temp.write_text(json.dumps({"auto": self.auto}), encoding="utf-8")
+            temp.replace(self._auto_path)
         except OSError:
             pass
 
@@ -483,7 +516,29 @@ class ProjectAgent:
                 except OSError:
                     self._file_snapshots[str(path)] = ""
                 return self._allow("Inside the writing project.")
-            # Falls through to ask.
+            # Falls through to ask -- and this one is asked even in auto
+            # mode.  Everything inside the project is the writing, which is
+            # what the agent is for; a write outside it is the one action
+            # that leaves the thing the writer pointed it at, and a
+            # convenience switch is not consent for that.
+            decision = await self._ask_user(tool_name, tool_input)
+            if decision in {"allow", "always"}:
+                return self._allow()
+            result = self._deny("The user declined this action.")
+            if self._cancelled:
+                result["continue_"] = False
+                result["stopReason"] = "Interrupted."
+            return result
+
+        if self.auto:
+            # Read here, at the moment the call is made, so a switch flipped
+            # while a card is already on screen never answers it: the writer
+            # is looking at that card, and having it resolve itself under
+            # their cursor is what the click shield exists to prevent.
+            await self._settled(
+                tool_name, tool_input, self._rule_for(tool_name, tool_input), "auto"
+            )
+            return self._allow("Approved automatically.")
 
         decision = await self._ask_user(tool_name, tool_input)
         if decision in {"allow", "always"}:
@@ -494,6 +549,24 @@ class ProjectAgent:
             result["stopReason"] = "Interrupted."
         return result
 
+    async def _settled(
+        self, tool_name: str, tool_input: dict, rule: str, decision: str
+    ) -> None:
+        """Record an action that was allowed without anybody being asked.
+
+        The same shape as a card the writer answered, carrying its own
+        decision, so the transcript reads as one list of what was done
+        rather than hiding the approvals nobody had to make.
+        """
+        await self._emit({
+            "type": "permission",
+            "id": f"{decision}-{int(time.time()*1000)}-{secrets.token_hex(3)}",
+            "tool": tool_name,
+            "rule": rule,
+            "decision": decision,
+            **self.describe(tool_name, tool_input),
+        })
+
     async def _ask_user_would_return(self, tool_name: str, tool_input: dict) -> bool:
         """Whether a remembered rule already covers this call, without asking."""
         rule = self._rule_for(tool_name, tool_input)
@@ -503,6 +576,10 @@ class ProjectAgent:
         """Put a permission card in front of the user and wait for the answer."""
         rule = self._rule_for(tool_name, tool_input)
         if rule and rule in self._always_allow:
+            # Recorded rather than silent.  A rule the writer set earlier is
+            # still an action taken on their document, and the transcript is
+            # the account of what was done to it.
+            await self._settled(tool_name, tool_input, rule, "always")
             return "allow"
 
         # Two tool calls can land in the same millisecond, and the second
@@ -876,6 +953,23 @@ class ProjectAgent:
                 lines.append(f"- {problem['key']}: {'; '.join(problem['issues'])}")
             return self._text("\n".join(lines))
 
+        @tool(
+            "remember",
+            "Remember something about this project so it survives into later "
+            "conversations. Use it when the writer tells you to remember "
+            "something, and on your own when you learn a durable fact you "
+            "would want in a fresh conversation -- who the supervisor is, "
+            "that a chapter is finished and must not be touched, which "
+            "citation style the journal wants. Not for anything you can read "
+            "off disk, and not for what is in the file you are editing now.",
+            {"note": str},
+        )
+        async def remember(args: dict) -> dict:
+            kept, message = self.remember_note(str(args.get("note") or ""))
+            if kept:
+                self.memory_changed()
+            return self._text(message)
+
         return create_sdk_mcp_server(
             name="nexttex",
             version="1.0.0",
@@ -883,6 +977,7 @@ class ProjectAgent:
                 editor_state, compile_diagnostics, compile_document,
                 insert_at_cursor, insert_figure, insert_table, goto,
                 search_library, find_papers, add_reference, check_references,
+                remember,
             ],
         )
 
@@ -1048,8 +1143,17 @@ class ProjectAgent:
         )
 
     async def _ensure_client(self) -> ClaudeSDKClient:
+        # A memory written since this client was built is not in its system
+        # prompt, which is fixed for the client's lifetime.  Rebuilding here
+        # covers both the note the agent wrote itself and the one the writer
+        # typed into the panel, and it happens between turns rather than
+        # under one.
+        if self._client is not None and self._memory_dirty:
+            self._memory_dirty = False
+            await self.disconnect()
         if self._client is not None:
             return self._client
+        self._memory_dirty = False
         client = ClaudeSDKClient(options=self._options())
         await client.connect()
         self._client = client
@@ -1345,6 +1449,43 @@ class ProjectAgent:
             return
         self.model = model or None
         await self.disconnect()
+
+    async def reset(self) -> None:
+        """Forget the conversation, and keep everything that is not one.
+
+        The session id is what makes the model remember: it is written to
+        disk and passed as `resume` every time a client is built, so
+        dropping the panel's contents without dropping this would leave the
+        writer looking at an empty column while the model still talked about
+        the sentence it added earlier.  The live client has the old id baked
+        into its options, so it goes too.
+
+        Usage stays: it is what this project has cost, not what was said.
+        The remembered permission rules stay as well -- they are about which
+        commands are safe in this project, and re-asking about a build
+        command the writer has already approved is not a fresh start, it is
+        an annoyance.
+        """
+        if self.busy:
+            raise RuntimeError("a turn is still running")
+        self._session_id = None
+        self._session_path.unlink(missing_ok=True)
+        self._file_snapshots.clear()
+        self._edits.clear()
+        self._why = ""
+        await self.disconnect()
+
+    def memory_changed(self) -> None:
+        """The memory changed, from the panel or from the agent's own tool.
+
+        Marked rather than acted on: the system prompt is assembled once per
+        client and this one outlives many turns, so the change is taken up
+        the next time a client is built.  Rebuilding here instead would
+        close the transport a running answer is still arriving on, which is
+        the failure `set_model` defers around.  The conversation survives
+        either way -- the next client resumes the same session id.
+        """
+        self._memory_dirty = True
 
     async def _flush_edits(self) -> None:
         for edit in self.drain_edits():

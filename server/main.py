@@ -43,7 +43,7 @@ from nexttex.library import (
 )
 from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
-from nexttex.context import KINDS
+from nexttex.context import KINDS, MEMORY_MAX_CHARS
 from nexttex.project import (
     IGNORED_FILES, Project, ProjectConfig, Registry, instance_name,
 )
@@ -1130,6 +1130,34 @@ async def add_context(
     return {"added": added, "stale": session.context.needs_distillation()}
 
 
+@app.get("/api/projects/{project_id}/context/memory")
+async def read_memory(project_id: str):
+    session = session_for(project_id)
+    return {
+        "text": session.context.memory_text(),
+        "limit": MEMORY_MAX_CHARS,
+    }
+
+
+@app.put("/api/projects/{project_id}/context/memory")
+async def write_memory(project_id: str, text: str = Body(..., embed=True)):
+    """Edit by hand what the agent was asked to remember.
+
+    The distilled summaries beside it are meant to be corrected rather than
+    regenerated, and memory is more so: it is the one thing here the writer
+    dictated in the first place.
+    """
+    session = session_for(project_id)
+    saved = session.context.set_memory(text)
+    # The system prompt is fixed for a Claude client's lifetime, so the
+    # agent has to be told the ground moved under it.
+    changed = getattr(session.agent, "memory_changed", None)
+    if callable(changed):
+        changed()
+    await session.events.publish({"type": "context_changed"})
+    return {"text": saved, "limit": MEMORY_MAX_CHARS}
+
+
 @app.delete("/api/projects/{project_id}/context/{document_id}")
 async def remove_context(project_id: str, document_id: str):
     session = session_for(project_id)
@@ -1711,6 +1739,38 @@ async def agent_ask(project_id: str, prompt: str = Body(..., embed=True)):
     return {"ok": True}
 
 
+@app.post("/api/projects/{project_id}/agent/reset")
+async def agent_reset(project_id: str):
+    """Put this conversation away and start an empty one.
+
+    Refused while a turn is running rather than interrupting it first: the
+    interrupt is asynchronous, and tearing the client down while an answer
+    is still arriving is the failure the model switch already defers around.
+    The button is disabled in the meantime, so this is the second line.
+    """
+    session = session_for(project_id)
+    try:
+        await session.agent.reset()
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc))
+    archived = session.transcript.archive()
+    # Every tab, so a second one is not left holding a conversation the
+    # server has filed away and can no longer answer for.
+    await session.events.publish({"type": "conversation_reset"})
+    return {"ok": True, "archived": archived}
+
+
+@app.post("/api/projects/{project_id}/agent/auto")
+async def agent_auto(project_id: str, on: bool = Body(..., embed=True)):
+    session = session_for(project_id)
+    setter = getattr(session.agent, "set_auto", None)
+    if not callable(setter):
+        raise HTTPException(400, "this agent does not ask permission")
+    setter(bool(on))
+    await session.events.publish({"type": "agent_settings", "auto": bool(on)})
+    return {"auto": bool(on)}
+
+
 @app.post("/api/projects/{project_id}/agent/permission")
 async def agent_permission(
     project_id: str, id: str = Body(...), decision: str = Body(...)
@@ -1775,6 +1835,12 @@ async def agent_usage(project_id: str):
         # saying so is the one failure this cannot detect from the event
         # stream alone -- there is nothing to detect, which is the bug.
         "busy": session.agent.busy,
+        # Whether this agent approves without asking, and whether it is the
+        # kind of agent that ever asks at all -- the OpenAI and no-agent
+        # paths never put a card up, so offering the switch there would
+        # promise a change that does not happen.
+        "auto": bool(getattr(session.agent, "auto", False)),
+        "asks": callable(getattr(session.agent, "set_auto", None)),
     }
 
 
