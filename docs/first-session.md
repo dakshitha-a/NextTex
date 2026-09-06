@@ -157,7 +157,7 @@ the lines it changed flash in the editor.
 The important part is what it *cannot* do. The agent never composes BibTeX. It
 gets a DOI from a real search and fetches the publisher's own record; if the
 DOI does not resolve, nothing is written and it says so. A fabricated
-reference in a thesis is an academic integrity failure, so the defence is
+reference in a paper is an academic integrity failure, so the defence is
 structural rather than a matter of the model being careful: there is no path
 from its memory to your `.bib` file.
 
@@ -252,7 +252,7 @@ are recoverable.
 ## Where things are
 
 ```
-your-thesis/
+your-paper/
 ├── main.tex                 your files, untouched
 ├── chapters/
 ├── references.bib

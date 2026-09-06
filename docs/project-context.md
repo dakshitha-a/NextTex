@@ -5,12 +5,11 @@ formatting handbook it must obey, and — if the writing is to sound like the
 person writing it — samples of how that person actually writes. NextTex lets
 both be uploaded, and makes the agent use them.
 
-This generalises something that was done by hand for the dissertation that
-NextTex was built alongside: a university formatting handbook was read once and
-its rules recorded where the agent would see them, and an earlier piece of the
-author's own writing was read once and distilled into a description of their
-voice. Doing that by hand works and is worth automating, because it is the same
-job for every writer.
+This generalises something scientific writers already do by hand: a journal's
+author instructions are read once and their rules recorded where the agent will
+see them, and an earlier paper by the same author is read once and distilled
+into a description of their voice. Doing that by hand works and is worth
+automating, because it is the same job for every writer.
 
 ## Where it lives
 

@@ -332,7 +332,7 @@ patch applies cleanly, `Undo` is live. If the user has typed inside that range s
 chip drops `Undo`, keeps `Show`, and the hover hint reads `Changed since — can't undo
 cleanly`. On undo, the chip collapses to a 20 px struck-through line — `Reverted —
 02_theory.tex`, `--ink-3` — with a `Redo` link live for 10 s. The reverted chip then **stays
-in the transcript permanently**. The chat is a record of what was done to the dissertation;
+in the transcript permanently**. The chat is a record of what was done to the manuscript;
 nothing in it ever disappears.
 
 ### Permission card
@@ -1056,7 +1056,7 @@ afternoon.
 The agent was Claude, and the app was built around it closely enough that
 "which model" looked like a setting nobody would ever need. Two things
 changed that. Not everybody has a Claude account. And more importantly: a
-writer who does not want an AI anywhere near their thesis is not a lapsed
+writer who does not want an AI anywhere near their manuscript is not a lapsed
 user of this app, they are its core user with one panel switched off.
 
 So there are three providers, and the third is `none`.

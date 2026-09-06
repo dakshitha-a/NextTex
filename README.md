@@ -20,7 +20,7 @@ Overleaf, after you close the tab.
 **The page follows your typing.** The editor holds a keystroke for 250 ms
 before it saves, the server waits 1.6 s for typing to settle, and then it
 builds. When a document uses `\include`, an ordinary edit typesets only the
-chapter you are in — measured at **357 ms** on a forty-file thesis — so the
+section you are in — measured at **357 ms** on a forty-file project — so the
 page redraws about two seconds after you stop. A new citation key or a new
 label pays for the full run with `biber`, and nothing else does. A
 half-finished equation holds the build back for four seconds rather than
@@ -85,7 +85,7 @@ trash that loses the thing you went looking for on day thirty-one. None of it
 is git, and none of it needs you to have committed.
 
 **Four git commands, and the fifth one is a terminal.** See what changed,
-commit it, push it, pull it back on another machine — that is a thesis's whole
+commit it, push it, pull it back on another machine — that is a paper's whole
 relationship with git, and each is one button in the rail footer. A project
 with no repository is offered one, with a first commit and a `.gitignore` that
 already knows about `build/` and `.nexttex/`. With the GitHub CLI signed in,
@@ -109,7 +109,7 @@ syntax gets no rule at all and is asked about every time.
 Semantic Scholar and gets back real DOIs; it adds an entry by DOI, and the
 BibTeX comes from the publisher's own record rather than from the model. It
 can then re-check every entry in your bibliography against the record it
-claims to come from. A fabricated reference in a thesis is an academic
+claims to come from. A fabricated reference in a paper is an academic
 integrity failure, so the defence is structural rather than a matter of care:
 there is no path from the model's memory to your `.bib` file.
 
@@ -154,7 +154,7 @@ time; there are no accounts, no comments, no suggestions and no shared
 cursors. Two tabs of your own on one project do work, and a save from a stale
 tab is refused and offered as a choice rather than allowed to overwrite the
 other. If you need real co-authoring, use Overleaf. NextTex is for the writer
-whose thesis lives on their own disk.
+whose manuscript lives on their own disk.
 
 It is also not a git client — branching and merging stay in the terminal — and
 not a general-purpose editor.
@@ -287,7 +287,7 @@ Everything NextTex adds lives in one directory beside your files, and none of
 it is needed to compile:
 
 ```
-your-thesis/
+your-paper/
 ├── main.tex                 your files, untouched
 ├── chapters/
 ├── references.bib
@@ -322,8 +322,8 @@ that kind of command from now on, `D` denies.
 
 MIT. See [LICENSE](LICENSE).
 
-NextTex was built to write a chemistry PhD dissertation in, and that
-dissertation is still what it is tested against — a forty-file LaTeX project
-in git with its own Makefile, which NextTex has to leave working exactly as it
-was. Issues are welcome. This is a personal tool; I make no promises about
-pull requests.
+NextTex was built to write scientific papers in — the kind of document that
+lives in git, carries a bibliography, and gets rewritten more often than it
+gets written. It is tested against a forty-file LaTeX project with its own
+Makefile, which NextTex has to leave working exactly as it was. Issues are
+welcome. This is a personal tool; I make no promises about pull requests.

@@ -132,6 +132,24 @@ def test_nothing_private_is_committed_with_the_example_project():
     assert not (ROOT / "examples" / "minimal-article" / ".nexttex").exists()
 
 
+def test_the_example_project_is_generic():
+    """The example is the first thing a new install opens, and it is a real
+    project on disk -- so driving the running app against it edits the file
+    that ships, and a `git add -A` commits whatever the session left there.
+    That is exactly what happened: the published copy carried a tail of
+    test detritus (`\\notarealcommand`, `A settled sentence.`) appended
+    after `\\end{document}` by browser specs and by hand."""
+    main = (ROOT / "examples" / "minimal-article" / "main.tex").read_text(
+        encoding="utf-8"
+    )
+    tail = main.split("\\end{document}", 1)[1]
+    assert not tail.strip(), f"detritus after the document ends: {tail[:80]!r}"
+    # Nothing in it should name a person, an institution or a real project.
+    lowered = main.lower()
+    for needle in ("dissertation", "temple", "matsika", "dakshitha"):
+        assert needle not in lowered, needle
+
+
 def test_nothing_ships_with_the_authors_own_contact_details():
     """The vendored scholarly tools hard-coded the author's email address
     and a User-Agent naming their dissertation.  That was fine while this
