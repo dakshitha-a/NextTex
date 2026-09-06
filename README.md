@@ -114,8 +114,9 @@ MIT. See `LICENSE`.
 ## Tests
 
 ```bash
-scripts/check.sh          # types + Python, under twenty seconds
-scripts/check.sh --all    # adds the browser tier
+scripts/check.sh          # types, frontend and Python: about twenty seconds
+scripts/check.sh --all    # adds the browser tier: about two minutes
+scripts/check.sh --bench  # what the slow parts cost, on a thesis-shaped project
 ```
 
 Three layers, and each exists because the one above it cannot see what it
@@ -147,3 +148,17 @@ conversation from the transcript on disk.
 
 If a browser test needs the agent to do something particular, the first line
 of the question names the script: `#script:permission`.
+
+`frontend/src/**/*.test.ts` is vitest over the frontend's pure logic —
+finding the maths under the pointer, where a diff begins, which completion
+list belongs at the cursor — plus a contrast check that parses the palette
+out of `styles.css` and measures every text-on-surface pairing the app uses,
+in both themes. It found the readability problem that had already been
+caught by eye twice.
+
+`bench/` is not part of any tier. It builds a project shaped like a thesis —
+forty source files, two megabytes of LaTeX, a populated build directory, a
+`.git` with a working tree — and measures what the slow paths cost against
+the budgets in `bench/thresholds.json`. Those are budgets rather than
+records: the point is to notice a change that makes typing slower, on the
+day it happens.

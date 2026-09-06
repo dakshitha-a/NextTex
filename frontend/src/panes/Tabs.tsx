@@ -60,8 +60,14 @@ export default function Tabs({
 
   return (
     <div className="relative flex h-[32px] shrink-0">
+      {/* A labelled group of buttons rather than an ARIA tablist.  The tab
+          pattern promises arrow-key navigation between tabs and a panel
+          associated with each one, and this strip has neither -- claiming
+          the role would tell a screen reader something untrue. */}
       <div
         ref={strip}
+        role="group"
+        aria-label="Open files"
         className="no-scrollbar flex h-[32px] min-w-0 flex-1 overflow-x-auto bg-surface-2"
       >
       {tabs.map((tab) => {
@@ -72,24 +78,19 @@ export default function Tabs({
         const active = tab.path === activePath;
         const errors = errorCounts.get(tab.path) ?? 0;
         return (
+          // The tab and its close button are siblings rather than nested:
+          // a control inside another control is announced as one thing and
+          // reached as two, and there is no way to say which is which.
           <div
             key={tab.path}
             data-tab="1"
             data-path={tab.path}
-            role="tab"
-            aria-selected={active}
-            title={
-              errors
-                ? `${tab.path} — ${errors} ${errors === 1 ? "error" : "errors"}`
-                : tab.path
-            }
             className={[
-              "relative flex min-w-[96px] max-w-[200px] shrink-0 cursor-pointer items-center gap-2 border-r border-line px-[10px]",
+              "relative flex min-w-[96px] max-w-[200px] shrink-0 items-center gap-2 border-r border-line pr-[10px]",
               active
                 ? "bg-surface"
                 : "border-b border-line hover:bg-surface-3",
             ].join(" ")}
-            onClick={() => onSelect(tab.path)}
             onMouseDown={(event) => {
               if (event.button === 1) {
                 event.preventDefault();
@@ -100,7 +101,16 @@ export default function Tabs({
             {active ? (
               <span className="absolute left-0 top-0 h-[2px] w-full bg-pen" />
             ) : null}
-            <span className="t-meta min-w-0 flex-1 truncate">
+            <button
+              aria-current={active ? "true" : undefined}
+              title={
+                errors
+                  ? `${tab.path} — ${errors} ${errors === 1 ? "error" : "errors"}`
+                  : tab.path
+              }
+              className="t-meta flex min-w-0 flex-1 cursor-pointer items-center truncate pl-[10px] text-left"
+              onClick={() => onSelect(tab.path)}
+            >
               <span className="text-ink">{middleTruncate(stem, 18)}</span>
               <span className={errors ? "text-error" : "text-ink-3"}>{extension}</span>
               {errors ? (
@@ -113,7 +123,7 @@ export default function Tabs({
                   {errors}
                 </span>
               ) : null}
-            </span>
+            </button>
             <button
               className="group flex h-4 w-4 shrink-0 items-center justify-center text-ink-3 hover:text-ink"
               aria-label={`Close ${name}`}

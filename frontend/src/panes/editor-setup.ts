@@ -198,6 +198,10 @@ function base(symbols: () => Symbols | null): Extension[] {
     StreamLanguage.define(stex),
     syntaxHighlighting(latexHighlight),
     EditorView.lineWrapping,
+    // The document is an ARIA textbox; without a name it is announced as an
+    // unlabelled input, which is the least useful thing to hear about the
+    // one region of this app that holds the writing.
+    EditorView.contentAttributes.of({ "aria-label": "The document source" }),
     mathHover(symbols),
   ];
 }

@@ -4,8 +4,9 @@
 # takes seven seconds, so a mistake in a route should not cost a minute to
 # find out about.
 #
-#   scripts/check.sh          the fast tier -- types and Python, under 20s
+#   scripts/check.sh          the fast tier -- types, frontend, Python
 #   scripts/check.sh --all    adds the browser tier
+#   scripts/check.sh --bench  the benchmarks, against a thesis-shaped project
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -23,6 +24,12 @@ step "Frontend"
 
 step "Python"
 .venv/bin/python -m pytest tests/ -q
+
+if [ "${1:-}" = "--bench" ]; then
+  step "Benchmarks"
+  .venv/bin/python -m bench.bench
+  exit
+fi
 
 if [ "${1:-}" = "--all" ]; then
   step "Frontend build"

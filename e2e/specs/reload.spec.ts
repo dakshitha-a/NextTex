@@ -31,8 +31,8 @@ test("the files that were open are open again, with the same one in front", asyn
     timeout: 15_000,
   });
   await expect(
-    tab.locator('[data-tab][data-path="references.bib"]'),
-  ).toHaveAttribute("aria-selected", "true");
+    tab.locator('[data-tab][data-path="references.bib"] button[aria-current]'),
+  ).toBeVisible();
   // ...and the one that was in front still is.
   await expect(tab.locator(".cm-content")).toContainText("@book{knuth1984");
 });
