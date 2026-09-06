@@ -12,6 +12,9 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: [["list"]],
   use: {
+    // Wider than the 1400px the layout treats as narrow, so the specs see
+    // the three-pane arrangement.  The narrow layouts have their own spec.
+    viewport: { width: 1600, height: 1000 },
     launchOptions: { executablePath: chromePath() },
     trace: "retain-on-failure",
     video: "off",

@@ -292,7 +292,7 @@ export function firstChangedLine(before: string, after: string): number {
   return 1;
 }
 
-function countDiff(before: string, after: string) {
+export function countDiff(before: string, after: string) {
   const a = before.split("\n");
   const b = after.split("\n");
   const seen = new Map<string, number>();

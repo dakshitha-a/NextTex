@@ -75,6 +75,7 @@ export default function Tabs({
           <div
             key={tab.path}
             data-tab="1"
+            data-path={tab.path}
             role="tab"
             aria-selected={active}
             title={

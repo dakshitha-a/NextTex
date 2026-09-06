@@ -69,6 +69,8 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
             return (
               <div
                 key={entry.id}
+                data-testid="trash-entry"
+                data-path={entry.path}
                 className="group flex h-[26px] items-center gap-2 rounded-[3px] pl-[10px] pr-1 hover:bg-surface-2"
                 title={entry.path}
               >

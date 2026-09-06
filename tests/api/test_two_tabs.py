@@ -42,16 +42,28 @@ def test_a_stale_tab_is_refused_rather_than_believed(client, opened, project_dir
 
 def test_two_saves_a_fraction_of_a_second_apart_still_conflict(client, opened,
                                                               project_dir):
-    """Autosave lands a quarter of a second after typing stops, so any slack
-    wide enough to absorb a filesystem's mtime granularity is also wide
-    enough to wave through exactly the clobber this exists to catch."""
-    stale = save(client, opened["id"], "tab B's starting point").json()["tag"]
-    save(client, opened["id"], "what tab A wrote, moments later")
-    answer = save(client, opened["id"], "what tab B still had", base=stale).json()
+    """Autosave lands a quarter of a second after typing stops, and two
+    writes that close together share a modification time on plenty of
+    filesystems -- which is why the tag is a hash of the contents and not a
+    clock reading."""
+    # The same length either side and no pause between them: neither size
+    # nor time distinguishes these, only what they say.
+    stale = save(client, opened["id"], "B" * 40).json()["tag"]
+    save(client, opened["id"], "A" * 40)
+    answer = save(client, opened["id"], "C" * 40, base=stale).json()
     assert answer["conflict"] is True
-    assert (project_dir / "main.tex").read_text(encoding="utf-8").startswith(
-        "what tab A wrote"
-    )
+    assert (project_dir / "main.tex").read_text(encoding="utf-8") == "A" * 40
+
+
+def test_the_tag_says_what_the_file_holds_not_when_it_was_touched(client, opened,
+                                                                  project_dir):
+    """Rewriting a file with what it already said is not a change, and
+    something that reads the clock would say it was."""
+    first = save(client, opened["id"], "the same words").json()["tag"]
+    (project_dir / "main.tex").write_text("the same words", encoding="utf-8")
+    again = client.get(f"/api/projects/{opened['id']}/file",
+                       params={"path": "main.tex"}).json()["tag"]
+    assert again == first
 
 
 def test_saving_against_the_tag_you_were_given_works(client, opened, project_dir):

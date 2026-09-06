@@ -1,0 +1,9 @@
+[
+  {"kind": "text", "text": "That needs a shell.", "pieces": 1},
+  {"kind": "permission", "tool": "Bash", "rule": "",
+   "headline": "Run a shell command",
+   "detail": "git status; echo done",
+   "consequence": "This runs more than one command.",
+   "stop_if_denied": false},
+  {"kind": "text", "text": "Finished.", "pieces": 1}
+]
