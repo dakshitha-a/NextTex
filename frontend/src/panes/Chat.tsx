@@ -7,6 +7,7 @@ import { agentName, usageNote } from "../agent-name";
 import { Chevron } from "../App";
 import api from "../api";
 import {
+  clearChat,
   firstChangedLine,
   get,
   markLive,
@@ -71,8 +72,28 @@ export default function Chat({
   // long answer re-renders this panel twenty times a second, and without
   // this it did that walk every time.
   const shown = useMemo(() => tidy(chat), [chat]);
+
   const thinking = useStore((s) => s.thinking);
   const blocked = useStore((s) => s.awaitingPermission);
+  // What the agent is doing at this moment.  Until now the only sign of
+  // life was a line under the composer that said "is writing" whether it
+  // was writing or reading a file for twenty seconds, so a turn spent in
+  // tools looked like a turn that had stopped.
+  const activity = useMemo(() => {
+    if (blocked) return "Waiting for you";
+    if (!thinking) return "";
+    for (let index = shown.length - 1; index >= 0; index -= 1) {
+      const item = shown[index];
+      if (item.kind === "claude" && item.streaming) return "Writing";
+      if (item.kind === "tool") {
+        const what = item.summary ? ` ${shorten(item.summary)}` : "";
+        return `${verb(item.name)}${what}`;
+      }
+      if (item.kind === "edit") return `Editing ${shorten(item.path)}`;
+      if (item.kind === "user") break;
+    }
+    return "Thinking";
+  }, [shown, thinking, blocked]);
   const agent = useStore((s) => s.agent);
   const provider = agent?.provider;
   const name = agentName(provider);
@@ -90,6 +111,33 @@ export default function Chat({
   const [showUsage, setShowUsage] = useState(false);
   const usageRef = useRef<HTMLDivElement | null>(null);
   const usageButton = useRef<HTMLButtonElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuButton = useRef<HTMLButtonElement | null>(null);
+  useDismiss(
+    menuRef,
+    menuOpen,
+    useCallback(() => {
+      setMenuOpen(false);
+      setConfirmClear(false);
+    }, []),
+    menuButton,
+  );
+  const auto = useStore((s) => s.auto);
+  // Only the Claude agent ever puts a card up, so only it is offered the
+  // switch: a toggle on the others would promise a change that does not
+  // happen.
+  const [asks, setAsks] = useState(false);
+  const setAuto = async (on: boolean) => {
+    if (!projectId) return;
+    try {
+      await api.setAuto(projectId, on);
+      set({ auto: on });
+    } catch (error: any) {
+      set({ error: error.message });
+    }
+  };
   useDismiss(
     usageRef,
     showUsage,
@@ -101,7 +149,15 @@ export default function Chat({
   // The tally follows the end of a turn, which is when it changes.
   useEffect(() => {
     if (!projectId || thinking) return;
-    api.usage(projectId).then(setUsage).catch(() => undefined);
+    api
+      .usage(projectId)
+      .then((answer) => {
+        setUsage(answer);
+        // A reload has no other way to learn either of these.
+        setAsks(!!answer.asks);
+        set({ auto: !!answer.auto });
+      })
+      .catch(() => undefined);
   }, [projectId, thinking]);
 
   useEffect(() => {
@@ -173,7 +229,31 @@ export default function Chat({
           onFold();
         }}
       >
-        <span className="t-ui-lg font-serif">{name}</span>
+        <span className="t-ui-lg shrink-0 font-serif">{name}</span>
+        {thinking || blocked ? (
+          <span
+            className="flex min-w-0 items-center gap-[6px]"
+            data-testid="working"
+            aria-live="polite"
+          >
+            <span
+              className={`nx-working h-[6px] w-[6px] shrink-0 rounded-full ${
+                blocked ? "bg-warn" : "bg-pen"
+              }`}
+            />
+            <span className="t-micro truncate text-ink-2">{activity}</span>
+          </span>
+        ) : null}
+        {auto ? (
+          <button
+            className="t-micro shrink-0 rounded-[3px] border border-warn px-1 text-warn"
+            data-testid="auto-chip"
+            title="Every action is approved without asking. Click to turn it off."
+            onClick={() => setAuto(false)}
+          >
+            Auto
+          </button>
+        ) : null}
         <span className="flex-1" />
         {thinking ? (
           <button
@@ -186,11 +266,9 @@ export default function Chat({
             Stop
           </button>
         ) : null}
-        <label className="t-micro text-ink-3" htmlFor="nx-model">
-          Model
-        </label>
         <select
           id="nx-model"
+          aria-label="Which model answers here"
           className="t-micro cursor-pointer rounded-[3px] border border-line bg-surface-2 px-1 py-[2px] text-ink-2 hover:border-hint hover:text-ink"
           value={usage?.model ?? ""}
           title="Which model answers here"
@@ -237,6 +315,19 @@ export default function Chat({
             <Chevron direction="down" />
           </span>
         </button>
+        <button
+          ref={menuButton}
+          className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3"
+          aria-label="More"
+          aria-expanded={menuOpen}
+          data-testid="chat-menu-open"
+          onClick={() => {
+            setMenuOpen(!menuOpen);
+            setConfirmClear(false);
+          }}
+        >
+          ⋯
+        </button>
         {onFold ? (
           <button
             className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3"
@@ -248,6 +339,82 @@ export default function Chat({
           </button>
         ) : null}
       </div>
+
+      {menuOpen ? (
+        <div
+          ref={menuRef}
+          className="nx-arrive shrink-0 border-b border-line bg-surface-2 px-[10px] py-2"
+          data-testid="chat-menu"
+        >
+          {confirmClear ? (
+            <div>
+              <p className="t-meta text-ink-2">
+                Start a new conversation? The record of this one is kept on
+                disk.
+              </p>
+              <div className="mt-2 flex gap-[6px]">
+                <button
+                  className="pen-button h-[26px] px-3 t-ui"
+                  data-testid="clear-confirm"
+                  onClick={async () => {
+                    if (!projectId) return;
+                    try {
+                      await api.resetChat(projectId);
+                      clearChat();
+                      queued.current = [];
+                      setQueuedCount(0);
+                      setMenuOpen(false);
+                      setConfirmClear(false);
+                    } catch (error: any) {
+                      set({ error: error.message });
+                    }
+                  }}
+                >
+                  Yes
+                </button>
+                <button
+                  className="quiet t-ui h-[26px] rounded-[3px] border border-line px-3"
+                  onClick={() => setConfirmClear(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="quiet t-ui block w-full text-left disabled:opacity-40"
+              data-testid="clear-chat"
+              disabled={thinking}
+              title={thinking ? "Wait for this answer to finish" : undefined}
+              onClick={() => setConfirmClear(true)}
+            >
+              New conversation
+            </button>
+          )}
+          {asks ? (
+            <button
+              className="mt-2 block w-full text-left"
+              role="switch"
+              aria-checked={auto}
+              data-testid="auto-toggle"
+              onClick={() => setAuto(!auto)}
+            >
+              <span className="t-ui flex items-center gap-2 text-ink">
+                <span
+                  className={`inline-block h-[10px] w-[10px] shrink-0 rounded-[2px] border ${
+                    auto ? "border-warn bg-warn" : "border-line"
+                  }`}
+                />
+                Approve everything automatically
+              </span>
+              <span className="t-meta ml-[18px] block text-ink-2">
+                Still recorded in the conversation. A write outside the
+                project is asked about either way.
+              </span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {showUsage && usage ? (
         <div
@@ -366,8 +533,8 @@ export default function Chat({
               ? ""
               : thinking
                 ? queuedCount
-                  ? `${name} is writing · yours will go next`
-                  : `${name} is writing`
+                  ? `${name} is working · yours will go next`
+                  : ""
                 : focusedComposer
                 ? "Enter to send, Shift-Enter for a new line"
                 : ""}
@@ -420,7 +587,18 @@ const VERBS: Record<string, string> = {
   mcp__nexttex__find_papers: "Searched the literature",
   mcp__nexttex__add_reference: "Added a reference",
   mcp__nexttex__check_references: "Checked the bibliography",
+  mcp__nexttex__search_library: "Searched your papers",
+  mcp__nexttex__remember: "Remembered",
 };
+
+/** A path or a command, cut to something that fits a 32px header beside
+ *  the agent's name.  The tail of a path is the part that identifies it. */
+function shorten(text: string, limit = 28): string {
+  const line = text.split("\n")[0].trim();
+  if (line.length <= limit) return line;
+  const tail = line.slice(-(limit - 1));
+  return line.includes("/") ? `…${tail}` : `${line.slice(0, limit - 1)}…`;
+}
 
 /** Tools that are plumbing rather than work: showing them is noise. */
 const HIDDEN_TOOLS = new Set(["ToolSearch", "TodoWrite"]);
@@ -746,15 +924,28 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
   }, [item.decision]);
 
   if (item.decision) {
+    // Three states, not two.  An action nobody was asked about is not the
+    // same as one the writer allowed, and the record should not read as
+    // though they had.  The dot is --warn, the permission card's own
+    // colour, so the association is already built.
     const label =
-      item.decision === "deny" ? "Denied" : "Allowed";
+      item.decision === "deny"
+        ? "Denied"
+        : item.decision === "auto"
+          ? "Allowed automatically"
+          : "Allowed";
+    const dot =
+      item.decision === "deny"
+        ? "bg-ink-3"
+        : item.decision === "auto"
+          ? "bg-warn"
+          : "bg-ok";
     return (
-      <div className="flex h-[26px] items-center gap-2 stream-indent">
-        <span
-          className={`h-[6px] w-[6px] rounded-full ${
-            item.decision === "deny" ? "bg-ink-3" : "bg-ok"
-          }`}
-        />
+      <div
+        className="flex h-[26px] items-center gap-2 stream-indent"
+        data-testid={`decided-${item.decision}`}
+      >
+        <span className={`h-[6px] w-[6px] rounded-full ${dot}`} />
         <span className="t-micro truncate text-ink-3">
           {label} — {item.detail || item.headline}
         </span>

@@ -107,9 +107,120 @@ test("a second question while Claude is writing goes next, not nowhere", async (
   tab,
 }) => {
   await ask(tab, "slow", "The long one.");
-  await expect(tab.getByText("Claude is writing")).toBeVisible({ timeout: 20_000 });
+  // The sign that a turn is running now lives in the header, and says what
+  // is being done rather than always claiming prose is being written.
+  await expect(tab.getByTestId("working")).toBeVisible({ timeout: 20_000 });
   const composer = tab.locator("textarea");
   await composer.fill("And then this one.");
   await tab.getByRole("button", { name: "Send" }).click();
   await expect(tab.getByText("yours will go next")).toBeVisible();
+});
+
+test("the panel says what the agent is doing, not just that it is busy", async ({
+  tab,
+}) => {
+  // A turn can sit inside a tool for many seconds with no prose arriving.
+  // The panel used to show the same "is writing" line throughout, which
+  // read as a panel that had stopped.
+  await ask(tab, "working", "Read the theory chapter.");
+  const working = tab.getByTestId("working");
+  await expect(working).toBeVisible({ timeout: 20_000 });
+  await expect(working).toContainText("Read");
+  await expect(working).toContainText("02_theory.tex");
+  // And it goes away when the turn does.
+  await expect(working).toBeHidden({ timeout: 30_000 });
+});
+
+test("a new conversation empties the panel and keeps the tally", async ({
+  tab,
+}) => {
+  await ask(tab, "reply", "What does a label do?");
+  await expect(tab.getByText(/A label attaches a name/)).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await tab.getByTestId("chat-menu-open").click();
+  await tab.getByTestId("clear-chat").click();
+  await tab.getByTestId("clear-confirm").click();
+
+  await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
+  // The welcome message is what an empty conversation looks like, so a
+  // cleared one lands on the right surface without anything extra.
+  await expect(tab.getByRole("button", { name: /voice/i }).first()).toBeVisible();
+
+  // Cleared conversations do not clear what the project has cost.
+  await tab.getByRole("button", { name: "Usage" }).click();
+  await expect(tab.getByText(/turn/)).toBeVisible();
+});
+
+test("a cleared conversation stays cleared after a reload", async ({ tab }) => {
+  await ask(tab, "reply", "What does a label do?");
+  await expect(tab.getByText(/A label attaches a name/)).toBeVisible({
+    timeout: 20_000,
+  });
+  await tab.getByTestId("chat-menu-open").click();
+  await tab.getByTestId("clear-chat").click();
+  await tab.getByTestId("clear-confirm").click();
+  await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
+
+  await tab.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
+  await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
+});
+
+test("the usage panel closes from the button that opened it", async ({ tab }) => {
+  // The press that dismisses a popover arrives in the capture phase,
+  // before the trigger's own click, so without an anchor this closed and
+  // immediately reopened.
+  const usage = tab.getByRole("button", { name: "Usage" });
+  await usage.click();
+  await expect(tab.getByText("estimated, this project")).toBeVisible();
+  await usage.click();
+  await expect(tab.getByText("estimated, this project")).toBeHidden();
+});
+
+test("auto mode approves without a card, and says so in the record", async ({
+  tab,
+}) => {
+  await tab.getByTestId("chat-menu-open").click();
+  await tab.getByTestId("auto-toggle").click();
+  await expect(tab.getByTestId("auto-chip")).toBeVisible();
+
+  await ask(tab, "permission", "Run something.");
+  // No card to answer, and the composer is not left waiting on one.
+  await expect(tab.getByTestId("decided-auto")).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByTestId("allow")).toHaveCount(0);
+
+  // Turning it off brings the card back.
+  await tab.getByTestId("auto-chip").click();
+  await expect(tab.getByTestId("auto-chip")).toHaveCount(0);
+  await ask(tab, "permission", "Run something again.");
+  await expect(tab.getByTestId("allow")).toBeVisible({ timeout: 20_000 });
+  await tab.getByTestId("allow").click();
+});
+
+test("what the agent is told to remember survives a new conversation", async ({
+  tab,
+}) => {
+  await ask(tab, "remember", "Remember where chapter 3's data came from.");
+  await expect(tab.getByText(/Stony Brook/).first()).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await tab.getByTestId("chat-menu-open").click();
+  await tab.getByTestId("clear-chat").click();
+  await tab.getByTestId("clear-confirm").click();
+  await expect(tab.getByText(/Stony Brook/)).toHaveCount(0);
+
+  // Gone from the conversation, still on the shelf the agent reads from.
+  await tab.getByRole("button", { name: /What .* reads/ }).click();
+  await expect(tab.getByTestId("memory-text")).toContainText("Stony Brook");
+});
+
+test("the memory can be corrected by hand", async ({ tab }) => {
+  await tab.getByRole("button", { name: /What .* reads/ }).click();
+  await tab.getByTestId("memory-edit").click();
+  await tab.getByTestId("memory-editor").fill("- The supervisor is Prof. Matsika");
+  await tab.getByTestId("memory-save").click();
+  await expect(tab.getByTestId("memory-text")).toContainText("Matsika");
 });

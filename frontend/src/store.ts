@@ -647,6 +647,9 @@ function receive(event: any) {
 function summariseTool(name: string, input: any): string {
   if (!input) return name;
   if (name === "Bash") return String(input.command ?? "");
+  // The note is the whole point of this one; a path lookup finds nothing
+  // and the row would read as a verb with no object.
+  if (name === "mcp__nexttex__remember") return String(input.note ?? "");
   const path = input.file_path ?? input.path ?? input.pattern ?? "";
   return String(path);
 }

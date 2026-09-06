@@ -419,6 +419,25 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   transition: opacity 700ms var(--ease);
 }
 
+/* The agent is doing something.  A turn can spend twenty seconds inside a
+   tool with no prose arriving, and a panel that shows nothing during it
+   reads as a panel that has stopped -- so the dot keeps moving even when
+   the text does not.  Slow and small on purpose: this sits beside the
+   agent's name for the whole of a turn, and anything faster would be a
+   thing to look at rather than a thing to notice. */
+.nx-working {
+  animation: nx-working 1400ms var(--ease) infinite;
+}
+
+@keyframes nx-working {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nx-working { animation: none; }
+}
+
 @keyframes permission-in {
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: none; }

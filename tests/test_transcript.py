@@ -78,3 +78,41 @@ def test_a_tool_argument_that_will_not_serialise_is_not_fatal(tmp_path):
                 "input": {"paths": {tmp_path}}})
     log.record({"type": "turn_start", "prompt": "and then this"})
     assert [item["kind"] for item in log.items()][-1] == "user"
+
+
+def test_archiving_keeps_the_conversation_and_starts_an_empty_one(tmp_path):
+    # Starting a new conversation must not lose the record of the old one:
+    # it is the account of what an assistant did to a dissertation.
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "turn_start", "prompt": "hello"})
+    t.record({"type": "text", "text": "an answer"})
+
+    archived = t.archive()
+    assert archived and archived.startswith("transcript-")
+    assert (tmp_path / archived).exists()
+    assert t.items() == []
+
+    # The half-streamed paragraph went with the conversation it belonged
+    # to, rather than appearing at the top of the new one.
+    kept = (tmp_path / archived).read_text(encoding="utf-8")
+    assert "an answer" in kept
+
+    t.record({"type": "turn_start", "prompt": "a fresh question"})
+    items = t.items()
+    assert [i["kind"] for i in items] == ["user"]
+    assert items[0]["text"] == "a fresh question"
+
+
+def test_archiving_an_empty_transcript_is_harmless(tmp_path):
+    t = Transcript(tmp_path / "t.jsonl")
+    assert t.archive() is None
+    assert t.items() == []
+
+
+def test_two_archives_in_the_same_second_do_not_collide(tmp_path):
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "turn_start", "prompt": "one"})
+    first = t.archive()
+    t.record({"type": "turn_start", "prompt": "two"})
+    second = t.archive()
+    assert first and second and first != second

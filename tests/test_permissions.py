@@ -173,3 +173,85 @@ def test_ending_a_client_that_was_never_started_is_harmless(tmp_path):
     subject = agent(tmp_path)
     asyncio.run(subject.disconnect())
     assert subject._client is None
+
+
+def emitted(fence) -> list[dict]:
+    """What the turn put on the event queue, drained without a browser."""
+    events = []
+    queue = fence._events
+    while queue is not None and not queue.empty():
+        events.append(queue.get_nowait())
+    return events
+
+
+def test_auto_mode_allows_without_putting_a_card_up(tmp_path):
+    fence = agent(tmp_path)
+    fence.set_auto(True)
+    assert decision(hook(fence, "Bash", {"command": "latexmk"})) == "allow"
+    # Nothing is waiting on an answer: the future that a card creates would
+    # otherwise be left for a card nobody will ever see.
+    assert fence._pending == {}
+
+
+def test_an_automatic_approval_is_still_in_the_record(tmp_path):
+    # The whole design treats the permission trail as an account of what was
+    # done to the document.  Approving without asking must not mean
+    # approving without saying.
+    fence = agent(tmp_path)
+    fence.set_auto(True)
+    hook(fence, "Bash", {"command": "latexmk"})
+    cards = [e for e in emitted(fence) if e.get("type") == "permission"]
+    assert len(cards) == 1
+    assert cards[0]["decision"] == "auto"
+    assert "latexmk" in cards[0].get("detail", "")
+
+
+def test_a_remembered_rule_is_recorded_too(tmp_path):
+    # This used to be allowed in silence, which is the same hole auto mode
+    # would have widened.
+    fence = agent(tmp_path)
+    fence._always_allow.add("Bash:latexmk")
+    assert decision(hook(fence, "Bash", {"command": "latexmk build"})) == "allow"
+    cards = [e for e in emitted(fence) if e.get("type") == "permission"]
+    assert len(cards) == 1
+    assert cards[0]["decision"] == "always"
+
+
+def test_auto_mode_never_covers_a_write_outside_the_project(tmp_path):
+    # Everything inside the project is the writing, which is what the agent
+    # is for.  Leaving it is the one action a convenience switch is not
+    # consent for.
+    fence = agent(tmp_path)
+    fence.set_auto(True)
+    outside = tmp_path / "elsewhere.tex"
+
+    async def refuse(tool, tool_input):
+        return "deny"
+
+    fence._ask_user = refuse
+    assert decision(hook(fence, "Write", {"file_path": str(outside)})) == "deny"
+
+
+def test_the_auto_setting_survives_a_restart(tmp_path):
+    fence = agent(tmp_path)
+    fence.set_auto(True)
+    again = ProjectAgent(fence.root, fence.state_dir)
+    assert again.auto is True
+    again.set_auto(False)
+    assert ProjectAgent(fence.root, fence.state_dir).auto is False
+
+
+def test_a_new_conversation_drops_the_session_but_not_the_cost(tmp_path):
+    fence = agent(tmp_path)
+    fence._save_session("session-abc")
+    fence._always_allow.add("Bash:latexmk")
+    fence.usage["turns"] = 7
+
+    asyncio.run(fence.reset())
+
+    assert fence._load_session() is None
+    assert fence._session_id is None
+    # What the project cost is not what was said, and a rule about which
+    # commands are safe here is not a conversation either.
+    assert fence.usage["turns"] == 7
+    assert "Bash:latexmk" in fence._always_allow

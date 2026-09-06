@@ -101,13 +101,33 @@ transport and runs everything above it for real — the streaming parser, the
 tool loop, the path fence, the edits, the usage accounting and the event
 vocabulary. Whether OpenAI still returns those shapes is unproven.
 
+## Two things the browser tier cannot prove
+
+**A drag is dispatched, not mimed.** Chromium, driven headlessly, raises
+`dragstart` and `dragover` for a pointer-driven drag and then ends it with
+`dragend` instead of `drop` — so a mouse-driven spec for the file tree's
+drag-to-move passes only when the feature is broken. `dragRow` in
+`files.spec.ts` dispatches the events with a shared `DataTransfer` instead.
+Everything under test still runs for real: the same handlers, the same
+refusals, the same server call. That Chromium *starts* the drag at all is
+checked by hand in a real browser, and is the one part of that feature no
+spec covers.
+
+**The scripted agent calls the memory tool because the script says to.**
+`remember.json` proves the plumbing end to end — the tool writes, the panel
+shows it, a cleared conversation still carries it into the prompt. What it
+cannot prove is that a real model reaches for the tool when a writer says
+*remember this*, since the stand-in has no judgement to exercise. That
+belongs with the live check above: ask the real agent to remember something,
+clear the conversation, and see whether the next one knows it.
+
 ## Where the line is
 
 Worth its maintenance: anything that asserts a contract, anything that
 guards a safety property — path escape, atomic write, undo refusal, the
-permission fence, history permanence — anything that encodes a bug already
-paid for, and the handful of browser specs that prove the core loop still
-works end to end.
+permission fence, history permanence, an automatic approval still reaching
+the record — anything that encodes a bug already paid for, and the handful of
+browser specs that prove the core loop still works end to end.
 
 Not worth it: snapshot tests of rendered React, which fail on every
 intentional design change and assert nothing about behaviour; a second
