@@ -691,10 +691,10 @@ export default function FileTree({
         onDrop={(event) => drop(event, null)}
       />
       {searching ? (
-        <div className="flex h-[26px] shrink-0 items-center gap-1 border-b border-line bg-surface-2 px-[10px]">
+        <div className="flex h-[26px] shrink-0 items-center gap-2 border-b border-line px-[10px]">
           <input
             ref={searchInput}
-            className="t-ui min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-3"
+            className="t-ui h-[20px] min-w-0 flex-1 rounded-[3px] bg-surface-2 px-1 text-ink outline-none placeholder:text-ink-3 focus:outline-1 focus:outline-pen"
             placeholder="Find a file"
             aria-label="Find a file"
             data-testid="file-search"

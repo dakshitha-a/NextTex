@@ -372,6 +372,15 @@ methods.tex`, `--ink-3` — with a `Redo` link live for 10 s. The reverted chip 
 in the transcript permanently**. The chat is a record of what was done to the manuscript;
 nothing in it ever disappears.
 
+### Resolved permission
+
+One 26 px row, `stream-indent`, a 6 px dot and a `t-micro` line in `--ink-3`. Three states,
+not two: `--ok` for what a person allowed, `--ink-3` for what they refused, and `--warn` for
+what was allowed without anybody being asked — a rule set earlier, or automatic approval.
+An action nobody was asked about is not the same as one the writer allowed, and the record
+must not read as though it were. The command itself stays in `t-code-sm`, as it is
+everywhere else.
+
 ### Permission card
 
 Inline in the stream, not a modal — but it blocks: the composer disables and reads `Waiting
@@ -516,6 +525,41 @@ you are looking at).
 Each of these departs from the specification above. They are written down
 rather than left implicit, so the next person to read both can tell a
 decision from a drift.
+
+**Two animations repeat without being asked, not one.** §10 claims the breathing
+compile dot is the only one. The agent's activity dot is the second, and for the same
+reason: a turn can spend twenty seconds inside a tool with nothing arriving in the panel,
+and a still indicator beside a still transcript is indistinguishable from a turn that has
+stopped. It pulses at 1400 ms — slower than the compile dot, because it sits beside the
+agent's name for the whole of a turn rather than for a second — and it stops entirely under
+`prefers-reduced-motion`.
+
+**The 350 ms input shield is visible.** §5 says the buttons ignore clicks "at full opacity,
+with no visible change". As built they fade in over the shield. The argument for the
+original is that a dimmed button invites a wait; the argument for what shipped is that a
+button which looks live and does nothing is the more confusing of the two failures, and the
+shield exists precisely because a card can arrive under a cursor already moving. Recorded
+as it is, deliberately.
+
+**The `Allow` label is white on light and ink on dark.** §5 specifies `#FFFFFF`. White on
+the dark theme's `--pen` measures 2.57:1 and fails; dark ink on it measures 6.20:1. The
+build is right and the specification was wrong. The same applies to any filled `--pen`
+button in the dark theme.
+
+**Filled `--pen` is conditional on Send.** §10 says filled violet is "`Allow` and `Send`
+only". Send carries the fill only when the composer has something in it; empty, it is a
+ghost. That is the rule as it should read: the fill marks the action that is available,
+not the button that is present.
+
+**The agent's `⋯` opens a drawer, not a popover.** The file row's menu overlays the tree;
+this one pushes the transcript down. They differ because the transcript is pinned to its
+bottom and a popover over it would cover the newest turn — the thing most likely to be
+being read. It matches the Usage panel directly above it, which is the surface it sits
+next to, and both are dismissed the same way.
+
+**The source/preview toggle below 900 px lives in the tab bar**, not the status strip as §4
+says. It is a view switch, and the tab bar is where this app puts view switches. Its
+selected state is `--hint`, per §10.
 
 **There is a filter box after all.** §5 said there would not be one: "tree type-ahead does
 that job for nothing, and a thesis has tens of files, not thousands." That reasoning holds

@@ -626,6 +626,10 @@ export default function App() {
       if (which === "split") bounds.max = Math.max(pair - MIN_PDF, MIN_EDITOR);
       setEditorWide(editorWidth > 700);
 
+      // The browser reads a divider drag as a text selection too, and left
+      // the status strip and the gutter highlighted afterwards.
+      document.body.classList.add("nx-dragging");
+
       let anchorX = event.clientX;
       let anchorWidth =
         which === "rail"
@@ -666,6 +670,7 @@ export default function App() {
       };
 
       const up = () => {
+        document.body.classList.remove("nx-dragging");
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         // A drag can also end without a pointerup -- a browser dialog, a

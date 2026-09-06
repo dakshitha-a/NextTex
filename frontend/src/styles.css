@@ -419,6 +419,23 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   transition: opacity 700ms var(--ease);
 }
 
+/* Dragging a pane divider is a drag, and the browser reads it as a text
+   selection as well -- so a resize left the status strip, the gutter and
+   the pane headings highlighted in whatever blue the platform picked, in
+   an application that authors every other colour it draws.  The shell
+   turns selection off for the duration, and what selection there is takes
+   a colour from the palette. */
+::selection {
+  background: var(--pen-wash);
+  color: var(--ink);
+}
+
+.nx-dragging,
+.nx-dragging * {
+  user-select: none;
+  cursor: col-resize;
+}
+
 /* The agent is doing something.  A turn can spend twenty seconds inside a
    tool with no prose arriving, and a panel that shows nothing during it
    reads as a panel that has stopped -- so the dot keeps moving even when
