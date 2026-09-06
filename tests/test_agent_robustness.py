@@ -1,0 +1,184 @@
+"""A turn always ends, and always says how.
+
+Everything the chat panel does after a question is keyed on a `done` event
+arriving.  A turn that stops without one leaves the server idle and the
+browser thinking for ever: the composer stays disabled, the queued
+follow-up never drains, and Stop is a no-op because there is no longer a
+turn to interrupt.  Only a page reload recovers it.
+
+That is not hypothetical.  It happened on the dissertation, from changing
+the model in the dropdown thirteen seconds into a running answer: the
+model change disconnected the client, the SDK closed its transport
+*cleanly*, `receive_response()` ended without raising, and `_stream` fell
+off the end of its `async for` having emitted nothing.  No exception, no
+log line, no event.
+
+These tests break the turn on purpose, one shape at a time.  They drive the
+real `ProjectAgent` against a stub client rather than the scripted agent,
+because the scripted agent has no SDK client at all -- a test that changed
+the model on *it* would prove nothing, since its `disconnect()` ends its
+stream cleanly with a result.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+from nexttex import agent as agent_module
+from nexttex.agent import ProjectAgent
+
+
+class StubClient:
+    """The SDK client, reduced to what `_stream` touches.
+
+    `messages` is what `receive_response()` yields.  An empty list is the
+    incident: a stream that ends without a ResultMessage.
+    """
+
+    def __init__(self, messages=(), raises: Exception | None = None):
+        self.messages = list(messages)
+        self.raises = raises
+        self.queries: list[str] = []
+        self.disconnected = False
+        self.interrupted = False
+
+    async def query(self, prompt: str) -> None:
+        self.queries.append(prompt)
+
+    async def receive_response(self):
+        if self.raises is not None:
+            raise self.raises
+        for message in self.messages:
+            yield message
+
+    async def disconnect(self) -> None:
+        self.disconnected = True
+
+    async def interrupt(self) -> None:
+        self.interrupted = True
+
+
+def make_agent(tmp_path) -> ProjectAgent:
+    state = tmp_path / "state"
+    state.mkdir(parents=True, exist_ok=True)
+    return ProjectAgent(tmp_path, state)
+
+
+async def drain(subject: ProjectAgent, until: str = "done", timeout: float = 5.0):
+    """Every event up to and including the first `until`."""
+    seen: list[dict] = []
+
+    async def collect():
+        async for event in subject.events():
+            seen.append(event)
+            if event.get("type") == until:
+                return
+
+    await asyncio.wait_for(collect(), timeout)
+    return seen
+
+
+def test_a_stream_that_ends_with_no_result_still_ends_the_turn(tmp_path):
+    """The incident, exactly: the loop finishes having emitted nothing."""
+    subject = make_agent(tmp_path)
+    subject._client = StubClient(messages=[])
+
+    async def run():
+        await subject.ask("does this end?")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    kinds = [event["type"] for event in events]
+    assert kinds.count("done") == 1, kinds
+    assert events[-1]["subtype"] == "no_result"
+    # And it says why, rather than ending in silence -- the writer is owed
+    # an explanation for an answer that stopped mid-sentence.
+    assert "error" in kinds, kinds
+    assert not subject.busy
+
+
+def test_a_turn_that_raises_still_ends(tmp_path):
+    subject = make_agent(tmp_path)
+    subject._client = StubClient(raises=RuntimeError("the transport went away"))
+
+    async def run():
+        await subject.ask("and this?")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    assert events[-1]["type"] == "done"
+    assert events[-1]["subtype"] == "error"
+    assert "the transport went away" in "".join(
+        event.get("message", "") for event in events
+    )
+
+
+def test_changing_the_model_mid_turn_does_not_kill_it(tmp_path):
+    """The trigger.
+
+    Deferred rather than refused: the writer's intent is kept, and it takes
+    effect at the one moment where it cannot break anything.
+    """
+    subject = make_agent(tmp_path)
+    client = StubClient(messages=[])
+    subject._client = client
+
+    started = asyncio.Event()
+
+    async def slow_stream():
+        started.set()
+        await asyncio.sleep(0.2)
+        return
+        yield  # pragma: no cover -- this is what makes it a generator
+
+    client.receive_response = slow_stream
+
+    async def run():
+        await subject.ask("a long answer")
+        await asyncio.wait_for(started.wait(), 2)
+        await subject.set_model("claude-sonnet-5")
+        # Nothing was torn down: the running turn still holds its client,
+        # and the model it was started with has not changed under it.
+        assert not client.disconnected
+        assert subject.model is None
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    assert events[-1]["type"] == "done"
+    # And the change was not lost.
+    assert subject.model == "claude-sonnet-5"
+
+
+def test_stop_is_never_a_no_op(tmp_path):
+    """Stop is the writer's one escape hatch.
+
+    With no turn running -- which is the state a vanished turn leaves
+    behind -- `interrupt()` used to do nothing at all, so the interface went
+    on waiting after the user had explicitly asked it not to.
+    """
+    subject = make_agent(tmp_path)
+    assert not subject.busy
+
+    async def run():
+        await subject.interrupt()
+        return await drain(subject)
+
+    assert asyncio.run(run())[-1] == {"type": "done", "subtype": "interrupted"}
+
+
+def test_a_permission_nobody_answers_is_denied(tmp_path, monkeypatch):
+    """A card that never reached a browser blocked the turn for ever, and
+    held the project's agent lock while it did."""
+    monkeypatch.setattr(agent_module, "PERMISSION_TIMEOUT", 0.05)
+    subject = make_agent(tmp_path)
+
+    decision = asyncio.run(subject._ask_user("Bash", {"command": "rm -rf /"}))
+
+    assert decision == "deny"
+    # And it says so, rather than letting the agent report a refusal the
+    # writer never made.
+    events = []
+    while not subject._queue().empty():
+        events.append(subject._queue().get_nowait())
+    assert any(event["type"] == "notice" for event in events), events
+    assert not subject._pending

@@ -32,7 +32,7 @@ import Collapsed from "./panes/Collapsed";
 import HistoryPanel, { ViewingBanner } from "./panes/History";
 import TrashPanel from "./panes/TrashPanel";
 import Logo from "./Logo";
-import Appearance from "./panes/Appearance";
+import Settings from "./panes/Settings";
 import InstanceBadge from "./panes/InstanceBadge";
 import { toShell, uiScale, viewportWidth } from "./viewport";
 import GitPanel from "./panes/GitPanel";
@@ -237,6 +237,15 @@ export default function App() {
       diagnostics: [],
       lint: [],
       compile: null,
+      stale: false,
+      // The three switches live in the project's own nexttex.toml and
+      // arrive with it, so the settings card is right on the first frame
+      // rather than showing defaults until something changes.
+      settings: {
+        autocompile: project.autocompile !== false,
+        markErrors: project.markErrors !== false,
+        markWarnings: project.markWarnings === true,
+      },
     });
     replayTranscript(project.transcript ?? []);
     connect(id);
@@ -302,6 +311,19 @@ export default function App() {
     api.compile(id).catch(() => undefined);
   }, []);
   openProjectRef.current = openProject;
+
+  /** Build now, on purpose.  Saves first: autosave runs 250ms behind the
+   *  keyboard, so a click inside that window would typeset the previous
+   *  text and look like the button had not worked. */
+  const buildNow = useCallback(
+    async (full: boolean) => {
+      const id = get().projectId;
+      if (!id) return;
+      await editor.current?.saveNow();
+      await api.compile(id, full).catch(() => undefined);
+    },
+    [],
+  );
 
   const openFile = useCallback(async (path: string, line?: number) => {
     const state = get();
@@ -446,9 +468,12 @@ export default function App() {
         (document.querySelector("textarea") as HTMLTextAreaElement | null)?.focus();
       }
     };
-    handlers.onProjectChanged = () => {
-      const id = get().projectId;
-      if (id) api.open(id).then((project) => setMainFile(project.main ?? "main.tex"));
+    handlers.onProjectChanged = (main) => {
+      // The event carries what changed, so this no longer re-reads the
+      // whole project -- tree, transcript and all -- to learn one filename.
+      // The store has already taken the three switches out of the same
+      // payload.
+      if (main) setMainFile(main);
     };
     // The drawer is never opened for you.  A build fires while you are
     // still typing an equation, and having the error list jump up over the
@@ -498,7 +523,12 @@ export default function App() {
       }
       if (meta && event.key === "s") {
         event.preventDefault();
-        editor.current?.saveNow();
+        // With compile-as-you-type off, save is also the build: it is the
+        // Overleaf convention, it is what the hands already do, and it
+        // saves inventing a second binding for a thing the writer now has
+        // to ask for explicitly.
+        if (get().settings.autocompile) editor.current?.saveNow();
+        else void buildNow(false);
       }
       if (meta && event.key === "Enter" && activePath) {
         event.preventDefault();
@@ -736,7 +766,7 @@ export default function App() {
                 <InstanceBadge />
               </button>
               <div className="flex items-center">
-                <Appearance align="left" />
+                <Settings align="left" inProject />
                 <button
                   className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
                   title="Download the whole project as a zip"
@@ -904,7 +934,7 @@ export default function App() {
                 value ? DRAWER_CLOSED : hasSummary ? DRAWER_WITH_SUMMARY : DRAWER_OPEN,
               )
             }
-            onRebuild={() => projectId && api.compile(projectId, true)}
+            onRebuild={(full) => void buildNow(full)}
           />
           <Diagnostics
             height={drawer}
@@ -1142,7 +1172,7 @@ function AppControls({
         <span className="truncate text-ink">{projectName}</span>
         <Chevron direction="down" />
       </button>
-      <Appearance align="left" />
+      <Settings align="left" inProject />
       <button
         className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
         title="Download the whole project as a zip"

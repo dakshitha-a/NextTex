@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import api, { saveBlob, startDownload, type ProjectSummary } from "../api";
 import Logo from "../Logo";
-import Appearance from "./Appearance";
+import Settings from "./Settings";
 import UpdateFooter from "./UpdateFooter";
 import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
@@ -112,7 +112,7 @@ export default function Projects({
                 Back
               </button>
             ) : null}
-            <Appearance />
+            <Settings />
           </div>
         </div>
 

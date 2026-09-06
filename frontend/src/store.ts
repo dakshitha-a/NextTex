@@ -69,6 +69,11 @@ export type State = {
   history: Version[];
   trash: TrashEntry[];
   compiling: boolean;
+  /** Whether the preview is older than the source: something has been
+   *  edited since the last build started.  It is a resting state, not a
+   *  transient -- with `compile as you type` off, a document sits here
+   *  until the writer asks for a build. */
+  stale: boolean;
   compile: CompileResult | null;
   diagnostics: Diagnostic[];
   lint: Diagnostic[];
@@ -88,6 +93,8 @@ export type State = {
   } | null;
   contextDocs: ContextDocument[];
   contextStale: string[];
+  /** The three per-project switches from the settings card. */
+  settings: { autocompile: boolean; markErrors: boolean; markWarnings: boolean };
   /** Which agent this instance uses, and whether it is ready.  Named
    *  `agent` rather than `claude` since there are three answers now, one
    *  of which is that there is deliberately no agent at all. */
@@ -126,6 +133,7 @@ const state: State = {
   history: [],
   trash: [],
   compiling: false,
+  stale: false,
   compile: null,
   diagnostics: [],
   lint: [],
@@ -137,6 +145,7 @@ const state: State = {
   instance: "",
   contextDocs: [],
   contextStale: [],
+  settings: { autocompile: true, markErrors: true, markWarnings: false },
   agent: null,
   library: null,
   cursor: { line: 1, column: 1 },
@@ -223,7 +232,35 @@ export function replayTranscript(items: any[]) {
   for (const item of chat) {
     if (item.kind === "permission" && !item.decision) item.decision = "deny";
   }
+  // A question with no answer after it, and no notice explaining why.  This
+  // is what a turn looks like when the server stopped underneath it --
+  // which NextTex can now do to itself, since it installs its own updates
+  // and restarts.  Without this the update feature and the agent feature
+  // are quietly at odds: the transcript would reopen mid-sentence with
+  // nothing saying so.
+  if (danglingTurn(chat)) {
+    chat.push({
+      kind: "notice",
+      id: nextId(),
+      text: "That answer was interrupted when NextTex restarted.",
+      tone: "error",
+    });
+  }
   set({ chat, awaitingPermission: false });
+}
+
+/** Whether a transcript stops in the middle of a turn.
+ *
+ *  The last item, and only the last: a turn that reached an end finishes
+ *  with prose or with a notice saying why it did not.  The incident this
+ *  exists for ended `[user, claude, tool]` -- a sentence, a file read, and
+ *  then nothing -- so looking for the nearest `claude` going backwards
+ *  would find the sentence and conclude the turn was fine.
+ */
+function danglingTurn(chat: ChatItem[]): boolean {
+  const last = chat[chat.length - 1];
+  if (!last) return false;
+  return last.kind === "user" || last.kind === "tool" || last.kind === "edit";
 }
 
 export function pushChat(item: ChatItem) {
@@ -329,9 +366,27 @@ export function countDiff(before: string, after: string) {
 // The event stream
 
 let source: EventSource | null = null;
+
+/** The most recent build the server has told us about.  A cancelled build's
+ *  result arrives after its replacement has already started, so the id is
+ *  what tells a result about the current build from a result about one that
+ *  has been superseded. */
+let build = 0;
+
+/** The preview is behind the source.  Called from the editor on every
+ *  document change as well as from the event stream, because the writer
+ *  sees their own keystroke long before the server hears about it. */
+export function markStale() {
+  if (!state.stale) set({ stale: true });
+}
+
+function setStale() {
+  markStale();
+}
+
 export type EventHandlers = {
   onReveal?: (path: string, line: number) => void;
-  onProjectChanged?: () => void;
+  onProjectChanged?: (main?: string) => void;
   onFilesChanged?: (paths: string[], structural?: boolean) => void;
   onCompileDone?: (result: CompileResult) => void;
   onAgentEdit?: (path: string, line: number) => void | Promise<void>;
@@ -341,6 +396,13 @@ export const handlers: EventHandlers = {};
 export function connect(projectId: string) {
   source?.close();
   source = new EventSource(`/api/projects/${projectId}/events`);
+  startReconcile();
+  // Fires on the first connection and on every automatic reconnection, so
+  // a turn that ended while the stream was down is noticed at the moment
+  // the stream comes back rather than at the next timer tick.
+  source.onopen = () => {
+    if (state.thinking) void reconcile();
+  };
   source.onmessage = (event) => {
     let payload: any;
     try {
@@ -355,6 +417,61 @@ export function connect(projectId: string) {
 export function disconnect() {
   source?.close();
   source = null;
+  stopReconcile();
+}
+
+// ---------------------------------------------------------------------------
+// Telling the browser it is wrong
+//
+// Everything the chat panel does after a question is keyed on `done`
+// arriving.  The server now guarantees one, but a browser that missed it --
+// the tab was asleep, the stream dropped, NextTex restarted underneath a
+// running turn -- would sit on `thinking` for ever with no way to find out.
+// So it asks.  Not on a timer alone: the moments that matter are when the
+// tab comes back and when the stream reconnects, because those are exactly
+// when an event could have been missed.
+
+let reconcileTimer: number | undefined;
+let reconcileWatching = false;
+
+async function reconcile() {
+  const id = state.projectId;
+  if (!id || !state.thinking) return;
+  let report: { busy?: boolean };
+  try {
+    report = await api.usage(id);
+  } catch {
+    return; // the server is unreachable; saying so is the stream's job
+  }
+  if (report.busy || !state.thinking) return;
+  endText();
+  pushChat({
+    kind: "notice",
+    id: nextId(),
+    text: "That answer was interrupted, and NextTex did not hear how it ended.",
+    tone: "error",
+  });
+  set({ thinking: false, awaitingPermission: false });
+}
+
+function onWake() {
+  if (document.visibilityState === "visible") void reconcile();
+}
+
+function startReconcile() {
+  if (reconcileWatching) return;
+  reconcileWatching = true;
+  document.addEventListener("visibilitychange", onWake);
+  reconcileTimer = window.setInterval(() => {
+    if (state.thinking) void reconcile();
+  }, 60_000);
+}
+
+function stopReconcile() {
+  if (!reconcileWatching) return;
+  reconcileWatching = false;
+  document.removeEventListener("visibilitychange", onWake);
+  window.clearInterval(reconcileTimer);
 }
 
 function receive(event: any) {
@@ -362,17 +479,37 @@ function receive(event: any) {
     case "library_scan":
       set({ library: event as any });
       break;
+    case "compile_scheduled":
+      // A build is coming but has not started, so the preview is already
+      // behind what is on screen.  With autocompile off no build is coming
+      // at all and this is where the document rests.
+      set({ stale: true });
+      break;
     case "compile_start":
-      set({ compiling: true });
+      // Cleared here rather than when the build finishes: a keystroke made
+      // *during* a build leaves the preview behind again the moment the
+      // build lands, and clearing at the end would wipe that.
+      build = event.build ?? build;
+      set({ compiling: true, stale: false });
       break;
     case "compile_done": {
       if (event.outcome === "cancelled") {
         // A superseded build says nothing about the document; leave the
-        // diagnostics and the PDF exactly as they were.
+        // diagnostics and the PDF exactly as they were.  Its result also
+        // arrives *after* its replacement has started, so clearing
+        // `compiling` here would clear it for a build still running --
+        // which under the status dot is a dot that breathes for ever.
+        // Only the build nothing has superseded may end the compiling
+        // state.
+        if (event.build != null && event.build === build) set({ compiling: false });
         break;
       }
       set({
         compiling: false,
+        // Deliberately not `stale: false` here.  Staleness is cleared when
+        // a build *starts*, because a keystroke made while one was running
+        // leaves the preview behind again the moment that build lands --
+        // and clearing it here would wipe exactly that keystroke.
         compile: event as CompileResult,
         diagnostics: event.diagnostics ?? [],
         pdfStamp: Date.now(),
@@ -381,6 +518,9 @@ function receive(event: any) {
       break;
     }
     case "files_changed":
+      // Someone else changed a file -- the agent, another tab, an editor
+      // outside NextTex -- so the preview is behind whatever is on disk.
+      setStale();
       // Our own save, coming back around.  The buffer already holds it, and
       // reloading would fight a caret that has moved on since.
       if (event.origin && event.origin === clientId) break;
@@ -396,7 +536,20 @@ function receive(event: any) {
       if (state.projectId) refreshTrash(state.projectId);
       break;
     case "project_changed":
-      handlers.onProjectChanged?.();
+      // Changing the main document invalidates the preview, and the three
+      // switches ride on the same event so that nothing has to re-read the
+      // whole project to learn one boolean.
+      setStale();
+      if (typeof event.autocompile === "boolean") {
+        set({
+          settings: {
+            autocompile: event.autocompile,
+            markErrors: event.markErrors,
+            markWarnings: event.markWarnings,
+          },
+        });
+      }
+      handlers.onProjectChanged?.(event.main);
       break;
     case "turn_start":
       set({ thinking: true });

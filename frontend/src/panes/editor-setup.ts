@@ -58,7 +58,52 @@ const latexHighlight = HighlightStyle.define([
   { tag: tags.strong, fontWeight: "600" },
 ]);
 
-export type Mark = { line: number; severity: "error" | "warning" };
+export type Mark = {
+  line: number;
+  severity: "error" | "warning";
+  /** 1-based, or null when the tool that found this had no column to give.
+   *  A mark without one draws no underline at all -- see `markField`. */
+  column: number | null;
+};
+
+/** At most this many underlines on one line.  chktex on a dense preamble
+ *  finds dozens; past three the underlines are the mess they were brought
+ *  in to replace, and the diagnostics drawer still lists every one. */
+const MAX_UNDERLINES_PER_LINE = 3;
+/** And at most this many marks in one file, for the same reason. */
+const MAX_MARKS = 200;
+/** How far an underline may run before it stops pointing at a token and
+ *  starts highlighting a passage. */
+const MAX_TOKEN = 40;
+/** Characters that end the token an underline covers.  A leading backslash
+ *  is deliberately not one of them, so `\\citep` underlines as one word. */
+const TOKEN_BREAK = new Set([" ", "\t", "{", "}", "$", "%", "\\"]);
+
+/** Where the underline for a mark should start and end, or null when there
+ *  is nothing worth pointing at.
+ *
+ *  Column 1 is treated as no column at all: chktex reports it for a large
+ *  share of its findings, which is indistinguishable from having nothing
+ *  better to say, and the LaTeX log has no column ever.
+ */
+export function tokenAt(
+  text: string,
+  column: number | null,
+): { from: number; to: number } | null {
+  if (column == null || column < 2) return null;
+  const start = column - 1;
+  if (start >= text.length) return null;
+  let end = start;
+  // The first character is taken whatever it is -- a backslash starts a
+  // command, and a break character on its own is still the thing chktex is
+  // pointing at.
+  while (end < text.length && end - start < MAX_TOKEN) {
+    if (end > start && TOKEN_BREAK.has(text[end])) break;
+    end += 1;
+  }
+  if (end <= start) return null;
+  return { from: start, to: end };
+}
 
 export const setMarks = StateEffect.define<Mark[]>();
 /** Lines that differ from the live file, while an old version is on screen. */
@@ -73,21 +118,48 @@ const markField = StateField.define<DecorationSet>({
     for (const effect of tr.effects) {
       if (!effect.is(setMarks)) continue;
       const builder: any[] = [];
-      const seen = new Set<number>();
+      // One gutter bar per line, and the error wins where both land on the
+      // same one -- the array used to decide that by accident, whichever
+      // came first.
+      const bars = new Map<number, "error" | "warn">();
+      // Underlines are deduplicated on line *and* column, so two findings
+      // on one line each point at their own token.  Collapsing them by line
+      // was why the drawer's count and the editor never agreed.
+      const drawn = new Set<string>();
+      const perLine = new Map<number, number>();
       for (const mark of effect.value) {
         if (mark.line < 1 || mark.line > tr.state.doc.lines) continue;
-        if (seen.has(mark.line)) continue;
-        seen.add(mark.line);
+        if (drawn.size >= MAX_MARKS) break;
         const line = tr.state.doc.line(mark.line);
         const cls = mark.severity === "error" ? "error" : "warn";
+        if (bars.get(mark.line) !== "error") bars.set(mark.line, cls);
+
+        // No column means no underline.  A dotted rule under a whole line
+        // of LaTeX points at nothing the gutter bar has not already said,
+        // and it is drawn through text the writer is trying to read; every
+        // compile error takes this branch, because the LaTeX log has no
+        // columns.
+        const span = tokenAt(line.text, mark.column ?? null);
+        if (!span) continue;
+        const key = `${mark.line}:${mark.column}:${cls}`;
+        if (drawn.has(key)) continue;
+        const already = perLine.get(mark.line) ?? 0;
+        if (already >= MAX_UNDERLINES_PER_LINE) continue;
+        drawn.add(key);
+        perLine.set(mark.line, already + 1);
         builder.push(
-          Decoration.line({ class: `cm-gutter-${cls}` }).range(line.from),
+          Decoration.mark({ class: `cm-mark-${cls}` }).range(
+            line.from + span.from,
+            line.from + span.to,
+          ),
         );
-        if (line.to > line.from) {
-          builder.push(
-            Decoration.mark({ class: `cm-mark-${cls}` }).range(line.from, line.to),
-          );
-        }
+      }
+      for (const [line, cls] of bars) {
+        builder.push(
+          Decoration.line({ class: `cm-gutter-${cls}` }).range(
+            tr.state.doc.line(line).from,
+          ),
+        );
       }
       builder.sort((a, b) => a.from - b.from || a.value.startSide - b.value.startSide);
       return Decoration.set(builder, true);
@@ -160,12 +232,15 @@ const flashField = StateField.define<DecorationSet>({
 export function marksFor(
   diagnostics: Diagnostic[],
   path: string,
+  show: { errors: boolean; warnings: boolean } = { errors: true, warnings: true },
 ): Mark[] {
   return diagnostics
     .filter((d) => d.file === path && d.line)
+    .filter((d) => (d.severity === "error" ? show.errors : show.warnings))
     .map((d) => ({
       line: d.line as number,
       severity: d.severity === "error" ? ("error" as const) : ("warning" as const),
+      column: d.column ?? null,
     }));
 }
 

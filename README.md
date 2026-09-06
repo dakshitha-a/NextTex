@@ -321,6 +321,14 @@ Point NextTex at any folder containing a LaTeX document.
 name = "My Thesis"
 main = "main.tex"
 build_dir = "build"
+
+# Written by the settings card, and yours to edit by hand.  They are per
+# project rather than per browser, because whether a document compiles as
+# you type is a fact about the document: a forty-file thesis takes twenty
+# seconds to build and a one-page note takes one.
+autocompile = true      # build as you type; ⌘S builds when this is off
+mark_errors = true      # mark compile errors in the text itself
+mark_warnings = false   # and chktex warnings, which are noisier
 ```
 
 Without one, NextTex finds the file containing `\documentclass` and

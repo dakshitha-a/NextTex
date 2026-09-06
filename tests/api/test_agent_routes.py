@@ -263,3 +263,31 @@ def test_an_unlisted_openai_model_is_allowed(client, opened, back_to_claude):
         json={"model": "gpt-5-something"},
     )
     assert response.status_code == 200, response.text
+
+
+def test_a_turn_that_vanishes_mid_answer_still_ends(client, opened):
+    """The incident, driven through the routes.
+
+    A turn that stops with no result and nothing raised used to leave the
+    server idle and the browser thinking for ever: the composer disabled,
+    the follow-up queued behind a state that would never change, and Stop a
+    no-op because there was no turn left to interrupt.
+    """
+    project_id = opened["id"]
+    response = client.post(
+        f"/api/projects/{project_id}/agent/ask",
+        json={"prompt": "#script:vanish\nwhat is this error?"},
+    )
+    assert response.status_code == 200, response.text
+    wait_idle(project_id)
+
+    # A second question is accepted, which is the observable proof that the
+    # first one really ended: `ask` raises 409 while a turn is running, so
+    # a wedged turn would fail here.
+    again = client.post(
+        f"/api/projects/{project_id}/agent/ask",
+        json={"prompt": "#script:reply\nand now?"},
+    )
+    assert again.status_code == 200, again.text
+    wait_idle(project_id)
+    assert not client.get(f"/api/projects/{project_id}/agent/usage").json()["busy"]

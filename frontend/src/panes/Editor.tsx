@@ -19,7 +19,7 @@ import {
   setMarks,
   viewExtensions,
 } from "./editor-setup";
-import { get, set, useStore } from "../store";
+import { get, markStale, set, useStore } from "../store";
 
 
 /** Autosave delay.  The server debounces the compile again on its side; this
@@ -82,6 +82,7 @@ export default function Editor({
   const pendingOpen = useStore((s) => s.pendingOpen);
   const diagnostics = useStore((s) => s.diagnostics);
   const lint = useStore((s) => s.lint);
+  const settings = useStore((s) => s.settings);
   const activePath = useStore((s) => s.activePath);
 
   useEffect(() => {
@@ -138,6 +139,18 @@ export default function Editor({
     const onChange = () => {
       const path = current.current;
       if (!path) return;
+      // The preview is behind the moment a key is pressed.  Said here as
+      // well as from the server's `compile_scheduled`, because the writer
+      // sees their own keystroke a save and a round trip before the server
+      // hears about it -- and with compile-as-you-type off the server is
+      // never told at all.
+      //
+      // Not while an old version is on screen, though: loading one replaces
+      // the document, which is a change to the buffer and not a change to
+      // the file.  Nothing has been edited, so the preview still matches
+      // the source -- and a stale dot raised there would stay up until the
+      // next build, which with compiling off might be tomorrow.
+      if (!viewing.current) markStale();
       const tabs = get().tabs;
       if (!tabs.find((tab) => tab.path === path)?.dirty) {
         set({
@@ -496,12 +509,15 @@ export default function Editor({
   // Diagnostics repaint whenever a build or a lint pass lands.
   useEffect(() => {
     if (!view.current || !activePath || viewing.current) return;
+    // The two switches govern what is drawn in the text and nothing else:
+    // the drawer, the tab dot and the status strip keep every diagnostic.
+    const show = { errors: settings.markErrors, warnings: settings.markWarnings };
     const marks = [
-      ...marksFor(diagnostics, activePath),
-      ...marksFor(lint, activePath),
+      ...marksFor(diagnostics, activePath, show),
+      ...marksFor(lint, activePath, show),
     ];
     view.current.dispatch({ effects: setMarks.of(marks) as StateEffect<any> });
-  }, [diagnostics, lint, activePath]);
+  }, [diagnostics, lint, activePath, settings.markErrors, settings.markWarnings]);
 
   // ---- sizing the text with the wheel ----------------------------------
   // The same gesture the preview already answers to, for the same reason: a

@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -58,7 +59,24 @@ from claude_agent_sdk import (
     tool,
 )
 
+log = logging.getLogger("nexttex.agent")
+
 SESSION_FILE = "session.json"
+
+# How long a permission card may sit unanswered before the turn gives up on
+# it.  A card that never reached a browser -- the tab was closed, the stream
+# dropped between the emit and the render -- used to block the turn for
+# ever, holding the lock and leaving the interface thinking.  Ten minutes is
+# long enough that nobody who stepped away for coffee loses their answer,
+# and short enough that a lost card is not a wedged project.
+PERMISSION_TIMEOUT = 600.0
+
+# How long a turn may produce nothing at all before it is declared stuck.
+# Measured between emitted events rather than from the start of the turn, so
+# a genuinely long answer is never cut off while it is still saying things;
+# time spent waiting on a permission card does not count, because the card
+# has a timeout of its own.
+TURN_SILENCE_TIMEOUT = 900.0
 
 # Tools that never need asking about wherever they point: they change
 # nothing outside the model's own head.
@@ -286,6 +304,17 @@ class ProjectAgent:
         self._events: asyncio.Queue | None = None
         self._turn: asyncio.Task | None = None
         self._cancelled = False
+        # Set the moment a `done` reaches the queue, so the safety net in
+        # `_run_turn` can tell "this turn already said how it ended" from
+        # "this turn stopped without saying anything".
+        self._done_sent = False
+        # When the queue last received anything, for the silence watchdog.
+        self._last_event = 0.0
+        # A model change asked for while a turn was running.  Applied when
+        # the turn ends: changing it there and then would tear down the
+        # client mid-answer, which is exactly how a turn used to vanish.
+        self._model_pending: str | None = None
+        self._model_deferred = False
 
     # -- session persistence ---------------------------------------------
     @property
@@ -492,11 +521,25 @@ class ProjectAgent:
         })
 
         try:
-            decision = await future
+            decision = await asyncio.wait_for(future, timeout=PERMISSION_TIMEOUT)
         except asyncio.CancelledError:
             # An interrupt while a card is open must end the turn, not just
             # refuse this one call and let the agent carry on.
             self._cancelled = True
+            return "deny"
+        except asyncio.TimeoutError:
+            # The card never got an answer -- most likely it never reached a
+            # browser at all.  Denying is the safe reading of silence, and
+            # saying so is what stops the turn from looking wedged.
+            log.warning("permission request %s went unanswered", request_id)
+            await self._emit({
+                "type": "notice",
+                "message": (
+                    f"NextTex waited {int(PERMISSION_TIMEOUT // 60)} minutes for an "
+                    f"answer about {tool_name} and did not get one, so it said no. "
+                    "Ask again if you meant to allow it."
+                ),
+            })
             return "deny"
         finally:
             self._pending.pop(request_id, None)
@@ -1025,17 +1068,28 @@ class ProjectAgent:
         return time.monotonic() - self._last_used if self._last_used else 0.0
 
     async def interrupt(self) -> None:
+        """Stop whatever is running, and always say so.
+
+        Stop is the writer's one escape hatch, so it may never be a silent
+        no-op.  If there is no turn to cancel -- which is precisely the
+        state a turn that ended without emitting `done` leaves behind --
+        the interface is still waiting, and the honest answer is to end it
+        here rather than to do nothing and leave it waiting for ever.
+        """
         self._cancelled = True
-        if self._turn is not None and not self._turn.done():
+        running = self.busy
+        if running:
             self._turn.cancel()
         if self._client is not None:
             try:
                 await self._client.interrupt()
-            except Exception:
-                pass
+            except Exception as exc:
+                log.warning("interrupting the SDK client failed: %s", exc)
         for future in list(self._pending.values()):
             if not future.done():
                 future.cancel()
+        if not running:
+            await self._emit({"type": "done", "subtype": "interrupted"})
 
     # -- the conversation ---------------------------------------------------
     # One queue per project carries everything a turn produces, in the order
@@ -1048,6 +1102,9 @@ class ProjectAgent:
         return self._events
 
     async def _emit(self, event: dict) -> None:
+        if event.get("type") == "done":
+            self._done_sent = True
+        self._last_event = time.monotonic()
         await self._queue().put(event)
 
     async def events(self) -> AsyncIterator[dict]:
@@ -1069,24 +1126,71 @@ class ProjectAgent:
         if self.busy:
             raise RuntimeError("a turn is already running")
         self._cancelled = False
+        self._done_sent = False
+        self._last_event = time.monotonic()
         self._why = prompt.strip().splitlines()[0][:120] if prompt.strip() else ""
         await self._emit({"type": "turn_start", "prompt": prompt})
         self._turn = asyncio.create_task(self._run_turn(prompt))
 
     async def _run_turn(self, prompt: str) -> None:
+        """Run one turn, and guarantee that it ends where the browser can see.
+
+        Everything the interface does after a question is keyed on `done`
+        arriving.  A turn that ends without one leaves the server idle and
+        the browser thinking for ever, with Stop a no-op and the next
+        question queued behind a state that will never change -- so the
+        `finally` here emits one on every exit that has not already sent it.
+        The specific cases below still run first, because a turn that says
+        *interrupted* or *error* is more useful than one that only says it
+        stopped.
+        """
+        watchdog = asyncio.create_task(self._watch_for_silence())
         try:
             await self._stream(prompt)
         except asyncio.CancelledError:
             await self._emit({"type": "done", "subtype": "interrupted"})
             raise
         except Exception as exc:  # a crashed turn must not stall the UI
+            log.exception("the agent turn failed")
             await self._emit({
                 "type": "error",
                 "message": f"{type(exc).__name__}: {exc}",
             })
             await self._emit({"type": "done", "subtype": "error"})
         finally:
+            watchdog.cancel()
+            if not self._done_sent:
+                log.warning("a turn ended without emitting done; ending it here")
+                await self._emit({"type": "done", "subtype": "no_result"})
             self._turn = None
+            await self._apply_deferred_model()
+
+    async def _watch_for_silence(self) -> None:
+        """End a turn that has stopped producing anything at all.
+
+        Silence rather than elapsed time: a long answer that is still
+        writing is not stuck, and a turn waiting on a permission card is not
+        stuck either -- the card has its own timeout, and answering it
+        counts as an event.
+        """
+        while True:
+            await asyncio.sleep(30)
+            quiet = time.monotonic() - self._last_event
+            if quiet < TURN_SILENCE_TIMEOUT:
+                continue
+            if self._pending:  # waiting on a person, not on the model
+                continue
+            log.warning("no agent activity for %.0fs; ending the turn", quiet)
+            await self._emit({
+                "type": "error",
+                "message": (
+                    f"The agent stopped responding "
+                    f"({int(quiet // 60)} minutes without a word)."
+                ),
+            })
+            if self._turn is not None and not self._turn.done():
+                self._turn.cancel()
+            return
 
     async def _stream(self, prompt: str) -> None:
         async with self._lock:
@@ -1162,6 +1266,18 @@ class ProjectAgent:
                     self._last_used = time.monotonic()
                     return
 
+            # The loop can end without a ResultMessage: the SDK closes its
+            # transport cleanly -- a `disconnect()` from another request, the
+            # CLI subprocess exiting -- and `receive_response()` then simply
+            # stops rather than raising.  Nothing here would have noticed.
+            self._last_used = time.monotonic()
+            log.warning("the model stream ended without a result")
+            await self._emit({
+                "type": "error",
+                "message": "The connection to the model ended before the answer did.",
+            })
+            await self._emit({"type": "done", "subtype": "no_result"})
+
     # -- usage -------------------------------------------------------------
     @property
     def usage_path(self) -> Path:
@@ -1204,6 +1320,27 @@ class ProjectAgent:
         the same conversation from its stored session id.  Nothing in the
         transcript is lost.
         """
+        if (model or None) == (self.model or None):
+            self._model_pending = None
+            return
+        if self.busy:
+            # Disconnecting here closes the transport the running turn is
+            # reading from, and `receive_response()` then ends without
+            # raising -- which is how changing the model mid-answer used to
+            # make a turn disappear silently.  Remember it instead.
+            self._model_pending = model or None
+            self._model_deferred = True
+            return
+        self.model = model or None
+        self._model_pending = None
+        await self.disconnect()
+
+    async def _apply_deferred_model(self) -> None:
+        """Take up a model change that arrived while a turn was running."""
+        if not self._model_deferred:
+            return
+        self._model_deferred = False
+        model, self._model_pending = self._model_pending, None
         if (model or None) == (self.model or None):
             return
         self.model = model or None
