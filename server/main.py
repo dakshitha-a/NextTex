@@ -9,16 +9,17 @@ between someone cloning the repository and having an editor open.
 from __future__ import annotations
 
 import asyncio
-import io
 import mimetypes
 import secrets
 import shutil
 import subprocess
+import tempfile
 import time
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from starlette.background import BackgroundTask
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse,
@@ -754,30 +755,52 @@ async def download(project_id: str, path: str = "", format: str = "auto"):
 
     build_dir = project.build_dir.resolve()
 
-    def stream() -> io.BytesIO:
-        buffer = io.BytesIO()
+    def build_archive() -> Path:
+        """Write the archive to a file, and hand back where it is.
+
+        Not into memory: a project with figures is tens of megabytes, and a
+        BytesIO holds all of it while the response is served.  Streaming one
+        was worse than it looked -- Starlette iterates a file object by
+        *line*, and compressed bytes carry a newline every few hundred, so a
+        40 MB archive left as a hundred and fifty thousand chunks.
+        """
+        handle = tempfile.NamedTemporaryFile(
+            prefix="nexttex-download-", suffix=".zip", delete=False,
+        )
+        archive_path = Path(handle.name)
         base = target.parent if target.is_file() else target
         items = [target] if target.is_file() else target.rglob("*")
-        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-            for item in items:
-                if not item.is_file():
-                    continue
-                # Build output is regenerated from the source and would
-                # multiply the archive size for nothing.
-                if build_dir == item or build_dir in item.parents:
-                    continue
-                if any(p in {".git", ".nexttex", "__pycache__"} for p in item.parts):
-                    continue
-                if item.name in IGNORED_FILES:
-                    continue
-                archive.write(item, item.relative_to(base))
-        buffer.seek(0)
-        return buffer
+        try:
+            with zipfile.ZipFile(handle, "w", zipfile.ZIP_DEFLATED) as archive:
+                for item in items:
+                    if not item.is_file():
+                        continue
+                    # Build output is regenerated from the source and would
+                    # multiply the archive size for nothing.
+                    if build_dir == item or build_dir in item.parents:
+                        continue
+                    if any(p in {".git", ".nexttex", "__pycache__"}
+                           for p in item.parts):
+                        continue
+                    if item.name in IGNORED_FILES:
+                        continue
+                    archive.write(item, item.relative_to(base))
+        finally:
+            handle.close()
+        return archive_path
+
+    # On a thread: compressing a thesis takes seconds, and on the loop that
+    # is seconds in which nothing else in the app answers at all.
+    archive_path = await asyncio.to_thread(build_archive)
+
+    def remove_archive() -> None:
+        archive_path.unlink(missing_ok=True)
 
     stem = target.stem if target.is_file() else (target.name or project.config.name)
-    return StreamingResponse(
-        stream(), media_type="application/zip",
+    return FileResponse(
+        archive_path, media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{stem}.zip"'},
+        background=BackgroundTask(remove_archive),
     )
 
 
@@ -831,8 +854,11 @@ async def git_status(project_id: str):
     project = session.project if session else REGISTRY.find(project_id)
     if project is None:
         raise HTTPException(404, "unknown project")
-    ready, reason = gitrepo.gh_available()
-    return {**gitrepo.status(project.root).as_dict(), "gh": ready, "ghReason": reason}
+    # `git status` on a thesis with a large working tree is not instant, and
+    # this route is called after every build.
+    ready, reason = await asyncio.to_thread(gitrepo.gh_available)
+    state = await asyncio.to_thread(gitrepo.status, project.root)
+    return {**state.as_dict(), "gh": ready, "ghReason": reason}
 
 
 @app.post("/api/projects/{project_id}/git/{action}")
@@ -1017,7 +1043,10 @@ async def get_pdf(project_id: str, request: Request):
 async def synctex_inverse(project_id: str, page: int, x: float, y: float):
     """PDF click to source position."""
     session = session_for(project_id)
-    position = synctex.pdf_to_source(
+    # A synctex query on a thesis-sized .synctex.gz is not free, and this
+    # runs on every double-click in the preview.
+    position = await asyncio.to_thread(
+        synctex.pdf_to_source,
         session.paths.pdf, page, x, y, session.project.root,
         shadow_main=session.paths.shadow, main_file=session.paths.main,
     )
@@ -1036,8 +1065,9 @@ async def synctex_forward(project_id: str, path: str, line: int, column: int = 0
     """Source position to places on the page."""
     session = session_for(project_id)
     target = _safe(session, path)
-    positions = synctex.source_to_pdf(
-        session.paths.pdf, target, line, session.project.root, column
+    positions = await asyncio.to_thread(
+        synctex.source_to_pdf,
+        session.paths.pdf, target, line, session.project.root, column,
     )
     return {"positions": [
         {"page": p.page, "x": p.x, "y": p.y, "width": p.width, "height": p.height}
@@ -1064,11 +1094,16 @@ async def words(project_id: str, path: str = "", scope: str = "file"):
         if not path:
             return {"words": None, "scope": scope}
         argv.append(str(_safe(session, path)))
-    try:
-        out = subprocess.run(
+    def count() -> str:
+        return subprocess.run(
             argv, capture_output=True, text=True, timeout=45,
             cwd=session.project.root,
         ).stdout
+
+    try:
+        # In a thread: texcount over a whole thesis takes seconds, and on
+        # the loop it holds up every autosave and every streamed token.
+        out = await asyncio.to_thread(count)
     except (OSError, subprocess.SubprocessError):
         return {"words": None, "scope": scope}
     total = None
@@ -1093,7 +1128,11 @@ async def lint(project_id: str, path: str):
         argv += ["-l", str(rcfile)]
     argv.append(str(target))
     try:
-        out = subprocess.run(argv, capture_output=True, text=True, timeout=15).stdout
+        out = await asyncio.to_thread(
+            lambda: subprocess.run(
+                argv, capture_output=True, text=True, timeout=15,
+            ).stdout
+        )
     except (subprocess.SubprocessError, OSError):
         return {"diagnostics": []}
     diagnostics = []

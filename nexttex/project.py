@@ -169,8 +169,7 @@ class Project:
     @property
     def id(self) -> str:
         """A stable, filesystem-safe identifier derived from the path."""
-        import hashlib
-        return hashlib.sha256(str(self.root).encode()).hexdigest()[:12]
+        return id_for(self.root)
 
     @property
     def main(self) -> Path:
@@ -214,6 +213,19 @@ class Project:
     def relative(self, path: Path) -> str:
         return str(Path(path).resolve().relative_to(self.root.resolve()))
 
+    def _relative_below(self, path: Path) -> str:
+        """The relative path of something reached by walking from the root.
+
+        No resolve: the caller built this path by stepping down from
+        `self.root`, which is already absolute, and following a symlinked
+        chapter directory to wherever it points would name the file
+        something the file tree cannot open.
+        """
+        try:
+            return str(path.relative_to(self.root))
+        except ValueError:
+            return self.relative(path)
+
     # -- the file tree --------------------------------------------------
     def _excluded(self, path: Path) -> bool:
         name = path.name
@@ -222,12 +234,11 @@ class Project:
         if name in set(self.config.exclude):
             return True
         # The build directory is excluded by configuration rather than by
-        # name, since a project can call it anything.
-        try:
-            if path.resolve() == self.build_dir.resolve():
-                return True
-        except OSError:
-            pass
+        # name, since a project can call it anything.  Compared as built
+        # rather than as resolved: both sides descend from the same root, so
+        # resolving them was four `realpath` calls per entry in the tree.
+        if path == self.build_dir:
+            return True
         return False
 
     def tree(self) -> dict:
@@ -248,7 +259,7 @@ class Project:
                 if child.is_dir():
                     entries.append({
                         "name": child.name,
-                        "path": self.relative(child),
+                        "path": self._relative_below(child),
                         "type": "dir",
                         "children": walk(child),
                     })
@@ -260,7 +271,7 @@ class Project:
                         size = 0
                     entries.append({
                         "name": child.name,
-                        "path": self.relative(child),
+                        "path": self._relative_below(child),
                         "type": "file",
                         "kind": (
                             "text" if suffix in TEXT_SUFFIXES
@@ -298,6 +309,22 @@ class RegistryEntry:
     path: str
     name: str
     last_opened: float = 0.0
+
+
+def id_for(root: Path | str) -> str:
+    """The identifier of the project at a path, without opening it.
+
+    Opening one reads its config, and a project with no `nexttex.toml` then
+    guesses its main file -- which walks the whole tree reading the first
+    four kilobytes of every .tex it finds.  The project list did that for
+    every project on the screen, and again for every entry it stepped past
+    while looking one up by id.
+    """
+    import hashlib
+
+    return hashlib.sha256(
+        str(Path(root).expanduser().resolve()).encode()
+    ).hexdigest()[:12]
 
 
 class Registry:
@@ -356,7 +383,7 @@ class Registry:
                 # A project whose directory has gone is shown, not silently
                 # dropped: the user moved it, and should be told so.
                 "missing": not exists,
-                "id": Project.open(entry.path).id if exists else None,
+                "id": id_for(entry.path) if exists else None,
             })
         return result
 
@@ -389,7 +416,6 @@ class Registry:
             root = Path(entry.path)
             if not root.is_dir():
                 continue
-            project = Project.open(root)
-            if project.id == project_id:
-                return project
+            if id_for(root) == project_id:
+                return Project.open(root)
         return None

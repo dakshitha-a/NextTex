@@ -48,3 +48,33 @@ def test_a_corrupt_line_does_not_lose_the_rest(tmp_path):
 
 def test_reading_a_transcript_that_does_not_exist_yet(tmp_path):
     assert Transcript(tmp_path / "none.jsonl").items() == []
+
+
+def test_a_huge_transcript_is_read_from_its_end(tmp_path):
+    """Every agent edit stores the file before and after, so a long project
+    reaches megabytes.  Rebuilding the panel must not read all of it."""
+    from server.transcript import TAIL_BYTES, Transcript
+
+    log = Transcript(tmp_path / "transcript.jsonl")
+    filler = "x" * 20_000
+    for index in range(400):
+        log.record({"type": "edit", "path": "main.tex",
+                    "before": filler, "after": f"{filler}{index}"})
+    assert log.path.stat().st_size > TAIL_BYTES
+
+    items = log.items()
+    assert items, "the tail still parses"
+    assert items[-1]["after"].endswith("399")
+    assert all(item["kind"] == "edit" for item in items)
+
+
+def test_a_tool_argument_that_will_not_serialise_is_not_fatal(tmp_path):
+    """It used to raise out of the pump, which then stopped forwarding
+    everything after it -- including the event that ends the turn."""
+    from server.transcript import Transcript
+
+    log = Transcript(tmp_path / "transcript.jsonl")
+    log.record({"type": "tool_use", "id": "t1", "name": "Bash",
+                "input": {"paths": {tmp_path}}})
+    log.record({"type": "turn_start", "prompt": "and then this"})
+    assert [item["kind"] for item in log.items()][-1] == "user"

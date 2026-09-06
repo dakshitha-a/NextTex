@@ -12,6 +12,7 @@ time it saw rather than trying to watch anything.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,6 +29,39 @@ BIB_FIELD = re.compile(r"^\s*(\w+)\s*=\s*[{\"](.*?)[}\"]\s*,?\s*$", re.MULTILINE
 
 TEX_SUFFIXES = {".tex", ".ltx", ".sty", ".cls"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".pdf", ".eps", ".svg"}
+
+# Directories worth neither walking into nor completing from.  Pruned during
+# the walk rather than filtered afterwards: on a thesis with a .git and a
+# node_modules, descending into them and discarding the results is most of
+# the cost of a scan.
+IGNORED_DIRS = {".git", ".nexttex", "__pycache__", "node_modules", ".venv"}
+
+# What a change to actually means the completions are out of date.  The
+# build directory is excluded from the walk entirely, which is why this can
+# include .pdf: figures are worth noticing, build/main.pdf is not -- and it
+# is rewritten by every compile, which used to force a full rescan of the
+# project every 1.6 seconds while somebody was typing.
+STAMP_SUFFIXES = TEX_SUFFIXES | {".bib"} | IMAGE_SUFFIXES
+
+
+def walk_project(
+    root: Path, *, excluded=None, build_dir: Path | None = None
+) -> list[Path]:
+    """Every file in the project worth reading, in a stable order."""
+    found: list[Path] = []
+    for parent, dirnames, filenames in os.walk(root):
+        here = Path(parent)
+        dirnames[:] = sorted(
+            name for name in dirnames
+            if name not in IGNORED_DIRS
+            and not (build_dir is not None and here / name == build_dir)
+        )
+        for name in sorted(filenames):
+            path = here / name
+            if excluded is not None and excluded(path):
+                continue
+            found.append(path)
+    return found
 
 
 @dataclass
@@ -99,24 +133,29 @@ def _first_author(value: str) -> str:
     return _clean(surname)
 
 
-def scan(root: Path, *, excluded=None, build_dir: Path | None = None) -> Symbols:
-    """Everything in the project worth completing to."""
+def scan(
+    root: Path,
+    *,
+    excluded=None,
+    build_dir: Path | None = None,
+    files: list[Path] | None = None,
+) -> Symbols:
+    """Everything in the project worth completing to.
+
+    `files` is the walk the caller has already done, so the cache below can
+    decide whether a rescan is needed and then perform it without walking
+    the project a second time.
+    """
     found = Symbols()
     seen_labels: set[str] = set()
     seen_commands: set[str] = set()
 
-    for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
-        parts = set(path.parts)
-        if parts & {".git", ".nexttex", "__pycache__", "node_modules"}:
-            continue
-        if build_dir is not None and build_dir in path.parents:
-            continue
-        if excluded is not None and excluded(path):
-            continue
-
+    if files is None:
+        files = walk_project(root, excluded=excluded, build_dir=build_dir)
+    for path in files:
         suffix = path.suffix.lower()
+        if suffix not in STAMP_SUFFIXES:
+            continue
         relative = str(path.relative_to(root))
 
         if suffix in IMAGE_SUFFIXES:
@@ -179,22 +218,25 @@ class SymbolCache:
         self._stamp: float = -1.0
         self._value: Symbols | None = None
 
-    def _newest(self) -> float:
+    def get(self, *, excluded=None, build_dir: Path | None = None) -> Symbols:
+        """The project's symbols, rescanned only if something has changed.
+
+        One walk answers both questions -- what changed, and what to read --
+        so a hit costs a single pass over the source files and a miss costs
+        no more walking than a hit.
+        """
+        files = walk_project(self.root, excluded=excluded, build_dir=build_dir)
         newest = 0.0
-        for path in self.root.rglob("*"):
-            if path.suffix.lower() not in TEX_SUFFIXES | {".bib"} | IMAGE_SUFFIXES:
-                continue
-            if {".git", ".nexttex"} & set(path.parts):
+        for path in files:
+            if path.suffix.lower() not in STAMP_SUFFIXES:
                 continue
             try:
                 newest = max(newest, path.stat().st_mtime)
             except OSError:
                 continue
-        return newest
-
-    def get(self, *, excluded=None, build_dir: Path | None = None) -> Symbols:
-        stamp = self._newest()
-        if self._value is None or stamp != self._stamp:
-            self._value = scan(self.root, excluded=excluded, build_dir=build_dir)
-            self._stamp = stamp
+        if self._value is None or newest != self._stamp:
+            self._value = scan(
+                self.root, excluded=excluded, build_dir=build_dir, files=files,
+            )
+            self._stamp = newest
         return self._value

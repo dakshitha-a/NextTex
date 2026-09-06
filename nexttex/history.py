@@ -167,13 +167,33 @@ class History:
         self.log_dir = self.root / "log"
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.paths_file = self.root / "paths.json"
+        # A file's log, parsed, kept against the log's own mtime and size.
+        # `record` runs on every autosave -- a quarter second after typing
+        # stops -- and it reads the whole log, thins it and rewrites it.  On
+        # a file with four hundred versions that was two full JSON parses
+        # per keystroke burst, on the event loop.
+        self._log_cache: dict[str, tuple[tuple[int, int], list[Version]]] = {}
+        self._paths_cache: tuple[tuple[int, int], dict] | None = None
 
     # -- the path map ------------------------------------------------------
-    def _paths(self) -> dict:
+    @staticmethod
+    def _stamp(path: Path) -> tuple[int, int]:
         try:
-            return json.loads(self.paths_file.read_text(encoding="utf-8"))
+            stat = path.stat()
+        except OSError:
+            return (0, 0)
+        return (stat.st_mtime_ns, stat.st_size)
+
+    def _paths(self) -> dict:
+        stamp = self._stamp(self.paths_file)
+        if self._paths_cache is not None and self._paths_cache[0] == stamp:
+            return self._paths_cache[1]
+        try:
+            data = json.loads(self.paths_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return {}
+            data = {}
+        self._paths_cache = (stamp, data)
+        return data
 
     def _write_paths(self, data: dict) -> None:
         temp = self.paths_file.with_suffix(".json.tmp")
@@ -182,6 +202,7 @@ class History:
             temp.replace(self.paths_file)
         except OSError:
             pass
+        self._paths_cache = (self._stamp(self.paths_file), data)
 
     def _remember_path(self, relative_path: str) -> str:
         slug = slug_for(relative_path)
@@ -216,6 +237,8 @@ class History:
                 source.replace(target)
         except OSError:
             return
+        self._log_cache.pop(source.name, None)
+        self._log_cache.pop(target.name, None)
         paths = self._paths()
         aliases = (paths.get(old_slug) or {}).get("aliases", [])
         paths.pop(old_slug, None)
@@ -234,8 +257,16 @@ class History:
 
     def versions(self, relative_path: str) -> list[Version]:
         """Every kept version of one file, oldest first."""
+        log = self._log_path(relative_path)
+        stamp = self._stamp(log)
+        cached = self._log_cache.get(log.name)
+        if cached is not None and cached[0] == stamp:
+            # A fresh list, because callers slice and append to it; the
+            # Version objects themselves are only ever mutated by
+            # `set_label`, which drops the entry afterwards.
+            return list(cached[1])
         try:
-            lines = self._log_path(relative_path).read_text(encoding="utf-8").splitlines()
+            lines = log.read_text(encoding="utf-8").splitlines()
         except OSError:
             return []
         out: list[Version] = []
@@ -244,6 +275,11 @@ class History:
                 out.append(Version.from_dict(json.loads(line)))
             except (json.JSONDecodeError, TypeError, ValueError):
                 continue
+        self._log_cache[log.name] = (stamp, list(out))
+        # A session can touch many files; the cache is not a leak waiting
+        # to happen.
+        while len(self._log_cache) > 128:
+            self._log_cache.pop(next(iter(self._log_cache)))
         return out
 
     def content(self, relative_path: str, sha: str) -> str | None:
@@ -279,7 +315,9 @@ class History:
             )
             temp.replace(target)
         except OSError:
-            pass
+            self._log_cache.pop(target.name, None)
+            return
+        self._log_cache[target.name] = (self._stamp(target), list(versions))
 
     def record(
         self,
@@ -393,8 +431,10 @@ class History:
 
     def forget(self, relative_path: str) -> None:
         """Drop a file's history entirely. Blobs go on the next collection."""
+        log = self._log_path(relative_path)
+        self._log_cache.pop(log.name, None)
         try:
-            self._log_path(relative_path).unlink(missing_ok=True)
+            log.unlink(missing_ok=True)
         except OSError:
             pass
         paths = self._paths()

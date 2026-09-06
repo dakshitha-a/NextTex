@@ -167,10 +167,18 @@ export default function Pdf({
       const container = sheet.current;
       if (!container) return;
       const position = keep ? anchor() : { index: 0, fraction: 0 };
-      generation.current += 1;
+      const mine = (generation.current += 1);
+      // Every await below is a place a newer layout can start and finish
+      // first -- a rebuild landing while the split handle is being dragged
+      // does exactly that.  Without this the older run wrote its stale
+      // array over the newer one's, leaving page elements that are not in
+      // the document any more: offsetTop reads 0 for all of them, so
+      // drawVisible thinks every page is on screen and renders all of them.
+      const superseded = () => generation.current !== mine;
 
       const count = document.numPages;
       const first = await document.getPage(1);
+      if (superseded()) return;
       const natural = first.getViewport({ scale: 1 });
       const measured = scroller.current?.clientWidth ?? 0;
       const available = (measured > 80 ? measured : 900) - 48;
@@ -189,9 +197,18 @@ export default function Pdf({
       // recreating forty canvases for that is the single most expensive
       // thing this pane can do -- it is also what makes the preview blink.
       const reusable = pages.current.length === count;
+      // In parallel: awaiting two hundred pages one after another costs two
+      // hundred round trips through the microtask queue before a single
+      // pixel can be drawn, and this runs on every rebuild.
+      const sheets = await Promise.all(
+        Array.from({ length: count }, (_, index) =>
+          index === 0 ? first : document.getPage(index + 1),
+        ),
+      );
+      if (superseded()) return;
       const views: PageView[] = [];
       for (let index = 0; index < count; index += 1) {
-        const page = index === 0 ? first : await document.getPage(index + 1);
+        const page = sheets[index];
         const viewport = page.getViewport({ scale: effective });
         const width = Math.floor(viewport.width);
         const height = Math.floor(viewport.height);
@@ -236,6 +253,7 @@ export default function Pdf({
       // The canvases still hold the previous render until this resolves, so
       // the pane shows the old page rather than a blank one.
       await renderPage(Math.min(position.index, count - 1));
+      if (superseded()) return;
       drawVisible();
     },
     [anchor, drawVisible, renderPage, restore, scale],
