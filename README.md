@@ -432,6 +432,7 @@ Delete `.nexttex/` and you have exactly the LaTeX project you started with.
 |---|---|
 | `⌘S` / `Ctrl-S` | Save now rather than waiting for the pause |
 | `⌘B` / `Ctrl-B` | Hide the file list |
+| `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
 | `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on |
 | `Ctrl-F` | Find and replace |
 | Typing, in the file tree | Jump to a file |

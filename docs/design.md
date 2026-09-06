@@ -1583,3 +1583,105 @@ anchor-aware `useDismiss` — the same hook, with the same trigger ref, that
 the usage panel needed. Any new toggle popover in this app must pass its
 anchor or it will close on `pointerdown` and reopen on `click`.
 
+### One shortcut, and why it is not Super-A
+
+The agent panel is two different things depending on width: below 1400px an
+overlay that slides over the preview, above it a column that folds. One
+shortcut has to do whichever is on screen, and opening it puts the caret in
+the box — a shortcut that opens a panel you then have to click into has saved
+nobody anything.
+
+Super-A was asked for and is not available. On Linux the window manager takes
+Super before the browser sees it; `Cmd/Ctrl-A` alone is Select All, which an
+editor cannot give up; `Cmd/Ctrl-Shift-A` is Chrome's own tab search; and
+`Cmd/Ctrl-/` is CodeMirror's toggle-comment, bound by `defaultKeymap`. **The
+binding is `Cmd/Ctrl-Alt-A`**, which keeps the A — the part worth keeping —
+and is free in both keymaps and both browsers. It is read from `event.code`
+rather than `event.key`, because with Alt held macOS reports the character
+the combination would type.
+
+### Reaching for the preview puts the overlay away
+
+Below 1400px the panel lies over the preview, and the click that means "let me
+read this" was leaving it covered. A `pointerdown` on the preview pane now
+closes the overlay — `pointerdown` rather than `click` so it lands before the
+preview header's own single/double-click timer and never turns a fold into a
+mode change, and nothing is prevented, so the click still reaches the page.
+
+Only when the panel is actually covering something. Docked, above 1400px,
+clicking the preview does nothing to it: a panel that vanished on every click
+into the document would be unusable.
+
+While the specs for this were being written, the same double click that
+enters reading mode was found to leave the project. The preview header shows
+the project controls in place of its own label once the rail has folded away,
+which in reading mode it always has — so the second half of the gesture landed
+on "switch project". The controls moved to the right of the bar, beside the
+fold chevron. The left of a header a writer double clicks has to stay inert.
+
+### What the design review changed
+
+Rendered at four widths in both themes and read against this document. Six
+things it found, in the order they mattered.
+
+**The auto-mode switch was never `--warn`, and turned `--hint` under the
+pointer.** The icon carried `text-warn`, but `styles.css` is imported after
+Tailwind and unlayered, so `.quiet { color: var(--ink-3) }` beats any colour
+utility from `@layer utilities`. Worse, `.quiet:hover:not([data-tone])`
+repainted it to `--hint` on hover: the one control that lowers the permission
+fence turned the colour that means "safe and interactive" at the moment your
+pointer reached it. The stylesheet's own comment names this exact failure for
+a Delete control. The fix is the escape hatch already there: a new
+`.quiet[data-tone="warn"]` beside `[data-tone="danger"]` and `[data-tone="on"]`,
+and `data-tone` on the buttons instead of a utility class. Moving `.quiet`
+into a layer would have fixed it and broken every other place the build
+relies on that precedence.
+
+**The two blocks that open above the composer were unreachable by keyboard.**
+They render before the textarea and their triggers come after it, so Tab from
+the trigger walked forward past them and never arrived. Both now take
+`useDismiss` (which brings Escape and outside-press with it), move focus into
+the block on open and hand it back on close. The new-conversation block
+focuses "Keep this one" rather than "Start new": it ends a conversation, so
+the default answer is no.
+
+**Every section was a tab stop.** §10 records fixing precisely this for the
+file tree, which is one stop with arrow keys rather than forty. The list now
+does the same, with Home and End.
+
+**An `\include` for a file that is not there did nothing, silently.** A
+chapter not yet written is the normal state of a skeleton document, and a row
+that hovers and answers nothing is worse than one that says so. Those rows
+are drawn `--ink-3` and disabled, which also names the compile error coming
+next.
+
+**The preamble was heading the table of contents.** A dissertation's main.tex
+loads `preamble/formatting` and `preamble/macros` with `\input` before
+`\begin{document}`, so the outline opened with two rows of machinery. Includes
+seen before the document begins are dropped, but only if the file begins one
+at all: a chapter is included into something else and has no preamble to
+separate, so everything it pulls in stays.
+
+**Two spec deviations.** Rows were 24px against §4's 26, and indented by 11px
+against §5's 13 -- which is the width of a lowercase *n* and the reason the
+file tree indents the way it does. Both corrected, so the two lists in the
+rail sit on one grid.
+
+The caret row also took a `--surface-2` fill on top of its dot, which made it
+the one row in the panel that did not answer the pointer. The dot carries it
+alone, as this section said it should.
+
+Left alone, deliberately: the model popover covers the composer while it is
+open. Detaching it from its button to clear a half-written question would
+read as a floating panel rather than a menu, and the draft is still there
+when it closes. And folding Files takes the file actions with it, which is
+the reachability hole `FileTree` argues against -- but the fold is explicit,
+one click reverses it, and the alternative was to drop the panel header the
+rail's whole new idiom rests on.
+
+The rail's fold button still says "Fold the file list away" though the rail
+now holds six panels. Renaming it collided with the agent panel's own "Fold
+this panel away", which two specs address by name, and every unique
+alternative left the button and the strip it folds into ("Show files")
+reading as a mismatched pair. The file list is still the bulk of what is
+there.
