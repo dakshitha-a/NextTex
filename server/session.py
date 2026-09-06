@@ -243,6 +243,7 @@ class ProjectSession:
         why: str = "",
         op: str = "edit",
         previous: str | None = None,
+        source: str = "",
     ) -> None:
         """Note a file's contents, before the next thing changes them.
 
@@ -262,7 +263,7 @@ class ProjectSession:
                 relative, previous, by="you", op="create",
                 why="as it was when NextTex first saw it",
             )
-        self.history.record(relative, text, by=by, why=why, op=op)
+        self.history.record(relative, text, by=by, why=why, op=op, source=source)
 
     def write_from_agent(self, path: Path, text: str) -> None:
         """A write made by one of the agent's own tools.
