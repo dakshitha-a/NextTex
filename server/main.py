@@ -283,11 +283,17 @@ async def create_project(
 
 @app.delete("/api/projects/{project_id}")
 async def forget_project(project_id: str):
+    """Take a project out of the list. The files are not touched."""
     session = SESSIONS.pop(project_id, None)
+    project = session.project if session else REGISTRY.find(project_id)
     if session:
         await session.close()
-        REGISTRY.remove(session.project.root)
         _restart_watch()
+    if project is None:
+        raise HTTPException(404, "unknown project")
+    # Registry removal does not depend on the project being open: the
+    # projects most likely to be removed are the ones nobody has opened.
+    REGISTRY.remove(project.root)
     return {"ok": True}
 
 

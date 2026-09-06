@@ -1,5 +1,7 @@
 """Path handling, which is the other half of the security boundary."""
 
+from pathlib import Path
+
 import pytest
 
 from nexttex.project import Project, ProjectConfig
@@ -71,3 +73,14 @@ def test_our_own_state_directory_ignores_itself_in_git(tmp_path):
     every version blob and every deleted file on its next `git add -A`."""
     p = project(tmp_path)
     assert (p.state_dir / ".gitignore").read_text(encoding="utf-8").strip() == "*"
+
+
+def test_a_project_can_be_removed_from_the_list_without_opening_it(tmp_path):
+    """The projects most likely to be removed are the ones nobody opened."""
+    import re
+
+    source = (Path(__file__).resolve().parent.parent / "server" / "main.py").read_text()
+    handler = source[source.index("async def forget_project"):source.index("@app.post(\"/api/projects/{project_id}/open\")")]
+    assert "REGISTRY.find(project_id)" in handler
+    # The removal must not sit inside the "if session" branch.
+    assert re.search(r"\n    REGISTRY\.remove\(project\.root\)", handler)
