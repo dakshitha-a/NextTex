@@ -89,7 +89,7 @@ def _normalise(raw: str, project_root: Path) -> Path:
 
     It echoes the path as the engine recorded it, which keeps the `./`
     that latexmk passes in -- e.g.
-    `/home/user/thesis/./chapters/02_theory/02_theory.tex`.
+    `/home/you/thesis/./chapters/02_theory/02_theory.tex`.
     Left alone, that string compares unequal to the same file opened any
     other way, and the editor opens a second tab for it.
     """
