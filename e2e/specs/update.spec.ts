@@ -181,3 +181,65 @@ test("the ordinary install carries no badge at all", async ({ page }) => {
     await app.stop();
   }
 });
+
+test("a tab that joins a running update reloads when the server comes back", async ({
+  page,
+}) => {
+  // Two things with no coverage until now: the case the design consult
+  // named -- a second window, or this one reloaded, arriving with the job
+  // already going -- and the reload itself, which is what the whole restart
+  // dance exists to produce.
+  //
+  // The server is real; only its identity is stubbed, so the page sees
+  // exactly what it would see if a different process had answered.
+  buildRepo();
+  commitUpstream("server/main.py", "a real change");
+  const app = await startServer({ NEXTTEX_INSTALL_ROOT: clone });
+  try {
+    await page.addInitScript(() => {
+      const real = window.fetch;
+      const started = Date.now();
+      // sessionStorage, not a window property: `window` is a fresh
+      // object after a reload, so a counter on it can never exceed one.
+      sessionStorage.setItem(
+        "loads",
+        String(Number(sessionStorage.getItem("loads") ?? "0") + 1),
+      );
+      window.fetch = async (input: any, init?: any) => {
+        const url = String(input);
+        if (url.includes("/api/instance")) {
+          // A different process answers after two seconds.
+          const boot = Date.now() - started > 2000 ? "after" : "before";
+          return new Response(JSON.stringify({ instance: "", head: "x", boot,
+                                               supervised: true, root: "/tmp" }),
+                              { status: 200,
+                                headers: { "content-type": "application/json" } });
+        }
+        const response = await real(input, init);
+        if (url.includes("/api/update") && !url.includes("stream")) {
+          const body = await response.clone().json();
+          return new Response(JSON.stringify({ ...body, updating: true }), {
+            status: 200, headers: { "content-type": "application/json" },
+          });
+        }
+        return response;
+      };
+    });
+    await open(app, page);
+
+    // It joins the job rather than offering to start another one.
+    await expect(page.getByText("Updating NextTex")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("update-now")).toHaveCount(0);
+
+    // And when a different process answers, the page reloads itself.  The
+    // counter is in sessionStorage, which a reload does not clear.
+    await expect
+      .poll(() => page.evaluate(() => Number(sessionStorage.getItem("loads"))), {
+        timeout: 20_000,
+      })
+      .toBeGreaterThan(1);
+    await expect(page.getByText(/Stop it and start it again/)).toHaveCount(0);
+  } finally {
+    await app.stop();
+  }
+});

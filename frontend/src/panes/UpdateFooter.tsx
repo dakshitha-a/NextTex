@@ -55,7 +55,20 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     try {
       const report = await api.updateCheck(asked);
       if (report.updating) {
+        // A tab that arrives part-way through -- another window, or this
+        // one reloaded -- has no idea which process it is watching, so it
+        // has to learn that before the restart it is about to wait for.
+        // Without this it waits out the full minute and then tells the
+        // reader to restart a server that already came back.
+        startedFrom.current = (await api.instance().catch(() => ({ boot: "" }))).boot;
         watch();
+        // And start watching for the restart straight away, rather than
+        // waiting for the stream to end.  The stream replays the output it
+        // has collected but not the `done` event, so a tab that arrives
+        // after the job finished would otherwise wait for a message that
+        // has already been and gone.  The poll only ever reloads when a
+        // different process answers, so starting it early costs nothing.
+        waitForRestart();
         return;
       }
       setPhase({ kind: "report", report });
@@ -116,7 +129,8 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     const tick = async () => {
       try {
         const now = await api.instance();
-        if (startedFrom.current && now.boot !== startedFrom.current) {
+        if (!startedFrom.current) startedFrom.current = now.boot;
+        else if (now.boot !== startedFrom.current) {
           window.location.reload();
           return;
         }

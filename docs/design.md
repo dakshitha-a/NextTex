@@ -1165,3 +1165,136 @@ would be a path from a downloaded paper to the writer's home directory.
 For the same reason, what `search_library` returns is framed as quotation
 rather than instruction, and snippets are capped so no long instruction
 block survives intact.
+
+## 18. Two installs, updating from the page, and a size the reader chooses
+
+Three things, and each one turned on a fact that had to be measured rather
+than reasoned about.
+
+### Why the interface size is a `zoom`
+
+The type scale is fixed pixels and so is the geometry around it — `h-[28px]`
+controls, `h-[26px]` rows, `w-[264px]` cards. Scaling only the type would put
+21px text in a 28px control. So the interface size scales the whole
+composition: `zoom` on `#root`, which is the parent of *every* view, including
+the loading, sign-in and project-list screens that return before the editor
+shell is ever built. One line covers all of them, with nothing threaded
+through `App`.
+
+Editor text is the opposite case and gets the opposite mechanism: one CSS
+variable on `.cm-scroller`, with a **unitless** line height so it tracks the
+size. A fixed `22px` under 21px text is unreadable. The gutter follows at the
+ratio it had at the default.
+
+**`zoom` leaves the app straddling two coordinate spaces, and the two halves
+are not symmetrical.** Measured in Chrome at 150% rather than assumed:
+
+- **Reads are in viewport pixels.** `getBoundingClientRect()` on an element
+  inside the zoomed subtree returns 900 for something whose own `left` is
+  600px. `MouseEvent.clientX` and `window.innerWidth` agree with it, so reads
+  can safely be compared with one another.
+- **Writes are in zoomed pixels.** `style.left = "600px"` on a fixed element
+  inside the subtree renders at viewport 900.
+
+So the bug is never in the reading. It is in taking something read and either
+writing it back as a style, or comparing it against a literal from the
+stylesheet — both of which live in zoomed space. `viewport.ts` holds the
+conversion; eight sites use it. The rule for new code: **convert once, at
+capture**, so anything stored in state is already in the space a style is read
+in. Converting again at the point of use double-counts, which is exactly the
+bug that arises when the capture and the use are in different files.
+
+Two consequences that are easy to miss:
+
+- The preview would have gone soft. Its canvas is sized from
+  `devicePixelRatio`, which `zoom` does not change, and *nothing invalidated
+  it* — a scale change is not a relayout. The resolution is read per render
+  and an appearance event marks the pages stale.
+- Container queries need no help. `Status.tsx` and the `@[208px]:` rules in
+  `Chat.tsx` measure their container in its own scaled space, so a larger
+  interface drops optional segments sooner. That is correct: bigger text does
+  leave less room.
+
+Ctrl-wheel over the editor steps the text size, mirroring the preview's own
+gesture — and, like it, the listener must be native, because React registers
+`wheel` passively and `preventDefault` inside `onWheel` is ignored. There are
+deliberately **no** Ctrl-plus/minus bindings: the browser owns those, they are
+what a reader reaches for first, and browser zoom already scales this app
+correctly. Taking the keys away to do a worse version of what they already do
+is a net loss.
+
+Theme, interface size and editor size live in one popover behind an `Aa`
+button. The theme costs a second click now; in exchange three related controls
+fit a 32px rail header at its narrowest width. The trigger is letters rather
+than the old sun and moon because that glyph already means *switch the theme*,
+and making it open a menu instead would break a meaning the app had taught.
+
+### Which commits count as an update
+
+NextTex is always a git checkout — no package, no version string — so "is
+there an update" is a question about `git`. The interesting half is the second
+question. Most commits to a project like this one change documentation or
+tests, and telling somebody every session that three commits exist when none
+of them changes the program they are running is a nag rather than a service.
+
+Every commit is classified by the paths it touches: `frontend/` is
+*interface*; `docs/`, `README.md`, `LICENSE`, `tests/`, `e2e/`, `bench/` and
+`examples/` are *neither*; everything else, **including anything
+unrecognised**, is *app*. Failing towards "something changed" is the right
+direction: a wrong "nothing to see here" costs more than a wrong alarm.
+`scripts/` counts as app because it changes what the *next* update does.
+
+The label and the rebuild question are **separate fields**, which was learned
+the hard way. Reading "does the bundle need rebuilding" off the single label
+meant a commit touching a Python module *and* a React component came back
+"app" with `rebuild` false — new server code installed behind the interface
+that was already built, which is the exact failure the check exists to
+prevent.
+
+The screen fires the check after it has rendered and never awaits it, and the
+fetch gets a ten-second timeout of its own rather than the module's 120: a
+fetch with no route to the network would otherwise hang for two minutes on the
+screen the writer opens every session. A check nobody asked for is silent when
+it fails; an install on an offline tailnet must not open onto a red line every
+morning.
+
+### Restarting, and why it is a nonce
+
+`serve()` keeps its `uvicorn.Server` objects as locals and `main.py` holds no
+reference to them, so **no route can ask for a graceful shutdown**. The exit
+*is* the restart: systemd's `Restart=on-failure` and launchd's
+`KeepAlive.SuccessfulExit=false` both bring a service back after a non-zero
+exit and leave it down after a clean one. Windows registers a logon task,
+which is not a supervisor, so there the writer is told to start it again.
+Supervision is detected from `INVOCATION_ID` or `XPC_SERVICE_NAME`.
+
+The page then polls for a **boot nonce**, regenerated once per process, not
+for the commit sha. The question being asked is "did a different process
+answer", not "did the code change": an update that pulls nothing still
+restarts, and waiting for a sha that never moves would time out for no reason.
+A tab that *joins* a running update starts that poll immediately rather than
+waiting for the stream to end, because the stream replays the output collected
+so far but not the `done` event — a tab arriving after the job finished would
+otherwise wait for a message that has already been and gone.
+
+**An inherent property worth knowing: the code that performs an update is the
+old code.** A bug in the updater is therefore only fixed one update later.
+That is not a design choice and cannot be avoided; it is a reason to keep this
+path small and to test it against a real service, which the browser tier
+cannot do — it spawns the server itself, with no supervisor, so a non-zero
+exit simply kills it.
+
+### Two installs on one machine
+
+One environment variable, `NEXTTEX_INSTANCE`. Unset is the ordinary install
+and nothing changes. Set, it moves the state directory aside
+(`~/.local/share/nexttex-dev`), names the service `nexttex-dev`, and derives a
+default port from the name — because two NextTex both defaulting to 8450 means
+the second refuses to start with a message about a port rather than about what
+the person was doing. The name is validated as a single path segment: it is a
+label, never a way out of the directory.
+
+A named instance carries a badge in the rail, on the project list and in the
+tab title, in `--warn` rather than the accent, because it is a caution rather
+than a feature. The ordinary install shows nothing — almost every install is
+the only one on its machine, and a badge reading "the normal one" is noise.
