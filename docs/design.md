@@ -331,7 +331,7 @@ to the range, without stealing focus from the composer.
 patch applies cleanly, `Undo` is live. If the user has typed inside that range since, the
 chip drops `Undo`, keeps `Show`, and the hover hint reads `Changed since — can't undo
 cleanly`. On undo, the chip collapses to a 20 px struck-through line — `Reverted —
-02_theory.tex`, `--ink-3` — with a `Redo` link live for 10 s. The reverted chip then **stays
+methods.tex`, `--ink-3` — with a `Redo` link live for 10 s. The reverted chip then **stays
 in the transcript permanently**. The chat is a record of what was done to the manuscript;
 nothing in it ever disappears.
 
