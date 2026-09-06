@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import api, { saveBlob, startDownload, type ProjectSummary } from "../api";
 import Logo from "../Logo";
+import Appearance from "./Appearance";
+import { agentName } from "../agent-name";
+import { useStore } from "../store";
 
 /** The project list.  Downloads live here as well as inside an open project:
  *  the moment a copy is most wanted is often before opening anything. */
@@ -20,6 +23,17 @@ export default function Projects({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgetting, setForgetting] = useState<string | null>(null);
+  // The strapline names whichever agent is configured, and says nothing
+  // about one at all when the writer chose to work on their own.
+  const provider = useStore((s) => s.agent?.provider);
+  const tagline =
+    provider === "none"
+      ? "Write LaTeX beside the typeset page."
+      : `Write LaTeX with ${agentName(provider)} beside the typeset page.`;
+  const agentCopy =
+    provider === "none"
+      ? "A new project starts blank — one empty document, ready to write in."
+      : `A new project starts blank — one empty document. Give ${agentName(provider)} your template or handbook afterwards and it will shape the project around it.`;
 
   const refresh = async () => {
     try {
@@ -77,21 +91,22 @@ export default function Projects({
   return (
     <div className="flex h-full flex-col items-center justify-center overflow-auto bg-surround px-6 py-10">
       <div className="my-auto w-full max-w-[680px]">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="t-display flex items-center gap-3">
-            <Logo size={26} />
-            NextTex
-          </h1>
-            <p className="t-meta mt-1 text-ink-2">
-              Write LaTeX with Claude beside the typeset page.
-            </p>
+              <Logo size={26} />
+              NextTex
+            </h1>
+            <p className="t-meta mt-1 text-ink-2">{tagline}</p>
           </div>
-          {canClose ? (
-            <button className="t-ui text-ink-2 hover:text-ink" onClick={onClose}>
-              Back
-            </button>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-3">
+            {canClose ? (
+              <button className="t-ui text-ink-2 hover:text-ink" onClick={onClose}>
+                Back
+              </button>
+            ) : null}
+            <Appearance />
+          </div>
         </div>
 
         <div
@@ -134,7 +149,7 @@ export default function Projects({
                 </span>
                 <div className="t-code-sm truncate text-ink-3">{project.path}</div>
                 {project.missing ? (
-                  <div className="t-micro mt-1 text-warn">
+                  <div className="t-meta mt-1 text-warn">
                     This folder is no longer there.
                   </div>
                 ) : null}
@@ -145,7 +160,7 @@ export default function Projects({
                     Remove from NextTex? The files stay where they are.
                   </span>
                   <button
-                    className="h-[28px] rounded-[3px] px-2 t-micro text-error"
+                    className="h-[28px] rounded-[3px] px-2 t-meta text-error"
                     onClick={async () => {
                       setForgetting(null);
                       if (!project.id) return;
@@ -156,7 +171,7 @@ export default function Projects({
                     Remove
                   </button>
                   <button
-                    className="h-[28px] px-2 t-micro text-ink-3 hover:text-ink"
+                    className="h-[28px] px-2 t-meta text-ink-3 hover:text-ink"
                     onClick={() => setForgetting(null)}
                   >
                     Keep
@@ -165,7 +180,7 @@ export default function Projects({
               ) : (
               <div className="flex shrink-0 items-center gap-2">
                 <button
-                  className="h-[28px] rounded-[3px] border border-line px-2 t-micro text-ink-2 hover:text-ink disabled:opacity-40"
+                  className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink disabled:opacity-40"
                   disabled={!project.id || project.missing}
                   onClick={() =>
                     project.id &&
@@ -175,14 +190,14 @@ export default function Projects({
                   Zip
                 </button>
                 <button
-                  className="h-[28px] rounded-[3px] border border-line px-2 t-micro text-ink-2 hover:text-ink disabled:opacity-40"
+                  className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink disabled:opacity-40"
                   disabled={!project.id || project.missing || busy === project.id}
                   onClick={() => takePdf(project)}
                 >
                   {busy === project.id ? "Typesetting" : "PDF"}
                 </button>
                 <button
-                  className="h-[28px] rounded-[3px] px-2 t-micro text-ink-3 hover:text-error"
+                  className="h-[28px] rounded-[3px] px-2 t-meta text-ink-3 hover:text-error"
                   onClick={() => setForgetting(project.path)}
                 >
                   Remove
@@ -208,9 +223,9 @@ export default function Projects({
             </button>
           ))}
         </div>
-        <p className="t-meta mt-2 text-ink-2">
+        <p className="t-ui mt-2 text-ink-2">
           {mode === "create"
-            ? "A new project starts blank — one empty document. Give Claude your template or handbook afterwards and it will shape the project around it."
+            ? agentCopy
             : "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."}
         </p>
         {mode === "create" ? (
@@ -226,7 +241,7 @@ export default function Projects({
             value={path}
             placeholder={
               mode === "create"
-                ? "Where to put it, e.g. ~/writing/my-thesis"
+                ? "Where to put it, e.g. ~/writing/my-paper"
                 : "/path/to/your/writing/project"
             }
             className="t-code-sm h-[28px] flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"

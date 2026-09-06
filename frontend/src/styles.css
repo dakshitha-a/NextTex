@@ -46,6 +46,10 @@
      tooltips, the history panel. */
   --float: 0 4px 16px rgba(0, 0, 0, 0.18);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* Overwritten by appearance.ts before the first paint; the values
+     here are what the app was drawn at. */
+  --nx-ui-scale: 1;
+  --nx-editor-size: 13.5px;
   color-scheme: light;
 }
 
@@ -228,10 +232,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 
 /* ---- CodeMirror ------------------------------------------------------- */
 .cm-editor { height: 100%; background: var(--surface); color: var(--ink); }
-.cm-editor .cm-scroller { font-family: var(--font-mono); font-size: 13.5px;
-  line-height: 22px; }
+/* The one size the writer sets directly.  Line height is unitless so it
+   tracks the size -- a fixed 22px under 21px text is unreadable -- and the
+   gutter follows at the same ratio it had at the default size. */
+.cm-editor .cm-scroller { font-family: var(--font-mono);
+  font-size: var(--nx-editor-size, 13.5px); line-height: 1.63; }
 .cm-editor .cm-gutters { background: var(--surface); color: var(--ink-3);
-  border-right: none; font-size: 11px; }
+  border-right: none; font-size: calc(var(--nx-editor-size, 13.5px) * 0.82); }
 .cm-editor .cm-activeLineGutter { background: transparent; color: var(--ink-2); }
 .cm-editor .cm-activeLine { background: color-mix(in oklab, var(--ink-3) 7%, transparent); }
 .cm-editor .cm-cursor { border-left-color: var(--ink); }

@@ -1,4 +1,10 @@
 import { useEffect, useRef } from "react";
+import {
+  EDITOR_SIZES,
+  applyAppearance,
+  step,
+  storedAppearance,
+} from "../appearance";
 import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { diffLines } from "diff";
@@ -496,6 +502,25 @@ export default function Editor({
     ];
     view.current.dispatch({ effects: setMarks.of(marks) as StateEffect<any> });
   }, [diagnostics, lint, activePath]);
+
+  // ---- sizing the text with the wheel ----------------------------------
+  // The same gesture the preview already answers to, for the same reason: a
+  // reader reaches for ctrl-wheel to make text bigger.  The listener must be
+  // native -- React registers `wheel` passively, so `preventDefault` inside
+  // `onWheel` is ignored and the browser zooms the whole page instead.
+  useEffect(() => {
+    const root = host.current;
+    if (!root) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      const now = storedAppearance();
+      const next = step(now.editor, EDITOR_SIZES, event.deltaY < 0 ? 1 : -1);
+      if (next !== now.editor) applyAppearance({ ...now, editor: next });
+    };
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => root.removeEventListener("wheel", onWheel);
+  }, []);
 
   return <div ref={host} className="h-full min-h-0 overflow-hidden" />;
 }

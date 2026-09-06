@@ -53,3 +53,32 @@ test("an error explained", async ({ tab }) => {
   await tab.screenshot({ path: "shots/out-errors.png",
                          clip: { x: 240, y: 620, width: 1100, height: 380 } });
 });
+
+test("appearance, open", async ({ tab }) => {
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await tab.getByTestId("appearance").first().click();
+  await tab.waitForTimeout(300);
+  await tab.screenshot({ path: "shots/out-appearance.png",
+                         clip: { x: 0, y: 0, width: 560, height: 260 } });
+});
+
+test("the interface at 150 per cent", async ({ tab }) => {
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await tab.getByTestId("appearance").first().click();
+  await tab.waitForTimeout(200);
+  for (let i = 0; i < 3; i++) {  // 100 -> 110 -> 125 -> 150
+    await tab.getByRole("button", { name: "Larger interface" }).click();
+    await tab.waitForTimeout(80);
+  }
+  await tab.keyboard.press("Escape");
+  await tab.waitForTimeout(2500);
+  await tab.screenshot({ path: "shots/out-scale-150.png" });
+});
+
+test("the projects screen", async ({ app, page }) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByRole("heading", { name: "NextTex" }).waitFor({ timeout: 20_000 });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: "shots/out-projects.png",
+                          clip: { x: 440, y: 180, width: 800, height: 640 } });
+});

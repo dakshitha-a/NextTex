@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { toShell, viewportHeight, viewportWidth } from "../viewport";
 import { useDismiss } from "../useDismiss";
 import api, { startDownload, type TreeNode } from "../api";
 import { get, set, useStore } from "../store";
@@ -184,14 +185,14 @@ export default function FileTree({
         const box = menuRef.current?.getBoundingClientRect();
         setPapersFor({
           name: node.name,
-          at: { x: box?.left ?? 120, y: box?.top ?? 120 },
+          at: { x: box ? toShell(box.left) : 120, y: box ? toShell(box.top) : 120 },
         });
       } else if (action === "move") {
         const box = menuRef.current?.getBoundingClientRect();
         setMoving({
           path: node.path,
           to: dirname(node.path),
-          at: { x: box?.left ?? 120, y: box?.top ?? 120 },
+          at: { x: box ? toShell(box.left) : 120, y: box ? toShell(box.top) : 120 },
         });
       } else if (action === "upload") {
         uploadTo.current = isDir(node) ? node.path : dirname(node.path);
@@ -360,10 +361,15 @@ export default function FileTree({
             aria-label={`Actions for ${node.name}`}
             onClick={(event) => {
               event.stopPropagation();
+              // `getBoundingClientRect` answers in viewport pixels even
+              // inside the zoomed shell, and everything downstream -- the
+              // widths below, the `style.left` this ends up in -- is in the
+              // shell's own pixels.  Convert here, once, so nothing further
+              // down has to know.
               const box = (event.target as HTMLElement).getBoundingClientRect();
               setMenuAt({
-                x: Math.min(box.right - 184, window.innerWidth - 192),
-                y: Math.min(box.bottom + 4, window.innerHeight - 220),
+                x: Math.min(toShell(box.right) - 184, viewportWidth() - 192),
+                y: Math.min(toShell(box.bottom) + 4, viewportHeight() - 220),
               });
               setMenu(menu === node.path ? null : node.path);
             }}
@@ -374,6 +380,7 @@ export default function FileTree({
         {menu === node.path ? (
           <div
             ref={menuRef}
+            data-testid="file-menu"
             // Fixed, not absolute: an absolute menu is clipped by the
             // tree's own scroll box, so the last row's menu was cut in half.
             className="fixed z-40 w-[184px] rounded-[5px] border border-line bg-surface py-1 shadow-float"
@@ -592,7 +599,7 @@ export default function FileTree({
             files,
             uploadTo.current,
             uploadAsked.current,
-            { x: box ? box.left : 120, y: box ? box.bottom + 4 : 120 },
+            { x: box ? toShell(box.left) : 120, y: box ? toShell(box.bottom) + 4 : 120 },
             uploadFrom.current,
           );
         }}
@@ -878,8 +885,8 @@ function MoveTo({
       data-testid="move-to"
       className="nx-arrive fixed z-40 w-[264px] rounded-[5px] border border-line bg-surface shadow-float"
       style={{
-        left: Math.min(moving.at.x, window.innerWidth - 272),
-        top: Math.min(moving.at.y, window.innerHeight - 260),
+        left: Math.min(moving.at.x, viewportWidth() - 272),
+        top: Math.min(moving.at.y, viewportHeight() - 260),
       }}
     >
       <div id="move-heading" className="t-ui truncate px-[10px] pt-2 text-ink">

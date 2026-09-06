@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { uiScale } from "../viewport";
 import { useStore } from "../store";
 
 function summarise(rows: { severity: string }[]): string {
@@ -57,7 +58,9 @@ export default function Diagnostics({
           const startY = event.clientY;
           const startHeight = height;
           const move = (moveEvent: PointerEvent) => {
-            const next = startHeight + (startY - moveEvent.clientY);
+            // Pointer travel is in viewport pixels; the height is not.
+            const next =
+              startHeight + (startY - moveEvent.clientY) / uiScale();
             onResize(Math.min(Math.max(next, 84), 320));
           };
           const up = () => {
