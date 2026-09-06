@@ -213,3 +213,95 @@ def test_no_telemetry_of_any_kind():
         if watched.search(path.read_text(encoding="utf-8"))
     ]
     assert not offenders, offenders
+
+
+def test_every_link_the_readme_makes_resolves():
+    """A README that points at a file nobody wrote is the first thing a
+    stranger clicks."""
+    import re
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    broken = [
+        target for target in re.findall(r"\]\((docs/[^)]+)\)", readme)
+        if not (ROOT / target).exists()
+    ]
+    assert not broken, broken
+
+
+def test_the_docs_link_to_each_other_correctly():
+    import re
+
+    broken = []
+    for path in (ROOT / "docs").glob("*.md"):
+        text = path.read_text(encoding="utf-8")
+        for target in re.findall(r"\]\((?!https?:)([^)#]+)\)", text):
+            if not (path.parent / target).exists():
+                broken.append(f"{path.name} -> {target}")
+    assert not broken, broken
+
+
+def test_the_readme_does_not_claim_windows_is_tested():
+    """It is written carefully and has never been run on Windows.  Saying
+    otherwise is the kind of claim that costs somebody an evening."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "unverified" in readme or "untested" in readme
+
+
+def test_an_install_without_the_claude_sdk_still_runs(monkeypatch, tmp_path):
+    """A writer who chose OpenAI, or no agent, should not be stopped by a
+    package for the one they did not choose -- and if they did choose it
+    and it is missing, the reason belongs in the chat panel rather than in
+    a 500 from whatever route touched a session first."""
+    import sys
+
+    from nexttex.providers import agent_for
+
+    # Both, and in this order: dropping the cached module is what makes the
+    # import actually run, and `None` in sys.modules is what makes it fail.
+    # Without the first, this passes alone and fails in a full run, because
+    # by then something else has already imported it.
+    monkeypatch.delitem(sys.modules, "nexttex.agent", raising=False)
+    monkeypatch.setitem(sys.modules, "claude_agent_sdk", None)
+    monkeypatch.delenv("NEXTTEX_SCRIPTED_AGENT", raising=False)
+
+    agent = agent_for("claude", tmp_path, tmp_path)
+    assert type(agent).__name__ == "Unavailable"
+    assert agent.busy is False
+
+
+def test_an_unavailable_agent_says_why_rather_than_failing(tmp_path):
+    import asyncio
+
+    from nexttex.providers import Unavailable
+
+    agent = Unavailable("the reason")
+    seen = []
+
+    async def drive():
+        await agent.ask("anything")
+        async for event in agent.events():
+            seen.append(event)
+            if event["type"] == "done":
+                return
+
+    asyncio.run(asyncio.wait_for(drive(), timeout=5))
+    assert seen[0]["type"] == "error" and seen[0]["message"] == "the reason"
+    assert seen[-1]["type"] == "done"
+
+
+def test_choosing_openai_never_loads_the_claude_sdk(monkeypatch, tmp_path):
+    import builtins
+
+    from nexttex.providers import agent_for
+
+    real = builtins.__import__
+
+    def without_sdk(name, *args, **kwargs):
+        if name.startswith("claude_agent_sdk"):
+            raise AssertionError("the Claude SDK was imported for an OpenAI agent")
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_sdk)
+    monkeypatch.delenv("NEXTTEX_SCRIPTED_AGENT", raising=False)
+    agent = agent_for("openai", tmp_path, tmp_path, api_key="k")
+    assert type(agent).__name__ == "OpenAIAgent"

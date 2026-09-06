@@ -6,6 +6,10 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9      # file uploads
 watchfiles>=0.21             # project file watching
-claude-agent-sdk>=0.2.150    # the writing agent
+# The Claude agent.  Installed even when a writer chooses OpenAI or no
+# agent, so that switching provider later needs no reinstall -- but it is
+# imported lazily, so those installs never load it, and one that is missing
+# it says so in the chat panel rather than failing a route.
+claude-agent-sdk>=0.2.150
 tomli>=2.0; python_version < "3.11"
 requests>=2.31             # scholarly lookups for the reference tools
