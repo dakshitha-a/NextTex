@@ -14,6 +14,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .atomic import write_atomically
+
 TIMEOUT = 120
 
 
@@ -194,8 +196,11 @@ def attach_remote(root: Path, url: str, token: str = "") -> str:
         line = f"https://x-access-token:{token}@{host}\n"
         existing = store.read_text(encoding="utf-8") if store.exists() else ""
         if line not in existing:
-            store.write_text(existing + line, encoding="utf-8")
-            store.chmod(0o600)
+            # The mode is set before the file is put in place, not after:
+            # written first and chmod'ed second, the token sat there at the
+            # process umask -- world-readable on most systems -- for as long
+            # as those two calls took.
+            write_atomically(store, existing + line, mode=0o600)
         _run(root, "config", "credential.helper", "store")
     try:
         _run(root, "remote", "remove", "origin", timeout=15)

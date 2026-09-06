@@ -26,7 +26,7 @@ import {
   historyKeymap,
   indentWithTab,
 } from "@codemirror/commands";
-import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
+import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import {
   HighlightStyle,
   bracketMatching,
@@ -182,6 +182,12 @@ function base(symbols: () => Symbols | null): Extension[] {
     rectangularSelection(),
     bracketMatching(),
     closeBrackets(),
+    // The keymap alone was bound, which meant Ctrl-F installed the search
+    // extension and opened nothing: the panel field is added by the same
+    // transaction that asks to show it, and a field added in a transaction
+    // does not see that transaction's effects.  The second press worked.
+    // A LaTeX editor with no find and replace, one line away from having it.
+    search({ top: true }),
     keymap.of([
       ...closeBracketsKeymap,
       ...defaultKeymap,

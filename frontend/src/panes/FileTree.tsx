@@ -16,11 +16,14 @@ function splitName(name: string): [string, string] {
 export default function FileTree({
   onOpen,
   onRefresh,
+  onRename,
   onHistory,
   mainFile,
 }: {
   onOpen: (path: string) => void;
   onRefresh: () => void;
+  /** A file has a new name: whatever holds it open needs to know. */
+  onRename?: (from: string, to: string) => void;
   onHistory?: () => void;
   mainFile?: string;
 }) {
@@ -110,8 +113,10 @@ export default function FileTree({
     const projectId = get().projectId;
     if (!projectId || !value || value === node.name) return;
     const parent = dirname(node.path);
+    const to = parent ? `${parent}/${value}` : value;
     try {
-      await api.renameFile(projectId, node.path, parent ? `${parent}/${value}` : value);
+      await api.renameFile(projectId, node.path, to);
+      onRename?.(node.path, to);
       onRefresh();
     } catch (error: any) {
       set({ error: error.message });

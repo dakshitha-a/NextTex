@@ -78,6 +78,10 @@ export default function Chat({
   const composer = useRef<HTMLTextAreaElement | null>(null);
   const pinned = useRef(true);
   const queued = useRef<string[]>([]);
+  // A ref does not re-render, so the "yours will go next" line read a count
+  // that only changed when something else happened to redraw the panel.
+  const [queuedCount, setQueuedCount] = useState(0);
+  const [setupOpen, setSetupOpen] = useState(false);
   const projectId = useStore((s) => s.projectId);
   const [usage, setUsage] = useState<Awaited<ReturnType<typeof api.usage>> | null>(null);
   const [showUsage, setShowUsage] = useState(false);
@@ -113,16 +117,24 @@ export default function Chat({
     setDraft("");
     pushChat({ kind: "user", id: nextId(), text, at: Date.now() });
     pinned.current = true;
-    if (thinking) {
+    // Read from the store, not from this render's closure.  Pressing Enter
+    // in the gap between the server's `done` and React re-rendering queued
+    // the message -- into a ref, so nothing re-rendered, so the effect that
+    // drains the queue never fired again and it sat there for good, looking
+    // sent.
+    if (get().thinking) {
       // A follow-up thought arrives while Claude is still answering the
       // last one.  Hold it and send it when the turn ends, rather than
       // refusing it and making the writer remember to ask again.
       queued.current.push(text);
+      setQueuedCount(queued.current.length);
       return;
     }
     try {
       await api.ask(projectId, text);
     } catch (error: any) {
+      // Put it back in the box rather than losing what they typed.
+      setDraft(text);
       set({ error: error.message });
     }
   };
@@ -131,7 +143,12 @@ export default function Chat({
   useEffect(() => {
     if (thinking || !projectId || !queued.current.length) return;
     const next = queued.current.shift();
-    if (next) api.ask(projectId, next).catch(() => undefined);
+    setQueuedCount(queued.current.length);
+    if (next) {
+      api.ask(projectId, next).catch((error: any) => {
+        set({ error: error.message });
+      });
+    }
   }, [thinking, projectId]);
 
   return (
@@ -284,6 +301,27 @@ export default function Chat({
       </div>
 
       <div className="shrink-0 border-t border-line p-[8px]">
+        {/* The two things that most improve the help, kept reachable.  They
+            used to live only in the welcome message, which disappears the
+            moment anything is asked -- so after the first question there
+            was no way back to them at all. */}
+        {setupOpen ? (
+          <div className="mb-2 flex flex-col gap-2 rounded-[3px] border border-line bg-surface-2 p-2">
+            {WELCOME_ACTIONS.map((action) => (
+              <button
+                key={action.kind}
+                className="ghost-button nx-press px-3 py-2 text-left"
+                onClick={() => {
+                  setSetupOpen(false);
+                  onAddContext?.(action.kind);
+                }}
+              >
+                <span className="t-ui block">{action.label}</span>
+                <span className="t-meta block text-ink-2">{action.detail}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <textarea
           ref={composer}
           rows={3}
@@ -306,13 +344,21 @@ export default function Chat({
             {blocked
               ? ""
               : thinking
-                ? queued.current.length
+                ? queuedCount
                   ? "Claude is writing · yours will go next"
                   : "Claude is writing"
                 : focusedComposer
                 ? "Enter to send, Shift-Enter for a new line"
                 : ""}
           </span>
+          <div className="flex items-center gap-2">
+          <button
+            className="quiet t-micro nx-hover"
+            aria-expanded={setupOpen}
+            onClick={() => setSetupOpen((open) => !open)}
+          >
+            {setupOpen ? "Hide setup" : "Template & voice"}
+          </button>
           <button
             className={
               draft.trim() && !blocked
@@ -324,6 +370,7 @@ export default function Chat({
           >
             Send
           </button>
+          </div>
         </div>
       </div>
     </div>
@@ -709,7 +756,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
       }}
       onKeyDown={(event) => {
         if (event.key === "a" && !event.shiftKey) decide("allow");
-        if (event.key === "A" && event.shiftKey) decide("always");
+        if (event.key === "A" && event.shiftKey && item.rule) decide("always");
         if (event.key === "d") decide("deny");
       }}
     >
@@ -734,17 +781,27 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
           >
             Allow{focused ? <span className="t-micro opacity-70"> A</span> : null}
           </button>
-          <button
-            className="h-[28px] rounded-[3px] border border-line px-3 t-ui"
-            onMouseEnter={() => setScope(true)}
-            onMouseLeave={() => setScope(false)}
-            onFocus={() => setScope(true)}
-            onBlur={() => setScope(false)}
-            onClick={() => decide("always")}
-          >
-            Allow always
-            {focused ? <span className="t-micro text-ink-3"> ⇧A</span> : null}
-          </button>
+          {/* A command carrying shell syntax gets no rule, because a rule
+              scoped to its first word would not mean what it says.  Offering
+              to remember one anyway would be a promise the fence cannot
+              keep, so the button is not there. */}
+          {item.rule ? (
+            <button
+              className="h-[28px] rounded-[3px] border border-line px-3 t-ui"
+              onMouseEnter={() => setScope(true)}
+              onMouseLeave={() => setScope(false)}
+              onFocus={() => setScope(true)}
+              onBlur={() => setScope(false)}
+              onClick={() => decide("always")}
+            >
+              Allow always
+              {focused ? <span className="t-micro text-ink-3"> ⇧A</span> : null}
+            </button>
+          ) : (
+            <span className="t-micro self-center text-ink-3">
+              This one is asked every time: it runs more than one command.
+            </span>
+          )}
           <button
             className="h-[28px] rounded-[3px] border border-line px-3 t-ui text-ink-2 hover:border-error hover:text-error"
             onClick={() => decide("deny")}

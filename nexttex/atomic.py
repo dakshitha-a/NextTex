@@ -18,8 +18,19 @@ class NotAFile(Exception):
     """The target exists and is not something we can write over."""
 
 
-def write_atomically(target: Path, data: str | bytes, *, encoding: str = "utf-8") -> None:
-    """Replace `target` with `data`, or leave it exactly as it was."""
+def write_atomically(
+    target: Path,
+    data: str | bytes,
+    *,
+    encoding: str = "utf-8",
+    mode: int | None = None,
+) -> None:
+    """Replace `target` with `data`, or leave it exactly as it was.
+
+    `mode` is applied to the temporary file *before* the rename, so a file
+    that holds a credential is never readable by anyone else, not even for
+    the instant between being written and being chmod'ed.
+    """
     if target.is_dir():
         raise NotAFile(f"{target.name} is a folder, not a file")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -29,6 +40,8 @@ def write_atomically(target: Path, data: str | bytes, *, encoding: str = "utf-8"
             temp.write_text(data, encoding=encoding)
         else:
             temp.write_bytes(data)
+        if mode is not None:
+            temp.chmod(mode)
         temp.replace(target)
     except OSError:
         # Never leave the scratch file behind: the tree would show it, and

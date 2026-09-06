@@ -54,7 +54,10 @@ class Settings:
         path = cls.path()
         if not path.exists():
             settings = cls()
-            settings.save()
+            try:
+                settings.save()
+            except OSError:
+                pass      # unwritable state directory: run anyway, in memory
             return settings
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -77,7 +80,10 @@ class Settings:
                     file=sys.stderr,
                 )
             settings = cls()
-            settings.save()
+            try:
+                settings.save()
+            except OSError:
+                pass      # unwritable state directory: run anyway, in memory
             return settings
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in data.items() if k in known})

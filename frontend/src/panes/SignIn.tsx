@@ -23,7 +23,7 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
     setOutput("");
     setRunning(true);
     try {
-      await api.startLogin(mode);
+      await api.startLogin(mode === "console");
     } catch (problem: any) {
       setError(problem.message);
       setRunning(false);
@@ -40,7 +40,7 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
         return;
       }
       if (payload.type === "output") setOutput((current) => current + payload.text);
-      if (payload.type === "exit") {
+      if (payload.type === "done") {
         stream.close();
         setRunning(false);
         const status = await api.claudeStatus().catch(() => null);

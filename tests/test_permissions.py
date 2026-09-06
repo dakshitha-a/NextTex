@@ -155,3 +155,21 @@ def test_two_permission_requests_in_one_millisecond_get_different_ids(tmp_path):
         return ids
 
     assert len(asyncio.run(both())) == 2
+
+
+def test_changing_the_model_ends_the_client_it_was_started_with(tmp_path):
+    """`set_model` called `close()`, which this class does not have, so every
+    real change was an AttributeError -- a 500 from the model picker.  It
+    survived being used because setting the *same* model returns early."""
+    subject = agent(tmp_path)
+    assert subject.model is None
+    asyncio.run(subject.set_model("claude-sonnet-5"))
+    assert subject.model == "claude-sonnet-5"
+    asyncio.run(subject.set_model(""))
+    assert subject.model is None
+
+
+def test_ending_a_client_that_was_never_started_is_harmless(tmp_path):
+    subject = agent(tmp_path)
+    asyncio.run(subject.disconnect())
+    assert subject._client is None

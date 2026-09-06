@@ -107,30 +107,73 @@ def test_a_full_build_asks_the_engine_for_synctex_data(tmp_path):
     assert "-synctex=1" in directive
 
 
-def test_an_edit_during_a_build_still_gets_its_full_pass(tmp_path):
+def test_an_edit_during_a_build_still_gets_its_full_pass(tmp_path, monkeypatch):
     """The bug this defends against: a bibliography edit made while a full
     build was already running had its rebuild cancelled by that build
     finishing, and the new citation printed as [?] until something else
     happened to touch the preamble."""
+    import asyncio
+
     scheduler = _scheduler(tmp_path)
-    mark = scheduler._full_mark
-    # A build is in flight and has read the flag.
     assert scheduler._needs_full is True
 
-    # Mid-build, the writer edits the bibliography.
-    scheduler.note_edit(tmp_path / "references.bib")
-    assert scheduler._full_mark != mark
+    started = asyncio.Event()
+    let_it_finish = asyncio.Event()
 
-    # The build that started earlier now finishes and would clear the flag.
-    if mark == scheduler._full_mark:
-        scheduler._needs_full = False
+    class SlowBuild:
+        returncode = 0
+        pid = 1
+
+        async def wait(self):
+            started.set()
+            await let_it_finish.wait()
+            return 0
+
+    async def fake_exec(*args, **kwargs):
+        return SlowBuild()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+    async def scenario():
+        build = asyncio.create_task(scheduler.build())
+        await asyncio.wait_for(started.wait(), 2)
+        # Mid-build, the writer edits the bibliography.
+        scheduler.note_edit(tmp_path / "references.bib")
+        let_it_finish.set()
+        await asyncio.wait_for(build, 2)
+
+    asyncio.run(scenario())
     assert scheduler._needs_full is True, "the newer edit still needs a full pass"
+
+
+def test_a_build_with_nothing_new_behind_it_clears_the_flag(tmp_path, monkeypatch):
+    """The other half: it must still stop asking for full builds forever."""
+    import asyncio
+
+    scheduler = _scheduler(tmp_path)
+
+    class Build:
+        returncode = 0
+        pid = 1
+
+        async def wait(self):
+            return 0
+
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_exec",
+        lambda *a, **k: asyncio.sleep(0, result=Build()),
+    )
+    asyncio.run(scheduler.build())
+    assert scheduler._needs_full is False
 
 
 def _scheduler(tmp_path):
     from nexttex.compile import CompileScheduler, ProjectPaths
 
-    (tmp_path / "main.tex").write_text("\\documentclass{article}", encoding="utf-8")
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}x\\end{document}\n",
+        encoding="utf-8",
+    )
     return CompileScheduler(ProjectPaths(
         root=tmp_path, main=tmp_path / "main.tex", build_dir=tmp_path / "build",
     ))

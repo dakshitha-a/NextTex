@@ -502,7 +502,11 @@ class ProjectAgent:
             self._pending.pop(request_id, None)
 
         if decision == "always":
-            self._always_allow.add(rule)
+            # An empty rule means nothing could be scoped safely -- a Bash
+            # command with shell syntax in it.  Honour the allow, remember
+            # nothing: the card comes back next time, which is the point.
+            if rule:
+                self._always_allow.add(rule)
         return decision
 
     async def _post_tool(self, input_data: dict, tool_use_id: str | None, ctx: Any) -> dict:
@@ -739,29 +743,7 @@ class ProjectAgent:
             {"doi": str, "bib_file": str},
         )
         async def add_reference(args: dict) -> dict:
-            from . import references
-
-            doi = str(args.get("doi", "")).strip()
-            if not doi:
-                return self._text("Which DOI?")
-            bib = self._bib_path(str(args.get("bib_file") or ""))
-            if bib is None:
-                return self._text(
-                    "I cannot find a .bib file in this project. Create one "
-                    "first, or say which file to add to."
-                )
-            try:
-                result = await asyncio.to_thread(references.add, doi, bib)
-            except Exception as error:
-                return self._text(f"Could not add it: {error}")
-            if not result.get("added"):
-                return self._text(result.get("reason", "nothing to do"))
-            if self.compile_now:
-                await self._maybe(self.compile_now())
-            return self._text(
-                f"Added to {self._display(bib)} as \\cite{{{result['key']}}} "
-                f"— {result.get('title', '')}"
-            )
+            return await self.add_reference_tool(args)
 
         @tool(
             "check_references",
@@ -820,6 +802,49 @@ class ProjectAgent:
             return preferred
         found = sorted(self.root.rglob("*.bib"))
         return found[0] if found else None
+
+    async def add_reference_tool(self, args: dict) -> dict:
+        """Add one reference from its DOI.
+
+        Lifted out of the MCP closure so that the write path -- which is the
+        part that had the bug -- can be exercised without a live agent.
+        """
+        from . import references
+
+        doi = str(args.get("doi", "")).strip()
+        if not doi:
+            return self._text("Which DOI?")
+        bib = self._bib_path(str(args.get("bib_file") or ""))
+        if bib is None:
+            return self._text(
+                "I cannot find a .bib file in this project. Create one "
+                "first, or say which file to add to."
+            )
+        try:
+            existing = bib.read_text(encoding="utf-8") if bib.exists() else ""
+            result = await asyncio.to_thread(references.entry_for, doi, existing)
+        except Exception as error:
+            return self._text(f"Could not add it: {error}")
+        if not result.get("added"):
+            return self._text(result.get("reason", "nothing to do"))
+        # Written back here, on the loop, through the same path as every
+        # other edit the agent makes.  Writing it inside the worker thread
+        # meant no version, no undo, no chip and no note that the next build
+        # needs biber -- and it wrote a copy of the file read *before* the
+        # network call, so anything typed into the bibliography during the
+        # lookup was overwritten.
+        current = bib.read_text(encoding="utf-8") if bib.exists() else ""
+        text = references.appended(current, result["entry"])
+        if self.apply_edit is None:
+            return self._text("The editor is not connected.")
+        self.apply_edit(bib, text)
+        self._edits.append(
+            EditRecord("add_reference", self._display(bib), current, text)
+        )
+        return self._text(
+            f"Added to {self._display(bib)} as \\cite{{{result['key']}}} "
+            f"— {result.get('title', '')}"
+        )
 
     @staticmethod
     async def _maybe(value: Any) -> Any:

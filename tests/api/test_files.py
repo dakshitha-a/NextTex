@@ -130,3 +130,41 @@ def test_the_tree_hides_what_it_should(client, opened, project_dir):
     assert "main.tex" in names
     assert "build" not in names
     assert ".nexttex" not in names
+
+
+def test_a_save_never_brings_a_deleted_file_back(client, opened, project_dir):
+    """Renaming or deleting an open file left the tab pointing at the old
+    name; this route's mkdir-and-write then recreated it, and the writer
+    carried on editing an orphan nothing includes."""
+    client.delete(f"/api/projects/{opened['id']}/file", params={"path": "main.tex"})
+    assert not (project_dir / "main.tex").exists()
+
+    response = client.put(
+        f"/api/projects/{opened['id']}/file",
+        json={"path": "main.tex", "text": "still typing", "compile": False},
+    )
+    assert response.status_code == 404
+    assert not (project_dir / "main.tex").exists()
+
+
+def test_a_deliberate_creation_is_still_allowed(client, opened, project_dir):
+    response = client.put(
+        f"/api/projects/{opened['id']}/file",
+        json={"path": "chapters/new.tex", "text": "a start",
+              "compile": False, "create": True},
+    )
+    assert response.status_code == 200
+    assert (project_dir / "chapters" / "new.tex").read_text(
+        encoding="utf-8") == "a start"
+
+
+def test_history_follows_a_file_across_a_rename(client, opened):
+    client.put(f"/api/projects/{opened['id']}/file",
+               json={"path": "main.tex", "text": "early words", "compile": False})
+    client.post(f"/api/projects/{opened['id']}/file/rename",
+                json={"path": "main.tex", "to": "thesis.tex"})
+    versions = client.get(f"/api/projects/{opened['id']}/history",
+                          params={"path": "thesis.tex"}).json()["versions"]
+    assert versions
+    assert client.get(f"/api/projects/{opened['id']}/history",
+                      params={"path": "main.tex"}).json()["versions"] == []
