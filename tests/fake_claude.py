@@ -35,6 +35,14 @@ def main(argv: list[str]) -> int:
         print(json.dumps(answer))
         return 0
 
+    if argv[:2] == ["auth", "logout"]:
+        if not signed_in():
+            print("Not logged in.", file=sys.stderr)
+            return 1
+        os.remove(STATE)
+        print("Logged out.")
+        return 0
+
     if argv[:2] == ["auth", "login"]:
         # No trailing newline on the prompt, exactly as the real one does:
         # that is why the server needs a pseudo-terminal rather than a pipe.

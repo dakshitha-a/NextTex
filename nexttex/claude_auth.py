@@ -257,7 +257,15 @@ def logout() -> dict:
     if not binary:
         return {"ok": False, "error": "The Claude CLI is not installed."}
     try:
-        subprocess.run([binary, "auth", "logout"], capture_output=True, timeout=30)
+        result = subprocess.run(
+            [binary, "auth", "logout"], capture_output=True, text=True, timeout=30
+        )
     except (subprocess.SubprocessError, OSError) as exc:
         return {"ok": False, "error": str(exc)}
+    if result.returncode != 0:
+        # Saying "signed out" when the CLI refused leaves the credentials
+        # exactly where they were, on a machine the writer believes they
+        # have just cleared.  That is the one thing this must not do.
+        reason = (result.stderr or result.stdout or "").strip()
+        return {"ok": False, "error": reason[:200] or "could not sign out"}
     return {"ok": True, "status": status()}

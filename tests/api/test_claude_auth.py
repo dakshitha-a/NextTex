@@ -105,3 +105,61 @@ def test_status_is_reported_without_running_the_cli(client, monkeypatch):
     monkeypatch.setattr(claude_auth, "_claude", lambda: None)
     body = client.get("/api/claude/status").json()
     assert body["installed"] is False and body["loggedIn"] is False
+
+
+def test_signing_out_actually_signs_out(monkeypatch, tmp_path, client):
+    state = tmp_path / "signed-in"
+    state.write_text("a-code", encoding="utf-8")
+    monkeypatch.setenv("NEXTTEX_CLAUDE_BINARY", str(FAKE_CLI))
+    monkeypatch.setenv("NEXTTEX_FAKE_CLAUDE_STATE", str(state))
+    monkeypatch.delenv("NEXTTEX_FAKE_CLAUDE_AUTH", raising=False)
+
+    body = client.post("/api/claude/logout").json()
+    assert body["ok"] is True
+    assert body["status"]["loggedIn"] is False
+
+
+def test_a_sign_out_that_failed_is_not_reported_as_done(monkeypatch, tmp_path, client):
+    """Telling the writer they are signed out when the CLI refused leaves
+    the credentials on the machine they believe they have just cleared."""
+    monkeypatch.setenv("NEXTTEX_CLAUDE_BINARY", str(FAKE_CLI))
+    monkeypatch.setenv("NEXTTEX_FAKE_CLAUDE_STATE", str(tmp_path / "never-written"))
+    monkeypatch.delenv("NEXTTEX_FAKE_CLAUDE_AUTH", raising=False)
+
+    body = client.post("/api/claude/logout").json()
+    assert body["ok"] is False
+    assert body["error"]
+
+
+def test_signing_out_without_the_cli_says_so(monkeypatch, client):
+    from nexttex import claude_auth
+
+    monkeypatch.setattr(claude_auth, "_claude", lambda: None)
+    body = client.post("/api/claude/logout").json()
+    assert body["ok"] is False
+
+
+def test_cancelling_a_login_leaves_nothing_running(monkeypatch, tmp_path, client):
+    import asyncio
+    import json
+
+    from nexttex import claude_auth
+
+    monkeypatch.setenv("NEXTTEX_CLAUDE_BINARY", str(FAKE_CLI))
+    monkeypatch.setenv("NEXTTEX_FAKE_CLAUDE_STATE", str(tmp_path / "signed-in"))
+
+    async def start_then_cancel() -> dict:
+        assert (await claude_auth.start_login())["ok"] is True
+        await claude_auth.cancel_login()
+        # Nothing in flight, so the stream says so instead of hanging.
+        async for line in claude_auth.stream():
+            return json.loads(line)
+        return {}
+
+    assert asyncio.run(start_then_cancel()) == {"type": "idle"}
+    # And the code never reached the CLI, so nobody was signed in.
+    assert not (tmp_path / "signed-in").exists()
+
+
+def test_cancelling_when_nothing_is_running_is_not_an_error(client):
+    assert client.post("/api/claude/login/cancel").json()["ok"] is True
