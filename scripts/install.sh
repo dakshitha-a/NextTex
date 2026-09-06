@@ -105,6 +105,15 @@ if have tlmgr; then
       note "tlmgr could not install some of them; NextTex will say which at startup"
   fi
 fi
+if ! have pdftotext; then
+  note "pdftotext is not installed; reading a folder of papers into a .bib"
+  note "  needs it.  It comes with poppler-utils:"
+  case "$PLATFORM" in
+    macos) note "    brew install poppler" ;;
+    *)     note "    sudo apt install poppler-utils   (or your distribution's)" ;;
+  esac
+fi
+
 for tool in pdflatex latexmk synctex; do
   have "$tool" && note "$tool $(command -v "$tool")" || note "MISSING: $tool"
 done

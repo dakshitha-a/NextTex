@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import mimetypes
 import secrets
 import shutil
@@ -34,6 +35,11 @@ from nexttex.atomic import (
 )
 from nexttex.compile import CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
+from nexttex import references
+from nexttex.library import (
+    MAX_PDFS as LIBRARY_MAX, Library, Scan, have_pdftotext,
+    title_is_on_the_page, walk as library_walk,
+)
 from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS
@@ -41,6 +47,9 @@ from nexttex.project import IGNORED_FILES, Project, ProjectConfig, Registry
 from server.session import ProjectSession
 
 SESSIONS: dict[str, ProjectSession] = {}
+# One folder-read per project at a time.  A second would race the first
+# over the same .bib file for no benefit -- the network is the bottleneck.
+LIBRARY_JOBS: dict[str, Scan] = {}
 # Stop events for the running file watch.  Setting one makes the watcher
 # restart against the current set of open projects.
 WATCH_RESTART: list[asyncio.Event] = []
@@ -789,6 +798,269 @@ async def upload(
             "type": "files_changed", "paths": written, "structural": True,
         })
     return {"written": written, "results": results}
+
+
+# ---------------------------------------------------------------------------
+# The writer's own library: a folder of papers, turned into a bibliography
+#
+# The one feature here that reaches outside a project, deliberately and
+# with its own rules.  A Zotero folder is not in the project and never
+# will be, so `Project.resolve` -- which answers one question, can this
+# client-supplied relative path escape the project it names -- is not
+# involved.  What guards this instead: it is read-only, it returns folder
+# names and PDF counts and never file contents, it does not follow
+# symlinks, and no tool the agent can call reaches it at all.
+
+
+@app.get("/api/browse")
+async def browse(path: str = "", count: bool = False):
+    """Folders on the machine running NextTex, for picking one.
+
+    Not scoped to a project, because it is not about one: a project is
+    already a server-side absolute path typed into a box on the projects
+    screen, so this is the app's existing model finally given a control.
+    """
+    home = Path.home()
+    where = Path(path).expanduser() if path else home
+    try:
+        where = where.resolve()
+    except (OSError, ValueError):
+        raise HTTPException(400, "There is no folder at that path.")
+    if not where.exists():
+        raise HTTPException(400, "There is no folder at that path.")
+    if not where.is_dir():
+        raise HTTPException(400, "That is a file, not a folder.")
+
+    def listing() -> dict:
+        folders = []
+        here = 0
+        try:
+            for item in sorted(os.scandir(where), key=lambda e: e.name.lower()):
+                if item.name.startswith("."):
+                    continue
+                if item.is_dir(follow_symlinks=False):
+                    try:
+                        pdfs = sum(
+                            1 for child in os.scandir(item.path)
+                            if child.is_file() and child.name.lower().endswith(".pdf")
+                        )
+                    except OSError:
+                        pdfs = 0
+                    folders.append({"name": item.name, "path": item.path, "pdfs": pdfs})
+                elif item.is_file() and item.name.lower().endswith(".pdf"):
+                    here += 1
+        except PermissionError:
+            raise HTTPException(403, "NextTex cannot read that folder.")
+        except OSError as error:
+            raise HTTPException(400, str(error))
+        return {"folders": folders, "pdfsHere": here}
+
+    body = await asyncio.to_thread(listing)
+    deep = None
+    if count:
+        found, unreadable = await asyncio.to_thread(library_walk, where)
+        deep = {"pdfs": len(found), "unreadable": unreadable,
+                "capped": len(found) > LIBRARY_MAX}
+    return {
+        "path": str(where),
+        "parent": str(where.parent) if where.parent != where else None,
+        "home": str(home),
+        **body,
+        "deep": deep,
+    }
+
+
+def _library(session: ProjectSession) -> Library:
+    return Library(session.project.state_dir / "library")
+
+
+def _bib_for(session: ProjectSession) -> Path | None:
+    """The project's bibliography, or None when it has none."""
+    found = sorted(
+        path for path in session.project.root.rglob("*.bib")
+        if ".nexttex" not in path.parts and "build" not in path.parts
+    )
+    return found[0] if found else None
+
+
+@app.get("/api/projects/{project_id}/library")
+async def library_state(project_id: str):
+    session = session_for(project_id)
+    shelf = _library(session)
+    papers = shelf.papers()
+    running = LIBRARY_JOBS.get(project_id)
+    return {
+        "count": sum(1 for paper in papers if paper.state == "added"),
+        "sources": shelf.sources(),
+        "lastRun": shelf.last_run(),
+        "running": running.progress.as_dict() if running else None,
+        "unidentified": [
+            paper.as_dict() for paper in papers if paper.state == "unidentified"
+        ],
+        "haveReader": have_pdftotext(),
+    }
+
+
+@app.post("/api/projects/{project_id}/library/scan")
+async def library_scan(project_id: str, path: str = Body(..., embed=True)):
+    """Read a folder of papers into the bibliography.
+
+    Answers as soon as it knows there is work to do, and does the work in
+    the background: a hundred papers is a hundred network lookups, and the
+    writer goes on writing throughout.
+    """
+    session = session_for(project_id)
+    if project_id in LIBRARY_JOBS:
+        raise HTTPException(409, "A folder is already being read.")
+    if not have_pdftotext():
+        raise HTTPException(
+            503,
+            "NextTex needs pdftotext to read a PDF. It comes with poppler-utils.",
+        )
+    bib = _bib_for(session)
+    if bib is None:
+        raise HTTPException(
+            400,
+            "There is no .bib file in this project. Make one first — "
+            "New file, references.bib.",
+        )
+
+    folder = Path(path).expanduser()
+    try:
+        folder = folder.resolve()
+    except (OSError, ValueError):
+        raise HTTPException(400, "There is no folder at that path.")
+    if not folder.is_dir():
+        raise HTTPException(400, "There is no folder at that path.")
+
+    fetch = references._load("bib_from_doi")
+    fold = references._load("verify_bib").fold
+    loop = asyncio.get_running_loop()
+
+    def announce(progress) -> None:
+        asyncio.run_coroutine_threadsafe(
+            session.events.publish({"type": "library_scan", **progress.as_dict()}),
+            loop,
+        )
+
+    def read_bib() -> str:
+        return read_text(bib) or ""
+
+    def write_bib(text: str) -> None:
+        write_atomically(bib, text)
+        session.mark_written(bib)
+
+    scan = Scan(
+        _library(session), bib,
+        read_bib=read_bib, write_bib=write_bib,
+        entry_for=lambda doi, existing: references.entry_for(doi, existing),
+        appended=references.appended,
+        fetch_metadata=fetch.fetch_metadata,
+        fold=fold,
+        on_progress=announce,
+    )
+    LIBRARY_JOBS[project_id] = scan
+
+    # A version on each side of the run, so both the bibliography as it was
+    # and as it ended up stay reachable.  `op="import"` rather than "edit"
+    # for the reason a replacement is not one either: the coalescer merges
+    # same-author edits inside ninety seconds, and a two-hundred-entry
+    # append is the largest change this file will ever take.
+    session.record_version(bib, read_bib(), by="you", op="import",
+                           why="before papers were imported")
+
+    async def work() -> None:
+        try:
+            await asyncio.to_thread(scan.run, folder)
+            session.record_version(
+                bib, read_bib(), by="you", op="import",
+                why=f"papers imported from {folder.name}",
+            )
+            session.note_edit(bib)
+            session.schedule_compile()
+        except Exception as error:                      # network, disk, anything
+            scan.progress.phase = "failed"
+            scan.progress.message = str(error)
+            await session.events.publish(
+                {"type": "library_scan", **scan.progress.as_dict()}
+            )
+        finally:
+            LIBRARY_JOBS.pop(project_id, None)
+
+    asyncio.create_task(work())
+    return JSONResponse({"started": True}, status_code=202)
+
+
+@app.post("/api/projects/{project_id}/library/stop")
+async def library_stop(project_id: str):
+    scan = LIBRARY_JOBS.get(project_id)
+    if scan is None:
+        return {"stopped": False}
+    scan.stop()
+    return {"stopped": True}
+
+
+@app.post("/api/projects/{project_id}/library/resolve")
+async def library_resolve(
+    project_id: str, sha: str = Body(...), doi: str = Body(...)
+):
+    """A DOI the writer supplied for a paper that could not be identified.
+
+    The title check still runs, but a human pasting a DOI is a human making
+    the claim, so a mismatch is reported rather than refused.
+    """
+    session = session_for(project_id)
+    shelf = _library(session)
+    bib = _bib_for(session)
+    if bib is None:
+        raise HTTPException(400, "There is no .bib file in this project.")
+
+    papers = shelf.papers()
+    paper = next((p for p in papers if p.sha == sha), None)
+    if paper is None:
+        raise HTTPException(404, "no such paper")
+
+    existing = read_text(bib) or ""
+    try:
+        found = await asyncio.to_thread(references.entry_for, doi.strip(), existing)
+    except Exception as error:
+        return {"added": False, "reason": str(error)}
+    if not found.get("added"):
+        return {"added": False, "reason": str(found.get("reason") or "not added")}
+
+    write_atomically(bib, references.appended(read_text(bib) or "", found["entry"]))
+    session.mark_written(bib)
+    session.record_version(bib, read_text(bib), by="you", op="import",
+                           why=f"added {found['key']} by hand")
+
+    fold = references._load("verify_bib").fold
+    body = shelf.text_for(sha)
+    warning = ""
+    if body and not title_is_on_the_page(found.get("title", ""), body, fold):
+        warning = ("Added, though that paper's title is not on the first page "
+                   "of this PDF.")
+
+    paper.state = "added"
+    paper.doi = doi.strip()
+    paper.key = found["key"]
+    paper.reason = ""
+    shelf.save(papers, shelf.sources(), shelf.last_run())
+    await session.events.publish({"type": "files_changed",
+                                  "paths": [session.project.relative(bib)]})
+    return {"added": True, "key": found["key"], "warning": warning}
+
+
+@app.delete("/api/projects/{project_id}/library/unidentified")
+async def library_forget(project_id: str):
+    """Dismiss the list of papers that could not be identified.
+
+    Nothing is destroyed -- the papers are where they always were -- so
+    this is not a delete and does not ask."""
+    session = session_for(project_id)
+    shelf = _library(session)
+    papers = [p for p in shelf.papers() if p.state != "unidentified"]
+    shelf.save(papers, shelf.sources(), shelf.last_run())
+    return {"cleared": True}
 
 
 # ---------------------------------------------------------------------------

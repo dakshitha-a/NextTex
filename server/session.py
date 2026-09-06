@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from nexttex.explain import annotate, summarise
+from nexttex.library import Library
 from nexttex.providers import agent_for
 from nexttex.compile import CompileResult, CompileScheduler, Outcome, ProjectPaths
 from nexttex.context import ProjectContext
@@ -104,6 +105,7 @@ class ProjectSession:
         self.history = History(project.state_dir / "history")
         self.symbols = SymbolCache(project.root)
         self.trash = Trash(project.state_dir / "trash", self.history, project.root)
+        self.library = Library(project.state_dir / "library")
         self.events = Broadcaster()
 
         self.paths = ProjectPaths(
@@ -118,7 +120,9 @@ class ProjectSession:
             provider,
             project.root,
             project.state_dir,
-            context_prompt=self.context.prompt_section,
+            # The project's own instructions, plus a fixed-length pointer to
+            # the writer's collected papers when there are any.
+            context_prompt=self._agent_context,
             has_voice=lambda: self.context.voice_summary.exists(),
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
@@ -257,6 +261,10 @@ class ProjectSession:
         self.compiler = CompileScheduler(self.paths)
 
     # -- version history ---------------------------------------------------
+    def _agent_context(self) -> str:
+        parts = [self.context.prompt_section(), self.library.prompt_section()]
+        return "\n\n".join(part for part in parts if part)
+
     def record_version(
         self,
         path: Path,

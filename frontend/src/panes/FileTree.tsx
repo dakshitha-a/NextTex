@@ -5,6 +5,7 @@ import { get, set, useStore } from "../store";
 import { ancestorsOf, collisions } from "../tree";
 import UploadStaging, { type Staging } from "./UploadStaging";
 import FolderChooser from "./FolderChooser";
+import PapersChooser from "./PapersChooser";
 
 /** 13px is the width of a Source Sans lowercase n at 13px, so indentation
  *  reads as a typographic quad rather than an arbitrary gap. */
@@ -63,6 +64,8 @@ export default function FileTree({
   // Moving a file is a rename with a folder in it.  Over months a
   // dissertation does get reorganised, and the only route before this was
   // to rename a file to a path and hope that worked.
+  const [papersFor, setPapersFor] =
+    useState<{ name: string; at: { x: number; y: number } } | null>(null);
   const [moving, setMoving] =
     useState<{ path: string; to: string; at: { x: number; y: number } } | null>(null);
   // Typing in the tree jumps to a file, which is why there is no filter
@@ -177,6 +180,12 @@ export default function FileTree({
       } else if (action === "history") {
         onOpen(node.path);
         onHistory?.();
+      } else if (action === "papers") {
+        const box = menuRef.current?.getBoundingClientRect();
+        setPapersFor({
+          name: node.name,
+          at: { x: box?.left ?? 120, y: box?.top ?? 120 },
+        });
       } else if (action === "move") {
         const box = menuRef.current?.getBoundingClientRect();
         setMoving({
@@ -374,6 +383,13 @@ export default function FileTree({
             {[
               ["rename", "Rename"],
               ["move", "Move to…"],
+              // A .bib file's reason to have a menu opened on it at all is
+              // its contents, which is why this sits with "set as main
+              // document" rather than at the bottom with the file
+              // operations every row has.
+              ...(!isDirectory && /\.bib$/i.test(node.name)
+                ? [["papers", "Add papers from a folder…"]]
+                : []),
               ...(!isDirectory && /\.(tex|ltx)$/i.test(node.name) &&
               node.path !== mainFile
                 ? [["main", "Set as main document"]]
@@ -581,6 +597,14 @@ export default function FileTree({
           );
         }}
       />
+      {papersFor ? (
+        <PapersChooser
+          bibName={papersFor.name}
+          at={papersFor.at}
+          onClose={() => setPapersFor(null)}
+          onStarted={() => setPapersFor(null)}
+        />
+      ) : null}
       {moving ? (
         <MoveTo
           moving={moving}

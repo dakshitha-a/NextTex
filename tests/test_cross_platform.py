@@ -145,3 +145,58 @@ def test_the_scholarly_apis_are_told_who_is_calling_generically():
         module = _load(name)
         assert module.UA.startswith("nexttex-"), module.UA
         assert "thesis" not in module.UA, module.UA
+
+
+# Every host the shipped code can talk to.  The README names these, and a
+# reader deciding whether to run NextTex on a machine they care about is
+# entitled to that list being complete.
+OUTBOUND = {
+    "api.anthropic.com",        # the Claude agent, via its own SDK
+    "api.openai.com",           # the OpenAI agent
+    "api.crossref.org",         # the reference pipeline
+    "api.openalex.org",
+    "api.semanticscholar.org",
+    "export.arxiv.org",
+    "doi.org",
+    "dx.doi.org",
+    "claude.ai",                # the sign-in screen links to the download page
+}
+
+
+def test_the_shipped_code_talks_to_nothing_the_readme_does_not_name():
+    """Not a security boundary -- a promise being kept.  A new host here
+    without a matching line in the README turns a stated fact into a
+    stale one, which is worse than never having claimed it."""
+    import re
+
+    host = re.compile(r"https?://([a-z0-9.-]+\.[a-z]{2,})", re.I)
+    found: dict[str, str] = {}
+    for path in python_sources() + list((ROOT / "nexttex" / "vendor").rglob("*.py")):
+        for match in host.findall(path.read_text(encoding="utf-8")):
+            found.setdefault(match.lower(), str(path.relative_to(ROOT)))
+
+    surprises = {name: where for name, where in found.items() if name not in OUTBOUND}
+    assert not surprises, (
+        "new outbound host(s); add them to the README's "
+        f"'What leaves this machine' section: {surprises}"
+    )
+
+
+def test_the_readme_names_every_one_of_them():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## What leaves this machine")[1].split("##")[0]
+    for host in ("Crossref", "OpenAlex", "Semantic Scholar", "arXiv", "doi.org"):
+        assert host in section, f"{host} is reachable but unmentioned"
+    assert "Anthropic" in section and "OpenAI" in section
+
+
+def test_no_telemetry_of_any_kind():
+    import re
+
+    watched = re.compile(r"telemetry|analytics|sentry|posthog|mixpanel|gtag", re.I)
+    offenders = [
+        str(path.relative_to(ROOT))
+        for path in python_sources() + list((ROOT / "frontend" / "src").rglob("*.ts*"))
+        if watched.search(path.read_text(encoding="utf-8"))
+    ]
+    assert not offenders, offenders

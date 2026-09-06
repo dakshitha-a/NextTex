@@ -1048,3 +1048,120 @@ no filter box in a bar 240 px wide; `Move to…` reuses the same folder chooser 
 route, which already fenced both of its paths; and an image pasted onto the tree becomes a
 figure with a dated name, because screenshot-to-figure is a loop somebody runs all
 afternoon.
+
+---
+
+## 16. Three agents, one of which is none
+
+The agent was Claude, and the app was built around it closely enough that
+"which model" looked like a setting nobody would ever need. Two things
+changed that. Not everybody has a Claude account. And more importantly: a
+writer who does not want an AI anywhere near their thesis is not a lapsed
+user of this app, they are its core user with one panel switched off.
+
+So there are three providers, and the third is `none`.
+
+**The seam already existed.** `ScriptedAgent` had been standing in for the
+whole agent since the test suite was built, which is a stronger claim than
+it looks: it proved the rest of the app depends on exactly eleven members —
+`ask`, `events`, `busy`, `idle_seconds`, `disconnect`, `interrupt`,
+`current_why`, `resolve_permission`, `set_model`, `model`, `usage`. Adding a
+second real provider was writing a fourth implementation of a contract that
+had already been exercised, not carving a new abstraction out of coupled
+code.
+
+**The OpenAI one is narrower on purpose, and the narrowing is the safety.**
+The Claude SDK offers Bash, so that agent has to fence it: a permission
+card, a rule scoped to the command's first word, a refusal to remember
+anything for a compound command. Here the tool list is ours to write, so
+there is no shell on it — a writing agent has never needed one except to
+run the build, which is a tool of its own. And every path a tool takes is
+resolved against the project root, so there is no out-of-project write to
+ask permission about. `resolve_permission` returns `False` and says why,
+rather than keeping a card that would never appear.
+
+It has never spoken to OpenAI. There is no account here, so the transport
+is stubbed and everything above it runs for real. What that cannot tell you
+is whether OpenAI still returns these shapes, which is the same honest
+limit the Anthropic side has and the reason `NEXTTEX_LIVE` exists.
+
+**"None" removes the column rather than disabling it.** A greyed-out panel
+down the right-hand side is a permanent advertisement for a decision the
+writer already made. The editor and the preview take the width.
+
+### The error pane had to grow up first
+
+Switching the agent off exposed how much of the app's helpfulness was
+routed through it. The error drawer showed what TeX said, and `Fix` wrote
+that into the composer — which is no help at all to somebody with no
+composer.
+
+`nexttex/explain.py` is twenty-three rules over the errors that actually
+happen, each with what it means and what to look for. `Missing $ inserted`
+becomes *Maths outside maths mode* and *put the expression between dollar
+signs, or write `\_` if you meant a literal underscore*.
+
+The part worth defending is the summary strip. TeX cascades: one unclosed
+brace produces a complaint from every paragraph after it, and the list in
+the drawer is sorted with errors first, so a reader who works down it
+spends the evening fixing consequences. The strip names the *first* error
+in document order — nearly always the cause — and says plainly that the
+rest usually follow from it. That is a sentence, not a feature, and it is
+the most useful thing in the pane.
+
+---
+
+## 17. A folder of papers, and the citation that is never invented
+
+Point NextTex at a directory of PDFs and it fills in the bibliography. The
+rule that makes it worth having is the same rule that makes it hard: a
+citation may never be composed from anything but a publisher's own record.
+
+**Bulk import is where that rule is most tempting to soften.** A hundred
+PDFs, ninety of them carrying a printed DOI, and a title search would
+"probably" get the rest. It does not, and the refusals are written into the
+design rather than left to the implementation: no DOI is guessed from a
+title, no filename that looks close is trusted, and there is no *add all
+suggestions* button — twelve individual clicks is the correct cost of
+twelve papers that had no DOI printed in them.
+
+**The safeguard that is not obvious.** A DOI printed on page one is
+sometimes a DOI the paper *cites*. So after the record comes back, its
+title is checked against the paper's own front matter, and a record that
+does not describe the paper it was found in is refused. The check is folded
+token containment rather than a substring or a similarity ratio, because
+`pdftotext` hyphenates at line ends: `nitro-\nphenol` folds to `nitro
+phenol` and a substring test would reject a paper that is unambiguously
+right.
+
+**Duplicates, at three scopes.** A DOI already in the file. The same file
+content under two collections, caught by hashing the bytes before anything
+is extracted — which is also what makes re-running the same folder cost
+seconds. And, the one that would have been silently wrong, **citation keys
+colliding inside a single run**: two papers by the same author in the same
+year both become `Marcus1993`, and the second shadows the first in every
+`\cite` without LaTeX complaining. The growing `.bib` text is threaded
+through each lookup so the disambiguator sees the entry added a moment ago.
+
+**Why this is not a `ProjectContext` document.** That mechanism copies the
+bytes, lists every document in the system prompt on every turn, and exists
+to distil things. All three are wrong for two hundred papers: the copy is
+600 MB of duplication, the listing would be two hundred lines paid for on
+every turn, and there is no useful distillation of a literature collection.
+The operation you want is *search*. So the library indexes the text that
+had to be extracted anyway and contributes a fixed four lines to the
+prompt, whatever its size.
+
+**The path fence is not involved, extended, or excepted.** `Project.resolve`
+answers one question — can this client-supplied relative path escape the
+project it names — and it keeps answering only that. A Zotero folder is not
+in the project and never will be. What guards the browse route instead:
+it is read-only, it returns folder names and PDF counts and never file
+contents, it does not follow symlinks, and **no tool the agent can call
+reaches it**. A PDF is a file the writer downloaded from the internet, and
+a tool that turned "read this folder" into an argument the model chooses
+would be a path from a downloaded paper to the writer's home directory.
+
+For the same reason, what `search_library` returns is framed as quotation
+rather than instruction, and snippets are capped so no long instruction
+block survives intact.
