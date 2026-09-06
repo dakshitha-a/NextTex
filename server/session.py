@@ -176,6 +176,9 @@ class ProjectSession:
             # the writer's collected papers when there are any.
             context_prompt=self._agent_context,
             has_voice=lambda: self.context.voice_summary.exists(),
+            # What earlier conversations were told to keep.  The context
+            # store owns it so both providers get the same text.
+            remember=self.context.remember,
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
             compile_now=self.compile,

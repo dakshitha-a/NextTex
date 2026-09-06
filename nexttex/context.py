@@ -33,6 +33,12 @@ KINDS: tuple[Kind, ...] = ("style", "voice", "source")
 CONTEXT_DIR = "context"
 MANIFEST = "manifest.json"
 
+# Memory is paid for on every turn, in every conversation, so it is capped
+# rather than allowed to grow into a second transcript.  The cap is a
+# character count because that is what the writer sees in the editor.
+MEMORY_MAX_CHARS = 4_000
+MEMORY_HEADING = "# What this project asked to be remembered"
+
 KIND_DIRS = {"style": "style", "voice": "voice", "source": "sources"}
 
 KIND_LABEL = {
@@ -87,6 +93,67 @@ class ProjectContext:
     @property
     def voice_summary(self) -> Path:
         return self.root / "voice.md"
+
+    # -- memory ------------------------------------------------------------
+    # Kept here rather than in either agent so that both providers get the
+    # same text through the same prompt section.  It deliberately does not
+    # rely on the Claude CLI picking up a CLAUDE.md from the working
+    # directory: that is a Claude-only mechanism, and a writer who chose
+    # OpenAI would silently get nothing.
+    @property
+    def memory_path(self) -> Path:
+        return self.root / "memory.md"
+
+    def memory_text(self) -> str:
+        try:
+            return self.memory_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+
+    def memory_notes(self) -> list[str]:
+        """The remembered lines, without the heading."""
+        return [
+            line[2:].strip()
+            for line in self.memory_text().splitlines()
+            if line.startswith("- ") and line[2:].strip()
+        ]
+
+    def set_memory(self, text: str) -> str:
+        """Replace the memory wholesale, as a hand edit does."""
+        body = text.strip()[:MEMORY_MAX_CHARS].strip()
+        self.root.mkdir(parents=True, exist_ok=True)
+        temp = self.memory_path.with_suffix(".md.tmp")
+        try:
+            temp.write_text(body + ("\n" if body else ""), encoding="utf-8")
+            temp.replace(self.memory_path)
+        except OSError:
+            temp.unlink(missing_ok=True)
+            return self.memory_text()
+        return body
+
+    def remember(self, note: str) -> tuple[bool, str]:
+        """Append one note.  Returns whether it was kept, and what to say.
+
+        The failure is worth a sentence rather than a silent no-op: a model
+        told nothing will try again, and a model told the memory is full can
+        say so to the writer, who is the only one who can prune it.
+        """
+        line = " ".join(note.split()).strip()
+        if not line:
+            return False, "Nothing to remember: the note was empty."
+        if line in self.memory_notes():
+            return True, "Already remembered."
+        existing = self.memory_text()
+        body = existing or MEMORY_HEADING
+        proposed = f"{body}\n- {line}"
+        if len(proposed) > MEMORY_MAX_CHARS:
+            return False, (
+                f"Memory is full ({MEMORY_MAX_CHARS} characters). Ask the writer "
+                "to prune it in the panel that shows what you read, or to "
+                "replace a line that no longer holds."
+            )
+        self.set_memory(proposed)
+        return True, f"Noted, and it will be there in every future conversation: {line}"
 
     # -- manifest -------------------------------------------------------
     def documents(self) -> list[Document]:
@@ -209,6 +276,19 @@ class ProjectContext:
         so nothing goes in that is not used on most of them.
         """
         parts: list[str] = []
+
+        # First, because it is the most specific thing the writer has said:
+        # standing instructions about this project, given in earlier
+        # conversations that have since been cleared away.
+        notes = self.memory_notes()
+        if notes:
+            parts.append(
+                "## What this project has told you to remember\n\n"
+                + "\n".join(f"- {note}" for note in notes)
+                + "\n\nThese are facts and standing instructions the writer asked "
+                "you to keep across conversations. Follow them unless the writer "
+                "says otherwise in the conversation you are having now."
+            )
 
         if self.style_summary.exists():
             text = self.style_summary.read_text(encoding="utf-8").strip()

@@ -66,6 +66,7 @@ class ScriptedAgent:
         *,
         context_prompt: Callable[[], str] | None = None,
         has_voice: Callable[[], bool] | None = None,
+        remember: Callable[[str], tuple[bool, str]] | None = None,
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
@@ -78,6 +79,9 @@ class ScriptedAgent:
         self.root = project_root.resolve()
         self.state_dir = state_dir
         self.editor_state = editor_state or (lambda: {})
+        self.remember_note = remember or (
+            lambda _note: (False, "This project has nowhere to keep a memory.")
+        )
         self.compile_now = compile_now
         self.apply_edit = apply_edit
         self.on_edit = on_edit
@@ -122,6 +126,9 @@ class ScriptedAgent:
 
     def current_why(self) -> str:
         return self._why
+
+    async def reset(self) -> None:
+        self.asked.clear()
 
     async def disconnect(self) -> None:
         return None

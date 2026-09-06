@@ -375,6 +375,21 @@ const api = {
     request<any>(`/projects/${id}/context/${documentId}`, { method: "DELETE" }),
   distill: (id: string, kind: string) =>
     request<any>(`/projects/${id}/context/distill`, json({ kind })),
+  memory: (id: string) =>
+    request<{ text: string; limit: number }>(`/projects/${id}/context/memory`),
+  setMemory: (id: string, text: string) =>
+    request<{ text: string; limit: number }>(`/projects/${id}/context/memory`, {
+      ...json({ text }),
+      method: "PUT",
+    }),
+
+  resetChat: (id: string) =>
+    request<{ ok: boolean; archived: string | null }>(
+      `/projects/${id}/agent/reset`,
+      { method: "POST" },
+    ),
+  setAuto: (id: string, on: boolean) =>
+    request<{ auto: boolean }>(`/projects/${id}/agent/auto`, json({ on })),
 
   usage: (id: string) =>
     request<{
@@ -391,6 +406,10 @@ const api = {
       /** Whether a turn is really running.  A browser that thinks one is
        *  has no other way to find out that it is wrong. */
       busy: boolean;
+      /** Whether this agent approves without asking, and whether it is the
+       *  kind of agent that ever asks.  A reload has no other way to know. */
+      auto: boolean;
+      asks: boolean;
     }>(`/projects/${id}/agent/usage`),
   setModel: (id: string, model: string) =>
     request<{ ok: boolean; model: string; deferred: boolean }>(

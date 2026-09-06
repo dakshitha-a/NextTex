@@ -72,6 +72,38 @@ class Transcript:
         except OSError:
             temp.unlink(missing_ok=True)
 
+    def archive(self) -> str | None:
+        """Set this conversation aside and start an empty one.
+
+        Renamed rather than deleted.  The transcript is the record of what
+        an assistant did to somebody's dissertation -- every edit with its
+        diff, every command allowed or refused -- and starting a new
+        conversation is not a reason to lose it.
+
+        The buffer is flushed into the outgoing file first, so a half-
+        streamed paragraph ends up in the conversation it belongs to rather
+        than at the top of the new one.
+        """
+        self._flush_text()
+        self._buffer.clear()
+        self._counter = 0
+        self._appends = 0
+        if not self.path.exists():
+            return None
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        target = self.path.with_name(f"transcript-{stamp}.jsonl")
+        attempt = 2
+        while target.exists():
+            target = self.path.with_name(f"transcript-{stamp}-{attempt}.jsonl")
+            attempt += 1
+        try:
+            self.path.rename(target)
+        except OSError:
+            return None
+        # The next append recreates the file, and `_tail` already copes with
+        # it not being there in the meantime.
+        return target.name
+
     def _flush_text(self) -> None:
         if not self._buffer:
             return

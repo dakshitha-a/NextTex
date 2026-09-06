@@ -37,7 +37,7 @@ export type ChatItem =
       detail: string;
       consequence: string;
       at: number;
-      decision?: "allow" | "always" | "deny";
+      decision?: "allow" | "always" | "deny" | "auto";
     }
   | {
       kind: "tool";
@@ -81,6 +81,8 @@ export type State = {
   chat: ChatItem[];
   thinking: boolean;
   awaitingPermission: boolean;
+  /** Whether the agent approves without asking. */
+  auto: boolean;
   git: {
     repository: boolean;
     branch: string;
@@ -141,6 +143,7 @@ const state: State = {
   chat: [],
   thinking: false,
   awaitingPermission: false,
+  auto: false,
   git: null,
   instance: "",
   contextDocs: [],
@@ -527,6 +530,14 @@ function receive(event: any) {
       if (event.origin && event.origin === clientId) break;
       handlers.onFilesChanged?.(event.paths ?? [], event.structural !== false);
       break;
+    case "conversation_reset":
+      // Another tab started a new conversation.  This one is holding a
+      // transcript the server has filed away and will not answer for.
+      clearChat();
+      break;
+    case "agent_settings":
+      set({ auto: !!event.auto });
+      break;
     case "renamed":
       // A move in another tab.  The tree refresh that follows would show the
       // file in its new place while this tab's open tab still pointed at the
@@ -576,9 +587,14 @@ function receive(event: any) {
         summary: summariseTool(event.name, event.input),
       });
       break;
-    case "permission":
+    case "permission": {
       endText();
-      set({ awaitingPermission: true });
+      // A card that arrives already answered -- a rule the writer set
+      // earlier, or automatic approval -- is a record, not a question.
+      // Marking the composer as waiting for an answer to it would disable
+      // it until a card nobody will ever see is resolved.
+      const decided = event.decision ?? "";
+      if (!decided) set({ awaitingPermission: true });
       pushChat({
         kind: "permission",
         id: event.id,
@@ -587,9 +603,11 @@ function receive(event: any) {
         headline: event.headline ?? `Use ${event.tool}`,
         detail: event.detail ?? "",
         consequence: event.consequence ?? "",
+        decision: decided || undefined,
         at: Date.now(),
       });
       break;
+    }
     case "edit": {
       const { added, removed } = countDiff(event.before ?? "", event.after ?? "");
       pushChat({
@@ -631,6 +649,14 @@ function summariseTool(name: string, input: any): string {
   if (name === "Bash") return String(input.command ?? "");
   const path = input.file_path ?? input.path ?? input.pattern ?? "";
   return String(path);
+}
+
+/** Empty the conversation panel.
+ *
+ *  Not `usage`, which is what this project has cost rather than what was
+ *  said, and not the composer draft, which is the writer's own typing. */
+export function clearChat(): void {
+  set({ chat: [], thinking: false, awaitingPermission: false });
 }
 
 export function resolvePermission(id: string, decision: "allow" | "always" | "deny") {

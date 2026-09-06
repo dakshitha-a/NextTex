@@ -3,7 +3,12 @@ import { toShell, viewportHeight, viewportWidth } from "../viewport";
 import { useDismiss } from "../useDismiss";
 import api, { startDownload, type TreeNode } from "../api";
 import { get, set, useStore } from "../store";
-import { ancestorsOf, collisions } from "../tree";
+import {
+  ancestorsOf,
+  collisions,
+  isInside,
+  search as searchTree,
+} from "../tree";
 import UploadStaging, { type Staging } from "./UploadStaging";
 import FolderChooser from "./FolderChooser";
 import PapersChooser from "./PapersChooser";
@@ -14,6 +19,16 @@ const INDENT = 13;
 
 /** The drop target that is not a row.  The project root has no node of its
  *  own, which is also why nothing could be created there until now. */
+/** Marks a drag that started in this tree, so a row being moved is not
+ *  mistaken for a file being dragged in from the desktop.  The two drops
+ *  land on the same handlers and mean opposite things.
+ *
+ *  Chromium will not let `getData` be read during `dragover` -- only the
+ *  type list is visible there -- so whether a move is legal is decided from
+ *  `dragging`, and the authoritative path is read from the event at drop.
+ *  A drag from another window has no `dragging` and simply does nothing. */
+const NX_PATH = "application/x-nexttex-path";
+
 const ROOT_DROP = "\u0000root";
 
 function splitName(name: string): [string, string] {
@@ -48,6 +63,16 @@ export default function FileTree({
     { parent: string; directory: boolean; fromBar?: boolean } | null
   >(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  // The filter box is opened rather than always present: the rail is 240px
+  // and the bar has three buttons in it already.
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchInput = useRef<HTMLInputElement | null>(null);
+  // The ref is read synchronously while a drag is over a row, where React
+  // state would be a frame behind; the state exists only to fade the row
+  // being dragged, which a ref cannot do because it does not re-render.
+  const dragging = useRef<string | null>(null);
+  const [draggingPath, setDraggingPath] = useState<string | null>(null);
   // A roving tabindex: the tree is one stop, and the arrow keys move
   // inside it.  Forty files should not be forty tab presses.
   const [focusPath, setFocusPath] = useState<string | null>(null);
@@ -226,16 +251,86 @@ export default function FileTree({
     }
   };
 
+  /** Move one entry, from the menu or from a drag.  Both call this so the
+   *  refusals and the error wording are written once. */
+  const moveEntry = async (from: string, directory: string): Promise<void> => {
+    const projectId = get().projectId;
+    const name = from.split("/").pop()!;
+    const to = directory ? `${directory}/${name}` : name;
+    if (!projectId || to === from) return;
+    // Refused here rather than at the server, where `rename` fails with an
+    // errno that means nothing to anybody.
+    if (isInside(from, directory)) {
+      set({ error: "A folder cannot be moved inside itself." });
+      return;
+    }
+    try {
+      await api.renameFile(projectId, from, to);
+      onRename?.(from, to);
+      onRefresh();
+      reveal([to]);
+    } catch (error: any) {
+      set({
+        error:
+          error.status === 409
+            ? `There is already a ${name} in that folder.`
+            : error.message,
+      });
+    }
+  };
+
+  /** Where a drop on this node lands: a folder takes it, a file means the
+   *  folder holding it, and nothing means the project root. */
+  const destinationFor = (node: TreeNode | null): string =>
+    node ? (isDir(node) ? node.path : dirname(node.path)) : "";
+
+  /** Whether an internal drag may be dropped here.  Dropping something on
+   *  the folder it is already in is legal but pointless, and showing it as
+   *  refused would be a lie. */
+  const canDropInternal = (destination: string): boolean => {
+    const from = dragging.current;
+    if (!from) return false;
+    if (isInside(from, destination)) return false;
+    return dirname(from) !== destination;
+  };
+
+  const overDrag = (event: React.DragEvent, node: TreeNode | null) => {
+    const destination = destinationFor(node);
+    if (event.dataTransfer.types.includes(NX_PATH)) {
+      if (!canDropInternal(destination)) {
+        event.dataTransfer.dropEffect = "none";
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      setDropTarget(node ? destination || ROOT_DROP : ROOT_DROP);
+      return;
+    }
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setDropTarget(node ? destination || ROOT_DROP : ROOT_DROP);
+  };
+
   const drop = (event: React.DragEvent, node: TreeNode | null) => {
     event.preventDefault();
     event.stopPropagation();
     setDropTarget(null);
+    const destination = destinationFor(node);
+    // A row from this tree, not a file from the desktop.
+    const moved = event.dataTransfer.getData(NX_PATH);
+    if (moved) {
+      dragging.current = null;
+      setDraggingPath(null);
+      if (!isInside(moved, destination) && dirname(moved) !== destination) {
+        void moveEntry(moved, destination);
+      }
+      return;
+    }
     const files = Array.from(event.dataTransfer.files);
     if (!files.length) return;
     // A file dropped on a folder has named its destination by being
     // dropped there, so nothing is asked unless a name collides.
-    const directory = node ? (isDir(node) ? node.path : dirname(node.path)) : "";
-    stage(files, directory, false,
+    stage(files, destination, false,
           { x: event.clientX, y: event.clientY }, null);
   };
 
@@ -249,11 +344,25 @@ export default function FileTree({
     });
   };
 
+  // What a query leaves on screen: the matches, and every folder on the way
+  // down to one.  Null when there is no query, which is the ordinary tree.
+  const hits = useMemo(() => {
+    if (!query.trim()) return null;
+    return searchTree(tree, query);
+  }, [tree, query]);
+  const found = hits
+    ? `${hits.matches.size} ${hits.matches.size === 1 ? "match" : "matches"}`
+    : "";
+
   const rows: React.ReactNode[] = [];
   order.current = [];
   const walk = (node: TreeNode, depth: number) => {
+    if (hits && !hits.show.has(node.path)) return;
     const isDirectory = node.type === "dir";
-    const isOpen = !collapsed.has(node.path);
+    // While filtering every folder is drawn open, without touching
+    // `collapsed` -- clearing the box has to give the writer back the tree
+    // they had, not a tree unfolded on their behalf.
+    const isOpen = hits ? true : !collapsed.has(node.path);
     const [stem, extension] = splitName(node.name);
     const errors = errorsByFile.get(node.path) ?? 0;
     const active = node.path === activePath;
@@ -272,6 +381,7 @@ export default function FileTree({
           "group relative flex h-[26px] shrink-0 cursor-pointer items-center rounded-[3px] pr-1",
           active ? "bg-surface-2" : "hover:bg-surface-2",
           dropTarget === node.path ? "bg-pen-wash border-b border-pen" : "",
+          draggingPath === node.path ? "opacity-50" : "",
         ].join(" ")}
         style={{ paddingLeft: 10 + depth * INDENT }}
         onClick={() => (isDirectory ? toggle(node.path) : onOpen(node.path))}
@@ -306,10 +416,20 @@ export default function FileTree({
             act("delete", node);
           }
         }}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDropTarget(isDirectory ? node.path : dirname(node.path) || node.path);
+        draggable={renaming !== node.path}
+        onDragStart={(event) => {
+          event.stopPropagation();
+          event.dataTransfer.setData(NX_PATH, node.path);
+          event.dataTransfer.effectAllowed = "move";
+          dragging.current = node.path;
+          setDraggingPath(node.path);
         }}
+        onDragEnd={() => {
+          dragging.current = null;
+          setDraggingPath(null);
+          setDropTarget(null);
+        }}
+        onDragOver={(event) => overDrag(event, node)}
         onDragLeave={() => setDropTarget(null)}
         onDrop={(event) => drop(event, node)}
       >
@@ -453,6 +573,21 @@ export default function FileTree({
   };
 
   if (tree) for (const child of tree.children ?? []) walk(child, 0);
+  if (hits && !rows.length) {
+    rows.push(
+      <div
+        key="no-matches"
+        className="flex h-[26px] items-center px-[10px]"
+        role="treeitem"
+        aria-disabled="true"
+        data-testid="no-matches"
+      >
+        <span className="t-meta truncate text-ink-3">
+          Nothing matches &ldquo;{query.trim()}&rdquo;
+        </span>
+      </div>,
+    );
+  }
   if (creating && creating.parent === "") {
     rows.unshift(
       <NewName
@@ -525,6 +660,16 @@ export default function FileTree({
       <FilesBar
         onNewFile={() => startCreate(false)}
         onNewFolder={() => startCreate(true)}
+        searching={searching}
+        onSearch={() => {
+          if (searching) {
+            setSearching(false);
+            setQuery("");
+            return;
+          }
+          setSearching(true);
+          window.requestAnimationFrame(() => searchInput.current?.focus());
+        }}
         dropping={dropTarget === ROOT_DROP}
         onUpload={(event) => {
           uploadTo.current = rememberedUpload();
@@ -532,22 +677,48 @@ export default function FileTree({
           uploadFrom.current = event.currentTarget;
           uploadInput.current?.click();
         }}
-        onDragOver={(event) => {
-          if (!event.dataTransfer.types.includes("Files")) return;
-          event.preventDefault();
-          setDropTarget(ROOT_DROP);
-        }}
+        onDragOver={(event) => overDrag(event, null)}
         onDragLeave={() => setDropTarget(null)}
         onDrop={(event) => drop(event, null)}
       />
+      {searching ? (
+        <div className="flex h-[26px] shrink-0 items-center gap-1 border-b border-line bg-surface-2 px-[10px]">
+          <input
+            ref={searchInput}
+            className="t-ui min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-3"
+            placeholder="Find a file"
+            aria-label="Find a file"
+            data-testid="file-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                if (query) {
+                  setQuery("");
+                  return;
+                }
+                setSearching(false);
+                moveFocus(focusPath ?? order.current[0]?.path ?? "");
+                return;
+              }
+              if (event.key === "Enter") {
+                const first = order.current.find((row) => !row.directory);
+                if (first) onOpen(first.path);
+              }
+            }}
+          />
+          {query ? (
+            <span className="t-micro shrink-0 tabular-nums text-ink-3">
+              {found}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <div
         className="min-h-0 flex-1 overflow-auto py-[6px]"
         role="tree"
-        onDragOver={(event) => {
-          if (!event.dataTransfer.types.includes("Files")) return;
-          event.preventDefault();
-          setDropTarget(ROOT_DROP);
-        }}
+        onDragOver={(event) => overDrag(event, null)}
         onDragLeave={() => setDropTarget(null)}
         onDrop={(event) => drop(event, null)}
         onPaste={(event) => {
@@ -624,24 +795,9 @@ export default function FileTree({
           onChange={(to) => setMoving((current) => current && { ...current, to })}
           onCancel={() => setMoving(null)}
           onMove={async () => {
-            const projectId = get().projectId;
-            const name = moving.path.split("/").pop()!;
-            const to = moving.to ? `${moving.to}/${name}` : name;
+            const { path, to } = moving;
             setMoving(null);
-            if (!projectId || to === moving.path) return;
-            try {
-              await api.renameFile(projectId, moving.path, to);
-              onRename?.(moving.path, to);
-              onRefresh();
-              reveal([to]);
-            } catch (error: any) {
-              set({
-                error:
-                  error.status === 409
-                    ? `There is already a ${name} in that folder.`
-                    : error.message,
-              });
-            }
+            await moveEntry(path, to ?? "");
           }}
         />
       ) : null}
@@ -691,6 +847,8 @@ function FilesBar({
   onNewFile,
   onNewFolder,
   onUpload,
+  onSearch,
+  searching,
   dropping,
   onDragOver,
   onDragLeave,
@@ -699,6 +857,8 @@ function FilesBar({
   onNewFile: () => void;
   onNewFolder: () => void;
   onUpload: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onSearch: () => void;
+  searching: boolean;
   dropping: boolean;
   onDragOver: (event: React.DragEvent) => void;
   onDragLeave: () => void;
@@ -745,7 +905,44 @@ function FilesBar({
         Upload
       </button>
       <span className="flex-1" />
+      <button
+        className={`quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3 ${
+          searching ? "bg-surface-3 text-ink" : ""
+        }`}
+        aria-label="Find a file"
+        title="Find a file"
+        aria-expanded={searching}
+        data-testid="file-search-open"
+        onClick={onSearch}
+      >
+        <Magnifier />
+      </button>
     </div>
+  );
+}
+
+/** Small enough to draw rather than depend on. */
+function Magnifier() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <circle
+        cx="5"
+        cy="5"
+        r="3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <line
+        x1="7.7"
+        y1="7.7"
+        x2="10.5"
+        y2="10.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
