@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="210" viewBox="0 0 1040 210" role="img" aria-label="From a keystroke to the typeset page: 250 ms holding the key, 1.6 s waiting for typing to settle, 357 ms typesetting the chapter.">
+<title>From a keystroke to the page</title>
+<rect width="1040" height="210" rx="10" fill="#121614"/>
+<text x="24" y="34" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" letter-spacing="1.6" fill="#8A908A">FROM A KEYSTROKE TO THE PAGE</text>
+<rect x="24" y="70" width="180" height="64" rx="5" fill="#1A1F1C" stroke="#3A403C" stroke-width="1"/>
+<text x="38" y="97" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2">You type</text>
+<text x="38" y="116" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#8A908A">a keystroke</text>
+<line x1="218" y1="102.0" x2="274" y2="102.0" stroke="#3A403C" stroke-width="1.5"/>
+<path d="M273 98.0 l6 4 -6 4z" fill="#3A403C"/>
+<text x="249.0" y="91.0" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11" fill="#AEB4AC">250 ms</text>
+<text x="249.0" y="123.0" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="10" fill="#8A908A">held</text>
+<rect x="294" y="70" width="180" height="64" rx="5" fill="#1A1F1C" stroke="#3A403C" stroke-width="1"/>
+<text x="308" y="97" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2">Saved</text>
+<text x="308" y="116" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#8A908A">atomically, to disk</text>
+<line x1="488" y1="102.0" x2="544" y2="102.0" stroke="#3A403C" stroke-width="1.5"/>
+<path d="M543 98.0 l6 4 -6 4z" fill="#3A403C"/>
+<text x="519.0" y="91.0" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11" fill="#AEB4AC">1.6 s</text>
+<text x="519.0" y="123.0" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="10" fill="#8A908A">of quiet</text>
+<rect x="564" y="70" width="180" height="64" rx="5" fill="#1A1F1C" stroke="#3A403C" stroke-width="1"/>
+<text x="578" y="97" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2">Chapter typeset</text>
+<text x="578" y="116" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#8A908A">this section only</text>
+<line x1="758" y1="102.0" x2="814" y2="102.0" stroke="#3A403C" stroke-width="1.5"/>
+<path d="M813 98.0 l6 4 -6 4z" fill="#3A403C"/>
+<text x="789.0" y="91.0" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11" fill="#AEB4AC">357 ms</text>
+<text x="789.0" y="123.0" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="10" fill="#8A908A">latexmk</text>
+<rect x="834" y="70" width="180" height="64" rx="5" fill="#1A1F1C" stroke="#C988E7" stroke-width="2"/>
+<text x="848" y="97" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#C988E7">Page redraws</text>
+<text x="848" y="116" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#8A908A">at your scroll</text>
+<text x="24" y="188" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="12" fill="#AEB4AC">A new label or citation key pays for the full run with <tspan font-family="ui-monospace,SFMono-Regular,Menlo,monospace">biber</tspan>. Nothing else does.</text>
+</svg>
