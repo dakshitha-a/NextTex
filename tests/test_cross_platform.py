@@ -16,6 +16,10 @@ ROOT = Path(__file__).resolve().parent.parent
 # feature being unavailable.
 POSIX_ONLY = {"fcntl", "pty", "termios", "grp", "pwd", "resource", "tty"}
 
+# Whose machine this was written on.  Split so the test file itself does
+# not contain the string it is looking for.
+USER = "dakshi" + "tha"
+
 
 def python_sources() -> list[Path]:
     return [
@@ -99,14 +103,23 @@ def test_the_unix_installer_can_start_on_login_on_both_platforms():
     assert "systemd/user" in text, "no systemd unit for Linux"
 
 
-def test_no_script_hardcodes_a_path_from_the_machine_it_was_written_on():
-    """A stranger opening scripts/check.sh should not find somebody else's
-    conda environment in it."""
-    for name in ("check.sh", "install.sh", "update.sh", "install.ps1", "update.ps1"):
-        text = (ROOT / "scripts" / name).read_text(encoding="utf-8")
-        assert "miniconda" not in text, name
-        assert "/home/user" not in text, name
-        assert "/home/user" not in text, name
+def test_nothing_shipped_hardcodes_a_path_from_the_machine_it_was_written_on():
+    """A stranger opening any of this should not find somebody else's home
+    directory or conda environment in it.  Scripts were the obvious place;
+    a real thesis path in a docstring was the one that got through."""
+    # Assembled rather than written out, so this test does not trip itself.
+    mine = "/" + "home/" + USER, "/" + "data/" + USER
+    offenders = []
+    for path in [
+        *python_sources(),
+        *(ROOT / "nexttex" / "vendor").rglob("*.py"),
+        *(ROOT / "scripts").glob("*.sh"),
+        *(ROOT / "scripts").glob("*.ps1"),
+    ]:
+        text = path.read_text(encoding="utf-8")
+        if any(needle in text for needle in (*mine, "miniconda")):
+            offenders.append(str(path.relative_to(ROOT)))
+    assert not offenders, offenders
 
 
 def test_nothing_private_is_committed_with_the_example_project():
