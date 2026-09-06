@@ -15,8 +15,6 @@ esac
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
-STATE="${XDG_DATA_HOME:-$HOME/.local/share}/nexttex"
-mkdir -p "$STATE"
 
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
@@ -24,22 +22,40 @@ die()  { printf '\n\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 
 ASSUME_YES=0
 BIND=""
+INSTANCE=""
 for argument in "$@"; do
   case "$argument" in
     --yes|-y) ASSUME_YES=1 ;;
     --bind=*) BIND="${argument#--bind=}" ;;
+    --instance=*) INSTANCE="${argument#--instance=}" ;;
     --help|-h)
       cat <<'USAGE'
-usage: install.sh [--yes] [--bind=localhost|tailscale|both]
+usage: install.sh [--yes] [--bind=localhost|tailscale|both] [--instance=NAME]
 
-  --yes     take the defaults; ask nothing
-  --bind    where the server listens.  localhost is this machine only;
-            tailscale also serves your tailnet address over TLS.
+  --yes       take the defaults; ask nothing
+  --bind      where the server listens.  localhost is this machine only;
+              tailscale also serves your tailnet address over TLS.
+  --instance  install a second, separate NextTex on this machine -- its own
+              state, its own port, its own service.  Without this you get
+              the ordinary one, which is what almost everybody wants.
 USAGE
       exit 0 ;;
     *) die "unknown option: $argument" ;;
   esac
 done
+
+case "$INSTANCE" in
+  "" ) ;;
+  *[!A-Za-z0-9_-]* ) die "an instance name may only contain letters, digits, - and _" ;;
+esac
+
+# Everything an instance has of its own.  Unset, these are the names the
+# ordinary install has always used, so an existing one is untouched.
+SUFFIX="${INSTANCE:+-$INSTANCE}"
+STATE="${XDG_DATA_HOME:-$HOME/.local/share}/nexttex$SUFFIX"
+UNIT_NAME="nexttex$SUFFIX"
+PLIST_LABEL="com.nexttex.server$SUFFIX"
+mkdir -p "$STATE"
 
 # ---------------------------------------------------------------------------
 say "Python"
@@ -139,11 +155,26 @@ note "you sign in from the browser, not here — nothing to do yet"
 # ---------------------------------------------------------------------------
 say "The interface"
 
+# If the Node on PATH is too old -- which it is on plenty of distributions --
+# point NEXTTEX_NODE_BIN at a newer one rather than changing the system's.
+if [ -n "${NEXTTEX_NODE_BIN:-}" ] && [ -d "$NEXTTEX_NODE_BIN" ]; then
+  PATH="$NEXTTEX_NODE_BIN:$PATH"
+  export PATH
+fi
+
 NODE=""
+NODE_DIR=""
 for candidate in node nodejs; do
   if command -v "$candidate" >/dev/null 2>&1; then
     major=$("$candidate" -v | sed 's/^v//; s/\..*//')
-    [ "$major" -ge 20 ] && NODE="$candidate" && break
+    if [ "$major" -ge 20 ]; then
+      NODE="$candidate"
+      # Written into the service file below, so an update triggered from
+      # the page can rebuild the interface: under a user service the PATH
+      # is minimal and would not find this.
+      NODE_DIR="$(dirname "$(command -v "$candidate")")"
+      break
+    fi
     note "$($candidate -v) is too old; NextTex needs Node 20 or newer"
   fi
 done
@@ -179,19 +210,23 @@ if [ "$BIND" != "localhost" ]; then
     note "tailscale is not installed; falling back to localhost only"
     BIND=localhost
   else
-    ./scripts/gen_cert.sh >/dev/null
+    NEXTTEX_INSTANCE="$INSTANCE" ./scripts/gen_cert.sh >/dev/null
     CERT="$STATE/cert.pem"; KEY="$STATE/key.pem"
     note "certificate at $CERT"
   fi
 fi
 
-.venv/bin/python - "$BIND" "$CERT" "$KEY" <<'PY'
+NEXTTEX_INSTANCE="$INSTANCE" .venv/bin/python - "$BIND" "$CERT" "$KEY" "$INSTANCE" <<'PY'
 import sys
 sys.path.insert(0, ".")
 from nexttex.config import Settings
 
 bind, cert, key = sys.argv[1], sys.argv[2], sys.argv[3]
 settings = Settings.load()
+# A second install cannot share the first's port.  Only chosen on a first
+# install: an existing config keeps whatever it was set to.
+if len(sys.argv) > 4 and sys.argv[4] and settings.port == 8450:
+    settings.port = 8451
 settings.localhost = True
 settings.tailscale = bind != "localhost"
 settings.certfile = cert
@@ -206,7 +241,7 @@ say "Starting on boot"
 if [ "$PLATFORM" = macos ]; then
   # launchd rather than systemd.  RunAtLoad plus KeepAlive is the closest
   # equivalent to `Restart=on-failure` with `enable --now`.
-  PLIST="$HOME/Library/LaunchAgents/com.nexttex.server.plist"
+  PLIST="$HOME/Library/LaunchAgents/$PLIST_LABEL.plist"
   mkdir -p "$(dirname "$PLIST")"
   cat > "$PLIST" <<PLIST_EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -214,7 +249,7 @@ if [ "$PLATFORM" = macos ]; then
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>com.nexttex.server</string>
+  <key>Label</key><string>$PLIST_LABEL</string>
   <key>ProgramArguments</key>
   <array>
     <string>$ROOT/.venv/bin/python</string>
@@ -225,7 +260,8 @@ if [ "$PLATFORM" = macos ]; then
   <dict>
     <key>HOME</key><string>$HOME</string>
     <key>PYTHONUNBUFFERED</key><string>1</string>
-    <key>PATH</key><string>$HOME/.local/bin:$HOME/Library/TinyTeX/bin/universal-darwin:/Library/TeX/texbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>NEXTTEX_INSTANCE</key><string>$INSTANCE</string>
+    <key>PATH</key><string>${NODE_DIR:+$NODE_DIR:}$HOME/.local/bin:$HOME/Library/TinyTeX/bin/universal-darwin:/Library/TeX/texbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key>
@@ -246,7 +282,7 @@ PLIST_EOF
        note "running; logs in $STATE/server.log" ;;
   esac
 elif command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
-  UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/nexttex.service"
+  UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$UNIT_NAME.service"
   mkdir -p "$(dirname "$UNIT")"
   # The PATH is written out in full on purpose.  Under `systemd --user` it is
   # minimal, and the SDK spawns `claude`, which must find the credentials the
@@ -261,7 +297,8 @@ Type=simple
 WorkingDirectory=$ROOT
 Environment=HOME=$HOME
 Environment=PYTHONUNBUFFERED=1
-Environment=PATH=$HOME/.local/bin:$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NEXTTEX_INSTANCE=$INSTANCE
+Environment=PATH=${NODE_DIR:+$NODE_DIR:}$HOME/.local/bin:$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=$ROOT/.venv/bin/python $ROOT/server/run.py
 Restart=on-failure
 RestartSec=3
@@ -275,8 +312,8 @@ UNIT_EOF
     read -r -p "  Start NextTex now and on every login? [Y/n] " reply
   fi
   case "${reply:-y}" in
-    [Nn]*) note "start it yourself with: systemctl --user start nexttex" ;;
-    *) systemctl --user enable --now nexttex
+    [Nn]*) note "start it yourself with: systemctl --user start $UNIT_NAME" ;;
+    *) systemctl --user enable --now "$UNIT_NAME"
        loginctl enable-linger "$USER" >/dev/null 2>&1 || \
          note "run 'sudo loginctl enable-linger $USER' to keep it running after you log out"
        note "running" ;;
@@ -286,7 +323,7 @@ else
 fi
 
 say "Ready"
-.venv/bin/python server/run.py --print-url | sed 's/^/  /'
+NEXTTEX_INSTANCE="$INSTANCE" .venv/bin/python server/run.py --print-url | sed 's/^/  /'
 echo
 echo "  That link contains your access token. Anyone with it can read and"
 echo "  edit your projects, so treat it like a password."

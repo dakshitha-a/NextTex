@@ -8,7 +8,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DIR="${XDG_DATA_HOME:-$HOME/.local/share}/nexttex"
+# The certificate belongs to one install.  A second instance has its own
+# state directory, and would otherwise write over the first's.
+INSTANCE="${NEXTTEX_INSTANCE:-}"
+DIR="${XDG_DATA_HOME:-$HOME/.local/share}/nexttex${INSTANCE:+-$INSTANCE}"
 mkdir -p "$DIR"
 CERT="$DIR/cert.pem"
 KEY="$DIR/key.pem"

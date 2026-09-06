@@ -103,6 +103,36 @@ export type TreeNode = {
   children?: TreeNode[];
 };
 
+export type Instance = {
+  instance: string;
+  head: string;
+  boot: string;
+  supervised: boolean;
+  root: string;
+};
+
+/** What updating this install would do.  `changing` counts only the
+ *  commits that reach the running program: most commits to a project like
+ *  this one are documentation, and saying "three new commits" about three
+ *  README edits is a nag rather than a service. */
+export type UpdateReport = {
+  checkout: boolean;
+  head: string;
+  behind: number;
+  changing: number;
+  commits: { sha: string; subject: string; touches: "app" | "interface" | "neither" }[];
+  dirty: string[];
+  rebuild: boolean;
+  node_ok: boolean;
+  node_reason: string;
+  can_update: boolean;
+  reason: string;
+  restart: "auto" | "manual";
+  error: string;
+  updating: boolean;
+  phase: string;
+};
+
 export type ProjectSummary = {
   id: string | null;
   name: string;
@@ -175,6 +205,13 @@ function json(body: unknown): RequestInit {
 const api = {
   projects: () =>
     request<{ projects: ProjectSummary[]; open: string[] }>("/projects"),
+  /** Who this server is.  Answered while it is shutting down, and its
+   *  `boot` nonce changes when the process does -- which is how a page
+   *  waiting out a restart knows the wait is over. */
+  instance: () => request<Instance>("/instance"),
+  updateCheck: (force = false) =>
+    request<UpdateReport>(`/update${force ? "?force=true" : ""}`),
+  startUpdate: () => request<{ started: boolean }>("/update", json({})),
   addProject: (path: string) => request<any>("/projects", json({ path })),
   createProject: (path: string, name: string) =>
     request<any>("/projects/create", json({ path, name })),

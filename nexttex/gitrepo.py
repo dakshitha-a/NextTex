@@ -18,6 +18,11 @@ from .atomic import write_atomically
 
 TIMEOUT = 120
 
+# Reaching the network gets its own, much shorter limit.  A fetch with no
+# route to the remote hangs for the whole of `TIMEOUT`, and the caller is
+# a screen the writer is waiting to look at.
+FETCH_TIMEOUT = 10
+
 
 class GitError(RuntimeError):
     """A git command failed; the message is what git said."""
@@ -64,6 +69,16 @@ class Status:
             "changes": self.changes or [],
             "detail": self.detail,
         }
+
+
+def fetch(root: Path, timeout: int = FETCH_TIMEOUT) -> None:
+    """Bring the remote-tracking refs up to date, and nothing else.
+
+    `status` reports how far behind the local tracking ref says it is,
+    which is a fact about the last fetch rather than about the remote.
+    Asking whether an update exists means asking the remote first.
+    """
+    _run(root, "fetch", "--quiet", timeout=timeout)
 
 
 def status(root: Path) -> Status:

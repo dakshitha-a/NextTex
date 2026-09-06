@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api, { saveBlob, startDownload, type ProjectSummary } from "../api";
 import Logo from "../Logo";
 import Appearance from "./Appearance";
+import UpdateFooter from "./UpdateFooter";
 import { agentName } from "../agent-name";
 import { useStore } from "../store";
 
@@ -23,6 +24,10 @@ export default function Projects({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgetting, setForgetting] = useState<string | null>(null);
+  // While an update is running the server is about to exit.  Opening a
+  // project then means typing into a document whose server disappears
+  // mid-save, so the screen stops offering it.
+  const [locked, setLocked] = useState(false);
   // The strapline names whichever agent is configured, and says nothing
   // about one at all when the writer chose to work on their own.
   const provider = useStore((s) => s.agent?.provider);
@@ -119,20 +124,24 @@ export default function Projects({
           {projects.map((project) => (
             <div
               key={project.path}
-              role={project.id && !project.missing ? "button" : undefined}
-              tabIndex={project.id && !project.missing ? 0 : undefined}
+              role={project.id && !project.missing && !locked ? "button" : undefined}
+              tabIndex={project.id && !project.missing && !locked ? 0 : undefined}
               className={`group flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 ${
-                project.id && !project.missing
-                  ? "cursor-pointer hover:bg-surface-2"
-                  : ""
+                locked
+                  ? "opacity-40"
+                  : project.id && !project.missing
+                    ? "cursor-pointer hover:bg-surface-2"
+                    : ""
               }`}
               onClick={(event) => {
+                if (locked) return;
                 if ((event.target as HTMLElement).closest("button, input")) return;
                 if (project.id && !project.missing) onOpen(project.id);
               }}
               onKeyDown={(event) => {
                 // As above: only keys aimed at the row, never at a control
                 // inside it.  The click handler already says the same thing.
+                if (locked) return;
                 if (event.target !== event.currentTarget) return;
                 if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
@@ -181,7 +190,7 @@ export default function Projects({
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink disabled:opacity-40"
-                  disabled={!project.id || project.missing}
+                  disabled={locked || !project.id || project.missing}
                   onClick={() =>
                     project.id &&
                     startDownload(api.downloadUrl(project.id, { format: "zip" }))
@@ -191,7 +200,7 @@ export default function Projects({
                 </button>
                 <button
                   className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink disabled:opacity-40"
-                  disabled={!project.id || project.missing || busy === project.id}
+                  disabled={locked || !project.id || project.missing || busy === project.id}
                   onClick={() => takePdf(project)}
                 >
                   {busy === project.id ? "Typesetting" : "PDF"}
@@ -256,6 +265,7 @@ export default function Projects({
           </button>
         </div>
         {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}
+        <UpdateFooter onBusy={setLocked} />
       </div>
     </div>
   );
