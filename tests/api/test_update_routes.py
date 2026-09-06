@@ -96,3 +96,60 @@ def test_a_dirty_install_is_refused_with_a_reason(client, behind):
     assert body["can_update"] is False
     assert "uncommitted" in body["reason"]
     assert client.post("/api/update").status_code == 400
+
+
+def test_a_real_run_streams_its_output_and_finishes(client, tmp_path, monkeypatch):
+    """Drives the actual pump against a stand-in script.
+
+    The pump runs on a worker thread and hands each line back to the loop.
+    `call_soon_threadsafe` forwards positional arguments only, so passing
+    the line as a keyword raised a TypeError on the very first line of
+    output: the update pulled, then stopped, and never restarted.  Nothing
+    in the browser tier runs a real update, so only a live one found it --
+    hence this, which runs the real code path with a fake script.
+    """
+    import asyncio
+
+    from nexttex import updates as updates_module
+    from server import main as server_main
+
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "update.sh").write_text(
+        "#!/usr/bin/env bash\n"
+        "echo 'Fetching the new version'\n"
+        "echo 'some ordinary output'\n"
+        "echo 'Done'\n"
+    )
+    monkeypatch.setattr(server_main, "INSTALL_ROOT", tmp_path)
+    # Never let the test exit the interpreter.
+    monkeypatch.setattr(updates_module, "supervised", lambda: False)
+
+    server_main.UPDATE_JOB.clear()
+    server_main.UPDATE_JOB.update({"state": "running", "log": [], "step": "", "queue": []})
+    asyncio.run(server_main._run_update(None))
+
+    assert "some ordinary output" in server_main.UPDATE_JOB["log"]
+    assert server_main.UPDATE_JOB["state"] == "restarting"
+    assert server_main.UPDATE_JOB["step"] == "Finishing"
+    server_main.UPDATE_JOB.clear()
+
+
+def test_a_script_that_fails_ends_the_job_rather_than_hanging(
+    client, tmp_path, monkeypatch
+):
+    """A card that never finishes is worse than one that says it failed."""
+    import asyncio
+
+    from server import main as server_main
+
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "update.sh").write_text("#!/usr/bin/env bash\necho nope\nexit 1\n")
+    monkeypatch.setattr(server_main, "INSTALL_ROOT", tmp_path)
+
+    server_main.UPDATE_JOB.clear()
+    server_main.UPDATE_JOB.update({"state": "running", "log": [], "step": "", "queue": []})
+    asyncio.run(server_main._run_update(None))
+    assert server_main.UPDATE_JOB["state"] == "failed"
+    server_main.UPDATE_JOB.clear()
