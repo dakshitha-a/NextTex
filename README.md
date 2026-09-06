@@ -141,12 +141,13 @@ integrity failure, so the defence is structural rather than a matter of care:
 there is no path from the model's memory to your `.bib` file.
 
 **Double-click a pane's header to give it the window.** The preview's title
-bar puts you in something like a reading mode — the file list, the source
-and the agent all fold to strips and the typeset page gets the screen — and
-the empty part of the tab strip does the same for the source. Double-click
-again and your layout comes back exactly as you left it, including the
-things you had already folded away. A single click on either folds just that
-pane, as it does on the agent's header.
+bar puts you in a reading mode — everything else folds to a strip and the
+typeset page gets the screen. The empty part of the tab strip does the same
+for writing, except that it keeps the file list: you are still moving
+between chapters, and a mode that hides the way to the next one is one you
+leave immediately. Double-click again and your layout comes back exactly as
+you left it, including the things you had already folded away. A single
+click on either folds just that pane, as it does on the agent's header.
 
 **The file list finds things and moves them.** A magnifier opens a filter row:
 type and the tree narrows to what matches, through folders you had collapsed,

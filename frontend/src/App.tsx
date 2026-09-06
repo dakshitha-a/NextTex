@@ -799,13 +799,18 @@ export default function App() {
         showing: showingRef.current,
       };
     }
-    // The rail is hidden by hand, so the width-watching effect does not
-    // bring it back the moment the window is touched.
+    // Writing keeps the file list; reading does not. Somebody writing is
+    // still moving between chapters, and a mode that hides the way to the
+    // next one is a mode they leave immediately. Somebody reading the
+    // typeset page has nothing to navigate to.
+    const keepRail = pane === "editor";
+    // Set by hand either way, so the width-watching effect does not undo
+    // it the moment the window is touched.
     railByHand.current = true;
-    setRailHidden(true);
+    setRailHidden(!keepRail);
     setChatOpen(false);
     setFolded({
-      rail: true,
+      rail: !keepRail,
       editor: pane !== "editor",
       pdf: pane !== "pdf",
       chat: true,

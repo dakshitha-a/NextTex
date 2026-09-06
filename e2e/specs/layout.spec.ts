@@ -114,12 +114,15 @@ test("double-clicking the empty tab strip gives the source the window", async ({
   await tab.getByTestId("tabs-blank").dblclick();
 
   await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
-  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
   await expect(tab.locator(".cm-editor")).toBeVisible();
-  await expect(tab.locator('[role="tree"]')).toBeHidden();
+  // The file list stays: writing means moving between chapters, and a
+  // mode that hides the way to the next one is a mode you leave at once.
+  await expect(tab.locator('[role="tree"]')).toBeVisible();
+  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+  await expect(tab.getByTestId("chat")).toBeHidden();
 
   await tab.getByTestId("tabs-blank").dblclick();
-  await expect(tab.locator('[role="tree"]')).toBeVisible();
+  await expect(tab.getByTestId("chat")).toBeVisible();
   await expect(tab.getByTestId("collapsed-preview")).toHaveCount(0);
 });
 
@@ -197,4 +200,22 @@ test("the error list closes from its own bar", async ({ tab }) => {
 
   await tab.getByTestId("diagnostics-header").click();
   await expect(tab.getByTestId("diagnostics-header")).toHaveCount(0);
+});
+
+
+test("writing keeps the file list even where the window had hidden it", async ({
+  tab,
+}) => {
+  // Below 1100 the rail folds itself away.  Writing mode is an explicit
+  // request for it, so it comes back -- and going back out returns the
+  // window to what it was doing on its own.
+  await tab.setViewportSize({ width: 1000, height: 900 });
+  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+
+  await tab.getByTestId("tabs-blank").dblclick();
+  await expect(tab.locator('[role="tree"]')).toBeVisible();
+  await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
+
+  await tab.getByTestId("tabs-blank").dblclick();
+  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
 });
