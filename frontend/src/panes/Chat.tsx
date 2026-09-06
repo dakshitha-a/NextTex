@@ -80,7 +80,7 @@ export default function Chat({
   // was writing or reading a file for twenty seconds, so a turn spent in
   // tools looked like a turn that had stopped.
   const activity = useMemo(() => {
-    if (blocked) return "Waiting for you";
+    if (blocked) return "Waiting";
     if (!thinking) return "";
     for (let index = shown.length - 1; index >= 0; index -= 1) {
       const item = shown[index];
@@ -241,7 +241,9 @@ export default function Chat({
                 blocked ? "bg-warn" : "bg-pen"
               }`}
             />
-            <span className="t-micro truncate text-ink-2">{activity}</span>
+            <span className="t-micro truncate text-ink-2" title={activity}>
+              {activity}
+            </span>
           </span>
         ) : null}
         {auto ? (
@@ -393,7 +395,7 @@ export default function Chat({
           )}
           {asks ? (
             <button
-              className="mt-2 block w-full text-left"
+              className="mt-3 block w-full border-t border-line pt-3 text-left"
               role="switch"
               aria-checked={auto}
               data-testid="auto-toggle"
@@ -987,8 +989,19 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         {item.consequence ? (
           <div className="t-meta mt-2 text-ink-2">{item.consequence}</div>
         ) : null}
-        {scope && item.rule ? (
-          <div className="t-micro mt-2 text-ink-3">Remembers: {item.rule}</div>
+        {item.rule ? (
+          // Always in the layout, only sometimes visible.  Adding this line
+          // on hover grew the card and moved the buttons out from under the
+          // cursor that was reaching for them -- and moving away shrank it
+          // again, so the pointer oscillated between the two.
+          <div
+            className={`t-micro mt-2 text-ink-3 transition-opacity duration-[90ms] ${
+              scope ? "opacity-100" : "opacity-0"
+            }`}
+            aria-hidden={!scope}
+          >
+            Remembers: {item.rule}
+          </div>
         ) : null}
         <div className="mt-3 flex gap-[6px]">
           <button
@@ -997,7 +1010,11 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             disabled={!armed}
             onClick={() => decide("allow")}
           >
-            Allow{focused ? <span className="t-micro opacity-70"> A</span> : null}
+            Allow
+            <span className={`t-micro ${focused ? "opacity-70" : "opacity-0"}`}>
+              {" "}
+              A
+            </span>
           </button>
           {/* A command carrying shell syntax gets no rule, because a rule
               scoped to its first word would not mean what it says.  Offering
@@ -1015,7 +1032,10 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               onClick={() => decide("always")}
             >
               Allow always
-              {focused ? <span className="t-micro text-ink-3"> ⇧A</span> : null}
+              <span className={`t-micro ${focused ? "text-ink-3" : "opacity-0"}`}>
+                {" "}
+                ⇧A
+              </span>
             </button>
           ) : (
             <span className="t-micro self-center text-ink-3">
@@ -1028,7 +1048,11 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             disabled={!armed}
             onClick={() => decide("deny")}
           >
-            Deny{focused ? <span className="t-micro text-ink-3"> D</span> : null}
+            Deny
+            <span className={`t-micro ${focused ? "text-ink-3" : "opacity-0"}`}>
+              {" "}
+              D
+            </span>
           </button>
         </div>
       </div>

@@ -224,3 +224,36 @@ test("the memory can be corrected by hand", async ({ tab }) => {
   await tab.getByTestId("memory-save").click();
   await expect(tab.getByTestId("memory-text")).toContainText("Matsika");
 });
+
+test("the permission card does not move while you reach for it", async ({
+  tab,
+}) => {
+  // The jank: focusing the card appended a keyboard hint inside each
+  // button, and hovering "Allow always" added a line above them.  Both
+  // changed the layout, so the buttons shifted out from under a cursor
+  // that was travelling towards them -- and moving away put them back,
+  // which made the pointer oscillate.  Playwright saw it as an element
+  // that never became stable; a person sees it as a card that will not
+  // hold still.
+  await ask(tab, "permission", "Run something.");
+  const allow = tab.getByTestId("allow");
+  await expect(allow).toBeVisible({ timeout: 20_000 });
+  // Past the 350 ms shield, so the buttons are live and the geometry is
+  // the one a person would be clicking.
+  await tab.waitForTimeout(500);
+
+  const before = (await allow.boundingBox())!;
+  await tab.getByTestId("always").hover();
+  await tab.waitForTimeout(250);
+  const hovered = (await allow.boundingBox())!;
+  await allow.hover();
+  await tab.waitForTimeout(250);
+  const focused = (await allow.boundingBox())!;
+
+  for (const after of [hovered, focused]) {
+    expect(Math.abs(after.x - before.x)).toBeLessThan(1);
+    expect(Math.abs(after.y - before.y)).toBeLessThan(1);
+    expect(Math.abs(after.width - before.width)).toBeLessThan(1);
+  }
+  await allow.click();
+});
