@@ -348,6 +348,19 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-syntax-colour .cm-editor .cm-line .nx-syn-inline-math,
 .nx-syntax-colour .cm-editor .cm-line .nx-syn-inline-math * { color: var(--syn-math); }
 
+/* A word the dictionary does not know.
+   Dotted and thin like the diagnostic marks, because it is the same kind of
+   statement -- something here may be wrong -- but in --ink-3 rather than
+   red or amber: the build is not broken, and a spelling is a suggestion.
+   No gutter bar and nothing in the diagnostics drawer either; three hundred
+   misspellings would bury the two compile errors that matter. */
+.cm-editor .cm-line .nx-misspelled {
+  text-decoration: underline dotted 1px;
+  text-decoration-color: color-mix(in oklab, var(--ink-3) 75%, transparent);
+  text-underline-offset: 2px;
+  text-decoration-skip-ink: none;
+}
+
 /* ---- CodeMirror ------------------------------------------------------- */
 /* The editor carries `nx-theme-light` or `nx-theme-dark` when it has been
    lit on its own terms, which hands that palette to this subtree only --

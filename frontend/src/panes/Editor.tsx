@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   EDITOR_SIZES,
   applyAppearance,
@@ -17,10 +17,16 @@ import {
   marksFor,
   setDiff,
   setMarks,
+  spellCompartment,
   viewExtensions,
 } from "./editor-setup";
+
 import { outline as sectionsOf, sameOutline } from "../outline";
-import { useEditorTheme, useEditorSyntax } from "../use-editor-theme";
+import {
+  useEditorTheme,
+  useEditorSyntax,
+  useSpelling,
+} from "../use-editor-theme";
 import { get, markStale, set, useStore } from "../store";
 
 
@@ -65,6 +71,13 @@ export default function Editor({
   const host = useRef<HTMLDivElement | null>(null);
   const editorTheme = useEditorTheme();
   const syntax = useEditorSyntax();
+  const spelling = useSpelling();
+  // The writer's own words, and the offer to add one.  Held here rather
+  // than in the store: nothing outside this pane has any use for either.
+  const [accepted, setAccepted] = useState<string[]>([]);
+  const [offer, setOffer] = useState<{ word: string; x: number; y: number } | null>(
+    null,
+  );
   const view = useRef<EditorView | null>(null);
   const buffers = useRef(new Map<string, Buffer>());
   const current = useRef<string | null>(null);
@@ -584,6 +597,86 @@ export default function Editor({
     return () => root.removeEventListener("wheel", onWheel);
   }, []);
 
+  // ---- spell checking ---------------------------------------------------
+  // The checker is told three things: whether it is on, and which words
+  // this project has accepted.  Both arrive as one effect so it can never
+  // be running with one of them stale.
+  useEffect(() => {
+    const projectId = get().projectId;
+    if (!projectId || !spelling) {
+      setAccepted([]);
+      return;
+    }
+    let live = true;
+    api
+      .dictionary(projectId)
+      .then((result) => { if (live) setAccepted(result.words); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [spelling, activePath]);
+
+  // The checker arrives with its word list, on demand.  Nothing about it
+  // is in the interface bundle until the setting is turned on, which is
+  // most of the reason it can be turned on at all: it is a hundred
+  // kilobytes and a pass over every visible line.
+  const speller = useRef<typeof import("./spellcheck") | null>(null);
+  useEffect(() => {
+    const editor = view.current;
+    if (!editor) return;
+    if (!spelling) {
+      editor.dispatch({ effects: spellCompartment.reconfigure([]) });
+      return;
+    }
+    let live = true;
+    const tell = (module: typeof import("./spellcheck")) => {
+      const now = view.current;
+      if (!live || !now) return;
+      if (speller.current !== module) {
+        now.dispatch({ effects: spellCompartment.reconfigure(module.spellchecking()) });
+        speller.current = module;
+      }
+      now.dispatch({
+        effects: module.setSpelling.of({ on: true, custom: accepted }),
+      });
+    };
+    if (speller.current) tell(speller.current);
+    else import("./spellcheck").then(tell).catch(() => undefined);
+    return () => { live = false; };
+  }, [spelling, accepted]);
+
+  // A right-click, not a left one: the left button places the caret, and
+  // taking that away from a word because it happens to be underlined would
+  // make the document harder to edit in exactly the places it needs editing.
+  useEffect(() => {
+    const root = host.current;
+    if (!root || !spelling) return;
+    const onMenu = (event: MouseEvent) => {
+      const target = (event.target as HTMLElement | null)?.closest?.(
+        ".nx-misspelled",
+      ) as HTMLElement | null;
+      if (!target) return;
+      const word = target.dataset.word;
+      if (!word) return;
+      event.preventDefault();
+      const box = root.getBoundingClientRect();
+      setOffer({ word, x: event.clientX - box.left, y: event.clientY - box.top });
+    };
+    root.addEventListener("contextmenu", onMenu);
+    return () => root.removeEventListener("contextmenu", onMenu);
+  }, [spelling]);
+
+  const accept = useCallback(async (word: string) => {
+    setOffer(null);
+    const projectId = get().projectId;
+    if (!projectId) return;
+    try {
+      const result = await api.addWord(projectId, word);
+      setAccepted(result.words);
+    } catch {
+      /* the underline stays, which is the honest outcome */
+    }
+  }, []);
+
   // The editor's own light or dark, when it has been set apart from the
   // interface's.  A class on this element rather than a rule at the root,
   // because what changes is the palette handed to this subtree: everything
@@ -597,8 +690,41 @@ export default function Editor({
   return (
     <div
       ref={host}
-      className={`h-full min-h-0 overflow-hidden${skin}${colour}`}
-    />
+      className={`relative h-full min-h-0 overflow-hidden${skin}${colour}`}
+    >
+      {offer ? (
+        <>
+          {/* A click anywhere else puts it away, including a click that is
+              doing something else -- which is the behaviour of every other
+              menu in the app. */}
+          <div
+            className="fixed inset-0 z-40"
+            onPointerDown={() => setOffer(null)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setOffer(null);
+            }}
+          />
+          <div
+            className="absolute z-50 rounded-[3px] border border-line bg-surface-2 py-1 shadow-[var(--float)]"
+            style={{
+              left: Math.min(offer.x, (host.current?.clientWidth ?? 0) - 210),
+              top: offer.y,
+            }}
+            role="menu"
+            data-testid="spelling-menu"
+          >
+            <button
+              role="menuitem"
+              className="t-micro block w-full px-3 py-[3px] text-left text-ink-2 hover:bg-surface-3 hover:text-ink"
+              onClick={() => accept(offer.word)}
+            >
+              Add “{offer.word}” to the dictionary
+            </button>
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }
 

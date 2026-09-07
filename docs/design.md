@@ -673,6 +673,52 @@ is decorated too, since it is the one form of mathematics that carries no
 command to key on. Names outside the five lists take the ordinary command
 styling rather than a guessed family.
 
+**Spell checking, off by default.** The specification does not mention it.
+CodeMirror sets `spellcheck="false"` on its content and is right to: a LaTeX
+file is mostly not English, and the browser's own checker underlines every
+package name, citation key, label and environment. A checker that marks
+those teaches the writer to ignore every mark it makes, which is worse than
+having none.
+
+So the work is in deciding what is prose. `spell-scan.ts` subtracts rather
+than adds, and the set it subtracts is: comments; control sequences
+themselves; inline and displayed mathematics; optional arguments, which are
+always keys, lengths or placements; the braced argument of every command
+whose argument is a name rather than a sentence; `\verb` and whatever
+delimiter it chose; and everything inside an environment that is not prose
+at all — the maths environments, `verbatim`, `lstlisting`, `minted`,
+`tikzpicture` — which is tracked across lines, because an `\end{align}` may
+be a long way below its `\begin` and a per-line scan cannot see that. What
+is left is checked. Words shorter than three letters and words in full
+capitals are passed over as well: an acronym is spelled by its initials and
+no list holds it. The distinction that matters is
+not which family a command belongs to: `\section{...}` and `\caption{...}`
+take prose and are checked, because a typo in a heading is the one a writer
+most wants caught, while `\begin{...}` and `\label{...}` never do.
+
+Three constraints shaped the rest:
+
+- **Nothing ships until it is asked for.** The checker sits in a
+  `Compartment` that is empty until the setting is turned on, so neither it
+  nor its word list is in the interface bundle. The list is 98 kB brotli'd
+  and is fetched once, on first use. `bundle.initial_kb` still rose about
+  four kilobytes for the switch and the editor's side of it, and the budget
+  was raised deliberately rather than quietly — see `bench/thresholds.json`,
+  which now says why.
+- **The writer's own words are the feature.** A dissertation is full of
+  terms no list holds, so a right-click on an underlined word accepts it
+  permanently, into `.nexttex/dictionary.txt` — machine-local and
+  uncommitted, like every other piece of per-project state here, and plain
+  text so two hundred species names are a paste rather than two hundred
+  clicks.
+- **It is not a diagnostic.** A dotted underline in `--ink-3`, no gutter bar
+  and nothing in the diagnostics drawer. Red and amber mean the build is
+  wrong; three hundred spellings in that drawer would bury the two compile
+  errors that matter.
+
+There are no suggested corrections. Ranking candidate spellings is a real
+algorithm and a real interface, and neither is what was asked for.
+
 **The status strip adapts to its own width by dropping segments.** §5 requires
 that the strip never reflow. The editor pane is resizable down to 420 px, where
 all six segments cannot fit on one line. Rather than wrap, segments drop out in

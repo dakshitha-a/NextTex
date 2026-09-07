@@ -3,6 +3,7 @@
 // switching land in the same frame and keeps per-file undo history intact.
 
 import {
+  Compartment,
   EditorState,
   RangeSetBuilder,
   StateEffect,
@@ -187,6 +188,9 @@ const familyHighlight = ViewPlugin.fromClass(
   },
   { decorations: (plugin) => plugin.decorations },
 );
+
+/** Where the spell checker goes when it is switched on. */
+export const spellCompartment = new Compartment();
 
 export type Mark = {
   line: number;
@@ -403,6 +407,11 @@ function base(symbols: () => Symbols | null): Extension[] {
     StreamLanguage.define(stex),
     syntaxHighlighting(latexHighlight),
     familyHighlight,
+    // Empty until the writer asks for spell checking, and filled by a
+    // dynamic import when they do: the checker and its word list are a
+    // hundred kilobytes that an editor with the setting off should never
+    // pay for, in bytes or in work per keystroke.
+    spellCompartment.of([]),
     EditorView.lineWrapping,
     // The document is an ARIA textbox; without a name it is announced as an
     // unlabelled input, which is the least useful thing to hear about the

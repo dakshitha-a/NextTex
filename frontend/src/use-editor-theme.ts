@@ -42,3 +42,15 @@ export function useEditorSyntax(): SyntaxMode {
   }, []);
   return mode;
 }
+
+/** Whether the prose is spell checked, live.  Read like the other two. */
+export function useSpelling(): boolean {
+  const read = () => document.documentElement.dataset.spelling === "on";
+  const [on, setOn] = useState(read);
+  useEffect(() => {
+    const onChange = () => setOn(read());
+    window.addEventListener(APPEARANCE_CHANGED, onChange);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
+  }, []);
+  return on;
+}

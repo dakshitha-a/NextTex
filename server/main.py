@@ -1163,6 +1163,33 @@ async def write_memory(project_id: str, text: str = Body(..., embed=True)):
     return {"text": saved, "notes": notes, "limit": MEMORY_MAX_CHARS}
 
 
+@app.get("/api/projects/{project_id}/dictionary")
+async def read_dictionary(project_id: str):
+    """The words this writer has said are spelled correctly.
+
+    Per project rather than per machine: the vocabulary of a dissertation on
+    excited-state dynamics has nothing to say about the next document, and a
+    shared list would slowly stop flagging anything.
+    """
+    return {"words": session_for(project_id).dictionary.words()}
+
+
+@app.post("/api/projects/{project_id}/dictionary")
+async def add_to_dictionary(project_id: str, word: str = Body(..., embed=True)):
+    return {"words": session_for(project_id).dictionary.add(word)}
+
+
+@app.delete("/api/projects/{project_id}/dictionary")
+async def remove_from_dictionary(project_id: str, word: str):
+    """Undo an addition.
+
+    Here because the alternative to a mistaken click is editing
+    `.nexttex/dictionary.txt` by hand, and a writer should not have to know
+    that file exists to take back one word.
+    """
+    return {"words": session_for(project_id).dictionary.remove(word)}
+
+
 @app.delete("/api/projects/{project_id}/context/{document_id}")
 async def remove_context(project_id: str, document_id: str):
     session = session_for(project_id)

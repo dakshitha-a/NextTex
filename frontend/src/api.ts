@@ -332,6 +332,17 @@ const api = {
     request<{ words: number | null; scope: string }>(
       `/projects/${id}/words?scope=${scope}&path=${encodeURIComponent(path)}`,
     ),
+  // The writer's own spellings, per project: the vocabulary of one
+  // document says nothing about the next.
+  dictionary: (id: string) =>
+    request<{ words: string[] }>(`/projects/${id}/dictionary`),
+  addWord: (id: string, word: string) =>
+    request<{ words: string[] }>(`/projects/${id}/dictionary`, json({ word })),
+  forgetWord: (id: string, word: string) =>
+    request<{ words: string[] }>(
+      `/projects/${id}/dictionary?word=${encodeURIComponent(word)}`,
+      { method: "DELETE" },
+    ),
   lint: (id: string, path: string) =>
     request<{ diagnostics: Diagnostic[] }>(
       `/projects/${id}/lint?path=${encodeURIComponent(path)}`,
