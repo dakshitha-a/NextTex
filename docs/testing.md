@@ -140,3 +140,24 @@ browser spec for a variation the first already covers; tests that assert an
 exact duration rather than a budget; and anything a unit test can pin down.
 Every timing constant in the browser tier is a reason to prefer the layer
 below it.
+
+## A stand-in that is kinder than the real thing tests nothing
+
+`ScriptedAgent` exists so the browser tests can drive a whole conversation
+without a model, and it stood in faithfully enough that nobody re-read it
+when the real agents grew a guard. `ProjectAgent.reset` and
+`OpenAIAgent.reset` both refuse while a turn is running, because archiving
+the transcript out from under a turn still writing into it leaves the record
+and the panel disagreeing. The stand-in did not refuse. So the browser suite
+ran the reset path against an agent that allowed exactly the thing the guard
+exists to prevent, and would have gone on passing if the guard had been
+deleted.
+
+The lesson is not "check the stand-in", which nobody remembers to do. It is
+that a duck-typed seam needs one test that runs the same promises against
+every implementation behind it. `tests/test_agent_parity.py` is that test:
+it asserts the shape, and then the handful of things the interface is
+actually built on -- a question always produces a `done`, Stop is never a
+silent no-op, a second question while one is running is refused, usage
+carries the fields the footer reads. It found three divergences the first
+time it ran, in three different classes.

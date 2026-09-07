@@ -317,7 +317,10 @@ class OpenAIAgent:
             await asyncio.wait_for(self._converse(), timeout=TURN_TIMEOUT)
             subtype = "success"
         except asyncio.CancelledError:
-            return
+            # Re-raised rather than swallowed: `interrupt` has already said
+            # the turn is over, and a task that returns normally from its
+            # own cancellation reports success for a turn nobody finished.
+            raise
         except asyncio.TimeoutError:
             await self._emit({"type": "error", "message": "The turn timed out."})
             subtype = "error_during_execution"
