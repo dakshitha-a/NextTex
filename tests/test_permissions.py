@@ -255,3 +255,134 @@ def test_a_new_conversation_drops_the_session_but_not_the_cost(tmp_path):
     # commands are safe here is not a conversation either.
     assert fence.usage["turns"] == 7
     assert "Bash:latexmk" in fence._always_allow
+
+
+async def _answer(fence, tool, tool_input, decision_text):
+    """Run the hook and answer the card it puts up, as a browser would.
+
+    Stubbing `_ask_user` cannot test this: the rule bookkeeping that
+    `Allow always` performs lives inside it, so the real one has to run.
+    """
+    task = asyncio.ensure_future(
+        fence._pre_tool({"tool_name": tool, "tool_input": tool_input}, None, None)
+    )
+    event = await asyncio.wait_for(fence._queue().get(), timeout=2)
+    assert event["type"] == "permission", event
+    assert fence.resolve_permission(event["id"], decision_text)
+    return await asyncio.wait_for(task, timeout=2)
+
+
+def answered(fence, tool, tool_input, decision_text="always"):
+    return asyncio.run(_answer(fence, tool, tool_input, decision_text))
+
+
+def covered(fence, tool, tool_input) -> bool:
+    """Whether a remembered rule already covers this call.
+
+    Asserted directly rather than by stubbing `_ask_user`: the remembered
+    rules are consulted *inside* that method, so a stub answers the
+    question by removing it.
+    """
+    return asyncio.run(fence._ask_user_would_return(tool, tool_input))
+
+
+def test_allowing_one_outside_write_always_does_not_allow_every_other_one(tmp_path):
+    """`Allow always` scopes to the file it was shown, not to the verb.
+
+    The Bash rule is scoped to the command's first word for exactly this
+    reason -- allowing `latexmk -c` must not also allow `rm`.  A write card
+    names one path outside the project, and remembering it as the bare tool
+    name turned one click into standing permission to write anywhere on the
+    disk: allow a note in a sibling folder, and the next write to
+    `~/.bashrc` never asks.
+    """
+    fence = agent(tmp_path)
+    allowed = tmp_path / "notes.txt"
+    allowed.write_text("x", encoding="utf-8")
+    other = tmp_path / "elsewhere" / "bashrc"
+    other.parent.mkdir()
+    other.write_text("x", encoding="utf-8")
+
+    assert decision(answered(fence, "Write", {"file_path": str(allowed)})) == "allow"
+
+    # The same file again is covered, which is what the writer agreed to.
+    assert covered(fence, "Write", {"file_path": str(allowed)})
+    # A different file outside the project is not, and still asks.
+    assert not covered(fence, "Write", {"file_path": str(other)})
+    fence._ask_user = _refuse
+    assert decision(hook(fence, "Write", {"file_path": str(other)})) == "deny"
+
+
+def test_allowing_one_outside_read_always_does_not_open_the_disk(tmp_path):
+    fence = agent(tmp_path)
+    paper = tmp_path / "paper.tex"
+    paper.write_text("x", encoding="utf-8")
+    key = tmp_path / "id_rsa"
+    key.write_text("x", encoding="utf-8")
+
+    assert decision(answered(fence, "Read", {"file_path": str(paper)})) == "allow"
+    assert covered(fence, "Read", {"file_path": str(paper)})
+    assert not covered(fence, "Read", {"file_path": str(key)})
+    fence._ask_user = _refuse
+    assert decision(hook(fence, "Read", {"file_path": str(key)})) == "deny"
+
+
+def test_reading_a_file_is_not_permission_to_overwrite_it(tmp_path):
+    """Read and write are kept apart even for the same path."""
+    fence = agent(tmp_path)
+    outside = tmp_path / "paper.tex"
+    outside.write_text("x", encoding="utf-8")
+
+    assert decision(answered(fence, "Read", {"file_path": str(outside)})) == "allow"
+    assert not covered(fence, "Write", {"file_path": str(outside)})
+
+
+def test_an_edit_and_a_write_to_one_file_are_the_same_permission(tmp_path):
+    """The writer agreed to a file being changed, not to a particular verb."""
+    fence = agent(tmp_path)
+    outside = tmp_path / "shared.bib"
+    outside.write_text("x", encoding="utf-8")
+
+    assert decision(answered(fence, "Write", {"file_path": str(outside)})) == "allow"
+    assert covered(fence, "Edit", {"file_path": str(outside)})
+    assert covered(fence, "MultiEdit", {"file_path": str(outside)})
+
+
+def test_a_symlink_cannot_present_one_name_and_write_another(tmp_path):
+    """The rule is the resolved path, so the card and the disk agree."""
+    fence = agent(tmp_path)
+    real = tmp_path / "real.txt"
+    real.write_text("x", encoding="utf-8")
+    link = tmp_path / "innocent.txt"
+    link.symlink_to(real)
+
+    assert decision(answered(fence, "Write", {"file_path": str(link)})) == "allow"
+    # Approving the link approved the file it points at, and nothing else.
+    assert covered(fence, "Write", {"file_path": str(real)})
+    assert not covered(fence, "Write", {"file_path": str(tmp_path / "other.txt")})
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [["/tmp/x"], {"p": 1}, 5, "a\x00b", True],
+    ids=["list", "dict", "int", "null-byte", "bool"],
+)
+def test_a_tool_argument_that_is_not_a_path_is_refused_not_raised(tmp_path, raw):
+    """The fence has to be total: the tool input is whatever the model sent.
+
+    `Path()` raises TypeError on a list and ValueError on a null byte, and
+    neither is an OSError -- so the exception left `_inside_project`, left
+    the PreToolUse hook, and the decision about whether the write was
+    allowed was never made at all.
+    """
+    fence = agent(tmp_path)
+    assert fence._inside_project(raw) is False
+    # And nothing invents a remembered rule out of it either.
+    assert fence._rule_for("Write", {"file_path": raw}) == ""
+
+
+def test_a_malformed_write_reaches_the_card_rather_than_crashing_the_hook(tmp_path):
+    fence = agent(tmp_path)
+    fence._ask_user = _refuse
+    result = hook(fence, "Write", {"file_path": ["/etc/passwd"]})
+    assert decision(result) == "deny"

