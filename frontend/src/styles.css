@@ -203,6 +203,20 @@ button { font: inherit; color: inherit; }
    of what it does. */
 .quiet[data-tone="warn"] { color: var(--warn); }
 
+/* --surround is the ground behind the panes, and it is darker than the
+   three surfaces the inks were certified against: --ink-3 lands at 4.17:1
+   there, under the 4.5 that small text needs.  The projects screen is the
+   one place small dim text sits directly on it, so on that plane the
+   dimmest ink steps up to --ink-2, which measures 6.04:1.
+
+   Nested rather than applied per element because the update footer renders
+   six different states, and the next one added would otherwise arrive with
+   the old colour and no test to catch it. */
+.nx-on-surround .quiet:not(:disabled):not([data-tone]),
+.nx-on-surround .text-ink-3 {
+  color: var(--ink-2);
+}
+
 .nx-handle { background: var(--line); transition: background-color 90ms var(--ease); }
 .nx-handle:hover { background: var(--hint); }
 

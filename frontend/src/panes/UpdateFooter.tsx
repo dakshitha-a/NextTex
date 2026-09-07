@@ -156,7 +156,10 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   };
 
   return (
-    <div className="nx-arrive mt-8 min-h-[20px]">
+    // The projects screen's ground is --surround, which is a darker plane
+    // than the surfaces the inks were certified against.  Everything dim in
+    // here steps up one; see the rule in styles.css.
+    <div className="nx-arrive nx-on-surround mt-8 min-h-[20px]">
       {render()}
     </div>
   );

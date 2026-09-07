@@ -61,6 +61,15 @@ const BODY_TEXT: [string, string][] = [
   ["ink", "surface-2"],
   ["ink", "surface-3"],
   ["ink", "surround"],
+  // --surround is a darker ground than the three surfaces, and it was only
+  // ever certified for --ink.  The projects screen puts small text on it,
+  // and --ink-3 measures 4.17:1 there -- under the 4.5 small text needs,
+  // and missed for exactly as long as this list omitted the pairing.  So
+  // --ink-2 is certified here and --ink-3 is deliberately absent: the
+  // `.nx-on-surround` rule in styles.css steps it up rather than allowing
+  // the pairing, and adding it back below would fail this test, which is
+  // the intended way to find out.
+  ["ink-2", "surround"],
   ["ink-2", "surface"],
   ["ink-2", "surface-2"],
   ["ink-2", "surface-3"],
