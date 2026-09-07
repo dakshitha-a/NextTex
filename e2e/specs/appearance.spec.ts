@@ -281,12 +281,23 @@ test("the subtle look is what an editor opens with", async ({ tab }) => {
   await typeSomeLaTeX(tab);
   const ink = await tab.locator(".cm-content").evaluate(colourOf);
   // The marks are there whatever the setting says -- that is what makes the
-  // switch two CSS variables rather than a rebuild -- so the check is that
-  // they resolve to the ordinary ink, not that they are absent.
+  // switch a class on one element rather than a rebuild -- so the check is
+  // that nothing styles them, not that they are absent.
   await expect(tab.locator(".nx-syn-structure").first()).toBeVisible();
   expect(await tab.locator(".nx-syn-structure").first().evaluate(colourOf)).toBe(ink);
   expect(await tab.locator(".nx-syn-cite").first().evaluate(colourOf)).toBe(ink);
   expect(await tab.locator(".nx-syn-preamble").first().evaluate(colourOf)).toBe(ink);
+
+  // The heading after \section, specifically.  An earlier version set every
+  // decorated argument to --ink-2, which is right for \cite{...} and
+  // \begin{...} -- the LaTeX mode marks those as atoms -- but wrong for a
+  // heading, which it does not tokenise at all.  Every title in the
+  // document dimmed a step in the mode that is meant to be untouched, and
+  // no colour assertion could see it, because both shades are grey.
+  expect(
+    await tab.locator(".nx-syn-arg-structure").first().evaluate(colourOf),
+    "the heading dimmed with colouring off",
+  ).toBe(ink);
 });
 
 test("colour tells the families apart, and each one differs from the text", async ({

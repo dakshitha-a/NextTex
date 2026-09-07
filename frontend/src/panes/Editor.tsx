@@ -591,13 +591,13 @@ export default function Editor({
   // highlighting and the gutter markers follow without knowing about it.
   const skin =
     editorTheme === "match" ? "" : ` nx-theme-${editorTheme}`;
-  // `nx-editor-skin` is what the syntax variables hang off, so it is on the
-  // element whether or not either setting is away from its default.
+  // Nothing is styled when this is absent: the subtle look is the absence
+  // of a rule rather than a reproduction of one.
   const colour = syntax === "colour" ? " nx-syntax-colour" : "";
   return (
     <div
       ref={host}
-      className={`nx-editor-skin h-full min-h-0 overflow-hidden${skin}${colour}`}
+      className={`h-full min-h-0 overflow-hidden${skin}${colour}`}
     />
   );
 }
