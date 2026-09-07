@@ -30,8 +30,11 @@ function palette(block: string): Record<string, string> {
   return found;
 }
 
-const LIGHT = palette(":root {");
-const DARK = palette(':root[data-theme="dark"] {');
+// The class half of each selector, because the palettes are now shared
+// with the editor's own light/dark scope and `:root` alone no longer ends
+// a selector.  Same block, same declarations.
+const LIGHT = palette(".nx-theme-light {");
+const DARK = palette(".nx-theme-dark {");
 
 function channel(hex: string, index: number): number {
   const value = parseInt(hex.slice(1 + index * 2, 3 + index * 2), 16) / 255;

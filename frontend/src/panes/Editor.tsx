@@ -20,6 +20,7 @@ import {
   viewExtensions,
 } from "./editor-setup";
 import { outline as sectionsOf, sameOutline } from "../outline";
+import { useEditorTheme } from "../use-editor-theme";
 import { get, markStale, set, useStore } from "../store";
 
 
@@ -62,6 +63,7 @@ export default function Editor({
   handleRef: (handle: EditorHandle) => void;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
+  const editorTheme = useEditorTheme();
   const view = useRef<EditorView | null>(null);
   const buffers = useRef(new Map<string, Buffer>());
   const current = useRef<string | null>(null);
@@ -581,7 +583,16 @@ export default function Editor({
     return () => root.removeEventListener("wheel", onWheel);
   }, []);
 
-  return <div ref={host} className="h-full min-h-0 overflow-hidden" />;
+  // The editor's own light or dark, when it has been set apart from the
+  // interface's.  A class on this element rather than a rule at the root,
+  // because what changes is the palette handed to this subtree: everything
+  // inside resolves its colours through the same tokens, so the syntax
+  // highlighting and the gutter markers follow without knowing about it.
+  const skin =
+    editorTheme === "match" ? "" : ` nx-theme-${editorTheme}`;
+  return (
+    <div ref={host} className={`h-full min-h-0 overflow-hidden${skin}`} />
+  );
 }
 
 /** Lines of the old version that are gone from the file as it stands.

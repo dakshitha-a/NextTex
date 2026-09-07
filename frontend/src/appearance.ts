@@ -9,12 +9,23 @@
 
 export type Theme = "light" | "dark";
 
+/** The editor's own light or dark, or whatever the rest of the app is.
+ *
+ *  Separate from the interface theme because the two are answering
+ *  different questions.  The shell is chrome and some people want it out of
+ *  the way in the dark; the editor is the page being written, and a writer
+ *  who thinks in paper wants that white whatever the frame is doing.
+ *  `match` is the default and means exactly that: follow the theme. */
+export type EditorTheme = "match" | "light" | "dark";
+
 export type Appearance = {
   theme: Theme;
   /** Interface size as a percentage.  100 is the size everything was drawn at. */
   scale: number;
   /** Editor text size in CSS pixels. */
   editor: number;
+  /** Whether the editor is lit on its own terms. */
+  editorTheme: EditorTheme;
 };
 
 /** The steps the two size controls offer.  Discrete stops rather than a
@@ -23,12 +34,15 @@ export type Appearance = {
 export const SCALES = [90, 100, 110, 125, 150];
 export const EDITOR_SIZES = [12, 13.5, 15, 17, 19, 21];
 
-export const DEFAULTS: Appearance = { theme: "dark", scale: 100, editor: 13.5 };
+export const DEFAULTS: Appearance = {
+  theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
+};
 
 const KEYS = {
   theme: "nexttex.theme",
   scale: "nexttex.ui.scale",
   editor: "nexttex.editor.size",
+  editorTheme: "nexttex.editor.theme",
 };
 
 /** localStorage throws rather than returning null in a private window, or
@@ -67,12 +81,17 @@ export function storedAppearance(): Appearance {
   const theme = read(KEYS.theme);
   const scale = Number(read(KEYS.scale));
   const editor = Number(read(KEYS.editor));
+  const editorTheme = read(KEYS.editorTheme);
   return {
     // Dark by default: this is an instrument you sit in front of for hours,
     // beside a white page that supplies all the brightness the eye needs.
     theme: theme === "light" || theme === "dark" ? theme : DEFAULTS.theme,
     scale: scale ? nearest(scale, SCALES) : DEFAULTS.scale,
     editor: editor ? nearest(editor, EDITOR_SIZES) : DEFAULTS.editor,
+    editorTheme:
+      editorTheme === "light" || editorTheme === "dark" || editorTheme === "match"
+        ? editorTheme
+        : DEFAULTS.editorTheme,
   };
 }
 
@@ -91,10 +110,15 @@ export function applyAppearance(appearance: Appearance): void {
   // see `viewport.ts`.
   root.style.setProperty("--nx-ui-scale", String(factor));
   root.style.setProperty("--nx-editor-size", `${appearance.editor}px`);
+  // Published on the root so the editor pane can read it without a prop
+  // reaching four components deep, and so it is in place before the first
+  // paint rather than one frame after it.
+  root.dataset.editorTheme = appearance.editorTheme;
 
   write(KEYS.theme, appearance.theme);
   write(KEYS.scale, String(appearance.scale));
   write(KEYS.editor, String(appearance.editor));
+  write(KEYS.editorTheme, appearance.editorTheme);
 
   // The preview draws to a canvas whose backing store is sized for the
   // scale in force when it was drawn, so it has to be told rather than left
@@ -110,6 +134,7 @@ export function isDefault(appearance: Appearance): boolean {
   return (
     appearance.theme === DEFAULTS.theme &&
     appearance.scale === DEFAULTS.scale &&
-    appearance.editor === DEFAULTS.editor
+    appearance.editor === DEFAULTS.editor &&
+    appearance.editorTheme === DEFAULTS.editorTheme
   );
 }
