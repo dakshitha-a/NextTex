@@ -20,7 +20,7 @@ import {
   viewExtensions,
 } from "./editor-setup";
 import { outline as sectionsOf, sameOutline } from "../outline";
-import { useEditorTheme } from "../use-editor-theme";
+import { useEditorTheme, useEditorSyntax } from "../use-editor-theme";
 import { get, markStale, set, useStore } from "../store";
 
 
@@ -64,6 +64,7 @@ export default function Editor({
 }) {
   const host = useRef<HTMLDivElement | null>(null);
   const editorTheme = useEditorTheme();
+  const syntax = useEditorSyntax();
   const view = useRef<EditorView | null>(null);
   const buffers = useRef(new Map<string, Buffer>());
   const current = useRef<string | null>(null);
@@ -590,8 +591,14 @@ export default function Editor({
   // highlighting and the gutter markers follow without knowing about it.
   const skin =
     editorTheme === "match" ? "" : ` nx-theme-${editorTheme}`;
+  // `nx-editor-skin` is what the syntax variables hang off, so it is on the
+  // element whether or not either setting is away from its default.
+  const colour = syntax === "colour" ? " nx-syntax-colour" : "";
   return (
-    <div ref={host} className={`h-full min-h-0 overflow-hidden${skin}`} />
+    <div
+      ref={host}
+      className={`nx-editor-skin h-full min-h-0 overflow-hidden${skin}${colour}`}
+    />
   );
 }
 

@@ -261,3 +261,82 @@ test("an editor lit on its own terms survives a reload", async ({ tab }) => {
     colour.match(/\d+/g)!.slice(0, 3).reduce((a, b) => a + Number(b), 0) / 3;
   expect(lightness(editorBackground)).toBeGreaterThan(180);
 });
+
+/** Colouring the control sequences.
+ *
+ *  The families cannot be told apart by the token the LaTeX mode reports --
+ *  it calls `\section`, `\cite` and `\usepackage` the same thing -- so what
+ *  these check is that the decoration layer put the right class on the right
+ *  word and that the CSS resolved it, which is the pair that has to hold.
+ */
+async function typeSomeLaTeX(tab: import("@playwright/test").Page) {
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+Home");
+  await tab.keyboard.type("\\section{Heading} \\cite{key} \\usepackage{amsmath}\n");
+}
+
+const colourOf = (node: Element) => getComputedStyle(node).color;
+
+test("the subtle look is what an editor opens with", async ({ tab }) => {
+  await typeSomeLaTeX(tab);
+  const ink = await tab.locator(".cm-content").evaluate(colourOf);
+  // The marks are there whatever the setting says -- that is what makes the
+  // switch two CSS variables rather than a rebuild -- so the check is that
+  // they resolve to the ordinary ink, not that they are absent.
+  await expect(tab.locator(".nx-syn-structure").first()).toBeVisible();
+  expect(await tab.locator(".nx-syn-structure").first().evaluate(colourOf)).toBe(ink);
+  expect(await tab.locator(".nx-syn-cite").first().evaluate(colourOf)).toBe(ink);
+  expect(await tab.locator(".nx-syn-preamble").first().evaluate(colourOf)).toBe(ink);
+});
+
+test("colour tells the families apart, and each one differs from the text", async ({
+  tab,
+}) => {
+  await typeSomeLaTeX(tab);
+  const ink = await tab.locator(".cm-content").evaluate(colourOf);
+
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("syntax-colour").click();
+  await tab.keyboard.press("Escape");
+
+  const seen = new Set<string>();
+  for (const family of ["structure", "cite", "preamble"]) {
+    const colour = await tab.locator(`.nx-syn-${family}`).first().evaluate(colourOf);
+    expect(colour, `--syn-${family} still reads as body text`).not.toBe(ink);
+    seen.add(colour);
+  }
+  // Three families, three colours: two that resolved to the same value
+  // would make the setting decorative rather than useful.
+  expect(seen.size).toBe(3);
+});
+
+test("the colours follow the page, not the frame", async ({ tab }) => {
+  await typeSomeLaTeX(tab);
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("syntax-colour").click();
+  await tab.getByRole("group", { name: "Theme" })
+    .getByRole("button", { name: "Dark" }).click();
+
+  const lightness = (colour: string) =>
+    colour.match(/\d+/g)!.slice(0, 3).reduce((a, b) => a + Number(b), 0) / 3;
+  const onDark = await tab.locator(".nx-syn-structure").first().evaluate(colourOf);
+
+  // A white page inside a dark shell has to take the light palette's
+  // syntax colours, or they are the dark theme's brights on white.
+  await tab.getByTestId("editor-theme-light").click();
+  const onLight = await tab.locator(".nx-syn-structure").first().evaluate(colourOf);
+  expect(lightness(onLight)).toBeLessThan(lightness(onDark));
+});
+
+test("colouring survives a reload", async ({ tab }) => {
+  await typeSomeLaTeX(tab);
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("syntax-colour").click();
+  await tab.keyboard.press("Escape");
+  const before = await tab.locator(".nx-syn-structure").first().evaluate(colourOf);
+
+  await tab.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
+  await expect(tab.locator(".nx-syn-structure").first()).toBeVisible();
+  expect(await tab.locator(".nx-syn-structure").first().evaluate(colourOf)).toBe(before);
+});
