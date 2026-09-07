@@ -644,8 +644,15 @@ easier to skim for its equations and its headings than for its words, and in one
 ink it cannot be skimmed for either. Three things keep it from costing what §8
 was protecting:
 
-- It is off unless asked for, so the quiet editor is still what an install
-  opens with.
+- It is off unless asked for, and off means off: every rule is gated behind
+  a single class, so with the setting unset the decoration classes match no
+  CSS whatsoever and the editor renders byte-identically to one built before
+  the feature existed. The first version instead set each family to an ink,
+  which requires knowing exactly what the LaTeX mode does to every token —
+  and it does not do one thing. `\begin`, `\cite` and `\label` are `stex`
+  plugins whose braced argument is an `atom` at `--ink-2`; `\section` is not
+  a plugin, so its heading is plain text at `--ink`. One rule for "the
+  argument" dimmed every heading in the untouched mode.
 - The five hues sit at one lightness and one chroma ceiling per palette, so
   they read as one family rather than as a rainbow, and each is defined in
   both `.nx-theme-light` and `.nx-theme-dark` — the editor's own theme carries
