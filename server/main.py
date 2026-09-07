@@ -2244,8 +2244,59 @@ async def events(project_id: str, request: Request):
 # The frontend
 
 
+class PrecompressedStatic(StaticFiles):
+    """Static files, with the compressed copy served when one exists.
+
+    Compression is not free, and doing it per request is the wrong trade
+    for this app.  Starlette's GZipMiddleware compresses on every response:
+    measured on the real bundle that is about 38 ms of CPU before the first
+    byte moves, which over loopback took the file from 1.9 ms to 40 ms.
+    Somebody running NextTex on the machine they are sitting at would have
+    paid twenty times the latency for a saving their link did not need.
+
+    So `npm run build` writes `.br` and `.gz` beside each asset and this
+    hands over whichever one the browser asked for.  The bytes are already
+    small, serving them costs a file read, and the ratio is better than
+    anything worth computing per request: brotli at quality 11 gets the
+    bundle to 202 kB where gzip on the fly managed 236 kB.
+
+    `Vary: Accept-Encoding` is essential rather than decorative: without it
+    a cache between the browser and here can hand a brotli body to a client
+    that never asked for one.
+    """
+
+    async def get_response(self, path: str, scope):
+        request = Request(scope)
+        accepted = request.headers.get("accept-encoding", "")
+        for suffix, encoding in ((".br", "br"), (".gz", "gzip")):
+            if encoding not in accepted:
+                continue
+            try:
+                full = Path(self.directory) / f"{path}{suffix}"  # type: ignore[arg-type]
+                if not full.is_file():
+                    continue
+            except (OSError, ValueError):
+                continue
+            response = await super().get_response(f"{path}{suffix}", scope)
+            if response.status_code != 200:
+                continue
+            # The type is the type of what it decompresses to, not of the
+            # envelope: a browser handed `application/gzip` would download
+            # the file rather than run it.
+            kind, _ = mimetypes.guess_type(path)
+            response.headers["content-type"] = kind or "application/octet-stream"
+            response.headers["content-encoding"] = encoding
+            response.headers["vary"] = "Accept-Encoding"
+            return response
+        response = await super().get_response(path, scope)
+        response.headers["vary"] = "Accept-Encoding"
+        return response
+
+
 if FRONTEND.is_dir():
-    app.mount("/assets", StaticFiles(directory=FRONTEND / "assets"), name="assets")
+    app.mount(
+        "/assets", PrecompressedStatic(directory=FRONTEND / "assets"), name="assets"
+    )
 
     @app.get("/{path:path}")
     async def spa(path: str):
