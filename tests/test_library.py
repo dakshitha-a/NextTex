@@ -80,7 +80,7 @@ class TestFindingTheDoi:
         assert dois_in("doi:10.1371/journal.pone.0012345.s001", "x.pdf") == []
 
     def test_a_filename_that_is_a_doi_is_tried_when_the_text_has_none(self):
-        found = dois_in("no identifier here", "10.1063_5.0274633.pdf")
+        found = dois_in("no identifier here", "10.1103_PhysRev.28.1049.pdf")
         assert found == ["10.1103/PhysRev.28.1049"]
 
     def test_only_the_front_matter_is_searched(self):

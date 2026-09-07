@@ -89,7 +89,7 @@ def ascii_fold(text):
 
 
 def make_key(meta):
-    """FirstAuthorYYYYkeyword, e.g. Abeygunewardane2025excitation."""
+    """FirstAuthorYYYYkeyword, e.g. Schrodinger1926undulatory."""
     authors = meta.get("author") or []
     surname = ascii_fold(authors[0].get("family", "")) if authors else ""
     if not surname:
