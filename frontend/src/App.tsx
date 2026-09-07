@@ -19,6 +19,10 @@ import FileView from "./panes/FileView";
 // of the bundle and the first screen is the project list, which has no
 // preview on it at all.
 const Pdf = lazy(() => import("./panes/Pdf"));
+// Lazy for the same reason Pdf is: the tutorial carries a dozen screenshots
+// and a thousand words, and none of it belongs in what a first visit has to
+// download before the editor appears.
+const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
 import Tabs from "./panes/Tabs";
@@ -115,6 +119,7 @@ export default function App() {
    *  `folded`, which is the pane layout the focus modes save and restore:
    *  these are sections inside one pane and have nothing to do with it. */
   const [railOpen, setRailOpen] = useState({ files: true, sections: true });
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   // Every pane folds away, and says where it went.  Editor and preview are
   // mutually exclusive: folding one gives the other the whole space, and
   // folding both would leave nothing to work in.
@@ -796,6 +801,28 @@ export default function App() {
     });
   }, []);
 
+  /** Where the tutorial sheet's right edge sits.
+   *
+   *  Immediately left of the agent when it has a column of its own, and at
+   *  the window edge when it does not.  Either way the sheet lands on the
+   *  preview, which is the one pane no part of the tutorial asks you to
+   *  touch -- the rail, the tab strip, the gutter, the status strip and the
+   *  composer all stay visible behind it. */
+  const chatDocked = !noAgent && !chatOver && !folded.chat;
+  const tutorialRight = chatDocked ? widths.chat : 0;
+
+  /** Open the tutorial, putting the agent overlay away first.
+   *
+   *  Below 1400px the agent is itself an overlay over the preview, and two
+   *  overlapping sheets is a mess.  This is the same handoff the preview
+   *  pane already performs on a pointer press, for the same reason -- and
+   *  the tutorial's own shortcut table names the key that brings the agent
+   *  back two sections later. */
+  const openTutorial = useCallback(() => {
+    if (chatOverRef.current && chatOpenRef.current) setChatOpen(false);
+    setTutorialOpen(true);
+  }, []);
+
   /** Show or hide the agent panel.
    *
    *  It is two different things depending on the width: below 1400px the
@@ -1052,7 +1079,7 @@ export default function App() {
                 <InstanceBadge />
               </button>
               <div className="flex items-center">
-                <Settings align="left" inProject />
+                <Settings align="left" inProject onTutorial={openTutorial} />
                 <button
                   className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
                   title="Download the whole project as a zip"
@@ -1391,6 +1418,19 @@ export default function App() {
           onExpand={() => fold("chat")}
         />
       ) : null}
+      {tutorialOpen ? (
+        <Suspense
+          fallback={
+            <div
+              className="absolute inset-y-0 z-40 w-[380px] max-w-full border-l border-line bg-surface-2"
+              style={{ right: tutorialRight }}
+            />
+          }
+        >
+          <Tutorial right={tutorialRight} onClose={() => setTutorialOpen(false)} />
+        </Suspense>
+      ) : null}
+
       {noAgent ? null : (
       <div
         className={

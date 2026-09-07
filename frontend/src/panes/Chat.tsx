@@ -950,7 +950,7 @@ function EditChip({
   }
 
   return (
-    <div className="stream-indent">
+    <div className="stream-indent" data-testid="edit-chip">
       <div
         className="flex h-[24px] w-fit max-w-full items-center gap-2 rounded-[3px] bg-pen-wash px-2"
         onMouseEnter={() => onHoverEdit(item.path, [changedLine, changedLine + 2])}
@@ -1155,6 +1155,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
   return (
     <div
       ref={card}
+      data-testid="permission-card"
       tabIndex={0}
       role="group"
       aria-label={item.headline}

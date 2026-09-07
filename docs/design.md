@@ -1685,3 +1685,220 @@ this panel away", which two specs address by name, and every unique
 alternative left the button and the strip it folds into ("Show files")
 reading as a mismatched pair. The file list is still the bulk of what is
 there.
+
+## 20. A tutorial that can be read while you use the thing it describes
+
+The app explains itself well in places — the status strip names the first
+error in English, the git panel offers a repository before you ask, the
+welcome message says what the agent is for — but none of that adds up to an
+answer to "what is this and how do I use it". `docs/first-session.md` is
+that answer and it is not reachable from the app, which over Tailscale may
+be running on a machine the reader does not have the repository on.
+
+### It is a sheet, and it does not dismiss
+
+The shape was the whole design question. Every dialog in this app is a small
+anchored card, 248 to 320 px, and each one closes on an outside press. A
+tutorial with nine sections and six figures is an order of magnitude more
+content than anything the app shows at once.
+
+**A right-hand sheet, 380 px, full height, over the preview.** `History` is
+the precedent: it is the one existing surface that is a full-height sheet
+*and* the one surface that does not call `useDismiss`, so it stays open
+while you click around the editor. That second property is the whole reason
+it is the right model here. A tutorial whose third section says *"a single
+click on a pane's header folds that pane away"* and then closes the instant
+you try it is worse than no tutorial.
+
+380 rather than History's 264 because body text at 13/20 inside 356 px of
+measure is about 58 characters, inside §3's 68ch ceiling; at 264 the measure
+is 40ch and a figure would be 240 px wide, below legibility for anything
+containing interface text.
+
+It never docks, and that is arithmetic rather than taste. At the 1400 px
+breakpoint the rail and the agent already take 620 px, leaving 780 for an
+editor and preview whose minimums total 740. A docked tutorial column would
+need a window around 1800 px before it fit, so the flag would be dead code
+at every width most people run.
+
+It covers the preview because the preview is the one pane no section asks
+you to touch: the rail's panel headers, the tab strip's empty run, the
+gutter, the status strip, the composer's icon row and the git footer all
+stay visible behind it. Below 1400 px the agent is itself an overlay over
+the preview, so opening the tutorial puts it away — the same handoff, for
+the same reason, that the preview pane already performs on a pointer press.
+Closing the tutorial does not bring the agent back; `⌘⌥A` does, and the
+tutorial's own shortcut table names that key two sections away.
+
+Rejected, each for a reason particular to this app: a **centred modal**,
+because §5 says plainly *"never a modal — this app has none"*, and because
+it would cover the tab strip, gutter and status strip that half the content
+points at; a **new `view`**, because it would unmount the editor and throw
+away the layout the reader is being taught about; a **rail panel**, because
+the rail auto-collapses below 1100 px and cannot describe itself while
+covering itself; **disclosure inside the Settings card**, because 248 px
+fits neither the prose nor a figure, and because that card calls
+`useDismiss`, so the first attempt to try a gesture would close it.
+
+### Contents fixed, document scrolling
+
+This is reference material as much as a first read, and both uses are served
+by one arrangement: a single scrolling document ordered by when you meet
+each thing, under a contents block that never scrolls away, so any section
+is one click from anywhere. Nine rows at 26 px is what makes the block fixed
+rather than scrolling, and a tenth section is the practical signal to cut
+one instead.
+
+Not an accordion: Ctrl-F finds nothing inside a collapsed panel, and a
+return visit would have everything shut again.
+
+The row you are in takes `aria-current` and a dot, and nothing else — §19
+already recorded why a fill is wrong there, and the same argument applies:
+it would make the current row the one row that does not answer the pointer.
+One tab stop with arrow keys, not nine, for the reason §10 and §19 both give.
+
+### Figures
+
+Six, in both themes, and the selection rule is what keeps it to six: **a
+screenshot earns its place only if it shows an unlabelled target you cannot
+otherwise point at, or a state that is not currently on screen.** The reader
+is inside the app, so a picture of something visible and already labelled is
+the least informative figure there is. That rule cuts the obvious first idea
+— there is no overview shot of the four panes, because the reader is looking
+at them.
+
+What survives: the tab strip's empty run (invisible by definition), the
+errors drawer (a state you cannot conjure without breaking your document),
+an edit chip opened to its diff, a permission card, the composer's row of
+unlabelled buttons, and the git card that never returns once dismissed.
+
+`prefers-color-scheme` is the wrong test for choosing between them. §2 is
+explicit that the theme here is *"authored and chosen, not inherited"* and
+stamped on the root; `e2e/shots/hero.spec.ts` already carries the scar from
+assuming otherwise. The figures read `data-theme` and follow the
+`APPEARANCE_CHANGED` event, so switching theme with the sheet open moves
+them in the same frame as everything else.
+
+Every figure carries `width` and `height` so nothing reflows as images
+arrive, its caption says what to look for, and its alt text says what the
+picture is — they are not the same sentence.
+
+**The figures are generated, not cropped by hand**, by `e2e/shots/tutorial.spec.ts`
+and regenerated with one command:
+
+```
+cd e2e && node_modules/.bin/playwright test --config shots.config.ts tutorial.spec.ts
+```
+
+This document's opening rule is that the build and the specification may not
+drift silently. A hand-made screenshot of an interface that has since moved
+on is exactly that drift, in the one surface whose entire purpose is to
+describe the build.
+
+### Cost
+
+Both surfaces are `React.lazy`, as `Pdf` already is. The initial chunk grew
+**1.6 kB** — two `lazy()` calls, two buttons and two booleans — against a
+760 kB budget; the tutorial itself is a 25 kB chunk and the guide a 2 kB one,
+neither fetched until opened.
+
+One deviation from the plan, recorded rather than hidden: four of the
+figures are under Vite's 4 kB inlining threshold and are therefore base64 in
+the tutorial chunk rather than separate files. The intent of the rule was to
+keep images out of what a first visit downloads, and that is satisfied —
+they are inside a chunk nobody fetches unless they open the tutorial. Raising
+`assetsInlineLimit` to zero would have changed asset handling for the whole
+app to tidy 12 kB inside a lazy chunk.
+
+### The projects screen gets a different, smaller thing
+
+A question mark left of the cog, wearing the cog's own chrome so the two
+read as a pair, opening a 320 px popover in the `PapersChooser` idiom. It
+*does* call `useDismiss`: nothing behind it needs trying mid-read, and a
+card that follows you around the project list is what that hook exists to
+prevent.
+
+Eight labelled lines and no figures at all — every one of them describes
+something visible behind the card, which is the figure rule applied
+honestly. The two surfaces therefore share their type scale and their
+`Section`/`Keys` primitives but not their component: they differ in width,
+fill, radius, positioning, focus behaviour, dismissal and whether they carry
+images, and a `variant` prop switching all six would be two components
+wearing one name.
+
+### Nothing is remembered, and it never opens itself
+
+No stored progress, no scroll restoration, no auto-open on first run. §4
+already refused an auto-opening drawer in a passage written about exactly
+this temptation, and the app does first-run orientation where it belongs —
+`welcome.ts` puts three paragraphs and two buttons in an agent panel with no
+conversation yet. A tutorial opening on top of that would be two welcomes
+competing for the same thirty seconds. Reopening lands at the top rather
+than where you left off, because somebody reopening it is asking a different
+question from the one that closed it.
+
+### What was left out, and one thing that was found
+
+Installing, the token in the URL and the `.nexttex/` directory tree stay in
+the README and `first-session.md`: the reader is inside a running app, so
+the first two describe a problem they do not have.
+
+**Choosing the agent could not be documented, because it cannot be done.**
+`api.chooseProvider` is reachable only from `SignIn`, which mounts only when
+the agent is not yet configured or the session has expired. Once Claude,
+OpenAI or "on my own" has been chosen there is no control anywhere — not in
+the settings card, not on the projects screen — for changing it. Section 6
+of the tutorial therefore explains how the agent *behaves* and points at the
+README for how it was chosen. This is a missing control rather than a
+documentation gap, and papering over it in a tutorial would have been the
+wrong fix.
+
+## 21. The bundle is compressed once, not on every request
+
+The server was sending 750 kB of JavaScript uncompressed. The obvious fix is
+`GZipMiddleware`, and it is the wrong one.
+
+Measured on the real bundle, over a real socket:
+
+| | latency | over the wire |
+|---|---|---|
+| no compression | 2.3 ms | 750.2 kB |
+| gzip middleware, level 9 (Starlette's default) | 40.7 ms | 236.2 kB |
+| gzip middleware, level 5 | 22.4 ms | 238.9 kB |
+| gzip middleware, level 1 | 11.3 ms | 280.0 kB |
+| **precompressed brotli** | **1.6 ms** | **202.2 kB** |
+
+Compressing per request costs about 38 ms of CPU before the first byte
+moves, every time. Over loopback that is twenty times the latency of doing
+nothing, paid by exactly the people whose link never needed the help. The
+crossover is around 100 Mbit/s: below it the smaller transfer pays for the
+CPU, above it you are buying nothing with real time. A self-hosted editor
+is run on localhost as often as over Tailscale, so no single compression
+level is right for both.
+
+Compressing at build time removes the choice rather than splitting it.
+`npm run build` writes `.br` and `.gz` beside each asset and
+`PrecompressedStatic` hands over whichever the browser asked for. It is
+*faster than sending the file uncompressed* -- 1.6 ms against 2.3 -- because
+there is less of it to read and write, and it is smaller than anything
+worth computing per request.
+
+**Brotli rather than zstd**, on the measurements rather than by reputation:
+at build time brotli quality 11 gets the bundle to 202.2 kB where zstd 19
+manages 210.5 kB, and brotli has been in every browser for years while zstd
+is still missing from Safari. It loses on both size and reach, so there was
+no case for it.
+
+The whole thing costs no dependency at either end. Node's `zlib` has brotli
+built in, so the compressor is a build step nobody has to install; the
+server only reads bytes off disk, so no runtime package either. That
+mattered more than it might elsewhere: this is software other people
+install, and a mandatory native dependency to save 34 kB would have been a
+poor bargain.
+
+Two details that are easy to get wrong and are covered by tests. The
+compressed copy is served with the content type of *what it decompresses
+to*: a browser handed `application/gzip` downloads the file instead of
+running it. And `Vary: Accept-Encoding` goes on every response including
+the uncompressed one, or a cache between the browser and here can hand a
+brotli body to a client that never asked for one.

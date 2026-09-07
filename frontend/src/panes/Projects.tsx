@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import api, { saveBlob, startDownload, type ProjectSummary } from "../api";
 import Logo from "../Logo";
 import Settings from "./Settings";
@@ -6,6 +6,10 @@ import UpdateFooter from "./UpdateFooter";
 import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
 import { useStore } from "../store";
+
+// Lazy, like the in-project tutorial: help text is not something a first
+// visit should have to download before the project list appears.
+const ScreenGuide = lazy(() => import("./tutorial/ScreenGuide"));
 
 /** The project list.  Downloads live here as well as inside an open project:
  *  the moment a copy is most wanted is often before opening anything. */
@@ -19,6 +23,8 @@ export default function Projects({
   canClose: boolean;
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [guide, setGuide] = useState(false);
+  const helpButton = useRef<HTMLButtonElement | null>(null);
   const [path, setPath] = useState("");
   const [mode, setMode] = useState<"add" | "create">("create");
   const [newName, setNewName] = useState("");
@@ -106,11 +112,33 @@ export default function Projects({
             </h1>
             <p className="t-meta mt-1 text-ink-2">{tagline}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="relative flex shrink-0 items-center gap-3">
             {canClose ? (
               <button className="t-ui text-ink-2 hover:text-ink" onClick={onClose}>
                 Back
               </button>
+            ) : null}
+            {/* Understand, then adjust: help sits left of the cog, and wears
+                the cog's own chrome so the two read as a pair. */}
+            <button
+              ref={helpButton}
+              className={`quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3 ${
+                guide ? "bg-surface-3" : ""
+              }`}
+              data-tone={guide ? "on" : undefined}
+              aria-label="About this screen"
+              title="About this screen"
+              aria-haspopup="dialog"
+              aria-expanded={guide}
+              data-testid="about-screen"
+              onClick={() => setGuide((open) => !open)}
+            >
+              <QuestionMark />
+            </button>
+            {guide ? (
+              <Suspense fallback={null}>
+                <ScreenGuide anchor={helpButton} onClose={() => setGuide(false)} />
+              </Suspense>
             ) : null}
             <Settings />
           </div>
@@ -270,5 +298,29 @@ export default function Projects({
         <UpdateFooter onBusy={setLocked} />
       </div>
     </div>
+  );
+}
+
+/** A question mark, at the cog's weight.
+ *
+ *  1.7px stroke at this size is what keeps the bowl open at 100% and the
+ *  counter clear at 150%; the dot is filled rather than stroked, because a
+ *  ring that small closes up into a blob. */
+function QuestionMark() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5.3 5.9A2.75 2.75 0 1 1 8.6 9.0L8 9.9" />
+      <circle cx="8" cy="12.6" r="1.05" fill="currentColor" stroke="none" />
+    </svg>
   );
 }

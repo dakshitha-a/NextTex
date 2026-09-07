@@ -49,6 +49,7 @@ export default function Diagnostics({
   return (
     <div
       className="flex shrink-0 flex-col border-t border-line bg-surface"
+      data-testid="diagnostics"
       style={{ height }}
     >
       <div
