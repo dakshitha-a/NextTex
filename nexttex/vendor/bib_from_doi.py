@@ -6,8 +6,8 @@ hand or from memory.  You give it a DOI; it asks Crossref for that
 DOI's own BibTeX and writes down what comes back.  If the DOI does not
 exist, nothing is written.
 
-    tools/bib_from_doi.py 10.1063/5.0274633
-    tools/bib_from_doi.py 10.1063/5.0274633 --key Abeygunewardane2025onp
+    tools/bib_from_doi.py 10.1103/PhysRev.28.1049
+    tools/bib_from_doi.py 10.1103/PhysRev.28.1049 --key Schrodinger1926undulatory
     tools/bib_from_doi.py --file dois.txt
 
 Entries are appended to references.bib.  A DOI already present is
@@ -89,7 +89,7 @@ def ascii_fold(text):
 
 
 def make_key(meta):
-    """FirstAuthorYYYYkeyword, e.g. Abeygunewardane2025excitation."""
+    """FirstAuthorYYYYkeyword, e.g. Schrodinger1926undulatory."""
     authors = meta.get("author") or []
     surname = ascii_fold(authors[0].get("family", "")) if authors else ""
     if not surname:

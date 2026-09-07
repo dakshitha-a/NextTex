@@ -144,7 +144,7 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
                     {naming === failure.sha ? (
                       <input
                         autoFocus
-                        placeholder="10.1063/5.0274633"
+                        placeholder="10.1103/PhysRev.28.1049"
                         className={`t-code-sm mt-1 w-full border-b bg-transparent outline-none placeholder:text-ink-3 ${
                           problem ? "border-error" : "border-pen"
                         }`}

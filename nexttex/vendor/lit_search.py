@@ -11,11 +11,11 @@ the bibliography.
     tools/lit_search.py "trajectory surface hopping decoherence"
     tools/lit_search.py --author Feynman --year 2020- "quantum dynamics"
     tools/lit_search.py --source openalex "FOMO-CASCI"
-    tools/lit_search.py --cited-by 10.1063/5.0274633
+    tools/lit_search.py --cited-by 10.1103/PhysRev.28.1049
 
 Then:
 
-    tools/bib_from_doi.py 10.1063/5.0274633
+    tools/bib_from_doi.py 10.1103/PhysRev.28.1049
 
 Sources: Crossref (default, best metadata), OpenAlex (best relevance
 ranking and citation counts), Semantic Scholar (good for preprints and

@@ -3,8 +3,8 @@ import { shortRule } from "./Chat";
 
 describe("shortRule", () => {
   it("keeps the end of a path, which is the part being agreed to", () => {
-    expect(shortRule("write:/home/dakshitha/writing/shared.bib")).toBe(
-      "write: …/writing/shared.bib",
+    expect(shortRule("write:/home/writer/papers/shared.bib")).toBe(
+      "write: …/papers/shared.bib",
     );
   });
 

@@ -67,8 +67,8 @@ class TestFindingTheDoi:
     def test_a_labelled_doi_beats_a_bare_one(self, tmp_path):
         """A DOI next to the word "doi" is the paper's own far more often
         than a bare one, which may well be something it cites."""
-        text = "Some reference list entry 10.9999/cited.1\n\nDOI: 10.1063/5.0274633\n"
-        assert dois_in(text, "paper.pdf")[0] == "10.1063/5.0274633"
+        text = "Some reference list entry 10.9999/cited.1\n\nDOI: 10.1103/PhysRev.28.1049\n"
+        assert dois_in(text, "paper.pdf")[0] == "10.1103/PhysRev.28.1049"
 
     def test_the_full_stop_at_the_end_of_a_sentence_is_not_part_of_the_doi(self):
         found = dois_in("published at doi:10.1021/acs.jpca.1c00001.", "x.pdf")
@@ -80,8 +80,8 @@ class TestFindingTheDoi:
         assert dois_in("doi:10.1371/journal.pone.0012345.s001", "x.pdf") == []
 
     def test_a_filename_that_is_a_doi_is_tried_when_the_text_has_none(self):
-        found = dois_in("no identifier here", "10.1063_5.0274633.pdf")
-        assert found == ["10.1063/5.0274633"]
+        found = dois_in("no identifier here", "10.1103_PhysRev.28.1049.pdf")
+        assert found == ["10.1103/PhysRev.28.1049"]
 
     def test_only_the_front_matter_is_searched(self):
         """A DOI in the bibliography is a paper this paper cites."""
