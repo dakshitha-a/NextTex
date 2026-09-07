@@ -4,7 +4,15 @@
     "forty source files, two megabytes of LaTeX, a populated build directory",
     "and a .git with a working tree.  These are budgets, not records -- the",
     "point is to notice a regression, not to celebrate a number.  Anything",
-    "that goes over prints what it measured and exits nonzero."
+    "that goes over prints what it measured and exits nonzero.",
+    "",
+    "bundle.initial_kb was raised from 760 to 775 when spell checking was",
+    "added: the switch, the settings row and the editor's side of it are",
+    "about four kilobytes that ship whether or not anyone turns it on. The",
+    "checker itself and its 98 kB word list are not in this number and are",
+    "not supposed to be -- they are fetched the first time the setting is",
+    "switched on and never otherwise, which is the whole reason a word list",
+    "this size is affordable at all."
   ],
   "symbols.scan_ms": 400,
   "symbols.cached_ms": 6,
@@ -18,5 +26,5 @@
   "download.zip_ms": 3000,
   "compile.chapter_ms": 4000,
   "compile.full_ms": 30000,
-  "bundle.initial_kb": 760
+  "bundle.initial_kb": 775
 }

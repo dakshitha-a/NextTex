@@ -34,6 +34,56 @@ import {
  *  threading it through four mount points would be four chances to
  *  disagree.
  */
+/** A row offering two or three mutually exclusive settings.
+ *
+ *  Four of these appear one under another, and they were four copies of the
+ *  same markup.  The names have to be distinct in the accessibility tree --
+ *  "Light" means one thing in the Theme row and another in the Editor row
+ *  directly below it -- so each button is labelled with its group's name as
+ *  well as its own.
+ */
+function Choice<T extends string | boolean>({
+  label,
+  options,
+  value,
+  name,
+  onPick,
+}: {
+  label: string;
+  options: readonly { value: T; text: string; id: string }[];
+  value: T;
+  name: string;
+  onPick: (value: T) => void;
+}) {
+  return (
+    <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
+      <span className="t-meta text-ink-2">{label}</span>
+      <div
+        role="group"
+        aria-label={name}
+        className="flex shrink-0 overflow-hidden rounded-[3px] border border-line"
+      >
+        {options.map((option) => (
+          <button
+            key={option.id}
+            aria-pressed={value === option.value}
+            aria-label={`${label} ${option.text.toLowerCase()}`}
+            className={`t-micro px-2 py-[3px] transition-colors duration-[90ms] ${
+              value === option.value
+                ? "bg-surface-3 text-ink"
+                : "text-ink-3 hover:text-ink"
+            }`}
+            data-testid={option.id}
+            onClick={() => onPick(option.value)}
+          >
+            {option.text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Settings({
   onTutorial,
   onChangeAgent,
@@ -118,29 +168,16 @@ export default function Settings({
           </div>
 
           <Heading>Appearance</Heading>
-          <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
-            <span className="t-meta text-ink-2">Theme</span>
-            <div
-              role="group"
-              aria-label="Theme"
-              className="flex shrink-0 overflow-hidden rounded-[3px] border border-line"
-            >
-              {(["light", "dark"] as const).map((option) => (
-                <button
-                  key={option}
-                  aria-pressed={look.theme === option}
-                  className={`t-micro px-2 py-[3px] transition-colors duration-[90ms] ${
-                    look.theme === option
-                      ? "bg-surface-3 text-ink"
-                      : "text-ink-3 hover:text-ink"
-                  }`}
-                  onClick={() => change({ theme: option })}
-                >
-                  {option === "light" ? "Light" : "Dark"}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Choice
+            label="Theme"
+            name="Theme"
+            value={look.theme}
+            options={[
+              { value: "light", text: "Light", id: "theme-light" },
+              { value: "dark", text: "Dark", id: "theme-dark" },
+            ] as const}
+            onPick={(theme) => change({ theme })}
+          />
 
           <SizeRow
             label="Interface"
@@ -163,35 +200,17 @@ export default function Settings({
               want it out of the way in the dark; the editor is the page
               being written, and a writer who thinks in paper wants that
               white whatever the frame is doing. */}
-          <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
-            <span className="t-meta text-ink-2">Editor</span>
-            <div
-              role="group"
-              aria-label="Editor background"
-              className="flex shrink-0 overflow-hidden rounded-[3px] border border-line"
-            >
-              {(["match", "light", "dark"] as const).map((option) => (
-                <button
-                  key={option}
-                  aria-pressed={look.editorTheme === option}
-                  // Named apart from the theme row directly above, which
-                  // offers "Light" and "Dark" too.  Two buttons with one
-                  // name in adjacent groups is ambiguous read aloud, not
-                  // only to a test looking for one of them.
-                  aria-label={`Editor ${option}`}
-                  className={`t-micro px-2 py-[3px] transition-colors duration-[90ms] ${
-                    look.editorTheme === option
-                      ? "bg-surface-3 text-ink"
-                      : "text-ink-3 hover:text-ink"
-                  }`}
-                  data-testid={`editor-theme-${option}`}
-                  onClick={() => change({ editorTheme: option })}
-                >
-                  {option === "match" ? "Match" : option === "light" ? "Light" : "Dark"}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Choice
+            label="Editor"
+            name="Editor background"
+            value={look.editorTheme}
+            options={[
+              { value: "match", text: "Match", id: "editor-theme-match" },
+              { value: "light", text: "Light", id: "editor-theme-light" },
+              { value: "dark", text: "Dark", id: "editor-theme-dark" },
+            ] as const}
+            onPick={(editorTheme) => change({ editorTheme })}
+          />
 
           {/* Colouring the control sequences is a setting rather than the
               look, and it is off by default.  The rendered page is two panes
@@ -200,31 +219,32 @@ export default function Settings({
               earns it properly, because a long chapter is far easier to skim
               for its equations and its headings when they are not all the
               same shade of ink. */}
-          <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
-            <span className="t-meta text-ink-2">Highlighting</span>
-            <div
-              role="group"
-              aria-label="Syntax highlighting"
-              className="flex shrink-0 overflow-hidden rounded-[3px] border border-line"
-            >
-              {(["subtle", "colour"] as const).map((option) => (
-                <button
-                  key={option}
-                  aria-pressed={look.syntax === option}
-                  aria-label={`Highlighting ${option}`}
-                  className={`t-micro px-2 py-[3px] transition-colors duration-[90ms] ${
-                    look.syntax === option
-                      ? "bg-surface-3 text-ink"
-                      : "text-ink-3 hover:text-ink"
-                  }`}
-                  data-testid={`syntax-${option}`}
-                  onClick={() => change({ syntax: option })}
-                >
-                  {option === "subtle" ? "Subtle" : "Colour"}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Choice
+            label="Highlighting"
+            name="Syntax highlighting"
+            value={look.syntax}
+            options={[
+              { value: "subtle", text: "Subtle", id: "syntax-subtle" },
+              { value: "colour", text: "Colour", id: "syntax-colour" },
+            ] as const}
+            onPick={(syntax) => change({ syntax })}
+          />
+
+          {/* Off by default.  It fetches a word list, and until a writer
+              has told it about the vocabulary of their own subject it has
+              something to say about a great many correctly spelled words --
+              which is the state in which a checker gets switched off and
+              never switched back on. */}
+          <Choice
+            label="Spelling"
+            name="Spell checking"
+            value={look.spelling}
+            options={[
+              { value: false, text: "Off", id: "spelling-off" },
+              { value: true, text: "On", id: "spelling-on" },
+            ] as const}
+            onPick={(spelling) => change({ spelling })}
+          />
 
           {/* Absent rather than disabled when there is no project open --
               on the project list and the sign-in screen.  A control that

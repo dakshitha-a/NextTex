@@ -16,6 +16,7 @@ six months later on a real chapter.
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import shutil
 import statistics
@@ -226,16 +227,28 @@ def zip_size(root: Path) -> int:
 
 
 def bundle_size() -> dict | None:
-    """The JavaScript a first visit has to download before anything draws."""
-    assets = ROOT / "frontend" / "dist" / "assets"
-    if not assets.is_dir():
+    """The JavaScript a first visit has to download before anything draws.
+
+    Read out of the built index.html rather than matched by name.  Globbing
+    `index-*.js` meant any lazily imported module that happened to live in
+    an `index.ts` was counted as though a first visit downloaded it -- the
+    spell checker's word list did exactly that, and turned a 98 kB chunk
+    nobody fetches unless they ask for it into an apparent 300 kB
+    regression.  The entry point is a fact the build already records.
+    """
+    dist = ROOT / "frontend" / "dist"
+    try:
+        html = (dist / "index.html").read_text(encoding="utf-8")
+    except OSError:
         return None
-    initial = [
-        path for path in assets.glob("index-*.js")
-    ]
-    if not initial:
+    entries = re.findall(r'<script[^>]+src="([^"]+\.js)"', html)
+    total = 0.0
+    for src in entries:
+        path = dist / src.lstrip("/")
+        if path.is_file():
+            total += path.stat().st_size / 1024
+    if not total:
         return None
-    total = sum(path.stat().st_size for path in initial) / 1024
     return {"name": "bundle.initial_kb", "unit": "kB",
             "median": round(total, 1), "p95": round(total, 1), "runs": 1}
 

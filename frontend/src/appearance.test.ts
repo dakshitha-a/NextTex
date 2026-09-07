@@ -45,11 +45,11 @@ describe("what is remembered", () => {
   it("reads back what was applied", () => {
     applyAppearance({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
-      syntax: "colour",
+      syntax: "colour", spelling: true,
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
-      syntax: "colour",
+      syntax: "colour", spelling: true,
     });
   });
 
@@ -62,13 +62,20 @@ describe("what is remembered", () => {
   it("stamps the document so CSS can use it", () => {
     applyAppearance({
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
-      syntax: "colour",
+      syntax: "colour", spelling: true,
     });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");
     expect(root.style.getPropertyValue("--nx-ui-scale")).toBe("1.5");
     expect(root.style.getPropertyValue("--nx-editor-size")).toBe("21px");
     expect(root.dataset.syntax).toBe("colour");
+    expect(root.dataset.spelling).toBe("on");
+  });
+
+  it("leaves spell checking off until it is asked for", () => {
+    // It downloads a word list and, before the writer has taught it their
+    // own vocabulary, has something to say about a great many correct words.
+    expect(storedAppearance().spelling).toBe(false);
   });
 
   it("keeps the subtle highlighting when nothing has asked for colour", () => {

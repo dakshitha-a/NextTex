@@ -38,6 +38,12 @@ export type Appearance = {
   editorTheme: EditorTheme;
   /** Whether control sequences are coloured by family. */
   syntax: SyntaxMode;
+  /** Whether the prose is spell checked.
+   *
+   *  Off by default, and deliberately: it downloads a word list, and until
+   *  a writer has told it about the vocabulary of their own subject it has
+   *  something to say about a great many correctly spelled words. */
+  spelling: boolean;
 };
 
 /** The steps the two size controls offer.  Discrete stops rather than a
@@ -48,7 +54,7 @@ export const EDITOR_SIZES = [12, 13.5, 15, 17, 19, 21];
 
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
-  syntax: "subtle",
+  syntax: "subtle", spelling: false,
 };
 
 const KEYS = {
@@ -57,6 +63,7 @@ const KEYS = {
   editor: "nexttex.editor.size",
   editorTheme: "nexttex.editor.theme",
   syntax: "nexttex.editor.syntax",
+  spelling: "nexttex.editor.spelling",
 };
 
 /** localStorage throws rather than returning null in a private window, or
@@ -97,6 +104,7 @@ export function storedAppearance(): Appearance {
   const editor = Number(read(KEYS.editor));
   const editorTheme = read(KEYS.editorTheme);
   const syntax = read(KEYS.syntax);
+  const spelling = read(KEYS.spelling);
   return {
     // Dark by default: this is an instrument you sit in front of for hours,
     // beside a white page that supplies all the brightness the eye needs.
@@ -108,6 +116,7 @@ export function storedAppearance(): Appearance {
         ? editorTheme
         : DEFAULTS.editorTheme,
     syntax: syntax === "colour" || syntax === "subtle" ? syntax : DEFAULTS.syntax,
+    spelling: spelling === "on",
   };
 }
 
@@ -131,12 +140,14 @@ export function applyAppearance(appearance: Appearance): void {
   // paint rather than one frame after it.
   root.dataset.editorTheme = appearance.editorTheme;
   root.dataset.syntax = appearance.syntax;
+  root.dataset.spelling = appearance.spelling ? "on" : "off";
 
   write(KEYS.theme, appearance.theme);
   write(KEYS.scale, String(appearance.scale));
   write(KEYS.editor, String(appearance.editor));
   write(KEYS.editorTheme, appearance.editorTheme);
   write(KEYS.syntax, appearance.syntax);
+  write(KEYS.spelling, appearance.spelling ? "on" : "off");
 
   // The preview draws to a canvas whose backing store is sized for the
   // scale in force when it was drawn, so it has to be told rather than left
@@ -154,6 +165,7 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.scale === DEFAULTS.scale &&
     appearance.editor === DEFAULTS.editor &&
     appearance.editorTheme === DEFAULTS.editorTheme &&
-    appearance.syntax === DEFAULTS.syntax
+    appearance.syntax === DEFAULTS.syntax &&
+    appearance.spelling === DEFAULTS.spelling
   );
 }

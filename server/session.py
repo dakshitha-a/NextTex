@@ -19,6 +19,7 @@ from nexttex.library import Library
 from nexttex.providers import agent_for
 from nexttex.compile import CompileResult, CompileScheduler, Outcome, ProjectPaths
 from nexttex.context import ProjectContext
+from nexttex.dictionary import ProjectDictionary
 from nexttex.atomic import read_text, write_atomically
 from nexttex.history import History
 from nexttex.symbols import SymbolCache
@@ -158,6 +159,7 @@ class ProjectSession:
         self.symbols = SymbolCache(project.root)
         self.trash = Trash(project.state_dir / "trash", self.history, project.root)
         self.library = Library(project.state_dir / "library")
+        self.dictionary = ProjectDictionary(project.state_dir)
         self.events = Broadcaster()
 
         self.paths = ProjectPaths(
