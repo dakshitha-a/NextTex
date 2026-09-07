@@ -285,6 +285,14 @@ export default function Tutorial({
             <C>⌘⌥A</C> shows and hides the panel and leaves the caret in the
             box.
           </P>
+          <P>
+            Which agent answers is under <C>Agent</C> in the cog: Claude,
+            an OpenAI key, or nobody at all. Working on your own removes the
+            chat column rather than greying it out, and everything else in
+            the app is unchanged. Changing it closes whatever conversations
+            are open, because each one belongs to the agent that was
+            answering.
+          </P>
         </Section>
 
         <Section id="context" title="Teaching it your template and your voice">

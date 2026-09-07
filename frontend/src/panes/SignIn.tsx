@@ -20,7 +20,16 @@ import api from "../api";
 
 type Choice = "claude" | "openai" | "none" | null;
 
-export default function SignIn({ onDone }: { onDone: () => void }) {
+export default function SignIn({
+  onDone,
+  onCancel,
+}: {
+  onDone: () => void;
+  /** Present when this was reached from Settings rather than at boot.
+   *  Without it there is no way out of a screen somebody opened to look,
+   *  and the only escape is to choose something. */
+  onCancel?: () => void;
+}) {
   const [choice, setChoice] = useState<Choice>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,9 +43,20 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
               Write LaTeX with the typeset page beside you.
             </p>
           </div>
-          {/* One 26px control on a first-run screen is the right price for a
-              first-run reader who cannot comfortably read 13px. */}
-          <Settings />
+          <div className="flex shrink-0 items-center gap-3">
+            {onCancel ? (
+              <button
+                className="t-ui text-ink-2 hover:text-ink"
+                data-testid="signin-back"
+                onClick={onCancel}
+              >
+                Back
+              </button>
+            ) : null}
+            {/* One 26px control on a first-run screen is the right price for
+                a first-run reader who cannot comfortably read 13px. */}
+            <Settings />
+          </div>
         </div>
 
         {choice === null ? (

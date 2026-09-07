@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import api from "../api";
 import { get, set, useStore } from "../store";
+import { agentName } from "../agent-name";
 import { useDismiss } from "../useDismiss";
 import {
   DEFAULTS,
@@ -35,12 +36,15 @@ import {
  */
 export default function Settings({
   onTutorial,
+  onChangeAgent,
   align = "right",
   inProject = false,
 }: {
   /** Opens the tutorial sheet.  Absent on the projects screen, which has a
    *  question mark of its own for the same job. */
   onTutorial?: () => void;
+  /** Goes back to the screen that chose the agent. */
+  onChangeAgent?: () => void;
   align?: "left" | "right";
   /** Whether a project is on screen.  Asked of the mount point rather than
    *  read from the store: leaving the editor for the project list does not
@@ -53,6 +57,7 @@ export default function Settings({
   const [open, setOpen] = useState(false);
   const [look, setLook] = useState<Appearance>(() => storedAppearance());
   const projectId = useStore((s) => s.projectId);
+  const provider = useStore((s) => s.agent)?.provider;
   const project = useStore((s) => s.settings);
   const card = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
@@ -153,6 +158,40 @@ export default function Settings({
             display={`${look.editor}px`}
             onChange={(editor) => change({ editor })}
           />
+          {/* The editor is lit separately because the two are answering
+              different questions.  The shell is chrome, and plenty of people
+              want it out of the way in the dark; the editor is the page
+              being written, and a writer who thinks in paper wants that
+              white whatever the frame is doing. */}
+          <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
+            <span className="t-meta text-ink-2">Editor</span>
+            <div
+              role="group"
+              aria-label="Editor background"
+              className="flex shrink-0 overflow-hidden rounded-[3px] border border-line"
+            >
+              {(["match", "light", "dark"] as const).map((option) => (
+                <button
+                  key={option}
+                  aria-pressed={look.editorTheme === option}
+                  // Named apart from the theme row directly above, which
+                  // offers "Light" and "Dark" too.  Two buttons with one
+                  // name in adjacent groups is ambiguous read aloud, not
+                  // only to a test looking for one of them.
+                  aria-label={`Editor ${option}`}
+                  className={`t-micro px-2 py-[3px] transition-colors duration-[90ms] ${
+                    look.editorTheme === option
+                      ? "bg-surface-3 text-ink"
+                      : "text-ink-3 hover:text-ink"
+                  }`}
+                  data-testid={`editor-theme-${option}`}
+                  onClick={() => change({ editorTheme: option })}
+                >
+                  {option === "match" ? "Match" : option === "light" ? "Light" : "Dark"}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Absent rather than disabled when there is no project open --
               on the project list and the sign-in screen.  A control that
@@ -161,6 +200,35 @@ export default function Settings({
               project would be lying about which project they belonged to.
               The app already works this way: the trash section appears
               only when it holds something. */}
+          {/* Who is writing alongside you.  The sign-in screen has always
+              said "You can change this later", and until now nothing in the
+              app could: `chooseProvider` was reachable only from that
+              screen, which mounts only before an agent is configured or
+              after a session expires.  A promise the interface made and
+              could not keep. */}
+          {onChangeAgent ? (
+            <>
+              <Heading>Agent</Heading>
+              <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
+                <span className="t-meta min-w-0 truncate text-ink-2">
+                  {provider === "none"
+                    ? "Working on your own"
+                    : agentName(provider)}
+                </span>
+                <button
+                  className="quiet t-micro shrink-0"
+                  data-testid="change-agent"
+                  onClick={() => {
+                    close();
+                    onChangeAgent();
+                  }}
+                >
+                  Change
+                </button>
+              </div>
+            </>
+          ) : null}
+
           {inProject && projectId ? (
             <>
               <Heading>This project</Heading>
