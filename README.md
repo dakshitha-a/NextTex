@@ -37,10 +37,14 @@ the tab. No database, no Docker, no nginx.
   a wrong DOI is refused rather than added.
 - **Reading and writing modes**: double-click a pane header to give it the
   window, and again to get your layout back.
+- **The editor is lit on its own terms.** Light, dark, or matching the
+  interface, so a dark shell can hold a white page. The syntax colours and
+  the gutter follow it.
 - **Search and drag in the file list**, with open files following a folder
   that moves.
 - **Choose Claude, OpenAI, or no agent at all.** The last is a real option,
-  not a degraded one.
+  not a degraded one, and the choice can be changed later in the settings
+  card rather than only when you first sign in.
 - **Nothing leaves the machine** except what you asked for. No telemetry.
 
 ## Installing
