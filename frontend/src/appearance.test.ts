@@ -43,8 +43,8 @@ describe("what is remembered", () => {
   });
 
   it("reads back what was applied", () => {
-    applyAppearance({ theme: "light", scale: 125, editor: 17 });
-    expect(storedAppearance()).toEqual({ theme: "light", scale: 125, editor: 17 });
+    applyAppearance({ theme: "light", scale: 125, editor: 17, editorTheme: "match" });
+    expect(storedAppearance()).toEqual({ theme: "light", scale: 125, editor: 17, editorTheme: "match" });
   });
 
   it("ignores a stored value that is not a size", () => {
@@ -54,7 +54,7 @@ describe("what is remembered", () => {
   });
 
   it("stamps the document so CSS can use it", () => {
-    applyAppearance({ theme: "light", scale: 150, editor: 21 });
+    applyAppearance({ theme: "light", scale: 150, editor: 21, editorTheme: "match" });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");
     expect(root.style.getPropertyValue("--nx-ui-scale")).toBe("1.5");

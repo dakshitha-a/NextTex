@@ -22,7 +22,14 @@
 
    --paper is never themed.  PDF.js paints it, and it is white in both.
    ----------------------------------------------------------------------- */
-:root {
+/* The light palette, and the class that hands it to a subtree.  The editor
+   can be lit independently of the app -- some people want a dark shell
+   around a white page, which is what they are typesetting -- and it is the
+   same set of tokens either way rather than a second palette to keep in
+   step.  Every colour the editor draws with, including its syntax
+   highlighting and its error markers, resolves through these. */
+:root,
+.nx-theme-light {
   /* Four surfaces, five L* apart each, from the pane down to the frame:
      91.2 / 86.2 / 81.2 / 76.4.  --surface used to sit at #F0F3EF, eleven
      luminance points off white, which made the panes almost as bright as
@@ -65,11 +72,17 @@
      tooltips, the history panel. */
   --float: 0 4px 16px rgba(0, 0, 0, 0.18);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  /* Overwritten by appearance.ts before the first paint; the values
-     here are what the app was drawn at. */
+  color-scheme: light;
+}
+
+/* Not in the palette above, because `.nx-theme-light` shares that block and
+   applies it to a subtree: redeclaring these there would shadow the values
+   appearance.ts sets on the root, and the editor would stop answering the
+   text-size control.  Overwritten before the first paint; the values here
+   are what the app was drawn at. */
+:root {
   --nx-ui-scale: 1;
   --nx-editor-size: 13.5px;
-  color-scheme: light;
 }
 
 /* The dark palette is declared once.  There used to be a second copy under
@@ -81,7 +94,8 @@
    one and dark on frame two.  A blocking script in index.html stamps
    data-theme before this stylesheet is applied, which is both a smaller
    flash and an honest one. */
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+.nx-theme-dark {
   --surround: #0A0C0B;
   --surface: #121614;
   --surface-2: #1E2320;
@@ -264,6 +278,12 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* ---- CodeMirror ------------------------------------------------------- */
+/* The editor carries `nx-theme-light` or `nx-theme-dark` when it has been
+   lit on its own terms, which hands that palette to this subtree only --
+   background, three inks, the syntax colours that resolve through them and
+   the accent markers in the gutter all follow.  The rail, the tabs and the
+   status strip stay in the interface's theme: what is lit differently is
+   the page, not the app around it. */
 .cm-editor { height: 100%; background: var(--surface); color: var(--ink); }
 /* The one size the writer sets directly.  Line height is unitless so it
    tracks the size -- a fixed 22px under 21px text is unreadable -- and the

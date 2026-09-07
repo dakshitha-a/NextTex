@@ -75,7 +75,12 @@ test("reset puts everything back", async ({ tab }) => {
   await open(tab);
   await tab.getByRole("button", { name: "Larger editor text" }).click();
   await tab.getByRole("button", { name: "Larger interface" }).click();
-  await tab.getByRole("button", { name: "Light" }).click();
+  // Scoped to the theme group: the editor now has a light/dark toggle of
+  // its own directly below, and "Light" alone no longer names one button.
+  await tab
+    .getByRole("group", { name: "Theme" })
+    .getByRole("button", { name: "Light" })
+    .click();
 
   await tab.getByRole("button", { name: "Reset appearance" }).click();
   await expect(tab.locator(".cm-scroller")).toHaveCSS("font-size", "13.5px");
@@ -198,4 +203,61 @@ test("a keystroke during a build is not forgotten when the build lands", async (
       timeout: 45_000,
     })
     .toBe("stale");
+});
+
+test("the editor can be lit apart from the rest of the app", async ({ tab }) => {
+  // A dark shell around a white page is the point: what is being lit
+  // differently is the document, not the app around it.
+  await tab.getByTestId("appearance").click();
+  await tab.getByRole("group", { name: "Theme" }).getByRole("button", { name: "Dark" }).click();
+  await tab.getByTestId("editor-theme-light").click();
+
+  const editorBackground = await tab
+    .locator(".cm-editor")
+    .evaluate((node) => getComputedStyle(node).backgroundColor);
+  const railBackground = await tab
+    .locator('[role="tree"]')
+    .evaluate((node) => getComputedStyle(node).backgroundColor);
+
+  // The editor is light, the shell is not.
+  const lightness = (colour: string) =>
+    colour.match(/\d+/g)!.slice(0, 3).reduce((a, b) => a + Number(b), 0) / 3;
+  expect(lightness(editorBackground)).toBeGreaterThan(180);
+  expect(lightness(railBackground)).toBeLessThan(80);
+
+  // And the syntax colours followed it, rather than staying the dark
+  // theme's inks on a white page.
+  const ink = await tab
+    .locator(".cm-content")
+    .evaluate((node) => getComputedStyle(node).color);
+  expect(lightness(ink)).toBeLessThan(90);
+});
+
+test("matching is the default, and putting it back matches again", async ({
+  tab,
+}) => {
+  await tab.getByTestId("appearance").click();
+  await tab.getByRole("group", { name: "Theme" }).getByRole("button", { name: "Dark" }).click();
+  await tab.getByTestId("editor-theme-light").click();
+  await tab.getByTestId("editor-theme-match").click();
+
+  const editorBackground = await tab
+    .locator(".cm-editor")
+    .evaluate((node) => getComputedStyle(node).backgroundColor);
+  const lightness = (colour: string) =>
+    colour.match(/\d+/g)!.slice(0, 3).reduce((a, b) => a + Number(b), 0) / 3;
+  expect(lightness(editorBackground)).toBeLessThan(80);
+});
+
+test("an editor lit on its own terms survives a reload", async ({ tab }) => {
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("editor-theme-light").click();
+  await tab.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
+  const editorBackground = await tab
+    .locator(".cm-editor")
+    .evaluate((node) => getComputedStyle(node).backgroundColor);
+  const lightness = (colour: string) =>
+    colour.match(/\d+/g)!.slice(0, 3).reduce((a, b) => a + Number(b), 0) / 3;
+  expect(lightness(editorBackground)).toBeGreaterThan(180);
 });
