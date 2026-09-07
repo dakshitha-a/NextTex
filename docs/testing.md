@@ -161,3 +161,30 @@ actually built on -- a question always produces a `done`, Stop is never a
 silent no-op, a second question while one is running is refused, usage
 carries the fields the footer reads. It found three divergences the first
 time it ran, in three different classes.
+
+## A curated pair list only covers the pairs somebody thought of
+
+`contrast.test.ts` measures every colour pairing the app uses against WCAG,
+and its own comment explains why the list is written by hand: a grep for
+every `color` and `background` in the same rule invents pairs that never
+meet on screen. That is the right call, and it has a cost that took a while
+to surface.
+
+`--surround` is the ground behind the panes, darker than the three surfaces.
+The list certified `--ink` against it and stopped there. The projects screen
+puts small text on that plane, and `--ink-3` measures **4.17:1** there,
+under the 4.5 that small text needs. The unit test could not see it, because
+the pairing was not in the list; axe did see it, in the browser, on the real
+screen -- and it looked like a flake for a while because the update footer
+renders six different states and only some of them carry dim text.
+
+Two lessons rather than one. A hand-curated list needs a rule for what goes
+in it: every ground the app paints, against every ink it puts on that
+ground. And an intermittent failure in a test that renders a component with
+several states is usually the states, not the timing -- calling it flaky and
+re-running it is how it survives.
+
+The pairing is now prevented rather than certified: `.nx-on-surround` steps
+the dimmest ink up to `--ink-2` (6.04:1), and `["ink-3", "surround"]` is
+deliberately absent from the list, with a comment saying that adding it back
+is meant to fail.
