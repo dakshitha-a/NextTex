@@ -161,3 +161,9 @@ describe("verbatim inline", () => {
     expect(words("run \\verb+xyzzyy+ now")).toEqual(["run", "now"]);
   });
 });
+
+describe("a display on a single line is not prose either", () => {
+  test("bracket delimiters", () => {
+    expect(words("before \\[ \\text{teh} \\] after")).toEqual(["before", "after"]);
+  });
+});
