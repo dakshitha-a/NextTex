@@ -52,7 +52,7 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
   // First run: one card, dismissible, and once it is gone it stays gone.
   if (status && (!status.repository || !status.remote) && !dismissed && !wizard) {
     return (
-      <div className="shrink-0 border-t border-line p-[8px]">
+      <div className="shrink-0 border-t border-line p-[8px]" data-testid="git-setup">
         <div className="rounded-[5px] border border-line p-3">
           <div className="t-ui text-ink">Back this up to GitHub</div>
           <p className="t-meta mt-1 text-ink-2">

@@ -34,9 +34,13 @@ import {
  *  disagree.
  */
 export default function Settings({
+  onTutorial,
   align = "right",
   inProject = false,
 }: {
+  /** Opens the tutorial sheet.  Absent on the projects screen, which has a
+   *  question mark of its own for the same job. */
+  onTutorial?: () => void;
   align?: "left" | "right";
   /** Whether a project is on screen.  Asked of the mount point rather than
    *  read from the store: leaving the editor for the project list does not
@@ -184,7 +188,27 @@ export default function Settings({
           {/* Appearance only, and it says so.  A reset that quietly turned
               compile-as-you-type back on would be an action nobody asked
               for, hiding inside a word that sounds harmless. */}
-          <div className="flex h-[32px] items-center justify-end border-t border-line px-[10px]">
+          {/* Tutorial sits in the actions row rather than among the
+              switches: it is something the card *does*, not something it
+              holds the state of. */}
+          <div className="flex h-[32px] items-center justify-between border-t border-line px-[10px]">
+            {inProject && projectId && onTutorial ? (
+              <button
+                className="quiet t-micro"
+                data-testid="tutorial-open"
+                onClick={() => {
+                  // `close()` rather than `setOpen(false)`: it puts focus
+                  // back on the cog, which is what the sheet then reads as
+                  // the thing to return focus to when it is dismissed.
+                  close();
+                  onTutorial();
+                }}
+              >
+                Tutorial
+              </button>
+            ) : (
+              <span />
+            )}
             <button
               className="quiet t-micro"
               disabled={isDefault(look)}

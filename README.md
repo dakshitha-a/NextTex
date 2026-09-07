@@ -441,6 +441,11 @@ Delete `.nexttex/` and you have exactly the LaTeX project you started with.
 
 ## Documentation
 
+There is a tutorial inside the app: the cog in the file list's masthead has a
+**Tutorial** entry, and the projects screen has a question mark beside its
+cog. Both explain what is on the screen you are looking at, which is usually
+faster than the files below.
+
 - [docs/first-session.md](docs/first-session.md): the long version of the
   walkthrough above.
 - [docs/design.md](docs/design.md): the specification the interface was built

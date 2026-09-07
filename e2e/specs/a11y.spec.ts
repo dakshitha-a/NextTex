@@ -170,3 +170,68 @@ test("Escape closes the chooser and gives focus back", async ({ tab }) => {
   // Back where it started, rather than at the top of the document.
   await expect(tab.getByTestId("upload")).toBeFocused();
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`the tutorial is usable in the ${theme} theme`, async ({ page, tab }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await tab.getByTestId("appearance").click();
+    await tab.getByTestId("tutorial-open").click();
+    await expect(tab.getByTestId("tutorial")).toBeVisible();
+    const found = await violations(tab);
+    expect(describeAll(found)).toBe("");
+  });
+
+  test(`the projects guide is usable in the ${theme} theme`, async ({
+    app,
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto(`${app.base}/?token=${app.token}`);
+    // `/project/i`, as the test above it does: the screen's own words are
+    // "Create project" and "A new project starts blank", never "Projects".
+    await page.getByText(/project/i).first().waitFor();
+    await page.getByTestId("about-screen").click();
+    await expect(page.getByTestId("screen-guide")).toBeVisible();
+    const found = await violations(page);
+    expect(describeAll(found)).toBe("");
+  });
+}
+
+test("Escape closes the tutorial and gives focus back to the cog", async ({
+  tab,
+}) => {
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("tutorial-open").click();
+  await expect(tab.getByTestId("tutorial")).toBeVisible();
+  await tab.keyboard.press("Escape");
+  await expect(tab.getByTestId("tutorial")).toHaveCount(0);
+  await expect(tab.getByTestId("appearance")).toBeFocused();
+});
+
+test("the tutorial stays open while you try what it describes", async ({
+  tab,
+}) => {
+  // The property the whole shape rests on.  Every other card in this app
+  // dismisses on an outside press; a tutorial that says "click a pane
+  // header to fold it" and then vanishes when you do is worse than none.
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("tutorial-open").click();
+  await expect(tab.getByTestId("tutorial")).toBeVisible();
+
+  await tab.getByTestId("preview-header").click({ position: { x: 20, y: 16 } });
+  await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
+  await expect(tab.getByTestId("tutorial")).toBeVisible();
+});
+
+test("the tutorial contents are one tab stop, walked with the arrows", async ({
+  tab,
+}) => {
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("tutorial-open").click();
+  const rows = tab.getByTestId("tutorial-contents-row");
+  await expect(rows.first()).toBeFocused();
+  await expect(rows.nth(1)).toHaveAttribute("tabindex", "-1");
+  await tab.keyboard.press("ArrowDown");
+  await expect(rows.nth(1)).toBeFocused();
+});
