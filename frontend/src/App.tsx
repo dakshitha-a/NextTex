@@ -811,6 +811,17 @@ export default function App() {
   const chatDocked = !noAgent && !chatOver && !folded.chat;
   const tutorialRight = chatDocked ? widths.chat : 0;
 
+  /** Back to the screen that chose the agent.
+   *
+   *  Changing it closes every open session server-side, because each one
+   *  holds an agent built for the old provider -- so the editor is left
+   *  behind deliberately rather than kept in a state whose agent no longer
+   *  exists.  `onDone` puts the writer back where they were. */
+  const changeAgent = useCallback(() => {
+    setTutorialOpen(false);
+    setView("signin");
+  }, []);
+
   /** Open the tutorial, putting the agent overlay away first.
    *
    *  Below 1400px the agent is itself an overlay over the preview, and two
@@ -1006,6 +1017,13 @@ export default function App() {
   if (view === "signin") {
     return (
       <SignIn
+        // Only when there is something to go back to.  At boot there is
+        // not: no agent has been chosen and no project is open.
+        onCancel={
+          get().projectId || get().projects.length
+            ? () => void resumeOrList()
+            : undefined
+        }
         onDone={async () => {
           set({ agent: await api.agentStatus().catch(() => null) });
           // Back to whatever was being written, the same way a reload
@@ -1022,6 +1040,7 @@ export default function App() {
         onOpen={openProject}
         canClose={Boolean(projectId)}
         onClose={() => setView("editor")}
+        onChangeAgent={changeAgent}
       />
     );
   }
@@ -1079,7 +1098,12 @@ export default function App() {
                 <InstanceBadge />
               </button>
               <div className="flex items-center">
-                <Settings align="left" inProject onTutorial={openTutorial} />
+                <Settings
+                  align="left"
+                  inProject
+                  onTutorial={openTutorial}
+                  onChangeAgent={changeAgent}
+                />
                 <button
                   className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
                   title="Download the whole project as a zip"

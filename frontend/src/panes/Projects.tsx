@@ -17,10 +17,13 @@ export default function Projects({
   onOpen,
   onClose,
   canClose,
+  onChangeAgent,
 }: {
   onOpen: (id: string) => void;
   onClose?: () => void;
   canClose: boolean;
+  /** Back to the screen that chose the agent. */
+  onChangeAgent?: () => void;
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [guide, setGuide] = useState(false);
@@ -140,7 +143,7 @@ export default function Projects({
                 <ScreenGuide anchor={helpButton} onClose={() => setGuide(false)} />
               </Suspense>
             ) : null}
-            <Settings />
+            <Settings onChangeAgent={onChangeAgent} />
           </div>
         </div>
 
