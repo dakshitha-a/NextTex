@@ -797,27 +797,7 @@ class ProjectAgent:
             {"path": str, "caption": str, "label": str, "width": str},
         )
         async def insert_figure(args: dict) -> dict:
-            path = str(args.get("path", "")).strip()
-            if not path:
-                return self._text("A figure needs the path of an image.")
-            target = (self.root / path).resolve()
-            if not target.is_file():
-                return self._text(
-                    f"There is no file at {path}. Upload the image first, or "
-                    "check the path."
-                )
-            width = str(args.get("width") or "0.8\\linewidth")
-            label = str(args.get("label") or "").strip()
-            caption = str(args.get("caption") or "").strip()
-            body = (
-                "\\begin{figure}[htbp]\n"
-                "  \\centering\n"
-                f"  \\includegraphics[width={width}]{{{path}}}\n"
-                + (f"  \\caption{{{caption}}}\n" if caption else "")
-                + (f"  \\label{{{label}}}\n" if label else "")
-                + "\\end{figure}\n"
-            )
-            return self._insert(body)
+            return await self.insert_figure_tool(args)
 
         @tool(
             "insert_table",
@@ -854,6 +834,11 @@ class ProjectAgent:
             line = int(args.get("line") or 1)
             if not path:
                 return self._text("Which file?")
+            # The project, or nowhere.  The file route would refuse to open
+            # anything else anyway, but a tool that asks the editor to show
+            # /etc/passwd should not be the thing that finds that out.
+            if not self._inside_project(path):
+                return self._text(f"{path} is outside this project.")
             if self.reveal:
                 self.reveal(path, line)
                 return self._text(f"Showing {path}:{line} in the editor.")
@@ -1055,6 +1040,52 @@ class ProjectAgent:
             return preferred
         found = sorted(self.root.rglob("*.bib"))
         return found[0] if found else None
+
+    async def insert_figure_tool(self, args: dict) -> dict:
+        """Insert a figure environment referencing an image in the project.
+
+        Lifted out of the MCP closure so the path check can be exercised
+        without a live agent -- and it needs one.  `(root / path).resolve()`
+        does not confine anything: an absolute path replaces the root
+        outright, so `/etc/passwd` resolved to itself, `is_file()` said yes,
+        and the tool wrote `\\includegraphics{/etc/passwd}` into the
+        writer's document.  Nothing here reads the file, but LaTeX does at
+        build time, and the fence auto-allows these tools precisely because
+        each one is supposed to stay inside the project.
+        """
+        path = str(args.get("path", "")).strip()
+        if not path:
+            return self._text("A figure needs the path of an image.")
+        if not self._inside_project(path):
+            return self._text(
+                f"{path} is outside this project. Put the image in the "
+                "project first and give me the path from its root."
+            )
+        target = (self.root / path).resolve()
+        if not target.is_file():
+            return self._text(
+                f"There is no file at {path}. Upload the image first, or "
+                "check the path."
+            )
+        # Written as a project-relative path whatever was passed in, so an
+        # absolute one inside the project does not travel to Overleaf as a
+        # path that only exists on this machine.
+        try:
+            relative = target.relative_to(self.root).as_posix()
+        except ValueError:
+            relative = path
+        width = str(args.get("width") or "0.8\\linewidth")
+        label = str(args.get("label") or "").strip()
+        caption = str(args.get("caption") or "").strip()
+        body = (
+            "\\begin{figure}[htbp]\n"
+            "  \\centering\n"
+            f"  \\includegraphics[width={width}]{{{relative}}}\n"
+            + (f"  \\caption{{{caption}}}\n" if caption else "")
+            + (f"  \\label{{{label}}}\n" if label else "")
+            + "\\end{figure}\n"
+        )
+        return self._insert(body)
 
     async def add_reference_tool(self, args: dict) -> dict:
         """Add one reference from its DOI.
