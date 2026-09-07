@@ -2,7 +2,9 @@
 
 # NextTex
 
-A LaTeX editor you run yourself, with an AI writing agent beside the document.
+A LaTeX editor you run yourself, with an **optional** AI agent beside the document.
+The agent can write, manage project files, references and much more.
+**Caution:** Use AI writing for publications and academic work at your own risk.
 
 Source on the left, the real typeset PDF in the middle, and, if you want one,
 an agent on the right that can read and edit the project you are writing. One
