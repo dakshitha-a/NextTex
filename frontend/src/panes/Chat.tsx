@@ -674,6 +674,20 @@ export default function Chat({
   );
 }
 
+/** A permission rule, short enough for the rail and still recognisable.
+ *
+ *  A path rule carries the whole absolute path, because that is what makes
+ *  it an identity -- two `shared.bib` files in different folders are two
+ *  different permissions.  What the writer needs to see is the end of it. */
+export function shortRule(rule: string): string {
+  const [verb, ...rest] = rule.split(":");
+  const value = rest.join(":");
+  if (!value.startsWith("/")) return rule;
+  const parts = value.split("/").filter(Boolean);
+  const tail = parts.slice(-2).join("/");
+  return `${verb}: ${parts.length > 2 ? "\u2026/" : "/"}${tail}`;
+}
+
 /** The controls under the composer.  Drawn here rather than pulled from an
  *  icon set: five paths cost a few hundred bytes and a library costs tens
  *  of kilobytes on a bundle that is already close to its budget. */
@@ -1178,12 +1192,17 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
           // cursor that was reaching for them -- and moving away shrank it
           // again, so the pointer oscillated between the two.
           <div
-            className={`t-micro mt-2 text-ink-3 transition-opacity duration-[90ms] ${
+            className={`t-micro mt-2 truncate text-ink-3 transition-opacity duration-[90ms] ${
               scope ? "opacity-100" : "opacity-0"
             }`}
+            // Shortened from the front, never the end.  A rule scoped to a
+            // file is an absolute path, and the half a 320px panel can show
+            // is the half that says nothing -- the filename is the part the
+            // writer is agreeing to.  The whole rule is in the tooltip.
+            title={item.rule}
             aria-hidden={!scope}
           >
-            Remembers: {item.rule}
+            Remembers: {shortRule(item.rule)}
           </div>
         ) : null}
         <div className="mt-3 flex gap-[6px]">
