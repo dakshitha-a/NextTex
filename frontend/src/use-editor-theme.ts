@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { APPEARANCE_CHANGED, type EditorTheme } from "./appearance";
+import {
+  APPEARANCE_CHANGED,
+  type EditorTheme,
+  type SyntaxMode,
+} from "./appearance";
 
 /** Whether the editor has been lit on its own terms, live.
  *
@@ -18,4 +22,23 @@ export function useEditorTheme(): EditorTheme {
     return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
   }, []);
   return theme;
+}
+
+/** Whether control sequences are coloured by family, live.
+ *
+ *  Read the same way and for the same reasons as the editor's theme: it is
+ *  a preference of the machine rather than of the project, `applyAppearance`
+ *  stamps it before the first paint, and putting it in the store would
+ *  re-render every subscriber each time it changed.
+ */
+export function useEditorSyntax(): SyntaxMode {
+  const read = (): SyntaxMode =>
+    (document.documentElement.dataset.syntax as SyntaxMode) ?? "subtle";
+  const [mode, setMode] = useState(read);
+  useEffect(() => {
+    const onChange = () => setMode(read());
+    window.addEventListener(APPEARANCE_CHANGED, onChange);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
+  }, []);
+  return mode;
 }

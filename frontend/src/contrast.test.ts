@@ -89,7 +89,19 @@ const BODY_TEXT: [string, string][] = [
   ["warn", "surface-2"],
   ["ok", "surface"],
   ["ok", "surface-2"],
+  // The syntax families sit on the editor's background, which is --surface
+  // in whichever palette the editor has been given.  --surface-2 is not
+  // listed because none of them is ever drawn on it.
+  ["syn-structure", "surface"],
+  ["syn-env", "surface"],
+  ["syn-math", "surface"],
+  ["syn-preamble", "surface"],
+  ["syn-cite", "surface"],
 ];
+
+/** The five command families, which have to be told apart from one another
+ *  as well as read against the page. */
+const SYNTAX = ["syn-structure", "syn-env", "syn-math", "syn-preamble", "syn-cite"];
 
 describe.each([
   ["light", LIGHT],
@@ -97,7 +109,8 @@ describe.each([
 ])("%s theme", (_name, tokens) => {
   test("every token the palette names is defined", () => {
     for (const name of ["ink", "ink-2", "ink-3", "pen", "hint", "error", "warn",
-                        "ok", "surround", "surface", "surface-2", "surface-3"]) {
+                        "ok", "surround", "surface", "surface-2", "surface-3",
+                        ...SYNTAX]) {
       expect(tokens[name], name).toMatch(/^#[0-9a-fA-F]{6}$/);
     }
   });
@@ -118,6 +131,7 @@ test("the dark theme redefines every colour the light one names", () => {
   const colours = [
     "surround", "surface", "surface-2", "surface-3",
     "ink", "ink-2", "ink-3", "pen", "hint", "error", "warn", "ok",
+    ...SYNTAX,
   ];
   for (const name of colours) {
     expect(DARK[name], `--${name} is not redefined for the dark theme`)
@@ -193,6 +207,50 @@ describe.each([
       expect(
         Number(gap.toFixed(1)),
         `--${here.name} and --${next.name} are ${gap.toFixed(1)}° apart`,
+      ).toBeGreaterThanOrEqual(35);
+    }
+  });
+});
+
+describe.each([
+  ["light", LIGHT],
+  ["dark", DARK],
+])("%s theme syntax families", (_name, tokens) => {
+  test("no two families are the same colour", () => {
+    // Colouring the source is only worth doing if the colours mean
+    // something, and five hues nobody can tell apart mean nothing.  The
+    // threshold is lower than the accents' 35 degrees because there are
+    // five of these on an arc that has to dodge violet -- --pen means the
+    // agent touched this line, and a heading must never be mistaken for it.
+    const hues = SYNTAX.map((name) => ({ name, ...oklch(tokens[name]) })).sort(
+      (a, b) => a.hue - b.hue,
+    );
+    for (let i = 0; i < hues.length - 1; i += 1) {
+      const gap = hues[i + 1].hue - hues[i].hue;
+      expect(
+        Number(gap.toFixed(1)),
+        `--${hues[i].name} and --${hues[i + 1].name} are ${gap.toFixed(1)}° apart`,
+      ).toBeGreaterThanOrEqual(40);
+    }
+  });
+
+  test("no family is so grey that its hue cannot be read", () => {
+    for (const name of SYNTAX) {
+      const { chroma } = oklch(tokens[name]);
+      expect(Number(chroma.toFixed(3)), `--${name} chroma is ${chroma.toFixed(3)}`)
+        .toBeGreaterThanOrEqual(0.06);
+    }
+  });
+
+  test("no family is mistakable for the colour that means the agent edited", () => {
+    // --pen is the one accent that appears near the text itself, as the
+    // wash on a line Claude has just changed.
+    const pen = oklch(tokens["pen"]).hue;
+    for (const name of SYNTAX) {
+      const gap = Math.abs(oklch(tokens[name]).hue - pen);
+      expect(
+        Number(Math.min(gap, 360 - gap).toFixed(1)),
+        `--${name} is ${Math.min(gap, 360 - gap).toFixed(1)}° from --pen`,
       ).toBeGreaterThanOrEqual(35);
     }
   });

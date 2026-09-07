@@ -631,11 +631,40 @@ the user took did not happen and nothing else on screen would say so. It has no
 timer: it stays until dismissed, because a failed save that fades out is worse
 than no message at all.
 
-**Editor syntax highlighting is near-monochrome.** The specification does not
-cover token colours. Commands take `--ink` at 600, comments `--ink-3` italic,
-arguments and literals `--ink-2`; no hue is introduced. The rendered page sits
-two panes away and must stay the loudest object on screen, and `--pen` stays
-reserved for the agent.
+**Editor syntax highlighting is near-monochrome, and colour is opt-in.** The
+specification does not cover token colours. By default — and this default is
+unchanged — commands take `--ink` at 600, comments `--ink-3` italic, arguments
+and literals `--ink-2`, and no hue is introduced: the rendered page sits two
+panes away and must stay the loudest object on screen.
+
+A per-machine setting (Settings → Highlighting → Colour) gives five families of
+control sequence a hue each: sectioning, environments, mathematics, citations
+and references, and the preamble. It exists because a chapter of LaTeX is far
+easier to skim for its equations and its headings than for its words, and in one
+ink it cannot be skimmed for either. Three things keep it from costing what §8
+was protecting:
+
+- It is off unless asked for, so the quiet editor is still what an install
+  opens with.
+- The five hues sit at one lightness and one chroma ceiling per palette, so
+  they read as one family rather than as a rainbow, and each is defined in
+  both `.nx-theme-light` and `.nx-theme-dark` — the editor's own theme carries
+  them, so a white page in a dark shell gets the light palette's colours.
+  `contrast.test.ts` certifies every one against `--surface` in both.
+- None of them is violet. `--pen` means the agent touched this line and is the
+  one accent that appears near the text itself; the test asserts 35° of hue
+  clearance from it, so a heading can never be mistaken for an edit. The other
+  four accents appear inside the editor only as gutter bars, dotted underlines
+  and washes — never as the colour of text — so the syntax hues share a
+  channel with none of them.
+
+The families are decided by command name in `latex-families.ts` and applied as
+a `ViewPlugin` decoration, not as a `HighlightStyle`: the `stex` mode reports
+every control sequence as one token, so a style keyed on token types cannot
+tell `\section` from `\cite` however many colours it is given. Inline `$...$`
+is decorated too, since it is the one form of mathematics that carries no
+command to key on. Names outside the five lists take the ordinary command
+styling rather than a guessed family.
 
 **The status strip adapts to its own width by dropping segments.** §5 requires
 that the strip never reflow. The editor pane is resizable down to 420 px, where

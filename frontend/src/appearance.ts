@@ -18,6 +18,16 @@ export type Theme = "light" | "dark";
  *  `match` is the default and means exactly that: follow the theme. */
 export type EditorTheme = "match" | "light" | "dark";
 
+/** Whether control sequences are told apart by colour.
+ *
+ *  `subtle` is the original look and stays the default: weight and italics
+ *  alone, because the rendered page sits two panes away and a rainbow of
+ *  token colours beside it makes the source the louder object.  `colour`
+ *  gives each family of command -- sectioning, environments, mathematics,
+ *  citations, preamble -- its own hue, which is what makes a long file
+ *  skimmable for the shape of the document rather than its words. */
+export type SyntaxMode = "subtle" | "colour";
+
 export type Appearance = {
   theme: Theme;
   /** Interface size as a percentage.  100 is the size everything was drawn at. */
@@ -26,6 +36,8 @@ export type Appearance = {
   editor: number;
   /** Whether the editor is lit on its own terms. */
   editorTheme: EditorTheme;
+  /** Whether control sequences are coloured by family. */
+  syntax: SyntaxMode;
 };
 
 /** The steps the two size controls offer.  Discrete stops rather than a
@@ -36,6 +48,7 @@ export const EDITOR_SIZES = [12, 13.5, 15, 17, 19, 21];
 
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
+  syntax: "subtle",
 };
 
 const KEYS = {
@@ -43,6 +56,7 @@ const KEYS = {
   scale: "nexttex.ui.scale",
   editor: "nexttex.editor.size",
   editorTheme: "nexttex.editor.theme",
+  syntax: "nexttex.editor.syntax",
 };
 
 /** localStorage throws rather than returning null in a private window, or
@@ -82,6 +96,7 @@ export function storedAppearance(): Appearance {
   const scale = Number(read(KEYS.scale));
   const editor = Number(read(KEYS.editor));
   const editorTheme = read(KEYS.editorTheme);
+  const syntax = read(KEYS.syntax);
   return {
     // Dark by default: this is an instrument you sit in front of for hours,
     // beside a white page that supplies all the brightness the eye needs.
@@ -92,6 +107,7 @@ export function storedAppearance(): Appearance {
       editorTheme === "light" || editorTheme === "dark" || editorTheme === "match"
         ? editorTheme
         : DEFAULTS.editorTheme,
+    syntax: syntax === "colour" || syntax === "subtle" ? syntax : DEFAULTS.syntax,
   };
 }
 
@@ -114,11 +130,13 @@ export function applyAppearance(appearance: Appearance): void {
   // reaching four components deep, and so it is in place before the first
   // paint rather than one frame after it.
   root.dataset.editorTheme = appearance.editorTheme;
+  root.dataset.syntax = appearance.syntax;
 
   write(KEYS.theme, appearance.theme);
   write(KEYS.scale, String(appearance.scale));
   write(KEYS.editor, String(appearance.editor));
   write(KEYS.editorTheme, appearance.editorTheme);
+  write(KEYS.syntax, appearance.syntax);
 
   // The preview draws to a canvas whose backing store is sized for the
   // scale in force when it was drawn, so it has to be told rather than left
@@ -135,6 +153,7 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.theme === DEFAULTS.theme &&
     appearance.scale === DEFAULTS.scale &&
     appearance.editor === DEFAULTS.editor &&
-    appearance.editorTheme === DEFAULTS.editorTheme
+    appearance.editorTheme === DEFAULTS.editorTheme &&
+    appearance.syntax === DEFAULTS.syntax
   );
 }

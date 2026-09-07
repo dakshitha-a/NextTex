@@ -4,6 +4,7 @@
 
 import {
   EditorState,
+  RangeSetBuilder,
   StateEffect,
   StateField,
   type Extension,
@@ -12,6 +13,8 @@ import {
   Decoration,
   type DecorationSet,
   EditorView,
+  ViewPlugin,
+  type ViewUpdate,
   drawSelection,
   highlightActiveLine,
   highlightActiveLineGutter,
@@ -39,11 +42,24 @@ import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import type { Diagnostic, Symbols } from "../api";
 import { latexCompletions } from "./latex-complete";
 import { mathHover } from "./math-hover";
+import {
+  braceAfter,
+  commentStart,
+  familyOf,
+  familyOfEnvironment,
+  inlineMath,
+  TITLED,
+} from "./latex-families";
 
-/** Near-monochrome on purpose.  The rendered page is two panes away, and a
+/** Near-monochrome by default.  The rendered page is two panes away, and a
  *  rainbow of token colours beside it makes the source look like the louder
- *  object.  Weight and italics carry the structure; the accent stays
- *  reserved for the agent. */
+ *  object, so weight and italics carry the structure here and the reserved
+ *  accents stay out of the text entirely.
+ *
+ *  Colouring control sequences by family is offered as a setting on top of
+ *  this rather than instead of it -- see `commandFamilies` below and the
+ *  `--syn-*` tokens in styles.css.  These tags cover what is left: the
+ *  comments, the braces and the literals, which have no family. */
 const latexHighlight = HighlightStyle.define([
   { tag: tags.comment, color: "var(--ink-3)", fontStyle: "italic" },
   { tag: tags.keyword, color: "var(--ink)", fontWeight: "600" },
@@ -57,6 +73,120 @@ const latexHighlight = HighlightStyle.define([
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strong, fontWeight: "600" },
 ]);
+
+/** Colour by family, over the lines actually on screen.
+ *
+ *  A `ViewPlugin` rather than a `HighlightStyle` because the family cannot
+ *  be read off the token: `stex` reports `\\section`, `\\cite` and
+ *  `\\usepackage` all as the same thing.  Only the visible ranges are
+ *  scanned, and only on a change to the document or the viewport, so a
+ *  10,000-line chapter costs the same as a short one.
+ *
+ *  The decorations are added whatever the setting says.  In the subtle mode
+ *  every `--syn-*` token resolves to the ordinary ink, so the marks are
+ *  there and invisible, and the switch is a change of two CSS variables
+ *  rather than a reconfiguration of the editor.
+ */
+function commandFamilies(view: EditorView): DecorationSet {
+  const mark = (family: string) =>
+    Decoration.mark({ class: `nx-syn-${family}` });
+  // The heading, or the name of an environment.  Marked apart from the
+  // command so that the subtle mode can leave it at --ink-2, which is what
+  // it has always been.
+  const argument = (family: string) =>
+    Decoration.mark({ class: `nx-syn-arg-${family}` });
+  // Collected rather than added as they are found: a `$...$` span starts
+  // before the commands inside it, and `RangeSetBuilder` insists on
+  // receiving ranges in order.
+  const found: { from: number; to: number; deco: Decoration }[] = [];
+  const add = (from: number, to: number, deco: Decoration) =>
+    found.push({ from, to, deco });
+  let lastLine = -1;
+  for (const range of view.visibleRanges) {
+    let pos = range.from;
+    while (pos <= range.to) {
+      const line = view.state.doc.lineAt(pos);
+      // Two visible ranges can meet inside one line; scanning it twice
+      // would add the same range to the builder twice, out of order.
+      if (line.number === lastLine) { pos = line.to + 1; continue; }
+      lastLine = line.number;
+
+      // A command in a comment is prose about a command, not one.
+      const cut = commentStart(line.text);
+      const text = cut < 0 ? line.text : line.text.slice(0, cut);
+
+      // Inline mathematics, which has no command to key on.
+      for (const span of inlineMath(text)) {
+        add(
+          line.from + span.from,
+          line.from + span.to,
+          Decoration.mark({ class: "nx-syn-inline-math" }),
+        );
+      }
+
+      for (const found of text.matchAll(/\\([a-zA-Z@]+\*?)/g)) {
+        const name = found[1];
+        const at = found.index ?? 0;
+        const after = at + 1 + name.length;
+        let family = familyOf(name);
+        const bare = name.endsWith("*") ? name.slice(0, -1) : name;
+
+        // `\begin{align}` is an equation and `\begin{table}` is not, so
+        // the environment's name decides the family of both.
+        const environment =
+          bare === "begin" || bare === "end" ? braceAfter(text, after) : null;
+        if (environment) {
+          family = familyOfEnvironment(
+            text.slice(environment.open + 1, environment.close),
+          );
+        }
+        if (!family) continue;
+
+        add(line.from + at, line.from + after, mark(family));
+        if (environment) {
+          add(
+            line.from + environment.open + 1,
+            line.from + environment.close,
+            argument(family),
+          );
+        } else if (TITLED.has(bare)) {
+          // The heading itself, not only the command that introduces it:
+          // the title is the thing you are scanning the file for.
+          const title = braceAfter(text, after);
+          if (title && title.close > title.open + 1) {
+            add(
+              line.from + title.open + 1,
+              line.from + title.close,
+              argument(family),
+            );
+          }
+        }
+      }
+      pos = line.to + 1;
+    }
+  }
+  // Outermost first where two start together, so a span always encloses
+  // what it contains rather than interleaving with it.
+  found.sort((a, b) => a.from - b.from || b.to - a.to);
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const range of found) builder.add(range.from, range.to, range.deco);
+  return builder.finish();
+}
+
+const familyHighlight = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = commandFamilies(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = commandFamilies(update.view);
+      }
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 
 export type Mark = {
   line: number;
@@ -272,6 +402,7 @@ function base(symbols: () => Symbols | null): Extension[] {
     ]),
     StreamLanguage.define(stex),
     syntaxHighlighting(latexHighlight),
+    familyHighlight,
     EditorView.lineWrapping,
     // The document is an ARIA textbox; without a name it is announced as an
     // unlabelled input, which is the least useful thing to hear about the

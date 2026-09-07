@@ -43,8 +43,14 @@ describe("what is remembered", () => {
   });
 
   it("reads back what was applied", () => {
-    applyAppearance({ theme: "light", scale: 125, editor: 17, editorTheme: "match" });
-    expect(storedAppearance()).toEqual({ theme: "light", scale: 125, editor: 17, editorTheme: "match" });
+    applyAppearance({
+      theme: "light", scale: 125, editor: 17, editorTheme: "match",
+      syntax: "colour",
+    });
+    expect(storedAppearance()).toEqual({
+      theme: "light", scale: 125, editor: 17, editorTheme: "match",
+      syntax: "colour",
+    });
   });
 
   it("ignores a stored value that is not a size", () => {
@@ -54,11 +60,23 @@ describe("what is remembered", () => {
   });
 
   it("stamps the document so CSS can use it", () => {
-    applyAppearance({ theme: "light", scale: 150, editor: 21, editorTheme: "match" });
+    applyAppearance({
+      theme: "light", scale: 150, editor: 21, editorTheme: "match",
+      syntax: "colour",
+    });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");
     expect(root.style.getPropertyValue("--nx-ui-scale")).toBe("1.5");
     expect(root.style.getPropertyValue("--nx-editor-size")).toBe("21px");
+    expect(root.dataset.syntax).toBe("colour");
+  });
+
+  it("keeps the subtle highlighting when nothing has asked for colour", () => {
+    // The default look is the one the editor has always had, and a stored
+    // value nobody recognises must not quietly turn colour on.
+    expect(storedAppearance().syntax).toBe("subtle");
+    window.localStorage.setItem("nexttex.editor.syntax", "rainbow");
+    expect(storedAppearance().syntax).toBe("subtle");
   });
 
   it("survives a localStorage that throws", () => {

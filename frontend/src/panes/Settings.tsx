@@ -193,6 +193,39 @@ export default function Settings({
             </div>
           </div>
 
+          {/* Colouring the control sequences is a setting rather than the
+              look, and it is off by default.  The rendered page is two panes
+              away and has to stay the loudest thing on screen, so the source
+              earns its colour only when somebody asks for it -- and then it
+              earns it properly, because a long chapter is far easier to skim
+              for its equations and its headings when they are not all the
+              same shade of ink. */}
+          <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
+            <span className="t-meta text-ink-2">Highlighting</span>
+            <div
+              role="group"
+              aria-label="Syntax highlighting"
+              className="flex shrink-0 overflow-hidden rounded-[3px] border border-line"
+            >
+              {(["subtle", "colour"] as const).map((option) => (
+                <button
+                  key={option}
+                  aria-pressed={look.syntax === option}
+                  aria-label={`Highlighting ${option}`}
+                  className={`t-micro px-2 py-[3px] transition-colors duration-[90ms] ${
+                    look.syntax === option
+                      ? "bg-surface-3 text-ink"
+                      : "text-ink-3 hover:text-ink"
+                  }`}
+                  data-testid={`syntax-${option}`}
+                  onClick={() => change({ syntax: option })}
+                >
+                  {option === "subtle" ? "Subtle" : "Colour"}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Absent rather than disabled when there is no project open --
               on the project list and the sign-in screen.  A control that
               cannot be enabled from where you are standing advertises a

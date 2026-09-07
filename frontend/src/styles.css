@@ -62,6 +62,21 @@
   --warn: #7D5300;
   --ok: #196131;
 
+  /* Syntax families, offered as a setting and off by default.  Five hues at
+     one lightness and one chroma ceiling, so they read as one family rather
+     than as five unrelated colours, and every one clears 4.5:1 on --surface
+     in both palettes -- certified in contrast.test.ts.
+
+     Held apart from the five interface accents deliberately, and violet most
+     of all: inside the editor those appear only as gutter bars, dotted
+     underlines and line washes, never as the colour of the text, and --pen
+     means the agent touched this line. */
+  --syn-structure: #2D5394;
+  --syn-env: #066166;
+  --syn-math: #226529;
+  --syn-preamble: #744C00;
+  --syn-cite: #893540;
+
   --paper: #ffffff;
   --line: color-mix(in oklab, var(--ink-3) 55%, transparent);
   --pen-wash: color-mix(in oklab, var(--pen) 12%, transparent);
@@ -119,6 +134,13 @@
      dark theme after body text. */
   --warn: #D9A539;
   --ok: #5ABD7B;
+  /* The syntax families again, lightened for the dark page.  Same five
+     hues, same reasoning as the light palette above. */
+  --syn-structure: #93BCFE;
+  --syn-env: #32D2DA;
+  --syn-math: #85D088;
+  --syn-preamble: #E9AE57;
+  --syn-cite: #FF99A1;
   --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
   --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
   --float: 0 4px 16px rgba(0, 0, 0, 0.55);
@@ -276,6 +298,79 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 *::-webkit-scrollbar-track { background: transparent; }
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ---- Syntax families -------------------------------------------------- */
+/* `stex` gives every control sequence the same token, so the family is
+   decided by name in `latex-families.ts` and applied as a decoration.  The
+   marks are added whatever the setting says: in the subtle mode -- the
+   default, and the look this editor has always had -- each family resolves
+   to the ordinary ink, so they are present and invisible.  Turning colour on
+   is then a change of five variables on one element rather than a rebuild of
+   the editor, which is why the setting takes effect without the document
+   flickering.
+
+   The command and its argument are separate, because in the subtle mode
+   they were never the same: `\section` is ink at 600 and the heading after
+   it is --ink-2.  Colouring both would change the default look, which this
+   setting exists not to do. */
+.nx-editor-skin {
+  --syn-on-structure: var(--ink);
+  --syn-on-env: var(--ink);
+  --syn-on-math: var(--ink);
+  --syn-on-preamble: var(--ink);
+  --syn-on-cite: var(--ink);
+  --syn-on-arg: var(--ink-2);
+}
+.nx-editor-skin.nx-syntax-colour {
+  --syn-on-structure: var(--syn-structure);
+  --syn-on-env: var(--syn-env);
+  --syn-on-math: var(--syn-math);
+  --syn-on-preamble: var(--syn-preamble);
+  --syn-on-cite: var(--syn-cite);
+}
+/* Three classes deep so these beat the highlight style's generated rules
+   whichever order the two stylesheets land in -- CodeMirror injects its own
+   at runtime, and matching its specificity would make this a coin toss.
+
+   The descendant selector is not decoration.  A mark decoration and the
+   syntax highlighting produce two nested spans over the same text, and the
+   colour that shows is the inner one's whatever the specificity of the
+   outer rule -- they are different elements, so specificity never gets to
+   decide.  Without `*` here every command kept the highlight style's ink
+   and only the headings, which carry no token of their own, took a colour;
+   the setting looked half-implemented and the reason was one selector. */
+.cm-editor .cm-line .nx-syn-structure,
+.cm-editor .cm-line .nx-syn-structure * { color: var(--syn-on-structure); font-weight: 600; }
+.cm-editor .cm-line .nx-syn-env,
+.cm-editor .cm-line .nx-syn-env *       { color: var(--syn-on-env);       font-weight: 600; }
+.cm-editor .cm-line .nx-syn-math,
+.cm-editor .cm-line .nx-syn-math *      { color: var(--syn-on-math);      font-weight: 600; }
+.cm-editor .cm-line .nx-syn-preamble,
+.cm-editor .cm-line .nx-syn-preamble *  { color: var(--syn-on-preamble);  font-weight: 600; }
+.cm-editor .cm-line .nx-syn-cite,
+.cm-editor .cm-line .nx-syn-cite *      { color: var(--syn-on-cite);      font-weight: 600; }
+/* The argument -- a heading, or the name of an environment.  It follows its
+   command's colour, and only its colour: the weight belongs to the command
+   so that the two are still told apart when both are lit. */
+.nx-editor-skin .cm-editor .cm-line [class*="nx-syn-arg-"],
+.nx-editor-skin .cm-editor .cm-line [class*="nx-syn-arg-"] * { color: var(--syn-on-arg); }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-structure,
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-structure * { color: var(--syn-structure); }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-env,
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-env *       { color: var(--syn-env); }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-math,
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-math *      { color: var(--syn-math); }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-preamble,
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-preamble *  { color: var(--syn-preamble); }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-cite,
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-arg-cite *      { color: var(--syn-cite); }
+/* Inline mathematics, which has no command in it to colour.  Only the
+   colour is set: the `$` keeps the weight the highlight style gives it, so
+   in the subtle mode this rule changes nothing at all. */
+.nx-editor-skin .cm-editor .cm-line .nx-syn-inline-math,
+.nx-editor-skin .cm-editor .cm-line .nx-syn-inline-math * { color: var(--ink); }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-inline-math,
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-inline-math * { color: var(--syn-math); }
 
 /* ---- CodeMirror ------------------------------------------------------- */
 /* The editor carries `nx-theme-light` or `nx-theme-dark` when it has been
