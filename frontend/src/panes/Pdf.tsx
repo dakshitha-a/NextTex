@@ -26,9 +26,25 @@ const NEAR = 400;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 
-/** How long after the last wheel event the crisp redraw runs.  Short
- *  enough to feel immediate, long enough that one pinch is one redraw. */
-const ZOOM_SETTLE = 140;
+/** How long after the last wheel event the crisp redraw runs.  Short enough
+ *  to feel immediate, long enough that one pinch is one redraw.
+ *
+ *  A wheel has no end-of-gesture event, so this timer is the only signal
+ *  that a pinch has finished.  At 140 ms an ordinary mid-pinch pause -- the
+ *  moment where fingers reset -- committed the zoom, relaid the document
+ *  out and redrew every visible canvas, and the gesture then resumed
+ *  against a page that had just jumped under it. */
+const ZOOM_SETTLE = 260;
+
+/** How often pages may be drawn *during* a pinch.
+ *
+ *  Zooming out reveals pages that have never been drawn, and leaving them
+ *  blank for the length of the gesture is worse than the cost of drawing
+ *  them.  Answering every scroll the gesture causes is what is unaffordable
+ *  -- that reads the geometry of every page back in the same frame the
+ *  gesture has just written it -- so during a pinch the pass runs a few
+ *  times a second instead of sixty. */
+const ZOOM_DRAW_INTERVAL = 200;
 
 export type PdfHandle = {
   reveal(path: string, line: number): Promise<boolean>;
@@ -72,10 +88,16 @@ export default function Pdf({
   const [scale, setScale] = useState(0);
   const [fitScale, setFitScale] = useState(1);
   const [pageFitScale, setPageFitScale] = useState(1);
-  // What the footer shows mid-gesture.  The committed `scale` only catches
-  // up when the pinch stops, and a percentage frozen at the old number for
-  // the whole gesture reads as though the zoom is not working.
-  const [zoomLabel, setZoomLabel] = useState<number | null>(null);
+  // What the footer shows.  Written to the node rather than held in state:
+  // the committed `scale` only catches up when the pinch stops, and a
+  // percentage frozen at the old number for the whole gesture reads as
+  // though the zoom is not working -- but a `setState` per wheel event
+  // re-renders the whole footer at gesture rate, which is exactly the cost
+  // a pinch cannot afford.  One writer, so the two cannot disagree.
+  const zoomText = useRef<HTMLSpanElement | null>(null);
+  const showZoom = useCallback((value: number) => {
+    if (zoomText.current) zoomText.current.textContent = `${Math.round(value * 100)}%`;
+  }, []);
   const [pageCount, setPageCount] = useState(0);
   const [current, setCurrent] = useState(1);
   const [missing, setMissing] = useState(false);
@@ -185,6 +207,17 @@ export default function Pdf({
   }, [drawVisible]);
 
   const onScroll = useCallback(() => {
+    // A pinch sets `scrollTop` itself, and the scroll that follows is not a
+    // reader moving through the document.  Answering every one of them
+    // reads the geometry of every page back in the same frame the gesture
+    // has just written it, which is a second layout per frame -- but
+    // refusing outright leaves a page revealed by zooming out blank until
+    // the gesture ends.  So it is rationed rather than refused.
+    if (zooming.current) {
+      const now = performance.now();
+      if (now - lastZoomDraw.current < ZOOM_DRAW_INTERVAL) return;
+      lastZoomDraw.current = now;
+    }
     // One pass per frame at most: scroll events fire far faster than
     // anything useful can be drawn, and this is the hot path.
     if (raf.current) return;
@@ -402,23 +435,46 @@ export default function Pdf({
   // gesture stops.
   const liveScale = useRef(0);
   const commit = useRef(0);
+  // Set while a pinch is in flight, so the scroll handler knows to stay out
+  // of the way: the gesture writes `scrollTop` itself, and letting that
+  // fire a redraw pass would read `offsetTop` off every page in the
+  // document and lay it all out a second time in the same frame.
+  const zooming = useRef(false);
+  const lastZoomDraw = useRef(0);
   useEffect(() => {
     const root = scroller.current;
     if (!root) return;
 
-    const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return;
-      event.preventDefault();
+    // A gesture arrives as a stream of wheel events at whatever rate the
+    // trackpad reports -- faster than frames, and each one used to resize
+    // every page and then read the scroller back, which forces the browser
+    // to lay the document out again mid-event.  The events are accumulated
+    // instead and applied once per frame, and within that frame every read
+    // happens before every write, so the layout the browser already has is
+    // still valid when it is read.
+    let pending: { deltaY: number; x: number; y: number } | null = null;
+    let frame = 0;
+    let box: DOMRect | null = null;
+
+    const apply = () => {
+      frame = 0;
+      const gesture = pending;
+      pending = null;
+      if (!gesture || !box) return;
+
+      // --- reads, all of them, before anything is written ---
+      const scrollLeft = root.scrollLeft;
+      const scrollTop = root.scrollTop;
+
       const from = liveScale.current || drawn.current || 1;
-      // A trackpad reports pixels; a wheel may report lines or pages.
-      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 100 : 1;
       const next = Math.min(
         MAX_ZOOM,
-        Math.max(MIN_ZOOM, +(from * Math.exp(-event.deltaY * unit * 0.002)).toFixed(3)),
+        Math.max(MIN_ZOOM, +(from * Math.exp(-gesture.deltaY * 0.002)).toFixed(3)),
       );
       if (next === from) return;
       liveScale.current = next;
 
+      // --- writes ---
       // Keep what is under the pointer under the pointer.  Sizes come from
       // each page's committed scale rather than the last frame's, so a long
       // gesture cannot drift by accumulating rounding.
@@ -427,27 +483,49 @@ export default function Pdf({
         view.container.style.width = `${Math.floor((view.width / view.scale) * next)}px`;
         view.container.style.height = `${Math.floor((view.height / view.scale) * next)}px`;
       }
-      const box = root.getBoundingClientRect();
-      const offsetX = event.clientX - box.left;
-      const offsetY = event.clientY - box.top;
+      // The pointer position is the frame's last one, not its first: a
+      // pinch that travels across the page has to anchor to where the
+      // fingers are now.
+      const offsetX = gesture.x - box.left;
+      const offsetY = gesture.y - box.top;
       const ratio = next / from;
-      root.scrollLeft = (root.scrollLeft + offsetX) * ratio - offsetX;
-      root.scrollTop = (root.scrollTop + offsetY) * ratio - offsetY;
+      root.scrollLeft = (scrollLeft + offsetX) * ratio - offsetX;
+      root.scrollTop = (scrollTop + offsetY) * ratio - offsetY;
+      showZoom(next);
 
-      setZoomLabel(next);
       window.clearTimeout(commit.current);
       commit.current = window.setTimeout(() => {
-        setZoomLabel(null);
+        zooming.current = false;
+        box = null;
         setScale(next);
       }, ZOOM_SETTLE);
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      // A trackpad reports pixels; a wheel may report lines or pages.
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 100 : 1;
+      pending = {
+        deltaY: (pending?.deltaY ?? 0) + event.deltaY * unit,
+        x: event.clientX,
+        y: event.clientY,
+      };
+      // The scroller does not move during a pinch, so its box is read once
+      // rather than after every batch of size changes -- reading it there
+      // was the forced reflow.
+      if (!box) box = root.getBoundingClientRect();
+      zooming.current = true;
+      if (!frame) frame = window.requestAnimationFrame(apply);
     };
 
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       root.removeEventListener("wheel", onWheel);
       window.clearTimeout(commit.current);
+      if (frame) window.cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [showZoom]);
 
   // The gesture's own idea of the scale outlives the commit on purpose: a
   // pinch that lands between committing and the relayout finishing would
@@ -460,6 +538,15 @@ export default function Pdf({
       liveScale.current = 0;
     }
   }, [scale, fitScale, pageFitScale]);
+
+  // The settled percentage.  Written here rather than rendered, so that the
+  // gesture and the resting state have one writer between them: React
+  // reconciling a text node it believes is already correct would leave
+  // whatever the last frame of a pinch put there.
+  useEffect(() => {
+    if (zooming.current) return;
+    showZoom(scale === -1 ? pageFitScale : scale || fitScale);
+  }, [scale, fitScale, pageFitScale, showZoom]);
 
   // ---- SyncTeX ----------------------------------------------------------
   const onDoubleClick = useCallback(
@@ -639,13 +726,10 @@ export default function Pdf({
           −
         </button>
         <span
+          ref={zoomText}
           className="t-micro tnum w-[38px] text-center text-ink-3"
           data-testid="zoom"
-        >
-          {Math.round(
-            (zoomLabel ?? (scale === -1 ? pageFitScale : scale || fitScale)) * 100,
-          )}%
-        </span>
+        />
         <button
           className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
           onClick={() =>
