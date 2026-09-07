@@ -182,3 +182,82 @@ def test_a_permission_nobody_answers_is_denied(tmp_path, monkeypatch):
         events.append(subject._queue().get_nowait())
     assert any(event["type"] == "notice" for event in events), events
     assert not subject._pending
+
+
+def test_stopping_while_a_card_is_up_ends_the_turn_rather_than_one_call(tmp_path):
+    """The card the writer is looking at is the one they press Stop on.
+
+    Refusing only that call and letting the agent carry on would answer a
+    question they did not ask: they stopped the turn, not the command.  So
+    the hook denies *and* tells the SDK not to continue.
+    """
+    subject = make_agent(tmp_path)
+
+    async def run():
+        hook = asyncio.ensure_future(
+            subject._pre_tool(
+                {"tool_name": "Bash", "tool_input": {"command": "sleep 60"}},
+                None,
+                None,
+            )
+        )
+        card = await asyncio.wait_for(subject._queue().get(), timeout=2)
+        assert card["type"] == "permission", card
+        await subject.interrupt()
+        return await asyncio.wait_for(hook, timeout=2)
+
+    result = asyncio.run(run())
+    output = result["hookSpecificOutput"]
+    assert output["permissionDecision"] == "deny"
+    # Not just this call: the whole turn.
+    assert result.get("continue_") is False
+    assert result.get("stopReason")
+    assert not subject._pending
+
+
+def test_a_card_left_open_is_forgotten_when_the_turn_is_stopped(tmp_path):
+    """A pending future nothing will ever resolve is a wedged turn waiting
+    to happen: the next card would find a stale entry under its own id."""
+    subject = make_agent(tmp_path)
+
+    async def run():
+        hook = asyncio.ensure_future(
+            subject._pre_tool(
+                {"tool_name": "Bash", "tool_input": {"command": "sleep 60"}},
+                None,
+                None,
+            )
+        )
+        await asyncio.wait_for(subject._queue().get(), timeout=2)
+        assert subject._pending
+        await subject.interrupt()
+        await asyncio.wait_for(hook, timeout=2)
+
+    asyncio.run(run())
+    assert subject._pending == {}
+
+
+def test_answering_a_card_twice_is_refused_the_second_time(tmp_path):
+    """Two tabs can both be showing the same card.
+
+    The second answer must not land on a future that already has a result,
+    and the route reads this to tell the second tab the decision was
+    already made rather than throwing.
+    """
+    subject = make_agent(tmp_path)
+
+    async def run():
+        hook = asyncio.ensure_future(
+            subject._pre_tool(
+                {"tool_name": "Bash", "tool_input": {"command": "ls"}}, None, None
+            )
+        )
+        card = await asyncio.wait_for(subject._queue().get(), timeout=2)
+        first = subject.resolve_permission(card["id"], "allow")
+        second = subject.resolve_permission(card["id"], "deny")
+        await asyncio.wait_for(hook, timeout=2)
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert first is True
+    assert second is False

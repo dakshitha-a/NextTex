@@ -130,6 +130,11 @@ class ScriptedAgent:
         return self._why
 
     async def reset(self) -> None:
+        # Refused mid-turn exactly as the real agents refuse it.  A
+        # stand-in that is more permissive than the thing it stands in for
+        # stops the browser tests from covering the guard at all.
+        if self.busy:
+            raise RuntimeError("a turn is still running")
         self.asked.clear()
 
     def set_auto(self, on: bool) -> None:
@@ -181,7 +186,10 @@ class ScriptedAgent:
             for step in load_script(self.script_name):
                 await self._step(step)
         except asyncio.CancelledError:
-            return
+            # Re-raised, so the task really ends cancelled: swallowing it
+            # leaves a task that reports success and a cancellation that
+            # never reached whoever asked for it.
+            raise
         except Vanish:
             # The one fault the real agent had and nothing could reproduce:
             # a turn that stops without a result and without an error.  It

@@ -18,7 +18,6 @@ breaks, so add to all of them at once.
 from __future__ import annotations
 
 import asyncio
-import time
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -59,7 +58,11 @@ class NoAgent:
 
     @property
     def idle_seconds(self) -> float:
-        return time.monotonic()
+        # Never idle rather than idle since the machine booted, which is
+        # what the monotonic clock alone says.  Nothing is held open here
+        # for the reaper to close, and a number that large invites a
+        # caller to conclude something needs cleaning up.
+        return 0.0
 
     def current_why(self) -> str:
         return ""
@@ -71,7 +74,11 @@ class NoAgent:
         return None
 
     async def interrupt(self) -> None:
-        return None
+        # Stop is the writer's one escape hatch and may never be a silent
+        # no-op, here least of all: this is the agent that appears when the
+        # SDK is missing, so the panel is on screen and a turn that ended
+        # badly is exactly the state somebody would press Stop in.
+        await self._queue().put({"type": "done", "subtype": "interrupted"})
 
     def resolve_permission(self, request_id: str, decision: str) -> bool:
         return False
