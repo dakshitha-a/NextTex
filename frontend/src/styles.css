@@ -247,8 +247,17 @@ button { font: inherit; color: inherit; }
 
    Nested rather than applied per element because the update footer renders
    six different states, and the next one added would otherwise arrive with
-   the old colour and no test to catch it. */
-.nx-on-surround .quiet:not(:disabled):not([data-tone]),
+   the old colour and no test to catch it.
+
+   Disabled controls are stepped up too, and the `:not(:disabled)` that used
+   to be here was a copied habit rather than a reason.  It belongs on the
+   hover rule above -- a control that lights up under the pointer and then
+   does nothing is a lie -- but being unavailable is not a licence to be
+   unreadable, and "Checking" in the update footer is a status message that
+   happens to be rendered as a disabled button.  It measured 4.17:1 for the
+   second or so a check takes, which is why the accessibility sweep failed
+   about one run in twenty and looked like flakiness. */
+.nx-on-surround .quiet:not([data-tone]),
 .nx-on-surround .text-ink-3 {
   color: var(--ink-2);
 }

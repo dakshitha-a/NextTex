@@ -155,3 +155,22 @@ describe("inline mathematics", () => {
     expect(spans("\\section{Results}")).toEqual([]);
   });
 });
+
+describe("a display written on one line", () => {
+  const spans = (text: string) =>
+    inlineMath(text).map((s) => text.slice(s.from, s.to));
+
+  test("bracket delimiters", () => {
+    expect(spans("before \\[ E = mc^2 \\] after")).toEqual(["\\[ E = mc^2 \\]"]);
+  });
+
+  test("a dollar inside a bracket display does not end it", () => {
+    expect(spans("\\[ a \\text{$b$} c \\]")).toEqual(["\\[ a \\text{$b$} c \\]"]);
+  });
+
+  test("a bracket left open is left alone", () => {
+    // The cross-line scan picks that up; guessing here would colour the
+    // rest of the line.
+    expect(spans("\\[ a = b")).toEqual([]);
+  });
+});

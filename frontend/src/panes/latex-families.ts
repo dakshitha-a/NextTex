@@ -157,7 +157,7 @@ export function braceAfter(
   return null;
 }
 
-/** The `$...$` and `$$...$$` spans on one line.
+/** The `$...$`, `$$...$$` and `\[...\]` spans on one line.
  *
  *  Inline mathematics carries no control sequence at all -- `$S_1$` is three
  *  ordinary characters between two delimiters -- so it is the one part of an
@@ -172,21 +172,41 @@ export function braceAfter(
 export function inlineMath(text: string): { from: number; to: number }[] {
   const spans: { from: number; to: number }[] = [];
   let open = -1;
-  let openDouble = false;
+  // Which delimiter opened the span: only its own kind can close it, so a
+  // lone `$` inside a display does not end it and a `\]` does not end a `$`.
+  let kind: "$" | "$$" | "[" | null = null;
   for (let i = 0; i < text.length; i += 1) {
-    if (text[i] === "\\") { i += 1; continue; }
+    if (text[i] === "\\") {
+      const next = text[i + 1];
+      if (next === "[" && open < 0) {
+        open = i;
+        kind = "[";
+        i += 1;
+        continue;
+      }
+      if (next === "]" && kind === "[") {
+        spans.push({ from: open, to: i + 2 });
+        open = -1;
+        kind = null;
+        i += 1;
+        continue;
+      }
+      i += 1; // an escaped character, whatever it is
+      continue;
+    }
     if (text[i] !== "$") continue;
     const double = text[i + 1] === "$";
     if (open < 0) {
       open = i;
-      openDouble = double;
+      kind = double ? "$$" : "$";
       if (double) i += 1;
+    } else if (kind === "[") {
+      continue;
     } else {
-      // `$$` closes `$$` and `$` closes `$`; a single dollar inside a
-      // display is not the end of it.
-      if (openDouble && !double) continue;
+      if (kind === "$$" && !double) continue;
       spans.push({ from: open, to: i + (double ? 2 : 1) });
       open = -1;
+      kind = null;
       if (double) i += 1;
     }
   }
