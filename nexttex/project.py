@@ -422,7 +422,14 @@ class Registry:
                 # A project whose directory has gone is shown, not silently
                 # dropped: the user moved it, and should be told so.
                 "missing": not exists,
-                "id": id_for(entry.path) if exists else None,
+                # Identified whether or not the folder is still there.  This
+                # used to be null for a missing project, which meant the one
+                # thing you can still usefully do with a dead entry --
+                # remove it, or say where the folder went -- was the one
+                # thing with no id to address it by, and the Remove button
+                # quietly did nothing.  A registry entry is a path, and it
+                # has an identity even when nothing is at the end of it.
+                "id": id_for(entry.path),
             })
         return result
 
@@ -449,6 +456,18 @@ class Registry:
                 entry.last_opened = time.time()
                 self._write(entries)
                 return
+
+    def path_for(self, project_id: str) -> Path | None:
+        """Where an entry points, without needing anything to be there.
+
+        `find` opens the project and so cannot answer for one whose folder
+        has been moved or deleted -- which is exactly when a caller needs to
+        know the path, to drop the entry or to repoint it.
+        """
+        for entry in self._read():
+            if id_for(entry.path) == project_id:
+                return Path(entry.path)
+        return None
 
     def find(self, project_id: str) -> Project | None:
         for entry in self._read():

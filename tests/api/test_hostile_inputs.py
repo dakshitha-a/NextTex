@@ -130,7 +130,12 @@ def test_a_project_directory_that_has_gone_is_reported_not_dropped(client, proje
     shutil.rmtree(project_dir)
     listed = client.get("/api/projects").json()["projects"]
     mine = [p for p in listed if p["path"] == str(project_dir)]
-    assert mine and mine[0]["missing"] is True and mine[0]["id"] is None
+    assert mine and mine[0]["missing"] is True
+    # And it keeps its identity.  This used to assert the id was None, which
+    # described the behaviour accurately and was the bug: the only actions
+    # left on a dead entry -- removing it, or saying where the folder went --
+    # both need something to address it by.
+    assert mine[0]["id"]
 
 
 def test_a_config_nobody_can_parse_opens_anyway(client, project_dir):

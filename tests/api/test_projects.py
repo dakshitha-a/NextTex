@@ -92,3 +92,34 @@ def test_a_name_with_a_quote_in_it_does_not_break_the_config(client, tmp_path):
     import tomllib
 
     tomllib.loads((root / "nexttex.toml").read_text(encoding="utf-8"))
+
+
+def test_a_project_whose_folder_has_gone_says_so_but_keeps_its_identity(
+    client, project_dir
+):
+    """A dead entry is still an entry.
+
+    Its id used to be null, which left the one action that still makes
+    sense on it -- taking it off the list -- with nothing to address it by.
+    """
+    import shutil
+
+    client.post("/api/projects", json={"path": str(project_dir)})
+    shutil.rmtree(project_dir)
+    listed = client.get("/api/projects").json()["projects"]
+    assert len(listed) == 1
+    assert listed[0]["missing"] is True
+    assert listed[0]["id"]
+
+
+def test_a_project_whose_folder_has_gone_can_still_be_removed(client, project_dir):
+    import shutil
+
+    added = client.post("/api/projects", json={"path": str(project_dir)}).json()
+    shutil.rmtree(project_dir)
+    listed = client.get("/api/projects").json()["projects"]
+    response = client.delete(f"/api/projects/{listed[0]['id']}")
+    assert response.status_code == 200, response.text
+    assert client.get("/api/projects").json()["projects"] == []
+    # The id is the same one it had while the folder was there.
+    assert listed[0]["id"] == added["id"]

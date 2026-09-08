@@ -82,5 +82,8 @@ def test_a_project_can_be_removed_from_the_list_without_opening_it(tmp_path):
     source = (Path(__file__).resolve().parent.parent / "server" / "main.py").read_text()
     handler = source[source.index("async def forget_project"):source.index("@app.post(\"/api/projects/{project_id}/open\")")]
     assert "REGISTRY.find(project_id)" in handler
+    # And it falls back to the registry when there is no project to open,
+    # which is the case for an entry whose folder has been moved away.
+    assert "REGISTRY.path_for(project_id)" in handler
     # The removal must not sit inside the "if session" branch.
-    assert re.search(r"\n    REGISTRY\.remove\(project\.root\)", handler)
+    assert re.search(r"\n    REGISTRY\.remove\(root\)", handler)
