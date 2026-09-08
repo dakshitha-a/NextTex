@@ -95,6 +95,13 @@ only light source — a lightbox. To make that read as a lit sheet rather than a
 in the UI, the page gets a 1 px `--line` border plus `0 8px 24px rgba(0,0,0,0.55)`. In light
 mode the same page gets a hairline border only, no shadow.
 
+*The build gives it a shadow anyway* — `0 1px 4px rgba(0,0,0,0.12)`, a 4 px
+ramp — and a design review flagged the disagreement. The build wins here: the
+light theme is a proofing grey, and a page with a border and no shadow reads
+as pasted onto the pane rather than lying on it. The rule this paragraph was
+protecting — that the page is the brightest, most physical object on screen —
+is better served by the shadow than by its absence.
+
 Dark is **not** an inversion: inter-surface contrast steps are compressed
 (`#141715 → #1A1E1B → #222623`, ~6–8 L* apart, versus ~10–12 in light), and `--ink` is
 `#DDE2DD`, never `#FFFFFF` — pure white text beside a pure white PDF page is the fastest way
@@ -158,10 +165,17 @@ Breakpoints:
 - **1100–1399 px** — Claude becomes a slide-over from the right at 380 px, over the PDF,
   with an 8 px shadow and no scrim. Rail still docked.
 - **< 1100 px** — rail auto-collapses.
-- **< 900 px** — editor and PDF become a two-item segmented toggle in the status strip; only
+- **< 900 px** — editor and PDF become a two-item segmented toggle, in the *tab
+  bar* rather than the status strip: the strip is 26 px and already drops
+  segments at that width, and a control that appears only when it has room is
+  not a control. Only
   one is mounted.
 
-**Rail collapse is to zero, not to an icon strip.** A 40 px activity bar is VS Code's shape
+**Rail collapse is to a 26 px strip carrying one label, not to an icon bar.**
+This section originally said zero, and the build does not: collapsing to
+nothing leaves no way back except a keyboard shortcut, which is the same hole
+the agent button had. What is rejected is the *icon bar* — a 40 px activity
+bar is VS Code's shape
 and a default. Cmd-B hides the rail entirely; the project name then moves to the left end of
 the tab bar as a non-closable chip with the switcher chevron, and the git dirty count moves
 into the compile status strip as `main +4`. Nothing is lost and the editor gains 240 px.

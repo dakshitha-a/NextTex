@@ -423,7 +423,11 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    error long before it reads as progress. */
 @keyframes nx-agent-breath {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  /* Not lower.  At 0.35 the dot measured 1.8:1 against the pill for part of
+     every cycle, which on a 4px mark is no indicator at all -- and the
+     whole argument for the dot is that it says something the closed panel
+     cannot. */
+  50% { opacity: 0.62; }
 }
 .nx-agent-working { animation: nx-agent-breath 1.6s var(--ease) infinite; }
 

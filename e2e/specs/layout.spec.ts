@@ -387,3 +387,55 @@ test("the agent can be reached below 900 with the preview showing", async ({
   await tab.getByTestId("agent-button-claude").click();
   await chatThere(tab);
 });
+
+test("a parked overlay cannot be reached, and cannot drag the layout", async ({
+  tab,
+}) => {
+  // The overlay is slid off the edge with a transform, which leaves it laid
+  // out and hit-testable.  Clicking anything inside it made the browser
+  // scroll it into view and take the whole shell with it: the rail ended up
+  // at x=-271 and the editor's text was clipped at x=0.  Found by a design
+  // review of the rendered screens, not by any assertion here.
+  await tab.setViewportSize({ width: 1300, height: 900 });
+  await chatAway(tab);
+
+  const geometry = () =>
+    tab.evaluate(() => {
+      const shell = document.querySelector(".bg-surround") as HTMLElement;
+      const rail = document
+        .querySelector('[role="tree"]')
+        ?.closest(".nx-pane") as HTMLElement | null;
+      return {
+        scroll: shell?.scrollLeft ?? -1,
+        railX: rail ? Math.round(rail.getBoundingClientRect().x) : null,
+      };
+    });
+
+  expect(await geometry()).toEqual({ scroll: 0, railX: 0 });
+  // Nothing inside a panel nobody can see is focusable or clickable.
+  await expect(tab.getByTestId("model-open")).toBeHidden();
+  await expect(tab.getByTestId("chat-panel")).toHaveAttribute("inert", "");
+  expect(await geometry()).toEqual({ scroll: 0, railX: 0 });
+
+  // And it all comes back when the panel is actually opened.
+  await tab.keyboard.press("Control+Alt+KeyA");
+  await chatThere(tab);
+  expect((await geometry()).railX).toBe(0);
+});
+
+test("the agent button never sits on top of the panel it opens", async ({
+  tab,
+}) => {
+  // Only the docked case moved it aside, so on a narrow window the pill
+  // landed inside the overlay -- over the model popover, two pixels above
+  // Send, and across the corner of the box you type into.
+  await tab.setViewportSize({ width: 1300, height: 900 });
+  await tab.keyboard.press("Control+Alt+KeyA");
+  await chatThere(tab);
+  const pill = (await tab.getByTestId("agent-button-claude").boundingBox())!;
+  const panel = (await tab.getByTestId("chat-panel").boundingBox())!;
+  expect(
+    pill.x + pill.width,
+    "the pill overlaps the agent panel",
+  ).toBeLessThanOrEqual(panel.x + 1);
+});

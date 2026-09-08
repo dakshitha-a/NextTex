@@ -53,7 +53,7 @@ export default function PreviewTabs({
   return (
     <div className="flex min-w-0 flex-1 items-center">
       {solo ? (
-        <span className="t-ui-lg shrink-0 pl-1 font-serif text-ink">Preview</span>
+        <span className="t-ui-lg shrink-0 select-none pl-1 font-serif text-ink">Preview</span>
       ) : (
         <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
           {previews.map((path) => {
@@ -65,9 +65,11 @@ export default function PreviewTabs({
                 data-preview-tab="1"
                 data-path={path}
                 className={[
-                  "relative flex min-w-[86px] max-w-[180px] shrink-0 items-center",
-                  "gap-1 border-r border-line pr-[8px]",
-                  showing ? "bg-surface" : "hover:bg-surface-3",
+                  "relative flex h-[32px] min-w-[96px] max-w-[200px] shrink-0 items-center",
+                  "gap-2 border-r border-line pr-[10px]",
+                  showing
+                    ? "bg-surface"
+                    : "border-b border-line hover:bg-surface-3",
                 ].join(" ")}
                 onMouseDown={(event) => {
                   if (event.button === 1 && previews[0] !== path) {
@@ -83,11 +85,11 @@ export default function PreviewTabs({
                   aria-current={showing ? "true" : undefined}
                   title={path}
                   data-testid={`preview-tab-${path}`}
-                  className="t-meta flex min-w-0 flex-1 items-center truncate pl-[8px] text-left"
+                  className="t-meta flex min-w-0 flex-1 items-center truncate pl-[10px] text-left"
                   onClick={() => onSelect(path)}
                 >
                   <span className={showing ? "text-ink" : "text-ink-2"}>
-                    {middleTruncate(stem(path).replace(/\.(tex|ltx)$/i, ""), 16)}
+                    {middleTruncate(stem(path).replace(/\.(tex|ltx)$/i, ""), 18)}
                   </span>
                   {/* Building, or behind the source.  Without this a
                       background document gives no sign it is out of date
@@ -123,7 +125,7 @@ export default function PreviewTabs({
         <div className="relative shrink-0">
           <button
             ref={plus}
-            className="quiet t-meta flex h-[22px] w-[22px] items-center justify-center"
+            className="quiet t-meta flex h-[24px] w-[24px] items-center justify-center"
             aria-label="Preview another document"
             aria-expanded={open}
             data-testid="add-preview"

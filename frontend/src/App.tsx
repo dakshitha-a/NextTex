@@ -1499,7 +1499,12 @@ export default function App() {
         >
           {!tight ? (
             <div
-              className="flex h-[32px] shrink-0 cursor-pointer items-center gap-2 border-b border-line bg-surface-2 pl-2 pr-1 transition-colors duration-[90ms] hover:bg-surface-3"
+              // `select-none`: this header answers a double click by
+              // entering reading mode, and a double click on text also
+              // selects the word under it -- so the label was left
+              // highlighted in a lavender that reads like --pen, the one
+              // colour reserved for "the agent touched this".
+              className="flex h-[32px] shrink-0 cursor-pointer select-none items-center gap-2 border-b border-line bg-surface-2 pl-2 pr-1 transition-colors duration-[90ms] hover:bg-surface-3"
               title="Click to fold the preview away, double-click to read"
               data-testid="preview-header"
               onClick={(event) => {
@@ -1589,7 +1594,15 @@ export default function App() {
         <AgentButton
           open={chatOver ? chatOpen : !folded.chat}
           onToggle={toggleChat}
-          right={!chatOver && !folded.chat ? widths.chat + 14 : 14}
+          // Left of the panel whenever the panel is showing -- docked or
+          // overlaid.  Only the docked case was handled, so on a narrow
+          // window the pill landed inside the overlay: over the model
+          // popover, two pixels above Send, and across the corner of the
+          // box you type into.  The control that closes a panel must not
+          // be covered by it, and must not cover it either.
+          right={
+            (chatOver ? chatOpen : !folded.chat) ? widths.chat + 14 : 14
+          }
         />
       )}
       {tutorialOpen ? (
@@ -1617,11 +1630,30 @@ export default function App() {
         style={{
           width: widths.chat,
           transform: chatOver && !chatOpen ? "translateX(100%)" : undefined,
+          // Hidden once it has finished sliding out.  A transform leaves it
+          // laid out and hit-testable, so a click could land in a panel
+          // nobody can see -- and the browser would scroll it into view,
+          // taking the rail off the screen with it.  The delay is what
+          // keeps the slide visible: on the way out visibility waits for
+          // the transform, on the way in it applies at once.
+          visibility: chatOver && !chatOpen ? "hidden" : undefined,
           transition: chatOver
-            ? "transform 180ms var(--ease)"
+            ? `transform 180ms var(--ease), visibility 0s linear ${
+                chatOpen ? "0s" : "180ms"
+              }`
             : undefined,
         }}
         aria-hidden={chatOver && !chatOpen}
+        // `inert` as well as `aria-hidden`, and this is not belt and
+        // braces.  The parked overlay is slid off the edge with a
+        // transform, so it is still laid out: it adds its own width to the
+        // shell's scrollWidth, and everything inside it is still focusable.
+        // Clicking or tabbing to anything in there made the browser scroll
+        // it into view, which dragged the whole layout left by the panel's
+        // width -- the rail off the screen and the editor's text clipped at
+        // x=0.  `aria-hidden` says "do not announce this"; only `inert`
+        // says "this cannot be reached".
+        inert={chatOver && !chatOpen}
         // Read by the Escape handler, which has to tell the panel's own
         // composer from every other box on screen.
         data-nx-chat=""

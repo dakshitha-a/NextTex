@@ -729,7 +729,7 @@ export default function Pdf({
         />
       </div>
 
-      <div className="flex h-[26px] shrink-0 items-center gap-3 border-t border-line bg-surface-2 px-[10px]">
+      <div className="@container flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]">
         <div className="flex shrink-0 overflow-hidden rounded-[3px] border border-line">
           {(["scroll", "page"] as const).map((option) => (
             <button
@@ -807,15 +807,19 @@ export default function Pdf({
           +
         </button>
         <Rule />
+        {/* Dropped when the pane is too narrow for them, rather than
+            wrapped: this is a 26px strip, and a second line of it is
+            clipped by definition.  Dragging the chat handle wide was
+            enough to break "Fit width" across two lines. */}
         <button
-          className="quiet t-micro"
+          className="quiet t-micro hidden shrink-0 whitespace-nowrap @[330px]:block"
           data-tone={scale === 0 ? "on" : undefined}
           onClick={() => setScale(0)}
         >
           Fit width
         </button>
         <button
-          className="quiet t-micro"
+          className="quiet t-micro hidden shrink-0 whitespace-nowrap @[400px]:block"
           data-tone={scale === -1 ? "on" : undefined}
           onClick={() => setScale(-1)}
         >

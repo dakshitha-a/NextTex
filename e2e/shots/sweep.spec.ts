@@ -87,6 +87,25 @@ test("every pane at every width, in both themes", async ({
   app, project, tab,
 }) => {
   await seed(tab, app.base, app.token, project.id);
+
+  // A second document, so the preview strip renders as a strip rather than
+  // as the solo "Preview" label.  Without one the sweep photographed the
+  // tabbed pane 72 times and never once showed a tab -- which is how the
+  // whole feature went unreviewed.
+  fs.writeFileSync(
+    path.join(project.root, "esi.tex"),
+    "\\documentclass{article}\n\\begin{document}\n"
+      + "Supplementary information.\n\\end{document}\n",
+  );
+  const registered = await fetch(`${app.base}/api/projects/${project.id}/previews`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({ path: "esi.tex" }),
+  });
+  if (!registered.ok) throw new Error(`preview not registered: ${await registered.text()}`);
+  await tab.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+
   for (const theme of THEMES) {
     for (const width of WIDTHS) {
       await dress(tab, theme, width);
@@ -125,8 +144,12 @@ test("every pane at every width, in both themes", async ({
       const model = tab.getByTestId("model-open");
       if (await model.count()) {
         if (!(await model.isVisible())) {
-          await tab.getByRole("button", { name: /^Claude$/ }).first()
-            .click({ trial: false }).catch(() => undefined);
+          // By testid.  This used to match a button whose text was
+          // "Claude"; the control is a pill with an aria-label now, so the
+          // old locator quietly matched nothing and every narrow shot was
+          // of a panel that had never opened.
+          await tab.getByTestId("agent-button-claude").click().catch(() => undefined);
+          await tab.waitForTimeout(250);
         }
         if (await model.isVisible()) {
           await model.click();
