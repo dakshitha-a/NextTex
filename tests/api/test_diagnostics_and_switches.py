@@ -113,6 +113,9 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
     assert response.status_code == 200, response.text
     assert response.json() == {
         "main": "main.tex",
+        # Every previewed document, main first.  A project that has not
+        # asked for a second one still reports the one it has.
+        "previews": ["main.tex"],
         "autocompile": False,
         "markErrors": True,
         "markWarnings": True,
@@ -152,14 +155,20 @@ def test_nothing_is_scheduled_when_compiling_as_you_type_is_off(client, opened):
     session = server_main.SESSIONS[opened["id"]]
 
     async def schedule(on: bool):
+        # The debounce is per document now -- a project can have several
+        # previewed, and each waits on its own timer.
         session.project.config.autocompile = on
-        session._debounce = None
+        for state in session.documents.values():
+            state.debounce = None
         session.schedule_compile()
         await asyncio.sleep(0)
-        pending = session._debounce is not None and not session._debounce.done()
-        if pending:
-            session._debounce.cancel()
-        return pending
+        pending = [
+            state for state in session.documents.values()
+            if state.debounce is not None and not state.debounce.done()
+        ]
+        for state in pending:
+            state.debounce.cancel()
+        return bool(pending)
 
     assert asyncio.run(schedule(False)) is False
     assert asyncio.run(schedule(True)) is True

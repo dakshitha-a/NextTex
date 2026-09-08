@@ -47,7 +47,7 @@ from nexttex.context import KINDS, MEMORY_MAX_CHARS
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_ours,
 )
-from nexttex import updates
+from nexttex import deps, updates
 from server.session import CLOSED, ProjectSession, spawn
 
 SESSIONS: dict[str, ProjectSession] = {}
@@ -441,6 +441,10 @@ async def open_project(project_id: str):
         "tree": session.project.tree(),
         "context": [d.as_dict() for d in session.context.documents()],
         "transcript": session.transcript.items(),
+        # Which documents are previewed, which others could be, and who
+        # reads what -- in the same payload rather than a second round trip,
+        # because the preview strip is drawn on the first frame.
+        **session.documents_payload(),
     }
 
 
@@ -1592,6 +1596,7 @@ def _project_settings(session) -> dict:
     config = session.project.config
     return {
         "main": config.main,
+        "previews": list(session.documents),
         "autocompile": config.autocompile,
         "markErrors": config.mark_errors,
         "markWarnings": config.mark_warnings,
@@ -1631,10 +1636,67 @@ async def set_project_settings(
 
 
 @app.post("/api/projects/{project_id}/compile")
-async def compile_now(project_id: str, full: bool = Body(False, embed=True)):
+async def compile_now(
+    project_id: str,
+    full: bool = Body(False, embed=True),
+    document: str = Body("", embed=True),
+):
+    """Build one document now.
+
+    An empty `document` means the main one, which is what every caller
+    written before a project could have several sends.
+    """
     session = session_for(project_id)
-    result = await session.compile(force_full=full)
-    return session.as_client_dict(result)
+    result = await session.compile(force_full=full, document=document or None)
+    return session.as_client_dict(result, session.document_for(document).path)
+
+
+@app.get("/api/projects/{project_id}/documents")
+async def list_documents(project_id: str):
+    """What is previewed, what could be, and which document reads what.
+
+    The `owners` map goes to the browser so the editor can mark the right
+    preview stale on a keystroke rather than waiting for the server to say
+    so a debounce later.
+    """
+    return session_for(project_id).documents_payload()
+
+
+@app.post("/api/projects/{project_id}/previews")
+async def add_preview(project_id: str, path: str = Body(..., embed=True)):
+    """Start previewing another document in this project."""
+    session = session_for(project_id)
+    target = _safe(session, path)
+    if target.suffix.lower() not in (".tex", ".ltx"):
+        raise HTTPException(400, "only a .tex file can be previewed")
+    try:
+        text = target.read_text(encoding="utf-8", errors="replace")
+    except OSError as error:
+        raise HTTPException(400, f"could not read {path}: {error}")
+    if not deps.is_standalone(text):
+        raise HTTPException(
+            400,
+            f"{path} has no \\documentclass and \\begin{{document}} of its own, "
+            "so it cannot be built by itself",
+        )
+    try:
+        await session.register_preview(path)
+    except ValueError as error:
+        # A jobname already spoken for: two documents cannot both build to
+        # one PDF, and renaming is the writer's call rather than ours.
+        raise HTTPException(409, str(error))
+    spawn(session.compile(document=path), "the first build of a new preview")
+    return session.documents_payload()
+
+
+@app.delete("/api/projects/{project_id}/previews")
+async def remove_preview(project_id: str, path: str):
+    session = session_for(project_id)
+    try:
+        await session.unregister_preview(path)
+    except ValueError as error:
+        raise HTTPException(400, str(error))
+    return session.documents_payload()
 
 
 @app.post("/api/projects/{project_id}/editor")
@@ -1644,16 +1706,23 @@ async def editor_state(project_id: str, state: dict = Body(...)):
 
 
 @app.get("/api/projects/{project_id}/pdf")
-async def get_pdf(project_id: str, request: Request):
+async def get_pdf(project_id: str, request: Request, document: str = ""):
     session = session_for(project_id)
-    pdf = session.paths.pdf
+    state = session.document_for(document)
+    pdf = state.paths.pdf
     if not pdf.exists():
         raise HTTPException(404, "nothing has been built yet")
     # An ETag from the file's own mtime and size means PDF.js re-fetches
     # only when the document actually changed, which matters when a build
     # runs every time typing pauses.
+    #
+    # The jobname is in it because two documents' PDFs now sit behind one
+    # route, and a client that dropped the query string -- or a proxy that
+    # normalised it away -- could otherwise be handed a 304 for the wrong
+    # document.  The jobname rather than the path: jobnames are unique by
+    # construction, and a path may legally contain a quote.
     stat = pdf.stat()
-    etag = f'W/"{int(stat.st_mtime_ns)}-{stat.st_size}"'
+    etag = f'W/"{state.paths.jobname}-{int(stat.st_mtime_ns)}-{stat.st_size}"'
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
     return FileResponse(
@@ -1663,15 +1732,18 @@ async def get_pdf(project_id: str, request: Request):
 
 
 @app.get("/api/projects/{project_id}/synctex/inverse")
-async def synctex_inverse(project_id: str, page: int, x: float, y: float):
+async def synctex_inverse(
+    project_id: str, page: int, x: float, y: float, document: str = ""
+):
     """PDF click to source position."""
     session = session_for(project_id)
+    state = session.document_for(document)
     # A synctex query on a thesis-sized .synctex.gz is not free, and this
     # runs on every double-click in the preview.
     position = await asyncio.to_thread(
         synctex.pdf_to_source,
-        session.paths.pdf, page, x, y, session.project.root,
-        shadow_main=session.paths.shadow, main_file=session.paths.main,
+        state.paths.pdf, page, x, y, session.project.root,
+        shadow_main=state.paths.shadow, main_file=state.paths.main,
     )
     if position is None:
         return {"found": False}
@@ -1684,13 +1756,21 @@ async def synctex_inverse(project_id: str, page: int, x: float, y: float):
 
 
 @app.get("/api/projects/{project_id}/synctex/forward")
-async def synctex_forward(project_id: str, path: str, line: int, column: int = 0):
+async def synctex_forward(
+    project_id: str, path: str, line: int, column: int = 0, document: str = ""
+):
     """Source position to places on the page."""
     session = session_for(project_id)
+    state = session.document_for(document)
     target = _safe(session, path)
+    # A line in a file this document has never read has no place on its
+    # page, and asking anyway returns an empty answer after an expensive
+    # search through the wrong map.
+    if not session._owns(state, target) and target != state.paths.main:
+        return {"positions": []}
     positions = await asyncio.to_thread(
         synctex.source_to_pdf,
-        session.paths.pdf, target, line, session.project.root, column,
+        state.paths.pdf, target, line, session.project.root, column,
     )
     return {"positions": [
         {"page": p.page, "x": p.x, "y": p.y, "width": p.width, "height": p.height}
