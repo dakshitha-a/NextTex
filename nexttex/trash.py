@@ -23,6 +23,7 @@ history first, because that is cheap and it keeps the timeline honest.
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -38,6 +39,10 @@ SKIP_DIRS = {".git", "__pycache__", ".nexttex", "node_modules"}
 # Above this, a file's text is not worth a final version -- it is a figure
 # or a dataset, and the trash keeps its bytes anyway.
 MAX_TEXT_VERSION_BYTES = 2_000_000
+
+#: What `delete` makes: "t", the millisecond, and six hex characters.  Used
+#: to check an id read back out of the ledger before it is joined onto a path.
+_IS_ENTRY_ID = re.compile(r"t[0-9a-f]{1,20}")
 
 
 @dataclass
@@ -125,8 +130,43 @@ class Trash:
         return next((e for e in self.entries() if e.id == entry_id), None)
 
     def payload_of(self, entry: TrashEntry) -> Path:
-        """Where a deleted file or folder is actually sitting."""
+        """Where a deleted file or folder is actually sitting.
+
+        The id is checked rather than trusted.  It is joined onto a path, and
+        it comes out of `entries.jsonl`, which is a file on disk: the ids this
+        module writes are `t<hex><hex>` and could never be anything else, but
+        the ledger is a file and a file is whatever is in it.
+        """
+        if not _IS_ENTRY_ID.fullmatch(entry.id):
+            raise PermissionError(f"not a trash entry id: {entry.id[:40]!r}")
         return self.root / entry.id / Path(entry.path).name
+
+    def _restore_target(self, relative: str) -> Path:
+        """Where a restore is allowed to put something back.
+
+        The path in a trash entry names where the file came from, and it is
+        read back out of `entries.jsonl` rather than remembered, so it gets
+        the same treatment every other path from outside this process gets:
+        resolved, and then checked against the project root.
+
+        The check that was here compared `target.relative_to(project_root)`
+        *after* the rename had already happened, and `relative_to` is lexical
+        -- `PurePosixPath("/p/../../x").relative_to("/p")` succeeds and
+        returns `../../x` -- so it neither ran in time nor would have caught
+        it.
+
+        Deliberately *not* refusing control files, unlike the write paths a
+        peer or an upload reaches.  Everything in the trash was in the project
+        before it was deleted, so putting it back grants nothing that was not
+        already there, and a writer who deletes their own `latexmkrc` and then
+        changes their mind is doing something completely ordinary.  A fence
+        that stops a person undoing their own delete is a bug, not a fence.
+        """
+        target = (self.project_root / relative).resolve()
+        root = self.project_root.resolve()
+        if target != root and root not in target.parents:
+            raise PermissionError(f"that is not inside the project: {relative}")
+        return target
 
     # -- writing -----------------------------------------------------------
     def _append(self, item: dict) -> None:
@@ -216,7 +256,7 @@ class Trash:
         if not payload.exists():
             raise FileNotFoundError("what was deleted is no longer in the trash")
 
-        target = self.project_root / entry.path
+        target = self._restore_target(entry.path)
         renamed = ""
         if target.exists():
             # Something is there now.  Put the old one beside it rather than

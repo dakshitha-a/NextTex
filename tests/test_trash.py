@@ -186,3 +186,102 @@ def test_a_symlink_in_a_deleted_folder_does_not_break_the_restore(tmp_path):
     assert (folder / "text.tex").read_text(encoding="utf-8") == "prose"
     # And the file it pointed at was never given a deletion it did not have.
     assert trash.history.versions("elsewhere.tex") == []
+
+
+# --- what a ledger entry is allowed to say ---------------------------------
+#
+# `entries.jsonl` is a file, parsed with a bare `json.loads`, and a restore
+# takes both the destination path and the payload directory name straight out
+# of it.  Peers can no longer write `.nexttex/`, which was the way in, so
+# these are a second lock rather than the only one.
+
+
+import json
+
+import pytest
+
+
+def _rewrite_entry(trash, **fields):
+    """Edit the ledger the way something outside this process would.
+
+    The escapes below all keep the *basename*, because that is what
+    `payload_of` looks the deleted bytes up by: changing it would fail the
+    restore for an uninteresting reason before reaching the check.
+    """
+    lines = trash.log.read_text(encoding="utf-8").splitlines()
+    record = json.loads(lines[-1])
+    record.update(fields)
+    lines[-1] = json.dumps(record)
+    trash.log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize("escape", [
+    "../../../chapter.tex",
+    "../chapter.tex",
+    "/tmp/chapter.tex",
+])
+def test_a_restore_cannot_put_a_file_outside_the_project(tmp_path, escape):
+    """The check that was here ran `relative_to` *after* the rename, and
+    `relative_to` is lexical: `PurePosixPath("/p/../../x").relative_to("/p")`
+    succeeds and hands back `../../x`.  So it neither ran in time nor would
+    have caught it."""
+    trash, project = bin(tmp_path)
+    (project / "chapter.tex").write_text("months of work", encoding="utf-8")
+    entry = trash.delete(project / "chapter.tex")
+
+    _rewrite_entry(trash, path=escape)
+    with pytest.raises(PermissionError):
+        trash.restore(entry.id)
+
+    landed = (project / escape) if not escape.startswith("/") else Path(escape)
+    assert not landed.exists()
+
+
+def test_a_restore_may_still_put_back_a_control_file(tmp_path):
+    """Deliberately allowed, unlike the peer and upload write paths.
+
+    Everything in the trash was in the project before it was deleted, so
+    putting it back grants nothing that was not already there, and a writer
+    who deletes their own `latexmkrc` and changes their mind is doing
+    something completely ordinary.  A fence that stops a person undoing their
+    own delete is a bug rather than a fence.
+    """
+    trash, project = bin(tmp_path)
+    (project / "latexmkrc").write_text("$pdf_mode = 1;", encoding="utf-8")
+    entry = trash.delete(project / "latexmkrc")
+    trash.restore(entry.id)
+    assert (project / "latexmkrc").read_text(encoding="utf-8") == "$pdf_mode = 1;"
+
+
+@pytest.mark.parametrize("bad_id", [
+    "../../etc", "..", "a/b", "", "NOTANID", "t" + "f" * 40,
+])
+def test_a_payload_id_cannot_be_a_path(tmp_path, bad_id):
+    """The id is joined onto `.nexttex/trash/`, so it has to be one segment."""
+    trash, project = bin(tmp_path)
+    (project / "chapter.tex").write_text("months of work", encoding="utf-8")
+    trash.delete(project / "chapter.tex")
+
+    _rewrite_entry(trash, id=bad_id)
+    found = next(e for e in trash.entries() if e.path == "chapter.tex")
+    with pytest.raises(PermissionError):
+        trash.payload_of(found)
+
+
+def test_the_ids_this_module_makes_are_all_acceptable(tmp_path):
+    """The check must not refuse what `delete` itself writes."""
+    trash, project = bin(tmp_path)
+    for name in ("a.tex", "b.tex", "c.tex"):
+        (project / name).write_text("x", encoding="utf-8")
+        entry = trash.delete(project / name)
+        assert trash.payload_of(entry).exists()
+
+
+def test_an_ordinary_restore_still_works(tmp_path):
+    """The fence must not stand in front of the thing it is guarding."""
+    trash, project = bin(tmp_path)
+    (project / "chapters").mkdir()
+    (project / "chapters" / "one.tex").write_text("the chapter", encoding="utf-8")
+    entry = trash.delete(project / "chapters" / "one.tex")
+    trash.restore(entry.id)
+    assert (project / "chapters" / "one.tex").read_text(encoding="utf-8") == "the chapter"

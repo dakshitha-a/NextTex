@@ -34,10 +34,14 @@ REMOTE="$(git remote get-url origin 2>/dev/null || true)"
 SLUG="$(printf '%s' "$REMOTE" \
   | sed -E 's#^git@github\.com:#https://github.com/#; s#\.git$##' \
   | sed -E 's#^https://github\.com/##')"
-case "$SLUG" in
-  */*) : ;;
-  *) fail "origin is not a GitHub repository: $REMOTE" ;;
-esac
+# Exactly `owner/repo`, and nothing that could add path segments.  `*/*`
+# accepted anything with a slash in it, including a value carrying `..`,
+# which curl then resolves away to a different repository than the one the
+# remote names.  Anyone who can set the origin remote can already edit the
+# checkout, so this is tidiness rather than a fence, but a URL assembled out
+# of a string should be assembled out of a checked one.
+printf '%s' "$SLUG" | grep -qE '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' \
+  || fail "origin is not a GitHub repository: $REMOTE"
 
 NAME="nexttex-frontend-${SHA}.tar.gz"
 BASE="https://github.com/${SLUG}/releases/download/interface"
@@ -52,13 +56,31 @@ if ! curl -fsSL "$BASE/$NAME" -o "$WORK/$NAME"; then
   fail "no interface has been published for $SHA yet"
 fi
 
-# The checksum is advisory: a missing one is not worth refusing over, a
-# wrong one is.
-if curl -fsSL "$BASE/$NAME.sha256" -o "$WORK/$NAME.sha256" 2>/dev/null; then
-  expected="$(awk '{print $1}' "$WORK/$NAME.sha256")"
-  actual="$( (sha256sum "$WORK/$NAME" 2>/dev/null || shasum -a 256 "$WORK/$NAME") | awk '{print $1}')"
-  [ "$expected" = "$actual" ] || fail "the downloaded interface does not match its checksum"
+# The checksum is required, not advisory.
+#
+# It used to be skipped entirely when the `.sha256` fetch failed, on the
+# grounds that a missing one was not worth refusing over.  But this tarball
+# becomes `frontend/dist`, which is the interface every browser on this
+# install is served, so a substituted one is script running on the app's own
+# origin with the session cookie attached -- and "the checksum could not be
+# fetched" is exactly the state an attacker who can answer for one URL can
+# produce for the other.  A check that any failure disables is not a check.
+#
+# CI publishes the pair together and prunes them together, so a tarball with
+# no checksum beside it is already an anomaly rather than a normal case.
+if ! curl -fsSL "$BASE/$NAME.sha256" -o "$WORK/$NAME.sha256"; then
+  fail "no checksum was published for $SHA, so the interface was not installed"
 fi
+expected="$(awk '{print $1}' "$WORK/$NAME.sha256")"
+actual="$( (sha256sum "$WORK/$NAME" 2>/dev/null || shasum -a 256 "$WORK/$NAME") | awk '{print $1}')"
+# A malformed or empty checksum file must not compare equal to anything.
+case "$expected" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+  *) fail "the published checksum for $SHA is not a sha256" ;;
+esac
+[ "${#expected}" -eq 64 ] || fail "the published checksum for $SHA is not a sha256"
+[ -n "$actual" ] || fail "could not compute a checksum for the downloaded interface"
+[ "$expected" = "$actual" ] || fail "the downloaded interface does not match its checksum"
 
 tar -xzf "$WORK/$NAME" -C "$WORK"
 [ -f "$WORK/dist/index.html" ] || fail "the downloaded interface has no index.html"
