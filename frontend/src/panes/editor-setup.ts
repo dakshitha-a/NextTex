@@ -429,7 +429,14 @@ export function extensions(
    *  about it, and a change from anywhere else is already the server's news
    *  to tell. */
   onChange: (local: boolean) => void,
-  onCursor: (line: number, column: number, selection: string) => void,
+  onCursor: (
+    line: number,
+    column: number,
+    selection: string,
+    /** The lines the selection covers, so a question about it can say
+     *  where it is. Null when nothing is selected. */
+    span: { fromLine: number; toLine: number } | null,
+  ) => void,
   symbols: () => Symbols | null,
   /** The annotation the Yjs binding marks its own transactions with. A ref
    *  rather than a value: the binding is imported on demand, long after
@@ -457,7 +464,13 @@ export function extensions(
         const selection = range.empty
           ? ""
           : update.state.sliceDoc(range.from, range.to).slice(0, 20000);
-        onCursor(line.number, range.head - line.from + 1, selection);
+        const span = range.empty
+          ? null
+          : {
+              fromLine: update.state.doc.lineAt(range.from).number,
+              toLine: update.state.doc.lineAt(range.to).number,
+            };
+        onCursor(line.number, range.head - line.from + 1, selection, span);
       }
     }),
   ];

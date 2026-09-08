@@ -1305,11 +1305,16 @@ class ProjectAgent:
     def busy(self) -> bool:
         return self._turn is not None and not self._turn.done()
 
-    async def ask(self, prompt: str) -> None:
+    async def ask(self, prompt: str, *, context: str = "") -> None:
         """Start a turn. Returns as soon as it is running, not when it ends.
 
         The turn is a task so that it survives the HTTP request that
         started it; the browser reads the result from the event stream.
+
+        `context` is what the writer was looking at when they asked -- the
+        passage they had selected. The model is given it; `turn_start` is
+        not, so the conversation on screen shows the question that was
+        typed rather than the question with a chapter stapled to it.
         """
         if self.busy:
             raise RuntimeError("a turn is already running")
@@ -1318,7 +1323,9 @@ class ProjectAgent:
         self._last_event = time.monotonic()
         self._why = prompt.strip().splitlines()[0][:120] if prompt.strip() else ""
         await self._emit({"type": "turn_start", "prompt": prompt})
-        self._turn = asyncio.create_task(self._run_turn(prompt))
+        self._turn = asyncio.create_task(
+            self._run_turn(f"{context}\n\n{prompt}" if context else prompt)
+        )
 
     async def _run_turn(self, prompt: str) -> None:
         """Run one turn, and guarantee that it ends where the browser can see.

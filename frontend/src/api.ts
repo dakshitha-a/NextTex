@@ -453,8 +453,33 @@ const api = {
         `&line=${line}&document=${encodeURIComponent(document)}`,
     ),
 
-  ask: (id: string, prompt: string) =>
-    request<any>(`/projects/${id}/agent/ask`, json({ prompt })),
+  ask: (
+    id: string,
+    prompt: string,
+    /** What the writer had highlighted when they pressed Send. Sent with
+     *  the question rather than fetched by the agent afterwards, so that
+     *  "make this shorter" has a `this` from the start. */
+    selection?: {
+      path: string;
+      text: string;
+      fromLine: number;
+      toLine: number;
+    } | null,
+  ) =>
+    request<any>(
+      `/projects/${id}/agent/ask`,
+      json({
+        prompt,
+        selection: selection
+          ? {
+              file: selection.path,
+              text: selection.text,
+              fromLine: selection.fromLine,
+              toLine: selection.toLine,
+            }
+          : null,
+      }),
+    ),
   respond: (id: string, requestId: string, decision: string) =>
     request<any>(
       `/projects/${id}/agent/permission`,

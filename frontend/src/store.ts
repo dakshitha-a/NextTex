@@ -95,7 +95,24 @@ export type State = {
   // through state rather than a method call means opening a file works
   // whether or not the editor has finished mounting -- which it has not,
   // the first time a project opens.
-  pendingOpen: { path: string; line?: number; nonce: number } | null;
+  pendingOpen: {
+    path: string;
+    line?: number;
+    /** From a double-click on the typeset page: the word that was under
+     *  the pointer, used to place the cursor exactly. */
+    word?: string;
+    nonce: number;
+  } | null;
+  /** What is highlighted in the editor right now. Read when a question is
+   *  sent, so the agent is told what "this paragraph" means without having
+   *  to ask -- and kept here rather than in the editor because the composer
+   *  is in a different pane. Null when nothing is selected. */
+  selected: {
+    path: string;
+    text: string;
+    fromLine: number;
+    toLine: number;
+  } | null;
   // Set while the editor is showing an old version of a file, read-only.
   viewing: { path: string; sha: string; version: Version } | null;
   history: Version[];
@@ -189,6 +206,7 @@ const state: State = {
   tabs: [],
   activePath: null,
   pendingOpen: null,
+  selected: null,
   viewing: null,
   history: [],
   trash: [],

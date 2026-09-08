@@ -25,6 +25,7 @@ import {
   useStore,
   nextId,
   type ChatItem,
+  type State,
 } from "../store";
 
 export type ChatHandle = {
@@ -86,6 +87,7 @@ export default function Chat({
   const shown = useMemo(() => tidy(chat), [chat]);
 
   const thinking = useStore((s) => s.thinking);
+  const selected = useStore((s) => s.selected);
   const blocked = useStore((s) => s.awaitingPermission);
   // What the agent is doing at this moment.  Until now the only sign of
   // life was a line under the composer that said "is writing" whether it
@@ -113,7 +115,12 @@ export default function Chat({
   const stream = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
   const pinned = useRef(true);
-  const queued = useRef<string[]>([]);
+  // The question *and* what was selected when it was asked: a queued
+  // follow-up goes out after the current turn ends, by which time the
+  // writer has usually selected something else or nothing at all.
+  const queued = useRef<
+    { text: string; selection: State["selected"] }[]
+  >([]);
   // A ref does not re-render, so the "yours will go next" line read a count
   // that only changed when something else happened to redraw the panel.
   const [queuedCount, setQueuedCount] = useState(0);
@@ -233,6 +240,10 @@ export default function Chat({
     const text = draft.trim();
     const projectId = get().projectId;
     if (!text || !projectId || blocked) return;
+    // Taken now rather than when the turn actually starts: a queued
+    // question goes later, and by then the writer has usually clicked
+    // somewhere else and the selection they meant is gone.
+    const held = get().selected;
     setDraft("");
     pushChat({ kind: "user", id: nextId(), text, at: Date.now() });
     pinned.current = true;
@@ -245,12 +256,12 @@ export default function Chat({
       // A follow-up thought arrives while Claude is still answering the
       // last one.  Hold it and send it when the turn ends, rather than
       // refusing it and making the writer remember to ask again.
-      queued.current.push(text);
+      queued.current.push({ text, selection: held });
       setQueuedCount(queued.current.length);
       return;
     }
     try {
-      await api.ask(projectId, text);
+      await api.ask(projectId, text, held);
     } catch (error: any) {
       // Put it back in the box rather than losing what they typed.
       setDraft(text);
@@ -264,7 +275,7 @@ export default function Chat({
     const next = queued.current.shift();
     setQueuedCount(queued.current.length);
     if (next) {
-      api.ask(projectId, next).catch((error: any) => {
+      api.ask(projectId, next.text, next.selection).catch((error: any) => {
         set({ error: error.message });
       });
     }
@@ -484,6 +495,26 @@ export default function Chat({
                 Keep this one
               </button>
             </div>
+          </div>
+        ) : null}
+        {/* What the question is about to carry. Shown because the agent
+            answering about a passage the writer no longer has in mind is
+            baffling if there was never anything on screen saying it had
+            been attached -- and because seeing it is how you learn that
+            selecting a paragraph first is worth doing. */}
+        {selected && selected.text.trim() ? (
+          <div
+            data-testid="selection-chip"
+            className="t-micro mb-[6px] flex items-baseline gap-[6px] rounded-[3px] border border-line bg-surface-2 px-[8px] py-[4px] text-ink-3"
+          >
+            <span className="text-ink-2">
+              {selected.fromLine === selected.toLine
+                ? `Line ${selected.fromLine}`
+                : `Lines ${selected.fromLine}\u2013${selected.toLine}`}
+            </span>
+            <span className="min-w-0 truncate">
+              of {selected.path.split("/").pop()} goes with this
+            </span>
           </div>
         ) : null}
         <textarea
