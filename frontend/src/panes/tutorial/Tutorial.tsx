@@ -19,6 +19,7 @@ import gitDark from "./shots/git-card-dark.png";
 const ENTRIES: Entry[] = [
   { id: "panes", label: "The four panes" },
   { id: "sync", label: "The page and the source" },
+  { id: "documents", label: "More than one document" },
   { id: "folding", label: "Folding, reading, writing" },
   { id: "errors", label: "When it does not compile" },
   { id: "keys", label: "Keyboard" },
@@ -144,6 +145,39 @@ export default function Tutorial({
           <P>
             <C>⌘↵</C> goes the other way: it scrolls the page to whatever line
             your caret is on.
+          </P>
+          <P>
+            The text on the page can be selected and copied, so a quotation
+            or a number can come straight out of the typeset document rather
+            than being retyped from the source.
+          </P>
+        </Section>
+
+        <Section id="documents" title="More than one document">
+          <P>
+            A project is often more than one document. A paper and its
+            supplementary information live in the same folder and neither
+            includes the other, so both need building and both need a page
+            to look at.
+          </P>
+          <P>
+            Any <C>.tex</C> file with its own <C>\documentclass</C> can be
+            previewed alongside the main one. NextTex finds them for you:
+            the <C>+</C> on the preview tabs lists them, and each file's
+            <C>⋯</C> menu offers the same thing. A file that is
+            <C>\include</C>d by something else is not offered, because its
+            preview is the document that includes it.
+          </P>
+          <P>
+            Each document builds on its own and keeps its own page, its own
+            errors and its own place in the scroll. Saving a chapter rebuilds
+            the document that includes it and leaves the others alone, so a
+            second preview costs nothing until something it reads changes.
+          </P>
+          <P>
+            The tabs and the source follow each other. Opening a document
+            brings its page forward; clicking a tab opens its source.{" "}
+            <C>⌘⌥P</C> moves between them.
           </P>
         </Section>
 
