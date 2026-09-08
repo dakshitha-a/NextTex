@@ -5,6 +5,9 @@
 # and the files stay where you put them.  What this touches is the code, the
 # Python environment and the built interface.
 set -euo pipefail
+# Resolved before the cd, because after it "$0" may no longer name this file.
+# Needed so the script can hand over to its own updated self, below.
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 cd "$(dirname "$0")/.."
 
 # If the Node on PATH is too old -- which it is on plenty of distributions --
@@ -48,7 +51,9 @@ main() {
   fi
 
   say "Fetching"
-  if [ -d .git ]; then
+  if [ -n "${NEXTTEX_UPDATE_RESUMED:-}" ]; then
+    note "$NEXTTEX_UPDATE_RESUMED -> $(git rev-parse --short HEAD), already fetched"
+  elif [ -d .git ]; then
     if [ -n "$(git status --porcelain)" ]; then
       note "you have local changes; stashing them"
       git stash push -u -m "nexttex update $(date -Is)" >/dev/null
@@ -62,6 +67,22 @@ main() {
     else
       note "$before -> $after"
       git log --oneline "$before..$after" | sed 's/^/    /'
+      # Hand over to the version just pulled, and let it do the rest.
+      #
+      # Parsing the whole file up front (see above) stops bash reading
+      # garbage, but it also means the *old* script is what runs every
+      # step after this one.  So an update that adds an install step is
+      # exactly the update that skips it -- which is how a release that
+      # added iroh landed on a machine without installing it, leaving
+      # sharing switched off until the next unrelated update happened by.
+      #
+      # Guarded by the variable rather than by a flag, so it survives
+      # however the caller invoked this, and so a re-exec loop is
+      # impossible even if the pull somehow keeps moving.
+      if [ -z "${NEXTTEX_UPDATE_RESUMED:-}" ]; then
+        note "continuing with the updated script"
+        NEXTTEX_UPDATE_RESUMED="$before" exec "$SELF" "$@"
+      fi
     fi
   else
     note "not a git checkout; skipping"
@@ -122,4 +143,7 @@ main() {
   echo
 }
 
-main
+# Passed through, because the hand-over above re-execs with them: without
+# this "$@" inside main is empty and a resumed update would silently lose
+# --no-restart, letting systemd stop the server that is running the update.
+main "$@"
