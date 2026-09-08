@@ -175,6 +175,66 @@ reported as *"three new commits, none of which change NextTex"*, a grey line
 rather than an alert, and a check that cannot reach GitHub says nothing unless
 you asked for it.
 
+## Uninstalling
+
+Three things to remove, in this order: the service, the install, and the
+state directory. Your projects are in none of them.
+
+**Linux.**
+
+```bash
+systemctl --user disable --now nexttex
+rm ~/.config/systemd/user/nexttex.service
+systemctl --user daemon-reload
+rm -rf ~/apps/NextTex ~/.local/share/nexttex
+```
+
+**macOS.**
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.nexttex.server.plist
+rm ~/Library/LaunchAgents/com.nexttex.server.plist
+rm -rf ~/apps/NextTex ~/.local/share/nexttex
+```
+
+**Windows**, in PowerShell:
+
+```powershell
+Unregister-ScheduledTask -TaskName NextTex -Confirm:$false
+Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$env:LOCALAPPDATA\nexttex"
+```
+
+If you installed somewhere else with `NEXTTEX_DIR`, that is the directory to
+remove instead. If you installed a second copy with `--instance NAME`, every
+name above gains the same suffix — `nexttex-NAME`, `com.nexttex.server-NAME`,
+`~/.local/share/nexttex-NAME` — and the copies are independent, so removing
+one leaves the others alone.
+
+Everything NextTex fetched for itself is inside the install directory,
+including the `uv` it may have downloaded and the Python environment, so
+deleting the folder really does remove them. The state directory holds
+`config.json` — your token, your password and your list of projects — so it
+goes too.
+
+**What this does not remove**, deliberately:
+
+- **Your projects.** They were never inside the install; the registry held
+  paths. Each still has its `.nexttex/` beside it with the version history
+  and the trash in it, and deleting that is a separate decision. The section
+  above on [a project on disk](#a-project-on-disk) says what is in there.
+- **TeX.** TinyTeX at `~/.TinyTeX`, or `~/Library/TinyTeX` on macOS, is
+  about 460 MB and is a normal TeX installation that anything else on the
+  machine can use. `tlmgr` did not put anything NextTex-specific in it.
+- **The Claude CLI**, and whatever account it is signed in to. NextTex never
+  held those credentials, so removing NextTex does not sign you out.
+
+One thing worth knowing before you do it on a shared project: the state
+directory holds this install's identity as a peer. Remove it and reinstall
+and you are a *new* peer to your collaborators, with a different public key,
+and somebody will have to invite you back. Your files and their history are
+untouched either way — it is the collaborative link that is lost, which is
+the same thing that happens when somebody removes you.
+
 ## Your first session
 
 About twenty minutes, most of it TinyTeX downloading. Open the URL, choose an
@@ -438,6 +498,39 @@ terminal once or use an OpenAI key. Reports welcome.
 | iroh | Only to share a project with another writer | yes, with the Python dependencies |
 
 Nothing in the bottom half of that table is needed to write and typeset.
+
+### What it costs to leave running
+
+NextTex is meant to be left switched on, so what it uses while nothing is
+happening matters more than what it uses at its peak. Measured on Linux, on
+an install configured for Claude, with the thesis-shaped project the
+benchmarks use — forty source files and two megabytes of LaTeX:
+
+| | |
+|---|---|
+| Memory, idle | about 90 MB |
+| Memory, with a forty-file project open | about 91 MB |
+| Processor, idle | 0.1% of one core |
+| The state directory | tens of kilobytes |
+
+The number that surprises people is the third one: an idle NextTex is
+genuinely idle. There is no polling loop and no scheduled work — the file
+watcher waits on the operating system, and a build only happens because you
+typed something. Choosing no agent, or OpenAI, takes the idle figure to about
+60 MB, because the Claude SDK is the larger part of it.
+
+What is *not* in those numbers is `latexmk`, which is a separate process that
+starts when a build does and exits when it finishes. A big build is the one
+time NextTex will use a whole core, and that is TeX rather than NextTex.
+
+On disk, an install is about 300 MB, nearly all of it the Python virtual
+environment. TeX is much larger than everything else here — TinyTeX is about
+460 MB — and it is installed outside NextTex and shared with anything else on
+the machine that typesets.
+
+Your projects are the rest, and they are yours: the version history is
+compressed and content-addressed, so a year of writing is usually smaller
+than the PDF it produces.
 
 ## What leaves this machine
 
