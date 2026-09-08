@@ -123,3 +123,84 @@ def test_a_project_whose_folder_has_gone_can_still_be_removed(client, project_di
     assert client.get("/api/projects").json()["projects"] == []
     # The id is the same one it had while the folder was there.
     assert listed[0]["id"] == added["id"]
+
+
+def test_a_moved_project_can_be_pointed_at_its_new_home(client, project_dir, tmp_path):
+    """Moving a folder outside NextTex should not mean losing the entry."""
+    import shutil
+
+    added = client.post("/api/projects", json={"path": str(project_dir)}).json()
+    moved = tmp_path / "elsewhere"
+    shutil.move(str(project_dir), str(moved))
+
+    listed = client.get("/api/projects").json()["projects"]
+    assert listed[0]["missing"] is True
+
+    response = client.post(
+        f"/api/projects/{listed[0]['id']}/relocate", json={"path": str(moved)}
+    )
+    assert response.status_code == 200, response.text
+    now = client.get("/api/projects").json()["projects"]
+    assert len(now) == 1
+    assert now[0]["path"] == str(moved)
+    assert now[0]["missing"] is False
+    # A project is identified by where it is, so the id follows the folder.
+    assert now[0]["id"] != added["id"]
+    assert client.post(f"/api/projects/{now[0]['id']}/open").status_code == 200
+
+
+def test_pointing_a_project_at_nothing_says_so_and_changes_nothing(
+    client, project_dir, tmp_path
+):
+    listed = client.post(
+        "/api/projects", json={"path": str(project_dir)}
+    ).json()
+    response = client.post(
+        f"/api/projects/{listed['id']}/relocate",
+        json={"path": str(tmp_path / "nowhere")},
+    )
+    assert response.status_code == 400
+    still = client.get("/api/projects").json()["projects"]
+    assert [p["path"] for p in still] == [str(project_dir)]
+
+
+def test_two_projects_cannot_be_pointed_at_one_folder(client, project_dir, tmp_path):
+    """Two entries at one path would share an id, and one would shadow the other."""
+    other = tmp_path / "second"
+    other.mkdir()
+    (other / "main.tex").write_text("\\documentclass{article}", encoding="utf-8")
+    first = client.post("/api/projects", json={"path": str(project_dir)}).json()
+    client.post("/api/projects", json={"path": str(other)})
+
+    response = client.post(
+        f"/api/projects/{first['id']}/relocate", json={"path": str(other)}
+    )
+    assert response.status_code == 409
+    assert len(client.get("/api/projects").json()["projects"]) == 2
+
+
+def test_relocating_something_that_is_not_registered(client, project_dir):
+    response = client.post(
+        "/api/projects/deadbeef1234/relocate", json={"path": str(project_dir)}
+    )
+    assert response.status_code == 404
+
+
+def test_a_relocated_project_keeps_its_place_in_the_list(client, project_dir, tmp_path):
+    """The folder moved; the project did not become a new one."""
+    import shutil
+
+    newer = tmp_path / "newer"
+    newer.mkdir()
+    (newer / "main.tex").write_text("\\documentclass{article}", encoding="utf-8")
+
+    old = client.post("/api/projects", json={"path": str(project_dir)}).json()
+    client.post("/api/projects", json={"path": str(newer)})   # opened later
+    moved = tmp_path / "elsewhere"
+    shutil.move(str(project_dir), str(moved))
+
+    client.post(f"/api/projects/{old['id']}/relocate", json={"path": str(moved)})
+    listed = client.get("/api/projects").json()["projects"]
+    # Still second: the list is ordered by when each was last worked on, and
+    # being moved on disk is not working on it.
+    assert [p["path"] for p in listed] == [str(newer), str(moved)]

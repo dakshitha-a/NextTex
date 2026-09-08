@@ -21,6 +21,25 @@ const ALLOWED: string[] = [
   "scrollable-region-focusable",
 ];
 
+/** Contrast is measured on settled pixels.
+ *
+ *  Panels arrive with `.nx-arrive`, a 120ms fade from `opacity: 0`, and the
+ *  update footer replays it every time its phase changes.  Sampling during
+ *  one measures half-transparent text against the ground behind it and
+ *  reports a contrast failure that no one can ever see -- which is what the
+ *  sweep had been doing about one run in twenty, more often under the load
+ *  of the full suite, and it cost two investigations before the cause was
+ *  the ruler rather than the thing being measured.
+ *
+ *  Reduced motion rather than a wait: the app already answers it by turning
+ *  animations off outright, so there is no transient to race, and an
+ *  accessibility sweep is the right place to be asking for it anyway.  The
+ *  colours it checks are the same either way.
+ */
+async function settle(page: Page) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+}
+
 async function violations(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa"])
@@ -45,6 +64,7 @@ function describeAll(found: Awaited<ReturnType<typeof violations>>) {
 for (const theme of ["light", "dark"] as const) {
   test(`the project list is usable in the ${theme} theme`, async ({ app, page }) => {
     await page.emulateMedia({ colorScheme: theme });
+    await settle(page);
     await page.goto(`${app.base}/?token=${app.token}`);
     await page.getByText(/project/i).first().waitFor();
     const found = await violations(page);
@@ -53,6 +73,7 @@ for (const theme of ["light", "dark"] as const) {
 
   test(`the editor is usable in the ${theme} theme`, async ({ page, tab }) => {
     await page.emulateMedia({ colorScheme: theme });
+    await settle(tab);
     await expect(tab.locator(".cm-editor")).toBeVisible();
     const found = await violations(tab);
     expect(describeAll(found)).toBe("");
