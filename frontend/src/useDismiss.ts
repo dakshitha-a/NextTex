@@ -46,7 +46,12 @@ export function useDismiss(
       }
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+      if (event.key !== "Escape") return;
+      // Claimed, so that whatever is behind this popover does not also act
+      // on the same keystroke.  Escape belongs to the innermost thing that
+      // can be dismissed, and this is it while it is open.
+      event.preventDefault();
+      close();
     };
     window.addEventListener("pointerdown", away, true);
     window.addEventListener("keydown", escape);
