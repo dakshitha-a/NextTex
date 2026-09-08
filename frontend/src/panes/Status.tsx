@@ -155,6 +155,12 @@ export default function Status({
       >
         History
       </button>
+      {/* Dropped like every other segment when the pane is narrow, rather
+          than clipped.  This one had no container query, so on a 1300px
+          window it rendered "148 word" with the s cut off at the pane
+          border -- and at 1000 the count vanished but its separator rule
+          stayed, pointing at nothing.  The strip never reflows; it drops. */}
+      <span className="hidden shrink-0 items-center gap-3 @[640px]:flex">
       <Rule />
       <button
         className="t-micro tnum w-[92px] shrink-0 text-right text-ink-2 hover:text-ink"
@@ -165,6 +171,7 @@ export default function Status({
           ? "\u2014 words"
           : `${words.toLocaleString()} ${wordScope === "document" ? "words" : "in file"}`}
       </button>
+      </span>
     </div>
   );
 }
