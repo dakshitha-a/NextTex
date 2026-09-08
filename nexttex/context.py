@@ -428,6 +428,11 @@ class ProjectContext:
                 "Adjectives like 'clear', 'engaging' or 'authoritative' are "
                 "useless here because they cannot be acted on. Every line should "
                 "be something a writer could follow or violate on purpose.\n\n"
+                "Two things not to record, however clearly the sample shows "
+                "them: whether the author uses em dashes, and how they wrap "
+                "lines in the source. Both are fixed by rules this description "
+                "cannot lift, so noting them would only describe a habit that "
+                "will not be followed.\n\n"
                 "Write the description only, with no preamble."
             )
             output = self.voice_summary

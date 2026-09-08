@@ -58,3 +58,51 @@ def test_a_voice_distillation_names_its_own_file(tmp_path):
     prompt, output = context.distillation_request("voice")
     assert str(output) in prompt
     assert output == context.voice_summary
+
+
+# --- the two rules with no exceptions -------------------------------------
+#
+# Standing instructions, not preferences: an em dash is banned outright, and
+# a paragraph is one line in the file. Both are asserted against every agent
+# that writes, because the guidance used to live in the Claude agent's
+# prompt and nowhere else -- so choosing OpenAI in the settings card quietly
+# chose a different standard of prose from the same button.
+
+from nexttex.openai_agent import SYSTEM_PROMPT as OPENAI_PROMPT  # noqa: E402
+from nexttex.writing import PROSE                                # noqa: E402
+
+WRITING_AGENTS = {"claude": SYSTEM_PROMPT, "openai": OPENAI_PROMPT}
+
+
+def test_every_agent_is_told_not_to_use_an_em_dash():
+    for name, prompt in WRITING_AGENTS.items():
+        assert "Never use an em dash" in prompt, name
+
+
+def test_every_agent_is_told_a_paragraph_is_one_line():
+    for name, prompt in WRITING_AGENTS.items():
+        assert "Write each paragraph as one line" in prompt, name
+        # The reason, not just the rule: a rule with a reason survives being
+        # weighed against something else, and this one is weighed against
+        # "match the document's existing conventions" on every edit.
+        assert "reflow" in prompt, name
+
+
+def test_every_agent_gets_the_same_writing_standard():
+    """One copy, so the two cannot drift apart again."""
+    for name, prompt in WRITING_AGENTS.items():
+        assert PROSE in prompt, name
+
+
+def test_the_rules_do_not_use_the_thing_they_ban():
+    """A prompt containing an em dash is telling and showing different things."""
+    assert "—" not in PROSE
+    for name, prompt in WRITING_AGENTS.items():
+        assert "—" not in prompt, name
+
+
+def test_a_voice_description_cannot_lift_them(tmp_path):
+    """`VOICE_PRECEDENCE` hands the author's voice the last word, which
+    would otherwise hand it these two as well."""
+    options = agent(tmp_path, voice=True)._options()
+    assert "no exceptions are the exception" in options.system_prompt
