@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
 import api, { captureToken, saveBlob, startDownload } from "./api";
+import { useDismiss } from "./useDismiss";
+import Boundary from "./Boundary";
 import {
   connect,
   disconnect,
@@ -109,7 +111,10 @@ export default function App() {
   const [width, setWidth] = useState(viewportWidth);
   const narrow = width < 1400;
   const tight = width < 900;
-  const [chatOpen, setChatOpen] = useState(true);
+  // Open unless the window is too narrow to dock it, so a narrow window
+  // does not paint an overlay on the first frame and close it on the
+  // second.
+  const [chatOpen, setChatOpen] = useState(!narrow);
   const [showing, setShowing] = useState<"source" | "preview">("source");
   const [contextRequest, setContextRequest] =
     useState<"style" | "voice" | null>(null);
@@ -144,7 +149,16 @@ export default function App() {
     chatOpen: boolean;
     showing: "source" | "preview";
   } | null>(null);
-  const [chatOver, setChatOver] = useState(false);
+  // Derived, not mirrored. This was `useState(false)` kept in step with
+  // `narrow` from an effect, which meant it was a render behind the width
+  // it describes -- so for one commit the panel's class came from the old
+  // value while `widths` and `folded` came from the new one, and the layout
+  // was painted from two different ideas of how wide the window was. A
+  // frame of that is a flicker; a frame that survives a slow re-render is a
+  // panel sitting somewhere it should not be, which is not reproducible on
+  // purpose and so could not be chased. There is nothing to keep in step:
+  // it was only ever set to `narrow`.
+  const chatOver = narrow;
   const [wordScope, setWordScope] = useState<"file" | "document">("document");
   const [words, setWords] = useState<number | null>(null);
   const editor = useRef<EditorHandle | null>(null);
@@ -783,7 +797,6 @@ export default function App() {
   // reopening a panel they deliberately folded away.
   const foldedBeforeNarrow = useRef<boolean | null>(null);
   useEffect(() => {
-    setChatOver(narrow);
     if (narrow) {
       if (foldedBeforeNarrow.current === null) {
         foldedBeforeNarrow.current = get().projectId ? chatOpenRef.current : true;
@@ -1237,12 +1250,13 @@ export default function App() {
                 {/* Beside the project's own name, because sharing is a fact
                     about this project rather than about the install. */}
                 <button
-                  className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
+                  className="quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
                   title="Share this project with other people running NextTex"
+                  aria-label="Share this project"
                   data-testid="open-share"
                   onClick={() => setSharing(true)}
                 >
-                  Share
+                  <ShareIcon />
                 </button>
                 <Settings
                   align="left"
@@ -1250,23 +1264,16 @@ export default function App() {
                   onTutorial={openTutorial}
                   onChangeAgent={changeAgent}
                 />
-                <button
-                  className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
-                  title="Download the whole project as a zip"
-                  onClick={() =>
+                {/* Two buttons that both mean "give me a copy" were two
+                    words competing with the project's name for a 32px bar.
+                    One icon, and the choice inside it. */}
+                <DownloadMenu
+                  onZip={() =>
                     projectId &&
                     startDownload(api.downloadUrl(projectId, { format: "zip" }))
                   }
-                >
-                  Zip
-                </button>
-                <button
-                  className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
-                  title="Download the typeset PDF"
-                  onClick={() => projectId && downloadPdf(projectId, projectName)}
-                >
-                  PDF
-                </button>
+                  onPdf={() => projectId && downloadPdf(projectId, projectName)}
+                />
                 <FoldButton
                   direction="left"
                   label="Fold the file list away"
@@ -1574,6 +1581,11 @@ export default function App() {
               <Segmented value={showing} onChange={setShowing} />
             </div>
           ) : null}
+          {/* Its own boundary as well as the root's: the preview is the
+              largest chunk and the one most likely to be missing after an
+              update, and losing the pane is a great deal better than
+              losing the window. */}
+          <Boundary>
           <Suspense fallback={<div className="h-full bg-surface-2" />}>
           <Pdf
             document={activePreview}
@@ -1591,6 +1603,7 @@ export default function App() {
             }}
           />
           </Suspense>
+          </Boundary>
         </div>
         {folded.pdf && !tight ? (
           <Collapsed label="Preview" side="right" onExpand={() => fold("pdf")} />
@@ -1730,6 +1743,119 @@ export default function App() {
   );
 }
 
+/** Sharing, as a glyph: two people, and the line between them.
+ *
+ *  Drawn rather than fetched, like the cog beside it, so the interface
+ *  carries no icon font and no sprite sheet.  Every attribute is quoted --
+ *  an unquoted one ending in a slash swallows the tag's own close and the
+ *  path draws nothing at all, which has happened here before.
+ */
+function ShareIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+      <g
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      >
+        <circle cx="12.2" cy="3.4" r="2.1" />
+        <circle cx="3.8" cy="8" r="2.1" />
+        <circle cx="12.2" cy="12.6" r="2.1" />
+        <path d="M5.65 6.99 L10.35 4.41" />
+        <path d="M5.65 9.01 L10.35 11.59" />
+      </g>
+    </svg>
+  );
+}
+
+/** A copy of this, to keep: the arrow and the shelf it lands on. */
+function DownloadIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+      <g
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M8 1.9 L8 9.6" />
+        <path d="M4.7 6.5 L8 9.8 L11.3 6.5" />
+        <path d="M2.6 12.4 L2.6 13.7 L13.4 13.7 L13.4 12.4" />
+      </g>
+    </svg>
+  );
+}
+
+/** The two ways out of a project, behind one button.
+ *
+ *  A menu rather than a dialog: there is nothing to decide, only which of
+ *  two things to fetch, and a card with a heading would be more ceremony
+ *  than the act deserves.
+ */
+function DownloadMenu({
+  onZip,
+  onPdf,
+}: {
+  onZip: () => void;
+  onPdf: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const menu = useRef<HTMLDivElement | null>(null);
+  useDismiss(menu, open, () => setOpen(false), trigger);
+
+  const choose = (what: () => void) => () => {
+    setOpen(false);
+    what();
+  };
+
+  return (
+    <div className="relative flex items-center">
+      <button
+        ref={trigger}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Download a copy"
+        aria-label="Download a copy"
+        data-testid="open-download"
+        className="quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <DownloadIcon />
+      </button>
+      {open ? (
+        <div
+          ref={menu}
+          role="menu"
+          data-testid="download-menu"
+          className="nx-arrive absolute top-[30px] right-0 z-40 w-[176px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
+        >
+          <button
+            role="menuitem"
+            data-testid="download-zip"
+            className="t-ui block w-full px-[10px] py-[5px] text-left text-ink hover:bg-surface-2"
+            onClick={choose(onZip)}
+          >
+            Whole project
+            <span className="t-micro ml-[6px] text-ink-3">.zip</span>
+          </button>
+          <button
+            role="menuitem"
+            data-testid="download-pdf"
+            className="t-ui block w-full px-[10px] py-[5px] text-left text-ink hover:bg-surface-2"
+            onClick={choose(onPdf)}
+          >
+            Typeset page
+            <span className="t-micro ml-[6px] text-ink-3">.pdf</span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** A PDF download can fail -- the document may not typeset -- and a plain
  *  link would save the error as a .pdf.  Fetching first lets it say why. */
 async function downloadPdf(projectId: string, name: string) {
@@ -1767,22 +1893,15 @@ function AppControls({
         <Chevron direction="down" />
       </button>
       <Settings align="left" inProject />
-      <button
-        className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
-        title="Download the whole project as a zip"
-        onClick={() =>
+      {/* The same control as the rail's, because this is the same bar with
+          the file list folded away, and two toolbars that disagree about
+          where downloads live is worse than either arrangement. */}
+      <DownloadMenu
+        onZip={() =>
           projectId && startDownload(api.downloadUrl(projectId, { format: "zip" }))
         }
-      >
-        Zip
-      </button>
-      <button
-        className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
-        title="Download the typeset PDF"
-        onClick={() => projectId && downloadPdf(projectId, projectName)}
-      >
-        PDF
-      </button>
+        onPdf={() => projectId && downloadPdf(projectId, projectName)}
+      />
     </div>
   );
 }
