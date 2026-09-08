@@ -255,3 +255,126 @@ def test_lint_honours_the_projects_own_suppressions(client, opened, project_dir)
     # ...and what it chose not to say is the suppression working, rather
     # than chktex having failed to start.
     assert not any("ldots" in message for message in messages), messages
+
+
+# --- the write that landed and was never announced --------------------------
+#
+# All three of these routes had one shape: write the file, record the version,
+# then call `collab.ingest` bare, and only after that publish `files_changed`.
+# A raise in the middle meant a 500 whose body said nothing, no announcement,
+# no rebuild, and every other window still showing the old text over a file
+# that had already changed on disk.
+
+
+def _break_ingest(monkeypatch, session_or_client=None):
+    """Make folding into the shared document fail, the way a full disk or a
+    corrupt document log would."""
+    from server.collab.store import CollabStore
+
+    def boom(self, *args, **kwargs):
+        raise RuntimeError("the shared document is unavailable")
+
+    monkeypatch.setattr(CollabStore, "ingest", boom)
+
+
+def test_a_save_still_lands_when_the_shared_document_refuses(
+    client, opened, project_dir, monkeypatch
+):
+    """The write is what the writer asked for and it has already succeeded.
+    A collaboration layer that cannot keep up is worth a line in the log, not
+    worth throwing their save away."""
+    _break_ingest(monkeypatch)
+    answer = client.put(
+        f"/api/projects/{opened['id']}/file",
+        json={"path": "main.tex", "text": "the paragraph they typed",
+              "compile": False},
+    )
+    assert answer.status_code == 200
+    assert (project_dir / "main.tex").read_text(encoding="utf-8") == \
+        "the paragraph they typed"
+
+
+def test_an_upload_is_never_silently_partial(
+    client, opened, project_dir, monkeypatch
+):
+    """This one was inside the loop, so a raise on file k left files one to k
+    on disk, nothing announced and no rebuild: a partial upload that reported
+    nothing at all."""
+    _break_ingest(monkeypatch)
+    answer = client.post(
+        f"/api/projects/{opened['id']}/upload",
+        files=[
+            ("files", ("one.png", b"\x89PNG one", "image/png")),
+            ("files", ("two.png", b"\x89PNG two", "image/png")),
+        ],
+    )
+    assert answer.status_code == 200
+    written = answer.json()["written"]
+    assert len(written) == 2
+    for name in ("one.png", "two.png"):
+        assert (project_dir / name).exists()
+
+
+def test_a_restore_still_lands_when_the_shared_document_refuses(
+    client, opened, project_dir, monkeypatch
+):
+    client.put(
+        f"/api/projects/{opened['id']}/file",
+        json={"path": "main.tex", "text": "the first draft", "compile": False},
+    )
+    client.put(
+        f"/api/projects/{opened['id']}/file",
+        json={"path": "main.tex", "text": "a rewrite that went badly",
+              "compile": False},
+    )
+    versions = client.get(
+        f"/api/projects/{opened['id']}/history", params={"path": "main.tex"}
+    ).json()["versions"]
+    older = next(v for v in versions if v["sha"] != versions[0]["sha"])
+
+    _break_ingest(monkeypatch)
+    answer = client.post(
+        f"/api/projects/{opened['id']}/history/restore",
+        json={"path": "main.tex", "sha": older["sha"]},
+    )
+    assert answer.status_code == 200
+
+
+# --- a path that is safe but not canonical ---------------------------------
+
+
+@pytest.mark.parametrize("path", ["./main.tex", "chapters/../main.tex"])
+def test_a_non_canonical_path_still_reaches_the_shared_document(
+    client, opened, project_dir, path
+):
+    """`CollabStore.ingest` matches its manifest on the exact string, so a
+    path that is safe but not canonical missed, triggered a full `adopt()`
+    walk of the project looking for it, and then returned False: the file was
+    written and the shared document never heard.  Three of the eight callers
+    normalised first and three did not.
+    """
+    from server import main as server_main
+
+    seen = []
+    session = server_main.SESSIONS[opened["id"]]
+    original = session.collab.ingest
+
+    def watch(relative, text, **kwargs):
+        seen.append(relative)
+        return original(relative, text, **kwargs)
+
+    session.collab.ingest = watch
+    try:
+        answer = client.put(
+            f"/api/projects/{opened['id']}/file",
+            json={"path": path, "text": "typed through an odd path",
+                  "compile": False},
+        )
+    finally:
+        session.collab.ingest = original
+
+    assert answer.status_code == 200
+    # Whatever the caller said, the document is told the canonical name.
+    assert seen == ["main.tex"]
+    assert (project_dir / "main.tex").read_text(encoding="utf-8") == \
+        "typed through an odd path"

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import json
 import os
 import mimetypes
@@ -56,6 +57,8 @@ from nexttex.project import (
 )
 from nexttex import deps, updates
 from server.session import CLOSED, ProjectSession, spawn
+
+log = logging.getLogger("nexttex.server")
 
 SESSIONS: dict[str, ProjectSession] = {}
 # One folder-read per project at a time.  A second would race the first
@@ -1090,6 +1093,37 @@ def _tag(text: str | None) -> str:
     return hashlib.blake2b(text.encode("utf-8"), digest_size=8).hexdigest()
 
 
+def _ingest(session: ProjectSession, target: Path, text: str) -> None:
+    """Fold a write that has already landed on disk into the shared document.
+
+    Two things this fixes, both of which showed as "my save did nothing".
+
+    **The path is normalised first.**  `CollabStore.ingest` finds a file by
+    matching its manifest on the exact string, so a path that is safe but not
+    canonical -- `./main.tex`, `chapters//03.tex` -- missed, triggered a full
+    `adopt()` walk of the project on every save looking for it, and then
+    returned False.  The file was on disk and the shared document never heard.
+    Three of the eight callers were already normalising and three were not.
+
+    **A failure here no longer eats the write.**  This used to be called bare,
+    after the file had been written and its version recorded, and before the
+    `files_changed` that tells every other tab to reload.  So a raise meant a
+    500 whose body said nothing, no announcement, no rebuild, and every other
+    window still showing the old text over a file that had already changed.
+    In `upload` it was inside the loop, which made it a silently partial
+    upload: files one to k on disk, nothing announced, no rebuild.
+
+    The write is the thing the writer asked for and it has already succeeded.
+    A collaboration layer that cannot keep up is worth a line in the log, not
+    worth throwing their save away.
+    """
+    try:
+        session.collab.ingest(session.project.relative(target), text)
+    except Exception:
+        log.warning("could not fold %s into the shared document",
+                    target.name, exc_info=True)
+
+
 def _safe(session: ProjectSession, relative: str) -> Path:
     try:
         return session.project.resolve(relative)
@@ -1317,7 +1351,7 @@ async def write_file(
     session.record_version(target, text, by="you", previous=previous, source=origin)
     # And into the shared document, so anybody with this file open sees it
     # arrive rather than finding out at their next reload.
-    session.collab.ingest(path, text)
+    _ingest(session, target, text)
 
     session.note_edit(target, text, previous)
     if compile:
@@ -1558,7 +1592,7 @@ async def restore_version(
     # the file held the old text, the shared document still held the new
     # text, and the next keystroke anywhere projected the document back over
     # the restored file.
-    session.collab.ingest(path, text)
+    _ingest(session, target, text)
     session.note_edit(target, text, previous)
     session.schedule_compile()
     await session.events.publish({"type": "files_changed", "paths": [path]})
@@ -1676,7 +1710,7 @@ async def upload(
         relative = session.project.relative(target)
         # Uploads suppress the watcher, so this is the only way an uploaded
         # file reaches anybody else's copy -- or this browser's own editor.
-        session.collab.ingest(relative, read_text(target))
+        _ingest(session, target, read_text(target))
         written.append(relative)
         results.append({
             "name": name, "path": relative, "outcome": outcome,
