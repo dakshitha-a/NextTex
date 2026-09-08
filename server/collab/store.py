@@ -125,30 +125,87 @@ def minimal_edit(before: str, after: str) -> tuple[int, int, str]:
     return (start, end_before, after[start:end_after])
 
 
+# How much text `difflib` is allowed to look at, character by character.
+# `SequenceMatcher` is quadratic in the worst case, and on the whole of a
+# fifty-kilobyte chapter that is not a figure of speech: appending one line
+# to a chapter of the bench's synthetic thesis took **thirty-four seconds**
+# before the trimming below existed. Past this, the comparison is done by
+# line, which is both far cheaper and a better fit for LaTeX.
+CHARWISE_LIMIT = 4096
+
+# And past *this*, not at all: a replacement of a whole large file gets one
+# splice. It is the honest answer anyway -- there is no useful correspondence
+# between two versions of a file that differ everywhere.
+LINEWISE_LIMIT = 400_000
+
+
+def _spans_from(matcher, before_at, after_text, offsets_before, offsets_after):
+    """Opcodes as (start, end, replacement), in the original coordinates."""
+    spans = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        spans.append((
+            before_at + offsets_before[i1],
+            before_at + offsets_before[i2],
+            after_text[offsets_after[j1]:offsets_after[j2]],
+        ))
+    # Applied back to front, so an earlier splice's indices are still valid
+    # after a later one has been made.
+    spans.reverse()
+    return spans
+
+
 def edits_for(before: str, after: str) -> list[tuple[int, int, str]]:
     """A short list of splices turning `before` into `after`.
 
     One splice is right for a keystroke and wrong for a `git pull` that
-    changed three paragraphs in a long chapter: the single splice covering
-    them would span everything in between, so a collaborator editing a
-    fourth paragraph inside that span would lose it.  `difflib` finds the
-    changed runs; anything it cannot help with falls back to one splice.
+    changed three paragraphs of a long chapter: the single splice covering
+    them would span everything in between, so a collaborator editing a fourth
+    paragraph inside that span would lose it.
+
+    The work is done on the *middle* only.  Trimming the common prefix and
+    suffix is linear and, for the overwhelmingly common shapes -- a
+    keystroke, an appended paragraph, a rewritten sentence -- leaves almost
+    nothing behind to compare.  That matters more than it sounds: this runs
+    on every write NextTex did not make, and `difflib` over the whole of a
+    large chapter is quadratic.
     """
     if before == after:
         return []
     if not before or not after:
         return [(0, len(before), after)]
 
-    matcher = difflib.SequenceMatcher(None, before, after, autojunk=False)
-    spans = [
-        (i1, i2, after[j1:j2])
-        for tag, i1, i2, j1, j2 in matcher.get_opcodes()
-        if tag != "equal"
-    ]
-    # Applied back to front, so an earlier splice's indices are still valid
-    # after a later one has been made.
-    spans.reverse()
-    return spans or [minimal_edit(before, after)]
+    start, end_before, replacement = minimal_edit(before, after)
+    middle_before = before[start:end_before]
+    if len(middle_before) + len(replacement) > LINEWISE_LIMIT:
+        return [(start, end_before, replacement)]
+
+    if len(middle_before) + len(replacement) <= CHARWISE_LIMIT:
+        matcher = difflib.SequenceMatcher(
+            None, middle_before, replacement, autojunk=False,
+        )
+        return _spans_from(
+            matcher, start, replacement,
+            list(range(len(middle_before) + 1)),
+            list(range(len(replacement) + 1)),
+        ) or [(start, end_before, replacement)]
+
+    # By line. A few thousand lines is a comparison `difflib` is good at,
+    # and a change to a chapter is a change to some of its lines.
+    before_lines = middle_before.splitlines(keepends=True)
+    after_lines = replacement.splitlines(keepends=True)
+    before_offsets = [0]
+    for line in before_lines:
+        before_offsets.append(before_offsets[-1] + len(line))
+    after_offsets = [0]
+    for line in after_lines:
+        after_offsets.append(after_offsets[-1] + len(line))
+
+    matcher = difflib.SequenceMatcher(None, before_lines, after_lines, autojunk=False)
+    return _spans_from(
+        matcher, start, replacement, before_offsets, after_offsets,
+    ) or [(start, end_before, replacement)]
 
 
 def _root(doc: Doc, name: str, kind):
@@ -468,9 +525,17 @@ class CollabStore:
         if not spans:
             return adopted
 
+        doc = self.texts.get(file_id)
+        if doc is None:
+            # `body` populates both maps together, so this is unreachable in
+            # ordinary use -- but indexing straight into `texts` here meant a
+            # KeyError rather than a no-op if it ever stopped being true, and
+            # this is on the path every outside write takes.
+            return False
+
         self._projecting.add(file_id)
         try:
-            with self.texts[file_id].transaction(origin=FROM_DISK):
+            with doc.transaction(origin=FROM_DISK):
                 for start, end, replacement in spans:
                     if end > start:
                         del text[start:end]

@@ -39,14 +39,35 @@ def test_sharing_twice_keeps_the_same_share(client, opened):
 
 
 def test_an_invite_carries_what_a_joiner_needs(client, opened):
+    from server.collab.peers import INVITE_PREFIX, _unwrap
+
     project_id = opened["id"]
     client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
     invite = client.post(f"/api/projects/{project_id}/collab/invite").json()["invite"]
 
-    payload = json.loads(invite)
+    # One opaque token. It is pasted into a chat window, where the JSON it
+    # wraps was mangled by anything that reflows text -- and where a secret
+    # printed beside the word "secret" invites reading over a shoulder.
+    assert invite.startswith(INVITE_PREFIX)
+    assert "{" not in invite and " " not in invite
+
+    payload = _unwrap(invite)
     assert payload["share"]
     assert payload["secret"]
     assert "address" in payload
+
+
+def test_an_invite_survives_being_pasted_badly(client, opened):
+    """Wrapped by an email client, or copied with a space on the end."""
+    from server.collab.peers import _unwrap
+
+    project_id = opened["id"]
+    client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
+    invite = client.post(f"/api/projects/{project_id}/collab/invite").json()["invite"]
+
+    middle = len(invite) // 2
+    mangled = f"  {invite[:middle]}\n{invite[middle:]}  \n"
+    assert _unwrap(mangled) == _unwrap(invite)
 
 
 def test_two_invites_are_different(client, opened):
@@ -54,15 +75,19 @@ def test_two_invites_are_different(client, opened):
     client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
     first = client.post(f"/api/projects/{project_id}/collab/invite").json()["invite"]
     second = client.post(f"/api/projects/{project_id}/collab/invite").json()["invite"]
-    assert json.loads(first)["secret"] != json.loads(second)["secret"]
+    from server.collab.peers import _unwrap
+
+    assert _unwrap(first)["secret"] != _unwrap(second)["secret"]
 
 
 def test_only_the_hash_of_an_invite_is_kept(client, opened):
     """So somebody who reads the state directory cannot use one out of it."""
     project_id = opened["id"]
     client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
+    from server.collab.peers import _unwrap
+
     invite = client.post(f"/api/projects/{project_id}/collab/invite").json()["invite"]
-    secret = json.loads(invite)["secret"]
+    secret = _unwrap(invite)["secret"]
 
     share = server_main.SESSIONS[project_id].peers.share
     stored = share.path.read_text(encoding="utf-8")

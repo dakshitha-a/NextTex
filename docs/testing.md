@@ -188,3 +188,59 @@ The pairing is now prevented rather than certified: `.nx-on-surround` steps
 the dimmest ink up to `--ink-2` (6.04:1), and `["ink-3", "surround"]` is
 deliberately absent from the list, with a comment saying that adding it back
 is meant to fail.
+
+## Two peers, in one process
+
+Collaboration is the first thing in NextTex that needs *two installs* to test
+at all, and the obvious way to arrange that does not work. `NEXTTEX_INSTANCE`
+gives a second install its own state directory, port and token — but
+`server/main.py` builds `SETTINGS` and `REGISTRY` at import time, which is
+why `tests/api/conftest.py` redirects the environment before importing it, so
+two of them inside one pytest process is not something that can be arranged.
+
+The seam is lower down instead. Everything above `server/collab/transport.py`
+is bytes in and bytes out, so `LoopbackTransport` — two queues and a
+module-level hub — is a complete second implementation of "the network", and
+`NEXTTEX_COLLAB_TRANSPORT=loopback` selects it in the same way
+`NEXTTEX_SCRIPTED_AGENT` selects a stand-in for the model. Both the route
+tests and the browser tier set it, so **no test opens a real endpoint or
+contacts iroh's discovery and relay hosts**.
+
+It is not only cheaper than the real thing; it can do something the real
+thing cannot do on request. `HUB.sever()` and `HUB.heal()` are a network
+partition with the messages written during it held and delivered afterwards,
+which is exactly the case collaboration exists for — somebody shutting their
+laptop on a train — and exactly the case that is impossible to stage against
+a real network in a test that has to finish in a second.
+
+What the loopback cannot prove is that iroh works. That has its own test,
+`tests/collab/test_iroh_live.py`, behind `NEXTTEX_LIVE` alongside the paid
+check against a real model, and it opens genuine endpoints:
+
+    NEXTTEX_LIVE=1 .venv/bin/python -m pytest tests/collab/test_iroh_live.py
+
+Run it after touching `iroh_transport.py`. Two of its details cost an hour
+each to find and neither is visible from the outside: `bi.send()` and
+`bi.recv()` must be captured once rather than called per use, and the
+accepting side has to hold the connection open or the stream resets under a
+reader that is still going.
+
+## The bench caught a thirty-four second freeze
+
+`collab.ingest_ms` measures folding an outside change — a `git pull`, an
+agent's write, an editor in another terminal — into the shared document. It
+was added with a budget of 40 ms and immediately measured **34,000**.
+
+`difflib.SequenceMatcher` is quadratic in the worst case and was being handed
+two whole files. Appending one line to a fifty-kilobyte chapter is the most
+ordinary thing that can happen to a project, and it would have frozen the
+server for over half a minute — on a path with no user-facing progress
+indicator, so it would have looked like a hang rather than like slowness.
+Trimming the common prefix and suffix first is linear and leaves almost
+nothing to compare; it is 3 ms now.
+
+Two things about that are worth keeping. It was not found by a test, because
+every test used small files and passed in milliseconds; the bench found it
+because the bench builds a project the size of a real thesis. And the
+regression guard for it lives in `tests/collab/test_store.py` rather than in
+the bench, so an ordinary `scripts/check.sh` would catch it coming back.

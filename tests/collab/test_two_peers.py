@@ -159,12 +159,11 @@ async def test_a_stranger_with_no_invite_is_refused(tmp_path):
     alice.network.begin_sharing("Alice")
     await alice.network.start()
 
-    invite = alice.network.invite()
-    import json
+    from server.collab.peers import _unwrap, _wrap
 
-    payload = json.loads(invite)
+    payload = _unwrap(alice.network.invite())
     payload["secret"] = "not-a-real-secret"
-    assert await mallory.network.join(json.dumps(payload), "Mallory") == ""
+    assert await mallory.network.join(_wrap(payload), "Mallory") == ""
     await settle()
 
     assert not alice.network.share.allows("m" * 64)
@@ -181,11 +180,11 @@ async def test_an_invite_for_another_project_is_refused(tmp_path):
     alice.network.begin_sharing("Alice")
     await alice.network.start()
 
-    import json
+    from server.collab.peers import _unwrap, _wrap
 
-    payload = json.loads(alice.network.invite())
+    payload = _unwrap(alice.network.invite())
     payload["share"] = "0" * 32
-    await bob.network.join(json.dumps(payload), "Bob")
+    await bob.network.join(_wrap(payload), "Bob")
     await settle()
 
     assert not alice.network.share.allows("b" * 64)

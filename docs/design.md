@@ -1634,12 +1634,14 @@ table of contents is that list. Clicking one opens the file it names,
 resolved against the main file's directory rather than the including file's,
 which is how LaTeX itself resolves it.
 
-The outline is recomputed on the editor's existing 250ms change timer, and
-**before the save rather than after it** — a file whose save is refused
-because it changed underneath would otherwise show the outline it had when it
-was last written, for as long as the conflict stood. `sameOutline` compares
-the result and keeps the old array when nothing moved, so typing prose does
-not re-render the panel on every keystroke.
+The outline is recomputed on a 250ms timer behind the keyboard. That timer
+used to be the autosave's, and the outline was deliberately refreshed
+*before* the save, so that a file whose save was refused did not show the
+outline it had when it was last written for as long as the conflict stood.
+There are no refused saves any more (§22) and the timer is now only about not
+re-parsing a long chapter on every keystroke. `sameOutline` compares the
+result and keeps the old array when nothing moved, so typing prose does not
+re-render the panel.
 
 The row under the caret is marked with `aria-current` and a small dot rather
 than a rule or a heavier weight: the mark moves as the writer types, and a
@@ -2108,3 +2110,147 @@ to*: a browser handed `application/gzip` downloads the file instead of
 running it. And `Vary: Accept-Encoding` goes on every response including
 the uncompressed one, or a cache between the browser and here can hand a
 brotli body to a client that never asked for one.
+
+## 22. Two people, one file, and the refusal that had to go
+
+This section reverses a decision the app was built around. §"The bugs that
+mattered" records that two windows on one project destroyed each other's
+work, and the fix: a save carries a tag for what the browser last agreed the
+file said, and is *refused* when the file has moved on. That was the right
+answer to the problem it was given. It is the wrong answer to a different
+one, and this is a record of the difference and of what was deleted.
+
+**Refusing is right when one writer is stale, and wrong when two are
+current.** Two tabs belonging to one person are a mistake to be caught: one
+of them is behind and its owner does not know. Two people typing at the same
+moment are not a mistake at all, and a banner asking which copy survives is
+asking somebody to throw away work that nothing was wrong with. No amount of
+improving the refusal turns it into an answer for the second case, because
+the refusal *is* the answer for the first.
+
+So a file is a CRDT, what is on disk is a projection of it, and the tag, the
+banner, `resolveConflict`, the closing-tab beacon and the dirty dot are all
+gone. It is worth being clear that this is a deletion and not an addition:
+the conflict machinery existed to handle a class of event that no longer
+occurs, and leaving it in place beside a merge would have been two answers to
+one question.
+
+### Every project, not only the shared ones
+
+The tempting version is to keep the old path for a project nobody has shared
+and use documents only when they are needed. That is two save paths with two
+conflict semantics and two sets of tests, and the rare one is the untested
+one. It is also a worse product: two tabs of your own stop being able to
+fight on the day this lands, whether or not anybody else is involved.
+
+### One document per file, not one per project
+
+A project's manifest is one document; each text file is another. One document
+for the whole project is the obvious shape and it fails on the first screen:
+a two-megabyte thesis with a year of tombstones behind it would be a
+multi-megabyte download every time the project opened, and the browser needs
+the file you are editing, not all forty. It would also break remote cursors,
+because a `y-codemirror.next` relative position only decodes against the
+document it was made in.
+
+### Keyed by file id, and where that id comes from
+
+Rename a chapter on one machine while somebody is typing into it on another,
+and the text has to land in the same document regardless. So the manifest is
+keyed by an id and a path is a *property* of a file.
+
+For a project NextTex has seen before, that id is `history.slug_for(path)` --
+the sha16 the version log has always been keyed by. That is not a
+coincidence being exploited so much as the same question having the same
+answer twice, and it means an existing project keeps its entire history
+attached with no migration step at all.
+
+### Presence for display, focus for the agent
+
+Awareness carries cursors, and it would have been easy to make the agent's
+"here" and "this" read from it too. That was rejected: it couples the agent
+to a JavaScript wire encoding that would then have to be re-implemented in
+Python and kept in step for ever. `session.presence` stays a plain dictionary
+fed by the editor, and it answers only for *local* clients -- a collaborator
+in another time zone must never be able to change what "this paragraph"
+means to your agent.
+
+Awareness itself did end up being parsed on the server, for a different and
+narrower reason: see the ghost, below.
+
+### What the tests had to be rewritten to say
+
+`tests/api/test_two_tabs.py` and `e2e/specs/two-tabs.spec.ts` were the specs
+for the refusal, and inverting them is the honest record of the change: the
+test that asserted a stale tab is turned away now asserts that both edits
+survive and nobody is asked anything. The browser specs also stopped waiting
+for a `PUT /file` response, because there is no save request to wait for; they
+poll the file instead, which is what they were using the response as a
+stand-in for.
+
+### Five things that cost an hour each
+
+Written down because none of them is discoverable from the outside, and four
+of the five fail silently.
+
+**`doc["text"]` returns `None`** for a root type that arrived through
+`apply_update` rather than through assignment -- so a document read back from
+disk looks empty to anything that indexes it, with no error anywhere.
+`doc.get(name, type=T)` answers correctly, and `_root` in `store.py` exists
+for this alone.
+
+**An observer runs inside the transaction that fired it**, and pycrdt refuses
+a nested one. So nothing in an observer may read the document: persistence is
+handed the update bytes rather than deriving them, compaction waits for a
+path with no transaction open, and scheduling a write never writes. The error
+when this is got wrong -- "Already mutably borrowed" -- names neither the
+observer nor the read.
+
+**A joiner asked for no files.** The first version of `send_documents`
+offered the documents this install had *open*, and a joiner has none open, so
+it received an empty project while the handshake, the membership and the
+connection all looked perfectly healthy.
+
+**A collaborator who closed their window stayed for thirty seconds**, caret
+and all. y-protocols drops a silent peer after `outdatedTimeout`, which is a
+module constant and cannot be lowered. The first design relayed awareness
+unread, on the principle that the server should not re-implement somebody
+else's wire format; that principle survives, but the conclusion did not,
+because pycrdt already implements it. The server keeps an `Awareness` of its
+own and says who has gone the moment their socket closes.
+
+**Starlette's HTTP middleware does not run for the websocket scope.** The
+check that guards the other ninety routes does not guard the sync route, and
+a version of it that forgot would hand every document in every open project
+to anyone who could reach the port while looking, on screen, exactly like a
+version that did not. `authorise_socket` is called in the handler body and
+there is a test whose only job is to notice if it stops being.
+
+### The bundle
+
+`bundle.initial_kb` was 770.3 before any of this and is 773.1 after it,
+against a budget of 775 -- which is not free, and is not the whole cost
+either. Yjs, `y-protocols` and `y-codemirror.next` are a 102 kB chunk that
+`bench.py` does not count, because it counts the entry script and this is
+imported when a file is opened. The honest number is that a first
+*interaction* got about fifty kilobytes heavier and the first *paint* got
+three heavier, and the second is the one the budget is about.
+
+### What is deliberately not solved
+
+Two agents editing the same paragraph at once converge syntactically and not
+semantically: the text will be valid LaTeX and may not be sensible prose.
+
+`git pull` replaces a whole file, so it wins against a collaborator's
+untouched paragraphs in the same file. Committing and pushing are safe; the
+documentation says to pull between sessions rather than during one.
+
+Retention is per peer. Two collaborators may hold different depths of the
+same file's history, because thinning is a decision about a local disk and
+history syncs by a cursor that only moves forward -- a set difference would
+re-offer every record that thinning had just dropped, for ever.
+
+And removing a collaborator disconnects them without retracting anything.
+There is no owner, so there is no authority that could rotate a key, and a
+button that looked like revocation and was not would be worse than no button.
+The sentence saying so is next to the button and not in a footnote.

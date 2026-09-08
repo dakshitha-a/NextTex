@@ -4,6 +4,24 @@ import { get, refreshHistory, set, useStore } from "../store";
 import { Chevron } from "../App";
 import { isRenderable } from "./FileView";
 
+/** Whose version this is.
+ *
+ *  `by` is the role -- the person or their agent -- and `peer` is the
+ *  install.  Both are needed: "you" on a shared project means you and not
+ *  your collaborator, and their agent's edits have to read as theirs rather
+ *  than as Claude in the abstract.
+ *
+ *  A version with no peer was written here, which is what every version made
+ *  before a project was shared says, so an old history reads exactly as it
+ *  did.
+ */
+export function who(version: Version, me: string): string {
+  const mine = !version.peer || version.peer === me;
+  if (mine) return version.by === "claude" ? "Claude" : "you";
+  const them = version.who || `${version.peer!.slice(0, 6)}…`;
+  return version.by === "claude" ? `${them}'s Claude` : them;
+}
+
 /** What this file used to say.
  *
  *  Versions are listed newest first and grouped by day, because "some time
@@ -42,6 +60,8 @@ export default function History({
   }, [projectId, activePath, compile]);
 
   const name = activePath?.split("/").pop() ?? "";
+  // Which install this is, so a version can say "you" rather than a name.
+  const me = useStore((s) => s.peerId);
 
   const choose = (sha: string, selected: boolean) => {
     if (binary) {
@@ -166,7 +186,7 @@ export default function History({
                       version.by === "claude" ? "text-pen" : "text-ink-3"
                     }`}
                   >
-                    {version.by === "claude" ? "Claude" : "you"}
+                    {who(version, me)}
                   </span>
                   <span className="flex-1" />
                   {/* The naming control takes the size's place on hover
@@ -297,6 +317,7 @@ export function ViewingBanner({
   showingChanges: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const me = useStore((s) => s.peerId);
 
   // Escape leaves, as it does everywhere else in the app.
   useEffect(() => {
@@ -321,9 +342,7 @@ export function ViewingBanner({
         Viewing {timeOf(version.at)}
       </span>
       <Rule />
-      <span className="t-micro text-ink-2">
-        {version.by === "claude" ? "Claude" : "you"}
-      </span>
+      <span className="t-micro text-ink-2">{who(version, me)}</span>
       {version.label || version.why ? (
         <>
           <Rule />

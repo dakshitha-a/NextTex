@@ -44,6 +44,7 @@ is not is worse than no control.
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import hashlib
 import json
@@ -55,7 +56,7 @@ from pycrdt import Map, create_sync_message, handle_sync_message
 
 from nexttex.atomic import write_atomically
 
-from . import identity, transport, wire
+from . import history_sync, identity, transport, wire
 
 # How long to wait before dialling a peer again, growing to a resting rate.
 # The common failure is a laptop closing its lid, so the first few are quick.
@@ -65,8 +66,36 @@ BACKOFF = [1, 2, 4, 8, 15, 30, 60]
 INVITE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
+# What an invite looks like, so a person pasting one into the wrong box is
+# told which box it belongs in rather than being told it is malformed.
+INVITE_PREFIX = "nexttex-share-v1-"
+
+
 def _hash_secret(secret: str) -> str:
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
+def _wrap(payload: dict) -> str:
+    """An invite's contents, as the one token that gets pasted."""
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return INVITE_PREFIX + base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def _unwrap(invite: str) -> dict:
+    """The contents of an invite.
+
+    Tolerant of what happens to a string on its way through a chat window:
+    surrounding whitespace, a line break in the middle, and the padding that
+    base64 has and this does not.
+    """
+    text = "".join(invite.split())
+    if text.startswith(INVITE_PREFIX):
+        text = text[len(INVITE_PREFIX):]
+    raw = base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+    payload = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("an invite is an object")
+    return payload
 
 
 class Share:
@@ -151,6 +180,9 @@ class PeerLink:
         #: Documents we have already opened the conversation about, so a
         #: manifest that changes twice does not re-offer everything twice.
         self.offered: set[str] = set()
+        #: Blobs asked for and not yet answered, so a figure referenced by
+        #: five versions is fetched once.
+        self.wanted: set[str] = set()
 
     async def send(self, frame: bytes) -> None:
         if not self.alive:
@@ -188,6 +220,13 @@ class PeerLink:
                 continue
             self.offered.add(doc_id)
             await self.send(wire.sync(doc_id, create_sync_message(doc)))
+            # And what this file used to say. Cheap to ask, and it is the
+            # difference between joining a project and joining a project
+            # with its past.
+            await self.send(wire.hist_want(
+                file_id, self.peer_id,
+                self.network.cursors.at(self.peer_id, file_id),
+            ))
 
     async def run(self) -> None:
         try:
@@ -243,9 +282,71 @@ class PeerLink:
                 self.network.share.share_id
             self.network.share.save()
             await self.send_documents()
+        elif frame.kind == wire.HIST_WANT:
+            await self._send_history(frame)
+        elif frame.kind == wire.HIST_GIVE:
+            await self._take_history(frame)
+        elif frame.kind == wire.BLOB_WANT:
+            await self._send_blob(frame.header.get("sha", ""))
+        elif frame.kind == wire.BLOB_HAVE:
+            self.network.take_blob(frame.header.get("sha", ""), frame.payload)
         elif frame.kind == wire.DENIED:
             self.network.last_error = frame.header.get("reason", "refused")
             self.alive = False
+
+    async def _send_history(self, frame: wire.Frame) -> None:
+        """Our own lines for a file, from where they left off."""
+        network = self.network
+        history = network.history()
+        if history is None:
+            return
+        file_id = frame.header.get("file", "")
+        relative = network.store.path_for(file_id)
+        if not relative:
+            return
+        after = int(frame.header.get("cursor") or 0)
+        lines, reached = history_sync.mine(
+            history, relative, network.peer_id, after,
+        )
+        if lines:
+            await self.send(wire.hist_give(
+                file_id, network.peer_id, reached, lines,
+            ))
+
+    async def _take_history(self, frame: wire.Frame) -> None:
+        network = self.network
+        history = network.history()
+        if history is None:
+            return
+        file_id = frame.header.get("file", "")
+        relative = network.store.path_for(file_id)
+        if not relative:
+            return
+        lines = frame.header.get("lines") or []
+        history_sync.absorb(history, relative, lines)
+        network.cursors.advance(
+            self.peer_id, file_id, int(frame.header.get("cursor") or 0),
+        )
+        # There may be more where those came from.
+        if len(lines) >= history_sync.BATCH:
+            await self.send(wire.hist_want(
+                file_id, self.peer_id,
+                network.cursors.at(self.peer_id, file_id),
+            ))
+
+    async def _send_blob(self, sha: str) -> None:
+        history = self.network.history()
+        if history is None or not sha:
+            return
+        data = history.blobs.get(sha)
+        if data is not None:
+            await self.send(wire.blob_have(sha, data))
+
+    async def want_blob(self, sha: str) -> None:
+        if sha in self.wanted:
+            return
+        self.wanted.add(sha)
+        await self.send(wire.blob_want(sha))
 
 
 class PeerNetwork:
@@ -256,6 +357,7 @@ class PeerNetwork:
         self.hub = hub
         self.session = session
         self.share = Share(store.project.state_dir / "collab")
+        self.cursors = history_sync.Cursors(store.project.state_dir / "collab")
         self.transport: transport.Transport | None = None
         self.links: dict[str, PeerLink] = {}
         self.applying: PeerLink | None = None
@@ -319,16 +421,24 @@ class PeerNetwork:
         self._write_member(self.peer_id, name)
 
     def invite(self, name: str = "") -> str:
-        """A single-use string for one other install."""
+        """A single-use string for one other install.
+
+        One opaque token rather than the JSON it wraps.  It is pasted into a
+        chat window or an email, where the JSON version was both mangled by
+        anything that reflows text and needlessly legible -- a secret printed
+        in the clear beside a label saying "secret" invites somebody to read
+        it over a shoulder.  No colons, because too many clients turn
+        anything with one into a link.
+        """
         if not self.share.shared:
             self.begin_sharing(name)
         secret = self.share.mint_invite(self.peer_id)
-        return json.dumps({
+        return _wrap({
             "v": 1,
             "share": self.share.share_id,
             "address": self.address(),
             "secret": secret,
-        }, separators=(",", ":"))
+        })
 
     def _write_member(self, peer_id: str, name: str, colour: str = "") -> None:
         members = self.store.manifest.get("members", type=Map) \
@@ -388,7 +498,7 @@ class PeerNetwork:
         Returns "" on success, or a sentence saying why not.
         """
         try:
-            payload = json.loads(invite)
+            payload = _unwrap(invite)
             share_id = str(payload["share"])
             address = str(payload["address"])
             secret = str(payload["secret"])
@@ -514,6 +624,35 @@ class PeerNetwork:
             if link is source or not link.alive:
                 continue
             self._spawn(link.send(message))
+
+    def history(self):
+        """This project's version history, if a session is holding one.
+
+        None when a project is being joined: there is no session yet, and a
+        joiner has nothing to send anybody.
+        """
+        return getattr(self.session, "history", None)
+
+    def take_blob(self, sha: str, data: bytes) -> None:
+        """Store a blob a peer sent, if it is really the one asked for."""
+        history = self.history()
+        if history is None or not sha or not data:
+            return
+        import hashlib
+
+        # Checked rather than trusted. A content-addressed store whose
+        # contents do not match their names is worse than an empty one.
+        if hashlib.sha256(data).hexdigest() != sha:
+            return
+        history.blobs.put(data)
+        for link in self.links.values():
+            link.wanted.discard(sha)
+
+    async def fetch_blob(self, sha: str) -> None:
+        """Ask whoever is connected for a blob this install does not have."""
+        for link in list(self.links.values()):
+            if link.alive:
+                await link.want_blob(sha)
 
     def state(self) -> dict:
         """What the interface shows about this project's peers."""

@@ -81,6 +81,10 @@ export default function Editor({
   const buffers = useRef(new Map<string, Buffer>());
   const current = useRef<string | null>(null);
   const collab = useRef<ProjectCollab | null>(null);
+  // How a change made by the shared document is told apart from a keystroke.
+  // Filled in when the collaboration module arrives, which is after these
+  // extensions have been built.
+  const remoteMarker = useRef<unknown>(null);
   const timer = useRef<number | null>(null);
   const focusTimer = useRef<number | null>(null);
   const openRef = useRef<((path: string, line?: number) => Promise<void>) | null>(null);
@@ -116,8 +120,14 @@ export default function Editor({
       if (collab.current?.projectId === projectId) return collab.current;
       try {
         const module = await import("../collab");
+        remoteMarker.current = module.remoteMarker;
         const who = await api.auth().catch(() => null);
         const name = who?.displayName?.trim() || "Someone";
+        // Which install this is, so the history panel can say "you" about a
+        // version rather than printing your own name back at you.
+        api.collab(projectId)
+          .then((collabState) => set({ peerId: collabState.me }))
+          .catch(() => undefined);
         collab.current = module.collabFor(projectId, {
           name,
           colour: module.colourFor(name),
@@ -171,9 +181,17 @@ export default function Editor({
       if (!sameOutline(now, next)) set({ outline: next });
     };
 
-    const onChange = () => {
+    const onChange = (local: boolean) => {
       const path = current.current;
       if (!path) return;
+      // A change that came from the shared document is not this person's
+      // keystroke. Two of them arrive routinely and neither should mark the
+      // page behind: the first sync when a file opens, which changes
+      // nothing, and a collaborator's edit, which the server is already
+      // telling this browser about through `compile_scheduled`. Marking
+      // those here left the preview permanently stale on a file that had
+      // simply been opened.
+      if (!local) return;
       // The preview is behind the moment a key is pressed.  Said here as
       // well as from the server's `compile_scheduled`, because the writer
       // sees their own keystroke a save and a round trip before the server
@@ -229,7 +247,7 @@ export default function Editor({
       }, 400);
     };
 
-    const ext = extensions(onChange, onCursor, () => symbols.current);
+    const ext = extensions(onChange, onCursor, () => symbols.current, remoteMarker);
     const readOnlyExt = viewExtensions(() => symbols.current);
     view.current = new EditorView({ parent: host.current, state: freshState("", ext) });
 

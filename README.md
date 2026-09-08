@@ -45,6 +45,10 @@ the tab. No database, no Docker, no nginx.
 - **Choose Claude, OpenAI, or no agent at all.** The last is a real option,
   not a degraded one, and the choice can be changed later in the settings
   card rather than only when you first sign in.
+- **Write it with somebody, without a server.** Share a project and their
+  NextTex holds a whole copy of it: you see each other's typing and each
+  other's cursors, and anything either of you wrote offline is merged rather
+  than fought over when you reconnect.
 - **Nothing leaves the machine** except what you asked for. No telemetry.
 
 ## Installing
@@ -311,6 +315,43 @@ library it can search**, so it can ask what you have already read before going
 to the whole literature. What it gets back is labelled as quotation rather
 than instruction, because the text came out of files you downloaded.
 
+### Writing it with somebody else
+
+Share a project and you get an invite to send. Whoever opens it gets the
+whole project — every file, and what those files used to say — into an empty
+folder of their own, and from then on the two copies stay in step.
+
+**Both of you keep a whole copy.** Not a cache of somebody else's: your own
+files, your own version history, your own git repository and your own
+backups. If the other person's laptop is shut, or yours is, both of you carry
+on writing; when you are both back, the two sets of edits are merged rather
+than one of them being refused. That is true of an afternoon apart as much as
+of a second, and it needs nothing switched on.
+
+**You can see where they are.** Their caret sits in your margin in their own
+colour and says their name for a moment whenever it moves, and a strip at the
+end of the tabs shows who else is in the project — filled in while they are
+typing, outlined while they are only there. Their name is on the versions
+they wrote, so a month later the history says who changed the paragraph.
+
+**A collaborator is a public key.** There are no accounts, no server in the
+middle, and nothing to sign up for: two NextTex installs find each other and
+talk directly, encrypted end to end, over a connection made to the other
+side's key rather than to an address. An invite is single-use and expires,
+and it is a credential — send it the way you would send a password.
+
+**Nobody owns a shared project**, which has one honest consequence worth
+knowing before you rely on it: anyone in it can invite somebody, anyone can
+disconnect anybody, and disconnecting somebody does not take back the copy
+they already have. It stops the two of you syncing. It cannot unsend a
+paper. The button says so, next to itself.
+
+Two more things that are true and might not be obvious. Each of you keeps
+your own `.git`, so committing and pushing are yours alone — pull between
+sessions rather than during one, because a pull replaces a whole file and
+will win against a collaborator's untouched paragraphs. And your conversation
+with the agent is yours: the writing is shared, the chat is not.
+
 ### Panes, and two modes
 
 Double-click the preview's header for a reading mode: everything else folds to
@@ -328,12 +369,21 @@ left pointing at a name that no longer exists.
 
 ## What it is not
 
-**Not collaborative.** One writer, one machine, by design: no accounts, no
-comments, no suggestions, no shared cursors. Two tabs of your own do work, and
-a save from a stale tab is refused and offered as a choice rather than allowed
-to overwrite the other. If you need real co-authoring, use Overleaf.
+**Collaborative between installs, not in a browser.** Everyone who works on a
+shared project runs their own NextTex and holds the whole thing: the files,
+their history, their own git repository. There are no accounts and no guest
+links — a collaborator is a public key — so there is nobody to sign up with
+and nothing in the middle to go down. What there is not: comments,
+suggestions, tracked changes, or any notion of who is allowed to do what.
+Everybody in a shared project can do everything, including inviting somebody
+else and disconnecting somebody else.
 
 **Not a git client**, and not a general-purpose editor.
+
+**No collaboration on an Intel Mac**, yet. It needs iroh, which publishes
+builds for Linux, Windows and Apple-silicon Macs; everything else in NextTex
+works there exactly as it does anywhere, and the share card says so rather
+than offering a button that fails.
 
 **Windows support is written but unverified.** `scripts/install.ps1` exists
 and the server no longer imports POSIX-only modules at startup, but nobody has
@@ -355,6 +405,7 @@ terminal once or use an OpenAI key. Reports welcome.
 | An OpenAI API key | Only for the OpenAI agent | no |
 | `gh`, signed in | Only for *Back this up to GitHub* | no |
 | `tailscale` | Only to reach this install from another machine | no |
+| iroh | Only to share a project with another writer | yes, with the Python dependencies |
 
 Nothing in the bottom half of that table is needed to write and typeset.
 
@@ -362,7 +413,7 @@ Nothing in the bottom half of that table is needed to write and typeset.
 
 NextTex serves your own files from your own machine and ships its own
 typefaces, so the interface works on a host with no route to the internet.
-Four things go out, all of them things you asked for:
+Five things go out, all of them things you asked for:
 
 1. What you send the agent, to Anthropic or OpenAI.
 2. Reference lookups, to Crossref, OpenAlex, Semantic Scholar, arXiv and
@@ -371,6 +422,19 @@ Four things go out, all of them things you asked for:
 4. GitHub, to check whether this install is behind and to download the
    interface for the commit it is on. Nothing about you or your documents
    goes with either request.
+5. **Only once you share a project**, and not before: iroh's discovery at
+   `dns.iroh.link` and its relays at `relay.n0.iroh.link`, so two
+   collaborators can find each other through whatever home routers and
+   university firewalls are in the way.
+
+   That one is worth being precise about, because it is traffic between you
+   and somebody else passing through machines neither of you runs. A
+   connection between peers is QUIC over TLS *to the other peer's public
+   key*. A relay forwards ciphertext: it can see that two endpoint ids are
+   talking and roughly how much, and it cannot see a document, a file name,
+   or who either of you is. Where the two of you can reach each other
+   directly — the same office, the same tailnet — nothing goes through a
+   relay at all. A project you have not shared contacts none of it.
 
 That is the whole list, and a test fails if a new host appears in the source
 without this section changing. There is no telemetry and no analytics of any

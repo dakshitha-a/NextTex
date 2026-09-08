@@ -12,7 +12,12 @@
     "checker itself and its 98 kB word list are not in this number and are",
     "not supposed to be -- they are fetched the first time the setting is",
     "switched on and never otherwise, which is the whole reason a word list",
-    "this size is affordable at all."
+    "this size is affordable at all.",
+    "",
+    "collab.* were added with peer-to-peer collaboration.  Both are on the",
+    "keystroke path: an edit arriving from a collaborator is an apply_update,",
+    "and every edit that settles becomes a write to disk.  Opening a document",
+    "is the cost of the first keystroke in a file, once per file per session."
   ],
   "symbols.scan_ms": 400,
   "symbols.cached_ms": 6,
@@ -26,5 +31,7 @@
   "download.zip_ms": 3000,
   "compile.chapter_ms": 4000,
   "compile.full_ms": 30000,
-  "bundle.initial_kb": 775
+  "bundle.initial_kb": 775,
+  "collab.open_document_ms": 250,
+  "collab.ingest_ms": 40
 }
