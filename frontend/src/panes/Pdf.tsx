@@ -77,7 +77,7 @@ export default function Pdf({
   handleRef,
   document: showing = "",
 }: {
-  onNavigate: (file: string, line: number) => void;
+  onNavigate: (file: string, line: number, word?: string) => void;
   onLoadTemplate?: () => void;
   handleRef: (handle: PdfHandle) => void;
   /** Which document's PDF this pane is showing.  Empty means the main one,
@@ -622,6 +622,12 @@ export default function Pdf({
       if (!target) return;
       const index = pages.current.findIndex((view) => view.container === target);
       if (index < 0) return;
+      // Read before the await, and before anything else can clear it: the
+      // second click of a double-click selects a word, and by the time
+      // synctex has answered the selection is gone. It is what makes the
+      // jump land on the word rather than at the start of its line --
+      // synctex reports `Column:-1` and never anything else.
+      const word = String(window.getSelection() ?? "");
       const box = target.getBoundingClientRect();
       // SyncTeX works in PDF points from the top-left corner, and so does
       // the canvas, so the conversion is the scale factor and nothing else.
@@ -630,7 +636,7 @@ export default function Pdf({
       try {
         const result = await api.inverse(projectId, index + 1, x, y, showing);
         if (result.found && result.file && result.line) {
-          onNavigate(result.file, result.line);
+          onNavigate(result.file, result.line, word);
         }
       } catch {
         /* a click that lands on nothing is not an error worth reporting */
