@@ -229,7 +229,7 @@ test("the agent panel opens and closes from the keyboard, docked", async ({
   // before the browser sees it, Cmd/Ctrl-A alone is Select All, and
   // Cmd/Ctrl-Shift-A is Chrome's own tab search.  Alt keeps the A.
   await tab.keyboard.press("Control+Alt+KeyA");
-  await expect(tab.getByTestId("collapsed-claude")).toBeVisible();
+  await expect(tab.getByTestId("agent-button-claude")).toBeVisible();
   await tab.keyboard.press("Control+Alt+KeyA");
   await expect(composer(tab)).toBeVisible();
 });
@@ -250,7 +250,7 @@ test("the same shortcut works on the overlay, and leaves the caret in the box", 
 
 test("reaching for the preview puts the overlay away", async ({ tab }) => {
   await tab.setViewportSize({ width: 1200, height: 1000 });
-  await tab.getByTestId("open-chat").click();
+  await tab.getByTestId("agent-button-claude").click();
   await chatThere(tab);
   // The panel lies over the preview at this width, so the click that means
   // "let me read this" is the one that should give the width back.
@@ -272,7 +272,7 @@ test("the docked panel is not closed by a click on the preview", async ({
 
 test("reading mode still gives the overlay back", async ({ tab }) => {
   await tab.setViewportSize({ width: 1200, height: 1000 });
-  await tab.getByTestId("open-chat").click();
+  await tab.getByTestId("agent-button-claude").click();
   await chatThere(tab);
   // The header is a control, not "the page": closing the overlay from it
   // would be saved as the layout reading mode was entered from, and
@@ -302,7 +302,7 @@ test("escape closes the agent panel from its composer", async ({ tab }) => {
   await chatThere(tab);
   await composer(tab).last().focus();
   await tab.keyboard.press("Escape");
-  await expect(tab.getByTestId("collapsed-claude")).toBeVisible();
+  await expect(tab.getByTestId("agent-button-claude")).toBeVisible();
 });
 
 test("the shortcut opens it and escape closes it, on the overlay", async ({
@@ -358,5 +358,32 @@ test("escape closes the popover in front of the panel, not the panel", async ({
   await expect(tab.getByRole("dialog", { name: "Settings" })).toBeVisible();
   await tab.keyboard.press("Escape");
   await expect(tab.getByRole("dialog", { name: "Settings" })).toBeHidden();
+  await chatThere(tab);
+});
+
+/** The agent is reachable with a mouse in every layout.
+ *
+ *  It used to be two controls that were never both present, and the one
+ *  below 1400px lived inside the editor pane -- which is hidden when the
+ *  source is folded and when the preview has the window below 900px. In
+ *  both of those the only route to the agent was the keyboard.
+ */
+test("the agent can be reached with the source folded away", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1200, height: 1000 });
+  await chatAway(tab);
+  // Fold the source: the old button went with it.
+  await tab.getByTestId("tabs-blank").click();
+  await expect(tab.getByTestId("collapsed-source")).toBeVisible();
+  await tab.getByTestId("agent-button-claude").click();
+  await chatThere(tab);
+});
+
+test("the agent can be reached below 900 with the preview showing", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 800, height: 900 });
+  await chatAway(tab);
+  await tab.getByRole("button", { name: "Preview" }).first().click();
+  await tab.getByTestId("agent-button-claude").click();
   await chatThere(tab);
 });

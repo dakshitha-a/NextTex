@@ -1751,6 +1751,41 @@ visible synchronously, since window listeners run in the order they were
 added and those components mount long after the shell, so the decision waits
 a turn and then reads `defaultPrevented`.
 
+### One way to the agent, floating in the corner
+
+The agent used to be reached by two controls that were never both present: a
+vertical strip at the right edge above 1400px, and a button in the editor's
+tab row below it. That button lives inside the editor pane, which is hidden
+when the source is folded away and when the preview has the window below
+900px — **so in two ordinary layouts there was no way to reach the agent with
+a mouse at all**, only `Cmd/Ctrl-Alt-A`. Both e2e cases now exist.
+
+One control instead, in the shell rather than in any pane, in the same corner
+whatever the layout is doing: a floating pill above the chat overlay's `z-30`
+and below the tutorial's `z-40`, clear of the 26px preview footer and of the
+centred toasts. It travels left by the panel's width when the panel is
+docked, so the panel never covers the thing that closes it.
+
+It carries the provider's mark rather than its name alone, drawn as geometry
+rather than traced — a trademark reproduced badly from memory looks worse
+than no logo, and the name is beside it either way. On the mark sits a state
+dot fed by `thinking` and `awaitingPermission`. That dot earns its place:
+*the agent is waiting for you to allow something* was invisible whenever the
+panel was closed, which is precisely when it needed saying. It breathes
+rather than spins — a turn can run for a minute, and something spinning for a
+minute reads as an error long before it reads as progress.
+
+### The rail scrolls rather than pushing its panels out
+
+Every expanded panel in the rail is `shrink-0`, which is right: a list
+squeezed to two rows is worse than one you scroll to. But the column had no
+answer for their natural heights adding up to more than the rail is tall, and
+the lower ones were simply pushed out of the pane — on a fourteen-chapter
+project at 700px, "What Claude reads" sat 184px below the bottom with no way
+to scroll to it. The stack is now its own scroll container. `min-h-0` matters
+as much as the overflow: a flex child will not scroll until it is allowed to
+be shorter than its content.
+
 ### Reaching for the preview puts the overlay away
 
 Below 1400px the panel lies over the preview, and the click that means "let me

@@ -1,4 +1,6 @@
-import { test, expect } from "../fixtures";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { test, expect, openProject } from "../fixtures";
 import type { Page } from "@playwright/test";
 
 /** The rail as navigation.
@@ -162,4 +164,61 @@ test("an include for a file that is not there says so instead of doing nothing",
     "title",
     "chapters/missing.tex is not in this project yet",
   );
+});
+
+test("every panel in the rail stays inside it", async ({ app, project, page }) => {
+  // Reported in use: with the rail's drawers all open, things overlapped.
+  // Every expanded panel is `shrink-0` -- right, because a list squeezed to
+  // two rows is worse than one you scroll to -- but the column had no
+  // answer for their heights adding up to more than the rail is tall, so
+  // the lower panels were simply pushed out of the pane.  "What Claude
+  // reads" sat 158px below the bottom of a 700px window: not overlapping so
+  // much as gone, with no way to scroll to it.
+  //
+  // It needs a thesis-shaped project to show at all; the template is far
+  // too small.
+  mkdirSync(join(project.root, "chapters"), { recursive: true });
+  const includes: string[] = [];
+  for (let i = 1; i <= 14; i += 1) {
+    const name = `chapters/ch${String(i).padStart(2, "0")}`;
+    writeFileSync(
+      join(project.root, `${name}.tex`),
+      `\\section{Chapter ${i}}\n\\subsection{First}\n\\subsection{Second}\n`,
+    );
+    includes.push(`\\include{${name}}`);
+  }
+  writeFileSync(
+    join(project.root, "main.tex"),
+    `\\documentclass{report}\n\\begin{document}\n${includes.join("\n")}\n\\end{document}\n`,
+  );
+
+  await page.setViewportSize({ width: 1600, height: 700 });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+
+  const inside = await page.evaluate(() => {
+    const rail = document
+      .querySelector('[data-testid="files-toggle"]')
+      ?.closest(".nx-pane") as HTMLElement | null;
+    if (!rail) return null;
+    const bottom = rail.getBoundingClientRect().bottom;
+    // The panel headers, which are the fold buttons the rail is made of --
+    // not the per-row menus inside the tree, which also carry the attribute.
+    const named = /^(Files|Sections|Trash|Papers|Git)|Claude reads/i;
+    return [...rail.querySelectorAll("button[aria-expanded]")]
+      .filter((node) => named.test((node.textContent ?? "").trim()))
+      .map((node) => ({
+        label: (node.textContent ?? "").trim().slice(0, 20),
+        over: Math.round(node.getBoundingClientRect().bottom - bottom),
+      }));
+  });
+
+  expect(inside).not.toBeNull();
+  expect(inside!.length).toBeGreaterThan(2);
+  for (const panel of inside!) {
+    expect(panel.over, `"${panel.label}" hangs ${panel.over}px below the rail`)
+      .toBeLessThanOrEqual(0);
+  }
 });
