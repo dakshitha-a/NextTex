@@ -9,6 +9,7 @@ watch the same project.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, field
 import logging
 import re
 import time
@@ -17,7 +18,10 @@ from pathlib import Path
 from nexttex.explain import annotate, summarise
 from nexttex.library import Library
 from nexttex.providers import agent_for
-from nexttex.compile import CompileResult, CompileScheduler, Outcome, ProjectPaths
+from nexttex.compile import (
+    BuildQueue, CompileResult, CompileScheduler, Outcome, ProjectPaths,
+)
+from nexttex.deps import DependencyGraph
 from nexttex.context import ProjectContext
 from nexttex.dictionary import ProjectDictionary
 from nexttex.atomic import read_text, write_atomically
@@ -43,6 +47,32 @@ COMPILE_DEBOUNCE = 1.6
 # half-typed equation is not an error, and reporting it as one while the
 # writer is still typing it is the most irritating thing a preview can do.
 UNSETTLED_DEBOUNCE = 4.0
+
+# And longer still for a document nobody is looking at.  A background
+# preview does not need to join every typing pause; it needs to be right by
+# the time somebody switches to it.
+BACKGROUND_DEBOUNCE = 4.0
+
+
+@dataclass
+class DocumentState:
+    """One previewed document, and everything that is true only of it.
+
+    All of this was a single slot on the session, which was correct while a
+    project had one document. Each field here is something two documents
+    must not share: a jobname and a PDF, a scheduler with its own idea of
+    whether the next build must be a full one, a build counter the client
+    matches results against, and its own diagnostics.
+    """
+
+    path: str
+    paths: ProjectPaths
+    compiler: CompileScheduler
+    build_id: int = 0
+    last_result: CompileResult | None = None
+    diagnostics: list[dict] = field(default_factory=list)
+    debounce: asyncio.Task | None = None
+    unsettled: bool = False
 
 
 MATH_DELIMITER = re.compile(r"(?<!\\)\$")
@@ -162,10 +192,22 @@ class ProjectSession:
         self.dictionary = ProjectDictionary(project.state_dir)
         self.events = Broadcaster()
 
-        self.paths = ProjectPaths(
-            root=project.root, main=project.main, build_dir=project.build_dir
-        )
-        self.compiler = CompileScheduler(self.paths)
+        # One build at a time across the project, the document on screen
+        # first -- see BuildQueue.
+        self.queue = BuildQueue()
+        self.deps = DependencyGraph(project.root)
+        self.documents: dict[str, DocumentState] = {}
+        main = self._register(project.config.main)
+        #: Which document the writer is looking at.  It goes first in the
+        #: queue and waits the shorter debounce.
+        self.visible = main.path
+        for extra in list(project.config.previews):
+            try:
+                self._register(extra)
+            except (ValueError, OSError):
+                # A previews entry pointing at a file that has since been
+                # deleted or renamed must not stop the project opening.
+                continue
 
         # Which agent -- Claude, OpenAI, or none at all -- and a scripted
         # stand-in ahead of all three when a test asks for one, so the whole
@@ -192,24 +234,157 @@ class ProjectSession:
         )
 
         self._editor_state: dict = {}
-        self._diagnostics: list[dict] = []
-        self.last_result: CompileResult | None = None
+        #: Documents with an edit waiting for the debounce to fire.
+        self._dirty: set[str] = set()
 
         # Files this server has just written, by mtime.  The watcher uses
         # this to tell the user's own save apart from an outside change; the
         # browser must not be told to reload a buffer it just sent us.
         self.recently_written: dict[str, int] = {}
-        self._debounce: asyncio.Task | None = None
-        self._unsettled = False
         self._agent_pump: asyncio.Task | None = None
-        # Counts builds, so a result can be matched to the build it came
-        # from.  See `compile()`.
-        self._build_id = 0
         self._focus: Path | None = None
+
+    # -- documents ---------------------------------------------------------
+    def _register(self, relative: str) -> DocumentState:
+        """Give a document its own paths, scheduler and build counter."""
+        target = self.project.resolve(relative)
+        if not target.is_file():
+            raise ValueError(f"no such file: {relative}")
+        name = str(target.relative_to(self.project.root.resolve()))
+        existing = self.documents.get(name)
+        if existing is not None:
+            return existing
+        paths = ProjectPaths(
+            root=self.project.root, main=target, build_dir=self.project.build_dir
+        )
+        # Jobnames are what keep two documents' output apart, and they come
+        # from the stem -- so `intro.tex` and `chapters/intro.tex` would both
+        # build to `intro.pdf`. Refused rather than worked around: a build
+        # directory per document would move main.pdf and break every Makefile
+        # pointed at it.
+        for other in self.documents.values():
+            if other.paths.jobname == paths.jobname:
+                raise ValueError(
+                    f"{other.path} already builds to {paths.jobname}.pdf -- "
+                    "rename one of them"
+                )
+        state = DocumentState(path=name, paths=paths, compiler=CompileScheduler(paths))
+        self.documents[name] = state
+        return state
+
+    def document_for(self, name: str | None) -> DocumentState:
+        """The named document, or the main one when nothing is named.
+
+        An empty name is what every caller written before this existed
+        sends, and it means what it always meant.
+        """
+        if name:
+            state = self.documents.get(name)
+            if state is not None:
+                return state
+        return self.main_document
+
+    @property
+    def main_document(self) -> DocumentState:
+        # Insertion order: main is registered first and stays first, which
+        # is also the order the preview tabs are drawn in.
+        return next(iter(self.documents.values()))
+
+    @property
+    def paths(self) -> ProjectPaths:
+        """The main document's, for the routes that only ever meant that."""
+        return self.main_document.paths
+
+    @property
+    def compiler(self) -> CompileScheduler:
+        return self.main_document.compiler
+
+    @property
+    def last_result(self) -> CompileResult | None:
+        return self.main_document.last_result
+
+    @property
+    def _diagnostics(self) -> list[dict]:
+        """Everything wrong with the project, not just with its main file.
+
+        The agent asks for this, and an error in the supplementary
+        information is an error in the project. Visible document first, so
+        the most likely answer is at the top.
+        """
+        out: list[dict] = []
+        for name in self._visible_first(self.documents):
+            out.extend(self.documents[name].diagnostics)
+        return out
+
+    def _visible_first(self, names) -> list[str]:
+        ordered = [name for name in self.documents if name in set(names)]
+        ordered.sort(key=lambda name: name != self.visible)
+        return ordered
+
+    def _owns(self, state: DocumentState, path: Path | None) -> bool:
+        """Does this document read that file?"""
+        if path is None:
+            return False
+        relative = self.relative_or_none(str(path))
+        return bool(relative) and relative in self.deps.reachable([state.path])
+
+    async def register_preview(self, relative: str) -> DocumentState:
+        """Start previewing another document in this project."""
+        state = self._register(relative)
+        if state.path != self.main_document.path:
+            listed = self.project.config.previews
+            if state.path not in listed:
+                listed.append(state.path)
+                self.project.config.save(self.project.root)
+        await self._publish_documents()
+        return state
+
+    async def unregister_preview(self, relative: str) -> None:
+        name = str(self.project.resolve(relative).relative_to(self.project.root.resolve()))
+        if name == self.main_document.path:
+            raise ValueError("the main document is always previewed")
+        state = self.documents.pop(name, None)
+        if state is None:
+            return
+        await self._retire(state)
+        if name in self.project.config.previews:
+            self.project.config.previews.remove(name)
+            self.project.config.save(self.project.root)
+        if self.visible == name:
+            self.visible = self.main_document.path
+        await self._publish_documents()
+
+    async def _retire(self, state: DocumentState) -> None:
+        """Stop a document building and take its stand-in off disk."""
+        if state.debounce is not None and not state.debounce.done():
+            state.debounce.cancel()
+        await state.compiler.cancel()
+        state.compiler.cleanup()
+
+    def documents_payload(self) -> dict:
+        """What can be previewed, what already is, and who reads what."""
+        names = list(self.documents)
+        return {
+            "previews": names,
+            "candidates": self.deps.standalone_candidates(names),
+            "owners": self.deps.reverse(names),
+            "main": self.main_document.path,
+        }
+
+    async def _publish_documents(self) -> None:
+        self.deps.invalidate()
+        await self.events.publish(
+            {"type": "previews_changed", **self.documents_payload()}
+        )
 
     # -- editor -----------------------------------------------------------
     def set_editor_state(self, state: dict) -> None:
         self._editor_state = state
+        # Which preview tab is in front.  It builds first and waits the
+        # shorter debounce, so the server has to be told when it changes.
+        showing = state.get("preview")
+        if showing and showing in self.documents:
+            self.visible = showing
         path = state.get("file")
         if path:
             try:
@@ -217,7 +392,7 @@ class ProjectSession:
             except (PermissionError, OSError):
                 self._focus = None
 
-    def as_client_dict(self, result: CompileResult) -> dict:
+    def as_client_dict(self, result: CompileResult, document: str = "") -> dict:
         """A build result with paths the browser can match against.
 
         The log gives absolute paths.  Everything the client holds -- the
@@ -226,8 +401,13 @@ class ProjectSession:
         never appear beside the line that caused them.
         """
         payload = result.as_dict()
+        payload["document"] = document or self.main_document.path
+        # Stamped on each diagnostic as well as on the payload: the client
+        # merges the documents' diagnostics into one list, and without this
+        # it could not tell whose a given error was when replacing them.
         payload["diagnostics"] = annotate([
-            {**item, "file": self.relative_or_none(item.get("file"))}
+            {**item, "file": self.relative_or_none(item.get("file")),
+             "document": payload["document"]}
             for item in payload.get("diagnostics", [])
         ])
         # Where to start, in words, with no model involved.  A writer using
@@ -248,24 +428,44 @@ class ProjectSession:
             return Path(path).name
 
     # -- compiling --------------------------------------------------------
-    async def compile(self, force_full: bool = False) -> CompileResult:
+    async def compile(
+        self, force_full: bool = False, document: str | None = None
+    ) -> CompileResult:
+        state = self.document_for(document)
         # Every build carries an id, and its result carries the same one.
         # A cancelled build's result arrives *after* its replacement has
         # already started, so a client clearing "compiling" on any cancelled
         # result would clear it for the build that is still running -- which
         # under the status dot means a dot that breathes for ever.
-        self._build_id += 1
-        build = self._build_id
-        await self.events.publish({"type": "compile_start", "build": build})
-        result = await self.compiler.build(focus=self._focus, force_full=force_full)
-        payload = self.as_client_dict(result)
+        #
+        # The counter is per document. A shared one would let a build of the
+        # supplementary information invalidate the main document's pending
+        # result, and main's dot would breathe for ever instead.
+        state.build_id += 1
+        build = state.build_id
+        await self.events.publish(
+            {"type": "compile_start", "build": build, "document": state.path}
+        )
+        # Supersede any build of this same document *before* joining the
+        # queue. A request that queued first would be waiting for a slot
+        # held by the very build it means to replace, and neither would
+        # ever finish.
+        await state.compiler.cancel()
+        # The scoping hint only means anything to the document that reads
+        # the file it points at.
+        focus = self._focus if self._owns(state, self._focus) else None
+        async with self.queue.slot(priority=state.path == self.visible):
+            result = await state.compiler.build(focus=focus, force_full=force_full)
+        payload = self.as_client_dict(result, state.path)
         # A superseded build carries no log.  Keeping its empty diagnostics
         # would clear the editor's error marks every time the user typed
         # during a compile, which is exactly when they are looking at them.
         if result.outcome is not Outcome.CANCELLED:
-            self.last_result = result
-            self._diagnostics = payload.get("diagnostics", [])
-        await self.events.publish({"type": "compile_done", "build": build, **payload})
+            state.last_result = result
+            state.diagnostics = payload.get("diagnostics", [])
+        await self.events.publish(
+            {"type": "compile_done", "build": build, "document": state.path, **payload}
+        )
         return result
 
     def schedule_compile(self) -> None:
@@ -279,19 +479,26 @@ class ProjectSession:
         directly -- the manual button, the agent's own compile tool, and
         the build on opening a project -- are deliberately unaffected;
         none of them is "as you type".
+
+        Which documents are built is decided by `note_edit`, which knows
+        what was edited.  An empty set means nobody said -- an upload, a
+        restore -- and everything registered is rebuilt.
         """
         if not self.project.config.autocompile:
             return
-        if self._debounce is not None and not self._debounce.done():
-            self._debounce.cancel()
-        delay = UNSETTLED_DEBOUNCE if self._unsettled else COMPILE_DEBOUNCE
+        targets = self._visible_first(self._dirty or set(self.documents))
+        self._dirty = set()
 
-        async def wait_then_build() -> None:
-            try:
-                await asyncio.sleep(delay)
-            except asyncio.CancelledError:
-                return
-            await self.compile()
+        for name in targets:
+            state = self.documents[name]
+            if state.debounce is not None and not state.debounce.done():
+                state.debounce.cancel()
+            delay = UNSETTLED_DEBOUNCE if state.unsettled else COMPILE_DEBOUNCE
+            if name != self.visible:
+                delay = max(delay, BACKGROUND_DEBOUNCE)
+            state.debounce = spawn(
+                self._wait_then_build(name, delay), "the debounced build"
+            )
 
         # Told now rather than when the build starts.  Between a keystroke
         # and the build there is a second and a half in which the preview is
@@ -299,10 +506,18 @@ class ProjectSession:
         # there is no build coming at all, and "out of date" is where the
         # document rests until the writer asks for one.
         spawn(
-            self.events.publish({"type": "compile_scheduled"}),
+            self.events.publish(
+                {"type": "compile_scheduled", "documents": targets}
+            ),
             "publishing compile_scheduled",
         )
-        self._debounce = spawn(wait_then_build(), "the debounced build")
+
+    async def _wait_then_build(self, name: str, delay: float) -> None:
+        try:
+            await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            return
+        await self.compile(document=name)
 
     def note_edit(
         self,
@@ -310,43 +525,73 @@ class ProjectSession:
         text: str | bytes | None = None,
         previous: str | bytes | None = None,
     ) -> None:
-        if isinstance(text, bytes) or isinstance(previous, bytes):
-            # A figure rather than prose.  There is no half-finished
-            # equation to wait for, and the honest answer for the build is
-            # "rebuild everything" -- which is what None means to the
-            # compiler, and is right anyway: a new figure changes the
-            # layout of every page after it.
-            self._unsettled = False
-            self.compiler.note_edit(path, None, None)
-            return
-        self._unsettled = text is not None and mid_construct(text)
-        self.compiler.note_edit(path, text, previous)
+        """Tell the documents that read this file that it changed.
+
+        This is where the rebuild policy lives. Editing a chapter rebuilds
+        the document that includes it; editing the supplementary information
+        rebuilds only that. `schedule_compile` then builds what is listed
+        here, so the twelve callers of it need no idea any of this happened.
+        """
+        relative = self.relative_or_none(str(path))
+        if relative:
+            self.deps.note_changed(relative)
+            owners = self.deps.owners(relative, list(self.documents))
+        else:
+            # Outside the project, so nothing can be said about who reads
+            # it.  Rebuilding everything is the safe direction.
+            owners = list(self.documents)
+        self._dirty.update(owners)
+
+        binary = isinstance(text, bytes) or isinstance(previous, bytes)
+        for name in owners:
+            state = self.documents.get(name)
+            if state is None:
+                continue
+            if binary:
+                # A figure rather than prose.  There is no half-finished
+                # equation to wait for, and the honest answer for the build
+                # is "rebuild everything" -- which is what None means to the
+                # compiler, and is right anyway: a new figure changes the
+                # layout of every page after it.
+                state.unsettled = False
+                state.compiler.note_edit(path, None, None)
+            else:
+                state.unsettled = text is not None and mid_construct(text)
+                state.compiler.note_edit(path, text, previous)
 
     async def set_main(self, relative_path: str) -> None:
-        """Point the build at a different file.
+        """Point the project at a different main document.
 
-        The scheduler holds the paths it was built with, and the jobname
-        comes from the main file's stem, so both are rebuilt rather than
-        mutated -- the alternative is a compiler writing chapter.pdf while
-        the PDF route serves main.pdf.
+        This used to tear the one scheduler down and build another, because
+        the jobname comes from the main file's stem and a compiler writing
+        chapter.pdf while the PDF route served main.pdf was the hazard to
+        avoid. Every document has its own scheduler and its own PDF now, and
+        the route names which one it wants, so the swap is a reordering
+        rather than a rebuild.
         """
+        outgoing = self.main_document.path
         self.project.config.main = relative_path
+        state = self._register(relative_path)
+        # Main is first, and first is the order the preview tabs are drawn
+        # in.
+        self.documents = {
+            state.path: state,
+            **{k: v for k, v in self.documents.items() if k != state.path},
+        }
+        # Main is previewed by definition, so it does not also need listing.
+        if state.path in self.project.config.previews:
+            self.project.config.previews.remove(state.path)
+        # The document that was main stays only if somebody asked for it.
+        # Anything else would make `previews` mean something other than
+        # "explicitly requested", and leave tabs accumulating quietly.
+        if outgoing != state.path and outgoing not in self.project.config.previews:
+            leaving = self.documents.pop(outgoing, None)
+            if leaving is not None:
+                await self._retire(leaving)
         self.project.config.save(self.project.root)
-        # Whatever is building now is building the old main file into the
-        # old jobname.  Left running it writes into the same build
-        # directory as its replacement, and nothing holds a reference to
-        # stop it -- so it is stopped here, before the swap.
-        outgoing = self.compiler
-        if self._debounce is not None:
-            self._debounce.cancel()
-            self._debounce = None
-        await outgoing.cancel()
-        self.paths = ProjectPaths(
-            root=self.project.root,
-            main=self.project.main,
-            build_dir=self.project.build_dir,
-        )
-        self.compiler = CompileScheduler(self.paths)
+        if self.visible not in self.documents:
+            self.visible = state.path
+        await self._publish_documents()
 
     # -- version history ---------------------------------------------------
     def _agent_context(self) -> str:
@@ -480,9 +725,8 @@ class ProjectSession:
             await self.agent.disconnect()
 
     async def close(self) -> None:
-        for task in (self._debounce, self._agent_pump):
-            if task is not None and not task.done():
-                task.cancel()
+        if self._agent_pump is not None and not self._agent_pump.done():
+            self._agent_pump.cancel()
         await self.agent.disconnect()
-        await self.compiler.cancel()
-        self.compiler.cleanup()
+        for state in list(self.documents.values()):
+            await self._retire(state)

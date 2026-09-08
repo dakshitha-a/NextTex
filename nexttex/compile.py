@@ -30,6 +30,7 @@ all keep their usual names and stay shared with a full build.
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 import os
 import re
 import signal
@@ -220,6 +221,88 @@ def write_shadow(paths: ProjectPaths, only: str | None) -> Path:
 
     paths.shadow.write_text(source, encoding="utf-8")
     return paths.shadow
+
+
+class BuildQueue:
+    """One build at a time across a project, the document on screen first.
+
+    Each `CompileScheduler` already serialises itself and supersedes its own
+    in-flight build. What it cannot know is that a project now has several,
+    and that two of them running at once would put two `latexmk` processes in
+    one build directory writing `.fdb_latexmk` and biber's temporary files
+    over each other -- a class of bug that surfaces once a year and takes a
+    day to find.
+
+    So builds queue, and the visible tab jumps the queue. Wall-clock latency
+    for the document somebody is actually looking at is the only latency that
+    is felt, and going first serves that better than going in parallel does.
+
+    No preemption: a running build is never abandoned for a newer one of a
+    *different* document. Superseding a build of the *same* document is the
+    scheduler's own business and still happens, before the queue is joined --
+    see `ProjectSession.compile`, which cancels before it waits, because a
+    request that queued first would otherwise be waiting for a slot held by
+    the very build it means to replace.
+    """
+
+    def __init__(self, limit: int = 1) -> None:
+        #: Raise to allow genuine parallelism. One is a deliberate default
+        #: rather than a limitation of the design.
+        self._limit = max(1, limit)
+        self._active = 0
+        self._waiting: list[tuple[int, int, asyncio.Future]] = []
+        self._sequence = 0
+
+    @property
+    def active(self) -> int:
+        return self._active
+
+    @property
+    def waiting(self) -> int:
+        return len(self._waiting)
+
+    async def _acquire(self, priority: bool) -> None:
+        # `not self._waiting` matters: without it a new arrival would step in
+        # front of a queue that has already formed, and a background document
+        # under steady typing would never build at all.
+        if self._active < self._limit and not self._waiting:
+            self._active += 1
+            return
+        self._sequence += 1
+        ticket: asyncio.Future = asyncio.get_running_loop().create_future()
+        self._waiting.append((0 if priority else 1, self._sequence, ticket))
+        # Priority first, then the order they arrived in.
+        self._waiting.sort(key=lambda item: (item[0], item[1]))
+        try:
+            await ticket
+        except asyncio.CancelledError:
+            # Cancelled while waiting: drop the ticket. Cancelled *after* the
+            # slot was handed over: give it straight back, or it is lost for
+            # the life of the session.
+            self._waiting = [item for item in self._waiting if item[2] is not ticket]
+            if ticket.done() and not ticket.cancelled():
+                self._release()
+            raise
+
+    def _release(self) -> None:
+        self._active -= 1
+        while self._waiting and self._active < self._limit:
+            _, _, ticket = self._waiting.pop(0)
+            if ticket.done():
+                continue
+            # Handed over rather than taken: the slot is counted here, not
+            # when the woken task resumes, so nothing can slip in between.
+            self._active += 1
+            ticket.set_result(None)
+            return
+
+    @asynccontextmanager
+    async def slot(self, *, priority: bool = False):
+        await self._acquire(priority)
+        try:
+            yield
+        finally:
+            self._release()
 
 
 class CompileScheduler:
