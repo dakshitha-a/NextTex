@@ -27,6 +27,7 @@ import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
 import Tabs from "./panes/Tabs";
 import PreviewTabs from "./panes/PreviewTabs";
+import AgentButton from "./panes/AgentButton";
 import Status from "./panes/Status";
 import Diagnostics from "./panes/Diagnostics";
 import FileTree from "./panes/FileTree";
@@ -1254,53 +1255,66 @@ export default function App() {
                 />
               </div>
             </div>
-            {/* Files and Sections are both navigation, and both fold, so
-                the rail reads as one stack of panels rather than a tree
-                with some panels bolted underneath it. */}
-            <button
-              className="flex h-[26px] shrink-0 items-center justify-between border-t border-line px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-              aria-expanded={railOpen.files}
-              data-testid="files-toggle"
-              onClick={() => toggleRail("files")}
-            >
-              <span className="t-micro text-ink-2">Files</span>
-              <span className={`text-ink-3 ${railOpen.files ? "rotate-180" : ""}`}>
-                <Chevron direction="down" />
-              </span>
-            </button>
-            {/* Unmounted rather than hidden when folded: the tree owns a
-                type-ahead and a roving tab stop, and both would still be
-                reachable from the keyboard behind a closed panel. */}
-            {railOpen.files ? (
-              <FileTree
-              onPreview={startPreviewing}
-              onUnpreview={stopPreviewing}
-                onOpen={openFile}
-                onRefresh={refreshTree}
-                onRename={renameOpenFile}
-                onHistory={() => setHistoryOpen(true)}
-                mainFile={mainFile}
+            {/* The panels scroll as a stack when they do not all fit.
+                Every expanded panel below Files is `shrink-0` -- correct,
+                because a list squeezed to two rows is worse than one you
+                scroll to -- but the column had no answer for the case where
+                their natural heights add up to more than the rail is tall,
+                and they simply drew over each other.  Opening Files,
+                Sections and the context panel together was enough to do it.
+
+                min-h-0 as well as overflow: a flex child will not scroll
+                until it is allowed to be shorter than its content, and
+                without it this scrolls the window instead. */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+              {/* Files and Sections are both navigation, and both fold, so
+                  the rail reads as one stack of panels rather than a tree
+                  with some panels bolted underneath it. */}
+              <button
+                className="flex h-[26px] shrink-0 items-center justify-between border-t border-line px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+                aria-expanded={railOpen.files}
+                data-testid="files-toggle"
+                onClick={() => toggleRail("files")}
+              >
+                <span className="t-micro text-ink-2">Files</span>
+                <span className={`text-ink-3 ${railOpen.files ? "rotate-180" : ""}`}>
+                  <Chevron direction="down" />
+                </span>
+              </button>
+              {/* Unmounted rather than hidden when folded: the tree owns a
+                  type-ahead and a roving tab stop, and both would still be
+                  reachable from the keyboard behind a closed panel. */}
+              {railOpen.files ? (
+                <FileTree
+                onPreview={startPreviewing}
+                onUnpreview={stopPreviewing}
+                  onOpen={openFile}
+                  onRefresh={refreshTree}
+                  onRename={renameOpenFile}
+                  onHistory={() => setHistoryOpen(true)}
+                  mainFile={mainFile}
+                />
+              ) : null}
+              <SectionsPanel
+                open={railOpen.sections}
+                onToggle={() => toggleRail("sections")}
+                onJump={jumpToHeading}
+                grow={!railOpen.files}
+                resolve={resolveInclude}
               />
-            ) : null}
-            <SectionsPanel
-              open={railOpen.sections}
-              onToggle={() => toggleRail("sections")}
-              onJump={jumpToHeading}
-              grow={!railOpen.files}
-              resolve={resolveInclude}
-            />
-            <TrashPanel onRefresh={refreshTree} />
-            <PapersPanel onRefresh={refreshTree} />
-            {/* What the agent reads is nothing to offer when there is no
-                agent.  The trash, the papers and the git panel all stay:
-                none of them is about a model. */}
-            {noAgent ? null : (
-              <ContextPanel
-                openFor={contextRequest}
-                onHandled={() => setContextRequest(null)}
-              />
-            )}
-            <GitPanel onOpen={openFile} />
+              <TrashPanel onRefresh={refreshTree} />
+              <PapersPanel onRefresh={refreshTree} />
+              {/* What the agent reads is nothing to offer when there is no
+                  agent.  The trash, the papers and the git panel all stay:
+                  none of them is about a model. */}
+              {noAgent ? null : (
+                <ContextPanel
+                  openFor={contextRequest}
+                  onHandled={() => setContextRequest(null)}
+                />
+              )}
+              <GitPanel onOpen={openFile} />
+            </div>
           </div>
           <Handle
             onPointerDown={startDrag("rail")}
@@ -1360,16 +1374,6 @@ export default function App() {
                 label="Fold the source away"
                 onClick={() => fold("editor")}
               />
-            ) : null}
-            {chatOver && !chatOpen ? (
-              <button
-                className="t-micro mr-2 shrink-0 rounded-[3px] border border-line px-2 py-[3px] text-ink-2 hover:text-ink"
-                data-testid="open-chat"
-                title="Show the agent panel (Ctrl/Cmd-Alt-A)"
-                onClick={() => setChatOpen(true)}
-              >
-                Claude
-              </button>
             ) : null}
           </div>
           {viewing ? (
@@ -1568,13 +1572,16 @@ export default function App() {
           onReset={() => setWidths((current) => ({ ...current, chat: DEFAULTS.chat }))}
         />
       ) : null}
-      {!noAgent && folded.chat && !chatOver ? (
-        <Collapsed
-          label={agentName(agentProvider)}
-          side="right"
-          onExpand={() => fold("chat")}
+      {/* One way to the agent, in the same corner at every width.  It
+          travels left when the panel is docked so the panel never covers
+          the thing that closes it. */}
+      {noAgent ? null : (
+        <AgentButton
+          open={chatOver ? chatOpen : !folded.chat}
+          onToggle={toggleChat}
+          right={!chatOver && !folded.chat ? widths.chat + 14 : 14}
         />
-      ) : null}
+      )}
       {tutorialOpen ? (
         <Suspense
           fallback={

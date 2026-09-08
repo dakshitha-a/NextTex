@@ -418,6 +418,15 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   user-select: none;
 }
 
+/* The agent is working.  A slow breath rather than a spinner: it may run
+   for a minute, and something turning at speed for a minute reads as an
+   error long before it reads as progress. */
+@keyframes nx-agent-breath {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.nx-agent-working { animation: nx-agent-breath 1.6s var(--ease) infinite; }
+
 /* ---- CodeMirror ------------------------------------------------------- */
 /* The editor carries `nx-theme-light` or `nx-theme-dark` when it has been
    lit on its own terms, which hands that palette to this subtree only --
