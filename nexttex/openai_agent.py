@@ -41,6 +41,7 @@ import requests
 
 from .atomic import read_text
 from .references import appended, entry_for
+from .writing import PROSE
 
 API_URL = "https://api.openai.com/v1/chat/completions"
 
@@ -71,6 +72,11 @@ How to work:
   asked about.
 - When the user asks about an error, read the file around it first.
 """
+
+#: The same writing standard the Claude agent is held to. It used to be in
+#: that agent's prompt and nowhere else, so choosing OpenAI in the settings
+#: card quietly chose a different standard of prose from the same button.
+SYSTEM_PROMPT = f"{SYSTEM_PROMPT}\n\n{PROSE}"
 
 TOOLS: list[dict] = [
     {
