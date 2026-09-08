@@ -154,7 +154,7 @@ def crossref(doi):
 
 
 def arxiv(arxiv_id):
-    url = f"https://export.arxiv.org/api/query?id_list={quote(arxiv_id)}"
+    url = f"https://export.arxiv.org/api/query?id_list={quote(arxiv_id, safe='')}"
     r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
     m = re.search(r"<entry>.*?<title>(.*?)</title>", r.text, re.DOTALL)

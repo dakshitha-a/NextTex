@@ -137,6 +137,21 @@ def test_the_fast_path_never_read_one_anyway(tmp_path):
     assert build.fast_argv(tmp_path / "main.tex")[0] == "pdflatex"
 
 
+def test_the_engine_is_asked_not_to_read_outside_the_project():
+    r"""Asserted as a request, not as a fence, which is the honest shape of it.
+
+    `openin_any=p` is passed for the engines that honour it.  The one this was
+    developed against, pdfTeX 1.40.29 with kpathsea 6.4.2, reports the value
+    back through `kpsewhich` and then ignores it: an absolute `\input` landed
+    in the PDF under every setting, including "r", which only forbids
+    dotfiles.  So this test says the variable is sent, and deliberately does
+    not claim the file is unreachable, because on that engine it is not.
+    """
+    from nexttex.compile import LOG_ENV
+
+    assert LOG_ENV["openin_any"] == "p"
+
+
 def test_an_edit_during_a_build_still_gets_its_full_pass(tmp_path, monkeypatch):
     """The bug this defends against: a bibliography edit made while a full
     build was already running had its rebuild cancelled by that build

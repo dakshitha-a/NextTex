@@ -284,6 +284,8 @@ def test_a_figures_old_version_can_be_fetched_as_the_bytes_it_was(
     """A figure's history is unreachable through the text form: `content`
     decodes with errors="replace", so an old PNG comes back as a string of
     replacement characters.  The panel's thumbnails need the real bytes."""
+    # The bytes are what this route is for.  The *type* is deliberately not
+    # the file's own any more: see the content-disposition assertion below.
     figure = project_dir / "figures" / "plot.png"
     figure.parent.mkdir(parents=True, exist_ok=True)
     original = b"\x89PNG\r\n\x1a\n" + bytes(range(256))
@@ -297,7 +299,16 @@ def test_a_figures_old_version_can_be_fetched_as_the_bytes_it_was(
                                 "raw": True})
     assert answer.status_code == 200
     assert answer.content == original
-    assert answer.headers["content-type"].startswith("image/png")
+    # Served as opaque bytes and as an attachment, never as a guessed type
+    # rendered inline.  A project file called `x.html` came back as
+    # `text/html` on this app's own origin with the session cookie attached,
+    # which is stored cross-site scripting from a file a template, a clone or
+    # a collaborator can put in a project.  Checked in a real browser before
+    # changing it: an `<img>` renders these bytes just as happily under
+    # `application/octet-stream` and `attachment` as it did under `image/png`,
+    # so the thumbnails this route exists for are unaffected.
+    assert answer.headers["content-type"] == "application/octet-stream"
+    assert answer.headers["content-disposition"].startswith("attachment")
     # A sha names one set of bytes for ever, so the panel fetches each
     # thumbnail once however often it is reopened.
     assert "immutable" in answer.headers["cache-control"]

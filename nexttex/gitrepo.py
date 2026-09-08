@@ -184,6 +184,14 @@ def create_github(root: Path, name: str, private: bool = True) -> str:
         has_remote = False
     if has_remote:
         raise GitError("this project already has an origin remote")
+    # A repository name is typed by a person into a field, so it is checked
+    # rather than trusted: `gh` has no `--` to hide behind here, since the
+    # name is a positional among other options.
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", name):
+        raise GitError(
+            "a repository name may only hold letters, digits, dot, dash and "
+            "underscore, and may not begin with a dash"
+        )
     result = subprocess.run(
         ["gh", "repo", "create", name, visibility, "--source", ".",
          "--remote", "origin", "--push"],
@@ -221,5 +229,7 @@ def attach_remote(root: Path, url: str, token: str = "") -> str:
         _run(root, "remote", "remove", "origin", timeout=15)
     except GitError:
         pass
-    _run(root, "remote", "add", "origin", url)
+    # `--` first: a URL beginning with a dash is otherwise read by git as an
+    # option rather than as a remote, and this value comes from a form.
+    _run(root, "remote", "add", "origin", "--", url)
     return url

@@ -444,6 +444,96 @@ def _same_origin_request(request: Request) -> bool:
         return False
 
 
+# Headers this app had none of.  Each one is here for something specific
+# that was found rather than for a checklist.
+#
+# `X-Content-Type-Options: nosniff` and `frame-ancestors 'none'` are the
+# cheap ones: nothing here should ever be re-typed by a browser's guess, and
+# nothing here should ever be in somebody else's frame.
+#
+# The content policy is the interesting one, and it is built from hashes
+# rather than from `'unsafe-inline'` because this app really does serve two
+# inline scripts: the theme stamp in `index.html`, which has to be blocking
+# and classic so the first frame is already the right colour, and the small
+# script on the sign-in page.  Hashing them keeps `script-src` strict, which
+# is the half of a policy actually worth having.  Styles are not hashed:
+# React writes `style` attributes all over this interface, and no policy that
+# forbids those survives contact with the code.
+#
+# `blob:` appears twice on purpose.  pdf.js renders pages through a worker
+# and hands the viewer object URLs, and the history panel builds one for
+# every figure thumbnail it draws.
+SECURITY_HEADERS = {
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "x-frame-options": "DENY",
+}
+
+
+def _inline_hashes() -> str:
+    """`'sha256-...'` for every inline script this app serves.
+
+    Computed once, from the files themselves, so a rebuild that changes the
+    theme stamp cannot leave a policy behind that blocks it.  A missing
+    `dist/` is not an error: the dev server serves the unbuilt page and this
+    process is then only serving the API.
+    """
+    import base64
+    import re as _re
+
+    sources: list[str] = [_sign_in_page()]
+    index = FRONTEND / "index.html"
+    if index.is_file():
+        try:
+            sources.append(index.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+
+    hashes: list[str] = []
+    for text in sources:
+        for body in _re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>",
+                                text, _re.S):
+            digest = hashlib.sha256(body.encode("utf-8")).digest()
+            hashes.append(f"'sha256-{base64.b64encode(digest).decode()}'")
+    return " ".join(dict.fromkeys(hashes))
+
+
+def _content_policy() -> str:
+    return "; ".join([
+        "default-src 'self'",
+        f"script-src 'self' {_inline_hashes()}".strip(),
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self' data:",
+        # The event stream and the collaboration sockets are same-origin, but
+        # a websocket scheme is not covered by `'self'` in every browser.
+        "connect-src 'self' ws: wss:",
+        "worker-src 'self' blob:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ])
+
+
+CONTENT_POLICY = ""
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    global CONTENT_POLICY
+    response = await call_next(request)
+    if not CONTENT_POLICY:
+        # Built on the first response rather than at import, because the
+        # sign-in page and the built index are both read from disk and this
+        # module is imported by tests that redirect the state directory.
+        CONTENT_POLICY = _content_policy()
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    response.headers.setdefault("content-security-policy", CONTENT_POLICY)
+    return response
+
+
 @app.middleware("http")
 async def authenticate(request: Request, call_next):
     if not _same_origin_request(request):
@@ -1413,12 +1503,24 @@ async def history_blob(
         if data is None:
             raise HTTPException(404, "that version is no longer stored")
         name = Path(path).name
-        disposition = "attachment" if download else "inline"
+        # Always an attachment, and never a guessed type.
+        #
+        # `inline` plus `mimetypes.guess_type` meant a project file called
+        # `x.html` came back as `text/html`, rendered on this app's own
+        # origin, carrying the HttpOnly session cookie: stored cross-site
+        # scripting, from a file that a template, a clone or a collaborator
+        # can put in a project.  The two sibling routes never had this
+        # because they hand `filename=` to `FileResponse`, which forces an
+        # attachment; this one built its own headers and lost that.
+        #
+        # The `raw` parameter still means what it meant, which is "the bytes
+        # rather than the JSON": the panel fetches it and makes its own
+        # object URL, and a blob: URL is a separate origin.
         return Response(
             content=data,
-            media_type=mimetypes.guess_type(name)[0] or "application/octet-stream",
+            media_type="application/octet-stream",
             headers={
-                "content-disposition": f'{disposition}; filename="{name}"',
+                "content-disposition": f'attachment; filename="{name}"',
                 # The URL names a sha, so these bytes can never be different
                 # bytes.  Twenty thumbnails in the panel cost one fetch each,
                 # once, however often the panel is reopened.
