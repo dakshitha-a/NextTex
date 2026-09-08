@@ -2525,12 +2525,73 @@ async def lint(project_id: str, path: str):
 # The agent
 
 
+#: How much of a selection is worth sending. A writer who selects a whole
+#: chapter and asks "tighten this" means it, but the model does not need
+#: every line to know what was meant, and the turn should not fail because
+#: the passage did not fit.
+SELECTION_LINES = 200
+SELECTION_CHARS = 24_000
+
+
+def _selected_context(selection: dict | None) -> str:
+    """What the writer had highlighted, as a preamble for the model.
+
+    Sent with the question rather than left for the `editor_state` tool to
+    fetch. The tool is still there and still right for "put this here", but
+    a tool is only read if the model decides to call one, and somebody who
+    selects a paragraph and types "make this shorter" has already said what
+    they mean. Waiting to be asked lost that.
+
+    The file and the line numbers go in with the text, because an edit needs
+    somewhere to land.
+    """
+    if not selection:
+        return ""
+    text = str(selection.get("text") or "")
+    if not text.strip():
+        return ""
+    name = str(selection.get("file") or "the open file")
+    first = selection.get("fromLine")
+    last = selection.get("toLine")
+
+    lines = text.split("\n")
+    dropped = 0
+    if len(lines) > SELECTION_LINES:
+        dropped = len(lines) - SELECTION_LINES
+        lines = lines[:SELECTION_LINES]
+        text = "\n".join(lines)
+    if len(text) > SELECTION_CHARS:
+        text = text[:SELECTION_CHARS]
+        dropped = max(dropped, 1)
+
+    where = (
+        f"{name}, lines {first}\u2013{last}"
+        if isinstance(first, int) and isinstance(last, int) and last != first
+        else f"{name}, line {first}" if isinstance(first, int) else name
+    )
+    tail = f"\n[\u2026and {dropped} more lines, not shown]" if dropped else ""
+    return (
+        "The writer has this passage selected in the editor "
+        f"({where}). Their question is most likely about it.\n"
+        f"<selection>\n{text}{tail}\n</selection>"
+    )
+
+
 @app.post("/api/projects/{project_id}/agent/ask")
-async def agent_ask(project_id: str, prompt: str = Body(..., embed=True)):
+async def agent_ask(
+    project_id: str,
+    prompt: str = Body(..., embed=True),
+    selection: dict | None = Body(None, embed=True),
+):
     session = session_for(project_id)
     session.start_agent_pump()
+    # Recorded as well as sent, so `editor_state` answers with what was true
+    # when the question was asked rather than with whatever the 400 ms
+    # cursor debounce had last managed to deliver.
+    if selection and str(selection.get("text") or "").strip():
+        session.note_selection(selection)
     try:
-        await session.agent.ask(prompt)
+        await session.agent.ask(prompt, context=_selected_context(selection))
     except RuntimeError as exc:
         raise HTTPException(409, str(exc))
     return {"ok": True}

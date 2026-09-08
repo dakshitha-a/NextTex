@@ -162,7 +162,9 @@ class ScriptedAgent:
         self.model = model or None
         self.usage["model"] = self.model or "default"
 
-    async def ask(self, prompt: str) -> None:
+    async def ask(self, prompt: str, *, context: str = "") -> None:
+        # Accepted and ignored: what a script replies does not depend on
+        # what was selected, but the signature has to match the real ones.
         if self.busy:
             raise RuntimeError("a turn is already running")
         # A browser test cannot set an environment variable, so the script

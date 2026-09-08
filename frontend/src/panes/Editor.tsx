@@ -29,6 +29,7 @@ import {
 } from "../use-editor-theme";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
+import { locateWord } from "./locate-word";
 
 
 /** How long the outline waits behind the keyboard.
@@ -38,6 +39,7 @@ import type { ProjectCollab } from "../collab";
  *  from there; this is only about not re-parsing the section list on every
  *  character of a long chapter.
  */
+
 const OUTLINE_DELAY = 250;
 
 type Buffer = {
@@ -87,7 +89,9 @@ export default function Editor({
   const remoteMarker = useRef<unknown>(null);
   const timer = useRef<number | null>(null);
   const focusTimer = useRef<number | null>(null);
-  const openRef = useRef<((path: string, line?: number) => Promise<void>) | null>(null);
+  const openRef = useRef<
+    ((path: string, line?: number, word?: string) => Promise<void>) | null
+  >(null);
   // The parent hands us a new callback on every render.  Holding it in a ref
   // keeps the setup effect at zero dependencies, which matters more than it
   // sounds: an effect that re-runs destroys the view mid-edit and the
@@ -246,10 +250,29 @@ export default function Editor({
       }
     };
 
-    const onCursor = (line: number, column: number, selection: string) => {
+    const onCursor = (
+      line: number,
+      column: number,
+      selection: string,
+      span: { fromLine: number; toLine: number } | null,
+    ) => {
       const cursor = get().cursor;
       if (cursor.line !== line || cursor.column !== column) {
         set({ cursor: { line, column } });
+      }
+      // Straight into the store, undebounced, because the composer reads it
+      // the instant Send is pressed. The 400 ms below is right for telling
+      // the server where the cursor is and wrong for this: select a
+      // paragraph, click Send, and the question would beat the selection.
+      const path = current.current;
+      const held = get().selected;
+      const next =
+        span && path ? { path, text: selection, ...span } : null;
+      if (
+        (next === null) !== (held === null) ||
+        (next && held && (next.text !== held.text || next.path !== held.path))
+      ) {
+        set({ selected: next });
       }
       // Where this browser is, for the collaborator strip. Cheap, and not
       // debounced: awareness is designed to be written on every move, and
@@ -275,18 +298,35 @@ export default function Editor({
     const readOnlyExt = viewExtensions(() => symbols.current);
     view.current = new EditorView({ parent: host.current, state: freshState("", ext) });
 
-    const jump = (line: number, endLine?: number) => {
+    const jump = (line: number, endLine?: number, word?: string) => {
       const editor = view.current;
       if (!editor) return;
       const total = editor.state.doc.lines;
-      const target = editor.state.doc.line(Math.min(Math.max(line, 1), total));
+      let target = editor.state.doc.line(Math.min(Math.max(line, 1), total));
+      // A double-click on the page knows which word it landed on, and
+      // synctex does not: it answers every query with `Column:-1`, so
+      // without this the cursor can only arrive at the start of the line.
+      // Near, and not on the words you were looking at.
+      let at = target.from;
+      if (word) {
+        const found = locateWord(
+          (number) => editor.state.doc.line(number).text,
+          total,
+          target.number,
+          word,
+        );
+        if (found) {
+          target = editor.state.doc.line(found.line);
+          at = target.from + found.column - 1;
+        }
+      }
       const end = endLine
         ? editor.state.doc.line(Math.min(Math.max(endLine, 1), total))
         : target;
       editor.dispatch({
-        selection: { anchor: target.from },
+        selection: { anchor: at },
         effects: [
-          EditorView.scrollIntoView(target.from, { y: "center" }),
+          EditorView.scrollIntoView(at, { y: "center" }),
           flashRange.of({ from: target.from, to: end.to }),
         ],
       });
@@ -316,7 +356,7 @@ export default function Editor({
       view.current.focus();
     };
 
-    const openBuffer = async (path: string, line?: number) => {
+    const openBuffer = async (path: string, line?: number, word?: string) => {
       const projectId = get().projectId;
       if (!projectId || !view.current) return;
       if (projectForBuffers.current !== projectId) {
@@ -329,7 +369,7 @@ export default function Editor({
       }
       if (viewing.current) backToNow();
       if (current.current === path) {
-        if (line !== undefined) jump(line);
+        if (line !== undefined) jump(line, undefined, word);
         refreshOutline();
         return;
       }
@@ -370,9 +410,10 @@ export default function Editor({
         if (outgoing) outgoing.state = view.current.state;
       }
       current.current = path;
+      if (get().selected?.path !== path) set({ selected: null });
       view.current.setState(buffer.state);
       refreshOutline();
-      if (line !== undefined) jump(line);
+      if (line !== undefined) jump(line, undefined, word);
       api.setFocus(projectId, path).catch(() => undefined);
       lintFile(projectId, path);
     };
@@ -508,7 +549,9 @@ export default function Editor({
 
   useEffect(() => {
     if (!pendingOpen) return;
-    openRef.current?.(pendingOpen.path, pendingOpen.line).catch((error) => {
+    openRef.current?.(
+      pendingOpen.path, pendingOpen.line, pendingOpen.word,
+    ).catch((error) => {
       set({ error: `Could not open ${pendingOpen.path}: ${error.message}` });
     });
   }, [pendingOpen]);

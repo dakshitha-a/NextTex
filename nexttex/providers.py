@@ -86,7 +86,7 @@ class NoAgent:
     async def set_model(self, model: str | None) -> None:
         return None
 
-    async def ask(self, prompt: str) -> None:
+    async def ask(self, prompt: str, *, context: str = "") -> None:
         await self._queue().put({
             "type": "error",
             "message": (
@@ -152,6 +152,6 @@ class Unavailable(NoAgent):
         super().__init__()
         self.why = why
 
-    async def ask(self, prompt: str) -> None:
+    async def ask(self, prompt: str, *, context: str = "") -> None:
         await self._queue().put({"type": "error", "message": self.why})
         await self._queue().put({"type": "done", "subtype": "success"})

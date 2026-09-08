@@ -295,7 +295,7 @@ class OpenAIAgent:
         self.model = model or DEFAULT_MODEL
         self.usage["model"] = self.model
 
-    async def ask(self, prompt: str) -> None:
+    async def ask(self, prompt: str, *, context: str = "") -> None:
         if self.busy:
             raise RuntimeError("a turn is already running")
         if not self.api_key:
@@ -306,13 +306,20 @@ class OpenAIAgent:
             await self._emit({"type": "done", "subtype": "error_during_execution"})
             return
         self._why = prompt.strip().splitlines()[0][:120] if prompt.strip() else ""
-        self._turn = asyncio.create_task(self._run(prompt))
+        self._turn = asyncio.create_task(self._run(prompt, context))
 
     # -- one turn ----------------------------------------------------------
-    async def _run(self, prompt: str) -> None:
+    async def _run(self, prompt: str, context: str = "") -> None:
         started = time.monotonic()
+        # The question as typed is what the conversation shows; the model is
+        # given the passage the writer had selected as well.
         await self._emit({"type": "turn_start", "prompt": prompt})
-        self._messages.append({"role": "user", "content": self._with_context(prompt)})
+        self._messages.append({
+            "role": "user",
+            "content": self._with_context(
+                f"{context}\n\n{prompt}" if context else prompt
+            ),
+        })
         try:
             await asyncio.wait_for(self._converse(), timeout=TURN_TIMEOUT)
             subtype = "success"

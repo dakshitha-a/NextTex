@@ -421,6 +421,25 @@ class ProjectSession:
         )
 
     # -- editor -----------------------------------------------------------
+    def note_selection(self, selection: dict) -> None:
+        """Fold a selection sent with a question into the editor state.
+
+        The cursor is reported on a 400 ms debounce, which is right for
+        something that changes on every keystroke and wrong for this: select
+        a paragraph, click Send, and the question can beat the selection to
+        the server. So the question carries its own copy and it lands here,
+        where `editor_state` will find it.
+        """
+        state = dict(self._editor_state)
+        state["selection"] = selection.get("text") or ""
+        if selection.get("file"):
+            state["file"] = selection["file"]
+        if isinstance(selection.get("fromLine"), int):
+            state["selectionFrom"] = selection["fromLine"]
+        if isinstance(selection.get("toLine"), int):
+            state["selectionTo"] = selection["toLine"]
+        self.set_editor_state(state)
+
     def set_editor_state(self, state: dict) -> None:
         self._editor_state = state
         # Which preview tab is in front.  It builds first and waits the
