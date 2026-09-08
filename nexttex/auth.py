@@ -81,6 +81,24 @@ _FAILURES: dict[str, tuple[int, float]] = {}
 MAX_DELAY_SECONDS = 8.0
 
 
+def same_secret(supplied: str, known: str) -> bool:
+    """Constant-time comparison of two secrets, whatever they contain.
+
+    `secrets.compare_digest` refuses two `str` unless both are ASCII, and
+    raises `TypeError` when they are not.  Every credential in this app is
+    ASCII by construction -- a `token_urlsafe`, a hex digest -- but the
+    *supplied* half is whatever arrived in a query string, a cookie or a
+    header, and a browser may put any character there.  Comparing the UTF-8
+    bytes is the same comparison for every credential this app issues, and
+    is merely False rather than a 500 for anything else.
+
+    Without this, `GET /?token=\u00e9` was an unauthenticated traceback out
+    of the middleware, on an install whose whole security story is that the
+    port is behind a password.
+    """
+    return secrets.compare_digest(supplied.encode("utf-8"), known.encode("utf-8"))
+
+
 def _scrypt(password: str, salt: bytes) -> str:
     return hashlib.scrypt(
         password.encode("utf-8"), salt=salt,
@@ -106,7 +124,7 @@ def verify_password(password: str, stored_hash: str, stored_salt: str) -> bool:
         salt = bytes.fromhex(stored_salt)
     except ValueError:
         return False
-    return secrets.compare_digest(_scrypt(password, salt), stored_hash)
+    return same_secret(_scrypt(password, salt), stored_hash)
 
 
 def token_fingerprint(token: str) -> str:
@@ -141,7 +159,7 @@ def find_session(sessions: list[dict], token: str) -> dict | None:
     fingerprint = token_fingerprint(token)
     now = time.time()
     for record in sessions:
-        if not secrets.compare_digest(str(record.get("hash", "")), fingerprint):
+        if not same_secret(str(record.get("hash", "")), fingerprint):
             continue
         if now - float(record.get("created") or 0) > SESSION_TTL_SECONDS:
             return None
