@@ -55,65 +55,59 @@ export default function PasswordNudge() {
     }
   };
 
-  if (!needed || gone) {
-    return open ? (
-      <Suspense fallback={null}>
-        <AccessCard
-          onClose={() => {
-            setOpen(false);
-            api.auth().then((state) => setNeeded(!state.hasPassword)).catch(() => undefined);
-          }}
-        />
-      </Suspense>
-    ) : null;
-  }
+  const recheck = () => {
+    setOpen(false);
+    api.auth().then((state) => setNeeded(!state.hasPassword)).catch(() => undefined);
+  };
 
+  // One `AccessCard`, in one place in the tree, whether or not the line
+  // above it is still being shown.  It used to be written out twice, once
+  // in each branch of an early return, and React treats those as two
+  // different elements: the moment `needed` turned false the open card was
+  // unmounted and a fresh one mounted in the other branch, which threw away
+  // the "Password set" it was in the middle of showing and re-read the
+  // settings -- so the card came back as *"Change the password"*, which is
+  // the very thing this is meant to stop.
   return (
     <>
-      <div
-        className="mt-6 border-t border-line pt-3"
-        data-testid="password-nudge"
-      >
-        {/* `--warn` because this is a state and not a note. It sat at the
-            foot of the page in plain body text, under the fold of
-            attention, reading like a settings row. */}
-        <p className="t-meta border-l-2 border-warn pl-[10px] text-ink-2">
-          This install has no password. Anyone with the link the server printed
-          can read and edit your projects.
-        </p>
-        <div className="mt-2 flex items-center gap-4">
-          <button
-            className="ghost-button h-[26px] px-3 t-ui"
-            data-testid="set-password"
-            onClick={() => setOpen(true)}
-          >
-            Set a password
-          </button>
-          {/* Not "Not now": the update footer on this same screen already
-              has a button by that name, and two controls with one
-              accessible name doing two different things is a real problem
-              for anybody navigating by name rather than by position.
-              Saying the condition under which ignoring this is reasonable
-              is also more honest than a soft deferral -- somebody writing
-              alone on a laptop that never leaves the desk is making a fine
-              choice here. */}
-          <button className="quiet t-micro" onClick={dismiss}>
-            I'm the only one here
-          </button>
+      {needed && !gone ? (
+        <div
+          className="mt-6 border-t border-line pt-3"
+          data-testid="password-nudge"
+        >
+          {/* `--warn` because this is a state and not a note. It sat at the
+              foot of the page in plain body text, under the fold of
+              attention, reading like a settings row. */}
+          <p className="t-meta border-l-2 border-warn pl-[10px] text-ink-2">
+            This install has no password. Anyone with the link the server
+            printed can read and edit your projects.
+          </p>
+          <div className="mt-2 flex items-center gap-4">
+            <button
+              className="ghost-button h-[26px] px-3 t-ui"
+              data-testid="set-password"
+              onClick={() => setOpen(true)}
+            >
+              Set a password
+            </button>
+            {/* Not "Not now": the update footer on this same screen already
+                has a button by that name, and two controls with one
+                accessible name doing two different things is a real problem
+                for anybody navigating by name rather than by position.
+                Saying the condition under which ignoring this is reasonable
+                is also more honest than a soft deferral -- somebody writing
+                alone on a laptop that never leaves the desk is making a fine
+                choice here. */}
+            <button className="quiet t-micro" onClick={dismiss}>
+              I'm the only one here
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {open ? (
         <Suspense fallback={null}>
-          <AccessCard
-            onClose={() => {
-              setOpen(false);
-              api
-                .auth()
-                .then((state) => setNeeded(!state.hasPassword))
-                .catch(() => undefined);
-            }}
-          />
+          <AccessCard onSaved={() => setNeeded(false)} onClose={recheck} />
         </Suspense>
       ) : null}
     </>
