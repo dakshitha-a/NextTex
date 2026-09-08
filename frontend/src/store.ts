@@ -52,6 +52,18 @@ export type ChatItem =
 
 export type Tab = { path: string; dirty: boolean };
 
+/** What is true of one previewed document while it builds. */
+export type DocBuild = {
+  compiling: boolean;
+  stale: boolean;
+  result: CompileResult | null;
+  pdfStamp: number;
+};
+
+const NO_BUILD: DocBuild = {
+  compiling: false, stale: false, result: null, pdfStamp: 0,
+};
+
 export type State = {
   ready: boolean;
   projects: ProjectSummary[];
@@ -69,6 +81,23 @@ export type State = {
   viewing: { path: string; sha: string; version: Version } | null;
   history: Version[];
   trash: TrashEntry[];
+  /** Which documents are previewed, in tab order, main first. */
+  previews: string[];
+  /** The tab in front.  It builds first and waits the shorter debounce. */
+  activePreview: string;
+  /** Documents that could be previewed and are not yet. */
+  candidates: string[];
+  /** Which documents read a given file, so a keystroke can mark the right
+   *  previews stale without waiting for the server to say so. */
+  owners: Record<string, string[]>;
+  /** Per document build state.  Replaced wholesale rather than mutated, so
+   *  a component selecting one document's entry is not re-rendered when
+   *  another document builds. */
+  builds: Record<string, DocBuild>;
+  /** Diagnostics kept per document and merged into `diagnostics`.  Keeping
+   *  one list would have each build erase the other document's errors twice
+   *  per debounce. */
+  diagnosticsByDoc: Record<string, Diagnostic[]>;
   compiling: boolean;
   /** Whether the preview is older than the source: something has been
    *  edited since the last build started.  It is a resting state, not a
@@ -138,6 +167,12 @@ const state: State = {
   viewing: null,
   history: [],
   trash: [],
+  previews: [],
+  activePreview: "",
+  candidates: [],
+  owners: {},
+  builds: {},
+  diagnosticsByDoc: {},
   compiling: false,
   stale: false,
   compile: null,
@@ -375,21 +410,75 @@ export function countDiff(before: string, after: string) {
 
 let source: EventSource | null = null;
 
-/** The most recent build the server has told us about.  A cancelled build's
- *  result arrives after its replacement has already started, so the id is
- *  what tells a result about the current build from a result about one that
- *  has been superseded. */
-let build = 0;
+/** The most recent build the server has told us about, per document.  A
+ *  cancelled build's result arrives after its replacement has already
+ *  started, so the id is what tells a result about the current build from a
+ *  result about one that has been superseded.
+ *
+ *  Per document, because a shared counter would let a build of the
+ *  supplementary information invalidate the main document's pending result,
+ *  and main's status dot would breathe for ever. */
+const builds = new Map<string, number>();
+
+/** Copy the visible document's build state onto the top-level fields.
+ *
+ *  Those fields are read by the status strip, the diagnostics drawer, the
+ *  file view and the history panel, none of which has any business knowing
+ *  a project can have several documents. One writer keeps them honest, and
+ *  it is the reason none of those four files had to change. */
+function syncVisible(patch: Partial<State> = {}) {
+  const showing = (patch.activePreview ?? state.activePreview) || "";
+  const source = { ...state.builds, ...(patch.builds ?? {}) };
+  const current = source[showing] ?? NO_BUILD;
+  const byDoc = { ...state.diagnosticsByDoc, ...(patch.diagnosticsByDoc ?? {}) };
+  // Flattened here rather than in a selector: `useStore` compares what the
+  // selector returns by identity, and one that built a fresh array every
+  // call would re-render for ever.
+  const merged: Diagnostic[] = [];
+  for (const name of patch.previews ?? state.previews) {
+    for (const item of byDoc[name] ?? []) merged.push(item);
+  }
+  set({
+    ...patch,
+    compiling: current.compiling,
+    stale: current.stale,
+    compile: current.result,
+    pdfStamp: current.pdfStamp,
+    diagnostics: merged,
+  });
+}
 
 /** The preview is behind the source.  Called from the editor on every
  *  document change as well as from the event stream, because the writer
- *  sees their own keystroke long before the server hears about it. */
-export function markStale() {
-  if (!state.stale) set({ stale: true });
+ *  sees their own keystroke long before the server hears about it.
+ *
+ *  Routed by path.  Without that, editing the supplementary information
+ *  would mark the main document stale, no build of main would ever be
+ *  scheduled, and nothing would arrive to clear it -- a preview stuck
+ *  behind for the rest of the session. When the path is unknown, mark
+ *  nothing and let the server's `compile_scheduled` say so a moment later:
+ *  late is better than stuck. */
+export function markStale(path?: string) {
+  const targets = path ? state.owners[path] : undefined;
+  const names = targets && targets.length ? targets : [];
+  if (!names.length) return;
+  const next: Record<string, DocBuild> = { ...state.builds };
+  let changed = false;
+  for (const name of names) {
+    const current = next[name] ?? NO_BUILD;
+    if (current.stale) continue;
+    next[name] = { ...current, stale: true };
+    changed = true;
+  }
+  if (changed) syncVisible({ builds: next });
 }
 
 function setStale() {
-  markStale();
+  const next: Record<string, DocBuild> = { ...state.builds };
+  for (const name of state.previews) {
+    next[name] = { ...(next[name] ?? NO_BUILD), stale: true };
+  }
+  syncVisible({ builds: next });
 }
 
 export type EventHandlers = {
@@ -397,6 +486,7 @@ export type EventHandlers = {
   onProjectChanged?: (main?: string) => void;
   onFilesChanged?: (paths: string[], structural?: boolean) => void;
   onCompileDone?: (result: CompileResult) => void;
+  onPreviewsChanged?: (previews: string[]) => void;
   onAgentEdit?: (path: string, line: number) => void | Promise<void>;
   onRenamed?: (from: string, to: string) => void;
 };
@@ -483,25 +573,58 @@ function stopReconcile() {
   window.clearInterval(reconcileTimer);
 }
 
+/** The event reducer, exposed for tests.  Driving it directly is the only
+ *  way to check the multi-document merge without a server and an SSE
+ *  connection in the middle of it. */
+export function __receive(event: any) {
+  receive(event);
+}
+
 function receive(event: any) {
   switch (event.type) {
     case "library_scan":
       set({ library: event as any });
       break;
-    case "compile_scheduled":
-      // A build is coming but has not started, so the preview is already
-      // behind what is on screen.  With autocompile off no build is coming
-      // at all and this is where the document rests.
-      set({ stale: true });
+    case "previews_changed":
+      syncVisible({
+        previews: event.previews ?? state.previews,
+        candidates: event.candidates ?? [],
+        owners: event.owners ?? {},
+        activePreview: (event.previews ?? []).includes(state.activePreview)
+          ? state.activePreview
+          : event.main ?? state.activePreview,
+      });
+      handlers.onPreviewsChanged?.(event.previews ?? []);
       break;
-    case "compile_start":
+    case "compile_scheduled": {
+      // A build is coming but has not started, so those previews are
+      // already behind what is on screen.  With autocompile off no build is
+      // coming at all and this is where the document rests.
+      const named: string[] = event.documents ?? [];
+      const next = { ...state.builds };
+      for (const name of named.length ? named : state.previews) {
+        next[name] = { ...(next[name] ?? NO_BUILD), stale: true };
+      }
+      syncVisible({ builds: next });
+      break;
+    }
+    case "compile_start": {
       // Cleared here rather than when the build finishes: a keystroke made
       // *during* a build leaves the preview behind again the moment the
       // build lands, and clearing at the end would wipe that.
-      build = event.build ?? build;
-      set({ compiling: true, stale: false });
+      const name = event.document ?? state.activePreview;
+      if (event.build != null) builds.set(name, event.build);
+      syncVisible({
+        builds: {
+          ...state.builds,
+          [name]: { ...(state.builds[name] ?? NO_BUILD), compiling: true, stale: false },
+        },
+      });
       break;
+    }
     case "compile_done": {
+      const name = event.document ?? state.activePreview;
+      const current = state.builds[name] ?? NO_BUILD;
       if (event.outcome === "cancelled") {
         // A superseded build says nothing about the document; leave the
         // diagnostics and the PDF exactly as they were.  Its result also
@@ -510,18 +633,34 @@ function receive(event: any) {
         // which under the status dot is a dot that breathes for ever.
         // Only the build nothing has superseded may end the compiling
         // state.
-        if (event.build != null && event.build === build) set({ compiling: false });
+        if (event.build != null && event.build === builds.get(name)) {
+          syncVisible({
+            builds: { ...state.builds, [name]: { ...current, compiling: false } },
+          });
+        }
         break;
       }
-      set({
-        compiling: false,
-        // Deliberately not `stale: false` here.  Staleness is cleared when
-        // a build *starts*, because a keystroke made while one was running
-        // leaves the preview behind again the moment that build lands --
-        // and clearing it here would wipe exactly that keystroke.
-        compile: event as CompileResult,
-        diagnostics: event.diagnostics ?? [],
-        pdfStamp: Date.now(),
+      syncVisible({
+        builds: {
+          ...state.builds,
+          [name]: {
+            ...current,
+            compiling: false,
+            // Deliberately not `stale: false` here.  Staleness is cleared
+            // when a build *starts*, because a keystroke made while one was
+            // running leaves the preview behind again the moment that build
+            // lands -- and clearing it here would wipe exactly that
+            // keystroke.
+            result: event as CompileResult,
+            pdfStamp: Date.now(),
+          },
+        },
+        // Replaced for this document only.  One shared list meant each
+        // build wiped the other document's errors.
+        diagnosticsByDoc: {
+          ...state.diagnosticsByDoc,
+          [name]: event.diagnostics ?? [],
+        },
       });
       handlers.onCompileDone?.(event as CompileResult);
       break;

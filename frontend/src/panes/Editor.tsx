@@ -181,7 +181,10 @@ export default function Editor({
       // the file.  Nothing has been edited, so the preview still matches
       // the source -- and a stale dot raised there would stay up until the
       // next build, which with compiling off might be tomorrow.
-      if (!viewing.current) markStale();
+      // By path: editing the supplementary information must not mark the
+      // main document stale, because no build of main would follow to
+      // clear it and the preview would sit behind for the session.
+      if (!viewing.current) markStale(path);
       const tabs = get().tabs;
       if (!tabs.find((tab) => tab.path === path)?.dirty) {
         set({

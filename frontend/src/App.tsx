@@ -26,6 +26,7 @@ const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
 import Tabs from "./panes/Tabs";
+import PreviewTabs from "./panes/PreviewTabs";
 import Status from "./panes/Status";
 import Diagnostics from "./panes/Diagnostics";
 import FileTree from "./panes/FileTree";
@@ -336,9 +337,23 @@ export default function App() {
     // can be used, so say what happens.
     const strip = reopened.filter((path) => inTree.has(path));
     if (!strip.includes(active)) strip.push(active);
-    set({ tabs: strip.map((path) => ({ path, dirty: false })) });
+    // The previewed documents arrive with the project rather than in a
+    // second round trip, because the strip is drawn on the first frame.
+    const previewed: string[] = (project as any).previews ?? [main];
+    set({
+      tabs: strip.map((path) => ({ path, dirty: false })),
+      previews: previewed,
+      activePreview: previewed.includes(active) ? active : previewed[0] ?? main,
+      candidates: (project as any).candidates ?? [],
+      owners: (project as any).owners ?? {},
+    });
     openFile(active).catch(() => undefined);
-    api.compile(id).catch(() => undefined);
+    // Every previewed document, not just the main one: a second preview
+    // opening on a stale page from the last session is the thing the tab
+    // strip most obviously must not do.
+    for (const name of previewed) {
+      api.compile(id, false, name).catch(() => undefined);
+    }
   }, []);
   openProjectRef.current = openProject;
 
@@ -350,7 +365,10 @@ export default function App() {
       const id = get().projectId;
       if (!id) return;
       await editor.current?.saveNow();
-      await api.compile(id, full).catch(() => undefined);
+      // The document in front.  A manual build is about the page being
+      // looked at, and building the main one from a tab showing another
+      // would leave the button apparently doing nothing.
+      await api.compile(id, full, get().activePreview).catch(() => undefined);
     },
     [],
   );
@@ -865,6 +883,64 @@ export default function App() {
     if (!foldedRef.current.chat) fold("chat");
   }, [fold]);
 
+  // ---- previewed documents ----------------------------------------------
+  const previews = useStore((s) => s.previews);
+  const activePreview = useStore((s) => s.activePreview);
+
+  /** Bring a document's preview forward, and its source with it.
+   *
+   *  Both directions are automatic and neither moves the keyboard: a tab
+   *  click that stole focus from the composer or the editor would make the
+   *  strip unusable while typing. */
+  const showPreview = useCallback((path: string) => {
+    if (!path || path === get().activePreview) return;
+    set({ activePreview: path });
+    const id = get().projectId;
+    if (id) {
+      api
+        .setFocus(id, get().activePath ?? "", undefined, undefined, undefined, path)
+        .catch(() => undefined);
+    }
+    if (get().activePath !== path) openFile(path);
+  }, [openFile]);
+
+  const startPreviewing = useCallback(async (path: string) => {
+    const id = get().projectId;
+    if (!id) return;
+    try {
+      const body = await api.addPreview(id, path);
+      set({ previews: body.previews, candidates: body.candidates, owners: body.owners });
+      showPreview(path);
+    } catch (problem: any) {
+      set({ error: problem.message });
+    }
+  }, [showPreview]);
+
+  const stopPreviewing = useCallback(async (path: string) => {
+    const id = get().projectId;
+    if (!id) return;
+    try {
+      const body = await api.removePreview(id, path);
+      const next = get().activePreview === path ? body.main : get().activePreview;
+      set({
+        previews: body.previews, candidates: body.candidates,
+        owners: body.owners, activePreview: next,
+      });
+    } catch (problem: any) {
+      set({ error: problem.message });
+    }
+  }, []);
+
+  /** The preview follows the file you open, when that file is a document
+   *  in its own right.  A chapter is not: its preview is the document that
+   *  includes it, which is already showing. */
+  useEffect(() => {
+    if (!activePath) return;
+    if (previews.includes(activePath) && activePath !== activePreview) {
+      set({ activePreview: activePath });
+    }
+  }, [activePath, previews, activePreview]);
+
   // ---- keyboard ---------------------------------------------------------
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -900,6 +976,17 @@ export default function App() {
         toggleChat();
       }
 
+      // Cycle the previewed documents.  KeyP for preview, and free in both
+      // CodeMirror's keymap and the browser's -- see docs/design.md.
+      if (meta && event.altKey && event.code === "KeyP") {
+        event.preventDefault();
+        const open = get().previews;
+        if (open.length > 1) {
+          const at = open.indexOf(get().activePreview);
+          showPreview(open[(at + 1 + open.length) % open.length]);
+        }
+      }
+
       // Escape closes the agent panel, from inside the agent panel.
       //
       // Not from anywhere on screen.  Escape already means something in the
@@ -928,7 +1015,7 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [
-    activePath, toggleChat, closeChat,
+    activePath, toggleChat, closeChat, showPreview,
     tutorialOpen, historyOpen, showingChanges, contextRequest,
   ]);
 
@@ -1186,6 +1273,8 @@ export default function App() {
                 reachable from the keyboard behind a closed panel. */}
             {railOpen.files ? (
               <FileTree
+              onPreview={startPreviewing}
+              onUnpreview={stopPreviewing}
                 onOpen={openFile}
                 onRefresh={refreshTree}
                 onRename={renameOpenFile}
@@ -1422,7 +1511,11 @@ export default function App() {
                   mode landed on "switch project" and left the document
                   entirely.  They go beside the other control instead, and
                   the left of the bar stays the thing you click. */}
-              <span className="t-ui-lg font-serif text-ink">Preview</span>
+              <PreviewTabs
+                onSelect={showPreview}
+                onClose={stopPreviewing}
+                onAdd={startPreviewing}
+              />
               <span className="flex-1" />
               {railFolded && folded.editor ? (
                 <AppControls
@@ -1445,6 +1538,7 @@ export default function App() {
           ) : null}
           <Suspense fallback={<div className="h-full bg-surface-2" />}>
           <Pdf
+            document={activePreview}
             handleRef={(handle) => (pdf.current = handle)}
             onNavigate={(file, line) => openFile(file, line)}
             onLoadTemplate={async () => {
