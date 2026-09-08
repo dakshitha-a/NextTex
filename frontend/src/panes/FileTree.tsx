@@ -42,6 +42,8 @@ export default function FileTree({
   onRefresh,
   onRename,
   onHistory,
+  onPreview,
+  onUnpreview,
   mainFile,
 }: {
   onOpen: (path: string) => void;
@@ -49,6 +51,11 @@ export default function FileTree({
   /** A file has a new name: whatever holds it open needs to know. */
   onRename?: (from: string, to: string) => void;
   onHistory?: () => void;
+  /** Put a document on the preview strip, or take it off.  Owned by the
+   *  shell rather than here, because adding one also brings its tab
+   *  forward and opens its source. */
+  onPreview?: (path: string) => Promise<void> | void;
+  onUnpreview?: (path: string) => Promise<void> | void;
   mainFile?: string;
 }) {
   const tree = useStore((s) => s.tree);
@@ -83,6 +90,8 @@ export default function FileTree({
   // open claims it, and the dismiss hook leaves that button's own press
   // alone so the trigger can close what it opened.
   const menuButton = useRef<HTMLButtonElement | null>(null);
+  const previews = useStore((s) => s.previews);
+  const candidates = useStore((s) => s.candidates);
   const closeMenu = useCallback(() => setMenu(null), []);
   useDismiss(menuRef, menu !== null, closeMenu, menuButton);
   const uploadTo = useRef<string>("");
@@ -207,6 +216,10 @@ export default function FileTree({
       } else if (action === "main") {
         await api.setMain(projectId, node.path);
         onRefresh();
+      } else if (action === "preview") {
+        await onPreview?.(node.path);
+      } else if (action === "unpreview") {
+        await onUnpreview?.(node.path);
       } else if (action === "history") {
         onOpen(node.path);
         onHistory?.();
@@ -535,6 +548,16 @@ export default function FileTree({
               node.path !== mainFile
                 ? [["main", "Set as main document"]]
                 : []),
+              // Offered only where it can work: a document already on the
+              // preview strip can come off it, and one the project has
+              // recognised as standing on its own can go on.  A chapter is
+              // neither, and an item that explains itself by failing is
+              // worse than no item.
+              ...(previews.includes(node.path) && node.path !== previews[0]
+                ? [["unpreview", "Stop previewing"]]
+                : candidates.includes(node.path)
+                  ? [["preview", "Preview this document"]]
+                  : []),
               ...(!isDirectory ? [["history", "History"]] : []),
               ["download", isDirectory ? "Download as zip" : "Download"],
               ["upload", "Upload here"],

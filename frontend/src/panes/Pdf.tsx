@@ -67,10 +67,14 @@ export default function Pdf({
   onNavigate,
   onLoadTemplate,
   handleRef,
+  document: showing = "",
 }: {
   onNavigate: (file: string, line: number) => void;
   onLoadTemplate?: () => void;
   handleRef: (handle: PdfHandle) => void;
+  /** Which document's PDF this pane is showing.  Empty means the main one,
+   *  which is what a project with a single document has always meant. */
+  document?: string;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const sheet = useRef<HTMLDivElement | null>(null);
@@ -102,7 +106,9 @@ export default function Pdf({
   const [current, setCurrent] = useState(1);
   const [missing, setMissing] = useState(false);
 
-  const stamp = useStore((s) => s.pdfStamp);
+  // This document's own build stamp, not the project's: a build of another
+  // preview must not make this pane re-fetch a PDF that has not changed.
+  const stamp = useStore((s) => s.builds[showing]?.pdfStamp ?? s.pdfStamp);
   const projectId = useStore((s) => s.projectId);
 
   const modeRef = useRef(mode);
@@ -343,7 +349,7 @@ export default function Pdf({
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(api.pdfUrl(projectId, stamp), {
+        const response = await fetch(api.pdfUrl(projectId, showing, stamp), {
           credentials: "same-origin",
         });
         if (!response.ok) {
@@ -369,7 +375,9 @@ export default function Pdf({
     return () => {
       cancelled = true;
     };
-  }, [projectId, stamp]);
+    // `showing` too: switching preview tabs is a different document,
+    // not a rebuild of this one.
+  }, [projectId, showing, stamp]);
 
   // Zoom, mode and pane width all change the layout but not the document.
   useEffect(() => {
@@ -563,7 +571,7 @@ export default function Pdf({
       const x = (event.clientX - box.left) / drawn.current;
       const y = (event.clientY - box.top) / drawn.current;
       try {
-        const result = await api.inverse(projectId, index + 1, x, y);
+        const result = await api.inverse(projectId, index + 1, x, y, showing);
         if (result.found && result.file && result.line) {
           onNavigate(result.file, result.line);
         }
@@ -580,7 +588,7 @@ export default function Pdf({
         const projectId = get().projectId;
         if (!projectId) return false;
         try {
-          const result = await api.forward(projectId, path, line);
+          const result = await api.forward(projectId, path, line, showing);
           const position = result.positions?.[0];
           if (!position) return false;
           const view = pages.current[position.page - 1];

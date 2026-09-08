@@ -137,6 +137,14 @@ export type UpdateReport = {
   phase: string;
 };
 
+/** What can be previewed in a project, and which document reads what. */
+export type DocumentsPayload = {
+  previews: string[];
+  candidates: string[];
+  owners: Record<string, string[]>;
+  main: string;
+};
+
 export type ProjectSummary = {
   /** Always present.  A registry entry is a path, and it has an identity
    *  whether or not anything is still at the end of it -- `missing` is what
@@ -262,18 +270,31 @@ const api = {
       { method: "DELETE" },
     ),
 
-  compile: (id: string, full = false) =>
-    request<CompileResult>(`/projects/${id}/compile`, json({ full })),
+  compile: (id: string, full = false, document = "") =>
+    request<CompileResult>(`/projects/${id}/compile`, json({ full, document })),
+  /** Which documents are previewed, which could be, and who reads what. */
+  documents: (id: string) =>
+    request<DocumentsPayload>(`/projects/${id}/documents`),
+  addPreview: (id: string, path: string) =>
+    request<DocumentsPayload>(`/projects/${id}/previews`, json({ path })),
+  removePreview: (id: string, path: string) =>
+    request<DocumentsPayload>(
+      `/projects/${id}/previews?path=${encodeURIComponent(path)}`,
+      { method: "DELETE" },
+    ),
   setFocus: (
     id: string,
     file: string,
     line?: number,
     column?: number,
     selection?: string,
+    /** Which preview tab is in front.  It builds first and waits the
+     *  shorter debounce, so the server has to be told when it changes. */
+    preview?: string,
   ) =>
     request<any>(
       `/projects/${id}/editor`,
-      json({ file, line, column, selection }),
+      json({ file, line, column, selection, preview }),
     ),
   symbols: (id: string) => request<Symbols>(`/projects/${id}/symbols`),
 
@@ -357,13 +378,15 @@ const api = {
     request<{ diagnostics: Diagnostic[] }>(
       `/projects/${id}/lint?path=${encodeURIComponent(path)}`,
     ),
-  inverse: (id: string, page: number, x: number, y: number) =>
+  inverse: (id: string, page: number, x: number, y: number, document = "") =>
     request<{ found: boolean; file?: string; line?: number }>(
-      `/projects/${id}/synctex/inverse?page=${page}&x=${x}&y=${y}`,
+      `/projects/${id}/synctex/inverse?page=${page}&x=${x}&y=${y}` +
+        `&document=${encodeURIComponent(document)}`,
     ),
-  forward: (id: string, path: string, line: number) =>
+  forward: (id: string, path: string, line: number, document = "") =>
     request<{ positions: SyncPosition[] }>(
-      `/projects/${id}/synctex/forward?path=${encodeURIComponent(path)}&line=${line}`,
+      `/projects/${id}/synctex/forward?path=${encodeURIComponent(path)}` +
+        `&line=${line}&document=${encodeURIComponent(document)}`,
     ),
 
   ask: (id: string, prompt: string) =>
@@ -591,7 +614,10 @@ const api = {
     const query = params.toString();
     return `/api/projects/${id}/download${query ? `?${query}` : ""}`;
   },
-  pdfUrl: (id: string, stamp: number) => `/api/projects/${id}/pdf?v=${stamp}`,
+  /** One route, several documents.  `document` is empty for the main one,
+   *  which is what every caller written before this sent. */
+  pdfUrl: (id: string, document: string, stamp: number) =>
+    `/api/projects/${id}/pdf?document=${encodeURIComponent(document)}&v=${stamp}`,
 };
 
 export default api;

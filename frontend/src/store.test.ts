@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { countDiff, firstChangedLine } from "./store";
+import {
+  countDiff,
+  firstChangedLine,
+  get,
+  markStale,
+  set,
+  __receive,
+} from "./store";
 
 /** Reading a diff, which the chat panel does for every edit Claude makes.
  *
@@ -58,5 +65,70 @@ describe("how much changed", () => {
     const { added, removed } = countDiff(before, after);
     expect(added).toBeLessThanOrEqual(1);
     expect(removed).toBeLessThanOrEqual(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Several previewed documents
+//
+// The bug these stand guard over: one shared diagnostics list meant each
+// build erased the other document's errors, twice per debounce.
+
+
+function reset() {
+  set({
+    previews: ["main.tex", "esi.tex"],
+    activePreview: "main.tex",
+    builds: {},
+    diagnosticsByDoc: {},
+    owners: { "main.tex": ["main.tex"], "esi.tex": ["esi.tex"] },
+  });
+}
+
+const done = (document: string, diagnostics: any[]) => ({
+  type: "compile_done", document, build: 1, outcome: "ok", diagnostics,
+});
+
+describe("diagnostics from several documents", () => {
+  test("keeps both documents' errors rather than replacing", () => {
+    reset();
+    __receive(done("main.tex", [{ severity: "error", file: "main.tex", line: 3 }]));
+    __receive(done("esi.tex", [{ severity: "error", file: "esi.tex", line: 9 }]));
+    expect(get().diagnostics).toHaveLength(2);
+  });
+
+  test("a clean build clears only its own document", () => {
+    reset();
+    __receive(done("main.tex", [{ severity: "error", file: "main.tex", line: 3 }]));
+    __receive(done("esi.tex", [{ severity: "error", file: "esi.tex", line: 9 }]));
+    __receive(done("main.tex", []));
+    expect(get().diagnostics).toHaveLength(1);
+    expect(get().diagnostics[0].file).toBe("esi.tex");
+  });
+
+  test("a cancelled build changes nothing", () => {
+    reset();
+    __receive(done("esi.tex", [{ severity: "error", file: "esi.tex", line: 9 }]));
+    __receive({ type: "compile_done", document: "esi.tex", outcome: "cancelled", build: 99 });
+    expect(get().diagnostics).toHaveLength(1);
+  });
+});
+
+describe("staleness is routed to the documents that read the file", () => {
+  test("marks only the documents that read what changed", () => {
+    reset();
+    __receive({ type: "compile_start", document: "main.tex", build: 1 });
+    __receive({ type: "compile_start", document: "esi.tex", build: 1 });
+    // Editing the supplementary information must not leave the main
+    // document stale for ever with no build coming to clear it.
+    markStale("esi.tex");
+    expect(get().builds["esi.tex"].stale).toBe(true);
+    expect(get().builds["main.tex"].stale).toBe(false);
+  });
+
+  test("says nothing about a file it cannot place", () => {
+    reset();
+    markStale("mystery.tex");
+    expect(get().builds["main.tex"]?.stale ?? false).toBe(false);
   });
 });
