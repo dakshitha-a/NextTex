@@ -24,7 +24,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from starlette.background import BackgroundTask
-from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import (
+    Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile, WebSocket,
+)
 from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse,
 )
@@ -153,10 +155,23 @@ async def _watch_projects() -> None:
                         touched.setdefault(session.project.id, set()).add(str(rel))
                 for project_id, paths in touched.items():
                     session = SESSIONS.get(project_id)
-                    if session:
-                        await session.events.publish(
-                            {"type": "files_changed", "paths": sorted(paths)}
-                        )
+                    if not session:
+                        continue
+                    # Into the shared document first.  This is the only way
+                    # an outside write -- a git pull, vim in another
+                    # terminal -- reaches the people editing the file, and
+                    # `ingest` diffs, so handing it text the document
+                    # already holds costs nothing and changes nothing.
+                    for relative in paths:
+                        try:
+                            path = session.project.resolve(relative)
+                            after = read_text(path) if path.exists() else None
+                            session.collab.ingest(relative, after)
+                        except (OSError, ValueError):
+                            continue
+                    await session.events.publish(
+                        {"type": "files_changed", "paths": sorted(paths)}
+                    )
         except (asyncio.CancelledError, GeneratorExit):
             raise
         except Exception:
@@ -416,6 +431,39 @@ def _sign_in_page() -> str:
   }});
 </script>
 """
+
+
+# ---------------------------------------------------------------------------
+# The shared documents
+
+
+@app.websocket("/api/projects/{project_id}/sync/{doc_id:path}")
+async def sync_socket(websocket: WebSocket, project_id: str, doc_id: str):
+    """One browser, one shared document.
+
+    **The authentication here is not decoration.**  Starlette's HTTP
+    middleware is not called for the websocket scope, so the check that
+    guards the other ninety routes does not guard this one.  Without the
+    line below, anyone who can reach the port can read and write every
+    document in every open project, and nothing on screen would say so.
+
+    A cookie is what a browser has -- the same one the event stream uses,
+    and for the same reason: neither a WebSocket nor an EventSource can send
+    an Authorization header from the page.
+    """
+    if not authorise_socket(websocket):
+        await websocket.close(code=1008)
+        return
+
+    session = SESSIONS.get(project_id)
+    if session is None:
+        try:
+            session = session_for(project_id)
+        except HTTPException:
+            await websocket.close(code=1003)
+            return
+
+    await session.sync.serve(websocket, doc_id)
 
 
 # ---------------------------------------------------------------------------

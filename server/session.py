@@ -28,6 +28,8 @@ from nexttex.atomic import read_text, write_atomically
 from nexttex.history import History
 from nexttex.symbols import SymbolCache
 from nexttex.trash import Trash
+from server.collab.store import CollabStore
+from server.collab.sync import SyncHub
 from server.transcript import Transcript
 from nexttex.project import IGNORED_DIRS, Project, is_ours
 
@@ -246,6 +248,15 @@ class ProjectSession:
         self.recently_written: dict[str, int] = {}
         self._agent_pump: asyncio.Task | None = None
         self._focus: Path | None = None
+
+        # The project as shared documents, with the files on disk as their
+        # projection.  Built last because it reaches back into this session
+        # for the four things a write has always done here -- suppress the
+        # watcher, record a version, tell the compiler, schedule a build --
+        # and all four have to exist first.
+        self.collab = CollabStore(project, self)
+        self.collab.adopt()
+        self.sync = SyncHub(self.collab)
 
     def _not_the_writers(self, path: Path) -> bool:
         """Whether a file is output or machinery rather than the writing."""
@@ -738,6 +749,10 @@ class ProjectSession:
             await self.agent.disconnect()
 
     async def close(self) -> None:
+        # First, so anything still only in a document reaches the disk
+        # before the project stops being open.
+        self.sync.close()
+        self.collab.close()
         if self._agent_pump is not None and not self._agent_pump.done():
             self._agent_pump.cancel()
         await self.agent.disconnect()
