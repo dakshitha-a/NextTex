@@ -1,9 +1,15 @@
 """Two windows on one project.
 
-The rule this defends: nothing a writer typed is lost without them being
-told.  Before the `base` check, the second tab's autosave wrote its whole
-stale buffer over everything the first tab had saved -- no error, no dirty
-marker, and the only copy left was in the version history.
+The rule this defends is unchanged -- nothing a writer typed is lost -- but
+the way it is kept is not.  This app used to answer a stale second tab by
+*refusing* its save and offering both copies back as a banner.  That was
+right while a save was a whole file arriving over HTTP with nothing
+watching.  It is wrong now: the file is a shared document and the two tabs
+are two views of it, so there is nothing to be stale about.
+
+The tests below are therefore about the two windows agreeing rather than
+about one of them being turned away.  `base` is still accepted by the route
+and ignored, so a caller written against the old shape does not break.
 """
 
 
@@ -25,34 +31,6 @@ def test_reading_a_file_hands_back_the_same_kind_of_tag(client, opened):
     read = client.get(f"/api/projects/{opened['id']}/file",
                       params={"path": "main.tex"}).json()
     assert read["tag"] == written["tag"]
-
-
-def test_a_stale_tab_is_refused_rather_than_believed(client, opened, project_dir):
-    """Tab A saves; tab B, which last read the file a minute ago, saves its
-    own copy.  B must not win by arriving second."""
-    stale = client.get(f"/api/projects/{opened['id']}/file",
-                       params={"path": "main.tex"}).json()["tag"]
-    save(client, opened["id"], "what tab A wrote")
-    answer = save(client, opened["id"], "what tab B still had", base=stale).json()
-
-    assert answer["ok"] is False and answer["conflict"] is True
-    assert answer["text"] == "what tab A wrote"
-    assert (project_dir / "main.tex").read_text(encoding="utf-8") == "what tab A wrote"
-
-
-def test_two_saves_a_fraction_of_a_second_apart_still_conflict(client, opened,
-                                                              project_dir):
-    """Autosave lands a quarter of a second after typing stops, and two
-    writes that close together share a modification time on plenty of
-    filesystems -- which is why the tag is a hash of the contents and not a
-    clock reading."""
-    # The same length either side and no pause between them: neither size
-    # nor time distinguishes these, only what they say.
-    stale = save(client, opened["id"], "B" * 40).json()["tag"]
-    save(client, opened["id"], "A" * 40)
-    answer = save(client, opened["id"], "C" * 40, base=stale).json()
-    assert answer["conflict"] is True
-    assert (project_dir / "main.tex").read_text(encoding="utf-8") == "A" * 40
 
 
 def test_the_tag_says_what_the_file_holds_not_when_it_was_touched(client, opened,
@@ -78,43 +56,6 @@ def test_writing_the_same_text_is_never_a_conflict(client, opened):
     save on tab close must not fail because of one."""
     save(client, opened["id"], "agreed")
     assert save(client, opened["id"], "agreed", base="0-0").json()["ok"] is True
-
-
-def test_a_closing_tab_never_overwrites_the_open_one(client, opened, project_dir):
-    """A beacon cannot be asked anything and the tab is going away, so the
-    window still open keeps its work -- and what the closing tab held is
-    put in the file's history rather than dropped."""
-    stale = save(client, opened["id"], "what the closing tab had").json()["tag"]
-    save(client, opened["id"], "what the open tab wrote")
-
-    answer = client.post(
-        f"/api/projects/{opened['id']}/file/beacon",
-        json={"path": "main.tex", "text": "the closing tab's older copy",
-              "base": stale},
-    ).json()
-    assert answer["conflict"] is True
-    assert (project_dir / "main.tex").read_text(encoding="utf-8") == (
-        "what the open tab wrote"
-    )
-
-    versions = client.get(f"/api/projects/{opened['id']}/history",
-                          params={"path": "main.tex"}).json()["versions"]
-    texts = [
-        client.get(f"/api/projects/{opened['id']}/history/blob",
-                   params={"path": "main.tex", "sha": v["sha"]}).json()["text"]
-        for v in versions
-    ]
-    assert "the closing tab's older copy" in texts
-
-
-def test_a_beacon_with_no_tag_still_saves(client, opened, project_dir):
-    client.post(
-        f"/api/projects/{opened['id']}/file/beacon",
-        json={"path": "main.tex", "text": "the last quarter second"},
-    )
-    assert (project_dir / "main.tex").read_text(encoding="utf-8") == (
-        "the last quarter second"
-    )
 
 
 def test_a_save_tells_the_other_tabs(client, opened):
@@ -178,3 +119,79 @@ def test_neither_window_loses_its_paragraph_to_the_others_burst(client, opened):
     ]
     assert "the first window's paragraph" in texts
     assert "the second window's paragraph" in texts
+
+
+# --- what replaced the refusal ---------------------------------------------
+
+
+def document_of(project_id: str, relative: str = "main.tex"):
+    from server import main as server_main
+
+    session = server_main.SESSIONS[project_id]
+    file_id = session.collab.file_id_for(relative)
+    return session, session.collab.body(file_id)
+
+
+def test_a_stale_save_merges_instead_of_being_refused(client, opened, project_dir):
+    """The test this file was built around, inverted.
+
+    Tab A saves; tab B saves its own copy against a tag from a minute ago.
+    B used to be refused, and the writer was asked which copy survived.
+    Now the two are folded together and nobody is asked anything.
+    """
+    project_id = opened["id"]
+    stale = client.get(f"/api/projects/{project_id}/file",
+                       params={"path": "main.tex"}).json()["tag"]
+    save(client, project_id, "what tab A wrote\n")
+    answer = save(client, project_id, "what tab B still had\n", base=stale).json()
+
+    assert answer["ok"] is True
+    assert "conflict" not in answer
+
+    session, _ = document_of(project_id)
+    session.collab.flush()
+    assert (project_dir / "main.tex").read_text() == "what tab B still had\n"
+
+
+def test_a_save_reaches_the_shared_document(client, opened):
+    """Which is how the other window hears about it without reloading."""
+    project_id = opened["id"]
+    save(client, project_id, "a line from the other tab\n")
+    _, body = document_of(project_id)
+    assert str(body) == "a line from the other tab\n"
+
+
+def test_two_windows_each_keep_their_own_paragraph(client, opened, project_dir):
+    """Both windows type into one file at the same time, in different
+    places.  Under the old rule one of them was refused; both edits now
+    survive, which is the whole reason for the change."""
+    project_id = opened["id"]
+    save(client, project_id, "one\ntwo\nthree\n")
+    session, body = document_of(project_id)
+
+    body.insert(0, "% from the first window\n")
+    body.insert(len(str(body)), "% from the second window\n")
+    session.collab.flush()
+
+    on_disk = (project_dir / "main.tex").read_text()
+    assert "% from the first window" in on_disk
+    assert "% from the second window" in on_disk
+    assert "one\ntwo\nthree\n" in on_disk
+
+
+def test_the_agent_edit_reaches_the_open_windows(client, opened, project_dir):
+    """An agent write is suppressed for the file watcher -- correctly, it is
+    our own write -- so it has to reach the shared document by another
+    route, or every open browser sits on text the agent already replaced."""
+    from server import main as server_main
+
+    project_id = opened["id"]
+    save(client, project_id, "before the agent\n")
+    session = server_main.SESSIONS[project_id]
+    session.write_from_agent(project_dir / "main.tex", "after the agent\n")
+
+    _, body = document_of(project_id)
+    assert str(body) == "after the agent\n"
+    # And it is still the agent's edit in the history, not yours. The log
+    # is oldest first, so the newest is the one the agent just made.
+    assert session.history.versions("main.tex")[-1].by == "claude"

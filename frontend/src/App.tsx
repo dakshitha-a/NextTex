@@ -23,6 +23,9 @@ const Pdf = lazy(() => import("./panes/Pdf"));
 // and a thousand words, and none of it belongs in what a first visit has to
 // download before the editor appears.
 const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
+/** Lazily loaded, like the tutorial. Most sessions never open it, and the
+ *  entry bundle is measured. */
+const SharePanel = lazy(() => import("./panes/SharePanel"));
 import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
 import Tabs from "./panes/Tabs";
@@ -122,6 +125,7 @@ export default function App() {
    *  these are sections inside one pane and have nothing to do with it. */
   const [railOpen, setRailOpen] = useState({ files: true, sections: true });
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   // Every pane folds away, and says where it went.  Editor and preview are
   // mutually exclusive: folding one gives the other the whole space, and
   // folding both would leave nothing to work in.
@@ -155,7 +159,6 @@ export default function App() {
   const tabs = useStore((s) => s.tabs);
   const activePath = useStore((s) => s.activePath);
   const error = useStore((s) => s.error);
-  const conflict = useStore((s) => s.conflict);
   const viewing = useStore((s) => s.viewing);
 
   /** Go back to what was being written, or to the list if there is nothing.
@@ -377,7 +380,7 @@ export default function App() {
   const openFile = useCallback(async (path: string, line?: number) => {
     const state = get();
     if (!state.tabs.some((tab) => tab.path === path)) {
-      set({ tabs: [...state.tabs, { path, dirty: false }] });
+      set({ tabs: [...state.tabs, { path }] });
     }
     // A figure gets a tab and becomes the active document like anything
     // else -- that is how its history is reached -- but it is never handed
@@ -555,7 +558,8 @@ export default function App() {
       // project, and walking the tree for one of those on every keystroke
       // burst in the other window is work for nothing.
       if (structural) refreshTree();
-      for (const path of paths) editor.current?.reload(path);
+      // No reloading. An open file is a shared document, so a change made
+      // anywhere is already in the buffer by the time this event lands.
     };
     handlers.onRenamed = (from, to) => {
       renameOpenFile(from, to);
@@ -564,10 +568,8 @@ export default function App() {
       openFile(path, line);
     };
     handlers.onAgentEdit = async (path, line) => {
-      // Reload first, *then* jump.  A reload replaces the whole document,
-      // which throws away any selection set before it -- the caret landed
-      // on the change and was immediately dragged back to line one.
-      await editor.current?.reload(path);
+      // Nothing to reload: the agent's edit went into the shared document,
+      // so it is already on screen. What is left is going to look at it.
       refreshTree();
       // Go to what Claude changed.  The caret follows unless the writer is
       // mid-sentence in the composer, in which case moving focus would
@@ -1225,6 +1227,16 @@ export default function App() {
                 <InstanceBadge />
               </button>
               <div className="flex items-center">
+                {/* Beside the project's own name, because sharing is a fact
+                    about this project rather than about the install. */}
+                <button
+                  className="quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3"
+                  title="Share this project with other people running NextTex"
+                  data-testid="open-share"
+                  onClick={() => setSharing(true)}
+                >
+                  Share
+                </button>
                 <Settings
                   align="left"
                   inProject
@@ -1690,31 +1702,10 @@ export default function App() {
       </div>
       )}
 
-      {conflict ? (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 max-w-lg rounded-[3px] border border-warn bg-surface px-3 py-2">
-          <div className="t-meta text-ink">
-            <span className="text-warn">{conflict.path}</span> changed somewhere
-            else while you were editing it. Nothing has been overwritten.
-          </div>
-          <div className="mt-2 flex gap-2">
-            <button
-              className="pen-button t-micro"
-              onClick={() =>
-                editor.current?.resolveConflict(conflict.path, "mine")
-              }
-            >
-              Keep what I typed
-            </button>
-            <button
-              className="ghost-button t-micro"
-              onClick={() =>
-                editor.current?.resolveConflict(conflict.path, "theirs")
-              }
-            >
-              Use the saved file
-            </button>
-          </div>
-        </div>
+      {sharing && projectId ? (
+        <Suspense fallback={null}>
+          <SharePanel projectId={projectId} onClose={() => setSharing(false)} />
+        </Suspense>
       ) : null}
 
       {error ? (

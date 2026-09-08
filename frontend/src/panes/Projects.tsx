@@ -30,7 +30,8 @@ export default function Projects({
   const [guide, setGuide] = useState(false);
   const helpButton = useRef<HTMLButtonElement | null>(null);
   const [path, setPath] = useState("");
-  const [mode, setMode] = useState<"add" | "create">("create");
+  const [mode, setMode] = useState<"add" | "create" | "join">("create");
+  const [invite, setInvite] = useState("");
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,11 +76,14 @@ export default function Projects({
     setError(null);
     try {
       const project =
-        mode === "create"
+        mode === "join"
+          ? (await api.joinShare(invite.trim(), path.trim())).project
+          : mode === "create"
           ? await api.createProject(path.trim(), newName.trim())
           : await api.addProject(path.trim());
       setPath("");
       setNewName("");
+      setInvite("");
       await refresh();
       if (project.id) onOpen(project.id);
     } catch (problem: any) {
@@ -324,7 +328,7 @@ export default function Projects({
         </div>
 
         <div className="mt-6 flex gap-3">
-          {(["create", "add"] as const).map((option) => (
+          {(["create", "add", "join"] as const).map((option) => (
             <button
               key={option}
               className={`nx-hover t-ui border-b-2 pb-1 ${
@@ -334,14 +338,20 @@ export default function Projects({
               }`}
               onClick={() => setMode(option)}
             >
-              {option === "create" ? "Start something new" : "Point at a folder"}
+              {option === "create"
+                ? "Start something new"
+                : option === "add"
+                ? "Point at a folder"
+                : "Join a shared project"}
             </button>
           ))}
         </div>
         <p className="t-ui mt-2 text-ink-2">
           {mode === "create"
             ? agentCopy
-            : "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."}
+            : mode === "add"
+            ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
+            : "Paste an invite somebody sent you. The whole project arrives here — the files and their history — and stays in step with everyone else's copy, including anything written while you were offline."}
         </p>
         {mode === "create" ? (
           <input
@@ -351,13 +361,26 @@ export default function Projects({
             onChange={(event) => setNewName(event.target.value)}
           />
         ) : null}
+        {mode === "join" ? (
+          <textarea
+            value={invite}
+            rows={3}
+            placeholder="Paste the invite here"
+            aria-label="The invite you were sent"
+            data-testid="invite-input"
+            className="t-code-sm mt-3 w-full resize-none rounded-[3px] border border-line bg-surface px-2 py-1 outline-none placeholder:text-ink-3"
+            onChange={(event) => setInvite(event.target.value)}
+          />
+        ) : null}
         <div className="mt-2 flex gap-2">
           <input
             value={path}
             placeholder={
               mode === "create"
                 ? "Where to put it, e.g. ~/writing/my-paper"
-                : "/path/to/your/writing/project"
+                : mode === "add"
+                ? "/path/to/your/writing/project"
+                : "An empty folder to put it in, e.g. ~/writing/their-paper"
             }
             className="t-code-sm h-[28px] flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
             onChange={(event) => setPath(event.target.value)}
@@ -367,7 +390,11 @@ export default function Projects({
             className="ghost-button h-[28px] px-3 t-ui"
             onClick={add}
           >
-            {mode === "create" ? "Create project" : "Open folder"}
+            {mode === "create"
+              ? "Create project"
+              : mode === "add"
+              ? "Open folder"
+              : "Join"}
           </button>
         </div>
         {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}

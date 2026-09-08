@@ -28,20 +28,22 @@ import {
   useSpelling,
 } from "../use-editor-theme";
 import { get, markStale, set, useStore } from "../store";
+import type { ProjectCollab } from "../collab";
 
 
-/** Autosave delay.  The server debounces the compile again on its side; this
- *  half is deliberately short so the total wait after the last keystroke is
- *  the compile itself and not much else. */
-const SAVE_DELAY = 250;
+/** How long the outline waits behind the keyboard.
+ *
+ *  There is no autosave delay any more.  A keystroke goes into the shared
+ *  document, reaches the server on the same tick, and is written to disk
+ *  from there; this is only about not re-parsing the section list on every
+ *  character of a long chapter.
+ */
+const OUTLINE_DELAY = 250;
 
 type Buffer = {
   state: EditorState;
-  saved: string;
-  /** What the file looked like when this tab last agreed with the disk.
-   *  Sent with every save so the server can refuse to let this buffer
-   *  overwrite work done in another window. */
-  tag: string;
+  /** Let the shared document know this tab is done with the file. */
+  release: () => void;
 };
 
 export type EditorHandle = {
@@ -53,9 +55,6 @@ export type EditorHandle = {
   /** Paint the lines that differ from what is on screen now. */
   showChanges(on: boolean): void;
   close(path: string): Promise<void>;
-  reload(path: string): Promise<void>;
-  /** Answer a refused save: keep this tab's text, or take what is on disk. */
-  resolveConflict(path: string, keep: "mine" | "theirs"): Promise<void>;
   /** Follow a file that has been renamed, keeping its buffer and history. */
   renamed(from: string, to: string): void;
   flash(line: number, endLine?: number): void;
@@ -81,6 +80,7 @@ export default function Editor({
   const view = useRef<EditorView | null>(null);
   const buffers = useRef(new Map<string, Buffer>());
   const current = useRef<string | null>(null);
+  const collab = useRef<ProjectCollab | null>(null);
   const timer = useRef<number | null>(null);
   const focusTimer = useRef<number | null>(null);
   const openRef = useRef<((path: string, line?: number) => Promise<void>) | null>(null);
@@ -105,37 +105,35 @@ export default function Editor({
   useEffect(() => {
     if (!host.current || view.current) return;
 
-    /** Write one file, and only if the view still holds it. */
-    const saveFile = async (path: string) => {
-      const editor = view.current;
-      if (!editor || current.current !== path) return;
-      const buffer = buffers.current.get(path);
-      const text = editor.state.doc.toString();
-      if (!buffer || buffer.saved === text) return;
-      const projectId = get().projectId;
-      if (!projectId) return;
+    /** The shared documents for the project on screen, connected on demand.
+     *
+     *  Imported here rather than at the top of the file: Yjs and its
+     *  CodeMirror binding are about fifty kilobytes, and `bundle.initial_kb`
+     *  counts only the entry script.  This arrives when a file is opened,
+     *  which is after the project list has already drawn.
+     */
+    const connect = async (projectId: string): Promise<ProjectCollab | null> => {
+      if (collab.current?.projectId === projectId) return collab.current;
       try {
-        const answer = await api.writeFile(
-          projectId, path, text, true, buffer.tag,
-        );
-        if (answer.conflict) {
-          // Nothing was written and nothing is thrown away: the buffer
-          // stays dirty and the writer picks which copy survives.
-          set({
-            conflict: { path, theirs: answer.text ?? "", tag: answer.tag ?? "" },
-          });
-          return;
-        }
-        buffer.saved = text;
-        buffer.tag = answer.tag ?? "";
-        set({
-          tabs: get().tabs.map((tab) =>
-            tab.path === path ? { ...tab, dirty: false } : tab,
-          ),
+        const module = await import("../collab");
+        const who = await api.auth().catch(() => null);
+        const name = who?.displayName?.trim() || "Someone";
+        collab.current = module.collabFor(projectId, {
+          name,
+          colour: module.colourFor(name),
         });
-        lintFile(projectId, path);
-      } catch (error: any) {
-        set({ error: `Could not save ${path}: ${error.message}` });
+        collab.current.subscribe(() => {
+          set({
+            collaborators: collab.current?.collaborators() ?? [],
+            connection: collab.current?.connection ?? "offline",
+          });
+        });
+        return collab.current;
+      } catch {
+        // No shared documents means no editing, so this is worth saying
+        // rather than failing quietly into a read-only-looking pane.
+        set({ error: "Could not reach the shared documents for this project." });
+        return null;
       }
     };
 
@@ -146,11 +144,17 @@ export default function Editor({
       }
     };
 
-    /** Write whatever is in the view now, before anything replaces it. */
+    /** Ask the server to write the shared documents out now.
+     *
+     *  It does so on its own a moment after every change, so this is only
+     *  for the cases where "now" matters: a manual build clicked inside that
+     *  window would otherwise typeset the previous text and look like the
+     *  button had not worked.
+     */
     const flush = async () => {
       cancelTimer();
-      const path = current.current;
-      if (path) await saveFile(path);
+      const projectId = get().projectId;
+      if (projectId) await api.flushDocuments(projectId).catch(() => undefined);
     };
 
     /** The section list for whatever is on screen.  Read from the buffer
@@ -185,24 +189,19 @@ export default function Editor({
       // main document stale, because no build of main would follow to
       // clear it and the preview would sit behind for the session.
       if (!viewing.current) markStale(path);
-      const tabs = get().tabs;
-      if (!tabs.find((tab) => tab.path === path)?.dirty) {
-        set({
-          tabs: tabs.map((tab) =>
-            tab.path === path ? { ...tab, dirty: true } : tab,
-          ),
-        });
+      // A tab is never "unsaved" any more. The keystroke is already in the
+      // shared document, and the server writes it out a moment later, so a
+      // dot meaning "not written yet" would be a dot that is never true.
+      const editor = view.current;
+      if (editor && collab.current) {
+        const line = editor.state.doc.lineAt(editor.state.selection.main.head).number;
+        collab.current.here(path, line, true);
       }
       cancelTimer();
       timer.current = window.setTimeout(() => {
         timer.current = null;
-        // Before the save, not after it: a file whose save is refused
-        // because it changed underneath would otherwise show the outline
-        // it had when it was last written, for as long as the conflict
-        // stands.
         refreshOutline();
-        saveFile(path);
-      }, SAVE_DELAY);
+      }, OUTLINE_DELAY);
     };
 
     const onCursor = (line: number, column: number, selection: string) => {
@@ -210,6 +209,11 @@ export default function Editor({
       if (cursor.line !== line || cursor.column !== column) {
         set({ cursor: { line, column } });
       }
+      // Where this browser is, for the collaborator strip. Cheap, and not
+      // debounced: awareness is designed to be written on every move, and
+      // holding it back is what makes a remote caret look laggy.
+      const here = current.current;
+      if (here && collab.current) collab.current.here(here, line, false);
       // Where the user is looking, told to the server on a delay: it is
       // what the agent's "here" and "this" resolve to, and it changes on
       // every keystroke.
@@ -279,15 +283,25 @@ export default function Editor({
         refreshOutline();
         return;
       }
-      // The outgoing file is written before its state leaves the view, or an
-      // edit made in the last quarter second is lost to a tab click.
-      await flush();
       let buffer = buffers.current.get(path);
       if (!buffer) {
-        const file = await api.readFile(projectId, path);
-        buffer = {
-          state: freshState(file.text, ext), saved: file.text, tag: file.tag,
-        };
+        // The document, not the file. Its text is whatever the server and
+        // every other browser have agreed it is, which for a file nobody
+        // else has open is exactly what is on disk.
+        const shared = await connect(projectId);
+        const opened = shared ? await shared.open(path) : null;
+        if (!opened) {
+          // Falling back to a plain read rather than an empty pane: a file
+          // the manifest has not caught up with yet is still readable, and
+          // a blank editor over a chapter that exists is alarming.
+          const file = await api.readFile(projectId, path);
+          buffer = { state: freshState(file.text, ext), release: () => {} };
+        } else {
+          buffer = {
+            state: freshState(opened.text.toString(), [...ext, opened.extension]),
+            release: () => shared!.release(path),
+          };
+        }
         buffers.current.set(path, buffer);
       }
       if (current.current && view.current) {
@@ -303,44 +317,10 @@ export default function Editor({
     };
     openRef.current = openBuffer;
 
-    /** Replace a buffer's text with what is on disk, keeping the history. */
-    const replaceText = (path: string, text: string, tag?: string) => {
-      const buffer = buffers.current.get(path);
-      if (!buffer) return;
-      if (current.current === path && view.current && !viewing.current) {
-        const editor = view.current;
-        const scroll = editor.scrollDOM.scrollTop;
-        editor.dispatch({
-          changes: { from: 0, to: editor.state.doc.length, insert: text },
-        });
-        editor.scrollDOM.scrollTop = scroll;
-        buffer.state = editor.state;
-        refreshOutline();
-        // The dispatch above ran the shared update listener, which marked
-        // the tab dirty and armed a save; the save then returns early
-        // because nothing changed, leaving a dot that means nothing.
-        cancelTimer();
-        set({
-          tabs: get().tabs.map((tab) =>
-            tab.path === path ? { ...tab, dirty: false } : tab,
-          ),
-        });
-      } else {
-        buffer.state = buffer.state.update({
-          changes: { from: 0, to: buffer.state.doc.length, insert: text },
-        }).state;
-      }
-      buffer.saved = text;
-      if (tag !== undefined) buffer.tag = tag;
-    };
-
     const viewVersion = async (path: string, sha: string) => {
       const projectId = get().projectId;
       const editor = view.current;
       if (!projectId || !editor) return;
-      // Write anything pending first: entering a read-only view must not
-      // strand an edit, and the buffer has to be clean to come back to.
-      await flush();
       cancelTimer();
       if (current.current && current.current !== path) await openBuffer(path);
       const buffer = buffers.current.get(path);
@@ -394,91 +374,14 @@ export default function Editor({
       },
       close: async (path) => {
         if (viewing.current?.path === path) backToNow();
-        if (current.current === path) await flush();
-        else {
-          const buffer = buffers.current.get(path);
-          if (buffer && buffer.saved !== buffer.state.doc.toString()) {
-            const projectId = get().projectId;
-            if (projectId) {
-              await api
-                .writeFile(
-                  projectId, path, buffer.state.doc.toString(), true, buffer.tag,
-                )
-                .catch(() => undefined);
-            }
-          }
-        }
+        // Nothing to write out. Whatever was typed is in the shared
+        // document already, which is what made the closing-tab beacon --
+        // and the whole class of bug it existed for -- unnecessary.
+        buffers.current.get(path)?.release();
         buffers.current.delete(path);
         if (current.current === path) {
           current.current = null;
           refreshOutline();
-        }
-      },
-      reload: async (path) => {
-        const projectId = get().projectId;
-        if (!projectId) return;
-        const buffer = buffers.current.get(path);
-        if (!buffer) return;
-        const showing = current.current === path && view.current && !viewing.current;
-        const live = showing
-          ? view.current!.state.doc.toString()
-          : buffer.state.doc.toString();
-        // Never overwrite unsaved work with what is on disk.  The tab stays
-        // dirty and the user decides -- but they are told, or an edit
-        // Claude just made would vanish under the next autosave with
-        // nothing on screen having changed.
-        if (live !== buffer.saved) {
-          const file = await api.readFile(projectId, path);
-          if (file.text !== live) {
-            set({ conflict: { path, theirs: file.text, tag: file.tag } });
-          }
-          return;
-        }
-        const file = await api.readFile(projectId, path);
-        // Anything typed during that fetch would be destroyed by the
-        // replacement below, and the tab marked clean over the top of it.
-        const stillLive = showing
-          ? view.current!.state.doc.toString()
-          : buffer.state.doc.toString();
-        if (stillLive !== buffer.saved) return;
-        if (file.text !== stillLive) replaceText(path, file.text, file.tag);
-      },
-      resolveConflict: async (path, keep) => {
-        const projectId = get().projectId;
-        const conflict = get().conflict;
-        const buffer = buffers.current.get(path);
-        set({ conflict: null });
-        if (!projectId || !conflict || !buffer) return;
-        if (keep === "theirs") {
-          replaceText(path, conflict.theirs, conflict.tag);
-          return;
-        }
-        // Keeping ours: save again against the version we were just shown,
-        // so the write is deliberate rather than a race won by luck.
-        buffer.tag = conflict.tag;
-        const text =
-          current.current === path && view.current
-            ? view.current.state.doc.toString()
-            : buffer.state.doc.toString();
-        const answer = await api
-          .writeFile(projectId, path, text, true, conflict.tag)
-          .catch(() => null);
-        if (answer?.conflict) {
-          // It moved again while the writer was deciding.  Ask once more
-          // rather than dropping the banner and saving nothing.
-          set({
-            conflict: { path, theirs: answer.text ?? "", tag: answer.tag ?? "" },
-          });
-          return;
-        }
-        if (answer?.ok) {
-          buffer.saved = text;
-          buffer.tag = answer.tag ?? "";
-          set({
-            tabs: get().tabs.map((tab) =>
-              tab.path === path ? { ...tab, dirty: false } : tab,
-            ),
-          });
         }
       },
       renamed: (from, to) => {
@@ -518,26 +421,7 @@ export default function Editor({
       },
     });
 
-    // Closing the tab mid-edit should not lose the last quarter second.
-    const onLeave = () => {
-      const path = current.current;
-      const editor = view.current;
-      const projectId = get().projectId;
-      if (!path || !editor || !projectId) return;
-      const buffer = buffers.current.get(path);
-      const text = editor.state.doc.toString();
-      if (!buffer || buffer.saved === text) return;
-      navigator.sendBeacon?.(
-        `/api/projects/${projectId}/file/beacon`,
-        new Blob([JSON.stringify({ path, text, base: buffer.tag })], {
-          type: "application/json",
-        }),
-      );
-    };
-    window.addEventListener("pagehide", onLeave);
-
     return () => {
-      window.removeEventListener("pagehide", onLeave);
       cancelTimer();
       if (focusTimer.current !== null) window.clearTimeout(focusTimer.current);
       view.current?.destroy();

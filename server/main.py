@@ -33,6 +33,9 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 
 from nexttex import auth, claude_auth, gitrepo, synctex
+from server.collab import transport as collab_transport
+from server.collab.peers import PeerNetwork
+from server.collab.store import CollabStore
 from nexttex.atomic import (
     NotAFile, read_bytes, read_text, unique_name, write_atomically,
 )
@@ -434,6 +437,135 @@ def _sign_in_page() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Sharing a project with other installs
+
+
+@app.get("/api/projects/{project_id}/collab")
+async def collab_state(project_id: str):
+    """Whether this project is shared, with whom, and whether they are here."""
+    session = session_for(project_id)
+    return session.peers.state()
+
+
+@app.post("/api/projects/{project_id}/collab/share")
+async def start_sharing(project_id: str, name: str = Body("", embed=True)):
+    """Make a private project a shared one.
+
+    "First" carries no privileges and is not recorded as anything: there is
+    no owner, which is the point. Every member can invite, and every member
+    can remove.
+    """
+    if not collab_transport.available():
+        raise HTTPException(
+            501,
+            "Peer-to-peer collaboration is not available on this platform. "
+            "iroh publishes no wheel for it yet.",
+        )
+    session = session_for(project_id)
+    session.peers.begin_sharing(name or SETTINGS.display_name or "Unnamed")
+    await session.peers.start()
+    return session.peers.state()
+
+
+@app.post("/api/projects/{project_id}/collab/invite")
+async def make_invite(project_id: str):
+    """A single-use string for one other install.
+
+    Only its hash is kept. Somebody who reads the config file cannot use an
+    invite out of it, and it can be spent exactly once.
+    """
+    if not collab_transport.available():
+        raise HTTPException(501, "Not available on this platform.")
+    session = session_for(project_id)
+    await session.peers.start()
+    return {"invite": session.peers.invite(SETTINGS.display_name or "Unnamed")}
+
+
+@app.post("/api/collab/join")
+async def join_share(
+    invite: str = Body(..., embed=True),
+    path: str = Body(..., embed=True),
+):
+    """Accept an invite into a folder of our own.
+
+    The folder must be empty or new.  Two documents built independently from
+    identical text merge into *both* copies -- every line twice -- and
+    nothing raises, so a joiner has to start from nothing and be sent the
+    whole state.
+    """
+    if not collab_transport.available():
+        raise HTTPException(501, "Not available on this platform.")
+
+    target = Path(path).expanduser()
+    if target.exists() and any(target.iterdir()):
+        raise HTTPException(
+            400,
+            "That folder already has something in it. Joining needs an empty "
+            "one, so the project can arrive as it is rather than being merged "
+            "with whatever is there.",
+        )
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise HTTPException(400, f"Could not make that folder: {error}")
+
+    # Joined *before* the project is opened, because an empty folder is not
+    # yet a project: `ProjectSession` needs a main document, and the joiner
+    # has no files at all until the first sync brings them.  So this is a
+    # bootstrap -- documents, then disk, then a project -- and the session
+    # that opens afterwards finds an ordinary LaTeX folder.
+    project = Project.open(target)
+    store = CollabStore(project)
+    network = PeerNetwork(store)
+    try:
+        reason = await network.join(invite, SETTINGS.display_name or "Unnamed")
+        if not reason:
+            reason = await _wait_for_the_project(store)
+        if not reason:
+            store.flush()
+    finally:
+        await network.close()
+        store.close()
+
+    if reason:
+        shutil.rmtree(target, ignore_errors=True)
+        raise HTTPException(400, reason)
+
+    # Registered only now: a join that failed half way leaves nothing behind
+    # for somebody to find later and wonder about.
+    REGISTRY.add(str(target))
+    _restart_watch()
+    return {"ok": True, "project": {"id": project.id, "path": str(target)}}
+
+
+async def _wait_for_the_project(store, seconds: float = 30.0) -> str:
+    """Wait until the other peer has sent us a project, or say why not.
+
+    A join is the one moment a person is watching a progress indicator, so
+    it waits rather than returning an empty folder and leaving them to
+    wonder. Thirty seconds is generous for a paper and mean for a thesis
+    full of figures; the files that have arrived are kept either way.
+    """
+    deadline = asyncio.get_running_loop().time() + seconds
+    while asyncio.get_running_loop().time() < deadline:
+        if any(record.get("kind") == "text" for record in store.files.values()):
+            # One more moment for the contents behind the listing.
+            await asyncio.sleep(0.5)
+            return ""
+        await asyncio.sleep(0.1)
+    return ("Nothing arrived from that peer. They may be offline, or the "
+            "invite may already have been used.")
+
+
+@app.delete("/api/projects/{project_id}/collab/member/{peer}")
+async def remove_member(project_id: str, peer: str):
+    """Disconnect a peer. Not revocation -- they keep what they have."""
+    session = session_for(project_id)
+    session.peers.remove(peer)
+    return session.peers.state()
+
+
+# ---------------------------------------------------------------------------
 # The shared documents
 
 
@@ -599,6 +731,10 @@ def _open_session(project: Project) -> ProjectSession:
     )
     SESSIONS[project.id] = session
     session.start_agent_pump()
+    # A project that has been shared picks its peers back up when it opens.
+    # Nothing is contacted for a project that has not been.
+    if session.peers.share.shared:
+        spawn(session.peers.start(), "reconnecting to this project's peers")
     _restart_watch()
     return session
 
@@ -832,16 +968,19 @@ async def write_file(
 ):
     """Save one file.
 
-    `base` is the tag the browser was given when it last agreed with this
-    file.  Without it this route was whole-file last-writer-wins with
-    nothing watching: two tabs on one project, or one tab and a `git
-    checkout`, and a chapter written in the other window was gone with no
-    error and no dirty marker.  When the file has moved on underneath the
-    caller, nothing is written -- the answer carries what is on disk now and
-    the browser asks the writer which copy survives.
+    Not the editor's path any more -- the editor writes into the shared
+    document and the server projects that onto disk.  This is what everything
+    *else* uses: an upload, a template, a script, a test.
+
+    `base` used to carry the tag the browser last agreed with, and a save
+    whose tag had moved on was refused.  That machinery existed because this
+    route was whole-file last-writer-wins with nothing watching, and it is
+    gone: the text is folded into the shared document instead, so a
+    concurrent edit merges rather than being turned away.  The parameter is
+    still accepted and ignored, so an older caller does not fail.
 
     `origin` names the tab that saved, so the broadcast below can tell every
-    *other* tab to reload without the saving tab reloading itself.
+    *other* tab without the saving tab hearing its own echo.
     """
     session = session_for(project_id)
     target = _safe(session, path)
@@ -853,13 +992,6 @@ async def write_file(
         raise HTTPException(404, "no such file")
     previous = read_text(target)
     created = previous is None
-    if base and previous is not None and previous != text:
-        current = _tag(previous)
-        if current != base:
-            return {
-                "ok": False, "conflict": True,
-                "text": previous, "tag": current,
-            }
     try:
         write_atomically(target, text)
     except NotAFile as error:
@@ -868,6 +1000,9 @@ async def write_file(
         raise HTTPException(500, f"could not save: {error}")
     session.mark_written(target)
     session.record_version(target, text, by="you", previous=previous, source=origin)
+    # And into the shared document, so anybody with this file open sees it
+    # arrive rather than finding out at their next reload.
+    session.collab.ingest(path, text)
 
     session.note_edit(target, text, previous)
     if compile:
@@ -887,47 +1022,22 @@ async def write_file(
     return {"ok": True, "tag": tag, "mtime": target.stat().st_mtime}
 
 
-@app.post("/api/projects/{project_id}/file/beacon")
-async def file_beacon(project_id: str, request: Request):
-    """Last-gasp save from a tab that is closing.
+@app.post("/api/projects/{project_id}/flush")
+async def flush_documents(project_id: str):
+    """Write every shared document out now, rather than on its debounce.
 
-    `navigator.sendBeacon` cannot wait for a reply and cannot set headers,
-    so this takes the body as-is and saves without compiling.  It is the
-    difference between losing the last quarter second of typing and not.
+    This replaces the beacon a closing tab used to send.  That existed
+    because the browser held the only copy of the last quarter second of
+    typing; it does not any more -- the server has every keystroke as it is
+    made -- so the last-gasp save has nothing left to rescue.
+
+    What is still worth having is a way to say "now": the projection waits
+    a moment to coalesce a burst, and a manual build clicked inside that
+    window would otherwise typeset the previous text and look like the
+    button had not worked.
     """
     session = session_for(project_id)
-    try:
-        payload = await request.json()
-    except Exception:
-        raise HTTPException(400, "bad body")
-    path = payload.get("path")
-    text = payload.get("text")
-    base = payload.get("base")
-    if not isinstance(path, str) or not isinstance(text, str):
-        raise HTTPException(400, "path and text are required")
-    target = _safe(session, path)
-    if not target.is_file():
-        raise HTTPException(404, "no such file")
-    previous = read_text(target)
-    if isinstance(base, str) and base and previous is not None and previous != text:
-        if _tag(previous) != base:
-            # A closing tab cannot be asked anything, and it is the one that
-            # is going away: the window that is still open keeps its work.
-            # The text is not lost -- it is in the file's own history.
-            session.record_version(
-                target, text, by="you",
-                why="from a tab that closed holding an older copy",
-                op="orphan", previous=previous,
-            )
-            return {"ok": False, "conflict": True}
-    try:
-        write_atomically(target, text)
-    except (NotAFile, OSError) as error:
-        raise HTTPException(400, str(error))
-    session.mark_written(target)
-    session.record_version(
-        target, text, by="you", why="as the tab closed", previous=previous,
-    )
+    session.collab.flush()
     return {"ok": True}
 
 

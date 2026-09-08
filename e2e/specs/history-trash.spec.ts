@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
+import { landed } from "../typing";
 
 /** Getting back what you had.
  *
@@ -7,15 +8,17 @@ import type { Page } from "@playwright/test";
  *  of them are almost entirely browser code.
  */
 
-async function typeAndSave(page: Page, text: string) {
-  const saved = page.waitForResponse(
-    (r) => r.url().includes("/file") && r.request().method() === "PUT",
-    { timeout: 15_000 },
-  );
+/** Type, and wait until it is on disk.
+ *
+ *  There is no save request to wait for any more: the text goes into the
+ *  shared document over a socket and the server writes the file from there.
+ *  So this waits for the file to say the right thing, which is what the old
+ *  version was using the response as a proxy for. */
+async function typeAndSave(page: Page, text: string, app: any, project: any) {
   await page.locator(".cm-content").click();
   await page.keyboard.press("Control+a");
   await page.keyboard.type(text);
-  await saved;
+  await landed(app, project, text);
 }
 
 async function openHistory(page: Page) {
@@ -26,8 +29,8 @@ async function openHistory(page: Page) {
   });
 }
 
-test("every save is a version, and an old one can be read", async ({ tab }) => {
-  await typeAndSave(tab, "the first draft");
+test("every save is a version, and an old one can be read", async ({ tab, app, project }) => {
+  await typeAndSave(tab, "the first draft", app, project);
   // Past the coalescing window would take ninety seconds; two saves from
   // one window inside it are deliberately one version, so this asserts what
   // the app promises rather than what would be convenient.
@@ -40,7 +43,7 @@ test("every save is a version, and an old one can be read", async ({ tab }) => {
 });
 
 test("a version being read cannot be typed into", async ({ app, project, tab }) => {
-  await typeAndSave(tab, "the draft as it was");
+  await typeAndSave(tab, "the draft as it was", app, project);
   await openHistory(tab);
   await tab.getByTestId("version").last().click();
   await expect(tab.getByText(/viewing/i).first()).toBeVisible();
@@ -66,8 +69,10 @@ test("a version being read cannot be typed into", async ({ app, project, tab }) 
 
 test("coming back from a version restores the live buffer, editable", async ({
   tab,
+  app,
+  project,
 }) => {
-  await typeAndSave(tab, "the live text");
+  await typeAndSave(tab, "the live text", app, project);
   await openHistory(tab);
   await tab.getByTestId("version").last().click();
   await expect(tab.getByText(/viewing/i).first()).toBeVisible();
@@ -125,10 +130,10 @@ test("emptying the trash asks before it destroys anything", async ({ tab }) => {
   await expect(entry).toBeVisible();
 });
 
-test("naming a version makes it findable later", async ({ tab }) => {
+test("naming a version makes it findable later", async ({ tab, app, project }) => {
   // The one thing that turns a wall of timestamps into something a writer
   // can navigate: "the version that went to the committee".
-  await typeAndSave(tab, "the version that went to the committee");
+  await typeAndSave(tab, "the version that went to the committee", app, project);
   await openHistory(tab);
 
   const row = tab.getByTestId("version").first();
@@ -150,8 +155,8 @@ test("naming a version makes it findable later", async ({ tab }) => {
 });
 
 test("the panel marks what an old version had that the file no longer does",
-  async ({ tab }) => {
-    await typeAndSave(tab, "something else entirely");
+  async ({ tab, app, project }) => {
+    await typeAndSave(tab, "something else entirely", app, project);
     await openHistory(tab);
 
     // The comparison only means anything against a particular version, so

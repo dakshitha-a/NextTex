@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { watchEvents } from "../events";
+import { landed } from "../typing";
 
 /** The loop the whole app exists for: type, see it typeset, click back. */
 
@@ -14,19 +15,13 @@ async function waitForBuild(page: Page, action: () => Promise<void>) {
 }
 
 test("typing lands on disk without being asked to", async ({ app, project, tab }) => {
-  const saved = tab.waitForResponse(
-    (r) => r.url().includes("/file") && r.request().method() === "PUT",
-    { timeout: 15_000 },
-  );
+  // There is no save request to wait for: a keystroke goes into the shared
+  // document over a socket and the server writes the file from there. So
+  // the assertion is the outcome rather than the mechanism, which is what
+  // the old version was using the response as a stand-in for anyway.
   await tab.locator(".cm-content").click();
   await tab.keyboard.type("\nA sentence nobody asked me to save.");
-  await saved;
-
-  const file = await fetch(
-    `${app.base}/api/projects/${project.id}/file?path=main.tex`,
-    { headers: { "x-nexttex-token": app.token } },
-  ).then((r) => r.json());
-  expect(file.text).toContain("A sentence nobody asked me to save.");
+  await landed(app, project, "A sentence nobody asked me to save.");
 });
 
 test("what is typed reaches the page", async ({ tab }) => {
