@@ -89,6 +89,18 @@ class Settings:
     # which is what makes it the right place for an API key too.
     provider: str = "claude"
     openai_key: str = ""
+    # How a browser gets in.  The token above is still the recovery path and
+    # the way a script authenticates; these are what a person uses.  See
+    # nexttex/auth.py for why they are separate.
+    password_hash: str = ""
+    password_salt: str = ""
+    # One record per signed-in browser: a sha256 of its session token, when
+    # it was minted, when it was last used, and a name for the row.
+    sessions: list = field(default_factory=list)
+    # What collaborators see beside this peer's cursor and versions.  Asked
+    # for on the same screen as the password, because that is the one moment
+    # a person is already telling NextTex who they are.
+    display_name: str = ""
 
     @classmethod
     def path(cls) -> Path:

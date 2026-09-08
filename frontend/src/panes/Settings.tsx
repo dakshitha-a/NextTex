@@ -1,8 +1,14 @@
-import { useRef, useState } from "react";
+import { Suspense, lazy, useRef, useState } from "react";
 import api from "../api";
 import { get, set, useStore } from "../store";
 import { agentName } from "../agent-name";
 import { useDismiss } from "../useDismiss";
+
+/** Lazily loaded, like the tutorial and the PDF pane.  It is a sheet almost
+ *  nobody opens in a given session, and seven kilobytes on the first paint
+ *  of every session to carry it is the wrong trade -- `bundle.initial_kb`
+ *  counts only the entry script, and this belongs outside it. */
+const AccessCard = lazy(() => import("./AccessCard"));
 import {
   DEFAULTS,
   EDITOR_SIZES,
@@ -105,6 +111,7 @@ export default function Settings({
   inProject?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [access, setAccess] = useState(false);
   const [look, setLook] = useState<Appearance>(() => storedAppearance());
   const projectId = useStore((s) => s.projectId);
   const provider = useStore((s) => s.agent)?.provider;
@@ -259,6 +266,26 @@ export default function Settings({
               screen, which mounts only before an agent is configured or
               after a session expires.  A promise the interface made and
               could not keep. */}
+          {/* Who may open this install, and the name a collaborator sees.
+              A row rather than a section, because what it opens has a list
+              in it whose length is not known in advance and three controls
+              that each want a sentence beside them -- none of which fits a
+              card 248px wide. */}
+          <Heading>Access</Heading>
+          <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
+            <span className="t-meta text-ink-2">Password and browsers</span>
+            <button
+              className="quiet t-micro shrink-0"
+              data-testid="open-access"
+              onClick={() => {
+                close();
+                setAccess(true);
+              }}
+            >
+              Open
+            </button>
+          </div>
+
           {onChangeAgent ? (
             <>
               <Heading>Agent</Heading>
@@ -342,6 +369,14 @@ export default function Settings({
             </button>
           </div>
         </div>
+      ) : null}
+
+      {/* Outside the popover deliberately: the settings card closes when you
+          look away, and the sheet it opened must not go with it. */}
+      {access ? (
+        <Suspense fallback={null}>
+          <AccessCard onClose={() => setAccess(false)} focus="name" />
+        </Suspense>
       ) : null}
     </div>
   );

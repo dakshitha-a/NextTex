@@ -143,6 +143,39 @@ def _print_version() -> None:
         print("Run scripts/update.sh, or scripts/fetch-interface.sh on its own.")
 
 
+def _set_password(settings: Settings) -> None:
+    """Choose the password from the machine itself.
+
+    The way back in when it has been forgotten, and the way to set one on a
+    headless install.  Every existing session is dropped, because a password
+    being changed at a terminal is exactly the moment the browsers holding
+    the old one should stop being trusted.
+    """
+    import getpass
+    from nexttex import auth
+
+    try:
+        first = getpass.getpass("New password: ")
+        second = getpass.getpass("Again: ")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        raise SystemExit(1)
+
+    if first != second:
+        print("Those do not match.", file=sys.stderr)
+        raise SystemExit(1)
+    if len(first) < 8:
+        print("Use at least eight characters.", file=sys.stderr)
+        raise SystemExit(1)
+
+    settings.password_hash, settings.password_salt = auth.hash_password(first)
+    signed_out = len(settings.sessions)
+    settings.sessions = []
+    settings.save()
+    print("Password set." + (f" {signed_out} signed-in browser(s) were signed out."
+                             if signed_out else ""))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run NextTex.")
     parser.add_argument("--port", type=int, help="override the configured port")
@@ -150,6 +183,8 @@ def main() -> None:
                         help="print the sign-in URL and exit")
     parser.add_argument("--version", action="store_true",
                         help="print the commit this install is on and exit")
+    parser.add_argument("--set-password", action="store_true",
+                        help="set the password browsers sign in with, and exit")
     arguments = parser.parse_args()
 
     if arguments.version:
@@ -159,6 +194,10 @@ def main() -> None:
     settings = Settings.load()
     if arguments.port:
         settings.port = arguments.port
+
+    if arguments.set_password:
+        _set_password(settings)
+        return
 
     if arguments.print_url:
         # Every address it answers on.  Printing only localhost would hide

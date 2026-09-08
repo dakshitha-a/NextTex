@@ -3,6 +3,7 @@ import api, { saveBlob, startDownload, type ProjectSummary } from "../api";
 import Logo from "../Logo";
 import Settings from "./Settings";
 import UpdateFooter from "./UpdateFooter";
+import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
 import { useStore } from "../store";
@@ -370,6 +371,7 @@ export default function Projects({
           </button>
         </div>
         {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}
+        <PasswordNudge />
         <UpdateFooter onBusy={setLocked} />
       </div>
     </div>

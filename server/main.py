@@ -30,7 +30,7 @@ from fastapi.responses import (
 )
 from fastapi.staticfiles import StaticFiles
 
-from nexttex import claude_auth, gitrepo, synctex
+from nexttex import auth, claude_auth, gitrepo, synctex
 from nexttex.atomic import (
     NotAFile, read_bytes, read_text, unique_name, write_atomically,
 )
@@ -186,58 +186,355 @@ app = FastAPI(title="NextTex", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
 # ---------------------------------------------------------------------------
-# Authentication: a printed token, exchanged once for a cookie.
+# Authentication.
+#
+# Two credentials, doing two jobs.  The instance token is what the installer
+# prints: it is the recovery path, and it is how a script gets in.  A session
+# is what a browser holds, minted when it proves it knows the password or
+# arrives carrying the token.  nexttex/auth.py explains why they are separate;
+# the short version is that the cookie used to *be* the token, so every
+# browser held the master credential and none of them could be signed out.
 #
 # EventSource cannot send an Authorization header, so the session has to live
 # in a cookie for the event stream to be authenticated at all.
+#
+# Nothing here runs for WebSockets: Starlette's HTTP middleware is not called
+# for the websocket scope.  `authorise_socket` below is what the sync route
+# must use, and forgetting it would publish every document to anyone who can
+# reach the port.
+
+# Reachable without credentials, because they are how you get credentials, or
+# because they are needed to draw the page that asks for them.
+OPEN_PATHS = ("/assets/", "/favicon", "/api/login")
 
 
-@app.middleware("http")
-async def authenticate(request: Request, call_next):
-    if request.url.path.startswith(("/assets/", "/favicon")):
-        return await call_next(request)
+def _client_address(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
 
-    # The cookie is what the browser uses after the first load; the query
-    # parameter is what the printed URL carries; the header is for anything
-    # scripted, which cannot easily hold a cookie jar.
+
+def _supplied_token(request: Request) -> str:
+    """Whatever this request offers as a credential, in preference order."""
     header = request.headers.get("authorization", "")
-    supplied = (
+    return (
         request.query_params.get("token")
         or request.cookies.get(COOKIE)
         or request.headers.get("x-nexttex-token")
         or (header[7:] if header.lower().startswith("bearer ") else "")
     )
-    if not supplied or not secrets.compare_digest(supplied, SETTINGS.token):
+
+
+def _authorise(supplied: str) -> str:
+    """"instance", "session" or "" -- what this credential is, if anything."""
+    if not supplied:
+        return ""
+    if secrets.compare_digest(supplied, SETTINGS.token):
+        return "instance"
+    record = auth.find_session(SETTINGS.sessions, supplied)
+    if record is None:
+        return ""
+    if auth.touch(record):
+        _save_settings()
+    return "session"
+
+
+def _has_live_session(request: Request) -> bool:
+    """Whether this browser is already carrying a session of its own.
+
+    Asked before minting one.  A bookmarked `?token=` link is loaded again
+    and again -- it is the URL the installer printed, so it is the one people
+    keep -- and without this check every one of those loads filed another row
+    in the settings card for the same browser.
+    """
+    cookie = request.cookies.get(COOKIE, "")
+    if not cookie or secrets.compare_digest(cookie, SETTINGS.token):
+        return False
+    return auth.find_session(SETTINGS.sessions, cookie) is not None
+
+
+def _save_settings() -> None:
+    """Persist settings, ignoring an unwritable state directory.
+
+    Settings.load() already runs in memory when the directory cannot be
+    written, and a session that survives only until restart is much better
+    than a 500 on sign-in.
+    """
+    try:
+        SETTINGS.save()
+    except OSError:
+        pass
+
+
+def _issue_session(response, request: Request) -> None:
+    """Mint a session for this browser and put it in the cookie."""
+    token, record = auth.new_session(auth.label_for(request.headers.get("user-agent", "")))
+    SETTINGS.sessions = auth.prune([*SETTINGS.sessions, record])
+    _save_settings()
+    response.set_cookie(
+        COOKIE, token,
+        httponly=True, samesite="lax",
+        secure=request.url.scheme == "https",
+        max_age=auth.SESSION_TTL_SECONDS,
+    )
+
+
+def authorise_socket(websocket) -> bool:
+    """Whether a WebSocket may proceed.
+
+    Its own function because HTTP middleware does not run for the websocket
+    scope -- a route that forgets to call this is open to the world, and that
+    is not the kind of mistake that shows up in a screenshot.
+    """
+    supplied = (
+        websocket.cookies.get(COOKIE)
+        or websocket.query_params.get("token")
+        or ""
+    )
+    return bool(_authorise(supplied))
+
+
+@app.middleware("http")
+async def authenticate(request: Request, call_next):
+    if request.url.path.startswith(OPEN_PATHS):
+        return await call_next(request)
+
+    supplied = _supplied_token(request)
+    kind = _authorise(supplied)
+    if not kind:
         if request.url.path.startswith("/api/"):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return HTMLResponse(_token_page(), status_code=401)
+        return HTMLResponse(_sign_in_page(), status_code=401)
 
     response = await call_next(request)
-    if request.query_params.get("token"):
-        response.set_cookie(
-            COOKIE, SETTINGS.token,
-            httponly=True, samesite="lax",
-            secure=request.url.scheme == "https",
-            max_age=60 * 60 * 24 * 365,
-        )
+
+    # A browser arriving with the instance token -- from the printed URL, or
+    # holding the pre-session cookie an older install gave it -- is upgraded
+    # to a session in place, so it never has to be told to sign in again.
+    # Only once: a browser that already has a session keeps it.
+    if kind == "instance" and not _has_live_session(request):
+        wants_page = "text/html" in request.headers.get("accept", "")
+        if wants_page or request.query_params.get("token"):
+            _issue_session(response, request)
     return response
 
 
-def _token_page() -> str:
-    return (
-        "<!doctype html><meta charset=utf-8>"
-        "<title>NextTex</title>"
-        "<style>body{font:15px/1.6 system-ui;margin:12vh auto;max-width:34rem;"
-        "padding:0 1.5rem;color:#191c1a;background:#edf0ec}"
-        "code{background:#e2e6e1;padding:.15rem .35rem;border-radius:3px}"
-        "@media(prefers-color-scheme:dark){body{background:#1a1e1b;color:#dde2dd}"
-        "code{background:#222623}}</style>"
-        "<h1>NextTex</h1><p>This link needs the access token that was printed "
-        "when the server started.</p><p>Open the URL it gave you, which looks "
-        "like <code>?token=…</code>. If you have lost it, run "
-        "<code>.venv/bin/python server/run.py --print-url</code> in the "
-        "install directory on the machine running the server.</p>"
-    )
+def _sign_in_page() -> str:
+    """The page a browser without credentials is given.
+
+    Server-rendered, because it has to draw before the bundle is authorised.
+    It carries the app's own palette rather than borrowing the browser's, so
+    the first thing a person sees looks like NextTex and not like an error.
+    """
+    has_password = bool(SETTINGS.password_hash)
+    if has_password:
+        body = """
+        <form id=f autocomplete=on>
+          <label for=p>Password</label>
+          <input id=p name=password type=password autocomplete=current-password
+                 autofocus required>
+          <button type=submit>Sign in</button>
+          <p id=e role=alert hidden></p>
+        </form>
+        <p class=aside>Forgotten it? Run
+          <code>.venv/bin/python server/run.py --print-url</code> on the machine
+          running NextTex, or <code>--set-password</code> to choose a new one.</p>
+        """
+    else:
+        body = """
+        <p>This install has no password yet, so it is still opened with the
+        link printed when the server started &mdash; the one that looks like
+        <code>?token=&hellip;</code></p>
+        <p class=aside>Lost it? Run
+          <code>.venv/bin/python server/run.py --print-url</code> on the machine
+          running NextTex. You can set a password once you are in.</p>
+        """
+    return f"""<!doctype html><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>NextTex</title>
+<style>
+  :root {{ --surround:#0A0C0B; --surface:#121614; --surface-3:#2A302C;
+           --ink:#E3E8E2; --ink-3:#909892; --hint:#3FC6D2; --error:#F47365;
+           color-scheme: dark; }}
+  @media (prefers-color-scheme: light) {{
+    :root {{ --surround:#B9BEB8; --surface:#E3E7E2; --surface-3:#C6CBC5;
+             --ink:#141715; --ink-3:#4E534D; --hint:#00626D; --error:#9F1912;
+             color-scheme: light; }}
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin:0; min-height:100dvh; display:grid; place-items:center;
+          background:var(--surround); color:var(--ink);
+          font:15px/1.55 ui-sans-serif,system-ui,sans-serif; padding:1.5rem; }}
+  main {{ background:var(--surface); border:1px solid var(--surface-3);
+          border-radius:10px; padding:1.75rem 1.75rem 1.5rem;
+          width:min(26rem,100%); box-shadow:0 4px 16px rgba(0,0,0,.35); }}
+  h1 {{ font:600 17px/1.3 ui-sans-serif,system-ui,sans-serif; margin:0 0 .35rem; }}
+  .lead {{ color:var(--ink-3); margin:0 0 1.25rem; font-size:13.5px; }}
+  label {{ display:block; font-size:12.5px; color:var(--ink-3);
+           margin-bottom:.3rem; }}
+  input {{ width:100%; padding:.5rem .6rem; font:inherit; color:var(--ink);
+           background:var(--surround); border:1px solid var(--surface-3);
+           border-radius:6px; }}
+  input:focus-visible {{ outline:2px solid var(--hint); outline-offset:1px; }}
+  button {{ margin-top:.9rem; width:100%; padding:.5rem; font:inherit;
+            font-weight:500; color:var(--surround); background:var(--ink);
+            border:0; border-radius:6px; cursor:pointer; }}
+  button:hover {{ opacity:.9; }}
+  button[disabled] {{ opacity:.5; cursor:default; }}
+  code {{ background:var(--surface-3); padding:.1rem .3rem; border-radius:3px;
+          font:12px ui-monospace,monospace; }}
+  /* One body size on this page.  The lead was 13.5px and the paragraph
+     under it inherited 15px, so the explanation shouted over the sentence
+     introducing it. */
+  p {{ margin:.75rem 0 0; font-size:13.5px; }}
+  .aside {{ color:var(--ink-3); font-size:12.5px; }}
+  code {{ overflow-wrap:anywhere; }}
+  #e {{ color:var(--error); font-size:13px; }}
+</style>
+<main>
+  <h1>NextTex</h1>
+  <p class=lead>Sign in to reach your projects.</p>
+  {body}
+</main>
+<script>
+  var f = document.getElementById('f');
+  if (f) f.addEventListener('submit', async function (ev) {{
+    ev.preventDefault();
+    var e = document.getElementById('e'), b = f.querySelector('button');
+    e.hidden = true; b.disabled = true; b.textContent = 'Signing in\u2026';
+    try {{
+      var r = await fetch('/api/login', {{
+        method: 'POST', headers: {{ 'content-type': 'application/json' }},
+        body: JSON.stringify({{ password: document.getElementById('p').value }})
+      }});
+      if (r.ok) {{ location.replace(location.pathname + location.search); return; }}
+      var d = await r.json().catch(function () {{ return {{}}; }});
+      e.textContent = d.error || 'That is not the password.';
+    }} catch (err) {{
+      e.textContent = 'Could not reach the server.';
+    }}
+    e.hidden = false; b.disabled = false; b.textContent = 'Sign in';
+    document.getElementById('p').select();
+  }});
+</script>
+"""
+
+
+# ---------------------------------------------------------------------------
+# Signing in, and the sessions that result
+
+
+@app.post("/api/login")
+async def login(request: Request, password: str = Body("", embed=True)):
+    """Exchange a password for a session.
+
+    Open to unauthenticated callers, because it is how a browser stops being
+    one.  A wrong answer costs a delay that doubles, which makes a remote
+    guess uneconomic without ever locking the person at the keyboard out of
+    their own documents.
+    """
+    address = _client_address(request)
+    delay = auth.failure_delay(address)
+    if delay:
+        await asyncio.sleep(delay)
+
+    if not SETTINGS.password_hash:
+        return JSONResponse(
+            {"error": "No password is set on this install. Open the link the "
+                      "server printed when it started."}, status_code=403)
+
+    if not auth.verify_password(password, SETTINGS.password_hash, SETTINGS.password_salt):
+        auth.note_failure(address)
+        return JSONResponse({"error": "That is not the password."}, status_code=401)
+
+    auth.note_success(address)
+    response = JSONResponse({"ok": True})
+    _issue_session(response, request)
+    return response
+
+
+@app.post("/api/logout")
+async def logout(request: Request):
+    """Sign this browser out, and forget the session it was holding."""
+    supplied = _supplied_token(request)
+    record = auth.find_session(SETTINGS.sessions, supplied)
+    if record is not None:
+        SETTINGS.sessions = [s for s in SETTINGS.sessions if s is not record]
+        _save_settings()
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(COOKIE)
+    return response
+
+
+@app.get("/api/auth")
+async def auth_state(request: Request):
+    """What the settings card and the first-run screen need to know."""
+    supplied = _supplied_token(request)
+    return {
+        "hasPassword": bool(SETTINGS.password_hash),
+        "displayName": SETTINGS.display_name,
+        "sessions": auth.describe(SETTINGS.sessions, supplied),
+    }
+
+
+@app.post("/api/auth/password")
+async def set_password(
+    request: Request,
+    password: str = Body(..., embed=True),
+    current: str = Body("", embed=True),
+    display_name: str | None = Body(None, embed=True),
+):
+    """Set or change the password.
+
+    Changing one revokes every session, including this browser's -- and then
+    immediately issues this browser a new one.  Someone changing a password is
+    either being careful or has just stopped being careful, and both of those
+    want the other browsers signed out.
+    """
+    if len(password) < 8:
+        return JSONResponse(
+            {"error": "Use at least eight characters."}, status_code=400)
+
+    # Changing an existing password needs the old one.  Arriving with the
+    # instance token counts, because that is the documented way back in for
+    # someone who has forgotten it and has access to the machine.
+    if SETTINGS.password_hash:
+        by_token = secrets.compare_digest(
+            request.query_params.get("token", "")
+            or request.headers.get("x-nexttex-token", ""),
+            SETTINGS.token,
+        )
+        if not by_token and not auth.verify_password(
+                current, SETTINGS.password_hash, SETTINGS.password_salt):
+            auth.note_failure(_client_address(request))
+            return JSONResponse(
+                {"error": "That is not the current password."}, status_code=403)
+
+    SETTINGS.password_hash, SETTINGS.password_salt = auth.hash_password(password)
+    SETTINGS.sessions = []
+    if display_name is not None:
+        SETTINGS.display_name = display_name.strip()[:60]
+    _save_settings()
+
+    response = JSONResponse({"ok": True, "displayName": SETTINGS.display_name})
+    _issue_session(response, request)
+    return response
+
+
+@app.delete("/api/auth/sessions")
+async def sign_out_others(request: Request):
+    """Sign every other browser out, keeping this one."""
+    supplied = _supplied_token(request)
+    record = auth.find_session(SETTINGS.sessions, supplied)
+    SETTINGS.sessions = [record] if record is not None else []
+    _save_settings()
+    return {"ok": True, "sessions": auth.describe(SETTINGS.sessions, supplied)}
+
+
+@app.post("/api/auth/name")
+async def set_display_name(display_name: str = Body("", embed=True)):
+    """The name collaborators see beside this peer's cursor and versions."""
+    SETTINGS.display_name = display_name.strip()[:60]
+    _save_settings()
+    return {"ok": True, "displayName": SETTINGS.display_name}
 
 
 # ---------------------------------------------------------------------------

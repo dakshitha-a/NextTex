@@ -184,6 +184,23 @@ export function captureToken(): void {
  *  and ignores its own echo. */
 export const clientId = `tab-${Math.random().toString(36).slice(2, 10)}`;
 
+/** One signed-in browser, as the access card lists them.  `id` is a short
+ *  prefix of the session's fingerprint: enough to tell two rows apart and
+ *  useless as a credential. */
+export type BrowserSession = {
+  id: string;
+  created: number;
+  lastSeen: number;
+  label: string;
+  current: boolean;
+};
+
+export type AuthState = {
+  hasPassword: boolean;
+  displayName: string;
+  sessions: BrowserSession[];
+};
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -606,6 +623,26 @@ const api = {
     ),
   forgetUnidentified: (id: string) =>
     request<any>(`/projects/${id}/library/unidentified`, { method: "DELETE" }),
+
+  /** Who may drive this install from a browser.
+   *
+   *  Separate from the peer membership that decides which *installs* may
+   *  sync with this one: a password is about this machine's front door. */
+  auth: () => request<AuthState>("/auth"),
+  setPassword: (password: string, current = "", displayName?: string) =>
+    request<{ ok: true; displayName: string }>(
+      "/auth/password",
+      json({ password, current, display_name: displayName }),
+    ),
+  setDisplayName: (displayName: string) =>
+    request<{ ok: true; displayName: string }>(
+      "/auth/name", json({ display_name: displayName }),
+    ),
+  signOutOthers: () =>
+    request<{ ok: true; sessions: BrowserSession[] }>(
+      "/auth/sessions", { method: "DELETE" },
+    ),
+  signOut: () => request<{ ok: true }>("/logout", { method: "POST" }),
 
   downloadUrl: (id: string, options: { path?: string; format?: string } = {}) => {
     const params = new URLSearchParams();
