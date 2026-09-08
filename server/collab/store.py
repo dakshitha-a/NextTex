@@ -68,6 +68,7 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import re
 import secrets
 from pathlib import Path
 from typing import Callable
@@ -92,6 +93,12 @@ PROJECT_DEBOUNCE = 0.12
 # file is first seen and never again -- see the note above about mode
 # switches.
 MAX_TEXT_BYTES = 2 * 1024 * 1024
+
+# What a file id may look like.  Hex, because that is what this writes, and
+# because anything that is not is a path waiting to happen -- these become
+# file names under `.nexttex/collab/docs`, and the map they are keys of is
+# written by other people.
+_WELL_FORMED_ID = re.compile(r"[0-9a-f]{8,64}")
 
 # Origins.  Every transaction carries one so the projection can tell an edit
 # that came *from* disk from one that has to go *to* it.
@@ -261,6 +268,17 @@ class CollabStore:
 
         self._load_manifest()
 
+    @property
+    def shared(self) -> bool:
+        """Whether other installs hold this project too.
+
+        Read from the file the peer network keeps rather than from the
+        network object, because this is needed while a project is being
+        opened -- before there is one -- and because it has to be true for a
+        shared project whose peers are all offline.
+        """
+        return (self.project.state_dir / "collab" / "share.json").is_file()
+
     # --- identity ---------------------------------------------------------
 
     def file_id_for(self, relative: str) -> str | None:
@@ -273,18 +291,24 @@ class CollabStore:
         record = self.files.get(file_id)
         return record.get("path") if record else None
 
-    def _new_id(self, relative: str) -> str:
+    def _new_id(self, relative: str, adopting: bool = False) -> str:
         """The id a file gets the first time it is seen.
 
-        A project NextTex already knows takes the slug its version log is
-        keyed by, so the history a writer already has stays attached to the
-        file it belongs to without a migration step.  A genuinely new file
-        gets random bytes, because two peers creating a file at the same
-        path at the same moment must not collide on one document.
+        Adopting a project NextTex already knows uses the slug its version
+        log is keyed by, so an existing history stays attached to the file it
+        belongs to with no migration step.
+
+        Everything else gets random bytes, and the distinction matters.  The
+        first version of this used the slug whenever *this* peer had not seen
+        the path -- which is exactly the situation two collaborators are in
+        when they both create `chapters/03.tex`.  They derived the same id
+        from the same path, the two documents merged, and each of them ended
+        up holding both chapters interleaved with nothing to say so.
         """
-        slug = slug_for(relative)
-        if slug not in self.files:
-            return slug
+        if adopting:
+            slug = slug_for(relative)
+            if slug not in self.files:
+                return slug
         return secrets.token_hex(8)
 
     # --- loading ----------------------------------------------------------
@@ -337,7 +361,24 @@ class CollabStore:
             return self.texts.get(file_id)
         return None
 
+    def _log_path(self, name: str) -> Path:
+        """Where a document's log lives, manifest included."""
+        if name == "manifest":
+            return self.root / "manifest.y"
+        return self._text_path(name)
+
     def _text_path(self, file_id: str) -> Path:
+        """Where a document's log lives.
+
+        The id is checked rather than trusted.  It is a *key in a CRDT map*,
+        and that map is written by every peer and by every authenticated
+        browser through the manifest socket -- so "the name came off a URL and
+        anything unrecognised is refused" was only true of a dictionary
+        somebody else could fill in.  An id of `../../..` wrote outside the
+        project, and created the directories on the way.
+        """
+        if not _WELL_FORMED_ID.fullmatch(file_id):
+            raise ValueError(f"not a file id: {file_id[:40]!r}")
         return self.root / f"{file_id}.y"
 
     def body(self, file_id: str) -> Text | None:
@@ -348,8 +389,16 @@ class CollabStore:
         if record is None or record.get("kind") != "text":
             return None
 
+        try:
+            log = self._text_path(file_id)
+        except ValueError:
+            # An id that is not one. A manifest entry is written by other
+            # people, so this is refused the way an unknown document is --
+            # returning None -- rather than raised out of a socket handler.
+            return None
+
         doc = Doc()
-        persist.load(self._text_path(file_id), doc)
+        had_a_log = persist.load(log, doc) >= 0
         text = _root(doc, "text", Text)
 
         self.texts[file_id] = doc
@@ -357,7 +406,19 @@ class CollabStore:
         self._subscriptions.append(doc.observe(self._watcher_for(file_id)))
         # What is on disk is the truth for a document being opened for the
         # first time; after that the document is.
-        if not str(text):
+        #
+        # Except where the document exists elsewhere and merely has not
+        # arrived, in which case seeding is actively dangerous.  A `.y` log
+        # that is *present and unreadable* -- a sync tool's conflict copy,
+        # one torn header -- would be re-seeded from disk as a fresh
+        # insertion, and merging that with a peer who still has the original
+        # produces every line of the file twice, silently.
+        #
+        # A log that was never there is a different matter: this document has
+        # not existed here before, so building it from the file is exactly
+        # right, and it is how the person who shares a project puts their own
+        # work into it in the first place.
+        if not str(text) and (not had_a_log or not self.shared):
             on_disk = self._read(record["path"])
             if on_disk:
                 with doc.transaction(origin=FROM_DISK):
@@ -411,7 +472,10 @@ class CollabStore:
             doc = self.manifest if name == "manifest" else self.texts.get(name)
             if doc is None:
                 continue
-            path = self.root / f"{name}.y"
+            try:
+                path = self._log_path(name)
+            except ValueError:
+                continue
             try:
                 if persist.should_compact(path, doc):
                     persist.snapshot(path, doc)
@@ -426,7 +490,11 @@ class CollabStore:
         Run when a project is opened.  Idempotent: a file already listed is
         left exactly as it is, including its id, so opening a project twice
         does not renumber anything.
+
+        `shared` says whether other people hold this project too, because it
+        changes what a missing file means -- see below.
         """
+        shared = self.shared
         seen: set[str] = set()
         for relative, kind, size in self._walk():
             seen.add(relative)
@@ -438,21 +506,30 @@ class CollabStore:
             # about a file -- which would show as an openable file with no
             # shared document behind it.
             textual = kind == "text" and size <= MAX_TEXT_BYTES
-            self.files[self._new_id(relative)] = Map({
+            self.files[self._new_id(relative, adopting=True)] = Map({
                 "path": relative,
                 "kind": "text" if textual else "blob",
                 "size": size,
                 "trashed": False,
             })
 
-        # A file listed but no longer there was deleted while this peer was
+        # A file listed but no longer on disk was deleted while this peer was
         # not looking.  Marked rather than removed: a map delete concurrent
         # with an edit is ambiguous, and a flag is not.
-        for file_id, record in list(self.files.items()):
-            if record.get("trashed"):
-                continue
-            if record.get("path") not in seen:
-                record["trashed"] = True
+        #
+        # **Only for a project that is not shared.**  On a shared one, "the
+        # manifest names a file this disk does not have" is the ordinary
+        # state of a peer that has just joined, or of one that was killed
+        # between a manifest record persisting and its projection landing.
+        # Trashing them gossiped the deletion back to the person who had
+        # shared the project, whose copy then stopped being written -- a
+        # join could delete somebody else's chapters.
+        if not shared:
+            for file_id, record in list(self.files.items()):
+                if record.get("trashed"):
+                    continue
+                if record.get("path") not in seen:
+                    record["trashed"] = True
 
     def _walk(self) -> list[tuple[str, str, int]]:
         """Every file in the project, as (path, kind, size)."""
@@ -478,15 +555,81 @@ class CollabStore:
         except (OSError, ValueError):
             return ""
 
+    def untrash(self, relative: str, text: str | None) -> None:
+        """A file coming back from the trash, under the id it had before.
+
+        `file_id_for` skips trashed records, so an ordinary `ingest` would
+        mint a *new* id for the same path and orphan the document -- and its
+        history with it. Clearing the flag first is what keeps a restore a
+        restore rather than a new file that happens to have the old name.
+        """
+        for file_id, record in self.files.items():
+            if record.get("path") == relative and record.get("trashed"):
+                record["trashed"] = False
+                break
+        if text is not None:
+            self.ingest(relative, text)
+
+    def rename(self, old: str, new: str) -> None:
+        """Follow a rename, keeping the document and everybody typing in it.
+
+        A path is a *property* of a file here, so this is one write to one
+        field.  Doing nothing instead was the worst bug in this feature: the
+        manifest went on naming the old path, the watcher saw one file
+        disappear and another appear and duly trashed the first and adopted
+        the second, and the browser -- whose editor is bound to the original
+        `Y.Text` -- carried on looking completely normal while nothing it
+        typed reached the disk ever again. There is no autosave left to catch
+        that, and on a shared project the trashing gossiped outwards.
+
+        A folder move renames everything under it, for the same reason the
+        editor's own buffer remap does: matching only the moved path itself
+        leaves every file inside it pointing at a name that is gone.
+        """
+        prefix = f"{old}/"
+        for file_id, record in list(self.files.items()):
+            path = record.get("path") or ""
+            if path == old:
+                moved = new
+            elif path.startswith(prefix):
+                moved = f"{new}/{path[len(prefix):]}"
+            else:
+                continue
+            record["path"] = moved
+            # What was last written is still what is on disk; only its name
+            # changed. Dropping this would make the next projection think the
+            # file had moved on underneath it.
+            if file_id in self.last_projected:
+                self.last_projected[file_id] = self.last_projected[file_id]
+
     # --- disk -> document -------------------------------------------------
 
-    def ingest(self, relative: str, after: str | None, *, by: str = "external") -> bool:
+    def ingest(self, relative: str, after: str | None, *, by: str = "external",
+               gone: bool = False) -> bool:
         """Fold what is now on disk into the shared document.
 
-        Returns whether anything changed.  `after` of None means the file is
-        gone.  Every out-of-band writer comes through here: the file watcher,
-        a restore from trash, an upload, a template.
+        Returns whether anything changed.  Every out-of-band writer comes
+        through here: the file watcher, a restore from trash, an upload, a
+        template, a restored version.
+
+        **`after=None` means "nothing to say about this file", and only
+        `gone=True` means it was deleted.**  Those were the same thing at
+        first, and `read_text` returns None for a file it cannot *decode* as
+        well as for one that is not there -- so every figure in the project
+        was marked as deleted the moment it was rewritten, and a `.tex` with
+        one stray latin-1 byte went the same way.  A trashed record stops
+        being projected, so the file then quietly stopped being written for
+        the rest of the session, and in a shared project the trashing
+        gossiped to everybody else.
         """
+        if after is None and not gone:
+            return False
+        if after is not None and not isinstance(after, str):
+            # A figure, or a restored version of one. Binary files are
+            # carried as blobs and have no shared text to fold anything into,
+            # and handing bytes to a `Y.Text` raises from inside pycrdt with
+            # a message about neither the file nor the caller.
+            return False
         adopted = False
         file_id = self.file_id_for(relative)
         if file_id is None:
@@ -574,16 +717,31 @@ class CollabStore:
         self.flush()
 
     def flush(self) -> None:
-        """Write every changed document out, now."""
+        """Write every changed document out, now.
+
+        A file that could not be written **stays dirty**, and one that
+        fails does not take the others with it.  The first version of this
+        emptied the whole pending set before writing anything and caught only
+        `OSError` -- so `write_atomically` raising `NotAFile` (a record whose
+        path names a directory) lost every other pending write in the batch,
+        the exception vanished into the event loop's handler because `_fire`
+        is a timer callback, and nothing was ever retried because the set was
+        already empty.
+        """
         pending, self._dirty = self._dirty, set()
+        failed: set[str] = set()
         for file_id in pending:
             try:
                 self._write(file_id)
-            except OSError:
-                # A read-only directory, or a disk that filled up.  The
-                # document is still correct and still shared; only this
-                # peer's copy of the file is behind.
-                pass
+            except Exception:
+                # A read-only directory, a disk that filled up, a path that
+                # is not a file. The document is still correct and still
+                # shared; only this peer's copy of the file is behind, and
+                # it is put back in the queue so the next write tries again.
+                failed.add(file_id)
+        if failed:
+            self._dirty |= failed
+            self._schedule()
         self._compact()
 
     def _write(self, file_id: str) -> None:

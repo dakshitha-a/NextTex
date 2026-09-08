@@ -69,6 +69,14 @@ TOUCH_INTERVAL_SECONDS = 60 * 60
 # single-user tool is a way to be denied your own documents by someone else's
 # guessing.  A delay that grows makes a remote guess uneconomic while leaving
 # the person at the keyboard able to try again.
+#
+# The address is the socket's, not a forwarded header, and that is deliberate
+# rather than an oversight: NextTex is one uvicorn process with no proxy in
+# front of it by design, so the socket address *is* the client.  Trusting
+# `X-Forwarded-For` here would let a guesser reset their own delay by
+# inventing a header.  Anyone who does put a proxy in front of this shares
+# one bucket between every client, which is the safe direction to be wrong
+# in: their own next attempt is delayed, not somebody else's admitted.
 _FAILURES: dict[str, tuple[int, float]] = {}
 MAX_DELAY_SECONDS = 8.0
 

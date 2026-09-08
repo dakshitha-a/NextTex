@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
+import { landed } from "../typing";
 
 /** Making files, and putting files in.
  *
@@ -345,4 +346,32 @@ test("a tab follows the folder it was in", async ({ app, project, tab }) => {
   await expect(
     tab.locator('[data-tab][data-path="parts/chapters/02_theory.tex"]'),
   ).toBeVisible({ timeout: 15_000 });
+});
+
+test("a renamed file is still connected to the disk", async ({
+  app, project, tab,
+}) => {
+  // The worst bug this feature had, and one ordinary action away.
+  //
+  // A rename left the shared document naming the old path. The watcher then
+  // saw one file disappear and another appear, trashed the first and adopted
+  // the second, and the editor -- still bound to the original document --
+  // carried on looking completely normal while nothing typed into it ever
+  // reached the disk again. There is no autosave left to catch that: the
+  // whole-file save and the closing-tab beacon are both gone.
+  await tab.getByText("main.tex", { exact: false }).first().click();
+  await expect(tab.locator(".cm-content")).toContainText("documentclass");
+
+  await tab.getByLabel("Actions for main.tex").click();
+  await tab.getByRole("button", { name: "Rename" }).click();
+  await tab.keyboard.press("Control+a");
+  await tab.keyboard.type("paper.tex");
+  await tab.keyboard.press("Enter");
+  await expect(tab.getByText("paper.tex", { exact: false }).first()).toBeVisible();
+
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+Home");
+  await tab.keyboard.type("% typed after the rename\n");
+
+  await landed(app, project, "typed after the rename", "paper.tex");
 });

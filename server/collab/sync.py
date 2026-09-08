@@ -38,7 +38,7 @@ in a screenshot would show it.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, Callable
 
 from pycrdt import (
     Awareness,
@@ -106,6 +106,11 @@ class SyncHub:
         # Safe as a plain attribute because applying an update fires
         # observers synchronously, on this one event loop.
         self.applying: Connection | None = None
+        #: Told when a browser's cursor moves, so it can be passed to the
+        #: other installs. Set by the peer network; None while a project is
+        #: not shared, which is most of them.
+        self.on_awareness: Callable[[str, bytes], None] | None = None
+        self.closed = False
         store.listeners.append(self._document_changed)
 
     # --- fan-out ----------------------------------------------------------
@@ -142,6 +147,22 @@ class SyncHub:
         found.set_local_state(None)
         return found
 
+    def from_peer(self, doc_id: str, message: bytes) -> None:
+        """A cursor that arrived from another install.
+
+        Passed to this machine's browsers and applied to the room's own
+        awareness, so a tab opening later is told about it too -- exactly as
+        a local one is, because from here they are the same thing.
+        """
+        awareness = self._awareness_for(doc_id)
+        if awareness is not None:
+            try:
+                awareness.apply_awareness_update(read_message(message[1:]), "peer")
+            except Exception:
+                return
+        for connection in self.rooms.get(doc_id, ()):
+            connection.send(message)
+
     def _leave(self, connection: Connection) -> None:
         room = self.rooms.get(connection.doc_id)
         if room and connection in room:
@@ -173,6 +194,9 @@ class SyncHub:
 
     async def serve(self, websocket: Any, doc_id: str) -> None:
         """Run one browser's connection until it goes away."""
+        if self.closed:
+            await websocket.close(code=1001)
+            return
         doc = self.store.document(doc_id)
         if doc is None:
             await websocket.close(code=1003)
@@ -200,6 +224,12 @@ class SyncHub:
                 message = await websocket.receive_bytes()
                 if not message:
                     continue
+                if self.closed:
+                    # The project is being closed. Applying an update to a
+                    # document whose observers have already been dropped
+                    # would persist nothing and project nothing -- the
+                    # keystroke would simply not exist.
+                    break
                 if message[0] == YMessageType.SYNC:
                     self.applying = connection
                     try:
@@ -209,6 +239,11 @@ class SyncHub:
                     if reply is not None:
                         connection.send(reply)
                 elif message[0] == YMessageType.AWARENESS:
+                    # Outward first, so a collaborator on another machine
+                    # sees the caret move at the same time as a second tab
+                    # here does.
+                    if self.on_awareness:
+                        self.on_awareness(doc_id, message)
                     awareness = self._awareness_for(doc_id)
                     if awareness is not None:
                         update = read_message(message[1:])
@@ -244,6 +279,7 @@ class SyncHub:
             pass
 
     def close(self) -> None:
+        self.closed = True
         for room in list(self.rooms.values()):
             for connection in list(room):
                 connection.close()

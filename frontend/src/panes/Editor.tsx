@@ -100,6 +100,13 @@ export default function Editor({
   const viewing = useRef<{ path: string; sha: string; scroll: number } | null>(null);
   const symbols = useRef<Symbols | null>(null);
 
+  // Everything bound to the project that was open before this one has to
+  // go when it does. Buffers are keyed by path, and `main.tex` is `main.tex`
+  // in every project: without this, opening a second project either showed
+  // the first one's document under the second one's name, or bound the
+  // editor to a `Y.Text` whose socket had already been closed -- typing into
+  // a detached document that reached nothing.
+  const projectForBuffers = useRef<string | null>(null);
   const pendingOpen = useStore((s) => s.pendingOpen);
   const diagnostics = useStore((s) => s.diagnostics);
   const lint = useStore((s) => s.lint);
@@ -295,6 +302,14 @@ export default function Editor({
     const openBuffer = async (path: string, line?: number) => {
       const projectId = get().projectId;
       if (!projectId || !view.current) return;
+      if (projectForBuffers.current !== projectId) {
+        for (const [, held] of buffers.current) held.release();
+        buffers.current.clear();
+        current.current = null;
+        viewing.current = null;
+        collab.current = null;
+        projectForBuffers.current = projectId;
+      }
       if (viewing.current) backToNow();
       if (current.current === path) {
         if (line !== undefined) jump(line);
@@ -309,11 +324,22 @@ export default function Editor({
         const shared = await connect(projectId);
         const opened = shared ? await shared.open(path) : null;
         if (!opened) {
-          // Falling back to a plain read rather than an empty pane: a file
-          // the manifest has not caught up with yet is still readable, and
-          // a blank editor over a chapter that exists is alarming.
+          // No document, so there is no way to disk: a keystroke here would
+          // reach nothing, and with the old whole-file save and the closing
+          // beacon both gone, nothing would catch it either. The first
+          // version handed back an ordinary editable pane, which looked
+          // exactly like a working one and silently discarded everything
+          // typed into it.
+          //
+          // So the file is shown, read-only, and the reason is said out
+          // loud rather than left for the writer to discover.
           const file = await api.readFile(projectId, path);
-          buffer = { state: freshState(file.text, ext), release: () => {} };
+          buffer = { state: freshState(file.text, readOnlyExt), release: () => {} };
+          set({
+            error:
+              `${path} is not connected to this project's shared documents, ` +
+              "so it is open for reading only. Reloading usually fixes it.",
+          });
         } else {
           buffer = {
             state: freshState(opened.text.toString(), [...ext, opened.extension]),

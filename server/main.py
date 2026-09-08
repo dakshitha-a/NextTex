@@ -168,8 +168,16 @@ async def _watch_projects() -> None:
                     for relative in paths:
                         try:
                             path = session.project.resolve(relative)
-                            after = read_text(path) if path.exists() else None
-                            session.collab.ingest(relative, after)
+                            here = path.exists()
+                            # `gone` and "could not read it" are different
+                            # things, and `read_text` returns None for both.
+                            # Conflating them marked every figure in the
+                            # project as deleted the moment it was rewritten.
+                            session.collab.ingest(
+                                relative,
+                                read_text(path) if here else None,
+                                gone=not here,
+                            )
                         except (OSError, ValueError):
                             continue
                     await session.events.publish(
@@ -301,7 +309,26 @@ def authorise_socket(websocket) -> bool:
     Its own function because HTTP middleware does not run for the websocket
     scope -- a route that forgets to call this is open to the world, and that
     is not the kind of mistake that shows up in a screenshot.
+
+    The `Origin` check is here rather than left to `samesite=lax`.  A
+    WebSocket handshake is a cross-site request that carries cookies in some
+    browsers regardless of `SameSite`, and the cost of being wrong is every
+    document in every open project readable and writable by any page the
+    writer happens to visit.  Same-origin, or no origin at all -- which is
+    what a script or a test client sends, and which cannot be forged by a
+    page.
     """
+    origin = websocket.headers.get("origin")
+    if origin:
+        host = websocket.headers.get("host", "")
+        try:
+            from urllib.parse import urlsplit
+
+            if urlsplit(origin).netloc != host:
+                return False
+        except ValueError:
+            return False
+
     supplied = (
         websocket.cookies.get(COOKIE)
         or websocket.query_params.get("token")
@@ -477,8 +504,28 @@ async def make_invite(project_id: str):
     if not collab_transport.available():
         raise HTTPException(501, "Not available on this platform.")
     session = session_for(project_id)
+    # Sharing first, then listening, then the invite. Starting the transport
+    # before the project was shared did nothing -- `start` returns
+    # immediately for an unshared project -- so `address()` was empty and the
+    # invite carried nothing to dial.
+    name = SETTINGS.display_name or "Unnamed"
+    session.peers.begin_sharing(name)
     await session.peers.start()
-    return {"invite": session.peers.invite(SETTINGS.display_name or "Unnamed")}
+    invite = session.peers.invite(name)
+    if not _unwrap_invite(invite).get("address"):
+        raise HTTPException(
+            503, "This install is not reachable yet. Try again in a moment.",
+        )
+    return {"invite": invite}
+
+
+def _unwrap_invite(invite: str) -> dict:
+    from server.collab.peers import _unwrap
+
+    try:
+        return _unwrap(invite)
+    except Exception:
+        return {}
 
 
 @app.post("/api/collab/join")
@@ -1071,6 +1118,11 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
     except OSError as error:
         raise HTTPException(400, f"could not rename: {error}")
     session.history.note_move(path, to)
+    # And the shared document, or the manifest goes on naming the old path:
+    # the watcher then sees one file vanish and another appear, trashes the
+    # first and adopts the second, and every browser editing it carries on
+    # looking normal while nothing it types reaches disk again.
+    session.collab.rename(path, to)
     # A second tab has the file open under its old name, and the watcher
     # only tells it the tree changed -- not that this path became that one.
     # Every tab gets this, the originating one included, which is safe
@@ -1121,6 +1173,10 @@ async def restore_trash(project_id: str, entry_id: str):
     # restoring a .bib skipped the biber pass its citations needed.
     for relative in result["restored"]:
         restored = session.project.root / relative
+        # A file coming back out of the trash is a file coming back into the
+        # project: it has to reach the shared document, and its record has to
+        # stop being marked trashed or nothing will ever write it again.
+        session.collab.untrash(relative, read_text(restored))
         session.note_edit(restored, read_text(restored), None)
     session.schedule_compile()
     return {"ok": True, **result}
@@ -1217,6 +1273,11 @@ async def restore_version(
         target, text, by="you", why="restored an earlier version",
         op="restore", previous=previous,
     )
+    # Into the document too. Without this the restore was silently undone:
+    # the file held the old text, the shared document still held the new
+    # text, and the next keystroke anywhere projected the document back over
+    # the restored file.
+    session.collab.ingest(path, text)
     session.note_edit(target, text, previous)
     session.schedule_compile()
     await session.events.publish({"type": "files_changed", "paths": [path]})
@@ -1322,6 +1383,9 @@ async def upload(
         temp.replace(target)
         session.mark_written(target)
         relative = session.project.relative(target)
+        # Uploads suppress the watcher, so this is the only way an uploaded
+        # file reaches anybody else's copy -- or this browser's own editor.
+        session.collab.ingest(relative, read_text(target))
         written.append(relative)
         results.append({
             "name": name, "path": relative, "outcome": outcome,
@@ -1485,6 +1549,7 @@ async def library_scan(project_id: str, path: str = Body(..., embed=True)):
     def write_bib(text: str) -> None:
         write_atomically(bib, text)
         session.mark_written(bib)
+        session.collab.ingest(session.project.relative(bib), text)
 
     scan = Scan(
         _library(session), bib,
@@ -1566,6 +1631,7 @@ async def library_resolve(
 
     write_atomically(bib, references.appended(read_text(bib) or "", found["entry"]))
     session.mark_written(bib)
+    session.collab.ingest(session.project.relative(bib), read_text(bib))
     session.record_version(bib, read_text(bib), by="you", op="import",
                            why=f"added {found['key']} by hand")
 
@@ -2011,6 +2077,7 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
         write_atomically(target, text)
         session.mark_written(target)
         session.record_version(target, text, by="you", why=f"loaded the {name} template")
+        session.collab.ingest(session.project.relative(target), text)
         written.append(session.project.relative(target))
 
     (session.project.root / "figures").mkdir(exist_ok=True)
@@ -2511,6 +2578,9 @@ async def agent_undo(
     except (NotAFile, OSError) as error:
         raise HTTPException(400, str(error))
     session.mark_written(target)
+    # And the document, or the undo is put straight back by the next
+    # projection -- the same way a restored version was.
+    session.collab.ingest(session.project.relative(target), before)
     # Redo is this same route with the arguments swapped, so `state` is the
     # only thing that says which way round the writer meant it.
     undoing = state != "live"

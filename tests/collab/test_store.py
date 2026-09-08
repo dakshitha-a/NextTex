@@ -125,8 +125,34 @@ def test_ingesting_an_outside_change_reaches_the_document(store, project):
 def test_ingesting_a_deletion_marks_the_file_rather_than_dropping_it(store):
     """A map delete concurrent with an edit is ambiguous; a flag is not."""
     file_id = store.file_id_for("chapters/one.tex")
-    assert store.ingest("chapters/one.tex", None)
+    assert store.ingest("chapters/one.tex", None, gone=True)
     assert store.files[file_id]["trashed"] is True
+
+
+def test_a_file_that_cannot_be_read_is_not_a_file_that_is_gone(store, project):
+    """`read_text` returns None for a file it cannot decode as well as for
+    one that is not there, and the two were the same thing here.
+
+    So every figure in the project was marked deleted the moment it was
+    rewritten, and a `.tex` with one stray latin-1 byte went the same way. A
+    trashed record stops being projected, so the file then quietly stopped
+    being written for the rest of the session -- and on a shared project the
+    trashing gossiped to everybody else.
+    """
+    file_id = store.file_id_for("chapters/one.tex")
+    before = str(store.body(file_id))
+
+    # What the watcher hands over for a file it could not decode.
+    assert store.ingest("chapters/one.tex", None) is False
+    assert store.files[file_id]["trashed"] is False
+    assert str(store.body(file_id)) == before
+
+    # And the file is still written afterwards.
+    store.body(file_id).insert(0, "% still connected\n")
+    store.flush()
+    assert (project.root / "chapters" / "one.tex").read_text().startswith(
+        "% still connected"
+    )
 
 
 # --- the loop ---------------------------------------------------------------
@@ -321,3 +347,50 @@ def test_a_wholesale_replacement_is_one_splice():
     looking for one is where the time went."""
     before = big_chapter()
     assert len(edits_for(before, "nothing like the original\n" * 900)) == 1
+
+
+# --- one bad write must not lose the others --------------------------------
+
+
+def test_a_file_that_cannot_be_written_does_not_take_the_others_with_it(
+    store, project,
+):
+    """`flush` emptied the pending set before writing anything, and caught
+    only OSError. A record whose path names a directory made
+    `write_atomically` raise `NotAFile`, which lost every other pending write
+    in the same batch -- and the exception disappeared into the event loop,
+    because the flush runs from a timer.
+    """
+    from pycrdt import Map
+
+    (project.root / "a-folder").mkdir()
+    store.files["deadbeefdeadbeef"] = Map({
+        "path": "a-folder", "kind": "text", "size": 0, "trashed": False,
+    })
+    store.body("deadbeefdeadbeef")
+
+    good = store.file_id_for("chapters/one.tex")
+    store.body(good).insert(0, "% must survive\n")
+    store._dirty.add("deadbeefdeadbeef")
+    store._dirty.add(good)
+
+    store.flush()      # must not raise
+
+    assert (project.root / "chapters" / "one.tex").read_text().startswith(
+        "% must survive"
+    )
+
+
+def test_a_failed_write_is_tried_again(store, project):
+    """It stays dirty rather than being dropped on the floor."""
+    from pycrdt import Map
+
+    (project.root / "another-folder").mkdir()
+    store.files["cafecafecafecafe"] = Map({
+        "path": "another-folder", "kind": "text", "size": 0, "trashed": False,
+    })
+    store.body("cafecafecafecafe").insert(0, "text with nowhere to go")
+    store._dirty.add("cafecafecafecafe")
+
+    store.flush()
+    assert "cafecafecafecafe" in store._dirty

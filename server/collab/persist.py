@@ -45,17 +45,20 @@ COMPACT_FLOOR = 64 * 1024
 
 
 def load(path: Path, doc: Doc) -> int:
-    """Apply everything in `path` to `doc`. Returns the bytes read.
+    """Apply everything in `path` to `doc`. Returns the bytes read, or -1.
 
-    A file that is missing, empty, or not one of ours leaves the document
-    untouched: an unreadable persisted document is a document that has to be
-    rebuilt from the files on disk, which is a recoverable situation and not
-    one to raise about.
+    **-1 means there was no log at all**, and it is a different thing from 0,
+    which means there was one and nothing could be read out of it.  The
+    caller has to tell them apart: a document with no log has never existed
+    here and can safely be built from the file on disk, while one whose log
+    is unreadable is a document that *does* exist somewhere -- possibly on
+    another person's machine -- and rebuilding it from disk would merge as a
+    second, independent copy of every line.
     """
     try:
         blob = path.read_bytes()
     except OSError:
-        return 0
+        return -1
     if len(blob) < HEADER or not blob.startswith(MAGIC):
         return 0
 
