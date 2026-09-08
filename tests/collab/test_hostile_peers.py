@@ -203,3 +203,68 @@ def test_the_path_fence_is_also_not_retried(store, tmp_path):
     store.flush()
     assert file_id not in store._dirty
     assert file_id in store._refused
+
+
+# --- what a member may and may not tell us about the share ------------------
+
+
+def _link_and_share(tmp_path):
+    """A PeerLink with just enough network behind it to run `handle`."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from server.collab.peers import PeerLink, Share
+
+    share = Share(tmp_path)
+    network = SimpleNamespace(
+        share=share,
+        store=None,
+        hub=None,
+        peer_id="us",
+        mirror_members=lambda: None,
+        dial_later=lambda peer_id: None,
+        dropped=lambda link: None,
+    )
+    link = PeerLink(network, stream=None, peer_id="them")
+    # send_documents talks to a stream this test does not have.
+    async def _nothing() -> None:
+        return None
+    link.send_documents = _nothing
+    return link, share, asyncio
+
+
+def _welcome(share_id: str):
+    """A WELCOME frame naming a share, as an admitted peer would send one."""
+    from server.collab import wire
+
+    return wire.Frame(kind=wire.WELCOME,
+                      header={"share": share_id, "members": {}},
+                      payload=b"")
+
+
+def test_a_peer_cannot_replace_the_share_id_we_already_hold(tmp_path):
+    """The share id is the gate `_accept` checks incoming peers against.
+
+    A joiner has none until somebody welcomes them, which is what this frame
+    is for, so it has to be able to *fill* one.  Taking the value from every
+    WELCOME meant any admitted member could send a different one and cut this
+    install off from every other member at once, with one frame, and without
+    touching the member list the same handler is careful about.
+    """
+    link, share, asyncio = _link_and_share(tmp_path)
+    share.share_id = "the-real-share"
+
+    asyncio.run(link.handle(_welcome("a-share-of-their-own")))
+
+    assert share.share_id == "the-real-share"
+
+
+def test_a_joiner_still_learns_the_share_id(tmp_path):
+    """The case that actually exists must keep working: a peer with no share
+    id is welcomed into one."""
+    link, share, asyncio = _link_and_share(tmp_path)
+    assert not share.share_id
+
+    asyncio.run(link.handle(_welcome("the-real-share")))
+
+    assert share.share_id == "the-real-share"

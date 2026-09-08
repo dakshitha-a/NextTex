@@ -18,7 +18,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field, asdict
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 try:
     import tomllib
@@ -195,15 +195,46 @@ class ProjectConfig:
         section = data.get("project", data)
         return cls(
             name=section.get("name") or root.name,
-            main=section.get("main") or cls._guess_main(root),
-            build_dir=section.get("build_dir", "build"),
+            main=cls._inside(section.get("main")) or cls._guess_main(root),
+            build_dir=cls._inside(section.get("build_dir")) or "build",
             check_command=section.get("check_command", ""),
             exclude=list(section.get("exclude", [])),
-            previews=list(section.get("previews", [])),
+            previews=[
+                kept for raw in section.get("previews", [])
+                if (kept := cls._inside(raw))
+            ],
             autocompile=bool(section.get("autocompile", True)),
             mark_errors=bool(section.get("mark_errors", True)),
             mark_warnings=bool(section.get("mark_warnings", False)),
         )
+
+    @staticmethod
+    def _inside(value: object) -> str:
+        """A project-relative path from the config, or "" if it is not one.
+
+        `nexttex.toml` is a file in the project, and a project is not always
+        the writer's own work: it can be cloned, come from a template, or
+        arrive from a collaborator, who can also edit it afterwards, since
+        this file is deliberately shared rather than refused.
+
+        What that reached: `build_dir` becomes `latexmk -outdir=`, so
+        `../../` aims a build at somewhere outside the project, and `main` is
+        read straight off the disk, so `../../../etc/passwd` is opened as the
+        document.  Both are refused here rather than at each use, because
+        every later reader takes these as ordinary relative paths.
+
+        Absolute paths, parent segments, and anything that is not a string
+        all fail the same way: by falling back to the default, which is what
+        the rest of `load` already does for a config it cannot parse.
+        """
+        if not isinstance(value, str) or not value.strip():
+            return ""
+        candidate = PurePosixPath(value.replace("\\", "/"))
+        if candidate.is_absolute() or ".." in candidate.parts:
+            return ""
+        if PureWindowsPath(value).is_absolute():
+            return ""
+        return value
 
     @staticmethod
     def _guess_main(root: Path) -> str:

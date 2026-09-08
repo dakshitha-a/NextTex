@@ -48,6 +48,7 @@ import base64
 import contextlib
 import hashlib
 import json
+import logging
 import re
 import secrets
 import time
@@ -58,6 +59,8 @@ from pycrdt import Map, create_sync_message, handle_sync_message
 from nexttex.atomic import write_atomically
 
 from . import history_sync, identity, transport, wire
+
+log = logging.getLogger("nexttex.collab")
 
 # How long to wait before dialling a peer again, growing to a resting rate.
 # The common failure is a laptop closing its lid, so the first few are quick.
@@ -341,8 +344,23 @@ class PeerLink:
             if hub is not None:
                 hub.from_peer(frame.header.get("doc", ""), frame.payload)
         elif frame.kind == wire.WELCOME:
-            self.network.share.share_id = frame.header.get("share", "") or \
-                self.network.share.share_id
+            # Only ever *learned*, never overwritten.
+            #
+            # A joiner has no share id until somebody welcomes them, and this
+            # is where they get it.  But it took the value from every WELCOME
+            # that arrived, and `_accept` checks incoming peers against it --
+            # so any admitted member could send a different one and cut this
+            # install off from every other member at once, without touching
+            # the member list this line is careful about just below.
+            #
+            # Filling a blank is the case that exists; replacing a value we
+            # already hold is the case that does not.
+            if not self.network.share.share_id:
+                self.network.share.share_id = frame.header.get("share", "")
+            elif frame.header.get("share", "") not in ("", self.network.share.share_id):
+                log.warning(
+                    "a peer sent a different share id; keeping the one we have"
+                )
             for peer_id, record in (frame.header.get("members") or {}).items():
                 if peer_id not in self.network.share.members:
                     self.network.share.members[peer_id] = record
