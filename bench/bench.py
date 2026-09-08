@@ -124,6 +124,40 @@ def measure(root: Path) -> list[dict]:
 
     results.append(timed("symbols.after_build_ms", after_a_build, runs=5))
 
+    # The shared documents, on a project this size. Both of these are on the
+    # keystroke path now: an edit reaching this install from a collaborator
+    # is an `apply_update`, and every edit that settles becomes a projection.
+    from server.collab.store import CollabStore
+
+    store = CollabStore(project)
+    store.adopt()
+    biggest = max(
+        (fid for fid, record in store.files.items() if record.get("kind") == "text"),
+        key=lambda fid: store.files[fid].get("size") or 0,
+        default=None,
+    )
+    if biggest is not None:
+        # A fresh store each run, because that is what "opening a document"
+        # is: reading its log off disk and rebuilding it. Measuring it on a
+        # store that already has it open would measure a dictionary lookup.
+        def open_one() -> None:
+            fresh = CollabStore(project)
+            fresh.body(biggest)
+            fresh.close()
+
+        results.append(timed("collab.open_document_ms", open_one, runs=3))
+
+        whole = str(store.body(biggest))
+        edits = iter(range(10_000))
+        results.append(timed(
+            "collab.ingest_ms",
+            lambda: store.ingest(
+                store.path_for(biggest), f"{whole}\n% line {next(edits)}\n",
+            ),
+            runs=5,
+        ))
+    store.close()
+
     history = History(root / ".nexttex" / "history")
     for index in range(VERSIONS):
         history.record("chapters/00.tex", f"version {index}", source=f"s{index}")

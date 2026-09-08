@@ -422,9 +422,19 @@ function base(symbols: () => Symbols | null): Extension[] {
 }
 
 export function extensions(
-  onChange: () => void,
+  /** `local` is false when the change arrived from the shared document
+   *  rather than from this keyboard -- a collaborator typing, or the first
+   *  sync when a file is opened. The caller needs to tell them apart: a
+   *  keystroke here means the preview is behind before the server has heard
+   *  about it, and a change from anywhere else is already the server's news
+   *  to tell. */
+  onChange: (local: boolean) => void,
   onCursor: (line: number, column: number, selection: string) => void,
   symbols: () => Symbols | null,
+  /** The annotation the Yjs binding marks its own transactions with. A ref
+   *  rather than a value: the binding is imported on demand, long after
+   *  these extensions are built. */
+  remote?: { current: unknown },
 ): Extension[] {
   return [
     ...base(symbols),
@@ -432,7 +442,13 @@ export function extensions(
     markField,
     flashField,
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) onChange();
+      if (update.docChanged) {
+        const marker = remote?.current as any;
+        const fromElsewhere = Boolean(marker) && update.transactions.some(
+          (transaction) => transaction.annotation(marker) !== undefined,
+        );
+        onChange(!fromElsewhere);
+      }
       if (update.selectionSet || update.docChanged) {
         const range = update.state.selection.main;
         const line = update.state.doc.lineAt(range.head);

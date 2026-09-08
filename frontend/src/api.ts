@@ -72,10 +72,16 @@ export type Version = {
   at: number;
   sha: string;
   bytes: number;
+  /** The role: the person, or their agent. Now relative to `peer`. */
   by: "you" | "claude";
   why: string;
   op: "edit" | "create" | "delete" | "restore" | "undo" | "replace" | "import";
   label: string | null;
+  /** Which install wrote it. Empty means this one, which is what every
+   *  version made before a project was shared says. */
+  peer?: string;
+  /** The name that peer went by at the time. */
+  who?: string;
 };
 
 export type TrashEntry = {

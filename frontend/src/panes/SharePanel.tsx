@@ -178,7 +178,7 @@ export default function SharePanel({ projectId, onClose }: {
                     value={invite}
                     data-testid="invite-text"
                     aria-label="The invite to send"
-                    rows={3}
+                    rows={2}
                     className="t-code-sm mt-[8px] w-full resize-none rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink"
                     onFocus={(event) => event.currentTarget.select()}
                   />

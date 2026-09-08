@@ -670,7 +670,33 @@ class ProjectSession:
                 relative, previous, by="you", op="create",
                 why="as it was when NextTex first saw it",
             )
-        self.history.record(relative, text, by=by, why=why, op=op, source=source)
+        # Stamped with this install's identity, so a collaborator receiving
+        # it knows whose it was.  Empty for a project that has never been
+        # shared, which is what every record written before any of this says
+        # and what keeps an unshared project's log exactly as it was.
+        self.history.record(
+            relative, text, by=by, why=why, op=op, source=source,
+            peer=self._peer_id(), who=self._peer_name(),
+        )
+
+    def _peer_id(self) -> str:
+        """This install's identity, but only once the project is shared.
+
+        An unshared project has no peers, so stamping every version with an
+        id nobody will ever compare it against would be noise in a file
+        people read.
+        """
+        peers = getattr(self, "peers", None)
+        if peers is None or not peers.share.shared:
+            return ""
+        return peers.peer_id
+
+    def _peer_name(self) -> str:
+        peers = getattr(self, "peers", None)
+        if peers is None or not peers.share.shared:
+            return ""
+        record = peers.share.members.get(peers.peer_id) or {}
+        return str(record.get("name") or "")
 
     def write_from_agent(self, path: Path, text: str) -> None:
         """A write made by one of the agent's own tools.

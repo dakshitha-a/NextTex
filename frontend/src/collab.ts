@@ -4,7 +4,7 @@ import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwareness
 import * as syncProtocol from "y-protocols/sync";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
-import { yCollab } from "y-codemirror.next";
+import { yCollab, ySyncAnnotation } from "y-codemirror.next";
 import type { Extension } from "@codemirror/state";
 
 /** The browser's half of the shared documents.
@@ -67,6 +67,13 @@ const ACTIVE_MS = 45_000;
 const COLOURS = [
   "#3FC6D2", "#C988E7", "#5ABD7B", "#F0A868", "#F47365", "#8AB4F8", "#E5C07B",
 ];
+
+/** How a change made by the binding is told apart from a keystroke.
+ *
+ *  Exported so the editor can ask, without the editor's own module having to
+ *  import Yjs -- which would pull the whole hundred kilobytes into the entry
+ *  bundle and undo the lazy split. */
+export const remoteMarker = ySyncAnnotation;
 
 export function colourFor(key: string): string {
   let hash = 0;

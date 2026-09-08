@@ -194,6 +194,17 @@ OUTBOUND = {
     "github.com",               # the prebuilt interface, and the update check
 }
 
+# Hosts NextTex reaches through a library rather than by naming them, so the
+# scan below cannot see them.  iroh's discovery and relays are contacted by
+# `preset_n0()` and appear in no source file of ours -- which means the test
+# that keeps the README honest would have gone on passing while the README
+# quietly became false.  That is worse than a failure, so they are asserted
+# separately, by name.
+THROUGH_A_LIBRARY = {
+    "dns.iroh.link":            "iroh's discovery, so two peers can find each other",
+    "relay.n0.iroh.link":       "iroh's relays, when two peers cannot reach each other directly",
+}
+
 
 def test_the_shipped_code_talks_to_nothing_the_readme_does_not_name():
     """Not a security boundary -- a promise being kept.  A new host here
@@ -220,6 +231,35 @@ def test_the_readme_names_every_one_of_them():
     for host in ("Crossref", "OpenAlex", "Semantic Scholar", "arXiv", "doi.org"):
         assert host in section, f"{host} is reachable but unmentioned"
     assert "Anthropic" in section and "OpenAI" in section
+
+
+def test_the_readme_names_the_hosts_a_library_reaches_for_us():
+    """The scan above cannot see these, so this is the only thing that can.
+
+    `preset_n0()` configures iroh's discovery and relays inside iroh, so no
+    URL for them appears in any file of ours.  A version of this suite
+    without this test passed perfectly while the README's list was wrong,
+    which is the failure mode worth writing a test against.
+    """
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## What leaves this machine")[1].split("##")[0]
+    for host, why in THROUGH_A_LIBRARY.items():
+        assert host in section, f"{host} is reachable ({why}) but unmentioned"
+
+
+def test_sharing_is_what_turns_the_network_on():
+    """Nothing above is contacted by a project nobody has shared.
+
+    The promise is not only "these hosts" but "and not until you ask", so
+    the transport must not be started for an unshared project.
+    """
+    import inspect
+
+    from server.collab import peers
+
+    source = inspect.getsource(peers.PeerNetwork.start)
+    assert "if not self.share.shared:" in source
+    assert "return" in source
 
 
 def test_no_telemetry_of_any_kind():

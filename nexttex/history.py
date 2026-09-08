@@ -81,6 +81,15 @@ class Version:
     # other one's version and its paragraph was gone from the history too.
     # Never shown; it exists only to keep bursts apart.
     source: str = ""
+    # Which *install* made it.  Empty means this one, which is what every
+    # record written before collaboration existed says -- so an old log
+    # reads back correctly without being migrated.  `by` is unchanged and
+    # still means the role, "you" or "claude", now relative to `peer`.
+    peer: str = ""
+    # The name that peer went by at the time.  Kept beside the id rather
+    # than looked up, because somebody who leaves a project should not turn
+    # into a hexadecimal string in the history of what they wrote.
+    who: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -92,6 +101,8 @@ class Version:
             "op": self.op,
             "label": self.label,
             "source": self.source,
+            "peer": self.peer,
+            "who": self.who,
         }
 
     @classmethod
@@ -105,6 +116,8 @@ class Version:
             op=str(data.get("op") or "edit"),
             label=data.get("label") or None,
             source=str(data.get("source") or ""),
+            peer=str(data.get("peer") or ""),
+            who=str(data.get("who") or ""),
         )
 
     @property
@@ -372,6 +385,8 @@ class History:
         op: str = "edit",
         label: str | None = None,
         source: str = "",
+        peer: str = "",
+        who: str = "",
     ) -> Version | None:
         """Note what a file contains now. Returns the version, or None.
 
@@ -391,7 +406,7 @@ class History:
         self._remember_path(relative_path)
         version = Version(
             at=now_ms(), sha=sha, bytes=len(data), by=by, why=why, op=op,
-            label=label, source=source,
+            label=label, source=source, peer=peer, who=who,
         )
 
         # One editing burst is one version.  Never across authors: what the
@@ -400,6 +415,12 @@ class History:
         coalesce = (
             previous is not None
             and previous.by == by
+            # And never across installs. Two collaborators are both "you"
+            # on their own machines, so without this the peer whose edit
+            # arrived second would replace the other's version and the
+            # paragraph it overwrote would be gone from the history too --
+            # the same bug `source` was added for, one machine further out.
+            and previous.peer == peer
             # Two browser windows are both "you", and merging them meant the
             # one that saved second replaced the other's version -- so the
             # paragraph it overwrote was gone from the history as well as

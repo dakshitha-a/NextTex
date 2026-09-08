@@ -254,3 +254,70 @@ def test_rubbish_in_the_log_is_not_fatal(project):
     again = CollabStore(project)
     assert str(again.body(file_id)) == (project.root / "main.tex").read_text()
     again.close()
+
+
+# --- the diff has to be cheap ----------------------------------------------
+
+
+def big_chapter(lines: int = 900) -> str:
+    return "\n".join(
+        f"Line {n} of a chapter with a reasonable amount of prose in it."
+        for n in range(lines)
+    )
+
+
+def test_diffing_a_large_chapter_is_fast():
+    """The bench caught this at thirty-four seconds.
+
+    `difflib.SequenceMatcher` is quadratic in the worst case, and it was
+    being handed both whole files. Appending one line to a fifty-kilobyte
+    chapter is the most ordinary thing an agent or a `git pull` can do, and
+    it froze the server for over half a minute. The fix is to trim the
+    common prefix and suffix first, which is linear and leaves almost
+    nothing behind for the common shapes.
+
+    The threshold is deliberately loose: this is a guard against the
+    quadratic behaviour coming back, not a benchmark.
+    """
+    import time
+
+    before = big_chapter()
+    for after in (
+        before + "\n% one more line\n",
+        before.replace("Line 450", "Line 450!", 1),
+        "something else entirely\n" * 900,
+    ):
+        start = time.perf_counter()
+        spans = edits_for(before, after)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 0.5, f"took {elapsed:.2f}s"
+        # And still correct.
+        text = before
+        for at, end, replacement in spans:
+            text = text[:at] + replacement + text[end:]
+        assert text == after
+
+
+def test_separate_changes_stay_separate_in_a_large_file():
+    """The reason this is not just one splice.
+
+    Three paragraphs change in a long chapter. One splice covering all three
+    would span everything between them, so a collaborator editing a fourth
+    paragraph inside that span would lose it.
+    """
+    before = big_chapter()
+    after = (before
+             .replace("Line 100 ", "CHANGED 100 ")
+             .replace("Line 400 ", "CHANGED 400 ")
+             .replace("Line 800 ", "CHANGED 800 "))
+    spans = edits_for(before, after)
+    assert len(spans) == 3
+    # And none of them reaches across the untouched text between.
+    assert all(end - start < 200 for start, end, _ in spans)
+
+
+def test_a_wholesale_replacement_is_one_splice():
+    """Two files that differ everywhere have no useful correspondence, and
+    looking for one is where the time went."""
+    before = big_chapter()
+    assert len(edits_for(before, "nothing like the original\n" * 900)) == 1

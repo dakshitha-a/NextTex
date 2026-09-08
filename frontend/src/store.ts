@@ -174,6 +174,9 @@ export type State = {
   collaborators: Collaborator[];
   /** Whether this browser is joined to the shared documents. */
   connection: "live" | "connecting" | "offline";
+  /** This install's peer id, so a version can tell whose it is. Empty until
+   *  a project has been shared, which is when it starts mattering. */
+  peerId: string;
   error: string | null;
 };
 
@@ -216,6 +219,7 @@ const state: State = {
   outline: [],
   collaborators: [],
   connection: "connecting",
+  peerId: "",
   words: null,
   error: null,
 };
