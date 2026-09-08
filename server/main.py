@@ -2228,9 +2228,19 @@ async def _project_pdf(project: Project, session: ProjectSession | None) -> Path
     result = await scheduler.build(force_full=True)
     if not paths.pdf.is_file():
         message = "compilation produced no PDF"
-        if result.diagnostics:
-            first = result.diagnostics[0]
-            message = f"{message}: {first.get('message', '')}"
+        # `result.diagnostics` does not exist.  `CompileResult` carries the
+        # parsed log, and the diagnostics hang off that -- so this branch,
+        # which exists to tell the writer *which error* stopped their
+        # download, raised AttributeError instead and the route answered 500.
+        # The one path in this app where somebody is told nothing at the
+        # exact moment they asked for their thesis as a PDF.
+        # `.errors` rather than `.diagnostics`: the writer is being told why
+        # their download failed, and a font substitution warning is not why.
+        # These are `Diagnostic` dataclasses, not dicts, which is the second
+        # half of what the old line got wrong.
+        errors = (result.log.errors if result.log else None) or []
+        if errors:
+            message = f"{message}: {errors[0].message}"
         raise HTTPException(422, message)
     return paths.pdf
 
