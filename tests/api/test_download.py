@@ -61,3 +61,81 @@ def test_nothing_is_left_behind_in_the_temporary_directory(client, opened):
     client.get(f"/api/projects/{opened['id']}/download")
     after = set(Path(tempfile.gettempdir()).glob("nexttex-download-*"))
     assert after <= before
+
+
+# --- the PDF that could not be built ---------------------------------------
+
+
+def test_a_project_that_will_not_compile_says_which_error_stopped_it(
+    client, opened, project_dir, monkeypatch
+):
+    """`/download?format=pdf` builds on demand, and when that build produces
+    no PDF the writer is meant to get a 422 naming the first error.
+
+    It answered 500 instead, with nothing said, because the branch read
+    `result.diagnostics` and `CompileResult` has no such field: the parsed
+    log hangs off `result.log`, and its entries are `Diagnostic` dataclasses
+    rather than dicts, so the `.get("message")` beside it was wrong too.  The
+    one moment in this app where somebody asks for their thesis as a PDF and
+    is told nothing at all.
+
+    The build is stubbed rather than run: what is under test is the branch
+    that reads the result, and making a real LaTeX run fail would tie this to
+    an engine being installed.
+    """
+    from nexttex.compile import CompileResult, Outcome
+    from nexttex.latexlog import Diagnostic, ParsedLog
+
+    log = ParsedLog(diagnostics=[
+        Diagnostic(severity="warning", message="Font shape undefined"),
+        Diagnostic(severity="error", message="Undefined control sequence \\citep"),
+    ])
+
+    async def failed_build(self, *args, **kwargs):
+        return CompileResult(
+            outcome=Outcome.ERRORS, log=log, pdf=None,
+            duration=0.1, scope="full", engine_pass="full",
+        )
+
+    from nexttex.compile import CompileScheduler
+
+    monkeypatch.setattr(CompileScheduler, "build", failed_build)
+    # No PDF on disk, so the route has to build and then face the result.
+    for stale in project_dir.rglob("*.pdf"):
+        stale.unlink()
+
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download", params={"format": "pdf"}
+    )
+    assert answer.status_code == 422
+    body = answer.json()["detail"]
+    assert "produced no PDF" in body
+    # The *error*, not the first diagnostic: a font warning is not why the
+    # download failed.
+    assert "Undefined control sequence" in body
+    assert "Font shape" not in body
+
+
+def test_a_failed_build_with_no_parsed_log_still_answers_422(
+    client, opened, project_dir, monkeypatch
+):
+    """`log` is `None` when a run dies before producing one, so the branch
+    has to survive that too rather than trading one AttributeError for
+    another."""
+    from nexttex.compile import CompileResult, CompileScheduler, Outcome
+
+    async def no_log(self, *args, **kwargs):
+        return CompileResult(
+            outcome=Outcome.NO_ENGINE, log=None, pdf=None,
+            duration=0.0, scope="full", engine_pass="full",
+        )
+
+    monkeypatch.setattr(CompileScheduler, "build", no_log)
+    for stale in project_dir.rglob("*.pdf"):
+        stale.unlink()
+
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download", params={"format": "pdf"}
+    )
+    assert answer.status_code == 422
+    assert "produced no PDF" in answer.json()["detail"]
