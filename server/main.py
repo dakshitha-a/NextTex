@@ -2159,10 +2159,23 @@ async def _run_update(report) -> None:
     loop = asyncio.get_running_loop()
 
     def pump() -> int:
-        script = INSTALL_ROOT / "scripts" / "update.sh"
+        # Windows has its own script, and used to have no route to it at
+        # all: this hardcoded bash, so the update button could not work
+        # there whatever it said.  The scripts differ because the service
+        # managers do; the button should not care which one it is.
+        if os.name == "nt":
+            script = INSTALL_ROOT / "scripts" / "update.ps1"
+            argv = [
+                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(script), "-NoRestart",
+            ]
+        else:
+            script = INSTALL_ROOT / "scripts" / "update.sh"
+            argv = ["bash", str(script), "--no-restart"]
+            if instance_name():
+                argv.append(f"--instance={instance_name()}")
         process = subprocess.Popen(
-            ["bash", str(script), "--no-restart"]
-            + ([f"--instance={instance_name()}"] if instance_name() else []),
+            argv,
             cwd=INSTALL_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1,
         )

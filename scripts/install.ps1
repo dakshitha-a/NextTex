@@ -91,8 +91,17 @@ if (-not (Test-Path '.venv\Scripts\python.exe')) {
   if ($LASTEXITCODE -ne 0) { Die 'Could not create the virtual environment.' }
 }
 $Venv = Join-Path $Root '.venv\Scripts\python.exe'
-& $Venv -m pip install --quiet --upgrade pip
-& $Venv -m pip install --quiet -r requirements.txt
+# uv when it is here, pip otherwise.  uv resolves in a fraction of the time
+# and is the same tool the Unix installer prefers; it is not fetched on
+# Windows, because `py` is reliable here in a way `python3 -m venv` is not
+# on Debian, which is the problem uv was brought in to solve.
+if (Have 'uv') {
+  $env:VIRTUAL_ENV = Join-Path $Root '.venv'
+  & uv pip install --quiet -r requirements.txt
+} else {
+  & $Venv -m pip install --quiet --upgrade pip
+  & $Venv -m pip install --quiet -r requirements.txt
+}
 Note 'dependencies installed into .venv'
 
 # ---------------------------------------------------------------------------
@@ -101,6 +110,8 @@ Say 'LaTeX'
 # MiKTeX and TeX Live both install somewhere off PATH often enough to be
 # worth looking for directly, the same way the server does at startup.
 $texHints = @(
+  (Join-Path $env:APPDATA 'TinyTeX\bin\windows'),
+  (Join-Path $env:APPDATA 'TinyTeX\bin\win32'),
   (Join-Path $env:LOCALAPPDATA 'Programs\MiKTeX\miktex\bin\x64'),
   'C:\Program Files\MiKTeX\miktex\bin\x64',
   'C:\texlive\2026\bin\windows',
@@ -112,15 +123,40 @@ foreach ($hint in $texHints) {
 
 if (-not (Have 'pdflatex')) {
   Note 'no TeX installation found'
-  if (Have 'winget') {
-    if (Confirm-Step 'Install MiKTeX now (about 200 MB)?') {
+  # TinyTeX, as on Linux and macOS.  One TeX story on all three platforms
+  # means one set of packages, one tlmgr, and one code path to reason about
+  # -- and it is what nexttex/config.py looks for first.
+  if (Confirm-Step 'Install TinyTeX now (about 200 MB)?') {
+    try {
+      Invoke-Expression (Invoke-WebRequest -UseBasicParsing `
+        'https://yihui.org/tinytex/install-bin-windows.bat').Content
+    } catch {
+      Note "TinyTeX did not install: $_"
+    }
+    foreach ($hint in $texHints) {
+      if (Test-Path $hint) { $env:PATH = "$hint;$env:PATH" }
+    }
+  }
+  if (-not (Have 'pdflatex') -and (Have 'winget')) {
+    if (Confirm-Step 'Install MiKTeX instead?') {
       winget install --id MiKTeX.MiKTeX --silent --accept-package-agreements --accept-source-agreements
       foreach ($hint in $texHints) {
         if (Test-Path $hint) { $env:PATH = "$hint;$env:PATH" }
       }
     }
-  } else {
-    Note 'winget is not available; install MiKTeX from https://miktex.org/download'
+  }
+}
+
+# The same five tools the Unix installer adds, for the same reason: a
+# project that uses biber or chktex must not fail on its first build.
+if (Have 'tlmgr') {
+  $missing = @()
+  foreach ($tool in @('latexmk', 'biber', 'synctex', 'chktex', 'texcount')) {
+    if (-not (Have $tool)) { $missing += $tool }
+  }
+  if ($missing.Count) {
+    Note "installing $($missing -join ', ')"
+    tlmgr install @missing 2>$null | Out-Null
   }
 }
 
@@ -129,7 +165,7 @@ foreach ($tool in @('pdflatex', 'latexmk', 'synctex')) {
   else { Note "MISSING: $tool" }
 }
 if (Have 'pdflatex') {
-  Note 'MiKTeX installs missing packages on first use, so the first build may pause'
+  Note 'a missing package is fetched on first use, so the first build may pause'
 }
 
 # ---------------------------------------------------------------------------
@@ -140,38 +176,54 @@ if (Have 'claude') {
   Note 'sign in from the browser once NextTex is running'
 } else {
   Note 'the Claude CLI is not installed'
-  Note 'install it from https://claude.ai/download, or choose OpenAI (an API key)'
-  Note 'or no agent at all on the first screen -- everything else works either way'
+  # Installed rather than described.  The agent is the reason most people
+  # are here, and it was the one thing this script told Windows users to go
+  # and do themselves.
+  if (Confirm-Step 'Install the Claude CLI now?') {
+    try {
+      Invoke-Expression (Invoke-WebRequest -UseBasicParsing `
+        'https://claude.ai/install.ps1').Content
+    } catch {
+      Note "the installer did not finish: $_"
+      Note 'install it from https://claude.ai/download, or choose OpenAI (an API key)'
+    }
+  } else {
+    Note 'install it from https://claude.ai/download, or choose OpenAI (an API key)'
+    Note 'or no agent at all on the first screen -- everything else works either way'
+  }
 }
 
 # ---------------------------------------------------------------------------
 Say 'The interface'
 
-if (Have 'node') {
-  $major = ((node -v) -replace '^v', '') -split '\.' | Select-Object -First 1
-  if ([int]$major -ge 20) {
-    Note (node -v)
+# Downloaded, not built.  Every machine used to need Node 20+ to produce an
+# artefact that is identical for everyone; CI builds it once and this fetches
+# the one belonging to the commit this checkout is on.  Building locally is
+# still the fallback for a machine that cannot reach GitHub.
+$fetched = $false
+try {
+  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'fetch-interface.ps1')
+  $fetched = ($LASTEXITCODE -eq 0)
+} catch { $fetched = $false }
+
+if (-not $fetched) {
+  if ((Have 'node') -and ([int](((node -v) -replace '^v', '') -split '\.')[0] -ge 20)) {
+    Note "building it here instead ($(node -v))"
     Push-Location frontend
-    & npm install --no-audit --no-fund --silent
+    & npm ci --no-audit --no-fund --silent
     & npm run build 2>&1 | Out-Null
     Pop-Location
     Note 'built into frontend/dist'
   } elseif (Test-Path 'frontend\dist') {
-    Note "node $(node -v) is too old (20+ needed); keeping the interface already built"
+    Note 'keeping the interface already built'
   } else {
-    Die 'NextTex needs Node 20 or newer to build its interface. https://nodejs.org'
-  }
-} elseif (Test-Path 'frontend\dist') {
-  Note 'no Node; keeping the interface already built'
-} else {
-  Die @'
-NextTex needs Node 20 or newer to build its interface.
+    Die @'
+Could not download the interface, and there is no Node here to build one.
 
-  Install it from https://nodejs.org or with:
-    winget install OpenJS.NodeJS.LTS
-
-  Then run this script again.
+  Check your connection, or install Node 20+ from https://nodejs.org
+  or with:  winget install OpenJS.NodeJS.LTS
 '@
+  }
 }
 
 # ---------------------------------------------------------------------------

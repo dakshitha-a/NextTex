@@ -58,6 +58,12 @@ TEX_HINTS = [
     Path("/usr/local/texlive/2025/bin/universal-darwin"),
     Path.home() / "bin",
     Path("/usr/local/texlive/bin/x86_64-linux"),
+    # Windows, TinyTeX -- what the installer puts there now, so it has to
+    # come first.  Without this entry the installer finds pdflatex (it
+    # prepends to its own PATH) and the logon task does not, which is a
+    # working install that cannot typeset.
+    Path.home() / "AppData" / "Roaming" / "TinyTeX" / "bin" / "windows",
+    Path.home() / "AppData" / "Roaming" / "TinyTeX" / "bin" / "win32",
     # Windows: MiKTeX per-user and machine-wide, then TeX Live
     Path.home() / "AppData" / "Local" / "Programs" / "MiKTeX" / "miktex" / "bin" / "x64",
     Path("C:/Program Files/MiKTeX/miktex/bin/x64"),
