@@ -342,9 +342,9 @@ and it is a credential — send it the way you would send a password.
 
 **Nobody owns a shared project**, which has one honest consequence worth
 knowing before you rely on it: anyone in it can invite somebody, anyone can
-disconnect anybody, and disconnecting somebody does not take back the copy
-they already have. It stops the two of you syncing. It cannot unsend a
-paper. The button says so, next to itself.
+remove anybody, and removing somebody does not take back the copy they
+already have. It stops the two of you syncing. It cannot unsend a paper. The
+button says so, next to itself.
 
 Two more things that are true and might not be obvious. Each of you keeps
 your own `.git`, so committing and pushing are yours alone — pull between
