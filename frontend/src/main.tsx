@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import Boundary from "./Boundary";
 import "./styles.css";
 import { applyAppearance, storedAppearance } from "./appearance";
 
@@ -10,6 +11,8 @@ applyAppearance(storedAppearance());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <Boundary>
+      <App />
+    </Boundary>
   </StrictMode>,
 );
