@@ -29,7 +29,7 @@ from nexttex.history import History
 from nexttex.symbols import SymbolCache
 from nexttex.trash import Trash
 from server.transcript import Transcript
-from nexttex.project import Project
+from nexttex.project import IGNORED_DIRS, Project, is_ours
 
 log = logging.getLogger("nexttex.session")
 
@@ -195,7 +195,10 @@ class ProjectSession:
         # One build at a time across the project, the document on screen
         # first -- see BuildQueue.
         self.queue = BuildQueue()
-        self.deps = DependencyGraph(project.root)
+        # Skipping what the tree skips: without this the walk descends into
+        # build/, .git/ and node_modules, which is both slow and wrong --
+        # a .tex under build/ is output, not a document.
+        self.deps = DependencyGraph(project.root, skip=self._not_the_writers)
         self.documents: dict[str, DocumentState] = {}
         main = self._register(project.config.main)
         #: Which document the writer is looking at.  It goes first in the
@@ -243,6 +246,16 @@ class ProjectSession:
         self.recently_written: dict[str, int] = {}
         self._agent_pump: asyncio.Task | None = None
         self._focus: Path | None = None
+
+    def _not_the_writers(self, path: Path) -> bool:
+        """Whether a file is output or machinery rather than the writing."""
+        try:
+            parts = path.relative_to(self.project.root.resolve()).parts
+        except ValueError:
+            return True
+        if self.project.build_dir.name in parts:
+            return True
+        return any(part in IGNORED_DIRS or is_ours(part) for part in parts)
 
     # -- documents ---------------------------------------------------------
     def _register(self, relative: str) -> DocumentState:

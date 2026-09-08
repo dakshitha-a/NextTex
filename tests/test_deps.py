@@ -162,3 +162,21 @@ class TestCacheAndDiscovery:
               "Supplementary.\n\\end{document}\n")
         graph = DependencyGraph(tmp_path)
         assert graph.standalone_candidates(["main.tex"]) == ["esi.tex"]
+
+
+def test_our_own_stand_in_is_never_offered_as_a_document(tmp_path):
+    """Caught against a real dissertation.
+
+    NextTex writes `.nexttex-preview-<name>.tex` beside the main file when
+    it builds part of a document.  It is a copy of main.tex, so it has a
+    documentclass and a begin{document} and nothing reads it -- which is
+    exactly the shape of a document worth previewing, and it was being
+    offered as one.
+    """
+    write(tmp_path, "main.tex", "\\documentclass{report}\n\\begin{document}\nx\n\\end{document}\n")
+    write(tmp_path, ".nexttex-preview-main.tex",
+          "\\documentclass{report}\n\\includeonly{a}\n\\begin{document}\nx\n\\end{document}\n")
+    write(tmp_path, ".hidden/scratch.tex",
+          "\\documentclass{article}\n\\begin{document}\ny\n\\end{document}\n")
+    graph = DependencyGraph(tmp_path)
+    assert graph.standalone_candidates(["main.tex"]) == []
