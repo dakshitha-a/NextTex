@@ -20,6 +20,10 @@ _STATE = Path(tempfile.mkdtemp(prefix="nexttex-tests-"))
 os.environ["XDG_DATA_HOME"] = str(_STATE / "data")
 os.environ["XDG_CONFIG_HOME"] = str(_STATE / "config")
 os.environ["NEXTTEX_SCRIPTED_AGENT"] = "reply"
+# No test may open a real endpoint. The default transport is iroh, which
+# would contact n0's discovery and relay hosts -- a network dependency in a
+# suite that otherwise has none, and traffic from a machine running tests.
+os.environ["NEXTTEX_COLLAB_TRANSPORT"] = "loopback"
 
 from starlette.testclient import TestClient          # noqa: E402
 

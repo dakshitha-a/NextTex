@@ -207,6 +207,86 @@ button { font: inherit; color: inherit; }
 /* A control that is not the agent: quiet until you approach it, then
    --hint.  This is most of the app's buttons; --pen is reserved for
    answering Claude or addressing it. */
+/* --------------------------------------------------------------------------
+   Somebody else's cursor.
+
+   `y-codemirror.next` ships a base theme for these and it is the wrong
+   shape for this app: a 1.4em caret with a permanent dot on top, and a name
+   that appears only on hover -- so a collaborator moving through a chapter
+   is a bare coloured line and you have to go and point at it to find out
+   whose.
+
+   The name shows itself instead, for two seconds, every time the caret
+   moves.  The widget is rebuilt on each awareness change, which replays the
+   animation without anything having to track it.  Then it goes away, because
+   four names pinned over a paragraph is worse than none.
+
+   Colour comes from the peer, inline, so nothing here can hard-code one.
+   ----------------------------------------------------------------------- */
+.cm-ySelection {
+  /* Their selection, behind the text rather than over it. */
+  mix-blend-mode: normal;
+  opacity: 0.28;
+  border-radius: 1px;
+}
+
+.cm-ySelectionCaret {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid;
+  border-right: 0;
+  box-sizing: border-box;
+  /* Full line height, so it reads as a caret rather than as a mark on the
+     text, and cannot be mistaken for your own. */
+  height: 1.25em;
+  vertical-align: text-bottom;
+}
+
+.cm-ySelectionCaretDot {
+  /* The default's floating dot sits above the line and collides with the
+     line above it in a dense chapter.  The label does this job. */
+  display: none;
+}
+
+.cm-ySelectionInfo {
+  position: absolute;
+  top: -1.35em;
+  left: -2px;
+  font-size: 10px;
+  line-height: 1.4;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 0 4px;
+  border-radius: 2px 2px 2px 0;
+  color: var(--surround);
+  background-color: inherit;
+  user-select: none;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  animation: nx-name 2.4s var(--ease) forwards;
+}
+
+.cm-ySelectionCaret:hover > .cm-ySelectionInfo {
+  /* Pointing at a caret asks whose it is, whenever you ask. */
+  animation: none;
+  opacity: 1;
+}
+
+@keyframes nx-name {
+  0%, 62% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No fade, and no permanent labels either: hover still answers. */
+  .cm-ySelectionInfo { animation: none; opacity: 0; }
+}
+
 /* The ground a sheet sits on.  60% of --surround was far too heavy: this
    app's surround is already the darkest thing in the palette, so six tenths
    of it over the project list rendered the page behind as very nearly black

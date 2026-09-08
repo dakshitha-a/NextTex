@@ -28,6 +28,7 @@ from nexttex.atomic import read_text, write_atomically
 from nexttex.history import History
 from nexttex.symbols import SymbolCache
 from nexttex.trash import Trash
+from server.collab.peers import PeerNetwork
 from server.collab.store import CollabStore
 from server.collab.sync import SyncHub
 from server.transcript import Transcript
@@ -155,14 +156,28 @@ class Broadcaster:
             pass
 
 
-def spawn(coro, what: str) -> asyncio.Task:
+def spawn(coro, what: str) -> asyncio.Task | None:
     """Start a task nobody awaits, and make sure it cannot fail in silence.
 
     Without the callback, an exception in one of these is delivered when
     the task is garbage collected -- as a warning, on a thread nobody is
     reading, possibly minutes later and possibly never.  Every one of these
     tasks is doing something the interface depends on.
+
+    Returns None when there is no loop to start it on.  That became
+    reachable when writes stopped coming only from request handlers: a
+    shared document is flushed on shutdown and from tests, on threads with
+    no loop running, and `create_task` raising there would turn "the file
+    was written" into "the file was written and then an exception".  The
+    work skipped is always a rebuild or a broadcast -- worth having, never
+    worth losing the write for.
     """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        coro.close()
+        log.debug("%s was skipped: no event loop is running", what)
+        return None
     task = asyncio.create_task(coro)
 
     def done(finished: asyncio.Task) -> None:
@@ -257,6 +272,10 @@ class ProjectSession:
         self.collab = CollabStore(project, self)
         self.collab.adopt()
         self.sync = SyncHub(self.collab)
+        #: The other installs this project is shared with, if any. Built
+        #: here but not started: a project that has never been shared opens
+        #: no sockets and contacts nothing.
+        self.peers = PeerNetwork(self.collab, self.sync, self)
 
     def _not_the_writers(self, path: Path) -> bool:
         """Whether a file is output or machinery rather than the writing."""
@@ -667,6 +686,7 @@ class ProjectSession:
         self.record_version(
             path, text, by="claude", why=self.agent.current_why(), previous=previous,
         )
+        self._into_the_document(path, text)
         self.note_edit(path, text, previous)
         self.schedule_compile()
         spawn(
@@ -688,8 +708,34 @@ class ProjectSession:
         self.record_version(
             path, after, by="claude", why=self.agent.current_why(), previous=before,
         )
+        self._into_the_document(path, after)
         self.note_edit(path, after, before)
         self.schedule_compile()
+
+    def _into_the_document(self, path: Path, text: str | None) -> None:
+        """Fold an agent's write into the shared document.
+
+        The agent's tools write to disk, and `mark_written` then tells the
+        watcher to ignore it -- correctly, because the watcher's job is to
+        catch writes NextTex did not make.  But that also means the shared
+        document would never hear about an agent edit, and every browser
+        with the file open would sit on text the agent had already replaced.
+
+        The version is recorded by the caller, before this, so the edit
+        keeps its `by="claude"` and the transcript's undo chip still matches
+        a version.  Ingesting sets the projection's echo guard, so this does
+        not come back around and write the file a second time.
+        """
+        try:
+            relative = self.project.relative(path)
+        except (ValueError, OSError):
+            return
+        try:
+            self.collab.ingest(relative, text, by="claude")
+        except Exception:
+            # A shared document that cannot take an edit must not stop the
+            # agent finishing its turn; the file on disk is already right.
+            pass
 
     def reveal_in_editor(self, path: str, line: int) -> None:
         """Ask the open editor to show a line."""
@@ -751,6 +797,7 @@ class ProjectSession:
     async def close(self) -> None:
         # First, so anything still only in a document reaches the disk
         # before the project stops being open.
+        await self.peers.close()
         self.sync.close()
         self.collab.close()
         if self._agent_pump is not None and not self._agent_pump.done():

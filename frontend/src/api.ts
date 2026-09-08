@@ -195,6 +195,25 @@ export type BrowserSession = {
   current: boolean;
 };
 
+/** One install this project is shared with. */
+export type Member = {
+  peer: string;
+  name: string;
+  connected: boolean;
+  removed: boolean;
+};
+
+export type CollabState = {
+  shared: boolean;
+  shareId: string;
+  me: string;
+  address: string;
+  /** False where iroh publishes no wheel -- an Intel Mac, today. */
+  available: boolean;
+  members: Member[];
+  error: string;
+};
+
 export type AuthState = {
   hasPassword: boolean;
   displayName: string;
@@ -257,11 +276,11 @@ const api = {
     request<{ path: string; text: string; mtime: number; tag: string }>(
       `/projects/${id}/file?path=${encodeURIComponent(path)}`,
     ),
-  /** Save one file.
+  /** Save one file, whole.
    *
-   *  `base` is the tag this tab was given when it last agreed with the file.
-   *  The server refuses rather than overwrite when the file has moved on
-   *  since, and hands back what is on disk instead. */
+   *  Not how the editor writes any more -- a keystroke goes into the shared
+   *  document and the server projects that onto disk.  This is for
+   *  everything else: an upload, a template, a script. */
   writeFile: (
     id: string,
     path: string,
@@ -270,13 +289,35 @@ const api = {
     base = "",
     create = false,
   ) =>
-    request<{ ok: boolean; tag: string; conflict?: true; text?: string }>(
+    request<{ ok: boolean; tag: string }>(
       `/projects/${id}/file`,
       {
         ...json({ path, text, compile, base, create, origin: clientId }),
         method: "PUT",
       },
     ),
+  /** Whether this project is shared with other installs, and with whom. */
+  collab: (id: string) => request<CollabState>(`/projects/${id}/collab`),
+  startSharing: (id: string, name = "") =>
+    request<CollabState>(`/projects/${id}/collab/share`, json({ name })),
+  makeInvite: (id: string) =>
+    request<{ invite: string }>(`/projects/${id}/collab/invite`, json({})),
+  joinShare: (invite: string, path: string) =>
+    request<{ ok: true; project: { id: string; path: string } }>(
+      "/collab/join", json({ invite, path }),
+    ),
+  removeMember: (id: string, peer: string) =>
+    request<CollabState>(`/projects/${id}/collab/member/${peer}`, {
+      method: "DELETE",
+    }),
+
+  /** Write the shared documents out now rather than on their debounce.
+   *
+   *  What replaced the closing-tab beacon.  A tab closing has nothing left
+   *  to rescue -- the server has had every keystroke as it was made -- but
+   *  a manual build still wants the file on disk to be current. */
+  flushDocuments: (id: string) =>
+    request<{ ok: true }>(`/projects/${id}/flush`, { method: "POST" }),
   newFile: (id: string, path: string, directory = false) =>
     request<any>(`/projects/${id}/file/new`, json({ path, directory })),
   renameFile: (id: string, path: string, to: string) =>

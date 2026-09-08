@@ -120,11 +120,6 @@ export default function FileTree({
     return counts;
   }, [diagnostics]);
 
-  const dirty = useMemo(
-    () => new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path)),
-    [tabs],
-  );
-
   /** Show a file that has just been written.
    *
    *  A file that lands inside a collapsed folder has, from where the
@@ -498,8 +493,6 @@ export default function FileTree({
         <span className="flex w-4 shrink-0 items-center justify-end">
           {errors > 0 ? (
             <span className="t-micro text-error group-hover:hidden">{errors}</span>
-          ) : dirty.has(node.path) ? (
-            <span className="h-[5px] w-[5px] rounded-full bg-ink-2 group-hover:hidden" />
           ) : null}
           <button
             ref={menu === node.path ? menuButton : undefined}

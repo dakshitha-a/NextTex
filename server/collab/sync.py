@@ -7,13 +7,20 @@ server's copy, and the resulting change is passed on to everybody else who has
 that document open.
 
 **Awareness messages** -- who is where, and what their selection is -- are
-*relayed unread*.  The server keeps the last frame each connection sent so a
-tab arriving late sees the cursors already in the room, and otherwise passes
-the bytes along without looking inside them.  That is deliberate: awareness is
-a JS-side encoding, and a server that parsed it would be a second
-implementation of somebody else's wire format, to be kept in step forever, in
-exchange for nothing.  What the agent needs to know about where the writer is
-looking already arrives by another route.
+relayed, *and* kept, in an `Awareness` of the server's own.
+
+Relaying them unread was the first design and it had a ghost in it.  When a
+browser goes away, the people still here have to be told; y-protocols only
+drops a silent peer after thirty seconds, and `outdatedTimeout` is a module
+constant, so it cannot be shortened.  A collaborator who shut their laptop
+therefore sat in the margin, caret and all, for half a minute -- which is
+worse than not showing them, because a caret means somebody is there.
+
+A server that has applied the updates knows which client ids belong to which
+socket, so when the socket closes it can say so at once.  The objection to
+parsing -- that it would mean a second implementation of somebody else's wire
+format -- does not apply, because `pycrdt` already implements it and this
+uses that.
 
 `pycrdt` ships a `Provider` that would do most of the sync half.  It is not
 used because it sends every document change back down the channel it came
@@ -34,10 +41,13 @@ import asyncio
 from typing import Any
 
 from pycrdt import (
+    Awareness,
     YMessageType,
+    create_awareness_message,
     create_sync_message,
     create_update_message,
     handle_sync_message,
+    read_message,
 )
 
 # A queue this deep is already a connection that is not keeping up.  Same
@@ -50,13 +60,16 @@ BACKLOG = 512
 class Connection:
     """One browser, on one document."""
 
-    __slots__ = ("id", "doc_id", "queue", "alive")
+    __slots__ = ("id", "doc_id", "queue", "alive", "clients")
 
     def __init__(self, connection_id: str, doc_id: str) -> None:
         self.id = connection_id
         self.doc_id = doc_id
         self.queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=BACKLOG)
         self.alive = True
+        #: The Yjs client ids this socket has spoken for, so its cursors can
+        #: be taken down the moment it goes away.
+        self.clients: set[int] = set()
 
     def send(self, message: bytes) -> None:
         """Hand a message to this connection, or close it if it is not
@@ -83,17 +96,17 @@ class SyncHub:
     def __init__(self, store) -> None:
         self.store = store
         self.rooms: dict[str, list[Connection]] = {}
-        # The last awareness frame from each connection, so a tab that joins
-        # late is told about the cursors already there rather than seeing an
-        # empty room until somebody moves.
-        self.awareness: dict[str, dict[str, bytes]] = {}
+        # One per document. Holds every cursor in the room, so a tab that
+        # joins late is told about them at once, and so a tab that leaves can
+        # have its own taken down at once.
+        self.awareness: dict[str, Awareness] = {}
         self._next = 0
         # Set while a message from one connection is being applied, so the
         # document's observer knows not to send the change back to them.
         # Safe as a plain attribute because applying an update fires
         # observers synchronously, on this one event loop.
         self.applying: Connection | None = None
-        store.on_update = self._document_changed
+        store.listeners.append(self._document_changed)
 
     # --- fan-out ----------------------------------------------------------
 
@@ -116,6 +129,19 @@ class SyncHub:
         self.rooms.setdefault(doc_id, []).append(connection)
         return connection
 
+    def _awareness_for(self, doc_id: str) -> Awareness | None:
+        found = self.awareness.get(doc_id)
+        if found is not None:
+            return found
+        doc = self.store.document(doc_id)
+        if doc is None:
+            return None
+        self.awareness[doc_id] = found = Awareness(doc)
+        # The server is not a participant. Its own entry would be a cursor
+        # in the margin belonging to nobody.
+        found.set_local_state(None)
+        return found
+
     def _leave(self, connection: Connection) -> None:
         room = self.rooms.get(connection.doc_id)
         if room and connection in room:
@@ -123,11 +149,24 @@ class SyncHub:
         if not room:
             self.rooms.pop(connection.doc_id, None)
 
-        # Its cursor goes with it. A caret left behind by a closed tab is
-        # worse than no caret: it says somebody is there.
-        frames = self.awareness.get(connection.doc_id)
-        if frames:
-            frames.pop(connection.id, None)
+        # Its cursor goes with it, and everyone else is told so now rather
+        # than in thirty seconds' time. A caret left behind by a closed tab
+        # is worse than no caret: it says somebody is there.
+        awareness = self.awareness.get(connection.doc_id)
+        if awareness is not None and connection.clients:
+            gone = sorted(connection.clients)
+            try:
+                awareness.remove_awareness_states(gone, "left")
+                notice = create_awareness_message(
+                    awareness.encode_awareness_update(gone)
+                )
+            except Exception:
+                notice = None
+            if notice:
+                for other in self.rooms.get(connection.doc_id, ()):
+                    other.send(notice)
+        if not self.rooms.get(connection.doc_id):
+            self.awareness.pop(connection.doc_id, None)
         connection.close()
 
     # --- one connection ---------------------------------------------------
@@ -146,8 +185,16 @@ class SyncHub:
             # The server opens the conversation: here is what I have, tell
             # me what you have that I do not.
             connection.send(create_sync_message(doc))
-            for frame in list(self.awareness.get(doc_id, {}).values()):
-                connection.send(frame)
+            # Every cursor already in the room, in one message, so a tab that
+            # arrives late does not sit in an apparently empty document until
+            # somebody happens to move.
+            awareness = self._awareness_for(doc_id)
+            if awareness is not None:
+                known = [cid for cid, state in awareness.states.items() if state]
+                if known:
+                    connection.send(create_awareness_message(
+                        awareness.encode_awareness_update(known)
+                    ))
 
             while True:
                 message = await websocket.receive_bytes()
@@ -162,7 +209,18 @@ class SyncHub:
                     if reply is not None:
                         connection.send(reply)
                 elif message[0] == YMessageType.AWARENESS:
-                    self.awareness.setdefault(doc_id, {})[connection.id] = message
+                    awareness = self._awareness_for(doc_id)
+                    if awareness is not None:
+                        update = read_message(message[1:])
+                        before = set(awareness.states)
+                        awareness.apply_awareness_update(update, connection)
+                        # Whatever ids this socket just spoke for are its to
+                        # take away when it goes.
+                        # Whatever ids appeared because of this socket are
+                        # its to take away when it goes. A later frame from
+                        # the same socket is a cursor moving, which adds no
+                        # id and needs no bookkeeping.
+                        connection.clients |= set(awareness.states) - before
                     for other in self.rooms.get(doc_id, ()):
                         if other is not connection:
                             other.send(message)
@@ -191,4 +249,5 @@ class SyncHub:
                 connection.close()
         self.rooms.clear()
         self.awareness.clear()
-        self.store.on_update = None
+        if self._document_changed in self.store.listeners:
+            self.store.listeners.remove(self._document_changed)

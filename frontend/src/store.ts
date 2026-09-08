@@ -50,7 +50,14 @@ export type ChatItem =
     }
   | { kind: "notice"; id: string; text: string; tone: "error" | "plain" };
 
-export type Tab = { path: string; dirty: boolean };
+/** An open file.
+ *
+ *  There is no `dirty` here any more.  It meant "typed but not yet written",
+ *  which was a real state while a save was a debounced HTTP request; a
+ *  keystroke now goes into the shared document as it is made, so the flag
+ *  was false at every moment anyone could have looked at it, and the dot it
+ *  drew could never appear. */
+export type Tab = { path: string };
 
 /** What is true of one previewed document while it builds. */
 export type DocBuild = {
@@ -62,6 +69,18 @@ export type DocBuild = {
 
 const NO_BUILD: DocBuild = {
   compiling: false, stale: false, result: null, pdfStamp: 0,
+};
+
+/** One other person in this project.  Mirrors `Presence` in collab.ts,
+ *  declared here so the store does not drag Yjs into the entry bundle just
+ *  to name a type. */
+export type Collaborator = {
+  clientId: number;
+  name: string;
+  colour: string;
+  path: string;
+  line: number;
+  active: boolean;
 };
 
 export type State = {
@@ -151,7 +170,10 @@ export type State = {
   // Set when a save was refused because the file changed underneath this
   // tab.  Nothing is written and nothing is thrown away until the writer
   // says which copy they want.
-  conflict: { path: string; theirs: string; tag: string } | null;
+  /** Who else is in this project, and where they are looking. */
+  collaborators: Collaborator[];
+  /** Whether this browser is joined to the shared documents. */
+  connection: "live" | "connecting" | "offline";
   error: string | null;
 };
 
@@ -192,7 +214,8 @@ const state: State = {
   library: null,
   cursor: { line: 1, column: 1 },
   outline: [],
-  conflict: null,
+  collaborators: [],
+  connection: "connecting",
   words: null,
   error: null,
 };

@@ -196,9 +196,11 @@ class CollabStore:
         self._grown: set[str] = set()
         self._timer: asyncio.TimerHandle | None = None
         self._closed = False
-        # Set by the sync route so a change reaching one browser reaches the
-        # others without waiting for the file to be written.
-        self.on_update: Callable[[str, bytes], None] | None = None
+        # Told whenever a document moves, with the update that moved it.
+        # A list rather than one slot: the browsers watching this project and
+        # the peers syncing with it both need to hear, and neither should
+        # have to know the other exists.
+        self.listeners: list[Callable[[str, bytes], None]] = []
 
         self._load_manifest()
 
@@ -249,8 +251,18 @@ class CollabStore:
 
     def _manifest_changed(self, event) -> None:
         self._persist("manifest", event.update)
-        if self.on_update:
-            self.on_update("manifest", event.update)
+        self._moved("manifest", event.update)
+
+    def _moved(self, doc_id: str, update: bytes) -> None:
+        """Tell everyone watching. Runs inside the transaction that made the
+        change, so a listener must only enqueue -- never read the document,
+        and never block."""
+        for listener in list(self.listeners):
+            try:
+                listener(doc_id, update)
+            except Exception:
+                # One deaf listener must not stop the others hearing.
+                pass
 
     def document(self, doc_id: str):
         """The document a socket asked for, by the name it uses.
@@ -303,8 +315,7 @@ class CollabStore:
             if self._closed:
                 return
             self._persist(file_id, event.update)
-            if self.on_update:
-                self.on_update(f"text/{file_id}", event.update)
+            self._moved(f"text/{file_id}", event.update)
             # A change that came from disk is already on disk.
             if file_id in self._projecting:
                 return
@@ -547,6 +558,7 @@ class CollabStore:
         if self._timer is not None:
             self._timer.cancel()
             self._timer = None
+        self.listeners.clear()
         for subscription in self._subscriptions:
             try:
                 subscription.drop()

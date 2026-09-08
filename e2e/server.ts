@@ -74,6 +74,11 @@ export async function startServer(
     // and answers differently every time.
     NEXTTEX_SCRIPTED_AGENT: "reply",
     NEXTTEX_FAKE_CLAUDE_AUTH: "1",
+    // In-process peers rather than real ones. A browser test that shared a
+    // project would otherwise open an iroh endpoint and talk to n0's
+    // discovery and relay hosts, which is a network dependency this suite
+    // does not otherwise have. Override it to exercise the real transport.
+    NEXTTEX_COLLAB_TRANSPORT: "loopback",
     ...overrides,
   };
   for (const [key, value] of Object.entries(overrides)) {

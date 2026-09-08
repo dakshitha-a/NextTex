@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
+import Collaborators from "./Collaborators";
 
 function middleTruncate(stem: string, limit: number): string {
   if (stem.length <= limit) return stem;
@@ -92,7 +93,6 @@ export default function Tabs({
             key={tab.path}
             data-tab="1"
             data-path={tab.path}
-            data-dirty={tab.dirty ? "1" : "0"}
             className={[
               "relative flex min-w-[96px] max-w-[200px] shrink-0 items-center gap-2 border-r border-line pr-[10px]",
               active
@@ -140,14 +140,7 @@ export default function Tabs({
                 onClose(tab.path);
               }}
             >
-              {tab.dirty ? (
-                <>
-                  <span className="block h-[5px] w-[5px] rounded-full border border-ink-2 group-hover:hidden" />
-                  <span className="hidden group-hover:block">×</span>
-                </>
-              ) : (
-                "×"
-              )}
+              ×
             </button>
           </div>
         );
@@ -175,6 +168,11 @@ export default function Tabs({
           {hidden}
         </button>
       ) : null}
+      {/* Who else is here, at the strip's end. Draws nothing when nobody
+          is, so a project with one writer looks exactly as it did. */}
+      <div className="flex shrink-0 items-center border-b border-line bg-surface-2">
+        <Collaborators />
+      </div>
     </div>
   );
 }
