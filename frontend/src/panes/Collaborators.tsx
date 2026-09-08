@@ -73,8 +73,13 @@ export default function Collaborators() {
           ref={card}
           role="dialog"
           aria-label="Who is here"
-          className="nx-arrive absolute top-[28px] right-0 z-40 w-[220px] rounded-[5px] border border-line bg-surface py-[4px] shadow-float"
+          className="nx-arrive absolute top-[28px] right-0 z-40 w-[230px] rounded-[5px] border border-line bg-surface py-[4px] shadow-float"
         >
+          {/* Counting you as well. A list that omits the reader reads as
+              one person when there are two. */}
+          <div className="t-micro border-b border-line px-[10px] pb-[4px] text-ink-3">
+            {people.length + 1} people in this project
+          </div>
           {people.map((person) => (
             <div
               key={person.clientId}
@@ -93,9 +98,17 @@ export default function Collaborators() {
               </span>
               <span className="t-micro shrink-0 truncate text-ink-3" title={person.path}>
                 {person.path ? shortPath(person.path) : "not in a file"}
+                {person.active ? "" : " · idle"}
               </span>
             </div>
           ))}
+          <div className="t-micro flex items-baseline gap-[7px] px-[10px] py-[3px] text-ink-3">
+            <span
+              aria-hidden="true"
+              className="h-[7px] w-[7px] shrink-0 translate-y-[-1px] rounded-full border border-ink-3"
+            />
+            <span className="flex-1">you</span>
+          </div>
         </div>
       ) : null}
     </div>
@@ -114,7 +127,11 @@ function Initial({ person }: { person: Collaborator }) {
         // than only who left a tab open.
         background: person.active ? person.colour : "transparent",
         border: `1px solid ${person.colour}`,
-        color: person.active ? "var(--surround)" : person.colour,
+        // A fixed dark ink rather than `--surround`, which is a light grey
+        // in the light theme and would be pale-on-pale: every peer colour
+        // is chosen light enough to carry this one, and none of them is
+        // light enough to carry the light theme's surround.
+        color: person.active ? "#141715" : person.colour,
       }}
     >
       {(person.name.trim()[0] || "?").toUpperCase()}

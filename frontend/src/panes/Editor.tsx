@@ -191,6 +191,17 @@ export default function Editor({
     const onChange = (local: boolean) => {
       const path = current.current;
       if (!path) return;
+
+      // The outline follows the document whoever changed it -- a
+      // collaborator adding a section is a section, and a file whose text
+      // arrives over the socket a moment after it was opened has to get one
+      // at all. Only the two things below are about *this* keyboard.
+      cancelTimer();
+      timer.current = window.setTimeout(() => {
+        timer.current = null;
+        refreshOutline();
+      }, OUTLINE_DELAY);
+
       // A change that came from the shared document is not this person's
       // keystroke. Two of them arrive routinely and neither should mark the
       // page behind: the first sync when a file opens, which changes
@@ -222,11 +233,6 @@ export default function Editor({
         const line = editor.state.doc.lineAt(editor.state.selection.main.head).number;
         collab.current.here(path, line, true);
       }
-      cancelTimer();
-      timer.current = window.setTimeout(() => {
-        timer.current = null;
-        refreshOutline();
-      }, OUTLINE_DELAY);
     };
 
     const onCursor = (line: number, column: number, selection: string) => {

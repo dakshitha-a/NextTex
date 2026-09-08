@@ -60,12 +60,28 @@ const ACTIVE_MS = 45_000;
 
 /** A palette for collaborators, derived rather than assigned.
  *
- *  Taken from the app's own accents so a caret in the margin belongs to the
- *  same drawing as everything around it, and picked by hashing the name so
- *  two people see each other in the same colour without negotiating one.
+ *  Picked by hashing the name, so two people see each other in the same
+ *  colour without negotiating one.
+ *
+ *  Every hue the interface already means something with is excluded, which
+ *  is most of them: violet is the agent, amber is "the preview is behind",
+ *  red is an error, green is a good build, and teal is live interactive
+ *  state. A collaborator drawn in any of those is a collaborator who looks
+ *  like a warning -- the first version of this used amber and put it in the
+ *  tab bar, a few degrees from the stale-preview dot and in the same place.
+ *
+ *  So they live in the blue-to-magenta arc, which nothing else in the app
+ *  claims. All of them are light enough to carry dark ink, because the
+ *  caret's name label is set on them at ten pixels.
  */
 const COLOURS = [
-  "#3FC6D2", "#C988E7", "#5ABD7B", "#F0A868", "#F47365", "#8AB4F8", "#E5C07B",
+  "#7FA8F5",  // blue
+  "#E289C4",  // magenta
+  "#9C9BF0",  // periwinkle
+  "#5FB8E8",  // sky
+  "#D992D9",  // orchid
+  "#8FBEEA",  // pale blue
+  "#C79BE0",  // lilac
 ];
 
 /** How a change made by the binding is told apart from a keystroke.

@@ -366,76 +366,102 @@ def _sign_in_page() -> str:
     """The page a browser without credentials is given.
 
     Server-rendered, because it has to draw before the bundle is authorised.
-    It carries the app's own palette rather than borrowing the browser's, so
-    the first thing a person sees looks like NextTex and not like an error.
+    That is the reason it exists and not a reason for it to look like a
+    different program: it is the front door, and the first version of it was
+    at one and a half times the app's type scale, in a bold sans with no
+    logo, on 8 and 12 pixel radii, under a drop shadow the design forbids
+    anywhere but the typeset page, with a slab button brighter than anything
+    else on screen.
+
+    So the palette, the scale and the radii here are the app's, written out
+    rather than imported -- the built stylesheet's name is content-hashed and
+    this page has no way to look it up. It is a copy, kept small on purpose.
     """
     has_password = bool(SETTINGS.password_hash)
+    recovery = """
+        <p class=aside>Lost it? Run this on the machine running NextTex:</p>
+        <pre class=aside><code>.venv/bin/python server/run.py --print-url</code></pre>
+    """
     if has_password:
-        body = """
+        body = f"""
         <form id=f autocomplete=on>
           <label for=p>Password</label>
           <input id=p name=password type=password autocomplete=current-password
                  autofocus required>
-          <button type=submit>Sign in</button>
           <p id=e role=alert hidden></p>
+          <button type=submit>Sign in</button>
         </form>
-        <p class=aside>Forgotten it? Run
-          <code>.venv/bin/python server/run.py --print-url</code> on the machine
-          running NextTex, or <code>--set-password</code> to choose a new one.</p>
+        {recovery}
+        <p class=aside>Or <code>run.py --set-password</code> to choose a new one.</p>
         """
     else:
-        body = """
-        <p>This install has no password yet, so it is still opened with the
-        link printed when the server started &mdash; the one that looks like
-        <code>?token=&hellip;</code></p>
-        <p class=aside>Lost it? Run
-          <code>.venv/bin/python server/run.py --print-url</code> on the machine
-          running NextTex. You can set a password once you are in.</p>
+        body = f"""
+        <p><b>You need the full link.</b> This install has no password yet, so
+        the only way in is the address the server printed &mdash; the one
+        ending <code>?token=&hellip;</code></p>
+        {recovery}
+        <p class=aside>You can set a password once you are in.</p>
         """
     return f"""<!doctype html><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>NextTex</title>
 <style>
   :root {{ --surround:#0A0C0B; --surface:#121614; --surface-3:#2A302C;
-           --ink:#E3E8E2; --ink-3:#909892; --hint:#3FC6D2; --error:#F47365;
-           color-scheme: dark; }}
+           --ink:#E3E8E2; --ink-3:#909892; --hint:#3FC6D2; --pen:#C988E7;
+           --error:#F47365; color-scheme: dark; }}
   @media (prefers-color-scheme: light) {{
     :root {{ --surround:#B9BEB8; --surface:#E3E7E2; --surface-3:#C6CBC5;
-             --ink:#141715; --ink-3:#4E534D; --hint:#00626D; --error:#9F1912;
-             color-scheme: light; }}
+             --ink:#141715; --ink-3:#4E534D; --hint:#00626D; --pen:#6F2998;
+             --error:#9F1912; color-scheme: light; }}
   }}
   * {{ box-sizing: border-box; }}
+  ::selection {{ background: color-mix(in oklab, var(--hint) 30%, transparent); }}
   body {{ margin:0; min-height:100dvh; display:grid; place-items:center;
           background:var(--surround); color:var(--ink);
-          font:15px/1.55 ui-sans-serif,system-ui,sans-serif; padding:1.5rem; }}
+          font:13.5px/1.55 ui-sans-serif,system-ui,sans-serif; padding:1.5rem; }}
   main {{ background:var(--surface); border:1px solid var(--surface-3);
-          border-radius:10px; padding:1.75rem 1.75rem 1.5rem;
-          width:min(26rem,100%); box-shadow:0 4px 16px rgba(0,0,0,.35); }}
-  h1 {{ font:600 17px/1.3 ui-sans-serif,system-ui,sans-serif; margin:0 0 .35rem; }}
-  .lead {{ color:var(--ink-3); margin:0 0 1.25rem; font-size:13.5px; }}
+          border-radius:5px; padding:16px; width:min(23rem,100%); }}
+  .top {{ display:flex; align-items:center; gap:8px; }}
+  h1 {{ font:600 15px/1.3 ui-serif,Georgia,serif; margin:0; }}
+  .lead {{ color:var(--ink-3); margin:6px 0 14px; font-size:12.5px; }}
   label {{ display:block; font-size:12.5px; color:var(--ink-3);
-           margin-bottom:.3rem; }}
-  input {{ width:100%; padding:.5rem .6rem; font:inherit; color:var(--ink);
+           margin-bottom:4px; }}
+  input {{ width:100%; padding:5px 8px; font:inherit; color:var(--ink);
            background:var(--surround); border:1px solid var(--surface-3);
-           border-radius:6px; }}
-  input:focus-visible {{ outline:2px solid var(--hint); outline-offset:1px; }}
-  button {{ margin-top:.9rem; width:100%; padding:.5rem; font:inherit;
-            font-weight:500; color:var(--surround); background:var(--ink);
-            border:0; border-radius:6px; cursor:pointer; }}
-  button:hover {{ opacity:.9; }}
+           border-radius:3px; }}
+  input:focus-visible, button:focus-visible {{
+    outline:1px solid var(--hint); outline-offset:1px; }}
+  button {{ margin-top:10px; width:100%; height:28px; font:inherit;
+            font-weight:500; color:var(--ink); background:transparent;
+            border:1px solid var(--surface-3); border-radius:3px;
+            cursor:pointer; }}
+  button:hover:not([disabled]) {{ border-color:var(--hint); color:var(--hint); }}
   button[disabled] {{ opacity:.5; cursor:default; }}
-  code {{ background:var(--surface-3); padding:.1rem .3rem; border-radius:3px;
-          font:12px ui-monospace,monospace; }}
-  /* One body size on this page.  The lead was 13.5px and the paragraph
-     under it inherited 15px, so the explanation shouted over the sentence
-     introducing it. */
-  p {{ margin:.75rem 0 0; font-size:13.5px; }}
+  code {{ font:12px ui-monospace,SFMono-Regular,monospace; }}
+  pre {{ margin:4px 0 0; padding:5px 8px; background:var(--surround);
+         border:1px solid var(--surface-3); border-radius:3px;
+         overflow-x:auto; }}
+  p {{ margin:10px 0 0; }}
   .aside {{ color:var(--ink-3); font-size:12.5px; }}
-  code {{ overflow-wrap:anywhere; }}
-  #e {{ color:var(--error); font-size:13px; }}
+  #e {{ color:var(--error); font-size:12.5px; margin:6px 0 0; }}
 </style>
 <main>
-  <h1>NextTex</h1>
+  <div class=top>
+    <!-- The app's own mark, path for path, rather than an approximation of
+         it: this page cannot import the component, and two drawings that
+         are nearly the same read worse than one that is. -->
+    <svg width="18" height="18" viewBox="0 0 32 32" role="img"
+         aria-label="NextTex">
+      <rect x="1" y="1" width="30" height="30" rx="7" fill="none"
+            stroke="var(--pen)" stroke-width="2" />
+      <path d="M11 7.5h7.5L23 12v12.5H11V19.5l3.5-3.5L11 12.5z" fill="none"
+            stroke="var(--pen)" stroke-width="2" stroke-linejoin="round"
+            stroke-linecap="round" />
+      <path d="M18.5 7.5V12H23" fill="none" stroke="var(--pen)"
+            stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+    <h1>NextTex</h1>
+  </div>
   <p class=lead>Sign in to reach your projects.</p>
   {body}
 </main>
@@ -766,6 +792,32 @@ async def set_display_name(display_name: str = Body("", embed=True)):
 
 # ---------------------------------------------------------------------------
 # Helpers
+
+
+async def _fetch_missing_blob(session, sha: str, seconds: float = 6.0) -> None:
+    """Ask this project's peers for a version's contents, and wait a little.
+
+    A collaborator's version arrives as a line in the log; its contents come
+    on demand.  Almost nobody opens almost any old version, so pulling a
+    peer's whole history down before the first keystroke would be the wrong
+    trade -- but the moment somebody does open one, the bytes have to come
+    from somewhere.
+
+    Silent when there is nobody to ask, or when nobody has it: the caller's
+    own 404 already says something a person can act on, and saying it again
+    in protocol terms would not help.
+    """
+    if not sha or session.history.blobs.get(sha) is not None:
+        return
+    peers = getattr(session, "peers", None)
+    if peers is None or not peers.links:
+        return
+    await peers.fetch_blob(sha)
+    deadline = asyncio.get_running_loop().time() + seconds
+    while asyncio.get_running_loop().time() < deadline:
+        await asyncio.sleep(0.1)
+        if session.history.blobs.get(sha) is not None:
+            return
 
 
 def _open_session(project: Project) -> ProjectSession:
@@ -1229,6 +1281,7 @@ async def history_blob(
     """
     session = session_for(project_id)
     _safe(session, path)
+    await _fetch_missing_blob(session, sha)
     if raw or download:
         data = session.history.bytes_of(path, sha)
         if data is None:

@@ -155,12 +155,16 @@ export default function AccessCard({
             {/* --- the name ------------------------------------------- */}
             <Heading>Your name</Heading>
             <div className="px-[12px] py-[8px]">
+              <p className="t-micro mb-[6px] text-ink-3">
+                What collaborators see beside your cursor and your versions.
+                Nothing leaves this machine until you share a project.
+              </p>
               <input
                 ref={focus === "name" ? first : undefined}
                 value={name}
                 data-testid="display-name"
                 aria-label="Your name"
-                placeholder="Unnamed"
+                placeholder="Your name"
                 maxLength={60}
                 className="w-full rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink"
                 onChange={(event) => setName(event.target.value)}
@@ -169,17 +173,13 @@ export default function AccessCard({
                   if (event.key === "Enter") event.currentTarget.blur();
                 }}
               />
-              <p className="t-micro mt-[5px] text-ink-3">
-                What collaborators see beside your cursor and your versions.
-                Nothing leaves this machine until you share a project.
-              </p>
             </div>
 
             {/* --- the password --------------------------------------- */}
             <Heading>{hasPassword ? "Change the password" : "Set a password"}</Heading>
             <form className="px-[12px] py-[8px]" onSubmit={savePassword}>
               {!hasPassword ? (
-                <p className="t-micro mb-[8px] text-ink-3">
+                <p className="t-micro mb-[8px] border-l-2 border-warn pl-[8px] text-ink-2">
                   Until you set one, the only way in is the link the server
                   printed, and anyone holding that link can read and edit your
                   projects.
@@ -195,7 +195,7 @@ export default function AccessCard({
                 />
               ) : null}
               <Field
-                label={hasPassword ? "New password" : "Password"}
+                label={hasPassword ? "New password" : ""}
                 value={password}
                 autoComplete="new-password"
                 onChange={setPassword}
@@ -211,7 +211,7 @@ export default function AccessCard({
                 type="submit"
                 disabled={busy}
                 data-testid="save-password"
-                className="ghost-button t-ui mt-[10px] h-[28px] w-full"
+                className="pen-button t-ui mt-[10px] h-[28px] w-full"
               >
                 {busy ? "Saving…" : hasPassword ? "Change password" : "Set password"}
               </button>
@@ -233,10 +233,15 @@ export default function AccessCard({
                   <span className="t-meta min-w-0 truncate text-ink-2">
                     {one.label || "A browser"}
                     {one.current ? (
-                      <span className="t-micro ml-[6px] text-hint">this one</span>
+                      <span className="t-micro ml-[6px] rounded-[3px] bg-surface-3 px-[4px] text-ink-3">
+                        this one
+                      </span>
                     ) : null}
                   </span>
-                  <span className="t-micro tnum shrink-0 text-ink-3">
+                  <span
+                    className="t-micro tnum shrink-0 text-ink-3"
+                    title={`First signed in ${when(one.created)}`}
+                  >
                     {when(one.lastSeen)}
                   </span>
                 </li>
@@ -248,16 +253,19 @@ export default function AccessCard({
               ) : null}
             </ul>
             <div className="px-[12px] pt-[2px] pb-[12px]">
-              <button
-                className="quiet t-micro disabled:opacity-40"
-                disabled={others === 0}
-                data-testid="sign-out-others"
-                onClick={signOutOthers}
-              >
-                {others === 0
-                  ? "No other browsers are signed in"
-                  : `Sign out ${others} other browser${others === 1 ? "" : "s"}`}
-              </button>
+              {others === 0 ? (
+                <span className="t-micro text-ink-3">
+                  No other browsers are signed in.
+                </span>
+              ) : (
+                <button
+                  className="ghost-button t-micro h-[24px] px-2"
+                  data-testid="sign-out-others"
+                  onClick={signOutOthers}
+                >
+                  {`Sign out ${others} other browser${others === 1 ? "" : "s"}`}
+                </button>
+              )}
             </div>
 
             <div aria-live="polite" className="px-[12px] pb-[10px] empty:hidden">
@@ -301,7 +309,9 @@ function Field({
 }) {
   return (
     <label className="mt-[6px] block first:mt-0">
-      <span className="t-micro mb-[3px] block text-ink-3">{label}</span>
+      {label ? (
+        <span className="t-micro mb-[3px] block text-ink-3">{label}</span>
+      ) : null}
       <input
         ref={inputRef}
         type="password"

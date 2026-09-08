@@ -74,7 +74,10 @@ export default function PasswordNudge() {
         className="mt-6 border-t border-line pt-3"
         data-testid="password-nudge"
       >
-        <p className="t-meta text-ink-2">
+        {/* `--warn` because this is a state and not a note. It sat at the
+            foot of the page in plain body text, under the fold of
+            attention, reading like a settings row. */}
+        <p className="t-meta border-l-2 border-warn pl-[10px] text-ink-2">
           This install has no password. Anyone with the link the server printed
           can read and edit your projects.
         </p>
@@ -86,8 +89,16 @@ export default function PasswordNudge() {
           >
             Set a password
           </button>
+          {/* Not "Not now": the update footer on this same screen already
+              has a button by that name, and two controls with one
+              accessible name doing two different things is a real problem
+              for anybody navigating by name rather than by position.
+              Saying the condition under which ignoring this is reasonable
+              is also more honest than a soft deferral -- somebody writing
+              alone on a laptop that never leaves the desk is making a fine
+              choice here. */}
           <button className="quiet t-micro" onClick={dismiss}>
-            Not now
+            I'm the only one here
           </button>
         </div>
       </div>

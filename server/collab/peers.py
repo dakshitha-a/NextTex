@@ -335,7 +335,16 @@ class PeerLink:
         elif frame.kind == wire.WELCOME:
             self.network.share.share_id = frame.header.get("share", "") or \
                 self.network.share.share_id
+            for peer_id, record in (frame.header.get("members") or {}).items():
+                if peer_id not in self.network.share.members:
+                    self.network.share.members[peer_id] = record
             self.network.share.save()
+            # And keep in touch with everybody else they know about, not only
+            # the one who let us in: a project with three people in it should
+            # not stop working because the second one closed their laptop.
+            for peer_id in list(self.network.share.members):
+                if peer_id != self.network.peer_id and peer_id != self.peer_id:
+                    self.network.dial_later(peer_id)
             await self.send_documents()
         elif frame.kind == wire.HIST_WANT:
             await self._send_history(frame)
@@ -422,6 +431,9 @@ class PeerNetwork:
         self.applying: PeerLink | None = None
         self.last_error = ""
         self._tasks: set[asyncio.Task] = set()
+        #: Peers we already have a dialling loop for, so learning about one
+        #: twice does not start two.
+        self._dialling: set[str] = set()
         self._closed = False
         self._me = ""
 
@@ -455,8 +467,8 @@ class PeerNetwork:
             # an empty strip that reads as "nobody else is here".
             self.hub.on_awareness = self._awareness_changed
         for peer_id in list(self.share.members):
-            if peer_id != self.peer_id and self.share.allows(peer_id):
-                self._spawn(self._keep_dialling(peer_id))
+            if peer_id != self.peer_id:
+                self.dial_later(peer_id)
 
     def _make_transport(self) -> transport.Transport:
         if transport.wanted() == "loopback":
@@ -532,6 +544,33 @@ class PeerNetwork:
             "name": name, "colour": colour,
             "added_by": self.peer_id, "at": time.time(),
         })
+
+    def note_address(self, peer_id: str, address: str, name: str = "") -> None:
+        """Remember how a peer was reachable when it last called.
+
+        An address goes stale and a public key does not, so this is a
+        shortcut rather than the truth: iroh can find a peer by key alone,
+        and does, but a remembered ticket makes the first attempt after a
+        restart direct instead of a discovery round trip.
+        """
+        if not address:
+            return
+        entry = self.share.members.setdefault(peer_id, {"at": time.time()})
+        if entry.get("address") == address and (not name or entry.get("name") == name):
+            return
+        entry["address"] = address
+        if name:
+            entry.setdefault("name", name)
+        self.share.save()
+
+    def dial_later(self, peer_id: str) -> None:
+        """Start keeping in touch with a peer, if we are not already."""
+        if self._closed or peer_id == self.peer_id:
+            return
+        if peer_id in self._dialling or not self.share.allows(peer_id):
+            return
+        self._dialling.add(peer_id)
+        self._spawn(self._keep_dialling(peer_id))
 
     def mirror_members(self) -> None:
         """Copy the document's membership into the file the gate reads.
@@ -610,7 +649,8 @@ class PeerNetwork:
         # first connection sat there until the server was restarted: the
         # dialling loop is only started for peers that were already members
         # when `start()` ran, and a joiner has none.
-        self._spawn(self._keep_dialling(link.peer_id))
+        self.note_address(link.peer_id, address)
+        self.dial_later(link.peer_id)
         return ""
 
     # --- connections ------------------------------------------------------
@@ -660,6 +700,7 @@ class PeerNetwork:
         link.name = frame.header.get("name", "")
         link.colour = frame.header.get("colour", "")
         link.address = frame.header.get("address", "")
+        self.note_address(peer_id, link.address, link.name)
         self.adopt_link(link)
         self._spawn(link.run())
         await link.send(wire.welcome(self.share.share_id, self.share.members))
@@ -667,6 +708,12 @@ class PeerNetwork:
 
     async def _keep_dialling(self, peer_id: str) -> None:
         """Stay connected to one peer, however often it goes away."""
+        try:
+            await self._dial_until_told_otherwise(peer_id)
+        finally:
+            self._dialling.discard(peer_id)
+
+    async def _dial_until_told_otherwise(self, peer_id: str) -> None:
         attempt = 0
         while not self._closed and self.share.allows(peer_id):
             if peer_id in self.links and self.links[peer_id].alive:

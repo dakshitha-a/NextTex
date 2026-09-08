@@ -26,6 +26,7 @@ const ENTRIES: Entry[] = [
   { id: "agent", label: "The agent" },
   { id: "context", label: "Your template and your voice" },
   { id: "references", label: "References" },
+  { id: "sharing", label: "Writing it with somebody" },
   { id: "safety", label: "Nothing is lost" },
 ];
 
@@ -362,6 +363,50 @@ export default function Tutorial({
             against those records, and fill one from a folder of PDFs — each
             checked against the paper it came from, so a wrong DOI is refused
             rather than added.
+          </P>
+        </Section>
+
+        <Section id="sharing" title="Writing it with somebody else">
+          <P>
+            <strong>Share</strong>, beside the project's name, gives you an invite to
+            send. Whoever opens it gets the whole project — every file, and
+            what those files used to say — into an empty folder of their own,
+            and from then on the two copies stay in step.
+          </P>
+          <P>
+            Both of you keep a whole copy: your own files, your own version
+            history, your own git repository. If their laptop is shut, or
+            yours is, you both carry on writing; when you are back, the two
+            sets of edits are merged rather than one of them being refused.
+            That is as true of an afternoon apart as of a second.
+          </P>
+          <P>
+            Their caret sits in your margin in their own colour and says
+            their name for a moment whenever it moves, and a strip at the end
+            of the tabs shows who else is here — filled in while they are
+            typing, outlined while they are only there. Their name is on the
+            versions they wrote, so a month later the history says who
+            changed the paragraph.
+          </P>
+          <P>
+            An invite is a credential: whoever opens it joins. It works once
+            and expires after a week, so send it the way you would send a
+            password. There are no accounts and nothing in the middle — a
+            collaborator is a public key, and the two installs talk directly,
+            encrypted end to end.
+          </P>
+          <P>
+            Nobody owns a shared project. Anyone in it can invite somebody
+            else, and anyone can disconnect anybody — but disconnecting
+            somebody does not take back the copy they already have. It stops
+            the two of you syncing. It cannot unsend a paper.
+          </P>
+          <P>
+            Two things that are true and might not be obvious. Each of you
+            keeps your own <C>.git</C>, so pull between sessions rather than
+            during one: a pull replaces a whole file and will win against a
+            collaborator's untouched paragraphs. And your conversation with
+            the agent is yours — the writing is shared, the chat is not.
           </P>
         </Section>
 
