@@ -509,8 +509,19 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    writes into this property.  Without honouring it the selection drifts
    from the glyphs by a word or more across a long line. */
 .nx-text-layer span[style*="scaleX"] { transform-origin: 0 0; }
+/* The colour matters as much as the background.  Without it the browser
+   paints its own selection foreground over these spans -- which are
+   transparent precisely so they cannot be seen -- and every selected word
+   appears twice, a pixel or two apart, in two slightly different shapes.
+   It reads as a rendering fault rather than as a selection, and it is the
+   single ugliest thing a PDF pane can do. */
 .nx-text-layer ::selection {
   background: color-mix(in oklab, var(--hint) 42%, transparent);
+  color: transparent;
+}
+.nx-text-layer ::-moz-selection {
+  background: color-mix(in oklab, var(--hint) 42%, transparent);
+  color: transparent;
 }
 /* pdf.js parks a hidden marker at the end of the layer for its own find
    logic; it is not text anybody selected. */
