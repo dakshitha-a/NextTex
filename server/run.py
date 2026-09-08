@@ -113,12 +113,48 @@ async def serve(settings: Settings) -> None:
     await asyncio.gather(*(server.serve() for server in servers))
 
 
+def _print_version() -> None:
+    """The commit this install is on, and the one its interface was built
+    from.
+
+    Two numbers rather than one because they can disagree: the interface is
+    downloaded per commit, so a failed or half-finished update can leave new
+    code serving an older bundle. Nothing could see that before, which is
+    the reason to print it at all.
+    """
+    from nexttex import gitrepo
+
+    # Derived here rather than imported from server.main, which would build
+    # the whole application to answer a question about a file on disk.
+    root = Path(__file__).resolve().parent.parent
+    try:
+        head = gitrepo._run(root, "rev-parse", "HEAD").strip()
+    except Exception:
+        head = "unknown (not a git checkout)"
+    stamp = root / "frontend" / "dist" / "BUILD_SHA"
+    try:
+        built = stamp.read_text(encoding="utf-8").strip()
+    except OSError:
+        built = "unknown (built here, or before this was recorded)"
+    print(f"code      {head}")
+    print(f"interface {built}")
+    if head != built and not built.startswith("unknown"):
+        print("\nThese differ: the interface does not belong to this commit.")
+        print("Run scripts/update.sh, or scripts/fetch-interface.sh on its own.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run NextTex.")
     parser.add_argument("--port", type=int, help="override the configured port")
     parser.add_argument("--print-url", action="store_true",
                         help="print the sign-in URL and exit")
+    parser.add_argument("--version", action="store_true",
+                        help="print the commit this install is on and exit")
     arguments = parser.parse_args()
+
+    if arguments.version:
+        _print_version()
+        return
 
     settings = Settings.load()
     if arguments.port:

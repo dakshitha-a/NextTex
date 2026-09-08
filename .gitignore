@@ -33,3 +33,7 @@ e2e/test-results/
 e2e/playwright-report/
 frontend/node_modules/
 bench/report/
+
+# uv, when the installer fetched its own rather than using one on PATH.
+# Kept inside the install so deleting the folder really does uninstall it.
+.uv/
