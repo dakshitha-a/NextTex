@@ -21,10 +21,13 @@ the tab. No database, no Docker, no nginx.
 
 - **The page follows your typing.** An ordinary edit typesets only the section
   you are in, measured at 357 ms on a forty-file project.
+- **Nothing is ever unsaved.** A keystroke goes into the document as it is
+  made and the file follows a moment later, so there is no save to lose, no
+  dirty dot, and two windows on one project cannot overwrite each other.
 - **Double-click the page to reach the source**, and `⌘↵` to go the other way.
 - **Errors explained in English**, with the one to start from named. No model
   involved.
-- **Every save is a version**, kept until you say otherwise, with a trash that
+- **Every pause is a version**, kept until you say otherwise, with a trash that
   never empties itself.
 - **Four git buttons** for the four commands a paper actually needs.
 - **The agent edits the project and asks about everything else**, or approves
@@ -69,18 +72,23 @@ TeX and the Claude CLI are all fetched if they are missing. If you would
 rather see what you are running first, clone it yourself and run
 `scripts/install.sh` from inside; the script does the same thing either way.
 
-The installer prints a URL with an access token in it. That is how you get in.
+The installer prints a URL with an access token in it. That is how you get
+in the first time; NextTex then asks you to set a password, and any browser
+after that signs in with the password instead. Skip that step and the URL
+stays the only way in, which is fine on a machine only you can reach.
 
 > [!WARNING]
-> Anyone with that URL can read and edit your projects. Treat it like a
-> password, and do not put NextTex on the open internet.
+> Anyone with that URL can read and edit your projects, password or not — it
+> is the way back in if you forget one. Treat it like a password itself, and
+> do not put NextTex on the open internet.
 
 <details><summary>What the installer actually does</summary>
 
 Checks for Python 3.10+ and makes a virtual environment, then installs the
-Python dependencies into it. Looks for a TeX installation where TinyTeX,
-MacTeX, MiKTeX and TeX Live put one, and offers to install TinyTeX (Linux and
-macOS) or MiKTeX (Windows) if there is none. Uses `tlmgr` to add `latexmk`,
+Python dependencies into it, and tries iroh separately so that a platform it
+has no build for loses sharing rather than the install. Looks for a TeX
+installation where TinyTeX, MacTeX, MiKTeX and TeX Live put one, and offers to
+install TinyTeX (Linux and macOS) or MiKTeX (Windows) if there is none. Uses `tlmgr` to add `latexmk`,
 `biber`, `synctex`, `chktex` and `texcount` if they are missing. Offers to
 install the Claude CLI. Downloads the interface built for this commit
 (building it locally with Node 20+ only if that download fails). Asks whether the
@@ -124,10 +132,19 @@ Start-ScheduledTask -TaskName NextTex
 Stop-ScheduledTask  -TaskName NextTex
 ```
 
-**Any platform.** To print the URL and token again:
+**Any platform.** To print the URL and token again, which is the way back in
+if you have forgotten the password:
 
 ```bash
 .venv/bin/python server/run.py --print-url
+```
+
+To choose a new password from the machine itself, which also signs every
+browser out. Restart NextTex afterwards: a running server read its settings
+when it started and is still checking against the old one.
+
+```bash
+.venv/bin/python server/run.py --set-password
 ```
 
 To run it in the foreground instead, which is the quickest way to see why it
@@ -223,7 +240,7 @@ start with: LaTeX reports everything after a mistake as a mistake too, and a
 writer who starts at the bottom of the list spends the evening fixing
 consequences. None of this involves a model.
 
-### Every save is a version
+### Every pause is a version
 
 A version is the sha256 of the file's bytes, stored once and compressed on
 your own disk, so going back costs nothing. An editing burst collapses into
@@ -237,6 +254,13 @@ for byte. A deleted file goes to a trash that never empties itself, because a
 trash that clears after thirty days loses the thing you went looking for on
 day thirty-one. None of it is git, and none of it needs you to have
 committed.
+
+On a shared project the history is shared too, and each version says who
+wrote it. Their versions arrive as a list straight away and their contents
+are fetched when you open one, because almost nobody opens almost any old
+version and downloading a colleague's whole history before your first
+keystroke would be the wrong trade. How far back each of you keeps them is
+your own business: thinning is a decision about your own disk.
 
 ### Four git commands, and the fifth one is a terminal
 
@@ -327,6 +351,11 @@ backups. If the other person's laptop is shut, or yours is, both of you carry
 on writing; when you are both back, the two sets of edits are merged rather
 than one of them being refused. That is true of an afternoon apart as much as
 of a second, and it needs nothing switched on.
+
+The thing keeping in touch is the NextTex on each machine, not the browser
+tab. So a collaborator's work arrives while your tab is closed, and a shared
+project picks its peers back up when the server starts — you do not have to
+open it first for their afternoon's writing to land.
 
 **You can see where they are.** Their caret sits in your margin in their own
 colour and says their name for a moment whenever it moves, and a strip at the
@@ -443,13 +472,29 @@ kind: not disabled by default, not present.
 
 <details><summary>Access, TLS, and why Tailscale is in here</summary>
 
-The server is protected by a token printed at install time and exchanged for a
-cookie on first load. On localhost it is plain HTTP; any address another
-machine can reach is served over TLS, with a certificate from `tailscale cert`
-where your tailnet has HTTPS and a self-signed one otherwise. Signing in to
-Claude drives the CLI's own login and the credentials land where the CLI keeps
-them, so NextTex never sees or stores them. An OpenAI key goes in the
-instance's config file, `chmod 600`.
+The installer prints a URL carrying a token, which is how the first browser
+gets in. That browser is then asked to set a password, the way JupyterLab
+does, and once there is one every browser after it gets a sign-in page.
+Signing in issues *that browser* its own session rather than handing it the
+install's token, so no browser is holding the master credential, and the
+settings card can sign the others out — useful when the one you left signed
+in is a laptop you no longer have. The token stays as the way back in, as a query parameter or an
+`x-nexttex-token` header, so scripts are unaffected and a forgotten password
+is recoverable from the machine itself.
+
+On localhost it is plain HTTP, so a password typed at the machine's own
+browser crosses nothing but the loopback; any address another machine can
+reach is served over TLS, with a certificate from `tailscale cert` where your
+tailnet has HTTPS and a self-signed one otherwise. A password never crosses a
+network in the clear.
+
+This is a separate question from who may sync with you. The password decides
+which *browsers* may drive this install; a collaborator's public key decides
+which *installs* may exchange documents with it. Neither one grants the other.
+
+Signing in to Claude drives the CLI's own login and the credentials land where
+the CLI keeps them, so NextTex never sees or stores them. An OpenAI key goes
+in the instance's config file, `chmod 600`.
 
 Tailscale is in here because the machine you want to write on is often not the
 one you are sitting at: a lab workstation, a compute server, the box the data
@@ -510,7 +555,7 @@ there, and somebody would have to invite you back.
 
 | Key | Does |
 |---|---|
-| `⌘S` / `Ctrl-S` | Save now rather than waiting for the pause |
+| `⌘S` / `Ctrl-S` | Put the file on disk this instant; builds instead when compile-as-you-type is off |
 | `⌘B` / `Ctrl-B` | Hide the file list |
 | `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
 | `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on |

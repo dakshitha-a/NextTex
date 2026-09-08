@@ -423,7 +423,8 @@ def _sign_in_page() -> str:
           <button type=submit>Sign in</button>
         </form>
         {recovery}
-        <p class=aside>Or <code>run.py --set-password</code> to choose a new one.</p>
+        <p class=aside>Or <code>run.py --set-password</code> to choose a new
+        one, then restart NextTex.</p>
         """
     else:
         body = f"""

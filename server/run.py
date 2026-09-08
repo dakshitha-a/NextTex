@@ -174,6 +174,10 @@ def _set_password(settings: Settings) -> None:
     settings.save()
     print("Password set." + (f" {signed_out} signed-in browser(s) were signed out."
                              if signed_out else ""))
+    # A running server read its settings at startup and is still checking
+    # against the old password.  Saying so here is the difference between a
+    # recovery path that works and one that looks like it did nothing.
+    print("Restart NextTex for it to take effect.")
 
 
 def main() -> None:
