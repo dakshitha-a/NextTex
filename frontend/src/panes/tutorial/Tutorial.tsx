@@ -216,6 +216,7 @@ export default function Tutorial({
               ["⌘S", "Save now rather than waiting for the pause"],
               ["⌘B", "Hide the file list"],
               ["⌘⌥A", "Show or hide the agent, ready to type"],
+              ["⌘⌥P", "Move between the previewed documents"],
               ["⌘↵", "Scroll the page to the line you are on"],
               ["Ctrl-F", "Find and replace"],
               ["Typing", "In the file list, jumps to a file"],

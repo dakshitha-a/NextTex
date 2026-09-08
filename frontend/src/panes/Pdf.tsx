@@ -55,6 +55,14 @@ type Mode = "scroll" | "page";
 type PageView = {
   container: HTMLDivElement;
   canvas: HTMLCanvasElement;
+  /** The selectable text over the picture.  A canvas is an image of a
+   *  page: it cannot be selected, searched or copied out of, which for a
+   *  document somebody is quoting from is most of what a PDF is for. */
+  text: HTMLDivElement;
+  /** The generation this layer was built from, so it is rebuilt exactly
+   *  when the canvas beneath it is redrawn and not on every scroll. */
+  textFor: number;
+  textScale: number;
   width: number;
   height: number;
   scale: number;
@@ -150,6 +158,43 @@ export default function Pdf({
   }, []);
 
   // ---- drawing ----------------------------------------------------------
+  /** The selectable text over one page.
+   *
+   *  Built only for pages on screen, and only once per page per build: a
+   *  page of a dense thesis is several hundred positioned spans, and doing
+   *  that for a forty-page document -- or on every frame of a pinch --
+   *  would cost more than the picture it sits on.
+   */
+  const renderText = useCallback(async (index: number) => {
+    const view = pages.current[index];
+    const document = doc.current;
+    if (!view || !document) return;
+    if (view.textFor === generation.current && view.textScale === view.scale) return;
+    const mine = generation.current;
+    view.textFor = mine;
+    view.textScale = view.scale;
+    try {
+      const page = await document.getPage(index + 1);
+      if (mine !== generation.current) return;
+      const viewport = page.getViewport({ scale: view.scale });
+      view.text.replaceChildren();
+      // Built at the committed scale, so any gesture transform is spent.
+      view.text.style.transform = "";
+      // pdf.js positions its spans in unscaled units and divides by this.
+      view.text.style.setProperty("--scale-factor", String(view.scale));
+      const layer = new pdfjs.TextLayer({
+        textContentSource: page.streamTextContent(),
+        container: view.text,
+        viewport,
+      });
+      await layer.render();
+      if (mine !== generation.current) view.text.replaceChildren();
+    } catch {
+      // A page whose text cannot be read is still a page you can look at.
+      view.textFor = -1;
+    }
+  }, []);
+
   const renderPage = useCallback(async (index: number) => {
     const view = pages.current[index];
     const document = doc.current;
@@ -185,6 +230,7 @@ export default function Pdf({
     if (modeRef.current === "page") {
       const index = currentRef.current - 1;
       renderPage(index);
+      renderText(index);
       return;
     }
     const top = root.scrollTop - NEAR;
@@ -197,9 +243,10 @@ export default function Pdf({
       if (end < top || start > bottom) continue;
       if (first < 0) first = index;
       renderPage(index);
+      renderText(index);
     }
     if (first >= 0 && first + 1 !== currentRef.current) setCurrent(first + 1);
-  }, [renderPage]);
+  }, [renderPage, renderText]);
 
   // A change of interface size changes how many device pixels a page needs.
   // Nothing else invalidates the canvases, so say so explicitly.
@@ -305,9 +352,12 @@ export default function Pdf({
         canvas.style.height = "100%";
         canvas.style.display = "block";
         element.appendChild(canvas);
+        const text = window.document.createElement("div");
+        text.className = "nx-text-layer";
+        element.appendChild(text);
         views.push({
-          container: element, canvas, width, height,
-          scale: effective, drawnFor: -1, task: null,
+          container: element, canvas, text, width, height,
+          scale: effective, drawnFor: -1, textFor: -1, textScale: 0, task: null,
         });
       }
 
@@ -490,6 +540,13 @@ export default function Pdf({
         if (!view.scale) continue;
         view.container.style.width = `${Math.floor((view.width / view.scale) * next)}px`;
         view.container.style.height = `${Math.floor((view.height / view.scale) * next)}px`;
+        // The text is positioned in pixels computed at the scale it was
+        // built for, so without this it stays where it was while the page
+        // grows under it and a selection made mid-gesture lands a word
+        // out.  A transform rather than a rebuild: the compositor does it,
+        // and rebuilding several hundred spans per frame is the cost this
+        // whole handler exists to avoid.
+        view.text.style.transform = `scale(${next / view.scale})`;
       }
       // The pointer position is the frame's last one, not its first: a
       // pinch that travels across the page has to anchor to where the

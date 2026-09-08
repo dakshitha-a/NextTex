@@ -91,3 +91,39 @@ test("an ordinary scroll still scrolls rather than zooming", async ({ tab }) => 
   await tab.waitForTimeout(400);
   expect(await percent(tab)).toBe(before);
 });
+
+test("the text on the page can be selected", async ({ tab }) => {
+  // A canvas is a picture: it cannot be selected, searched or copied out
+  // of, which for a document somebody is quoting from is most of what a
+  // PDF is for.
+  await ready(tab);
+  const layer = tab.locator(".nx-text-layer span").first();
+  await expect(layer).toBeAttached({ timeout: 45_000 });
+
+  const selected = await tab.evaluate(() => {
+    const span = document.querySelector(".nx-text-layer span");
+    if (!span) return "";
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    return selection?.toString() ?? "";
+  });
+  expect(selected.trim().length).toBeGreaterThan(0);
+});
+
+test("the text layer does not swallow the jump to source", async ({ tab }) => {
+  // The double-click that opens the source line is bound on .nx-page,
+  // beneath the layer.  Spans take pointer events so a drag selects; the
+  // layer itself must not, or the gesture would land on nothing.
+  await ready(tab);
+  await expect(tab.locator(".nx-text-layer span").first()).toBeAttached({
+    timeout: 45_000,
+  });
+  const through = await tab.evaluate(() => {
+    const layer = document.querySelector(".nx-text-layer") as HTMLElement | null;
+    return layer ? getComputedStyle(layer).pointerEvents : "";
+  });
+  expect(through).toBe("none");
+});

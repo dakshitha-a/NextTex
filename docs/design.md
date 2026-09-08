@@ -1665,6 +1665,59 @@ anchor-aware `useDismiss` — the same hook, with the same trigger ref, that
 the usage panel needed. Any new toggle popover in this app must pass its
 anchor or it will close on `pointerdown` and reopen on `click`.
 
+### Several previewed documents
+
+A project builds one document per previewed file rather than one per
+project. `esi.tex` beside `main.tex` is the case: two documents in one
+folder, neither including the other, and before this the only way to build
+the second was to make it the main file and change it back.
+
+Three things had to become per-document that were per-project: the preview
+stand-in (now named after its document and written beside it, which is what
+the compiler's module docstring always said it needed), the scope marker
+recording whether a PDF is whole or an `\includeonly` slice, and the
+scheduler with its own idea of whether the next build must be a full one.
+Jobname collisions are refused with a 409 rather than worked around — two
+documents whose stems match would each serve the other's page, and a build
+directory per document would move `main.pdf` and break every Makefile
+pointed at it.
+
+**What rebuilds on a save is decided by `nexttex/deps.py`**, which follows
+`\input`, `\include`, `\subfile`, `\includestandalone`, `\import`,
+`\bibliography` and `\includegraphics`. Its two fallbacks are asymmetric on
+purpose: an unrecognised `.tex` goes to the first document only, because the
+usual unknown is a file just created and not yet included anywhere; an
+unrecognised asset goes to every document, because under-attributing one
+leaves a preview that silently stops updating.
+
+**Builds queue rather than run together**, one at a time across the project,
+with the visible tab first. Each scheduler already serialises itself, but two
+`latexmk` runs in one build directory would write over each other's
+`.fdb_latexmk` and biber temporaries. There is no preemption: a running build
+is never abandoned for a newer one of a *different* document, and superseding
+a build of the *same* document happens before the queue is joined — a request
+that queued first would otherwise wait for a slot held by the build it means
+to replace.
+
+### Text on the page can be selected
+
+The preview was a canvas, so the page was a picture: it could not be
+selected, searched or copied out of, which for a document somebody is quoting
+from is most of what a PDF is for. Each page now carries a `pdf.js` text
+layer — transparent spans positioned over the glyphs — built only for pages
+on screen and only once per page per build.
+
+Held to the pinch benchmark, which is the thing that could have made this a
+bad trade. Over sixty wheel events in twenty frames: layouts stay at 40, the
+number that mattered, and the whole gesture costs about 3.8 ms more in style
+and script — under 0.2 ms a frame. During a zoom the layer is transformed
+rather than rebuilt, because rebuilding several hundred spans per frame is
+precisely the cost the coalescing handler exists to avoid; without it a
+selection made mid-gesture would land a word out.
+
+Pointer events pass through the layer and are taken only by its spans, so the
+double-click that jumps to the source still reaches `.nx-page` beneath it.
+
 ### One shortcut, and why it is not Super-A
 
 The agent panel is two different things depending on width: below 1400px an
