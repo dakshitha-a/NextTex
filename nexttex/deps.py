@@ -269,6 +269,14 @@ class DependencyGraph:
         for path in sorted(self.root.rglob("*")):
             if path.suffix.lower() not in (".tex", ".ltx") or not path.is_file():
                 continue
+            # Anything hidden, and anything under a hidden directory. This
+            # is not tidiness: NextTex writes its own stand-in beside the
+            # main file when it builds part of a document, and that file is
+            # a copy of main.tex -- so it has a documentclass, nothing reads
+            # it, and it was being offered to the writer as a second
+            # document to preview. Caught against a real dissertation.
+            if any(part.startswith(".") for part in path.relative_to(self.root).parts):
+                continue
             if self._skip(path):
                 continue
             name = self._relative(path)
