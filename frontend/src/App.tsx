@@ -377,7 +377,14 @@ export default function App() {
     [],
   );
 
-  const openFile = useCallback(async (path: string, line?: number) => {
+  const openFile = useCallback(async (
+    path: string,
+    line?: number,
+    /** The word a double-click on the page landed on, when that is where
+     *  this came from. The editor puts the cursor on it rather than at the
+     *  start of the line. */
+    word?: string,
+  ) => {
     const state = get();
     if (!state.tabs.some((tab) => tab.path === path)) {
       set({ tabs: [...state.tabs, { path }] });
@@ -389,7 +396,7 @@ export default function App() {
     set({
       activePath: path,
       ...(kindOf(get().tree, path) === "text" || !kindOf(get().tree, path)
-        ? { pendingOpen: { path, line, nonce: Date.now() } }
+        ? { pendingOpen: { path, line, word, nonce: Date.now() } }
         : {}),
     });
   }, []);
@@ -1571,7 +1578,7 @@ export default function App() {
           <Pdf
             document={activePreview}
             handleRef={(handle) => (pdf.current = handle)}
-            onNavigate={(file, line) => openFile(file, line)}
+            onNavigate={(file, line, word) => openFile(file, line, word)}
             onLoadTemplate={async () => {
               const id = get().projectId;
               if (!id) return;

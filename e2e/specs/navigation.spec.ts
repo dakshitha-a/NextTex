@@ -36,6 +36,66 @@ test("double-clicking the page jumps to the line that set it", async ({ tab }) =
     .toBeGreaterThan(1);
 });
 
+test("double-clicking a word lands the cursor on that word", async ({ tab }) => {
+  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  await expect(tab.locator(".nx-text-layer span").first()).toBeAttached({
+    timeout: 45_000,
+  });
+
+  // A word long enough to be worth searching for, taken from the page
+  // itself so this does not depend on the template's exact wording -- and
+  // measured with a Range, so the click lands in the middle of the word
+  // rather than on the space in front of it. Aiming at the left edge of
+  // the span selects that space, and a space is not a word.
+  const picked = await tab.evaluate(() => {
+    for (const span of document.querySelectorAll(".nx-text-layer span")) {
+      const text = span.textContent ?? "";
+      const match = text.match(/[A-Za-z]{7,}/);
+      const node = span.firstChild;
+      if (!match || match.index === undefined || !node) continue;
+      const range = document.createRange();
+      range.setStart(node, match.index);
+      range.setEnd(node, match.index + match[0].length);
+      const box = range.getBoundingClientRect();
+      if (box.width < 4) continue;
+      return {
+        word: match[0],
+        x: box.x + box.width / 2,
+        y: box.y + box.height / 2,
+      };
+    }
+    return null;
+  });
+  expect(picked).not.toBeNull();
+
+  await tab.mouse.dblclick(picked!.x, picked!.y);
+
+  const at = async () => {
+    const text = await tab.getByText(/^Ln \d+, Col \d+$/).innerText();
+    const found = text.match(/Ln (\d+), Col (\d+)/);
+    return { line: Number(found?.[1] ?? 0), column: Number(found?.[2] ?? 0) };
+  };
+
+  // SyncTeX reports `Column:-1` for every query on every engine, so before
+  // the word was used to refine it the cursor could only ever arrive at
+  // column 1 -- near the sentence that was clicked, never in it.
+  await expect.poll(async () => (await at()).line, { timeout: 20_000 })
+    .toBeGreaterThan(1);
+  const landed = await at();
+  expect(landed.column).toBeGreaterThan(1);
+
+  // And it is that word, not merely somewhere along the line: the editor
+  // is asked what it has under the cursor.
+  const under = await tab.evaluate(
+    ({ column, word }) => {
+      const line = document.querySelector(".cm-activeLine")?.textContent ?? "";
+      return line.slice(column - 1, column - 1 + word.length);
+    },
+    { column: landed.column, word: picked!.word },
+  );
+  expect(under.toLowerCase()).toBe(picked!.word.toLowerCase());
+});
+
 test("the source can send the reader to its place on the page", async ({ tab }) => {
   await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
 
