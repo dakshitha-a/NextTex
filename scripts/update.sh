@@ -64,15 +64,32 @@ main() {
   fi
 
   say "Dependencies"
-  .venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
-  .venv/bin/python -m pip install --quiet --upgrade -r requirements.txt
+  # uv if the install has one, pip otherwise -- an install made before uv
+  # existed here keeps working without being reinstalled.
+  if [ -x .uv/uv ]; then
+    VIRTUAL_ENV="$PWD/.venv" .uv/uv pip install --quiet --upgrade -r requirements.txt
+  elif command -v uv >/dev/null 2>&1; then
+    VIRTUAL_ENV="$PWD/.venv" uv pip install --quiet --upgrade -r requirements.txt
+  else
+    .venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
+    .venv/bin/python -m pip install --quiet --upgrade -r requirements.txt
+  fi
   note "python packages up to date"
 
-  if command -v node >/dev/null 2>&1 && [ "$(node -v | sed 's/^v//; s/\..*//')" -ge 20 ]; then
-    (cd frontend && npm install --no-audit --no-fund --silent && npm run build >/dev/null)
-    note "interface rebuilt"
+  # The interface belonging to the commit just landed on.  Downloaded
+  # rather than built -- see scripts/fetch-interface.sh -- and swapped into
+  # place rather than deleted and refilled, because the server is still
+  # serving out of frontend/dist while this runs.
+  #
+  # The word "interface" has to survive in whatever this prints: the update
+  # footer matches on it to name the step the user is watching.
+  if scripts/fetch-interface.sh >/dev/null 2>&1; then
+    note "interface downloaded"
+  elif command -v node >/dev/null 2>&1 && [ "$(node -v | sed 's/^v//; s/\..*//')" -ge 20 ]; then
+    (cd frontend && npm ci --no-audit --no-fund --silent && npm run build >/dev/null)
+    note "interface rebuilt here"
   else
-    note "no usable Node; keeping the interface as it is"
+    note "could not fetch the interface and there is no Node to build one; keeping the one in place"
   fi
 
   if [ "$RUNNING" = 1 ] && [ "$RESTART" = 1 ]; then

@@ -170,15 +170,34 @@ def test_a_remote_that_cannot_be_reached_is_reported_not_raised(pair, tmp_path):
     assert "Could not reach" in report.reason
 
 
-def test_a_rebuild_without_node_refuses_rather_than_half_updating(pair, monkeypatch):
+def test_an_unpublished_interface_refuses_rather_than_half_updating(pair, monkeypatch):
+    """Pulling to a commit CI has not built yet would leave the install
+    running the old interface against new code."""
     work, clone = pair
     commit(work, "frontend/src/App.tsx", message="interface")
-    monkeypatch.setattr(updates, "node_available",
-                        lambda: (False, "Node is not installed, and rebuilding needs it."))
+    monkeypatch.setattr(
+        updates, "interface_published",
+        lambda root, sha: (False, "The interface for that commit has not been published yet."),
+    )
     report = updates.check(clone)
     assert report.can_update is False
-    assert report.node_ok is False
-    assert "Node" in report.node_reason
+    assert report.build_ok is False
+    assert "published" in report.build_reason
+
+
+def test_a_commit_that_leaves_the_interface_alone_never_waits_on_it(pair, monkeypatch):
+    # Most commits touch nothing under frontend/, and the interface already
+    # installed serves them perfectly well.
+    work, clone = pair
+    commit(work, "server/main.py", message="server only")
+    called = []
+    monkeypatch.setattr(
+        updates, "interface_published",
+        lambda root, sha: (called.append(sha), (False, "nope"))[1],
+    )
+    report = updates.check(clone)
+    assert called == []
+    assert report.can_update is True
 
 
 # -- the cache --------------------------------------------------------------

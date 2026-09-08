@@ -127,8 +127,8 @@ export type UpdateReport = {
   commits: { sha: string; subject: string; touches: "app" | "interface" | "neither" }[];
   dirty: string[];
   rebuild: boolean;
-  node_ok: boolean;
-  node_reason: string;
+  build_ok: boolean;
+  build_reason: string;
   can_update: boolean;
   reason: string;
   restart: "auto" | "manual";

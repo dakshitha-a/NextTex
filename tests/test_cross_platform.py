@@ -191,6 +191,7 @@ OUTBOUND = {
     "doi.org",
     "dx.doi.org",
     "claude.ai",                # the sign-in screen links to the download page
+    "github.com",               # the prebuilt interface, and the update check
 }
 
 

@@ -50,18 +50,20 @@ the tab. No database, no Docker, no nginx.
 ## Installing
 
 ```bash
-git clone https://github.com/dakshitha-a/NextTex.git
-cd NextTex
-./scripts/install.sh          # Linux and macOS
+curl -fsSL https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-git clone https://github.com/dakshitha-a/NextTex.git
-cd NextTex
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+irm https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.ps1 | iex
 ```
+
+It clones into `~/apps/NextTex` (`NEXTTEX_DIR` to choose elsewhere) and
+installs from there. `git` is the only thing you need beforehand — Python,
+TeX and the Claude CLI are all fetched if they are missing. If you would
+rather see what you are running first, clone it yourself and run
+`scripts/install.sh` from inside; the script does the same thing either way.
 
 The installer prints a URL with an access token in it. That is how you get in.
 
@@ -76,7 +78,8 @@ Python dependencies into it. Looks for a TeX installation where TinyTeX,
 MacTeX, MiKTeX and TeX Live put one, and offers to install TinyTeX (Linux and
 macOS) or MiKTeX (Windows) if there is none. Uses `tlmgr` to add `latexmk`,
 `biber`, `synctex`, `chktex` and `texcount` if they are missing. Offers to
-install the Claude CLI. Builds the interface with Node 20+. Asks whether the
+install the Claude CLI. Downloads the interface built for this commit
+(building it locally with Node 20+ only if that download fails). Asks whether the
 server should answer on localhost only or also on your tailnet. Writes a
 `systemd --user` unit on Linux, a launchd agent on macOS, or a scheduled task
 on Windows. Then prints the URL.
@@ -343,7 +346,7 @@ terminal once or use an OpenAI key. Reports welcome.
 | What | Why | Supplied by the installer? |
 |---|---|---|
 | Python 3.10+ | The server | no |
-| Node 20+ | Builds the interface once | no |
+| Node 20+ | Only to build the interface locally, if the prebuilt one cannot be downloaded | no |
 | `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | TinyTeX or MiKTeX, if you let it |
 | `biber` | biblatex bibliographies | yes, via `tlmgr` |
 | `chktex`, `texcount` | Linting and word counts | yes, via `tlmgr` |
@@ -359,12 +362,15 @@ Nothing in the bottom half of that table is needed to write and typeset.
 
 NextTex serves your own files from your own machine and ships its own
 typefaces, so the interface works on a host with no route to the internet.
-Three things go out, all of them things you asked for:
+Four things go out, all of them things you asked for:
 
 1. What you send the agent, to Anthropic or OpenAI.
 2. Reference lookups, to Crossref, OpenAlex, Semantic Scholar, arXiv and
    `doi.org`.
 3. TinyTeX and the Claude CLI, if the installer has to fetch them.
+4. GitHub, to check whether this install is behind and to download the
+   interface for the commit it is on. Nothing about you or your documents
+   goes with either request.
 
 That is the whole list, and a test fails if a new host appears in the source
 without this section changing. There is no telemetry and no analytics of any

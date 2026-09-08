@@ -13,7 +13,31 @@ case "$(uname -s)" in
      exit 1 ;;
 esac
 
-cd "$(dirname "$0")/.."
+# Two modes, one script.  Run from inside a checkout it installs that
+# checkout; piped from curl there is no checkout yet, so it makes one and
+# re-runs itself from inside it.  A separate bootstrap file would be a
+# second thing to keep in step with this one.
+if [ -f "$(dirname "$0")/../requirements.txt" ] 2>/dev/null; then
+  cd "$(dirname "$0")/.."
+else
+  command -v git >/dev/null 2>&1 || {
+    printf '\033[31mNextTex needs git.\033[0m\n' >&2
+    printf '  macOS:  xcode-select --install\n' >&2
+    printf '  Debian: sudo apt install git\n' >&2
+    exit 1
+  }
+  TARGET="${NEXTTEX_DIR:-$HOME/apps/NextTex}"
+  REPO="${NEXTTEX_REPO:-https://github.com/dakshitha-a/NextTex.git}"
+  if [ -d "$TARGET/.git" ]; then
+    printf '\n\033[1mUpdating the checkout at %s\033[0m\n' "$TARGET"
+    git -C "$TARGET" pull --ff-only
+  else
+    printf '\n\033[1mCloning into %s\033[0m\n' "$TARGET"
+    mkdir -p "$(dirname "$TARGET")"
+    git clone --quiet "$REPO" "$TARGET"
+  fi
+  exec "$TARGET/scripts/install.sh" "$@"
+fi
 ROOT="$(pwd)"
 
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
@@ -60,34 +84,61 @@ mkdir -p "$STATE"
 # ---------------------------------------------------------------------------
 say "Python"
 
-PYTHON=""
-for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
-  if command -v "$candidate" >/dev/null 2>&1; then
-    version=$("$candidate" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
-    major=${version%%.*}; minor=${version##*.}
-    if [ "$major" -ge 3 ] && [ "$minor" -ge 10 ]; then PYTHON="$candidate"; break; fi
-  fi
-done
-[ -n "$PYTHON" ] || die "NextTex needs Python 3.10 or newer, and none was found."
-note "$($PYTHON -V) at $(command -v "$PYTHON")"
-
-if [ ! -x .venv/bin/python ]; then
-  if ! "$PYTHON" -m venv .venv 2>/dev/null; then
-    # Debian and Ubuntu ship python3 without ensurepip, which is the single
-    # most common way this step fails.
-    if command -v virtualenv >/dev/null 2>&1; then
-      note "python3-venv is unavailable; using virtualenv instead"
-      virtualenv -p "$PYTHON" .venv >/dev/null
-    else
-      die "Could not create the virtual environment. On Debian or Ubuntu:
-    sudo apt install python3-venv
-  then run this script again."
-    fi
+# uv, when it can be had.  It brings its own CPython, so the version this
+# runs on stops depending on what the distribution shipped -- and it steps
+# straight over the single most common way this used to fail: Debian and
+# Ubuntu ship python3 without ensurepip, so `python3 -m venv` fails on a
+# fresh machine and the error names a package nobody would guess.
+#
+# It is installed into the project rather than onto the system.  An
+# installer that quietly puts a new tool on your PATH is not one you can
+# uninstall by deleting a folder.
+UV=""
+if command -v uv >/dev/null 2>&1; then
+  UV="uv"
+elif [ -x .uv/uv ]; then
+  UV="$PWD/.uv/uv"
+elif command -v curl >/dev/null 2>&1; then
+  if UV_INSTALL_DIR="$PWD/.uv" UV_NO_MODIFY_PATH=1 \
+       curl -fsSL https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 \
+     && [ -x .uv/uv ]; then
+    UV="$PWD/.uv/uv"
   fi
 fi
-.venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
-.venv/bin/python -m pip install --quiet -r requirements.txt
-note "dependencies installed into .venv"
+
+if [ -n "$UV" ]; then
+  note "$($UV --version)"
+  "$UV" venv --python 3.13 .venv >/dev/null 2>&1 || "$UV" venv .venv >/dev/null
+  VIRTUAL_ENV="$PWD/.venv" "$UV" pip install --quiet -r requirements.txt
+  note "dependencies installed into .venv"
+else
+  PYTHON=""
+  for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      version=$("$candidate" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+      major=${version%%.*}; minor=${version##*.}
+      if [ "$major" -ge 3 ] && [ "$minor" -ge 10 ]; then PYTHON="$candidate"; break; fi
+    fi
+  done
+  [ -n "$PYTHON" ] || die "NextTex needs Python 3.10 or newer, and none was found."
+  note "$($PYTHON -V) at $(command -v "$PYTHON")"
+
+  if [ ! -x .venv/bin/python ]; then
+    if ! "$PYTHON" -m venv .venv 2>/dev/null; then
+      if command -v virtualenv >/dev/null 2>&1; then
+        note "python3-venv is unavailable; using virtualenv instead"
+        virtualenv -p "$PYTHON" .venv >/dev/null
+      else
+        die "Could not create the virtual environment. On Debian or Ubuntu:
+    sudo apt install python3-venv
+  then run this script again."
+      fi
+    fi
+  fi
+  .venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
+  .venv/bin/python -m pip install --quiet -r requirements.txt
+  note "dependencies installed into .venv"
+fi
 
 # ---------------------------------------------------------------------------
 say "LaTeX"
@@ -155,39 +206,38 @@ note "you sign in from the browser, not here — nothing to do yet"
 # ---------------------------------------------------------------------------
 say "The interface"
 
-# If the Node on PATH is too old -- which it is on plenty of distributions --
-# point NEXTTEX_NODE_BIN at a newer one rather than changing the system's.
-if [ -n "${NEXTTEX_NODE_BIN:-}" ] && [ -d "$NEXTTEX_NODE_BIN" ]; then
-  PATH="$NEXTTEX_NODE_BIN:$PATH"
-  export PATH
-fi
-
-NODE=""
-NODE_DIR=""
-for candidate in node nodejs; do
-  if command -v "$candidate" >/dev/null 2>&1; then
-    major=$("$candidate" -v | sed 's/^v//; s/\..*//')
-    if [ "$major" -ge 20 ]; then
-      NODE="$candidate"
-      # Written into the service file below, so an update triggered from
-      # the page can rebuild the interface: under a user service the PATH
-      # is minimal and would not find this.
-      NODE_DIR="$(dirname "$(command -v "$candidate")")"
-      break
-    fi
-    note "$($candidate -v) is too old; NextTex needs Node 20 or newer"
-  fi
-done
-
-if [ -n "$NODE" ]; then
-  note "$($NODE -v)"
-  (cd frontend && npm install --no-audit --no-fund --silent && npm run build >/dev/null)
-  note "built into frontend/dist"
-elif [ -d frontend/dist ]; then
-  note "no usable Node; keeping the interface already built"
+# Downloaded, not built.  Every machine used to need Node 20+ for the sole
+# purpose of producing an artefact that is identical for everyone -- there is
+# no `base`, no `define` and no VITE_ variable anywhere in the source, so the
+# build CI does is the build you would have done.
+#
+# Building locally is still the fallback, for a machine that cannot reach
+# GitHub or a commit CI has not published yet.
+if scripts/fetch-interface.sh 2>&1 | sed 's/^/  /'; then
+  :
 else
-  die "NextTex needs Node 20 or newer to build its interface.
-  Install it from https://nodejs.org, then run this script again."
+  if [ -n "${NEXTTEX_NODE_BIN:-}" ] && [ -d "$NEXTTEX_NODE_BIN" ]; then
+    PATH="$NEXTTEX_NODE_BIN:$PATH"
+    export PATH
+  fi
+  NODE=""
+  for candidate in node nodejs; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      major=$("$candidate" -v | sed 's/^v//; s/\..*//')
+      if [ "$major" -ge 20 ]; then NODE="$candidate"; break; fi
+    fi
+  done
+  if [ -n "$NODE" ]; then
+    note "building it here instead ($($NODE -v))"
+    (cd frontend && npm ci --no-audit --no-fund --silent && npm run build >/dev/null)
+    note "built into frontend/dist"
+  elif [ -d frontend/dist ]; then
+    note "keeping the interface already built"
+  else
+    die "Could not download the interface, and there is no Node here to build
+  one.  Check your connection, or install Node 20+ from https://nodejs.org
+  and run this script again."
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -261,7 +311,7 @@ if [ "$PLATFORM" = macos ]; then
     <key>HOME</key><string>$HOME</string>
     <key>PYTHONUNBUFFERED</key><string>1</string>
     <key>NEXTTEX_INSTANCE</key><string>$INSTANCE</string>
-    <key>PATH</key><string>${NODE_DIR:+$NODE_DIR:}$HOME/.local/bin:$HOME/Library/TinyTeX/bin/universal-darwin:/Library/TeX/texbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PATH</key><string>$HOME/.local/bin:$HOME/Library/TinyTeX/bin/universal-darwin:/Library/TeX/texbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key>
@@ -298,7 +348,7 @@ WorkingDirectory=$ROOT
 Environment=HOME=$HOME
 Environment=PYTHONUNBUFFERED=1
 Environment=NEXTTEX_INSTANCE=$INSTANCE
-Environment=PATH=${NODE_DIR:+$NODE_DIR:}$HOME/.local/bin:$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=$HOME/.local/bin:$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=$ROOT/.venv/bin/python $ROOT/server/run.py
 Restart=on-failure
 RestartSec=3
