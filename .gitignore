@@ -37,3 +37,7 @@ bench/report/
 # uv, when the installer fetched its own rather than using one on PATH.
 # Kept inside the install so deleting the folder really does uninstall it.
 .uv/
+
+# Local test caches.
+.hypothesis/
+.pytest_cache/
