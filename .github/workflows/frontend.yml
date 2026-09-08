@@ -1,0 +1,119 @@
+# Build the interface once, here, so nobody has to build it on their laptop.
+#
+# Installing NextTex used to need Node 20+ on the user's machine for the sole
+# purpose of producing an artefact that is identical for everyone. Nothing in
+# the bundle depends on who built it -- there is no `base`, no `define`, and
+# no VITE_ variable anywhere in the source -- so a build here is the same
+# build, and the install script downloads it instead.
+#
+# The asset is keyed to the commit, because the install stays a git checkout:
+# `scripts/update.sh` pulls, then fetches the interface belonging to the
+# commit it landed on. A mismatch between the two is the one failure this
+# arrangement can have, and `dist/BUILD_SHA` is how anything can notice it.
+
+name: interface
+
+on:
+  push:
+    branches: [master]
+    # A commit that changes nothing the bundle is made of still gets an
+    # asset, because update.sh looks one up by SHA for every commit it
+    # lands on and a missing one is indistinguishable from a failed build.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: interface-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `ci` rather than `install`: the lockfile is the point of building
+      # this centrally, and `install` is free to resolve something else.
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      # The important line in this file.
+      #
+      # `npm run build` is `vite build && node precompress.mjs`, and the
+      # server serves a `.br` when one exists and silently falls back to the
+      # plain file when it does not. So a build that skipped precompression
+      # would turn a 205 kB first load into 762 kB and nothing anywhere
+      # would say a word about it.
+      - name: Check the precompressed assets are there
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          count=$(find dist/assets -name '*.br' | wc -l)
+          if [ "$count" -lt 3 ]; then
+            echo "only $count brotli files in dist/assets -- precompression did not run"
+            exit 1
+          fi
+          test -f dist/index.html
+          echo "$count precompressed assets"
+
+      - name: Stamp and package
+        id: package
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          # So a running install can say which interface it is serving, and
+          # notice when it does not match the code around it.
+          echo "$sha" > frontend/dist/BUILD_SHA
+          name="nexttex-frontend-${sha}.tar.gz"
+          tar -czf "$name" -C frontend dist
+          sha256sum "$name" > "${name}.sha256"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          ls -la "$name"
+
+      # One rolling release holding many assets, rather than a release per
+      # commit: the releases page is for humans reading about versions, and
+      # a hundred entries named after hashes is not that.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=interface
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" \
+              --title "Interface builds" \
+              --notes "Prebuilt frontends, one per commit on master, named by the commit they were built from. \`scripts/install.sh\` and \`scripts/update.sh\` fetch from here; there is nothing to download by hand." \
+              --latest=false
+          fi
+          gh release upload "$tag" \
+            "${{ steps.package.outputs.name }}" \
+            "${{ steps.package.outputs.name }}.sha256" --clobber
+
+      # Assets accumulate one per commit; keep the recent ones so an install
+      # a few days behind can still find its own, and no more.
+      - name: Prune old builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view interface --json assets \
+            --jq '.assets | sort_by(.createdAt) | reverse | .[60:] | .[].name' \
+            | while read -r stale; do
+                [ -n "$stale" ] || continue
+                echo "removing $stale"
+                gh release delete-asset interface "$stale" --yes || true
+              done
