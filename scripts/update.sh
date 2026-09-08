@@ -9,8 +9,12 @@ cd "$(dirname "$0")/.."
 
 # If the Node on PATH is too old -- which it is on plenty of distributions --
 # point NEXTTEX_NODE_BIN at a newer one rather than changing the system's.
-# The installer writes whichever it used into the service file, so an update
-# triggered from the page can still rebuild the interface.
+#
+# This is only the fallback now.  The interface is downloaded for the commit
+# being landed on, so an update triggered from the page needs no Node at all;
+# the service file no longer carries a Node directory in its PATH, and that
+# is deliberate rather than an oversight.  What this covers is running the
+# script by hand on a machine that cannot reach GitHub.
 if [ -n "${NEXTTEX_NODE_BIN:-}" ] && [ -d "$NEXTTEX_NODE_BIN" ]; then
   PATH="$NEXTTEX_NODE_BIN:$PATH"
 fi
