@@ -290,3 +290,73 @@ test("reading mode still gives the overlay back", async ({ tab }) => {
   await chatThere(tab);
   await expect(tab.locator(".cm-editor")).toBeVisible();
 });
+
+/** Escape closes the agent panel, from inside the agent panel.
+ *
+ *  The shortcut that opens it leaves the caret in the composer, which is
+ *  what makes the two a pair.  It is deliberately not a global binding:
+ *  Escape is also how a keyboard leaves CodeMirror, where Tab indents.
+ */
+test("escape closes the agent panel from its composer", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await chatThere(tab);
+  await composer(tab).last().focus();
+  await tab.keyboard.press("Escape");
+  await expect(tab.getByTestId("collapsed-claude")).toBeVisible();
+});
+
+test("the shortcut opens it and escape closes it, on the overlay", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1200, height: 1000 });
+  await chatAway(tab);
+  await tab.keyboard.press("Control+Alt+KeyA");
+  await chatThere(tab);
+  await expect(composer(tab)).toBeFocused();
+  await tab.keyboard.press("Escape");
+  await chatAway(tab);
+});
+
+test("escape closes the panel and never opens it", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1200, height: 1000 });
+  await chatAway(tab);
+  // A key that summoned a panel out of nothing would be a surprise, and
+  // there is a shortcut for opening.
+  await tab.keyboard.press("Escape");
+  await chatAway(tab);
+});
+
+test("escape in the editor is the editor's, not the panel's", async ({ tab }) => {
+  // Escape is how a keyboard gets out of CodeMirror, where Tab indents
+  // rather than moving on.  A global binding took that away and shut the
+  // panel instead, which is the regression this stands guard over.
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await chatThere(tab);
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Escape");
+  await chatThere(tab);
+});
+
+test("escape leaves the panel alone while a box elsewhere has the caret", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await chatThere(tab);
+  await tab.getByTestId("file-search-open").click();
+  await tab.getByTestId("file-search").fill("main");
+  await tab.keyboard.press("Escape");
+  await chatThere(tab);
+});
+
+test("escape closes the popover in front of the panel, not the panel", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await chatThere(tab);
+  // Escape belongs to the innermost thing that can be dismissed.
+  await tab.getByTestId("appearance").first().click();
+  await expect(tab.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await tab.keyboard.press("Escape");
+  await expect(tab.getByRole("dialog", { name: "Settings" })).toBeHidden();
+  await chatThere(tab);
+});

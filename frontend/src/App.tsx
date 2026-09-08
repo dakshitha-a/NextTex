@@ -854,6 +854,17 @@ export default function App() {
     if (opening) window.setTimeout(() => chat.current?.focusComposer(), 60);
   }, [fold]);
 
+  /** Close the agent panel, whichever form it is in, and leave everything
+   *  else alone.  Escape only ever closes: a key that opened a panel from
+   *  nowhere would be a surprise, and there is a shortcut for opening. */
+  const closeChat = useCallback(() => {
+    if (chatOverRef.current) {
+      if (chatOpenRef.current) setChatOpen(false);
+      return;
+    }
+    if (!foldedRef.current.chat) fold("chat");
+  }, [fold]);
+
   // ---- keyboard ---------------------------------------------------------
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -888,10 +899,38 @@ export default function App() {
         event.preventDefault();
         toggleChat();
       }
+
+      // Escape closes the agent panel, from inside the agent panel.
+      //
+      // Not from anywhere on screen.  Escape already means something in the
+      // editor -- it is how a keyboard gets out of CodeMirror, where Tab
+      // indents rather than moving on -- and a global binding stole that,
+      // shutting the panel every time somebody pressed it to tab away.  So
+      // this is scoped the way every other Escape in the app is: it
+      // dismisses the thing you are in.  The shortcut that opens the panel
+      // leaves the caret in its composer, which is what makes the two a
+      // pair; anywhere else the key belongs to whatever is nearer.
+      if (event.key === "Escape") {
+        // These cover the screen while they are open, and close themselves.
+        if (tutorialOpen || historyOpen || showingChanges || contextRequest) return;
+        const active = document.activeElement as HTMLElement | null;
+        if (!active?.closest?.("[data-nx-chat]")) return;
+        // A popover inside the panel claims Escape by preventing the
+        // default, and window listeners run in the order they were added --
+        // those components mount long after this one, so the claim is only
+        // visible once the dispatch is over.  Hence the wait.
+        window.setTimeout(() => {
+          if (event.defaultPrevented) return;
+          closeChat();
+        }, 0);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activePath, toggleChat]);
+  }, [
+    activePath, toggleChat, closeChat,
+    tutorialOpen, historyOpen, showingChanges, contextRequest,
+  ]);
 
 
   /** Give one pane the whole window, and give it back.
@@ -1472,6 +1511,9 @@ export default function App() {
             : undefined,
         }}
         aria-hidden={chatOver && !chatOpen}
+        // Read by the Escape handler, which has to tell the panel's own
+        // composer from every other box on screen.
+        data-nx-chat=""
         data-testid="chat-panel"
       >
         <Chat

@@ -221,7 +221,7 @@ export default function Tutorial({
               ["Typing", "In the file list, jumps to a file"],
               ["F2, Delete", "In the file list, rename and move to trash"],
               ["A, ⇧A, D", "In a permission card: allow, allow always, deny"],
-              ["Esc", "Closes whatever you opened"],
+              ["Esc", "Closes whatever you opened, the agent panel last"],
             ]}
           />
         </Section>

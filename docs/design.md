@@ -1682,6 +1682,22 @@ and is free in both keymaps and both browsers. It is read from `event.code`
 rather than `event.key`, because with Alt held macOS reports the character
 the combination would type.
 
+**Escape closes it from inside it, and never opens it.** Scoped rather than
+global, and the first attempt was global: Escape is also how a keyboard gets
+out of CodeMirror — where Tab indents rather than moving on — so a binding
+that listened everywhere shut the panel every time somebody pressed Escape
+to tab away from the editor, and the accessibility spec that tabs from the
+editor to the composer caught it. Escape dismisses the thing you are in,
+here as everywhere else in the app. The pairing with `Cmd/Ctrl-Alt-A` still
+holds, because that shortcut leaves the caret in the composer.
+
+Two things still have to be true. The tutorial, the history panel and the
+context sheet own Escape while they are open, and close themselves. And a
+popover *inside* the panel claims it by preventing the default — a claim not
+visible synchronously, since window listeners run in the order they were
+added and those components mount long after the shell, so the decision waits
+a turn and then reads `defaultPrevented`.
+
 ### Reaching for the preview puts the overlay away
 
 Below 1400px the panel lies over the preview, and the click that means "let me
