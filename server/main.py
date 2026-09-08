@@ -22,6 +22,7 @@ import zipfile
 from functools import partial
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from starlette.background import BackgroundTask
 from fastapi import (
@@ -319,7 +320,7 @@ def _authorise(supplied: str) -> str:
     """"instance", "session" or "" -- what this credential is, if anything."""
     if not supplied:
         return ""
-    if secrets.compare_digest(supplied, SETTINGS.token):
+    if auth.same_secret(supplied, SETTINGS.token):
         return "instance"
     record = auth.find_session(SETTINGS.sessions, supplied)
     if record is None:
@@ -338,7 +339,7 @@ def _has_live_session(request: Request) -> bool:
     in the settings card for the same browser.
     """
     cookie = request.cookies.get(COOKIE, "")
-    if not cookie or secrets.compare_digest(cookie, SETTINGS.token):
+    if not cookie or auth.same_secret(cookie, SETTINGS.token):
         return False
     return auth.find_session(SETTINGS.sessions, cookie) is not None
 
@@ -388,8 +389,6 @@ def authorise_socket(websocket) -> bool:
     if origin:
         host = websocket.headers.get("host", "")
         try:
-            from urllib.parse import urlsplit
-
             if urlsplit(origin).netloc != host:
                 return False
         except ValueError:
@@ -403,8 +402,55 @@ def authorise_socket(websocket) -> bool:
     return bool(_authorise(supplied))
 
 
+# Requests that change something and were made by a page rather than by a
+# person or a script.  `SameSite=lax` is the cookie's own defence and it is
+# not enough here, because "site" is scheme and host and *not port*: a page
+# on http://127.0.0.1:5173 -- a Vite dev server, a notebook, whatever a
+# `npm start` in another project put there -- is same-site with NextTex on
+# 127.0.0.1:8450, and its cookies ride along.
+#
+# What that reached was not theoretical.  `POST /api/projects/{id}/upload`
+# takes a multipart body, so it needs no preflight, and it writes a named
+# file into the project: `latexmkrc` is arbitrary Perl at the next full
+# build.  `POST /api/update` runs the update script.  Neither takes a JSON
+# body, which is what had been quietly doing the work of a CSRF defence for
+# every other route.
+#
+# The rule is the one `authorise_socket` already argues for, applied to the
+# other half of the app: same-origin, or no origin at all.  A browser always
+# sends `Origin` on a request that changes something and `Sec-Fetch-Site` on
+# everything; curl, the installer and the test client send neither, and a
+# page cannot forge their absence.
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def _same_origin_request(request: Request) -> bool:
+    if request.method in SAFE_METHODS:
+        return True
+
+    fetch_site = request.headers.get("sec-fetch-site", "")
+    if fetch_site:
+        # "none" is the address bar or a bookmark, which is a person.
+        # "same-site" is the different-port case above, and is refused.
+        return fetch_site in ("same-origin", "none")
+
+    origin = request.headers.get("origin", "")
+    if not origin:
+        return True
+    try:
+        return urlsplit(origin).netloc == request.headers.get("host", "")
+    except ValueError:
+        return False
+
+
 @app.middleware("http")
 async def authenticate(request: Request, call_next):
+    if not _same_origin_request(request):
+        return JSONResponse(
+            {"error": "This request came from another page, so it was refused."},
+            status_code=403,
+        )
+
     if request.url.path.startswith(OPEN_PATHS):
         return await call_next(request)
 
@@ -752,17 +798,28 @@ async def login(request: Request, password: str = Body("", embed=True)):
     their own documents.
     """
     address = _client_address(request)
-    delay = auth.failure_delay(address)
-    if delay:
-        await asyncio.sleep(delay)
 
     if not SETTINGS.password_hash:
         return JSONResponse(
             {"error": "No password is set on this install. Open the link the "
                       "server printed when it started."}, status_code=403)
 
-    if not auth.verify_password(password, SETTINGS.password_hash, SETTINGS.password_salt):
-        auth.note_failure(address)
+    # Written down before it is spent, not after.  The delay bounds how long
+    # one attempt takes; counting the attempt only once it had failed meant
+    # a hundred arriving together all read the same count, all waited the
+    # same nothing, and the doubling never described the guessing rate.
+    auth.note_failure(address)
+    delay = auth.failure_delay(address)
+    if delay:
+        await asyncio.sleep(delay)
+
+    # scrypt is 15 ms of CPU with the GIL held, on the one route that needs
+    # no credentials at all, in a process that is also serving every open
+    # document.  On the loop it is a way for anyone who can reach the port
+    # to stop the editor without ever guessing anything.
+    if not await asyncio.to_thread(
+            auth.verify_password, password,
+            SETTINGS.password_hash, SETTINGS.password_salt):
         return JSONResponse({"error": "That is not the password."}, status_code=401)
 
     auth.note_success(address)
@@ -817,13 +874,14 @@ async def set_password(
     # instance token counts, because that is the documented way back in for
     # someone who has forgotten it and has access to the machine.
     if SETTINGS.password_hash:
-        by_token = secrets.compare_digest(
+        by_token = auth.same_secret(
             request.query_params.get("token", "")
             or request.headers.get("x-nexttex-token", ""),
             SETTINGS.token,
         )
-        if not by_token and not auth.verify_password(
-                current, SETTINGS.password_hash, SETTINGS.password_salt):
+        if not by_token and not await asyncio.to_thread(
+                auth.verify_password, current,
+                SETTINGS.password_hash, SETTINGS.password_salt):
             auth.note_failure(_client_address(request))
             return JSONResponse(
                 {"error": "That is not the current password."}, status_code=403)

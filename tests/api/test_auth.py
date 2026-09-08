@@ -345,3 +345,84 @@ def test_a_second_browser_still_gets_its_own_session(anon):
     other = TestClient(server_main.app)
     other.get(url, headers={"accept": "text/html"})
     assert len(server_main.SETTINGS.sessions) == 2
+
+
+# --- what a credential is allowed to contain -------------------------------
+
+
+@pytest.mark.parametrize("credential", ["é", "café", "éèê", "🔑", "tok\u200ben"])
+def test_a_non_ascii_credential_is_refused_rather_than_a_traceback(anon, credential):
+    """`secrets.compare_digest` raises TypeError on two non-ASCII strings, and
+    the supplied half is whatever arrived in a query string.  Every way in was
+    passing it straight through, so `GET /?token=é` was an unauthenticated 500
+    out of the auth layer on an install whose whole story is that the port is
+    behind a password.
+
+    The query string is the only way such a value reaches the server, which is
+    why it is the only one asserted here: a header or a cookie is latin-1 on
+    the wire, and httpx refuses to send one that is not.  It is also the way
+    that matters, because `?token=` is the URL the installer prints.
+    """
+    assert anon.get("/", params={"token": credential}).status_code == 401
+    assert anon.get("/api/auth", params={"token": credential}).status_code == 401
+
+
+@pytest.mark.parametrize("supplied", ["é", "🔑", "tok\u200ben", ""])
+def test_same_secret_is_false_rather_than_raising(supplied):
+    """The comparison the whole auth layer rests on, on its own."""
+    assert auth.same_secret(supplied, "an-ascii-token") is False
+
+
+def test_same_secret_still_matches_what_it_should():
+    assert auth.same_secret("an-ascii-token", "an-ascii-token") is True
+    assert auth.same_secret("an-ascii-token", "an-ascii-tokeN") is False
+
+
+def test_a_non_ascii_password_still_signs_in(anon):
+    """The other half of the same fix: refusing non-ASCII outright would have
+    locked out anybody whose password is not English."""
+    stored, salt = auth.hash_password("mot de passe très sûr")
+    server_main.SETTINGS.password_hash = stored
+    server_main.SETTINGS.password_salt = salt
+    assert anon.post("/api/login", json={"password": "mot de passe très sûr"}).status_code == 200
+
+
+def test_a_stored_hash_that_is_not_ascii_is_refused(anon):
+    """The config file is a file, and a corrupt or tampered one must be a
+    wrong password rather than a crash."""
+    server_main.SETTINGS.password_hash = "nôt a hex digest"
+    server_main.SETTINGS.password_salt = "00" * 16
+    assert anon.post("/api/login", json={"password": "anything"}).status_code == 401
+
+
+# --- the guessing delay counts attempts, not conclusions -------------------
+
+
+def test_the_delay_counts_an_attempt_before_it_is_spent(anon):
+    """It used to be written down only after the answer had been checked, so a
+    hundred guesses arriving together all read the same count of zero and all
+    waited the same nothing.  The doubling described how many *rounds* a
+    guesser had taken, not how many guesses."""
+    stored, salt = auth.hash_password("the real password")
+    server_main.SETTINGS.password_hash = stored
+    server_main.SETTINGS.password_salt = salt
+
+    auth._FAILURES.clear()
+    for _ in range(3):
+        anon.post("/api/login", json={"password": "wrong"})
+
+    count, _ = auth._FAILURES["testclient"]
+    assert count == 3
+    assert auth.failure_delay("testclient") > 0
+
+
+def test_signing_in_correctly_clears_the_delay(anon):
+    """The attempt is counted up front, so success has to un-count it or one
+    typo before a correct password would leave the next sign-in slow."""
+    stored, salt = auth.hash_password("the real password")
+    server_main.SETTINGS.password_hash = stored
+    server_main.SETTINGS.password_salt = salt
+
+    anon.post("/api/login", json={"password": "wrong"})
+    assert anon.post("/api/login", json={"password": "the real password"}).status_code == 200
+    assert "testclient" not in auth._FAILURES

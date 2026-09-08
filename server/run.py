@@ -73,9 +73,17 @@ async def serve(settings: Settings) -> None:
     urls: list[str] = []
 
     if settings.localhost:
+    # `proxy_headers` defaults to *on* in uvicorn, trusting 127.0.0.1, which
+    # on a loopback listener means every client.  So `X-Forwarded-For` was
+    # rewriting `request.client.host`, and nexttex/auth.py's rate limiter
+    # keys its buckets on exactly that: a guesser could reset their own
+    # doubling delay on every attempt by inventing a header.  auth.py says
+    # in its own comment that the address is the socket's; this is what
+    # makes that true.  NextTex has no proxy in front of it by design, so
+    # there is nothing to lose by refusing the header outright.
         config = uvicorn.Config(
             "server.main:app", host="127.0.0.1", port=settings.port,
-            log_level="warning", access_log=False,
+            log_level="warning", access_log=False, proxy_headers=False,
         )
         servers.append(uvicorn.Server(config))
         urls.append(f"http://127.0.0.1:{settings.port}")
@@ -92,7 +100,7 @@ async def serve(settings: Settings) -> None:
             config = uvicorn.Config(
                 "server.main:app", host=remote, port=settings.port,
                 ssl_certfile=settings.certfile, ssl_keyfile=settings.keyfile,
-                log_level="warning", access_log=False,
+                log_level="warning", access_log=False, proxy_headers=False,
             )
             servers.append(uvicorn.Server(config))
             urls.append(f"https://{remote}:{settings.port}")
