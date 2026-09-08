@@ -162,7 +162,7 @@ def search_semanticscholar(query, author, years, rows):
 def cited_by(doi, rows):
     """Papers that cite a given DOI -- how a literature review grows."""
     r = requests.get(
-        f"https://api.semanticscholar.org/graph/v1/paper/DOI:{quote(doi)}/citations?"
+        f"https://api.semanticscholar.org/graph/v1/paper/DOI:{quote(doi, safe='')}/citations?"
         + urlencode({"limit": rows,
                      "fields": "title,year,authors,venue,externalIds,citationCount"}),
         headers={"User-Agent": UA}, timeout=TIMEOUT)

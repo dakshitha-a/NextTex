@@ -64,6 +64,26 @@ LOG_ENV = {
     "max_print_line": "1000",
     "error_line": "254",
     "half_error_line": "238",
+    # Ask the engine not to read files outside the project.  Passed for the
+    # engines that honour it, and *not* relied on, because the one this was
+    # tested against does not.
+    #
+    # pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026), kpathsea 6.4.2:
+    # `kpsewhich --var-value=openin_any` reports the value back correctly, and
+    # the engine then ignores it.  `\input{/etc/hostname}` put the file in the
+    # PDF under "a", under "r" and under "p" alike, set through the
+    # environment and through a `texmf.cnf` on `TEXMFCNF`; even "r", which
+    # only forbids dotfiles, read a dotfile.  So this line is defence for
+    # somebody else's installation and must not be described as a fence here.
+    #
+    # What *is* enforced everywhere tested is the other direction:
+    # `openout_any` defaults to paranoid, so a document cannot write outside
+    # the project.  That asymmetry is the whole shape of the remaining
+    # problem, and it is written up in the tracker rather than papered over:
+    # a document can read anything this user can read and write it into a
+    # file *inside* the project, which on a shared project is then gossiped
+    # to every peer.
+    "openin_any": "p",
 }
 
 INCLUDE_RE = re.compile(r"^[^%\n]*\\include\{([^}]*)\}", re.M)
