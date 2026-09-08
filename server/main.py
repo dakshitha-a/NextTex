@@ -45,7 +45,7 @@ from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
 from nexttex.project import (
-    IGNORED_FILES, Project, ProjectConfig, Registry, instance_name,
+    IGNORED_FILES, Project, ProjectConfig, Registry, id_for, instance_name,
 )
 from nexttex import updates
 from server.session import CLOSED, ProjectSession, spawn
@@ -379,6 +379,49 @@ async def forget_project(project_id: str):
     # projects most likely to be removed are the ones nobody has opened.
     REGISTRY.remove(root)
     return {"ok": True}
+
+
+@app.post("/api/projects/{project_id}/relocate")
+async def relocate_project(project_id: str, path: str = Body(..., embed=True)):
+    """Say where a project's folder went.
+
+    Moving a folder outside NextTex leaves an entry pointing at nothing, and
+    the only alternative to this was to remove the entry and add the new
+    path -- which works, but loses the place in the list and reads like
+    throwing the project away to get it back.
+
+    A project is identified by where it is, so repointing one gives it a new
+    id: this is a removal and an addition, done together and keeping the
+    entry's position. Any session on the old id is closed, because the root
+    it was built around is gone.
+    """
+    old_root = REGISTRY.path_for(project_id)
+    if old_root is None:
+        raise HTTPException(404, "unknown project")
+
+    root = Path(path).expanduser()
+    if not root.is_absolute():
+        root = Path.home() / root
+    root = root.resolve()
+    if not root.is_dir():
+        raise HTTPException(400, f"no such directory: {root}")
+
+    # Pointing one project at another's folder would leave two entries
+    # sharing an id, and the second would shadow the first everywhere.
+    other = REGISTRY.path_for(id_for(root))
+    if other is not None and other.resolve() != old_root.resolve():
+        raise HTTPException(409, f"another project is already at {root}")
+
+    session = SESSIONS.pop(project_id, None)
+    if session:
+        await session.close()
+
+    try:
+        project = REGISTRY.relocate(old_root, root)
+    except (FileNotFoundError, OSError) as error:
+        raise HTTPException(400, f"could not open {root}: {error}")
+    _restart_watch()
+    return project.as_dict()
 
 
 @app.post("/api/projects/{project_id}/open")

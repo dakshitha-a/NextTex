@@ -337,6 +337,13 @@ const api = {
     ),
   // The writer's own spellings, per project: the vocabulary of one
   // document says nothing about the next.
+  /** Say where a project's folder went.  The project keeps its place in
+   *  the list, but not its id: a project is identified by where it is. */
+  relocateProject: (id: string, path: string) =>
+    request<ProjectSummary & { id: string }>(
+      `/projects/${id}/relocate`,
+      json({ path }),
+    ),
   dictionary: (id: string) =>
     request<{ words: string[] }>(`/projects/${id}/dictionary`),
   addWord: (id: string, word: string) =>

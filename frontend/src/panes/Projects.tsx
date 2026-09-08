@@ -34,6 +34,12 @@ export default function Projects({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgetting, setForgetting] = useState<string | null>(null);
+  // Saying where a folder went, keyed by the entry's old path.  The error
+  // belongs to the row rather than to the screen: the shared message at the
+  // bottom sits under the create form, where it reads as a create error.
+  const [relocating, setRelocating] = useState<string | null>(null);
+  const [movedTo, setMovedTo] = useState("");
+  const [rowError, setRowError] = useState<string | null>(null);
   // While an update is running the server is about to exit.  Opening a
   // project then means typing into a document whose server disappears
   // mid-save, so the screen stops offering it.
@@ -77,6 +83,20 @@ export default function Projects({
       if (project.id) onOpen(project.id);
     } catch (problem: any) {
       setError(problem.message);
+    }
+  };
+
+  const relocate = async (project: ProjectSummary) => {
+    const where = movedTo.trim();
+    if (!where) return;
+    setRowError(null);
+    try {
+      await api.relocateProject(project.id, where);
+      setRelocating(null);
+      setMovedTo("");
+      await refresh();
+    } catch (problem: any) {
+      setRowError(problem.message);
     }
   };
 
@@ -194,6 +214,39 @@ export default function Projects({
                     This folder is no longer there.
                   </div>
                 ) : null}
+                {relocating === project.path ? (
+                  <div className="mt-2">
+                    <div className="flex gap-2">
+                      <input
+                        autoFocus
+                        value={movedTo}
+                        placeholder="Where is it now? e.g. ~/Papers/thesis"
+                        className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                        onChange={(event) => setMovedTo(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") relocate(project);
+                          if (event.key === "Escape") setRelocating(null);
+                        }}
+                      />
+                      <button
+                        className="ghost-button h-[28px] shrink-0 px-3 t-meta"
+                        data-testid="confirm-relocate"
+                        onClick={() => relocate(project)}
+                      >
+                        Use this folder
+                      </button>
+                      <button
+                        className="h-[28px] shrink-0 px-2 t-meta text-ink-3 hover:text-ink"
+                        onClick={() => setRelocating(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {rowError ? (
+                      <p className="t-meta mt-1 text-error">{rowError}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               {forgetting === project.path ? (
                 <div className="flex shrink-0 items-center gap-2">
@@ -240,6 +293,23 @@ export default function Projects({
                 >
                   {busy === project.id ? "Typesetting" : "PDF"}
                 </button>
+                {/* Only on a dead entry.  Nothing is moved by this -- the
+                    folder already moved, and this is where you tell the app
+                    where it went -- so it is named for what the writer is
+                    doing rather than for what it does to the registry. */}
+                {project.missing && relocating !== project.path ? (
+                  <button
+                    className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink"
+                    data-testid="find-project"
+                    onClick={() => {
+                      setRowError(null);
+                      setMovedTo("");
+                      setRelocating(project.path);
+                    }}
+                  >
+                    Find it…
+                  </button>
+                ) : null}
                 <button
                   className="h-[28px] rounded-[3px] px-2 t-meta text-ink-3 hover:text-error"
                   onClick={() => setForgetting(project.path)}

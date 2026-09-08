@@ -444,6 +444,39 @@ class Registry:
         self._write(entries)
         return project
 
+    def relocate(self, old: Path | str, new: Path | str) -> Project:
+        """Point an existing entry at a different folder.
+
+        The project is opened first and the registry written only if that
+        succeeds, so a move that turns out to be wrong leaves the list
+        exactly as it was rather than dropping an entry on the way.
+
+        The entry keeps when it was last opened: the folder moved, the
+        project did not become a new one, and the list is ordered by when
+        each was last worked on.
+        """
+        project = Project.open(new)
+        target = Path(old).expanduser().resolve()
+        kept, when = [], None
+        for entry in self._read():
+            here = Path(entry.path)
+            if here == target:
+                when = entry.last_opened
+                continue
+            # An entry already pointing at the destination is replaced by
+            # this one rather than duplicated: two entries at one path share
+            # an id, and the second would shadow the first everywhere.
+            if here == project.root:
+                continue
+            kept.append(entry)
+        kept.append(RegistryEntry(
+            path=str(project.root),
+            name=project.config.name,
+            last_opened=time.time() if when is None else when,
+        ))
+        self._write(kept)
+        return project
+
     def remove(self, root: Path | str) -> None:
         target = Path(root).expanduser().resolve()
         self._write([e for e in self._read() if Path(e.path) != target])
