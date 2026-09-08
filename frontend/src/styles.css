@@ -207,6 +207,16 @@ button { font: inherit; color: inherit; }
 /* A control that is not the agent: quiet until you approach it, then
    --hint.  This is most of the app's buttons; --pen is reserved for
    answering Claude or addressing it. */
+/* The ground a sheet sits on.  60% of --surround was far too heavy: this
+   app's surround is already the darkest thing in the palette, so six tenths
+   of it over the project list rendered the page behind as very nearly black
+   and the whole screen read as crashed rather than as busy.  A third of it,
+   with a small blur, says "behind this" without hiding it. */
+.nx-scrim {
+  background: color-mix(in oklab, var(--surround) 34%, transparent);
+  backdrop-filter: blur(1.5px);
+}
+
 .ghost-button {
   border: 1px solid var(--line);
   border-radius: 3px;
