@@ -18,6 +18,8 @@ origin, or no origin at all.  Absence is safe because a page cannot forge it,
 and it is what curl, the installer and this test client send.
 """
 
+from pathlib import Path
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -93,3 +95,27 @@ def test_an_upload_from_a_neighbouring_page_is_refused(client, opened):
         headers={"origin": NEIGHBOUR, "host": "127.0.0.1:8450"},
     )
     assert answer.status_code == 403
+
+
+def opened_root(opened):
+    return Path(opened["root"])
+
+
+def test_a_control_file_is_refused_even_from_the_right_origin(client, opened):
+    """The origin check and the file rule are two answers to one question, and
+    neither is the only thing standing there.  A writer's own browser, on the
+    right origin, still cannot upload arbitrary Perl that the next build runs
+    -- and the answer says so per file rather than failing the whole upload,
+    because the rest of a multi-file drop is fine."""
+    answer = client.post(
+        f"/api/projects/{opened['id']}/upload",
+        files=[
+            ("files", ("latexmkrc", b"system('id');", "text/plain")),
+            ("files", ("figure.png", b"\x89PNG\r\n\x1a\n", "image/png")),
+        ],
+    )
+    assert answer.status_code == 200
+    outcomes = {r["name"]: r["outcome"] for r in answer.json()["results"]}
+    assert outcomes["latexmkrc"] == "refused"
+    assert outcomes["figure.png"] == "written"
+    assert not (opened_root(opened) / "latexmkrc").exists()

@@ -68,6 +68,7 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import logging
 import re
 import secrets
 from pathlib import Path
@@ -80,6 +81,8 @@ from nexttex.history import slug_for
 from nexttex.project import TEXT_SUFFIXES, Project
 
 from . import persist
+
+log = logging.getLogger("nexttex.collab")
 
 # How long a change sits in the document before it is written out.  The
 # editor's own debounce was 250 ms and went over HTTP; this one is local and
@@ -257,6 +260,12 @@ class CollabStore:
         self.last_projected: dict[str, str] = {}
 
         self._dirty: set[str] = set()
+        # Files a peer proposed that this install will not write: a path that
+        # leaves the project, or one of the control files.  Held so the
+        # refusal is decided once rather than on every flush, and so it is
+        # never retried -- a record naming `.git/hooks/pre-commit` will name
+        # the same thing in 120 ms.
+        self._refused: set[str] = set()
         # Documents whose log has grown since it was last considered for
         # compaction.  Not compacted where it is noticed: that needs to read
         # the document, and it is noticed from inside a transaction.
@@ -770,6 +779,16 @@ class CollabStore:
         for file_id in pending:
             try:
                 self._write(file_id)
+            except PermissionError as refusal:
+                # The path fence, or the control-file rule beside it.  This
+                # one is *not* retried: retrying is for a write that might
+                # succeed later, and a record naming `../../.ssh/config` or
+                # `.git/hooks/pre-commit` will name it just as much next
+                # time.  Putting it back was an endless loop, once every
+                # 120 ms, with the refusal swallowed by the timer callback
+                # so nothing anywhere said a word.
+                self._refused.add(file_id)
+                log.warning("refused a shared file: %s", refusal)
             except Exception:
                 # A read-only directory, a disk that filled up, a path that
                 # is not a file. The document is still correct and still
@@ -786,12 +805,20 @@ class CollabStore:
         text = self._body.get(file_id)
         if record is None or text is None or record.get("trashed"):
             return
+        if file_id in self._refused:
+            return
         relative = record["path"]
         content = str(text)
         if self.last_projected.get(file_id) == content:
             return
 
-        path = self.project.resolve(relative)
+        # `resolve_for_write` rather than `resolve`, because this path was
+        # proposed by whoever is on the other end of the connection.  Staying
+        # inside the project was never the whole question: `.git/config` is
+        # inside the project, and a `core.fsmonitor` entry in it is a command
+        # that runs on the next `git status`, which this app performs after
+        # every build.  `latexmkrc` inside the project is Perl.
+        path = self.project.resolve_for_write(relative)
         previous = read_text(path)
         self._projecting.add(file_id)
         try:

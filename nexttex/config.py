@@ -19,6 +19,7 @@ import shutil
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
+from .atomic import write_atomically
 from .project import instance_name, state_home
 
 CONFIG_FILE = "config.json"
@@ -101,6 +102,16 @@ class Settings:
     # for on the same screen as the password, because that is the one moment
     # a person is already telling NextTex who they are.
     display_name: str = ""
+    # Whether latexmk may read a `latexmkrc` out of the project directory.
+    # Off, because that file is arbitrary Perl and a project is not always
+    # the writer's own work: it can be cloned, it can come from a template,
+    # and it can arrive from a collaborator.  On for anyone whose own
+    # projects genuinely need one, which is a real thing to need.
+    #
+    # It lives here, in the install's own settings, and deliberately not in
+    # `nexttex.toml`: that file is inside the project, so a project could
+    # otherwise arrive carrying permission to run its own code.
+    latexmk_rc: bool = False
 
     @classmethod
     def path(cls) -> Path:
@@ -146,13 +157,15 @@ class Settings:
         return cls(**{k: v for k, v in data.items() if k in known})
 
     def save(self) -> None:
+        # Through `write_atomically`, for the reason its own docstring gives:
+        # it chmods the temp file *before* the rename, and this did it after.
+        # This file holds the access token, the OpenAI key and a fingerprint
+        # of every signed-in session, and it was spending the gap between two
+        # statements at whatever the process umask allows -- 0644 on most
+        # machines -- in a directory other users can read.
         path = self.path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_suffix(".json.tmp")
-        temp.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
-        # The token is a credential; nobody else on the box should read it.
-        temp.chmod(0o600)
-        temp.replace(path)
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        write_atomically(path, json.dumps(asdict(self), indent=2), mode=0o600)
 
 
 # Every tool NextTex looks for, and whether it can work without it.
