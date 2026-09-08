@@ -497,10 +497,13 @@ your-paper/
     ├── history/             versions, content-addressed
     ├── trash/               deleted files, kept until you say otherwise
     ├── transcript.jsonl     the conversation
-    └── context/             what you gave the agent to read
+    ├── context/             what you gave the agent to read
+    └── collab/              the shared documents, if you have shared it
 ```
 
 Delete `.nexttex/` and you have exactly the LaTeX project you started with.
+On a shared project that also leaves the share — the files are all still
+there, and somebody would have to invite you back.
 
 ## Keyboard
 

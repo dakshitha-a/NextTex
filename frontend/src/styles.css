@@ -211,26 +211,32 @@ button { font: inherit; color: inherit; }
    Somebody else's cursor.
 
    `y-codemirror.next` ships a base theme for these and it is the wrong
-   shape for this app: a 1.4em caret with a permanent dot on top, and a name
-   that appears only on hover -- so a collaborator moving through a chapter
-   is a bare coloured line and you have to go and point at it to find out
-   whose.
+   shape for this app: a 1.4em caret with a permanent dot on top, a serif
+   name in **white**, and the name shown only on hover -- so a collaborator
+   moving through a chapter is a bare coloured line and you have to go and
+   point at it to find out whose.
 
-   The name shows itself instead, for two seconds, every time the caret
-   moves.  The widget is rebuilt on each awareness change, which replays the
-   animation without anything having to track it.  Then it goes away, because
-   four names pinned over a paragraph is worse than none.
+   Every selector below is prefixed with `.cm-editor`, and that is not
+   decoration.  CodeMirror injects a base theme with its selectors scoped
+   that way, so a bare `.cm-ySelectionInfo` here loses to it on specificity
+   and silently does nothing -- which is what happened: the label went on
+   being white on amber, about 2:1, while this file said otherwise.
+
+   The name shows itself for two seconds every time the caret moves.  The
+   widget is rebuilt on each awareness change, which replays the animation
+   without anything having to track it.  Then it goes away, because four
+   names pinned over a paragraph is worse than none.
 
    Colour comes from the peer, inline, so nothing here can hard-code one.
    ----------------------------------------------------------------------- */
-.cm-ySelection {
+.cm-editor .cm-ySelection {
   /* Their selection, behind the text rather than over it. */
   mix-blend-mode: normal;
   opacity: 0.28;
   border-radius: 1px;
 }
 
-.cm-ySelectionCaret {
+.cm-editor .cm-ySelectionCaret {
   position: relative;
   display: inline-block;
   width: 0;
@@ -245,24 +251,26 @@ button { font: inherit; color: inherit; }
   vertical-align: text-bottom;
 }
 
-.cm-ySelectionCaretDot {
+.cm-editor .cm-ySelectionCaretDot {
   /* The default's floating dot sits above the line and collides with the
      line above it in a dense chapter.  The label does this job. */
   display: none;
 }
 
-.cm-ySelectionInfo {
+.cm-editor .cm-ySelectionInfo {
   position: absolute;
   top: -1.35em;
   left: -2px;
-  font-size: 10px;
-  line-height: 1.4;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  font-weight: 500;
+  font: 500 10px/1.4 ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   padding: 0 4px;
-  border-radius: 2px 2px 2px 0;
-  color: var(--surround);
+  /* The app's control radius, and a square inner corner so it reads as a
+     flag on the caret rather than as a floating pill. */
+  border-radius: 3px 3px 3px 0;
+  /* Dark ink on the peer's colour. The peer colours are all light enough
+     to carry it, which is why they are chosen the way they are -- white on
+     any of them is around 2:1 and unreadable at ten pixels. */
+  color: #141715;
   background-color: inherit;
   user-select: none;
   pointer-events: none;
@@ -271,10 +279,11 @@ button { font: inherit; color: inherit; }
   animation: nx-name 2.4s var(--ease) forwards;
 }
 
-.cm-ySelectionCaret:hover > .cm-ySelectionInfo {
+.cm-editor .cm-ySelectionCaret:hover > .cm-ySelectionInfo {
   /* Pointing at a caret asks whose it is, whenever you ask. */
   animation: none;
   opacity: 1;
+  transition-delay: 0s;
 }
 
 @keyframes nx-name {
@@ -284,17 +293,23 @@ button { font: inherit; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   /* No fade, and no permanent labels either: hover still answers. */
-  .cm-ySelectionInfo { animation: none; opacity: 0; }
+  .cm-editor .cm-ySelectionInfo { animation: none; opacity: 0; }
 }
 
-/* The ground a sheet sits on.  60% of --surround was far too heavy: this
-   app's surround is already the darkest thing in the palette, so six tenths
-   of it over the project list rendered the page behind as very nearly black
-   and the whole screen read as crashed rather than as busy.  A third of it,
-   with a small blur, says "behind this" without hiding it. */
+/* The ground a sheet sits on.
+ *
+ * Built from black rather than from --surround, and with a different alpha
+ * per theme, because --surround is the darkest thing in the dark palette and
+ * a light grey in the light one -- so one recipe gave a veil that nearly
+ * hid the app in dark and barely touched it in light.  Two numbers, chosen
+ * so the page behind reads as *behind* in both and as gone in neither. */
 .nx-scrim {
-  background: color-mix(in oklab, var(--surround) 34%, transparent);
+  background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(1.5px);
+}
+
+:root[data-theme="light"] .nx-scrim {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .ghost-button {

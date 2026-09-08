@@ -205,3 +205,75 @@ async def test_history_is_not_sent_twice(tmp_path):
     await bob.network.close()
     alice.store.close()
     bob.store.close()
+
+
+# --- and the contents, when somebody asks for them --------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_collaborators_old_version_can_be_opened(tmp_path):
+    """History arrives as lines; the bytes come on demand.
+
+    Almost nobody opens almost any old version, so pulling a peer's whole
+    history down before the first keystroke would be the wrong trade -- but
+    the moment somebody does open one, the bytes have to come from
+    somewhere, and until they did a collaborator's history was a list of
+    versions none of which could be read.
+    """
+    alice = Peer(tmp_path / "alice", "The chapter.\n")
+    bob = Peer(tmp_path / "bob", "")
+    alice.network._me = "a" * 64
+    bob.network._me = "b" * 64
+
+    alice.history.record("main.tex", "an early draft nobody kept\n", who="Alice")
+    sha = alice.history.versions("main.tex")[0].sha
+
+    alice.network.begin_sharing("Alice")
+    await alice.network.start()
+    for file_id, record in alice.store.files.items():
+        if record.get("kind") == "text":
+            alice.store.body(file_id)
+    await bob.network.join(alice.network.invite(), "Bob")
+    await asyncio.sleep(1.0)
+
+    # Bob has the version listed, and not its contents.
+    assert any(v.sha == sha for v in bob.history.versions("main.tex"))
+    assert bob.history.blobs.get(sha) is None
+
+    await bob.network.fetch_blob(sha)
+    await asyncio.sleep(0.6)
+
+    assert bob.history.blobs.get(sha) is not None
+    assert bob.history.content("main.tex", sha) == "an early draft nobody kept\n"
+
+    await alice.network.close()
+    await bob.network.close()
+    alice.store.close()
+    bob.store.close()
+
+
+@pytest.mark.asyncio
+async def test_a_peer_cannot_ask_for_a_blob_outside_the_store(tmp_path):
+    """`BlobStore.path_for` joins the sha onto a directory, so an unchecked
+    value lets a member read anything zlib-compressed the server can reach."""
+    alice = Peer(tmp_path / "alice", "The chapter.\n")
+    bob = Peer(tmp_path / "bob", "")
+    alice.network._me = "a" * 64
+    bob.network._me = "b" * 64
+
+    alice.network.begin_sharing("Alice")
+    await alice.network.start()
+    await bob.network.join(alice.network.invite(), "Bob")
+    await asyncio.sleep(0.8)
+
+    link = next(iter(bob.network.links.values()))
+    before = list((alice.project.state_dir / "history").rglob("*"))
+    await link.want_blob("../" * 8 + "etc/passwd")
+    await asyncio.sleep(0.4)
+    # Nothing sent, nothing read, nothing written.
+    assert list((alice.project.state_dir / "history").rglob("*")) == before
+
+    await alice.network.close()
+    await bob.network.close()
+    alice.store.close()
+    bob.store.close()

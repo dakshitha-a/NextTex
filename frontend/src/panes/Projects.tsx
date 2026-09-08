@@ -372,7 +372,7 @@ export default function Projects({
             onChange={(event) => setInvite(event.target.value)}
           />
         ) : null}
-        <div className="mt-2 flex gap-2">
+        <div className={`mt-2 flex gap-2 ${mode === "join" ? "flex-col" : ""}`}>
           <input
             value={path}
             placeholder={
@@ -387,7 +387,9 @@ export default function Projects({
             onKeyDown={(event) => event.key === "Enter" && add()}
           />
           <button
-            className="ghost-button h-[28px] px-3 t-ui"
+            className={`h-[28px] px-3 t-ui ${
+              mode === "join" ? "pen-button self-start" : "ghost-button"
+            }`}
             onClick={add}
           >
             {mode === "create"

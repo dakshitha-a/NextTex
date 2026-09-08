@@ -247,6 +247,33 @@ Four operations and no more: see what changed, commit, push, pull. Branching
 and merging stay in the terminal, where the tools are better and the mistakes
 are recoverable.
 
+## 14. Write it with somebody else
+
+Only worth doing if there is a second machine to try it from — a laptop
+beside you, or a colleague on the phone. Both ends need NextTex installed.
+
+Press **Share** beside the project's name, then **Create an invite**. That is
+one string, copied to your clipboard. Send it however you would send a
+password: whoever opens it joins, once, and it stops working after a week.
+
+On the other machine, from the project list, choose **Join a shared project**,
+paste the invite, and give it an *empty* folder. The whole project arrives —
+every file, and what those files used to say. It refuses a folder with
+anything in it, on purpose: two copies of the same paper merged as though they
+were unrelated would give you every line twice.
+
+Now type on both. Their caret appears in your margin in their colour and says
+their name for a moment each time it moves, and a small circled initial at the
+end of the tab strip fills in while they are typing. Turn one machine's wifi
+off, write a paragraph on each, and turn it back on: both paragraphs are
+there, on both machines, and neither of you was asked to choose.
+
+Two things worth knowing before you rely on it. Each of you has your own
+`.git`, so pull between sessions rather than during one — a pull replaces a
+whole file and will win against a collaborator's untouched paragraphs. And
+disconnecting somebody stops the two of you syncing; it does not take back the
+copy they already have, and nothing could.
+
 ---
 
 ## Where things are
@@ -261,10 +288,13 @@ your-paper/
     ├── history/             versions, content-addressed
     ├── trash/               deleted files, kept until you say otherwise
     ├── transcript.jsonl     the conversation
-    └── context/             what you gave the agent to read
+    ├── context/             what you gave the agent to read
+    └── collab/              the shared documents, if the project is shared
 ```
 
 Delete `.nexttex/` and you have exactly the LaTeX project you started with.
+(On a *shared* project that also leaves the share: the files are all still
+there, and somebody would have to invite you back.)
 Nothing NextTex does is needed to compile your document, which is the point:
 the project has to still be an ordinary LaTeX project when you close the tab.
 

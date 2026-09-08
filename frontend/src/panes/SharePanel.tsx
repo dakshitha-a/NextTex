@@ -28,10 +28,12 @@ export default function SharePanel({ projectId, onClose }: {
   onClose: () => void;
 }) {
   const [state, setState] = useState<CollabState | null>(null);
+  const [me, setMe] = useState("");
   const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState("");
   const sheet = useRef<HTMLDivElement | null>(null);
 
@@ -43,6 +45,7 @@ export default function SharePanel({ projectId, onClose }: {
     ));
 
   useEffect(() => {
+    api.auth().then((who) => setMe(who.displayName)).catch(() => undefined);
     refresh();
     // Polled rather than pushed: whether a peer is connected changes on its
     // own, and a card nobody has open costs nothing.
@@ -74,6 +77,7 @@ export default function SharePanel({ projectId, onClose }: {
     try {
       const { invite: made } = await api.makeInvite(projectId);
       setInvite(made);
+      setRevealed(false);
       try {
         await navigator.clipboard.writeText(made);
         setCopied(true);
@@ -135,23 +139,28 @@ export default function SharePanel({ projectId, onClose }: {
           </div>
         ) : !state.shared ? (
           <div className="px-[12px] pb-[12px]">
+            {/* The consequence first. The paragraph that matters most here
+                is the one about there being no owner, and it was second and
+                dimmer than the one describing the mechanism. */}
             <p className="t-meta text-ink-2">
-              Sharing sends this project to other people running NextTex. Each
-              of them keeps a whole copy — the files, the history, their own
-              git — and everyone's editing is merged as it happens, including
-              anything written while somebody was offline.
-            </p>
-            <p className="t-micro mt-[8px] text-ink-3">
               Nobody owns a shared project. Anyone in it can invite somebody
-              else, and anyone can disconnect anybody.
+              else, and anyone can remove anybody — including you.
             </p>
+            <p className="t-meta mt-[8px] text-ink-2">
+              Everyone you invite gets a whole copy: the files, the history,
+              their own git. Edits merge as they happen, including anything
+              written while somebody was offline.
+            </p>
+            {/* "Share this project" was the dialog's title repeated, and it
+                described something the press does not do -- nothing is sent
+                to anybody until an invite is made. */}
             <button
-              className="ghost-button t-ui mt-[10px] h-[28px] w-full"
+              className="pen-button t-ui mt-[10px] h-[28px] w-full"
               disabled={busy}
               data-testid="start-sharing"
               onClick={share}
             >
-              {busy ? "Starting…" : "Share this project"}
+              {busy ? "Turning it on…" : "Turn on sharing"}
             </button>
           </div>
         ) : (
@@ -164,7 +173,7 @@ export default function SharePanel({ projectId, onClose }: {
                 send a password.
               </p>
               <button
-                className="ghost-button t-ui mt-[8px] h-[28px] w-full"
+                className="pen-button t-ui mt-[8px] h-[28px] w-full"
                 disabled={busy}
                 data-testid="make-invite"
                 onClick={makeInvite}
@@ -172,29 +181,69 @@ export default function SharePanel({ projectId, onClose }: {
                 {busy ? "Making…" : "Create an invite"}
               </button>
               {invite ? (
-                <>
-                  <textarea
-                    readOnly
-                    value={invite}
-                    data-testid="invite-text"
-                    aria-label="The invite to send"
-                    rows={2}
-                    className="t-code-sm mt-[8px] w-full resize-none rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink"
-                    onFocus={(event) => event.currentTarget.select()}
-                  />
-                  <p className="t-micro mt-[4px] text-ok empty:hidden">
-                    {copied ? "Copied to your clipboard." : ""}
-                  </p>
-                </>
+                <div className="mt-[8px]">
+                  {/* Not printed in full.  The paragraph above calls this a
+                      credential and then the first version put it on screen
+                      at full size, where a screenshare or somebody walking
+                      past collects it -- and clipped it mid-line, so it also
+                      looked broken.  It is on the clipboard, which is where
+                      it is wanted; the rest is for the rare case where the
+                      clipboard did not work. */}
+                  {revealed ? (
+                    <textarea
+                      readOnly
+                      autoFocus
+                      value={invite}
+                      data-testid="invite-text"
+                      aria-label="The invite to send"
+                      rows={3}
+                      className="t-code-sm w-full resize-none overflow-auto rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink"
+                      onFocus={(event) => event.currentTarget.select()}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-[8px]">
+                      <code
+                        data-testid="invite-chip"
+                        className="t-code-sm min-w-0 flex-1 truncate rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink-3"
+                      >
+                        invite · {invite.slice(-8)} · hidden
+                      </code>
+                      <button
+                        className="quiet t-micro shrink-0"
+                        onClick={() => setRevealed(true)}
+                      >
+                        Show it
+                      </button>
+                    </div>
+                  )}
+                  <div className="mt-[5px] flex items-baseline gap-[10px]">
+                    <span className="t-micro text-ok empty:hidden">
+                      {copied ? "Copied to your clipboard." : ""}
+                    </span>
+                    <span className="flex-1" />
+                    <button
+                      className="quiet t-micro shrink-0"
+                      data-testid="copy-invite"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(invite);
+                          setCopied(true);
+                        } catch {
+                          setRevealed(true);
+                        }
+                      }}
+                    >
+                      Copy again
+                    </button>
+                  </div>
+                </div>
               ) : null}
             </div>
 
             <Heading>In this project</Heading>
             <ul className="px-[12px] py-[4px]">
               {others.length === 0 ? (
-                <li className="t-micro py-[3px] text-ink-3">
-                  Only you, so far.
-                </li>
+                <li className="t-micro py-[3px] text-ink-3">Only you.</li>
               ) : null}
               {others.map((member) => (
                 <li key={member.peer} className="py-[3px]">
@@ -248,9 +297,21 @@ export default function SharePanel({ projectId, onClose }: {
               ))}
             </ul>
 
+            {/* The app has a name for you; answering "who am I here" with a
+                hash contradicted the field that asked for one. */}
             <p className="t-micro px-[12px] pt-[2px] pb-[12px] text-ink-3">
-              Your peer name is{" "}
-              <code className="t-code-sm">{state.me.slice(0, 12)}…</code>
+              {me ? (
+                <>
+                  You are {me}{" "}
+                  <code className="t-code-sm">{state.me.slice(0, 8)}</code>
+                </>
+              ) : (
+                <>
+                  You have not set a name, so collaborators will see{" "}
+                  <code className="t-code-sm">{state.me.slice(0, 8)}</code>.
+                  The cog sets one.
+                </>
+              )}
             </p>
           </>
         )}
