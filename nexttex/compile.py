@@ -40,7 +40,21 @@ from pathlib import Path
 
 from .latexlog import ParsedLog, parse as parse_log
 
-SHADOW_NAME = ".nexttex-preview.tex"
+#: The stand-in written beside a document when only part of it is being
+#: built.  Named after the document rather than the project: a project can
+#: have several documents building at once now -- a dissertation and its
+#: supplementary information -- and one shared stand-in would have each
+#: scoping build overwrite the other's, silently compiling the wrong body.
+SHADOW_PREFIX = ".nexttex-preview"
+
+
+def shadow_name(main: Path) -> str:
+    return f"{SHADOW_PREFIX}-{main.stem}.tex"
+
+
+#: What the stand-in was called when a project could only build one
+#: document.  Kept solely so an upgrade can delete the file it left behind.
+LEGACY_SHADOW = f"{SHADOW_PREFIX}.tex"
 
 # TeX wraps its log at 79 columns by default, splitting messages and paths
 # mid-word.  Raising the limit is what lets latexlog.py read whole lines
@@ -135,7 +149,14 @@ class ProjectPaths:
 
     @property
     def shadow(self) -> Path:
-        return self.root / SHADOW_NAME
+        # Beside its own main file, not at the project root.  The module
+        # docstring has always said the stand-in must sit beside the real
+        # main file, because \include paths resolve relative to that file's
+        # directory; that was only true by accident while every main file
+        # was at the root.  Named after the document as well, because a
+        # project may now be building more than one at a time and one shared
+        # stand-in would have each scoping build compile the other's body.
+        return self.main.parent / shadow_name(self.main)
 
 
 def supports_partial(main_source: str) -> bool:
@@ -418,8 +439,20 @@ class CompileScheduler:
 
     SCOPE_MARKER = ".nexttex-scope"
 
+    @property
+    def _scope_marker(self) -> Path:
+        r"""Whether *this document's* PDF is whole, or an \includeonly slice.
+
+        Namespaced by jobname.  Every other file in the build directory
+        already is -- latexmk names them after the job -- but this one was
+        not, so two documents sharing a build directory each read the
+        other's answer, and the download route served a fragment believing
+        it was the whole thing.
+        """
+        return self.paths.build_dir / f"{self.paths.jobname}{self.SCOPE_MARKER}"
+
     def _note_pdf_scope(self, scope: str) -> None:
-        marker = self.paths.build_dir / self.SCOPE_MARKER
+        marker = self._scope_marker
         try:
             marker.write_text(scope, encoding="utf-8")
         except OSError:
@@ -427,7 +460,7 @@ class CompileScheduler:
 
     def pdf_is_complete(self) -> bool:
         """Was the PDF on disk produced by a build of the whole document?"""
-        marker = self.paths.build_dir / self.SCOPE_MARKER
+        marker = self._scope_marker
         try:
             return marker.read_text(encoding="utf-8").strip() == ""
         except OSError:
@@ -449,3 +482,6 @@ class CompileScheduler:
 
     def cleanup(self) -> None:
         self.paths.shadow.unlink(missing_ok=True)
+        # The stand-in a single-document install left at the project root.
+        # Harmless, but it sits in the writer's folder looking like theirs.
+        (self.paths.root / LEGACY_SHADOW).unlink(missing_ok=True)

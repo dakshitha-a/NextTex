@@ -68,7 +68,17 @@ IGNORED_DIRS = {
 # Individual files that are NextTex's own machinery rather than the user's
 # work. The preview stand-in in particular is written and rewritten on every
 # scoped build; showing it would invite someone to edit it.
-IGNORED_FILES = {".nexttex-preview.tex", ".DS_Store"}
+IGNORED_FILES = {".DS_Store"}
+
+#: Files whose *name begins* with one of these is ours too.  A prefix rather
+#: than a fixed name because the preview stand-in is now named after the
+#: document it stands in for, and a project may have several.
+IGNORED_PREFIXES = (".nexttex-preview",)
+
+
+def is_ours(name: str) -> bool:
+    """Whether a file is NextTex's own machinery rather than the writer's."""
+    return name in IGNORED_FILES or name.startswith(IGNORED_PREFIXES)
 
 
 def _toml(value: str) -> str:
@@ -97,6 +107,13 @@ class ProjectConfig:
     check_command: str = ""
     # Directories excluded from the tree beyond the built-in list.
     exclude: list[str] = field(default_factory=list)
+    #: Documents previewed alongside the main one, as project-relative
+    #: paths.  A dissertation and its supplementary information are two
+    #: documents in one folder, and neither includes the other; before this
+    #: the only way to build the second was to make it the main file and
+    #: then change it back.  `main` is always previewable and is never
+    #: listed here.
+    previews: list[str] = field(default_factory=list)
 
     # Three switches the writer sets from the settings card.  Per project
     # rather than per browser: whether a document compiles as you type is a
@@ -127,6 +144,7 @@ class ProjectConfig:
             build_dir=section.get("build_dir", "build"),
             check_command=section.get("check_command", ""),
             exclude=list(section.get("exclude", [])),
+            previews=list(section.get("previews", [])),
             autocompile=bool(section.get("autocompile", True)),
             mark_errors=bool(section.get("mark_errors", True)),
             mark_warnings=bool(section.get("mark_warnings", False)),
@@ -164,7 +182,15 @@ class ProjectConfig:
 
 
     def save(self, root: Path) -> None:
-        """Write nexttex.toml, keeping every field somebody set by hand."""
+        """Write nexttex.toml.
+
+        Every field this class knows about is written, and only those: a key
+        somebody added by hand that NextTex has never heard of does not
+        survive.  The docstring here used to claim otherwise, which was the
+        more dangerous kind of wrong -- it read as a guarantee, and the
+        first field added after it would have been silently erased the next
+        time a settings switch was toggled.
+        """
         lines = [
             "# NextTex reads this when the project is opened.",
             "[project]",
@@ -184,6 +210,9 @@ class ProjectConfig:
         if self.exclude:
             listed = ", ".join(_toml(item) for item in self.exclude)
             lines.append(f"exclude = [{listed}]")
+        if self.previews:
+            listed = ", ".join(_toml(item) for item in self.previews)
+            lines.append(f"previews = [{listed}]")
         target = root / CONFIG_NAME
         temp = target.with_name(target.name + ".tmp")
         temp.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -265,7 +294,7 @@ class Project:
     # -- the file tree --------------------------------------------------
     def _excluded(self, path: Path) -> bool:
         name = path.name
-        if name in IGNORED_DIRS or name in IGNORED_FILES:
+        if name in IGNORED_DIRS or is_ours(name):
             return True
         if name in set(self.config.exclude):
             return True

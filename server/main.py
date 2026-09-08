@@ -45,7 +45,7 @@ from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
 from nexttex.project import (
-    IGNORED_FILES, Project, ProjectConfig, Registry, id_for, instance_name,
+    Project, ProjectConfig, Registry, id_for, instance_name, is_ours,
 )
 from nexttex import updates
 from server.session import CLOSED, ProjectSession, spawn
@@ -138,7 +138,7 @@ async def _watch_projects() -> None:
                             session.project.config.build_dir, ".nexttex", ".git"
                         }:
                             continue
-                        if path.name in IGNORED_FILES or path.suffix in {
+                        if is_ours(path.name) or path.suffix in {
                             ".nexttex-tmp", ".part", ".swp"
                         }:
                             continue
@@ -1357,7 +1357,7 @@ async def download(project_id: str, path: str = "", format: str = "auto"):
                     if any(p in {".git", ".nexttex", "__pycache__"}
                            for p in item.parts):
                         continue
-                    if item.name in IGNORED_FILES:
+                    if is_ours(item.name):
                         continue
                     archive.write(item, item.relative_to(base))
         finally:
@@ -1401,7 +1401,7 @@ async def _project_pdf(project: Project, session: ProjectSession | None) -> Path
         for item in project.root.rglob("*"):
             if item.suffix.lower() not in {".tex", ".bib", ".cls", ".sty"}:
                 continue
-            if project.build_dir in item.parents or item.name in IGNORED_FILES:
+            if project.build_dir in item.parents or is_ours(item.name):
                 continue
             if item.stat().st_mtime > stamp:
                 fresh = False
