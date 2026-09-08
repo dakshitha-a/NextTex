@@ -11,5 +11,16 @@ watchfiles>=0.21             # project file watching
 # imported lazily, so those installs never load it, and one that is missing
 # it says so in the chat panel rather than failing a route.
 claude-agent-sdk>=0.2.150
+# The shared documents every project is backed by.  Not optional: a file is
+# a CRDT whether or not the project has ever been shared, so this is imported
+# when a project opens.  72 wheels and an sdist, so it installs anywhere.
+#
+# `iroh`, which is what carries those documents *between* installs, is
+# deliberately not here.  It publishes wheels and no sdist, so on a platform
+# it has no wheel for -- an Intel Mac, today -- naming it here would fail the
+# whole install rather than the one feature. The install script adds it
+# separately and shrugs if it cannot.
+pycrdt>=0.14
+
 tomli>=2.0; python_version < "3.11"
 requests>=2.31             # scholarly lookups for the reference tools

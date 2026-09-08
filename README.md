@@ -380,10 +380,11 @@ else and disconnecting somebody else.
 
 **Not a git client**, and not a general-purpose editor.
 
-**No collaboration on an Intel Mac**, yet. It needs iroh, which publishes
-builds for Linux, Windows and Apple-silicon Macs; everything else in NextTex
-works there exactly as it does anywhere, and the share card says so rather
-than offering a button that fails.
+**Sharing needs a platform iroh builds for**: Linux, Windows, and Macs with
+Apple silicon. There is no build for an Intel Mac, so on one of those the
+share card says sharing is unavailable and everything else works exactly as
+it does anywhere. The installer treats iroh as optional for the same reason —
+a missing build costs you the one feature, not the install.
 
 **Windows support is written but unverified.** `scripts/install.ps1` exists
 and the server no longer imports POSIX-only modules at startup, but nobody has

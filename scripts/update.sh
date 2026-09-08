@@ -78,6 +78,17 @@ main() {
     .venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
     .venv/bin/python -m pip install --quiet --upgrade -r requirements.txt
   fi
+  # iroh is not in requirements.txt -- it publishes no source distribution,
+  # so naming it there would fail the whole update on a platform it has no
+  # wheel for. Tried on its own, and allowed to fail: an install that cannot
+  # have it keeps everything except sharing a project.
+  if [ -x .uv/uv ]; then
+    VIRTUAL_ENV="$PWD/.venv" .uv/uv pip install --quiet --upgrade iroh >/dev/null 2>&1 || true
+  elif command -v uv >/dev/null 2>&1; then
+    VIRTUAL_ENV="$PWD/.venv" uv pip install --quiet --upgrade iroh >/dev/null 2>&1 || true
+  else
+    .venv/bin/python -m pip install --quiet --upgrade iroh >/dev/null 2>&1 || true
+  fi
   note "python packages up to date"
 
   # The interface belonging to the commit just landed on.  Downloaded

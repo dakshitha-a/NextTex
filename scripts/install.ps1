@@ -98,9 +98,14 @@ $Venv = Join-Path $Root '.venv\Scripts\python.exe'
 if (Have 'uv') {
   $env:VIRTUAL_ENV = Join-Path $Root '.venv'
   & uv pip install --quiet -r requirements.txt
+  # Sharing a project needs iroh, which ships wheels and no source
+  # distribution. Allowed to fail so a platform without a build keeps
+  # everything else.
+  & uv pip install --quiet iroh 2>$null
 } else {
   & $Venv -m pip install --quiet --upgrade pip
   & $Venv -m pip install --quiet -r requirements.txt
+  & $Venv -m pip install --quiet iroh 2>$null
 }
 Note 'dependencies installed into .venv'
 

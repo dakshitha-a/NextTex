@@ -106,11 +106,24 @@ elif command -v curl >/dev/null 2>&1; then
   fi
 fi
 
+# Sharing a project needs iroh, which publishes wheels for Linux, Windows and
+# Apple-silicon Macs and no source distribution at all.  So it is installed on
+# its own and allowed to fail: everything else in NextTex works without it,
+# and the share card says so rather than offering a button that cannot work.
+install_iroh() {
+  if eval "$1 iroh" >/dev/null 2>&1; then
+    note "iroh installed, so projects can be shared with other people"
+  else
+    note "no iroh build for this platform; everything except sharing a project works"
+  fi
+}
+
 if [ -n "$UV" ]; then
   note "$($UV --version)"
   "$UV" venv --python 3.13 .venv >/dev/null 2>&1 || "$UV" venv .venv >/dev/null
   VIRTUAL_ENV="$PWD/.venv" "$UV" pip install --quiet -r requirements.txt
   note "dependencies installed into .venv"
+  install_iroh "VIRTUAL_ENV=$PWD/.venv $UV pip install --quiet"
 else
   PYTHON=""
   for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
@@ -138,6 +151,7 @@ else
   .venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
   .venv/bin/python -m pip install --quiet -r requirements.txt
   note "dependencies installed into .venv"
+  install_iroh ".venv/bin/python -m pip install --quiet"
 fi
 
 # ---------------------------------------------------------------------------

@@ -24,8 +24,10 @@ Say 'Dependencies'
 if (Get-Command uv -ErrorAction SilentlyContinue) {
   $env:VIRTUAL_ENV = (Join-Path (Get-Location).Path '.venv')
   & uv pip install --quiet --upgrade -r requirements.txt
+  & uv pip install --quiet --upgrade iroh 2>$null
 } else {
   & .venv\Scripts\python.exe -m pip install --quiet --upgrade -r requirements.txt
+  & .venv\Scripts\python.exe -m pip install --quiet --upgrade iroh 2>$null
 }
 Note 'up to date'
 
