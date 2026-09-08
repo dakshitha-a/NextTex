@@ -17,9 +17,16 @@ import { useDismiss } from "../useDismiss";
  */
 export default function AccessCard({
   onClose,
+  onSaved,
   focus = "password",
 }: {
   onClose: () => void;
+  /** Said as soon as a password is saved, rather than on the way out.
+   *  Without it the nudge that opened this card goes on reading "this
+   *  install has no password" underneath a card saying one has just been
+   *  set -- for the second or so before the card leaves, the screen
+   *  contradicts itself. */
+  onSaved?: () => void;
   /** Which field takes the cursor.  The nudge on the projects screen opens
    *  this wanting the password; the settings row opens it wanting whatever
    *  the reader came for, which is usually the name. */
@@ -33,10 +40,24 @@ export default function AccessCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [said, setSaid] = useState("");
+  const [done, setDone] = useState("");
   const sheet = useRef<HTMLDivElement | null>(null);
   const first = useRef<HTMLInputElement | null>(null);
+  const leaving = useRef<number | null>(null);
 
   useDismiss(sheet, true, onClose);
+
+  // A card whose whole job is done should not need dismissing. Left open,
+  // it re-rendered as *"Change the password"*, complete with a Current
+  // password field -- so the writer who had just set one was looking at a
+  // screen implying it had not taken. Say it worked, then leave.
+  useEffect(() => {
+    if (!done) return;
+    leaving.current = window.setTimeout(onClose, 1800);
+    return () => {
+      if (leaving.current) window.clearTimeout(leaving.current);
+    };
+  }, [done, onClose]);
 
   useEffect(() => {
     let live = true;
@@ -80,16 +101,21 @@ export default function AccessCard({
     }
     setBusy(true);
     try {
-      await api.setPassword(password, current, name.trim() || undefined);
-      const next = await api.auth();
-      setState(next);
+      const chosen = name.trim();
+      await api.setPassword(password, current, chosen || undefined);
       setCurrent("");
       setPassword("");
       setConfirm("");
-      setSaid(
+      // Not `said`, which clears itself after four seconds and would race
+      // the close; and not a re-read of the state, which is what turned
+      // this back into a form.
+      onSaved?.();
+      setDone(
         hasPassword
           ? "Password changed. Your other browsers were signed out."
-          : "Password set. This browser stays signed in.",
+          : chosen
+            ? `Password set, and you are ${chosen} to your collaborators.`
+            : "Password set. This browser stays signed in.",
       );
     } catch (failure: any) {
       setError(failure?.message || "That did not work.");
@@ -148,7 +174,15 @@ export default function AccessCard({
           </button>
         </div>
 
-        {!state ? (
+        {done ? (
+          <p
+            role="status"
+            data-testid="access-done"
+            className="t-meta px-[12px] pt-[2px] pb-[14px] text-ok"
+          >
+            {done}
+          </p>
+        ) : !state ? (
           <div className="t-meta px-[12px] pb-[12px] text-ink-3">Reading…</div>
         ) : (
           <>
@@ -195,7 +229,7 @@ export default function AccessCard({
                 />
               ) : null}
               <Field
-                label={hasPassword ? "New password" : ""}
+                label={hasPassword ? "New password" : "Password"}
                 value={password}
                 autoComplete="new-password"
                 onChange={setPassword}
