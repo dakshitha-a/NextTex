@@ -370,6 +370,54 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   text-decoration-skip-ink: none;
 }
 
+/* Selectable text over the rendered page.
+   A canvas is a picture: it cannot be selected, searched or copied out of,
+   which for a document somebody is quoting from is most of what a PDF is
+   for.  pdf.js positions these spans in unscaled units and divides by
+   --scale-factor, which the pane sets per page as it renders.
+
+   The spans are transparent and sit exactly over their glyphs, so what the
+   reader sees is the canvas and what they select is this.  Pointer events
+   pass through the layer itself and are taken only by the spans, so the
+   double-click that jumps to the source still reaches .nx-page beneath --
+   and a drag across the page selects text rather than doing nothing. */
+.nx-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  transform-origin: 0 0;
+  pointer-events: none;
+  forced-color-adjust: none;
+}
+.nx-text-layer :is(span, br) {
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  color: transparent;
+  pointer-events: auto;
+}
+/* pdf.js measures a span, then corrects it with a horizontal scale it
+   writes into this property.  Without honouring it the selection drifts
+   from the glyphs by a word or more across a long line. */
+.nx-text-layer span[style*="scaleX"] { transform-origin: 0 0; }
+.nx-text-layer ::selection {
+  background: color-mix(in oklab, var(--hint) 42%, transparent);
+}
+/* pdf.js parks a hidden marker at the end of the layer for its own find
+   logic; it is not text anybody selected. */
+.nx-text-layer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+}
+
 /* ---- CodeMirror ------------------------------------------------------- */
 /* The editor carries `nx-theme-light` or `nx-theme-dark` when it has been
    lit on its own terms, which hands that palette to this subtree only --

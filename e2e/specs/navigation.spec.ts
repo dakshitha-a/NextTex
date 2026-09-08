@@ -41,7 +41,10 @@ test("the source can send the reader to its place on the page", async ({ tab }) 
 
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");
-  await tab.getByText("What the results mean").click();
+  // Scoped to the editor.  The preview's text is selectable now, so the
+  // same words exist twice on screen -- once in the source and once in the
+  // text layer over the page -- and an unscoped match finds both.
+  await tab.locator(".cm-content").getByText("What the results mean").click();
   await tab.keyboard.press("Control+Enter");
 
   // The answer is a flash drawn over the page, which is the only thing a

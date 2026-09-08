@@ -1763,11 +1763,6 @@ async def synctex_forward(
     session = session_for(project_id)
     state = session.document_for(document)
     target = _safe(session, path)
-    # A line in a file this document has never read has no place on its
-    # page, and asking anyway returns an empty answer after an expensive
-    # search through the wrong map.
-    if not session._owns(state, target) and target != state.paths.main:
-        return {"positions": []}
     positions = await asyncio.to_thread(
         synctex.source_to_pdf,
         state.paths.pdf, target, line, session.project.root, column,
