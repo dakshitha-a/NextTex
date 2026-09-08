@@ -412,7 +412,7 @@ export default function Tutorial({
 
         <Section id="safety" title="Nothing is lost">
           <P>
-            Every save is a version. Open a file's history from the menu on
+            Every pause is a version. Open a file's history from the menu on
             its row in the file list, read any earlier version, and put it
             back if you want it. A version you are reading cannot be typed
             into. Give one a name and it is kept for good.
