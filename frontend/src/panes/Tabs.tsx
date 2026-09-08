@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
-import Collaborators from "./Collaborators";
+/** Fetched when somebody else turns up, which for most sessions is never.
+ *  It draws nothing at all until then, so the parent decides whether to
+ *  mount it and the chunk follows -- `bundle.initial_kb` is measured on the
+ *  entry script and this is four kilobytes of it. */
+const Collaborators = lazy(() => import("./Collaborators"));
 
 function middleTruncate(stem: string, limit: number): string {
   if (stem.length <= limit) return stem;
@@ -26,6 +30,12 @@ export default function Tabs({
   const tabs = useStore((s) => s.tabs);
   const activePath = useStore((s) => s.activePath);
   const diagnostics = useStore((s) => s.diagnostics);
+  // Whether the strip has anything to say at all. Offline counts: a writer
+  // whose typing is not reaching the file has to be told, collaborators or
+  // not.
+  const others = useStore((s) => s.collaborators.length);
+  const connection = useStore((s) => s.connection);
+  const anybodyElse = others > 0 || connection === "offline";
 
   const errorCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -168,11 +178,15 @@ export default function Tabs({
           {hidden}
         </button>
       ) : null}
-      {/* Who else is here, at the strip's end. Draws nothing when nobody
-          is, so a project with one writer looks exactly as it did. */}
-      <div className="flex shrink-0 items-center border-b border-line bg-surface-2">
-        <Collaborators />
-      </div>
+      {/* Who else is here, at the strip's end. A project with one writer
+          looks exactly as it did, and does not download this. */}
+      {anybodyElse ? (
+        <div className="flex shrink-0 items-center border-b border-line bg-surface-2">
+          <Suspense fallback={null}>
+            <Collaborators />
+          </Suspense>
+        </div>
+      ) : null}
     </div>
   );
 }
