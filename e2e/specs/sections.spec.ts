@@ -167,23 +167,26 @@ test("an include for a file that is not there says so instead of doing nothing",
 });
 
 test("every panel in the rail stays inside it", async ({ app, project, page }) => {
-  // Reported in use: with the rail's drawers all open, things overlapped.
-  // Every expanded panel is `shrink-0` -- right, because a list squeezed to
-  // two rows is worse than one you scroll to -- but the column had no
-  // answer for their heights adding up to more than the rail is tall, so
-  // the lower panels were simply pushed out of the pane.  "What Claude
-  // reads" sat 158px below the bottom of a 700px window: not overlapping so
-  // much as gone, with no way to scroll to it.
+  // Two separate ways the rail came apart under a real project, and the
+  // first test written for it caught neither.
   //
-  // It needs a thesis-shaped project to show at all; the template is far
+  //   1. The panels below Files were pushed out of the pane entirely --
+  //      "What Claude reads" sat 184px below the bottom of a 700px window
+  //      with no way to scroll to it.
+  //   2. The file list was squeezed to *zero height* by the panels below
+  //      it, and a zero-height box does not hide what is inside it, so its
+  //      toolbar drew straight over the Sections header.  Reported from a
+  //      44-file dissertation with the context panel open.
+  //
+  // Both need a project big enough to run out of room; the template is far
   // too small.
   mkdirSync(join(project.root, "chapters"), { recursive: true });
   const includes: string[] = [];
-  for (let i = 1; i <= 14; i += 1) {
+  for (let i = 1; i <= 22; i += 1) {
     const name = `chapters/ch${String(i).padStart(2, "0")}`;
     writeFileSync(
       join(project.root, `${name}.tex`),
-      `\\section{Chapter ${i}}\n\\subsection{First}\n\\subsection{Second}\n`,
+      `\\section{Chapter ${i}}\n\\subsection{One}\n\\subsection{Two}\n`,
     );
     includes.push(`\\include{${name}}`);
   }
@@ -198,27 +201,49 @@ test("every panel in the rail stays inside it", async ({ app, project, page }) =
   await openProject(page, project.root);
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 
-  const inside = await page.evaluate(() => {
-    const rail = document
-      .querySelector('[data-testid="files-toggle"]')
-      ?.closest(".nx-pane") as HTMLElement | null;
-    if (!rail) return null;
-    const bottom = rail.getBoundingClientRect().bottom;
-    // The panel headers, which are the fold buttons the rail is made of --
-    // not the per-row menus inside the tree, which also carry the attribute.
+  // Everything the rail holds, open at once.
+  for (const name of [/Claude reads/i, /^Trash$/, /^Papers$/, /^Git$/]) {
+    const toggle = page.getByRole("button", { name }).first();
+    if (!(await toggle.count())) continue;
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  }
+  await page.waitForTimeout(400);
+
+  const rail = await page.evaluate(() => {
+    const bar = document.querySelector('[data-testid="files-toggle"]');
+    const pane = bar?.closest(".nx-pane") as HTMLElement | null;
+    if (!pane) return null;
+    const list = document.querySelector('[role="tree"]') as HTMLElement | null;
+    const treeRoot = list?.parentElement as HTMLElement | null;
+    const toolbar = treeRoot?.firstElementChild as HTMLElement | null;
+    const box = (e: Element | null) =>
+      e ? e.getBoundingClientRect() : null;
     const named = /^(Files|Sections|Trash|Papers|Git)|Claude reads/i;
-    return [...rail.querySelectorAll("button[aria-expanded]")]
-      .filter((node) => named.test((node.textContent ?? "").trim()))
-      .map((node) => ({
-        label: (node.textContent ?? "").trim().slice(0, 20),
-        over: Math.round(node.getBoundingClientRect().bottom - bottom),
-      }));
+    return {
+      paneBottom: Math.round(pane.getBoundingClientRect().bottom),
+      treeHeight: Math.round(box(treeRoot)?.height ?? -1),
+      toolbarBottom: Math.round(box(toolbar)?.bottom ?? -1),
+      treeBottom: Math.round(box(treeRoot)?.bottom ?? -1),
+      panels: [...pane.querySelectorAll("button[aria-expanded]")]
+        .filter((n) => named.test((n.textContent ?? "").trim()))
+        .map((n) => ({
+          label: (n.textContent ?? "").trim().slice(0, 20),
+          over: Math.round(n.getBoundingClientRect().bottom - pane.getBoundingClientRect().bottom),
+        })),
+    };
   });
 
-  expect(inside).not.toBeNull();
-  expect(inside!.length).toBeGreaterThan(2);
-  for (const panel of inside!) {
+  expect(rail).not.toBeNull();
+  // 1. Nothing hangs out of the bottom of the pane.
+  expect(rail!.panels.length).toBeGreaterThan(2);
+  for (const panel of rail!.panels) {
     expect(panel.over, `"${panel.label}" hangs ${panel.over}px below the rail`)
       .toBeLessThanOrEqual(0);
   }
+  // 2. The file list keeps a real height, and its toolbar stays inside it --
+  //    a zero-height box still draws its children, over whatever follows.
+  expect(rail!.treeHeight, "the file list was squeezed to nothing")
+    .toBeGreaterThan(40);
+  expect(rail!.toolbarBottom, "the files toolbar is drawn outside the file list")
+    .toBeLessThanOrEqual(rail!.treeBottom);
 });

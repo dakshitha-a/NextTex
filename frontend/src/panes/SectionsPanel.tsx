@@ -83,7 +83,9 @@ export default function SectionsPanel({
   return (
     <div
       className={`border-t border-line ${
-        open && grow ? "flex min-h-0 flex-1 flex-col" : "shrink-0"
+        open && grow
+          ? "flex min-h-[104px] flex-1 flex-col overflow-hidden"
+          : "shrink-0"
       }`}
       data-testid="sections-panel"
     >

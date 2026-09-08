@@ -687,7 +687,17 @@ export default function FileTree({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    // A floor, and containment.  `min-h-0` let this box be squeezed to zero
+    // by the panels below it -- and a zero-height box does not hide what is
+    // inside it, so the toolbar drew straight over the Sections header
+    // underneath.  Reported from a real dissertation: 44 files, a long
+    // outline and the context panel open was enough.
+    //
+    // `overflow-hidden` is the belt: whatever height this ends up with,
+    // nothing inside it is drawn outside it.  The floor is what keeps the
+    // toolbar and a couple of rows visible; past that the panel stack
+    // scrolls, which is where the height has to come from.
+    <div className="flex min-h-[104px] flex-1 flex-col overflow-hidden">
       <FilesBar
         onNewFile={() => startCreate(false)}
         onNewFolder={() => startCreate(true)}
