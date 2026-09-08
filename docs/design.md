@@ -1699,6 +1699,12 @@ a build of the *same* document happens before the queue is joined — a request
 that queued first would otherwise wait for a slot held by the build it means
 to replace.
 
+Below 900px the preview has no header of its own, so the strip shares the
+row that carries the source/preview toggle. Without that there was no way to
+change document with a mouse at that width — the same hole the agent button
+had, in the same place, for the same reason: a control that lives in a pane
+disappears with the pane.
+
 ### Text on the page can be selected
 
 The preview was a canvas, so the page was a picture: it could not be

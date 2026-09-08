@@ -151,3 +151,23 @@ test("the choice survives a reload", async ({ app, project, page }) => {
     timeout: 20_000,
   });
 });
+
+test("the documents can be changed with a mouse below 900px", async ({
+  app, project, page,
+}) => {
+  // There is no preview header at this width, so the strip shares the row
+  // with the source/preview toggle.  Without it the only way to change
+  // document was the keyboard.
+  await withEsi({ app, project, page });
+  await page.getByTestId("add-preview").click();
+  await page.getByRole("menuitem", { name: "esi.tex" }).click();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toBeVisible();
+
+  await page.setViewportSize({ width: 800, height: 900 });
+  await page.getByRole("button", { name: "Preview" }).first().click();
+  await expect(page.getByTestId("preview-tab-main.tex")).toBeVisible();
+  await page.getByTestId("preview-tab-main.tex").click();
+  await expect(page.getByTestId("preview-tab-main.tex")).toHaveAttribute(
+    "aria-current", "true",
+  );
+});
