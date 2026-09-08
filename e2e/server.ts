@@ -112,12 +112,21 @@ export async function startServer(
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
 
+  // A run that ends without reaching `stop()` -- an interrupt, a crash in a
+  // fixture, a killed terminal -- used to leave the server behind, still
+  // listening, for as long as the machine stayed up. Four of them were once
+  // found six hours later. `exit` fires for all of those, and may only do
+  // synchronous work, which `kill` is.
+  const orphanGuard = () => child.kill("SIGKILL");
+  process.on("exit", orphanGuard);
+
   return {
     base,
     token,
     projects,
     sandbox,
     async stop() {
+      process.off("exit", orphanGuard);
       child.kill("SIGTERM");
       await new Promise((resolve) => setTimeout(resolve, 400));
       if (child.exitCode === null) child.kill("SIGKILL");

@@ -116,19 +116,30 @@ export default function Editor({
   useEffect(() => {
     if (!host.current || view.current) return;
 
-    /** The shared documents for the project on screen, connected on demand.
+    /** Yjs and its CodeMirror binding, on their way.
      *
-     *  Imported here rather than at the top of the file: Yjs and its
-     *  CodeMirror binding are about fifty kilobytes, and `bundle.initial_kb`
-     *  counts only the entry script.  This arrives when a file is opened,
-     *  which is after the project list has already drawn.
+     *  Imported rather than pulled into the entry bundle: they are about a
+     *  hundred kilobytes, and `bundle.initial_kb` counts only the entry
+     *  script.  Started *here*, as the editor mounts, rather than inside
+     *  `connect` where it is first needed -- the editor mounts while the
+     *  file tree is still arriving, so the download happens alongside work
+     *  that was going to happen anyway instead of standing between a click
+     *  on a file and its text appearing.
      */
+    const shared = import("../collab");
+
+    /** The shared documents for the project on screen, connected on demand. */
     const connect = async (projectId: string): Promise<ProjectCollab | null> => {
       if (collab.current?.projectId === projectId) return collab.current;
       try {
-        const module = await import("../collab");
+        // Together, because they do not need each other.  Asking for the
+        // name after the module had landed put a whole HTTP round trip
+        // between opening a file and opening its socket, on every project.
+        const [module, who] = await Promise.all([
+          shared,
+          api.auth().catch(() => null),
+        ]);
         remoteMarker.current = module.remoteMarker;
-        const who = await api.auth().catch(() => null);
         const name = who?.displayName?.trim() || "Someone";
         // Which install this is, so the history panel can say "you" about a
         // version rather than printing your own name back at you.

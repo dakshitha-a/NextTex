@@ -248,6 +248,9 @@ class CollabStore:
         self.texts: dict[str, Doc] = {}
         self._body: dict[str, Text] = {}
         self._subscriptions: list = []
+        # path -> file_id, built on demand and thrown away whenever the
+        # manifest moves.  See `file_id_for`.
+        self._by_path: dict[str, str] | None = None
 
         # The three guards against a write loop.  See the module docstring.
         self._projecting: set[str] = set()
@@ -282,10 +285,32 @@ class CollabStore:
     # --- identity ---------------------------------------------------------
 
     def file_id_for(self, relative: str) -> str | None:
-        for file_id, record in self.files.items():
-            if record.get("path") == relative and not record.get("trashed"):
-                return file_id
-        return None
+        """The id a path is filed under, or None if it is not in the manifest.
+
+        Backed by an index rather than a scan.  It reads like a lookup either
+        way, which is what made the scan easy to leave in: `self.files` is a
+        CRDT map, so `record.get("path")` is a call across the FFI boundary
+        into Rust, and this is asked once per file while a project is being
+        adopted -- quadratic, in the units that hurt.  On a thesis with two
+        thousand files that alone was thirty milliseconds of every open, and
+        it sat on the ingest path too, where it is reached for every write
+        the watcher notices.
+
+        The index is dropped whenever the manifest changes at all, from any
+        cause, so a rename arriving from a collaborator invalidates it as
+        surely as one made here.  Rebuilding is the scan that used to happen
+        every time, now amortised over every lookup until the next change.
+
+        Never call this from inside an observer: rebuilding reads the
+        document, and an observer runs inside the transaction that fired it.
+        """
+        if self._by_path is None:
+            self._by_path = paths = {}
+            for file_id, record in self.files.items():
+                if not record.get("trashed"):
+                    # First wins, which is what the scan this replaces did.
+                    paths.setdefault(record.get("path"), file_id)
+        return self._by_path.get(relative)
 
     def path_for(self, file_id: str) -> str | None:
         record = self.files.get(file_id)
@@ -331,6 +356,9 @@ class CollabStore:
         )
 
     def _manifest_changed(self, event) -> None:
+        # Dropped rather than repaired: this runs inside the transaction that
+        # fired it, where reading the document is not allowed.
+        self._by_path = None
         self._persist("manifest", event.update)
         self._moved("manifest", event.update)
 
@@ -496,10 +524,19 @@ class CollabStore:
         """
         shared = self.shared
         seen: set[str] = set()
+        # Taken once. Asking `file_id_for` inside the loop would rebuild the
+        # index on every iteration, because each file adopted changes the
+        # manifest -- which is the quadratic cost this is here to avoid.
+        known = {
+            record.get("path")
+            for record in self.files.values()
+            if not record.get("trashed")
+        }
         for relative, kind, size in self._walk():
             seen.add(relative)
-            if self.file_id_for(relative) is not None:
+            if relative in known:
                 continue
+            known.add(relative)
             # The tree has already decided what is editable text, using the
             # same rule the file list draws with. Asking it rather than
             # re-deriving from the suffix keeps the two from disagreeing

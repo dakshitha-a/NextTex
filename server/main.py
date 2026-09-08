@@ -97,14 +97,49 @@ async def lifespan(app: FastAPI):
     watcher = asyncio.create_task(_watch_projects())
     reaper = asyncio.create_task(_reap_idle())
     rejoin = asyncio.create_task(_rejoin_shared_projects())
+    warm = asyncio.create_task(_warm_the_agent())
     try:
         yield
     finally:
         watcher.cancel()
         reaper.cancel()
         rejoin.cancel()
+        warm.cancel()
         for session in list(SESSIONS.values()):
             await session.close()
+
+
+async def _warm_the_agent() -> None:
+    """Import the agent SDK now, while nobody is waiting for it.
+
+    `providers.agent_for` imports it the first time a project is opened, and
+    deliberately: an install that chose OpenAI, or no agent at all, should
+    never load it. The cost of that is six hundred milliseconds -- the SDK
+    pulls in `mcp`, which builds several hundred pydantic models -- and it
+    was being paid by the first person to open a project after a restart,
+    which is to say by every update.
+
+    So it is done here instead, on a thread because it is a synchronous
+    import that would otherwise stall the event loop, and only for an
+    install actually configured for Claude. Nothing depends on it finishing:
+    if it has not by the time a project opens, the import happens there as
+    it always did, and if it fails the same failure is reported the same way.
+    """
+    if SETTINGS.provider not in ("claude", ""):
+        return
+
+    def load() -> None:
+        try:
+            import nexttex.agent  # noqa: F401
+        except Exception:
+            # An install without the SDK says so when somebody asks a
+            # question. It is not something to report at startup.
+            pass
+
+    try:
+        await asyncio.get_running_loop().run_in_executor(None, load)
+    except Exception:
+        pass
 
 
 async def _rejoin_shared_projects() -> None:
