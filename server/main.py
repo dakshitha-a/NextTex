@@ -96,13 +96,44 @@ async def lifespan(app: FastAPI):
         print(f"  missing    {item}")
     watcher = asyncio.create_task(_watch_projects())
     reaper = asyncio.create_task(_reap_idle())
+    rejoin = asyncio.create_task(_rejoin_shared_projects())
     try:
         yield
     finally:
         watcher.cancel()
         reaper.cancel()
+        rejoin.cancel()
         for session in list(SESSIONS.values()):
             await session.close()
+
+
+async def _rejoin_shared_projects() -> None:
+    """Open every shared project, so its peers can reach it again.
+
+    A project is otherwise opened on demand, by somebody looking at it -- and
+    that is right for a project nobody else has. It is wrong for a shared
+    one: the peer is this server rather than the browser, which is what lets
+    a collaborator's work arrive while the tab is shut, and after a restart
+    there was no session to arrive at until somebody clicked the project.
+    So the promise held all day and quietly stopped holding across a restart,
+    which is exactly when nobody is watching.
+
+    Only projects that have been shared, and only their peer network -- a
+    private project still costs nothing and contacts nothing.
+    """
+    await asyncio.sleep(0.5)          # let the sockets bind first
+    for entry in REGISTRY.list():
+        if entry.get("missing"):
+            continue
+        root = Path(entry["path"])
+        if not (root / ".nexttex" / "collab" / "share.json").is_file():
+            continue
+        try:
+            session_for(Project.open(root).id)
+        except Exception:
+            # A project that has been moved or deleted since. The projects
+            # screen already says so; this is not the place to complain.
+            continue
 
 
 async def _watch_projects() -> None:

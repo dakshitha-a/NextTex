@@ -152,3 +152,39 @@ def test_the_state_says_whether_this_platform_can_do_it_at_all(client, opened):
     so rather than offering a button that fails."""
     state = client.get(f"/api/projects/{opened['id']}/collab").json()
     assert "available" in state
+
+
+def test_a_shared_project_is_reopened_when_the_server_starts(client, opened):
+    """The peer is the server, not the browser.
+
+    That is what lets a collaborator's work arrive while your tab is shut --
+    and it stopped being true across a restart, because a project is
+    otherwise opened on demand by somebody looking at it. So a shared project
+    went quiet until it was clicked, which is exactly the moment nobody is
+    watching.
+    """
+    import asyncio
+
+    project_id = opened["id"]
+    client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
+    assert server_main.SESSIONS[project_id].peers.share.shared
+
+    # A restart, as a new process sees it: no sessions at all, and the
+    # registry and `.nexttex/collab/share.json` still on disk. The sessions
+    # are dropped rather than closed, because a document belongs to the
+    # thread that made it and this test is not on that thread.
+    server_main.SESSIONS.clear()
+
+    asyncio.run(server_main._rejoin_shared_projects())
+    assert project_id in server_main.SESSIONS
+    assert server_main.SESSIONS[project_id].peers.share.shared
+
+
+def test_a_private_project_is_left_alone_at_startup(client, project):
+    """It contacts nothing and costs nothing, which is the whole point of
+    the feature being off until you ask for it."""
+    import asyncio
+
+    server_main.SESSIONS.clear()
+    asyncio.run(server_main._rejoin_shared_projects())
+    assert project["id"] not in server_main.SESSIONS
