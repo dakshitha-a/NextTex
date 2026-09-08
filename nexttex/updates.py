@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import os
 import shutil
+import re
 import subprocess
+import urllib.error
+import urllib.request
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -33,6 +36,9 @@ NOT_THE_PROGRAM = (
 )
 
 MIN_NODE_MAJOR = 20
+
+#: Where CI publishes the built interface, one asset per commit.
+INTERFACE_TAG = "interface"
 
 
 @dataclass
@@ -65,8 +71,12 @@ class Report:
     # Uncommitted paths in the install directory, truncated.
     dirty: list[str] = field(default_factory=list)
     rebuild: bool = False
-    node_ok: bool = True
-    node_reason: str = ""
+    #: Whether the thing that has to exist before an update can land does.
+    #: It used to mean "is Node usable here", because the interface was
+    #: rebuilt on the machine; it now means "has CI published the interface
+    #: for the commit we would move to".
+    build_ok: bool = True
+    build_reason: str = ""
     can_update: bool = False
     reason: str = ""
     restart: str = "manual"
@@ -102,6 +112,46 @@ def classify(paths: list[str]) -> tuple[str, bool]:
     if interface:
         return "interface", True
     return "neither", False
+
+
+def interface_published(root: Path, sha: str) -> tuple[bool, str]:
+    """Whether the interface for a commit has been built and published yet.
+
+    This replaced a check for a usable Node. The interface is no longer
+    built on the machine that installs it, so "can this machine build it"
+    stopped being the question -- but the gate itself is still needed,
+    because a new one arrives in its place: an update can land on a commit
+    CI has not finished building, and pulling to it would leave the install
+    running the previous interface against newer code.
+
+    A HEAD request rather than a download: this runs on every check, six
+    hourly, and the answer is one bit.
+    """
+    if not sha:
+        return True, ""
+    try:
+        remote = gitrepo._run(root, "remote", "get-url", "origin").strip()
+    except gitrepo.GitError:
+        return True, ""     # nothing to ask; do not block on it
+    slug = re.sub(r"^git@github\.com:", "", remote)
+    slug = re.sub(r"^https://github\.com/", "", slug)
+    slug = re.sub(r"\.git$", "", slug).strip("/")
+    if slug.count("/") != 1:
+        return True, ""     # not a GitHub remote; the scripts fall back
+    url = (
+        f"https://github.com/{slug}/releases/download/{INTERFACE_TAG}"
+        f"/nexttex-frontend-{sha}.tar.gz"
+    )
+    request = urllib.request.Request(url, method="HEAD")
+    try:
+        with urllib.request.urlopen(request, timeout=10):
+            return True, ""
+    except urllib.error.HTTPError as error:
+        if error.code in (403, 404):
+            return False, "The interface for that commit has not been published yet."
+        return True, ""     # some other server mood; not the writer's problem
+    except (urllib.error.URLError, OSError, ValueError):
+        return True, ""     # offline: the fetch will fall back to a local build
 
 
 def node_available() -> tuple[bool, str]:
@@ -176,16 +226,26 @@ def check(root: Path) -> Report:
     dirty = gitrepo.status(root)
     report.dirty = [change["path"] for change in dirty.as_dict()["changes"]][:20]
 
-    report.node_ok, report.node_reason = (
-        node_available() if report.rebuild else (True, "")
+    # Only when the interface actually changed: a commit touching nothing
+    # under frontend/ is served perfectly well by the interface already
+    # installed, and blocking on a missing asset would stop updates that
+    # have nothing to do with it.
+    target = ""
+    if report.rebuild:
+        try:
+            target = gitrepo._run(root, "rev-parse", "@{upstream}").strip()
+        except gitrepo.GitError:
+            target = ""
+    report.build_ok, report.build_reason = (
+        interface_published(root, target) if report.rebuild else (True, "")
     )
 
     if report.behind == 0:
         report.reason = "already up to date"
     elif report.dirty:
         report.reason = "the install directory has uncommitted changes"
-    elif not report.node_ok:
-        report.reason = "the interface needs rebuilding and Node is not usable here"
+    elif not report.build_ok:
+        report.reason = "the interface for that commit is still being built"
     else:
         report.can_update = True
 

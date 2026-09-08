@@ -302,12 +302,12 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
           <div className="t-ui text-ink">
             {report.dirty.length
               ? "The NextTex folder has changes that are not committed."
-              : "This update changes the interface, which needs Node to rebuild."}
+              : "The interface for this update is still being built."}
           </div>
           <p className="t-meta mt-1 text-ink-2">
             {report.dirty.length
               ? "Updating would overwrite them, so it will not run. Commit or discard them in a terminal, then check again."
-              : `${report.node_reason} Install Node, then check again.`}
+              : `${report.build_reason} It usually takes a minute; check again shortly.`}
           </p>
           {report.dirty.slice(0, 5).map((path) => (
             <div key={path} className="t-code-sm mt-1 text-ink-3">
