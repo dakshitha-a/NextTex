@@ -220,7 +220,15 @@ class PeerLink:
         if not self.alive:
             return
         if self._pump is None:
-            self._pump = asyncio.create_task(self._drain())
+            try:
+                self._pump = asyncio.create_task(self._drain())
+            except RuntimeError:
+                # No loop. Reachable only from a caller driving the store
+                # directly, and worth catching rather than letting it out:
+                # this runs inside a document transaction, where an
+                # exception surfaces from underneath pycrdt with a message
+                # about neither the peer nor the caller.
+                return
         try:
             self.outbox.put_nowait(frame)
         except asyncio.QueueFull:
