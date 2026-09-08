@@ -91,6 +91,9 @@ export function colourFor(key: string): string {
  *  credential.
  */
 class DocSocket {
+  /** What this one connection is doing, so the project can report the worst
+   *  of them rather than only the first. */
+  state: Connection = "connecting";
   private socket: WebSocket | null = null;
   private attempt = 0;
   private closing = false;
@@ -135,7 +138,8 @@ class DocSocket {
 
   private connect() {
     if (this.closing) return;
-    this.onState(this.attempt === 0 ? "connecting" : "offline");
+    this.state = this.attempt === 0 ? "connecting" : "offline";
+    this.onState(this.state);
 
     const scheme = location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${scheme}://${location.host}${this.url}`);
@@ -144,7 +148,8 @@ class DocSocket {
 
     socket.onopen = () => {
       this.attempt = 0;
-      this.onState("live");
+      this.state = "live";
+      this.onState(this.state);
       // Both ends open with a state vector. Ours asks what the server has;
       // its answer is the file.
       const encoder = encoding.createEncoder();
@@ -198,7 +203,8 @@ class DocSocket {
         [...this.awareness.getStates().keys()].filter((id) => id !== this.doc.clientID),
         "remote",
       );
-      this.onState("offline");
+      this.state = "offline";
+      this.onState(this.state);
       const wait = RETRY_MS[Math.min(this.attempt, RETRY_MS.length - 1)];
       this.attempt += 1;
       this.timer = window.setTimeout(() => this.connect(), wait);
@@ -215,6 +221,7 @@ class DocSocket {
 
   close() {
     this.closing = true;
+    this.state = "offline";
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.doc.off("update", this.documentChanged);
     this.awareness.off("update", this.awarenessChanged);
@@ -229,6 +236,9 @@ type OpenFile = {
   awareness: Awareness;
   undo: Y.UndoManager;
   users: number;
+  /** The id it is filed under, so releasing it does not have to look the
+   *  path up again -- which fails for a file that has since been renamed. */
+  fileId: string;
 };
 
 /** Everything this browser shares, for one project. */
@@ -237,6 +247,14 @@ export class ProjectCollab {
   readonly presence: Awareness;
   private manifestSocket: DocSocket;
   private files = new Map<string, OpenFile>();
+  /** Opens in flight, by file id. `open` awaits the manifest before it looks
+   *  in `files`, so two overlapping calls for one path -- a double click, a
+   *  re-fired `pendingOpen` -- both found nothing and both built a socket,
+   *  and the loser was orphaned with no way to close it. */
+  private opening = new Map<string, Promise<OpenFile>>();
+  /** Which file each open buffer is bound to, so `release` can find it by
+   *  path even after a rename. */
+  private byPath = new Map<string, string>();
   private listeners = new Set<() => void>();
   private state: Connection = "connecting";
 
@@ -251,10 +269,7 @@ export class ProjectCollab {
       `/api/projects/${projectId}/sync/manifest`,
       this.manifest,
       this.presence,
-      (state) => {
-        this.state = state;
-        this.announce();
-      },
+      (state) => this.noteConnection(state),
     );
     this.manifest.on("update", this.announce);
     this.presence.on("change", this.announce);
@@ -263,6 +278,27 @@ export class ProjectCollab {
   private announce = () => {
     for (const listener of this.listeners) listener();
   };
+
+  /** The worst state any of this project's sockets is in.
+   *
+   *  Reporting only the manifest's meant a writer whose *file* socket had
+   *  dropped -- an expired session, a proxy closing one connection, the
+   *  server closing a connection that stopped draining -- was shown as
+   *  connected while nothing they typed reached anybody. That is the one
+   *  thing they must not find out later.
+   */
+  private noteConnection(_state: Connection) {
+    const states: Connection[] = [
+      this.manifestSocket?.state ?? "connecting",
+      ...[...this.files.values()].map((file) => file.socket.state),
+    ];
+    this.state = states.includes("offline")
+      ? "offline"
+      : states.includes("connecting")
+      ? "connecting"
+      : "live";
+    this.announce();
+  }
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
@@ -350,8 +386,23 @@ export class ProjectCollab {
     const fileId = await this.waitForFile(path);
     if (!fileId) return null;
 
-    let file = this.files.get(fileId);
-    if (!file) {
+    const already = this.files.get(fileId) ?? (await this.opening.get(fileId));
+    const file = already ?? (await this.build(fileId));
+    file.users += 1;
+    this.byPath.set(path, fileId);
+    return {
+      text: file.text,
+      undo: file.undo,
+      extension: yCollab(file.text, file.awareness, { undoManager: file.undo }),
+    };
+  }
+
+  /** Build one file's document and its socket, once.
+   *
+   *  The promise is shared while it is in flight, so overlapping opens get
+   *  the same document rather than two of them. */
+  private build(fileId: string): Promise<OpenFile> {
+    const pending = (async () => {
       const doc = new Y.Doc();
       const text = doc.getText("text");
       const awareness = new Awareness(doc);
@@ -366,35 +417,58 @@ export class ProjectCollab {
       });
       const socket = new DocSocket(
         `/api/projects/${this.projectId}/sync/text/${fileId}`,
-        doc, awareness, () => this.announce(),
+        doc, awareness, (state) => this.noteConnection(state),
       );
-      file = { doc, text, socket, awareness, undo, users: 0 };
-      this.files.set(fileId, file);
-    }
-    file.users += 1;
-    return {
-      text: file.text,
-      undo: file.undo,
-      extension: yCollab(file.text, file.awareness, { undoManager: file.undo }),
-    };
+      const made: OpenFile = {
+        doc, text, socket, awareness, undo, users: 0, fileId,
+      };
+      this.files.set(fileId, made);
+      this.opening.delete(fileId);
+      return made;
+    })();
+    this.opening.set(fileId, pending);
+    return pending;
   }
 
-  /** The editor has closed a tab. The document stays open a while: a file
-   *  closed and reopened is common, and a fresh sync each time is a visible
-   *  flicker for no reason. */
+  /** The editor has closed a tab.
+   *
+   *  The document really is closed when the last reader lets go: a socket,
+   *  a `Y.Doc`, an `Awareness` and an `UndoManager` each, and a
+   *  forty-file thesis is forty of them. The first version only decremented
+   *  a counter and kept everything for the life of the project -- and looked
+   *  the file up by path, which returns nothing for one that has since been
+   *  renamed, so even the counter was wrong.
+   */
   release(path: string) {
-    const fileId = this.fileId(path);
+    const fileId = this.byPath.get(path) ?? this.fileId(path);
+    this.byPath.delete(path);
     const file = fileId ? this.files.get(fileId) : null;
-    if (file) file.users = Math.max(0, file.users - 1);
+    if (!file) return;
+    file.users = Math.max(0, file.users - 1);
+    if (file.users > 0) return;
+    this.files.delete(file.fileId);
+    file.socket.close();
+    file.undo.destroy();
+    file.awareness.destroy();
+    file.doc.destroy();
   }
 
   close() {
     this.manifest.off("update", this.announce);
     this.presence.off("change", this.announce);
     this.manifestSocket.close();
-    for (const file of this.files.values()) file.socket.close();
+    for (const file of this.files.values()) {
+      file.socket.close();
+      file.undo.destroy();
+      file.awareness.destroy();
+      file.doc.destroy();
+    }
     this.files.clear();
+    this.opening.clear();
+    this.byPath.clear();
     this.listeners.clear();
+    this.presence.destroy();
+    this.manifest.destroy();
   }
 }
 

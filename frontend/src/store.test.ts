@@ -132,3 +132,37 @@ describe("staleness is routed to the documents that read the file", () => {
     expect(get().builds["main.tex"]?.stale ?? false).toBe(false);
   });
 });
+
+// --- collaboration ----------------------------------------------------------
+
+describe("what the interface is told about collaboration", () => {
+  test("nobody else in it means an empty list, not a placeholder", () => {
+    // The strip draws nothing at all in this state. An empty row labelled
+    // "collaborators" on a project with no collaborators is a permanent
+    // reminder of a feature you are not using.
+    set({ collaborators: [] });
+    expect(get().collaborators).toEqual([]);
+  });
+
+  test("connecting and offline are different things", () => {
+    // "offline" is a warning, and showing one before the first socket has
+    // had a chance to open would make every session start with an alarm.
+    set({ connection: "connecting" });
+    expect(get().connection).toBe("connecting");
+    set({ connection: "offline" });
+    expect(get().connection).toBe("offline");
+  });
+
+  test("a collaborator carries where they are and whether they are working", () => {
+    set({
+      collaborators: [
+        { clientId: 7, name: "Priya", colour: "#3FC6D2",
+          path: "chapters/04_results.tex", line: 112, active: true },
+      ],
+    });
+    const [person] = get().collaborators;
+    expect(person.name).toBe("Priya");
+    expect(person.path).toBe("chapters/04_results.tex");
+    expect(person.active).toBe(true);
+  });
+});

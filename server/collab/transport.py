@@ -194,6 +194,12 @@ def available() -> bool:
     without it.
     """
     if wanted() == "loopback":
+        # True because the tests need sharing to be offered, and the loopback
+        # is only ever selected by an environment variable that nothing in
+        # `scripts/` sets. An install that somehow ran this way would mint
+        # invites naming a peer nothing outside the process can dial, which
+        # is a confusing way to fail -- but it is not reachable without
+        # deliberately setting NEXTTEX_COLLAB_TRANSPORT.
         return True
     try:
         import iroh                                            # noqa: F401

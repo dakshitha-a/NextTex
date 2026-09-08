@@ -48,6 +48,7 @@ import base64
 import contextlib
 import hashlib
 import json
+import re
 import secrets
 import time
 from pathlib import Path
@@ -65,10 +66,27 @@ BACKOFF = [1, 2, 4, 8, 15, 30, 60]
 # An invite that is never used should not be usable for ever.
 INVITE_TTL_SECONDS = 7 * 24 * 60 * 60
 
+# How many frames may be waiting for one peer. Past this the peer is not
+# keeping up, and closing the connection is better than dropping updates
+# into it -- a peer that quietly stops receiving looks like a peer that is
+# up to date. Same reasoning as the browser event stream's.
+OUTBOX = 2048
+
+
+# A content address is sixty-four hex characters and nothing else. Checked
+# because it arrives from another machine and is joined onto a path.
+_IS_SHA = re.compile(r"[0-9a-f]{64}")
 
 # What an invite looks like, so a person pasting one into the wrong box is
 # told which box it belongs in rather than being told it is malformed.
 INVITE_PREFIX = "nexttex-share-v1-"
+
+
+async def _quietly_close(stream) -> None:
+    try:
+        await stream.close()
+    except Exception:
+        pass
 
 
 def _hash_secret(secret: str) -> str:
@@ -177,12 +195,48 @@ class PeerLink:
         self.colour = ""
         self.address = ""
         self.alive = True
+        #: What is waiting to go to this peer. A queue rather than a task
+        #: each, because `_document_changed` runs per keystroke per peer: a
+        #: peer that is connected but not draining -- QUIC flow control, a
+        #: closed lid -- grew an unbounded pile of pending sends for as long
+        #: as somebody was typing. Full means this connection is not keeping
+        #: up, and the same answer as the browser's: close it rather than
+        #: quietly dropping updates.
+        self.outbox: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=OUTBOX)
+        self._pump: asyncio.Task | None = None
         #: Documents we have already opened the conversation about, so a
         #: manifest that changes twice does not re-offer everything twice.
         self.offered: set[str] = set()
         #: Blobs asked for and not yet answered, so a figure referenced by
         #: five versions is fetched once.
         self.wanted: set[str] = set()
+
+    def enqueue(self, frame: bytes) -> None:
+        """Hand a frame to this peer without waiting for it.
+
+        Called from inside a document transaction, so it must not block and
+        must not await.
+        """
+        if not self.alive:
+            return
+        if self._pump is None:
+            self._pump = asyncio.create_task(self._drain())
+        try:
+            self.outbox.put_nowait(frame)
+        except asyncio.QueueFull:
+            self.alive = False
+            self.network.dropped(self)
+
+    async def _drain(self) -> None:
+        while True:
+            frame = await self.outbox.get()
+            if frame is None or not self.alive:
+                return
+            try:
+                await self.stream.send(frame)
+            except Exception:
+                self.alive = False
+                return
 
     async def send(self, frame: bytes) -> None:
         if not self.alive:
@@ -242,6 +296,10 @@ class PeerLink:
             pass
         finally:
             self.alive = False
+            with contextlib.suppress(asyncio.QueueFull):
+                self.outbox.put_nowait(None)
+            if self._pump is not None:
+                self._pump.cancel()
             self.network.dropped(self)
 
     async def handle(self, frame: wire.Frame) -> None:
@@ -271,12 +329,9 @@ class PeerLink:
                 self.network.mirror_members()
                 await self.send_documents()
         elif frame.kind == wire.AWARE:
-            # Relayed to this install's own browsers, unread. See sync.py.
-            doc_id = frame.header.get("doc", "")
             hub = self.network.hub
             if hub is not None:
-                for connection in hub.rooms.get(doc_id, ()):
-                    connection.send(frame.payload)
+                hub.from_peer(frame.header.get("doc", ""), frame.payload)
         elif frame.kind == wire.WELCOME:
             self.network.share.share_id = frame.header.get("share", "") or \
                 self.network.share.share_id
@@ -336,7 +391,11 @@ class PeerLink:
 
     async def _send_blob(self, sha: str) -> None:
         history = self.network.history()
-        if history is None or not sha:
+        if history is None or not _IS_SHA.fullmatch(sha or ""):
+            # `BlobStore.path_for` joins this straight onto a directory, so
+            # an unchecked value from a peer is a path traversal -- a member
+            # could ask for anything on the disk that happens to be
+            # zlib-compressed.
             return
         data = history.blobs.get(sha)
         if data is not None:
@@ -388,6 +447,13 @@ class PeerNetwork:
         self.transport = self._make_transport()
         await self.transport.start(self._accept)
         self.store.listeners.append(self._document_changed)
+        if self.hub is not None:
+            # Cursors, outward. Without this the collaborator strip and the
+            # remote carets only ever showed other *tabs on this machine* --
+            # so the feature appeared to work in every test that used two
+            # browsers and did nothing at all between two people, failing as
+            # an empty strip that reads as "nobody else is here".
+            self.hub.on_awareness = self._awareness_changed
         for peer_id in list(self.share.members):
             if peer_id != self.peer_id and self.share.allows(peer_id):
                 self._spawn(self._keep_dialling(peer_id))
@@ -445,8 +511,23 @@ class PeerNetwork:
             if "members" in self.store.manifest else None
         if members is None:
             self.store.manifest["members"] = members = Map()
-        if peer_id in members:
+
+        existing = members.get(peer_id)
+        if existing is not None and not existing.get("removed_at"):
             return
+        if existing is not None:
+            # Somebody who was removed and has now been invited back. Leaving
+            # the tombstone in place let them in once and then locked them
+            # out again: the next manifest sync copied `removed_at` back into
+            # the file the gate reads, and there was no way to undo that from
+            # the interface.
+            existing["removed_at"] = None
+            existing["removed_by"] = None
+            existing["at"] = time.time()
+            if name:
+                existing["name"] = name
+            return
+
         members[peer_id] = Map({
             "name": name, "colour": colour,
             "added_by": self.peer_id, "at": time.time(),
@@ -465,7 +546,7 @@ class PeerNetwork:
         members = self.store.manifest.get("members", type=Map)
         changed = False
         for peer_id, record in members.items():
-            entry = dict(record)
+            entry = {k: v for k, v in dict(record).items() if v is not None}
             known = self.share.members.get(peer_id)
             if known != entry:
                 self.share.members[peer_id] = entry
@@ -512,17 +593,24 @@ class PeerNetwork:
         self.transport = self.transport or self._make_transport()
         await self.transport.start(self._accept)
         self.store.listeners.append(self._document_changed)
+        if self.hub is not None:
+            self.hub.on_awareness = self._awareness_changed
         try:
             stream = await self.transport.connect(address)
         except Exception as error:
             return f"Could not reach that peer: {error}"
 
         link = PeerLink(self, stream, getattr(stream, "peer_id", ""))
-        self.links[link.peer_id] = link
+        self.adopt_link(link)
         self._spawn(link.run())
         await link.send(wire.hello(
             share_id, name, "", self.address(), secret,
         ))
+        # And keep it up afterwards. Without this a joiner that lost its
+        # first connection sat there until the server was restarted: the
+        # dialling loop is only started for peers that were already members
+        # when `start()` ran, and a joiner has none.
+        self._spawn(self._keep_dialling(link.peer_id))
         return ""
 
     # --- connections ------------------------------------------------------
@@ -572,7 +660,7 @@ class PeerNetwork:
         link.name = frame.header.get("name", "")
         link.colour = frame.header.get("colour", "")
         link.address = frame.header.get("address", "")
-        self.links[peer_id] = link
+        self.adopt_link(link)
         self._spawn(link.run())
         await link.send(wire.welcome(self.share.share_id, self.share.members))
         await link.send_documents()
@@ -594,7 +682,7 @@ class PeerNetwork:
                 continue
             attempt = 0
             link = PeerLink(self, stream, peer_id)
-            self.links[peer_id] = link
+            self.adopt_link(link)
             self._spawn(link.run())
             name = (self.share.members.get(self.peer_id) or {}).get("name", "")
             await link.send(wire.hello(
@@ -603,11 +691,39 @@ class PeerNetwork:
             await link.send_documents()
             await asyncio.sleep(2)
 
+    def adopt_link(self, link: PeerLink) -> None:
+        """Take a new connection to a peer, closing any it replaces.
+
+        Two installs starting at the same time dial each other at the same
+        time, which is the ordinary shape rather than a rare one -- and
+        assigning straight into the dictionary left the loser's `run()` loop
+        going round for ever on a stream nothing would ever close. `dropped`
+        could not clean it up either, because it only forgets a link that is
+        still the current one.
+        """
+        existing = self.links.get(link.peer_id)
+        if existing is not None and existing is not link:
+            existing.alive = False
+            self._spawn(_quietly_close(existing.stream))
+        self.links[link.peer_id] = link
+
     def dropped(self, link: PeerLink) -> None:
         if self.links.get(link.peer_id) is link:
             self.links.pop(link.peer_id, None)
 
     # --- documents --------------------------------------------------------
+
+    def _awareness_changed(self, doc_id: str, message: bytes) -> None:
+        """A cursor moved here; tell the other installs.
+
+        Relayed as the bytes it arrived as. The server has no business
+        knowing what is inside an awareness frame -- what it needs about
+        where the writer is looking comes from `session.presence` instead.
+        """
+        frame = wire.aware(doc_id, message)
+        for link in list(self.links.values()):
+            if link.alive:
+                link.enqueue(frame)
 
     def _document_changed(self, doc_id: str, update: bytes) -> None:
         """Pass a local change on to every peer but the one it came from.
@@ -623,7 +739,7 @@ class PeerNetwork:
         for link in list(self.links.values()):
             if link is source or not link.alive:
                 continue
-            self._spawn(link.send(message))
+            link.enqueue(message)
 
     def history(self):
         """This project's version history, if a session is holding one.
@@ -678,6 +794,8 @@ class PeerNetwork:
         self._closed = True
         if self._document_changed in self.store.listeners:
             self.store.listeners.remove(self._document_changed)
+        if self.hub is not None and self.hub.on_awareness is self._awareness_changed:
+            self.hub.on_awareness = None
         for link in list(self.links.values()):
             link.alive = False
             with contextlib.suppress(Exception):
