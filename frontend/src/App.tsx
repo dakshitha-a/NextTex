@@ -1536,7 +1536,17 @@ export default function App() {
             </div>
           ) : null}
           {tight && showing === "preview" ? (
-            <div className="flex items-center justify-end bg-surface-2 py-1 pr-2">
+            // The preview has no header at this width, so the tabs share
+            // the row that carries the source/preview toggle.  Without
+            // this there was no way to change document with a mouse below
+            // 900px -- the same hole the agent button had, in the same
+            // place, for the same reason.
+            <div className="flex items-center gap-2 bg-surface-2 py-1 pl-1 pr-2">
+              <PreviewTabs
+                onSelect={showPreview}
+                onClose={stopPreviewing}
+                onAdd={startPreviewing}
+              />
               <Segmented value={showing} onChange={setShowing} />
             </div>
           ) : null}
