@@ -107,6 +107,36 @@ def test_a_full_build_asks_the_engine_for_synctex_data(tmp_path):
     assert "-synctex=1" in directive
 
 
+def test_a_full_build_refuses_the_project_its_own_rc_file(tmp_path):
+    """latexmk reads `latexmkrc` and then `.latexmkrc` out of the directory it
+    runs in, which is the project root, and that file is arbitrary Perl.  The
+    editor starts a build on its own a second and a half after somebody stops
+    typing, so a project carrying one runs it without anybody deciding to --
+    and a project is not always the writer's own work: it can be cloned, come
+    from a template, or arrive from a collaborator."""
+    build = scheduler(tmp_path)
+    assert "-norc" in build.full_argv(tmp_path / "main.tex")
+
+
+def test_the_rc_file_can_be_turned_back_on(tmp_path):
+    """A project that genuinely needs one is a real thing to have.  The switch
+    is on the install rather than in `nexttex.toml`, because a project
+    carrying permission to run its own code is the same hole with a step in
+    front of it."""
+    paths = ProjectPaths(
+        root=tmp_path, main=tmp_path / "main.tex", build_dir=tmp_path / "build"
+    )
+    build = CompileScheduler(paths, allow_rc=True)
+    assert "-norc" not in build.full_argv(tmp_path / "main.tex")
+
+
+def test_the_fast_path_never_read_one_anyway(tmp_path):
+    """`fast_argv` is bare pdflatex, which has no rc file, so an ordinary
+    keystroke was never the exposure -- only the full build was."""
+    build = scheduler(tmp_path)
+    assert build.fast_argv(tmp_path / "main.tex")[0] == "pdflatex"
+
+
 def test_an_edit_during_a_build_still_gets_its_full_pass(tmp_path, monkeypatch):
     """The bug this defends against: a bibliography edit made while a full
     build was already running had its rebuild cancelled by that build

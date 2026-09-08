@@ -51,7 +51,8 @@ from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
 from nexttex.project import (
-    Project, ProjectConfig, Registry, id_for, instance_name, is_ours,
+    Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
+    is_ours,
 )
 from nexttex import deps, updates
 from server.session import CLOSED, ProjectSession, spawn
@@ -1520,6 +1521,16 @@ async def upload(
         name = Path(item.filename or "upload").name
         target = destination / name
         choice = str(wanted.get(name, "replace"))
+
+        # Landing in the project was never the whole question.  `latexmkrc`
+        # in the project root is arbitrary Perl on the next full build, and
+        # an upload is a form post, which needs no preflight, which is how a
+        # page on a neighbouring port could reach this route at all.  The
+        # same-origin check now refuses that page; this refuses the file, so
+        # neither is the only thing standing there.
+        if is_control_path(target.relative_to(session.project.root)):
+            results.append({"name": name, "path": "", "outcome": "refused"})
+            continue
 
         if target.exists() and choice == "skip":
             results.append({"name": name, "path": "", "outcome": "skipped"})

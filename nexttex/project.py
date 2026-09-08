@@ -81,6 +81,61 @@ def is_ours(name: str) -> bool:
     return name in IGNORED_FILES or name.startswith(IGNORED_PREFIXES)
 
 
+# Files inside a project that are instructions to a program rather than part
+# of the writing, and that some program runs without anybody asking it to.
+#
+# A project is not always the writer's own work.  It can be cloned, it can
+# arrive from a template, and since collaboration it can be *sent*: a peer
+# proposes a path and a body, and the receiving install writes it.  The path
+# fence above stops that leaving the project, and for a .tex file that is the
+# whole story.  For these it is not:
+#
+#   .git/config       a `core.fsmonitor` value is a command, and it runs on
+#                     the next `git status` -- which this app runs after
+#                     every build.  No LaTeX pass needed.
+#   .git/hooks/*      the same, on the next commit.
+#   latexmkrc         arbitrary Perl, read from the working directory on
+#                     every full build.  `-norc` now refuses to read it, but
+#                     a writer running latexmk in a terminal has no such
+#                     protection.
+#   Makefile          arbitrary shell, for the writer who types `make`.
+#   .envrc            arbitrary shell, on entering the directory, for anyone
+#                     with direnv.
+#   .claude/          settings the agent SDK loads, and settings may declare
+#                     hooks, and a hook is a command.
+#   .nexttex/         this app's own record: the trash ledger names where a
+#                     restore puts things, and the history is what an undo
+#                     comes out of.
+#
+# Not in this list, deliberately: `nexttex.toml`, because two people working
+# on one document want the same main file, and the dangerous half of it is
+# fixed by validating what it says rather than by refusing to receive it;
+# `.gitignore`, which is shared and harmless; and `CLAUDE.md`, which steers
+# the agent but is no more able to than any chapter it reads, since the
+# permission fence is a PreToolUse hook and the SDK documents that as running
+# for every call whatever the settings say.
+CONTROL_DIRS = {".git", ".nexttex", ".claude"}
+CONTROL_FILES = {
+    "latexmkrc", ".latexmkrc",
+    "Makefile", "makefile", "GNUmakefile",
+    ".envrc",
+}
+
+
+def is_control_path(relative: str | Path) -> bool:
+    """Whether this path inside a project is one of the above.
+
+    Takes a path already known to be inside the project.  Callers that start
+    from something a peer or a browser said should use
+    `Project.resolve_for_write`, which resolves first: a symlink is how you
+    would otherwise reach `.git/config` by a name that does not mention it.
+    """
+    parts = Path(relative).parts
+    if not parts:
+        return False
+    return bool(CONTROL_DIRS.intersection(parts)) or parts[-1] in CONTROL_FILES
+
+
 def _toml(value: str) -> str:
     """A TOML basic string.  Project names are typed by people, and a quote
     in one used to produce a file the parser then silently discarded --
@@ -274,6 +329,19 @@ class Project:
         if candidate != root and root not in candidate.parents:
             raise PermissionError(f"path escapes the project: {relative}")
         return candidate
+
+    def resolve_for_write(self, relative: str) -> Path:
+        """`resolve`, and then refuse the files that are instructions.
+
+        For writes whose path was proposed by somebody other than the person
+        at the keyboard: a collaborating peer, or an upload.  Resolving first
+        matters, because a symlink is how `.git/config` gets written under a
+        name that does not say `.git`.
+        """
+        target = self.resolve(relative)
+        if is_control_path(target.relative_to(self.root.resolve())):
+            raise PermissionError(f"not a file this project accepts: {relative}")
+        return target
 
     def relative(self, path: Path) -> str:
         return str(Path(path).resolve().relative_to(self.root.resolve()))

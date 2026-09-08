@@ -313,9 +313,13 @@ class CompileScheduler:
     superseded build finished, its PDF would already be stale.
     """
 
-    def __init__(self, paths: ProjectPaths, timeout: float = 120.0):
+    def __init__(self, paths: ProjectPaths, timeout: float = 120.0,
+                 allow_rc: bool = False):
         self.paths = paths
         self.timeout = timeout
+        # Whether latexmk may read a `latexmkrc` out of the project.  See
+        # `full_argv`.  Off unless the install's settings turn it on.
+        self.allow_rc = allow_rc
         self._process: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
         self._generation = 0
@@ -503,14 +507,29 @@ class CompileScheduler:
         double-click navigation silently stopped working -- which is exactly
         what happens the moment a citation is added.  Handing the engine its
         own command line is the only reliable way to get it back.
+
+        `-norc` is the other thing on this line worth explaining.  latexmk
+        reads `latexmkrc` and then `.latexmkrc` out of the directory it is
+        run in, and this is run in the project root: that file is arbitrary
+        Perl, executed by a build that the editor starts on its own a second
+        and a half after somebody stops typing.  A project is not always the
+        writer's own work -- cloned, from a template, from a collaborator --
+        so the file arriving is not a strange thing to imagine.
+
+        Turning it back on is a setting on the install rather than on the
+        project, because a project carrying permission to run its own code
+        is the same hole with an extra step.
         """
-        return [
-            "latexmk", "-pdf", "-interaction=nonstopmode", "-file-line-error",
+        argv = ["latexmk", "-pdf", "-interaction=nonstopmode", "-file-line-error"]
+        if not self.allow_rc:
+            argv.append("-norc")
+        argv += [
             "-pdflatex=pdflatex -synctex=1 -interaction=nonstopmode "
             "-file-line-error %O %S",
             f"-jobname={self.paths.jobname}",
             f"-outdir={self.paths.build_dir}", str(source_file),
         ]
+        return argv
 
     def fast_argv(self, source_file: Path) -> list[str]:
         """One pdflatex pass: what an ordinary edit gets."""

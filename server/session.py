@@ -25,6 +25,7 @@ from nexttex.deps import DependencyGraph
 from nexttex.context import ProjectContext
 from nexttex.dictionary import ProjectDictionary
 from nexttex.atomic import read_text, write_atomically
+from nexttex.config import Settings
 from nexttex.history import History
 from nexttex.symbols import SymbolCache
 from nexttex.trash import Trash
@@ -311,7 +312,13 @@ class ProjectSession:
                     f"{other.path} already builds to {paths.jobname}.pdf -- "
                     "rename one of them"
                 )
-        state = DocumentState(path=name, paths=paths, compiler=CompileScheduler(paths))
+        state = DocumentState(
+            path=name, paths=paths,
+            # Read here rather than carried down from the route, because a
+            # writer who turns it on wants their next build to have it, not
+            # their next restart.
+            compiler=CompileScheduler(paths, allow_rc=Settings.load().latexmk_rc),
+        )
         self.documents[name] = state
         return state
 

@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
+from .project import is_control_path
 from .writing import PROSE
 
 from claude_agent_sdk import (
@@ -82,9 +83,20 @@ PERMISSION_TIMEOUT = 600.0
 TURN_SILENCE_TIMEOUT = 900.0
 
 # Tools that never need asking about wherever they point: they change
-# nothing outside the model's own head.
+# nothing outside the model's own head, and nothing leaves this machine.
+#
+# `WebFetch` and `WebSearch` were here on the first count and did not
+# satisfy the second.  A fetch is an outbound request to a URL the model
+# chose, and the model's context is assembled out of the project's own
+# files -- which arrive from a template, from a clone, from a collaborator,
+# or from a co-author who was sent them.  A sentence in a .bib file saying
+# to fetch a URL with the contents of the chapter appended is a page of text
+# that got what it asked for, silently, with no card, in ordinary mode.
+#
+# They now ask, and "always allow" is the way back for anyone who wants
+# them free -- which is the same answer this app gives for every other tool.
 READ_ONLY_TOOLS = [
-    "TodoWrite", "WebSearch", "WebFetch",
+    "TodoWrite",
 ]
 
 # Reading changes nothing, but a writing project is not a licence to read
@@ -308,6 +320,29 @@ class ProjectAgent:
             return False
         return candidate == self.root or self.root in candidate.parents
 
+    def _is_control_file(self, raw: Any) -> bool:
+        """Whether a path names a file that is instructions to a program.
+
+        Only asked about paths already known to be inside the project.  The
+        agent may write the writing freely, which is what it is for; these
+        are not the writing.  `.git/config`, `latexmkrc`, `Makefile` and the
+        rest run without anybody asking them to, so a write to one is asked
+        about the way a write outside the project is.
+
+        Not a refusal.  The writer may genuinely want a Makefile, and this
+        app's whole permission story is that the person decides; what it
+        must not be is silent.
+        """
+        if not raw or not isinstance(raw, (str, os.PathLike)):
+            return False
+        try:
+            candidate = Path(raw)
+            if not candidate.is_absolute():
+                candidate = self.root / candidate
+            return is_control_path(candidate.resolve().relative_to(self.root))
+        except (OSError, ValueError, TypeError):
+            return False
+
     def _rule_for(self, tool_name: str, data: dict) -> str:
         """The scope an 'always allow' grants.
 
@@ -386,6 +421,22 @@ class ProjectAgent:
                 "headline": f"Write outside the project: {display}",
                 "detail": path,
                 "consequence": "This file is not part of this writing project.",
+            }
+        if tool_name == "WebFetch":
+            url = str(data.get("url") or data.get("prompt") or "")[:200]
+            return {
+                "headline": "Fetch a page from the internet",
+                "detail": url,
+                "consequence": "This is the first thing in a turn that leaves "
+                               "this machine, and what it sends is chosen from "
+                               "what the project's files say.",
+            }
+        if tool_name == "WebSearch":
+            query = str(data.get("query") or "")[:200]
+            return {
+                "headline": "Search the web",
+                "detail": query,
+                "consequence": "The search terms leave this machine.",
             }
         return {"headline": f"Use {tool_name}", "detail": json.dumps(data)[:400],
                 "consequence": ""}
@@ -469,7 +520,7 @@ class ProjectAgent:
 
         if tool_name in self._WRITE_TOOLS:
             raw = tool_input.get("file_path") or tool_input.get("path")
-            if self._inside_project(raw):
+            if self._inside_project(raw) and not self._is_control_file(raw):
                 # Snapshot first: the undo chip needs the previous contents,
                 # and after the edit lands they are gone.
                 path = Path(raw)
@@ -487,6 +538,10 @@ class ProjectAgent:
             # what the agent is for; a write outside it is the one action
             # that leaves the thing the writer pointed it at, and a
             # convenience switch is not consent for that.
+            #
+            # A control file inside the project arrives here too, and for
+            # the same reason: `latexmkrc` is Perl, `.git/config` names a
+            # command that `git status` runs, and neither is the writing.
             decision = await self._ask_user(tool_name, tool_input)
             if decision in {"allow", "always"}:
                 return self._allow()
