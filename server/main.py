@@ -368,11 +368,16 @@ async def forget_project(project_id: str):
     if session:
         await session.close()
         _restart_watch()
-    if project is None:
+    # A project whose folder has been moved or deleted cannot be opened, so
+    # there is no `Project` to ask for its root -- and that is precisely the
+    # entry a user most wants to be rid of.  The registry still knows where
+    # it pointed.
+    root = project.root if project else REGISTRY.path_for(project_id)
+    if root is None:
         raise HTTPException(404, "unknown project")
     # Registry removal does not depend on the project being open: the
     # projects most likely to be removed are the ones nobody has opened.
-    REGISTRY.remove(project.root)
+    REGISTRY.remove(root)
     return {"ok": True}
 
 

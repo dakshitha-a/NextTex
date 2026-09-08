@@ -81,7 +81,6 @@ export default function Projects({
   };
 
   const takePdf = async (project: ProjectSummary) => {
-    if (!project.id) return;
     setBusy(project.id);
     setError(null);
     try {
@@ -157,19 +156,19 @@ export default function Projects({
           {projects.map((project) => (
             <div
               key={project.path}
-              role={project.id && !project.missing && !locked ? "button" : undefined}
-              tabIndex={project.id && !project.missing && !locked ? 0 : undefined}
+              role={!project.missing && !locked ? "button" : undefined}
+              tabIndex={!project.missing && !locked ? 0 : undefined}
               className={`group flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 ${
                 locked
                   ? "opacity-40"
-                  : project.id && !project.missing
+                  : !project.missing
                     ? "cursor-pointer hover:bg-surface-2"
                     : ""
               }`}
               onClick={(event) => {
                 if (locked) return;
                 if ((event.target as HTMLElement).closest("button, input")) return;
-                if (project.id && !project.missing) onOpen(project.id);
+                if (!project.missing) onOpen(project.id);
               }}
               onKeyDown={(event) => {
                 // As above: only keys aimed at the row, never at a control
@@ -178,7 +177,7 @@ export default function Projects({
                 if (event.target !== event.currentTarget) return;
                 if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
-                if (project.id && !project.missing) onOpen(project.id);
+                if (!project.missing) onOpen(project.id);
               }}
             >
               <div className="min-w-0 flex-1">
@@ -205,7 +204,11 @@ export default function Projects({
                     className="h-[28px] rounded-[3px] px-2 t-meta text-error"
                     onClick={async () => {
                       setForgetting(null);
-                      if (!project.id) return;
+                      // No guard on the id: a registry entry has one whether
+                      // or not its folder is still there.  There used to be
+                      // one, and because a missing project's id was null it
+                      // swallowed the only action left on a dead entry --
+                      // the confirmation collapsed and nothing happened.
                       await api.forgetProject(project.id);
                       refresh();
                     }}
@@ -223,9 +226,8 @@ export default function Projects({
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink disabled:opacity-40"
-                  disabled={locked || !project.id || project.missing}
+                  disabled={locked || project.missing}
                   onClick={() =>
-                    project.id &&
                     startDownload(api.downloadUrl(project.id, { format: "zip" }))
                   }
                 >
@@ -233,7 +235,7 @@ export default function Projects({
                 </button>
                 <button
                   className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink disabled:opacity-40"
-                  disabled={locked || !project.id || project.missing || busy === project.id}
+                  disabled={locked || project.missing || busy === project.id}
                   onClick={() => takePdf(project)}
                 >
                   {busy === project.id ? "Typesetting" : "PDF"}

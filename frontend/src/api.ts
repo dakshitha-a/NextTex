@@ -138,7 +138,10 @@ export type UpdateReport = {
 };
 
 export type ProjectSummary = {
-  id: string | null;
+  /** Always present.  A registry entry is a path, and it has an identity
+   *  whether or not anything is still at the end of it -- `missing` is what
+   *  says whether the folder is there, and the two are separate questions. */
+  id: string;
   name: string;
   path: string;
   lastOpened: number;
