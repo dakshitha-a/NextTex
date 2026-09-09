@@ -276,7 +276,13 @@ async def _reap_idle() -> None:
             try:
                 await session.reap_idle_agent()
             except Exception:
-                pass
+                # One session's reaping must not stop the others being
+                # reaped, so this is caught per session rather than around
+                # the loop.  But a reaper that has silently stopped reaping
+                # leaves an agent subprocess per project alive for as long
+                # as the server runs, and nothing anywhere would say so.
+                log.warning("could not reap the idle agent for %s",
+                            session.project.id, exc_info=True)
 
 
 app = FastAPI(title="NextTex", lifespan=lifespan, docs_url=None, redoc_url=None)
