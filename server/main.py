@@ -1816,8 +1816,16 @@ async def history_blob(
         # attachment; this one built its own headers and lost that.
         #
         # The `raw` parameter still means what it meant, which is "the bytes
-        # rather than the JSON": the panel fetches it and makes its own
-        # object URL, and a blob: URL is a separate origin.
+        # rather than the JSON".
+        #
+        # It used to say the panel fetched this and made its own object URL.
+        # It does not, and never did: there is no createObjectURL anywhere in
+        # the frontend.  The URL goes straight into an `img` src, and now
+        # also into pdf.js for an old version of a figure.  That is the
+        # better arrangement rather than an oversight -- the response is
+        # immutable and keyed by sha, so the browser caches it and there is
+        # nothing to revoke -- but the comment had been describing a
+        # mechanism nobody built.
         return Response(
             content=data,
             media_type="application/octet-stream",

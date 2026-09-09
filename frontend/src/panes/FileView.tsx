@@ -75,10 +75,10 @@ function ImageView({ source, name }: { source: string; name: string }) {
             most of them -- was being judged against near-black in the dark
             theme, where a white axis label simply is not there.  Paper is
             also the honest preview: white is what transparent will be. */}
-        <div
-          className="nx-page shrink-0"
-          style={{ background: "var(--paper)", boxShadow: "var(--page-shadow)" }}
-        >
+        {/* `.nx-page` is the typeset page's own recipe -- paper, a hairline,
+            and the theme's page shadow -- and a figure gets it rather than a
+            second description of the same thing. */}
+        <div className="nx-page shrink-0">
           <img
             src={source}
             alt={name}

@@ -122,6 +122,71 @@ const BODY_TEXT: [string, string][] = [
  *  as well as read against the page. */
 const SYNTAX = ["syn-structure", "syn-env", "syn-math", "syn-preamble", "syn-cite"];
 
+/** Every selector in styles.css that is handed a set of surfaces.
+ *
+ *  This list is the actual guard, and it is worth being clear about why the
+ *  rest of the file was not one.  `palette()` throws when it cannot find a
+ *  block it was told to look for, which catches a palette that is *renamed
+ *  or removed*.  It cannot catch the opposite and more likely mistake: a
+ *  palette that is *added* and never mentioned here, which is measured by
+ *  nothing, fails nothing, and is free to drift.  That is exactly what
+ *  happened to the duplicated dark palette under `prefers-color-scheme`,
+ *  and the comment recording it sits in styles.css to this day.
+ *
+ *  So the test below works the other way round: it finds every block in the
+ *  stylesheet that declares a `--surface`, and fails if the set of
+ *  selectors is not this one.  Adding a fourth paper breaks it until the
+ *  paper is added to `describe.each` too, which is the intended way to find
+ *  out. */
+const MEASURED = [
+  ":root",
+  ".nx-theme-light",
+  ':root[data-theme="dark"]',
+  ':root[data-theme="light"] .nx-furniture',
+  ".nx-theme-dark",
+  ".nx-theme-white",
+  ".nx-theme-warm",
+  ".nx-theme-cool",
+];
+
+/** The stylesheet with its comments taken out.
+ *
+ *  Necessary rather than tidy: this file's comments are prose, prose has
+ *  commas in it, and a selector list is split on commas.  Scanning the
+ *  commented source produced a list of palette "selectors" that included
+ *  half a sentence about hover-capable pointers. */
+const BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
+
+test("every palette in styles.css is one this file measures", () => {
+  const declared = new Set<string>();
+  for (const [, prelude, body] of BARE.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+    if (!/--surface:\s*#/.test(body)) continue;
+    // Everything between the previous rule's brace and this one's is the
+    // prelude, which for the first rule in the file also contains every
+    // @import above it. The selector list is whatever follows the last
+    // semicolon.
+    const selectors = prelude.split(";").pop() ?? "";
+    for (const selector of selectors.split(",")) {
+      const trimmed = selector.trim();
+      if (trimmed) declared.add(trimmed);
+    }
+  }
+  expect([...declared].sort()).toEqual([...MEASURED].sort());
+});
+
+test("no palette shadows the sizes appearance.ts sets on the root", () => {
+  // --nx-ui-scale and --nx-editor-size live in a `:root` block of their own,
+  // deliberately: every palette here is also handed to a subtree, and
+  // redeclaring them inside one would shadow what appearance.ts writes on
+  // the root, so the editor would quietly stop answering the text-size
+  // control for anyone who had chosen a ground.
+  for (const [, prelude, body] of BARE.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+    if (!/--surface:\s*#/.test(body)) continue;
+    expect(body, `a palette (${prelude.trim().slice(-40)}) redeclares a size`)
+      .not.toMatch(/--nx-(ui-scale|editor-size)\s*:/);
+  }
+});
+
 describe.each([
   ["light", LIGHT],
   ["dark", DARK],

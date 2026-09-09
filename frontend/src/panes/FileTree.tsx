@@ -426,6 +426,13 @@ export default function FileTree({
           (focusPath ?? activePath ?? tree?.children?.[0]?.path) === node.path ? 0 : -1
         }
         aria-selected={active}
+        // A treeitem with children has to say whether they are showing, and
+        // this one never did. It mattered less while every folder was open
+        // on arrival; now that a project opens collapsed, a screen reader
+        // with no aria-expanded is being told there is a folder and not
+        // told that its contents are hidden or that the row will reveal
+        // them. The chevron has been saying so to everybody else all along.
+        aria-expanded={isDirectory ? isOpen : undefined}
         className={[
           "group relative flex h-[26px] shrink-0 cursor-pointer items-center rounded-[3px] pr-1",
           active ? "bg-surface-2" : "hover:bg-surface-2",
@@ -609,7 +616,8 @@ export default function FileTree({
                 </p>
                 <div className="mt-2 flex gap-2">
                   <button
-                    className="ghost-button h-[26px] px-2 t-micro hover:text-error"
+                    className="ghost-button h-[26px] px-2 t-micro"
+                    data-tone="danger"
                     data-testid="purge-confirm-yes"
                     onClick={async () => {
                       const projectId = get().projectId;
