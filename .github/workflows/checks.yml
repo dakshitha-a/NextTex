@@ -1,0 +1,55 @@
+# Type-check the interface and run its tests, on every push and every pull
+# request.
+#
+# Neither had ever run anywhere but a laptop.  `scripts/check.sh` runs both,
+# and the only other interface workflow builds the bundle -- but `vite build`
+# strips types with esbuild and does not check them, so a type error reached
+# master as a green build, and 491 vitest cases ran only when somebody
+# remembered to.  A component referenced exactly once, by its own definition,
+# survived that way until an audit read the file.
+#
+# The two commands here are the two lines `scripts/check.sh` runs, written
+# the same way on purpose: if they drift apart, the tier that people run by
+# hand stops being the tier that guards the branch.
+#
+# Deliberately not a dependency of the release build in `frontend.yml`.  That
+# workflow publishes the bundle every install fetches by commit sha, and
+# `scripts/update.sh` cannot tell a missing asset from a failed build, so a
+# type error here must fail this job and not remove an install's way forward.
+
+name: interface checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # vitest needs the require(esm) support that arrived after 20.18,
+          # which is why the floor is not simply 20.
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Types
+        run: node_modules/.bin/tsc --noEmit -p tsconfig.json
+
+      - name: Tests
+        run: node_modules/.bin/vitest run

@@ -64,7 +64,6 @@ export default function FileTree({
 }) {
   const tree = useStore((s) => s.tree);
   const activePath = useStore((s) => s.activePath);
-  const tabs = useStore((s) => s.tabs);
   const diagnostics = useStore((s) => s.diagnostics);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
