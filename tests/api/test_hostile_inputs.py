@@ -98,14 +98,22 @@ def test_a_disk_that_runs_out_does_not_take_the_file_with_it(
 ):
     from nexttex import atomic
 
-    original = atomic.Path.write_text
+    # The scratch file is opened rather than written through `write_text`
+    # now, because flushing it to disk before the rename needs a descriptor.
+    # The disk still runs out in the middle of the write, which is the point:
+    # the temporary file exists and has to be cleaned up.
+    original = atomic.Path.open
 
     def full(self, *args, **kwargs):
+        handle = original(self, *args, **kwargs)
         if self.name.endswith(atomic.SUFFIX):
-            raise OSError(28, "No space left on device")
-        return original(self, *args, **kwargs)
+            def refuse(*_args, **_kwargs):
+                raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr(atomic.Path, "write_text", full)
+            handle.write = refuse
+        return handle
+
+    monkeypatch.setattr(atomic.Path, "open", full)
     before = (project_dir / "main.tex").read_text(encoding="utf-8")
     response = client.put(
         f"/api/projects/{opened['id']}/file",
@@ -113,6 +121,7 @@ def test_a_disk_that_runs_out_does_not_take_the_file_with_it(
     )
     assert response.status_code >= 400
     assert (project_dir / "main.tex").read_text(encoding="utf-8") == before
+    assert list(project_dir.glob(f"**/*{atomic.SUFFIX}")) == []
 
 
 def test_a_project_of_two_thousand_files_still_lists(client, opened, project_dir):

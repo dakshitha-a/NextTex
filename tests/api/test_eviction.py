@@ -128,3 +128,21 @@ def test_one_session_failing_does_not_strand_the_others(client, project_dir, mon
     with caplog.at_level(logging.WARNING, logger="nexttex.server"):
         reap(client)
     assert "could not reap the idle session" in caplog.text
+
+
+def test_evicting_collects_the_blobs_nothing_refers_to(client, opened, monkeypatch):
+    """Collection walks the whole store and only ever ran when somebody
+    emptied the trash, so a writer who never empties it kept every thinned
+    blob forever. Eviction is the one moment a project is certainly idle."""
+    session = server_main.session_for(opened["id"])
+    gone_stale(session)
+
+    collected: list[bool] = []
+    monkeypatch.setattr(
+        session.history, "collect", lambda *a, **k: collected.append(True)
+    )
+
+    reap(client)
+
+    assert collected == [True]
+    assert opened["id"] not in server_main.SESSIONS
