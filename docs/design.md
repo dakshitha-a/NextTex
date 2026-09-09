@@ -2441,9 +2441,22 @@ untouched paragraphs in the same file. Committing and pushing are safe; the
 documentation says to pull between sessions rather than during one.
 
 Retention is per peer. Two collaborators may hold different depths of the
-same file's history, because thinning is a decision about a local disk and
-history syncs by a cursor that only moves forward -- a set difference would
-re-offer every record that thinning had just dropped, for ever.
+same file's history, because thinning is a decision about a local disk. It
+syncs by a mark that only moves forward — a set difference would re-offer
+every record that thinning had just dropped, for ever — and §26 says what
+that mark is now, which is not what it was when this was written.
+
+Relaying inherits that. Where a third install receives somebody's history
+through a peer rather than from them directly, it receives the depth that
+peer kept, not the depth the author kept. It is the same answer one hop out,
+and it is why a collaborator's version can be listed on one machine and not
+on another without either of them being wrong.
+
+And a collaborator who never reconnects takes their intermediate states with
+them. A projection made from somebody else's typing no longer records a
+version of its own — see §26 — so the states between their last sync and
+their disappearance exist only on their machine. The window is the sync
+latency, which is seconds.
 
 And removing a collaborator disconnects them without retracting anything.
 There is no owner, so there is no authority that could rotate a key, and a
@@ -2604,16 +2617,28 @@ opens the file except to read it for the marker. The confirmation says so
 before it says anything else, because "delete version history" beside a file
 reads a great deal like "delete the file".
 
-**A peer's copy is not purged.** What a collaborator keeps of this file is on
-their disk, and §22 already treats two collaborators holding different depths
-of one file's history as correct rather than as a fault.
+**A peer's copy is not purged, and nothing is sent to say it was.** What a
+collaborator keeps of this file is on their disk, and §22 already treats two
+collaborators holding different depths of one file's history as correct
+rather than as a fault. One person's decision about their own disk space
+must not reach into somebody else's copy; the confirmation says as much, on
+a shared project only, for the same reason the sentence about removing a
+collaborator sits beside that button rather than in the documentation.
 
-*Known gap, not fixed here.* `history_sync` cursors are indices into a peer's
-own contribution list, and they only ever move forward. After a purge the
-local list is length one while a collaborator's cursor still sits at N, so
-the next N versions of that file would not be sent. A `HIST_RESET` frame is
-the minimal fix and a cursor keyed on the last absorbed timestamp is the
-durable one. Neither is in this change.
+What keeps it cleared is a **floor**, left behind in `paths.json` by
+`History.forget` and enforced by `History.absorb`, which refuses any arriving
+record at or below it. Per author, not one number for the file: a single
+floor taken across everybody is whatever the furthest-ahead clock in the
+project says, and a collaborator with an accurate clock would then have
+their next records dropped on arrival until real time caught up with a
+stranger's machine. Per author, the comparison only ever puts one machine's
+clock against its own. The boundary is fuzzy by the skew between the two,
+which is the accepted cost.
+
+The paragraph that stood here recorded a known gap: that sync cursors were
+indices into a peer's own contribution list, so a purge left the list at
+length one while a collaborator's cursor sat at N. That was true, and it was
+narrower than the truth. §26 replaces it.
 
 ### One registry for what a file is
 
@@ -2731,3 +2756,241 @@ any script runs, so `index.html` is its home; and at 16px the page outline
 closes up into a grey box with something in it, so the small cut keeps only
 the stroke and puts it *on* the violet rather than in it, because a tab has
 no ground of its own to sit on.
+
+## 26. What a history is when there are two of you
+
+The writer asked for the version history to be audited against
+collaboration, and gave licence to revert earlier decisions where a more
+robust answer needed it. Three audits went through the stores, the whole of
+`server/collab/`, and every test and document that pins them. What came back
+was not one clash but a family of them, and two were worse than the one that
+prompted the phase.
+
+This section is what the answer is. Two principles hold it up, and the
+second one is the one that was missing.
+
+**How deep a past you keep is a decision about your own disk.** Retention is
+local, so two collaborators holding different depths of one file's history is
+correct rather than a fault. That was already the position and it has not
+changed. What changed is everything that was built on top of it.
+
+**Who wrote a version is a fact about the version, not about the machine it
+is sitting on.** This was not true, and until it was, "this install's own
+records" named no particular set — which is the ground the first principle
+needs in order to mean anything.
+
+### Every install used to record the others' typing as its own
+
+`CollabStore._write` projects the merged document to disk and then records a
+version, and `record_version` stamps whoever owns the machine doing the
+writing. So when Alice typed, Bob's install wrote the merged text to Bob's
+disk and recorded a version stamped **Bob** — then offered Alice's paragraph
+back to Alice as Bob's work. Nothing deduplicated it, because both the moment
+and the author differed, so a shared file's log grew by roughly one wrongly
+attributed entry per edit per collaborator. Whether it happened at all
+depended on a race between a peer's lines arriving and the 120 ms projection
+timer, so the duplication was not even consistent.
+
+It also meant `by="claude"` did not travel. The agent's edit is never thinned
+on the machine the agent ran on, and was an ordinary thinnable edit
+everywhere else, so two collaborators disagreed about which versions were
+safe.
+
+**A projection whose pending changes all came from somebody else writes no
+history line.** The person who typed it records it; everybody else receives
+that record through history sync, which is what history sync is for. The
+contents are still stored on the way past, because it is the same sha the
+author's own line will name, so their version opens here with no round trip
+and the orphans go to the collector like any other.
+
+The flag that decides this lives on the store rather than on the
+transaction, because pycrdt's event carries no origin. It is read and
+cleared at the top of `_write`, not later: the projection runs on a timer,
+and a keystroke landing while it works must not be filed as a
+collaborator's.
+
+### The mark is a moment, not a position
+
+A peer asked "what have you recorded after position N in your list", and the
+list is one `_thin` takes entries out of, from the middle, on every save.
+
+Running off the end stopped that file's history for good. Thinning from the
+*middle* was quieter and worse: later records slid down into ground the peer
+had already passed and were skipped in silence, while the records on either
+side of them arrived normally, so nothing looked wrong from either machine.
+Coalescing did it a third way — `record` replaces the last line, so the peer
+kept a burst's intermediate save whose contents the author's next sweep
+collects, and was never sent the finished one.
+
+It asks "what have you recorded **after this moment**" now, and each install
+keeps a mark per author per file saying where that moment is. A mark only
+moves forward, so a record thinning has dropped is never asked for again;
+and unlike a position, no amount of local thinning can change what a moment
+refers to.
+
+For that question to have an answer, an author's moments have to be
+distinct. `record` forces `at` strictly above the newest record **by the same
+author** in that file — by a whole millisecond, because absorbing rounds to
+the millisecond when it asks whether it already holds a record. Scoped to the
+author on purpose: taken over every record, a collaborator whose clock runs
+ten hours fast would drag this machine's timestamps ten hours forward and
+they would stay there.
+
+### Per author, which buys relaying
+
+Collaborators in different time zones are rarely at their desks at the same
+moment. A mark kept per *link* cannot express what a third machine holds, so
+two people who each only ever meet a third never exchange a single version,
+however long the project runs. A record's author travels with the record, so
+passing on somebody else's is exact — provided a relayed line keeps its own
+author and is not stamped with the relay's id, which is the one mistake that
+would key the whole scheme on the wrong peer.
+
+Two rules keep relaying from becoming the retention argument this design
+exists to avoid. **Nobody offers a peer that peer's own records**, checked by
+the sender so that a marks file that was lost or never written cannot defeat
+it. And **`History.absorb` refuses any line claiming to be authored here**,
+which is the same rule from the other end — and is also what stops a member
+signing their work with somebody else's name, inflating what every other
+machine thinks that person has written.
+
+### It syncs while the connection is up
+
+History was asked for once, when a link opened, and never again. So two
+people working together for a week watched each other type continuously and
+saw one another's versions only when somebody's laptop closed. It compounded
+with the mark: the longer a connection lived the more thinning had run, so
+the reconnect that finally exchanged history was the one most likely to find
+the mark past the end of the list.
+
+A `HIST_NEW` frame says a file has a past it did not have a moment ago,
+debounced, because an editing burst is already one version. It hangs off the
+history itself rather than off `record_version`, for two reasons: the trash
+records straight onto the history and would otherwise never say a word, and
+a relaying install has to speak up when it *absorbs* somebody's lines as much
+as when it writes its own.
+
+The ask also came out of the loop's `kind != "text"` guard, so a figure's
+past travels now. That was invisible until §24 gave figures a viewer, version
+viewing and a clear-history button, all of which assume it does.
+
+### A version that cannot be opened says so
+
+A collaborator's version arrives as a line and its contents come when
+somebody asks for them, which is the right trade: almost nobody opens almost
+any old version, and a peer's whole past would otherwise be a download before
+the first keystroke. But if its author has since thinned that record away and
+swept the contents, the line stays and clicking it will always fail.
+
+So the last day of a collaborator's versions, and anything anybody named, is
+fetched as the line arrives — across every link rather than the one that sent
+it, because a relay can pass on a record for content it does not itself hold.
+The rest keeps the on-demand fetch, and the panel marks them *elsewhere*: no
+thumbnail is requested for one, and opening it gives a sentence rather than a
+restore that cannot work.
+
+### One writer at a time
+
+There was no lock of any kind in `nexttex/history.py`, and every change there
+rewrites the whole log. `record` reads the list, appends and writes it back;
+so does a peer's lines arriving; and both run off the event loop. The second
+writer had read the same list as the first and its write simply erased the
+first one's version.
+
+Measured rather than argued: sixteen threads writing twenty versions each to
+one file kept **7 of 320** without the lock, and 320 with it.
+
+`versions()` also sorts after parsing now. Everything downstream reads a log
+as a sequence — `record` takes the last entry as the previous version,
+thinning keeps the last of each bucket, a collaborator asks for everything
+after a moment — and a rename onto a name that already had a past used to
+append one log's text onto the other's and leave the result out of order on
+disk. Sorting on read repairs a log already in that state.
+
+### Deleting, trashing, and coming back
+
+*Clearing a file's history* is the only destructive thing the store does, and
+§24 covers it. What is new here is that it leaves a **floor** behind, per
+author, so a collaborator still holding those records cannot hand them back.
+Nothing is gossiped: a purge is a decision about one disk.
+
+*A rename* is one field in the manifest changing, which is what keeps
+everybody's editor pointed at the same document. What it never did was move
+the file on the other machine, so that machine kept the old name with the old
+contents, the new name appeared only when somebody happened to type into that
+document, and then it had both — with the history still filed under the old
+name, because nothing in the collaboration layer ever called `note_move`. It
+follows both now, on the projection's own timer rather than inside the
+manifest transaction, which may not touch a disk.
+
+*A deletion* had the mirror of that. The record is flagged, projection stops
+writing the file, and the file sat there: in the tree, written by nothing,
+with no trash entry and therefore no way for the person at that machine to
+put it back. Opening it in another editor made the watcher ingest a path
+whose record is trashed, and `file_id_for` skips trashed records, so that
+machine ended up holding two documents for one path. A deletion now goes into
+the receiving machine's own trash, which is what gives that person a restore.
+
+*A restore whose old name has been taken* comes back beside it, and its past
+comes with it. Not by renaming the log: history is keyed by path, so the log
+at the old name holds the restored file's past **and** the past of whatever
+took the name after it went — which is exactly why `Trash._forget` checks
+whether anything lives there before forgetting. Renaming would hand one
+file's history to another. It is cut at the last deletion instead, which is
+always there to cut at because a deletion is never thinned away.
+
+The collaborative half of that was worse. `untrash` was told only the name
+the file came back under, which matched no trashed record at all, so a fresh
+id was minted after all: the original document stayed trashed for ever with a
+collaborator's offline edits sealed inside it, and that peer went on holding
+a stale file it could no longer write to. It is told both names now.
+
+### Two smaller things that were promises rather than facts
+
+Neither the history nor the trash called `write_atomically`, though the trash
+imported it. Every write was a temp file and a rename with nothing flushed,
+which is exactly what that function exists to prevent: the rename lands, the
+bytes do not, and the file comes back the right length and full of zeroes.
+Worse, `put` short-circuits on a name that already exists, so one such blob
+made that version unopenable for good with no way back. Reading a blob that
+will not decompress now drops it, so the next save of that content writes it
+properly.
+
+And a shared project never swept its own history. Collection ran when a
+session was evicted, and a shared project is deliberately never evicted, so
+unless the writer emptied the trash or cleared a file by hand it kept every
+thinned version's contents for ever — the exact failure eviction-time
+collection was added to fix, reintroduced by the rule that keeps shared
+projects alive. An open project is swept hourly now.
+
+### Deliberately not done
+
+**Project-level shared retention.** A convergence protocol, thinning
+tombstones, an agreed depth: all rejected. It is a large amount of new shared
+state to fix what was a ten-line bug, and more shared state is less robust,
+not more.
+
+**Delivering a binary file's bytes to a joiner.** A joiner gets a manifest
+entry for `figures/plot.png` and no file. That is real, and it is a
+file-sync gap rather than a history one; syncing a figure's *past* is done.
+
+**Rekeying history on the collaboration file id** rather than on the path
+slug. Three keyspaces meeting — the path slug, the file id, the trash entry
+id — is the root cause behind two of the findings above. Following the
+manifest's path on the receiving side is the minimal correct fix; rekeying is
+a migration deserving its own run.
+
+**The reaper's window.** It takes a session out of the table and then awaits
+its close, so a request landing in that window builds a second history on the
+same directory while the first is still writing to it. Closing that properly
+needs `session_for` to be able to wait, and it is called synchronously from
+most of the routes in `server/main.py`.
+
+### One thing the audit got wrong, recorded because it was believed
+
+`BlobStore.collect` was reported as returning after its first shard, which
+would have meant collection swept a two-hundred-and-fifty-sixth of the store.
+It does not; the `return` is after the loop. The report's rendering of the
+indentation was misleading. It is written down here because it was nearly
+acted on, and a fix to code that is already right is how a real bug gets
+introduced.

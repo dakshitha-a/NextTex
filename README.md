@@ -305,9 +305,11 @@ consequences. None of this involves a model.
 A version is the sha256 of the file's bytes, stored once and compressed on
 your own disk, so going back costs nothing. An editing burst collapses into
 one version rather than forty, and old ones thin with age: everything from the
-last day, hourly for a week, daily for three months, weekly after that. Four
-kinds are never thinned, being the ones people come back for: one you named,
-one the agent made, a deletion, a restore.
+last day, hourly for a week, daily for three months, weekly after that. Some
+are never thinned at all, being the ones people come back for: one you named,
+one the agent made, and the ones that mark a change of state rather than a
+change of text -- a file's first version, a deletion, a restore, an undo or a
+redo.
 
 Figures are versioned too, so replacing a plot keeps the one it replaced byte
 for byte. A deleted file goes to a trash that never empties itself, because a
