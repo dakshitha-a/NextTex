@@ -69,7 +69,7 @@ export default class Boundary extends Component<Props, State> {
       <div
         role="alert"
         data-testid="interface-failed"
-        className="flex h-full w-full items-center justify-center bg-surround p-8"
+        className="nx-furniture flex h-full w-full items-center justify-center bg-surround p-8"
       >
         <div className="max-w-[420px]">
           <p className="t-ui-lg mb-2 font-serif text-ink">

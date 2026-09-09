@@ -165,8 +165,16 @@ export default function Projects({
   };
 
   return (
-    <div className="flex h-full flex-col items-center justify-center overflow-auto bg-surround px-6 py-10">
-      <div className="my-auto w-full max-w-[680px]">
+    <div className="nx-furniture flex h-full flex-col items-center justify-center overflow-auto bg-surround px-6 py-10">
+      {/* A sheet, not a column of controls floating on the table.
+          Everything else in this application is drawn as something lying on
+          the proofing grey -- the typeset page, the panes, the cards -- and
+          this screen was the one place that idea was dropped: a masthead, a
+          form and a status line, centred in a field with nothing under them.
+          At 1000px tall that is three hundred pixels of nothing above the
+          first word. The sheet costs one class and makes the screen read as
+          designed rather than as unfinished. */}
+      <div className="my-auto w-full max-w-[680px] rounded-[5px] border border-line bg-surface px-7 py-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="t-display flex items-center gap-3">
@@ -211,7 +219,7 @@ export default function Projects({
         <div
           className={
             projects.length
-              ? "mt-6 rounded-[5px] border border-line bg-surface"
+              ? "mt-6 rounded-[3px] border border-line bg-surface-2"
               : "hidden"
           }
         >
