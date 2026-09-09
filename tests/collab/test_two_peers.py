@@ -25,6 +25,7 @@ import pytest
 
 os.environ["NEXTTEX_COLLAB_TRANSPORT"] = "loopback"
 
+from pycrdt import Map                                           # noqa: E402
 from nexttex.project import Project                              # noqa: E402
 from server.collab import transport                              # noqa: E402
 from server.collab.peers import PeerNetwork                      # noqa: E402
@@ -346,5 +347,60 @@ async def test_the_state_names_the_members(tmp_path):
     assert state["me"] == "a" * 64
     peers = {member["peer"] for member in state["members"]}
     assert peers == {"a" * 64, "b" * 64}
+    await alice.close()
+    await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_joining_a_hostile_invite_brings_the_writing_and_nothing_else(tmp_path):
+    """The join finding, at the level it was written at.
+
+    Accepting an invite writes every file the other end offers, and it does
+    that before anybody has looked at any of them. What made that alarming
+    is what a file can be: `latexmkrc` in a project root is arbitrary Perl on
+    the next full build, and a `nexttex.toml` naming a `build_dir` outside the
+    project sends `latexmk -outdir=` there.
+
+    The record is put into the inviter's manifest by hand rather than left on
+    her disk, and that detail is the test. Written as a file it is adopted as
+    binary, has no text body, and is never sent at all, so the first version
+    of this passed with the receiving guard switched off and proved nothing.
+    A peer who wants to send one will not be using the file tree to do it.
+    """
+    alice = Peer(make_project(tmp_path, "alice"), "a" * 64)
+    (alice.project.root / "nexttex.toml").write_text(
+        '[project]\nmain = "main.tex"\nbuild_dir = "../../../escaped"\n'
+    )
+    alice.store.adopt()
+
+    bob = Peer(make_project(tmp_path, "bob", ""), "b" * 64)
+    alice.network.begin_sharing("Alice")
+    await alice.network.start()
+    alice.body()
+    await bob.network.join(alice.network.invite(), "Bob")
+    await settle(0.6)
+
+    # Offered the way a peer would have to offer it: as a text document in
+    # the shared manifest, which is the only thing that crosses.
+    hostile = "c0ffee1234567890"
+    alice.store.files[hostile] = Map({
+        "path": "latexmkrc", "kind": "text", "size": 1, "trashed": False,
+    })
+    body = alice.store.body(hostile)
+    assert body is not None
+    body += "system('touch /tmp/pwned');\n"
+    await settle(0.6)
+    bob.store.flush()
+
+    root = bob.project.root
+    assert bob.text() == "The shared chapter.\n", "the writing did arrive"
+    assert bob.store.file_id_for("latexmkrc") is not None, "and it was offered"
+    assert not (root / "latexmkrc").exists(), "and refused on the way to disk"
+
+    # `nexttex.toml` is deliberately not refused: two people working on one
+    # document want the same main file. What is refused is what it says.
+    reopened = Project.open(root)
+    assert reopened.build_dir.is_relative_to(root), reopened.build_dir
+
     await alice.close()
     await bob.close()
