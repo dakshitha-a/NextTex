@@ -156,6 +156,32 @@ def measure(root: Path) -> list[dict]:
             ),
             runs=5,
         ))
+
+        # The other half of that path, and the half that had never been
+        # measured. An edit that settles is written back to disk by a timer
+        # callback on the event loop, and that write is not one line: the
+        # document is materialised to a string, the file on disk is read to
+        # find what changed, the new text is written and flushed, and a
+        # version is recorded. Timed together with the edit that dirties it,
+        # because separating them would need a handle on the document that
+        # nothing outside the store has, and because an edit reaching the
+        # disk is the thing a writer actually waits for.
+        #
+        # What this does *not* cover: there is no session attached here, so
+        # the version record, the edit note and the compile schedule that a
+        # real flush also performs are absent. `history.record_ms` measures
+        # the largest of those three on its own. Read the two together
+        # rather than reading this one as the whole path.
+        results.append(timed(
+            "collab.edit_to_disk_ms",
+            lambda: (
+                store.ingest(
+                    store.path_for(biggest), f"{whole}\n% settled {next(edits)}\n",
+                ),
+                store.flush(),
+            ),
+            runs=5,
+        ))
     store.close()
 
     history = History(root / ".nexttex" / "history")

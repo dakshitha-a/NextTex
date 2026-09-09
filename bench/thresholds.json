@@ -30,7 +30,17 @@
     "collab.* were added with peer-to-peer collaboration.  Both are on the",
     "keystroke path: an edit arriving from a collaborator is an apply_update,",
     "and every edit that settles becomes a write to disk.  Opening a document",
-    "is the cost of the first keystroke in a file, once per file per session."
+    "is the cost of the first keystroke in a file, once per file per session.",
+    "",
+    "collab.edit_to_disk_ms was added by the hardening run to settle a",
+    "finding rather than to guard a number.  The flush that writes a settled",
+    "edit back was described as expensive -- a sha256, a zlib pass over the",
+    "whole file, a log rewrite, four regex passes -- and it is all of those",
+    "things and it measures at about a tenth of a millisecond on a thesis,",
+    "against an ingest of three.  The budget is set well above both because",
+    "the point of having it is to notice that changing, not to hold a",
+    "record.  It runs with no session attached, so the version record is not",
+    "in it; history.record_ms is the rest and is about two milliseconds."
   ],
   "symbols.scan_ms": 400,
   "symbols.cached_ms": 6,
@@ -46,5 +56,6 @@
   "compile.full_ms": 30000,
   "bundle.initial_kb": 782,
   "collab.open_document_ms": 250,
-  "collab.ingest_ms": 40
+  "collab.ingest_ms": 40,
+  "collab.edit_to_disk_ms": 120
 }
