@@ -325,10 +325,21 @@ them.
 
 ### Upload chooser
 
-A popover (`fixed`, 264 px, radius 5, `shadow-float`), never a modal — this app has none.
+A popover (`fixed`, 264 px, radius 5, `shadow-float`) rather than a modal.
 `role="dialog"` without `aria-modal`, because the page behind it stays live and is not
 inert; focus is not trapped, and Escape, Cancel or a click away all discard the picked
 files and return focus to whatever started the upload.
+
+This section used to say "never a modal — this app has none", and other sections cited
+it. It was already untrue when it was written: access and sharing are both `aria-modal`
+sheets over an `.nx-scrim`, and settings joined them when it outgrew its popover. So the
+rule is narrower and it is the useful one. **A surface is modal when the thing it is
+about is the whole of what you are doing** — setting a password, sharing a project,
+changing how the application looks — and not otherwise. The upload chooser is not: it is
+a step in an action that started in the file tree and ends there, and the tree behind it
+is what the writer is choosing a destination in. A modal is also a promise that one
+outside click will not both dismiss the surface and press what is under it, which is why
+they are for surfaces with consequences and not for menus.
 
 **The file picker opens first, and this appears afterwards.** Asking "which folder?" before
 a file has been chosen is two deliberate steps every time; asking after means the popover
@@ -346,6 +357,16 @@ count, a two-button group (**Replace** / **Keep both**) and a line saying what t
 **Replace is the default.** The dominant case is re-exporting a figure, and it is only a
 safe default because what it replaces is now kept. "Keep both" as a default quietly fills a
 thesis with `plot (2).png` and then compiles the wrong one.
+
+**Each row says the name it is about to be given.** The rows already said which files
+collided and whether they would be replaced or kept, but "keeps both" does not say what
+the file will be called, and the line underneath could name it only when exactly one file
+collided; every other case got "The new ones come in numbered", which is the question
+answered with the fact that it has an answer. The names are worked out in order, because
+the answer for one upload depends on the ones before it: uploading `plot.png` and
+`plot (2).png` into a folder that already holds `plot.png` gives the first of them the name
+the second already has, and two rows each computed against the folder alone would both
+promise `plot (2).png`.
 
 ### Editor tab
 
@@ -1101,7 +1122,11 @@ grey row; the usage panel leads with one number instead of a 2×3 grid in four
 units; the edit chip shows `Show` and `Undo` without waiting for a hover, and
 no longer sits under a tool row saying the same thing; the permission card has
 a `--warn` focus ring, because a card that answers bare keypresses must show
-that it has focus; the file tree is one tab stop with arrow-key navigation
+that it has focus, and both that ring and the ordinary `--pen` one are 2 px
+rather than 1 — WCAG 2.2's focus appearance asks for it, and it is the one
+place this interface's taste for hairlines was working against the person
+using it, since a 1 px ring at 1 px offset is a hairline in a design full of
+hairlines; the file tree is one tab stop with arrow-key navigation
 rather than forty; diagnostics say "2 errors, 1 warning" instead of "3
 findings", which also stops severity being carried by colour alone; the
 preview can fit a whole page; and reduced motion now makes the compile
@@ -1242,7 +1267,10 @@ label; the trash reads like the file tree it hangs under, with 26 px rows,
 stem/extension names and the same clock the history panel uses; `Create
 project` is a ghost button, since the projects screen has no agent on it and
 filled violet was the loudest thing on the page; the completion popup is
-capped so it stops crossing into the preview; and the logo was redrawn with
+capped so it stops crossing into the preview, and is painted in `--surface-2`
+like every other floating surface in the editor rather than in the page's own
+`--surface`, which on a white ground left it held apart from what it floated
+over by a hairline and a shadow alone; and the logo was redrawn with
 one chevron instead of two two units apart, on an outlined tile — the old
 mark fused into a violet smudge at 18 px, and a brand mark should not spend
 the fill that means *answer the agent*.
@@ -1512,6 +1540,17 @@ with its own media type, and a read-only pane for files the editor cannot hold �
 which a figure's history is unreachable, since the only route to any file's history is to
 make it the active document.
 
+**And an old version opens in that pane, not in the panel.** For a while it opened as a
+180 px thumbnail inside a 264 px column, and a PDF figure did not open at all, because the
+panel drew its preview from an `img` — so the one format figures are kept in precisely
+because it scales was the one that could not be looked at. The pane takes the bytes it is
+to show rather than deriving them from the path; the path still decides which viewer to
+reach for and what to call the file, because a version of a PNG is a PNG. Which of the two
+ways a version opens is therefore a question about the file rather than about the version:
+a picture or a PDF goes to the pane, and what still opens in place is a version this
+machine does not hold, which has nothing to show anywhere, and a file neither viewer can
+draw, where the honest offer is the download.
+
 Two bugs turned up while building it, both in code that predated it. Creating anything at
 the project root put a naming input under *every* file in the project, each one stealing
 focus from the last, and the blur that follows cancelled it — the row hosting the input
@@ -1703,11 +1742,23 @@ what a reader reaches for first, and browser zoom already scales this app
 correctly. Taking the keys away to do a worse version of what they already do
 is a net loss.
 
-Theme, interface size and editor size live in one popover behind an `Aa`
-button. The theme costs a second click now; in exchange three related controls
-fit a 32px rail header at its narrowest width. The trigger is letters rather
-than the old sun and moon because that glyph already means *switch the theme*,
-and making it open a menu instead would break a meaning the app had taught.
+Theme, interface size and editor size live behind one button in the rail
+header. The theme costs a second click; in exchange the related controls fit a
+32px header at its narrowest width. The trigger was `Aa` while the surface held
+three typographic controls, and is a cog now that the same surface also decides
+whether the document compiles as you type: a cog is what people look for when
+the thing they want is not on screen anywhere else. Neither is the sun and moon
+that came before both, because that glyph already means *switch the theme*, and
+making it open a menu instead would break a meaning the app had taught.
+
+What it opens is a sheet rather than a popover. Thirteen rows in a 248 px column
+is a preferences window pretending to be a menu, and the length was the smaller
+half of the problem: rows answering to entirely different things — how this
+machine looks, how this project builds, who may open this install — sat in one
+undifferentiated stack, and nothing said which of those travelled with the
+project. It is two columns of named groups now, each with the subtitle it
+needed, and "Kept in the project, not on this computer" is the sentence that
+had nowhere to live.
 
 ### Which commits count as an update
 
@@ -2134,31 +2185,65 @@ Closing the tutorial does not bring the agent back; `⌘⌥A` does, and the
 tutorial's own shortcut table names that key two sections away.
 
 Rejected, each for a reason particular to this app: a **centred modal**,
-because §5 says plainly *"never a modal — this app has none"*, and because
-it would cover the tab strip, gutter and status strip that half the content
-points at; a **new `view`**, because it would unmount the editor and throw
-away the layout the reader is being taught about; a **rail panel**, because
-the rail auto-collapses below 1100 px and cannot describe itself while
-covering itself; **disclosure inside the Settings card**, because 248 px
-fits neither the prose nor a figure, and because that card calls
-`useDismiss`, so the first attempt to try a gesture would close it.
+because §5 reserves modals for surfaces that are the whole of what you are
+doing, and a tutorial about the layout is the opposite — it would cover the tab
+strip, gutter and status strip that half the content points at; a **new
+`view`**, because it would unmount the editor and throw away the layout the
+reader is being taught about; a **rail panel**, because the rail auto-collapses
+below 1100 px and cannot describe itself while covering itself; **disclosure
+inside the settings**, because those are dismissed by an outside press, so the
+first attempt to try a gesture would close them.
 
-### Contents fixed, document scrolling
+### One scrolling document, and an index one click from it
 
 This is reference material as much as a first read, and both uses are served
-by one arrangement: a single scrolling document ordered by when you meet
-each thing, under a contents block that never scrolls away, so any section
-is one click from anywhere. Nine rows at 26 px is what makes the block fixed
+by a single scrolling document ordered by when you meet each thing.
+
+The index above it used to be a fixed block of every section. **That
+arrangement set its own tripwire and then walked past it twice.** The
+paragraph here said: "Nine rows at 26 px is what makes the block fixed
 rather than scrolling, and a tenth section is the practical signal to cut
-one instead.
+one instead." There are eleven sections. Nobody cut anything and nobody
+re-read this, so 290 px of a 380 px sheet — a third of the surface, above
+the fold, permanently — was an index of places a first-time reader has not
+been yet.
 
-Not an accordion: Ctrl-F finds nothing inside a collapsed panel, and a
-return visit would have everything shut again.
+It is one 30 px row now, and it does two jobs at once. Closed, it names the
+section you are in, which is the other thing the old block did badly: the
+mark was a 4 px dot at the end of a row, on the far side of the sheet from
+the words it marked. Open, it is the same list it always was, and choosing
+from it closes it again, because you asked to be somewhere rather than to
+have a list.
 
-The row you are in takes `aria-current` and a dot, and nothing else — §19
-already recorded why a fill is wrong there, and the same argument applies:
-it would make the current row the one row that does not answer the pointer.
-One tab stop with arrow keys, not nine, for the reason §10 and §19 both give.
+**Still not an accordion**, and the distinction is the whole reason this is
+allowed. What collapses is the index, not the document: every section stays
+expanded, so Ctrl-F still finds every word, and the only text hidden by the
+closed state is a list of links whose words are also the headings they point
+at. Collapsing the *sections* would still be wrong for exactly the reason
+recorded here before.
+
+The row you are in is marked with a 2 px leading bar in `--pen`, which is
+what the file tree, the history panel, the diagnostics list and the folder
+chooser all use to say "this one" — §19's argument against a fill still
+holds and the bar was always the app's answer to it. One tab stop with arrow
+keys, not eleven, for the reason §10 and §19 both give; opening the index
+puts the caret on the section you are in, so the first arrow moves from where
+you are.
+
+**And the sections are numbered.** `Section`'s docstring has called them "one
+numbered part of the tutorial" since it was written and nothing was numbered.
+A number is only worth drawing when the thing really is a sequence, and this
+one is: read top to bottom the first time, dipped into afterwards, which is
+the shape a number serves. It also gives the closed row something exact to
+say.
+
+**Each section leads with the sentence it would give if it could give only
+one**, set in `--ink` where the rest of the prose is `--ink-2`. Eleven
+sections of three or four undifferentiated paragraphs in a 380 px column is a
+wall; eleven leads is a page a reader can skim for the answer they came for.
+It is the first paragraph promoted rather than a summary written on top of
+one — a section whose opening sentence cannot carry it wants rewriting rather
+than labelling.
 
 ### Figures
 

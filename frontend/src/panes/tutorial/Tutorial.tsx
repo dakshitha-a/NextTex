@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from "react";
 import {
-  C, Contents, Figure, Keys, P, Section, useCurrentSection, type Entry,
+  C, Contents, Figure, Keys, Lead, P, Section, useCurrentSection, type Entry,
 } from "./parts";
 
 import tabStripLight from "./shots/tab-strip-light.png";
@@ -117,12 +117,12 @@ export default function Tutorial({
         aria-label="Tutorial"
         className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto px-3 py-3"
       >
-        <Section id="panes" title="The four panes">
-          <P>
+        <Section id="panes" n={1} title="The four panes">
+          <Lead>
             The file list is on the left, your source in the middle, the
             typeset page beside it, and the agent on the right. Every one of
             them folds away, and the app remembers which.
-          </P>
+          </Lead>
           <P>
             There is no save button. What you type is written about a quarter
             of a second after you stop, and the page rebuilds about a second
@@ -136,13 +136,13 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="sync" title="The page and the source are the same thing">
-          <P>
+        <Section id="sync" n={2} title="The page and the source are the same thing">
+          <Lead>
             Double-click anything on the typeset page and the editor jumps to
             the line that produced it. That is the fastest way to find the
             sentence you are looking at, and it works in a table, a caption
             or an equation.
-          </P>
+          </Lead>
           <P>
             <C>⌘↵</C> goes the other way: it scrolls the page to whatever line
             your caret is on.
@@ -154,13 +154,13 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="documents" title="More than one document">
-          <P>
+        <Section id="documents" n={3} title="More than one document">
+          <Lead>
             A project is often more than one document. A paper and its
             supplementary information live in the same folder and neither
             includes the other, so both need building and both need a page
             to look at.
-          </P>
+          </Lead>
           <P>
             Any <C>.tex</C> file with its own <C>\documentclass</C> can be
             previewed alongside the main one. NextTex finds them for you:
@@ -182,12 +182,12 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="folding" title="Folding, reading and writing">
-          <P>
+        <Section id="folding" n={4} title="Folding, reading and writing">
+          <Lead>
             A single click on a pane's header folds that pane away, leaving a
             narrow strip that says where it went. Click the strip to bring it
             back.
-          </P>
+          </Lead>
           <P>
             A double-click on the preview header gives the page the whole
             window — reading mode. A second double-click puts your layout back
@@ -218,13 +218,13 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="errors" title="When it does not compile">
-          <P>
+        <Section id="errors" n={5} title="When it does not compile">
+          <Lead>
             A bar appears in the margin next to the line LaTeX complained
             about, and the status strip counts the errors. The list itself
             stays shut until you ask for it — a drawer that opens itself
             while you are typing takes the page you were reading away.
-          </P>
+          </Lead>
           <P>
             Click the count to open it. The strip along the top explains the
             first error in plain English and names the one to start from.
@@ -245,7 +245,7 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="keys" title="Keyboard">
+        <Section id="keys" n={6} title="Keyboard">
           <Keys
             rows={[
               ["⌘S", "Save now rather than waiting for the pause"],
@@ -262,12 +262,12 @@ export default function Tutorial({
           />
         </Section>
 
-        <Section id="agent" title="The agent">
-          <P>
+        <Section id="agent" n={7} title="The agent">
+          <Lead>
             It edits the files in this project directly. Each edit arrives in
             the panel as a chip you can open to see the diff, and undo without
             touching the editor.
-          </P>
+          </Lead>
           <Figure
             light={chipLight}
             dark={chipDark}
@@ -331,13 +331,13 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="context" title="Teaching it your template and your voice">
-          <P>
+        <Section id="context" n={8} title="Teaching it your template and your voice">
+          <Lead>
             The last button under the box takes a document you have to follow
             — a department handbook, a journal's author instructions, a class
             file — and a piece of writing that sounds like you, usually a
             paper you have already published.
-          </P>
+          </Lead>
           <P>
             It reads each one once and keeps a distilled summary rather than
             the whole document, so the rules travel with every question
@@ -351,13 +351,13 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="references" title="References it cannot invent">
-          <P>
+        <Section id="references" n={9} title="References it cannot invent">
+          <Lead>
             Ask for a citation and it searches real catalogues, then fetches
             the entry from the publisher's own record by DOI. It never
             composes a BibTeX entry from memory, which is the failure that
             matters most in a bibliography.
-          </P>
+          </Lead>
           <P>
             It can also check a bibliography you already have, entry by entry
             against those records, and fill one from a folder of PDFs — each
@@ -366,13 +366,13 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="sharing" title="Writing it with somebody else">
-          <P>
+        <Section id="sharing" n={10} title="Writing it with somebody else">
+          <Lead>
             <strong>Share</strong>, beside the project's name, gives you an invite to
             send. Whoever opens it gets the whole project — every file, and
             what those files used to say — into an empty folder of their own,
             and from then on the two copies stay in step.
-          </P>
+          </Lead>
           <P>
             Both of you keep a whole copy: your own files, your own version
             history, your own git repository. If their laptop is shut, or
@@ -410,13 +410,13 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="safety" title="Nothing is lost">
-          <P>
+        <Section id="safety" n={11} title="Nothing is lost">
+          <Lead>
             Every pause is a version. Open a file's history from the menu on
             its row in the file list, read any earlier version, and put it
             back if you want it. A version you are reading cannot be typed
             into. Give one a name and it is kept for good.
-          </P>
+          </Lead>
           <P>
             Deleted files go to a trash that never empties itself, and a
             deleted folder comes back whole.
