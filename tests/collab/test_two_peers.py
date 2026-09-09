@@ -404,3 +404,33 @@ async def test_joining_a_hostile_invite_brings_the_writing_and_nothing_else(tmp_
 
     await alice.close()
     await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_a_copied_project_knows_it_is_not_in_its_own_share(tmp_path):
+    """What a device migration actually looks like from the inside.
+
+    The share record lives in the project, at `.nexttex/collab/share.json`,
+    and the identity lives in the install's state directory. Copy the folder
+    to a new machine with a fresh install and the two come apart: the project
+    says it is shared and names its members, and this install is not one of
+    them, because a peer is a keypair and the new install generated its own.
+
+    Every member then reports as not connected, and the honest reading of
+    that is "nobody is here". It is worth being able to tell that apart from
+    "they will not let you in", because the first sends somebody to check
+    their network and the second needs a new invite.
+    """
+    alice = Peer(make_project(tmp_path, "alice"), "a" * 64)
+    alice.network.begin_sharing("Alice")
+    assert alice.network.state()["member"] is True
+
+    # The same project folder, opened by an install with its own identity.
+    migrated = Peer(alice.project, "z" * 64)
+    state = migrated.network.state()
+    assert state["shared"] is True
+    assert state["member"] is False
+    assert all(not m["connected"] for m in state["members"])
+
+    await alice.close()
+    await migrated.close()

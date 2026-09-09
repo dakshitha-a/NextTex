@@ -849,6 +849,15 @@ class PeerNetwork:
             "shared": self.share.shared,
             "shareId": self.share.share_id,
             "me": self.peer_id,
+            # Whether this install is in the share it is holding the record
+            # of.  It is not, on a machine the project was copied to: the
+            # share travels inside the project as `.nexttex/collab/share.json`
+            # and the identity does not, because it lives in the install's own
+            # state directory.  Every member then shows as not connected and
+            # the honest reading of that is "nobody is here", which is a
+            # different thing from "they will not let you in" and sends the
+            # writer looking for the wrong problem.
+            "member": bool(self.share.shared and self.peer_id in self.share.members),
             "address": self.address(),
             "available": transport.available(),
             "members": [
