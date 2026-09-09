@@ -102,7 +102,7 @@ export function DownloadMenu({
           ref={menu}
           role="menu"
           data-testid="download-menu"
-          className="nx-arrive absolute top-[30px] right-0 z-40 w-[176px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
+          className="nx-furniture nx-arrive absolute top-[30px] right-0 z-40 w-[176px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
         >
           <button
             role="menuitem"

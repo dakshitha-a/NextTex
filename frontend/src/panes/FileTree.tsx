@@ -1,6 +1,8 @@
 import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
 import { useDismiss } from "../useDismiss";
+import { FileIcon, FolderIcon } from "./FileIcon";
+import { iconFor, isBib, isTeX } from "./file-kinds";
 import api, { startDownload, type TreeNode } from "../api";
 import { get, set, useStore } from "../store";
 import {
@@ -65,7 +67,17 @@ export default function FileTree({
   const tree = useStore((s) => s.tree);
   const activePath = useStore((s) => s.activePath);
   const diagnostics = useStore((s) => s.diagnostics);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  /** Which folders are open.  Open, not shut: a project opens with its
+   *  tree collapsed, every time, so the first thing a writer sees is the
+   *  shape of the document rather than every file in it.  This used to be
+   *  the other way round -- a set of the folders that had been *closed*,
+   *  starting empty, so everything was open on arrival and a thesis with
+   *  eleven chapter folders opened as a hundred-row wall.
+   *
+   *  It is deliberately not remembered between visits.  Remembering would
+   *  make what you see on opening depend on what you did last week, and the
+   *  whole value of collapsed-on-open is that it is the same every time. */
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
@@ -129,9 +141,9 @@ export default function FileTree({
    *  writer is sitting, not landed at all. */
   const reveal = useCallback((paths: string[]) => {
     if (!paths.length) return;
-    setCollapsed((current) => {
+    setExpanded((current) => {
       const next = new Set(current);
-      for (const path of paths) for (const parent of ancestorsOf(path)) next.delete(parent);
+      for (const path of paths) for (const parent of ancestorsOf(path)) next.add(parent);
       return next;
     });
     setFocusPath(paths[0]);
@@ -180,7 +192,7 @@ export default function FileTree({
   );
 
   const toggle = (path: string) =>
-    setCollapsed((current) => {
+    setExpanded((current) => {
       const next = new Set(current);
       if (next.has(path)) next.delete(path);
       else next.add(path);
@@ -209,9 +221,9 @@ export default function FileTree({
         setRenaming(node.path);
       } else if (action === "newfile" || action === "newfolder") {
         const parent = isDir(node) ? node.path : dirname(node.path);
-        if (parent) setCollapsed((current) => {
+        if (parent) setExpanded((current) => {
           const next = new Set(current);
-          next.delete(parent);
+          next.add(parent);
           return next;
         });
         setCreating({ parent, directory: action === "newfolder" });
@@ -384,7 +396,7 @@ export default function FileTree({
     // While filtering every folder is drawn open, without touching
     // `collapsed` -- clearing the box has to give the writer back the tree
     // they had, not a tree unfolded on their behalf.
-    const isOpen = hits ? true : !collapsed.has(node.path);
+    const isOpen = hits ? true : expanded.has(node.path);
     const [stem, extension] = splitName(node.name);
     const errors = errorsByFile.get(node.path) ?? 0;
     const active = node.path === activePath;
@@ -459,7 +471,14 @@ export default function FileTree({
         {active ? (
           <span className="absolute left-0 top-0 h-full w-[2px] bg-pen" />
         ) : null}
-        <span className="flex w-4 shrink-0 items-center justify-center text-ink-3">
+        {/* Two slots for a directory and one for a file, and the file's is
+            the same width as the directory's icon so every name in the tree
+            starts on one line whatever depth it is at.  The chevron is kept
+            beside the folder rather than replaced by it: the folder says
+            what the row is, the chevron says what will happen if you click
+            it, and a folder that has to be interpreted as a state is slower
+            to read than an arrow that only ever means one thing. */}
+        <span className="flex w-3 shrink-0 items-center justify-center text-ink-3">
           {isDirectory ? (
             <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden>
               <path
@@ -470,6 +489,17 @@ export default function FileTree({
               />
             </svg>
           ) : null}
+        </span>
+        <span
+          className={`mr-[6px] flex w-[14px] shrink-0 items-center justify-center ${
+            isDirectory ? "text-ink-2" : "text-ink-3"
+          }`}
+        >
+          {isDirectory ? (
+            <FolderIcon open={isOpen} />
+          ) : (
+            <FileIcon name={iconFor(node.path)} />
+          )}
         </span>
         {renaming === node.path ? (
           <input
@@ -556,10 +586,10 @@ export default function FileTree({
               // its contents, which is why this sits with "set as main
               // document" rather than at the bottom with the file
               // operations every row has.
-              ...(!isDirectory && /\.bib$/i.test(node.name)
+              ...(!isDirectory && isBib(node.name)
                 ? [["papers", "Add papers from a folder…"]]
                 : []),
-              ...(!isDirectory && /\.(tex|ltx)$/i.test(node.name) &&
+              ...(!isDirectory && isTeX(node.name) &&
               node.path !== mainFile
                 ? [["main", "Set as main document"]]
                 : []),
@@ -666,9 +696,9 @@ export default function FileTree({
     setCreating(null);
     onRefresh();
     if (directory) {
-      setCollapsed((current) => {
+      setExpanded((current) => {
         const next = new Set(current);
-        next.delete(path);
+        next.add(path);
         return next;
       });
       reveal([`${path}/`]);
@@ -693,9 +723,9 @@ export default function FileTree({
       : known?.directory
         ? anchor
         : dirname(anchor);
-    if (parent) setCollapsed((current) => {
+    if (parent) setExpanded((current) => {
       const next = new Set(current);
-      next.delete(parent);
+      next.add(parent);
       return next;
     });
     setCreating({ parent, directory, fromBar: true });

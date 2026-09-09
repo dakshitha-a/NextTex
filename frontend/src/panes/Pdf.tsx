@@ -918,7 +918,11 @@ export default function Pdf({
         />
       </div>
 
-      <div className="@container flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]">
+      {/* Furniture, like the status strip it sits beside.  The two are the
+          same 26px band along the bottom of the window, and with only one of
+          them dark the app ended in a plinth that changed colour halfway
+          across.  They are one edge, so they are one ground. */}
+      <div className="nx-furniture @container flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]">
         <div className="flex shrink-0 overflow-hidden rounded-[3px] border border-line">
           {(["scroll", "page"] as const).map((option) => (
             <button

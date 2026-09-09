@@ -64,6 +64,12 @@
      amber-brown rather than the olive it was, because olive at this
      luminance reads as dirty grey-green rather than as caution. */
   --pen: #6F2998;
+  /* What a filled --pen button writes its label in.  A token rather than a
+     rule keyed on the theme, because the palette is now also handed to a
+     subtree -- the light theme's furniture and the editor's own ground --
+     and a rule that asks the *root* what theme it is gets the wrong answer
+     inside one.  Asking the palette in force is always right. */
+  --on-pen: #FFFFFF;
   --hint: #00626D;
   --error: #9F1912;
   --warn: #7D5300;
@@ -115,8 +121,24 @@
    so a first-time user on a light-preferenced machine got light on frame
    one and dark on frame two.  A blocking script in index.html stamps
    data-theme before this stylesheet is applied, which is both a smaller
-   flash and an honest one. */
+   flash and an honest one.
+
+   The furniture selector in the middle is what gives the light theme its
+   contrast.  A light theme in which every surface is light is a cloud: the
+   rail, the agent column, the status strip and everything that floats are
+   the app's furniture rather than the page being written, and they are
+   drawn from this palette even while the theme is light.  It is one
+   selector rather than a third palette on purpose.  A third palette would
+   have to be authored, measured and then kept in step, and the comment
+   above records what happens when two copies of a palette are free to
+   drift; reusing this one means every pair contrast.test.ts already
+   certifies for dark holds verbatim, and there is nothing new to certify.
+
+   It goes *before* `.nx-theme-dark` because contrast.test.ts finds this
+   block by searching for the literal string `.nx-theme-dark {`, and a
+   selector appended after that one would take the brace with it. */
 :root[data-theme="dark"],
+:root[data-theme="light"] .nx-furniture,
 .nx-theme-dark {
   --surround: #0A0C0B;
   --surface: #121614;
@@ -129,6 +151,7 @@
   --ink-2: #B0B5B0;
   --ink-3: #909892;
   --pen: #C988E7;
+  --on-pen: #0A0C0B;
   /* --hint and --ok used to be eight degrees apart in hue with identical
      luminance.  That was survivable while --ok was rare; it is now the
      resting state of the build dot while --hint is on every hover, and two
@@ -152,6 +175,71 @@
   --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
   --float: 0 4px 16px rgba(0, 0, 0, 0.55);
   color-scheme: dark;
+}
+
+/* ---- the paper grounds -------------------------------------------------
+   Three brighter pages for the editor, for the writer who has always
+   composed on white and does not want a proofing grey under the words.
+
+   They are deliberately not a fourth, fifth and sixth palette.  Each is
+   applied *together with* `.nx-theme-light`, which supplies the inks, the
+   five accents and the five syntax hues; all these blocks do is move the
+   four surfaces upward.  That is what keeps them honest: the inks are
+   unchanged and every ground they now sit on is brighter than the one they
+   were certified against, so every pair contrast.test.ts already measures
+   for light holds here by construction rather than by hope.  Authoring
+   three whole palettes instead would have meant three more sets of values
+   free to drift, which is the mistake recorded twice already in this file.
+
+   --surface is the page and the gutter both, so a gutter never draws a
+   division the writer did not ask for.  --surround barely shows inside the
+   editor; it is carried so a paper ground is a complete palette and cannot
+   fall through to whatever theme the app happens to be in.
+
+   white is exactly #FFFFFF, because that is the request and a near-white
+   pretending to be white is worse than either.  warm is the colour of book
+   paper and is the one to reach for in a long session; cool is for people
+   who find warm white dingy under a bright lamp.
+
+   Two tokens besides the surfaces have to move with them, and both move in
+   the direction opposite to the one you would guess.
+
+   --ink-3 gets *louder* on a brighter page, not fainter.  It measures
+   6.2:1 on the proofing grey and 7.9:1 on white, and a comment that
+   outranks the prose it annotates is the wrong way round, so the three
+   papers lift it back to roughly the weight it was chosen for.  This is
+   the only ink they touch; --ink and --ink-2 gain contrast on a brighter
+   ground, which is never a fault.
+
+   --line is the one thing that genuinely weakens, and not because of the
+   ink.  It is an alpha mix, so what shows is 55% of --ink-3 over 45% of
+   whatever is behind it: brighten the ground and lighten the ink and the
+   hairline moves two steps toward the page, taking the gutter rule and the
+   search panel's borders with it.  It is mixed harder here to stand
+   still. */
+.nx-theme-white {
+  --surround: #CED2CD;
+  --surface: #FFFFFF;
+  --surface-2: #F0F2EF;
+  --surface-3: #E3E6E2;
+  --ink-3: #5C625B;
+  --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
+}
+.nx-theme-warm {
+  --surround: #D3CEC2;
+  --surface: #FBF7EF;
+  --surface-2: #F1ECE1;
+  --surface-3: #E5DFD2;
+  --ink-3: #605C52;
+  --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
+}
+.nx-theme-cool {
+  --surround: #C9CFD3;
+  --surface: #F9FBFC;
+  --surface-2: #EDF1F4;
+  --surface-3: #DFE5E9;
+  --ink-3: #5A6063;
+  --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
 }
 
 /* `inline` is what makes bg-surface follow the theme rather than baking in
@@ -374,18 +462,56 @@ button { font: inherit; color: inherit; }
   color: var(--ink-2);
 }
 
+/* Furniture restates the ink it inherits.  `color` inherits as a resolved
+   value, not as the var() that produced it: body computes `color` from the
+   light --ink once, and every descendant inherits that dark grey even
+   inside a subtree that has since redeclared --ink for a dark ground.  So
+   the project name, the agent column's heading and every button that takes
+   its colour from its parent went invisible the moment the furniture
+   arrived.  One line, and the whole class of that bug goes away. */
+.nx-furniture { color: var(--ink); }
+
+/* A ground offered as itself.
+ *
+ *  The swatch carries one of the app's own palette classes and fills with
+ *  var(--surface), so it is painted by the same token the editor will use.
+ *  A hand-kept list of preview hexes here would be a second copy of the
+ *  palette, and it would be wrong the first time a surface moved.
+ *
+ *  32x24 rather than the 16px dot this wants to be: it is a control on a
+ *  panel that has to survive a finger, and a colour needs area to be
+ *  judged.  The chosen one is ringed rather than ticked -- a tick would
+ *  have to be dark on the white swatch and light on the dark one, which is
+ *  three more rules to keep in step for no gain. */
+.nx-swatch {
+  display: flex;
+  width: 32px;
+  height: 24px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  transition: box-shadow 90ms var(--ease);
+}
+.nx-swatch-half { flex: 1 1 0; background: var(--surface); }
+.nx-swatch[data-chosen] {
+  box-shadow: 0 0 0 2px var(--pen);
+}
+
 .nx-handle { background: var(--line); transition: background-color 90ms var(--ease); }
 .nx-handle:hover { background: var(--hint); }
 
-/* A filled --pen button.  In dark, white on --pen is 2.6:1 -- unreadable --
-   so the label takes the darkest surface instead. */
+/* A filled --pen button.  The light --pen is dark enough to carry white;
+   the dark one is a pale violet on which white is 2.6:1, so the label goes
+   dark instead.  Which of those applies is a question about the palette in
+   force, not about the root's theme -- the Send button sits in the agent
+   column, which is furniture and therefore dark even in the light theme --
+   so it is carried by --on-pen rather than by a selector. */
 .pen-button {
   background: var(--pen);
-  color: #ffffff;
+  color: var(--on-pen);
   border-radius: 3px;
   font-weight: 500;
 }
-:root[data-theme="dark"] .pen-button { color: var(--surround); }
 .pen-button { transition: transform 90ms var(--ease), filter 90ms var(--ease); }
 .pen-button:active:not(:disabled) { transform: translateY(1px); }
 .pen-button:disabled { opacity: 0.4; }

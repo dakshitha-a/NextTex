@@ -1243,6 +1243,7 @@ export default function App() {
         <Collapsed
           label="Files"
           side="left"
+          furniture
           onExpand={() => {
             railByHand.current = true;
             setRailHidden(false);
@@ -1252,7 +1253,7 @@ export default function App() {
       ) : (
         <>
           <div
-            className="nx-pane flex min-h-0 shrink-0 flex-col bg-surface"
+            className="nx-furniture nx-pane flex min-h-0 shrink-0 flex-col bg-surface"
             style={{ width: widths.rail }}
           >
             {/* No rule under this: the Files header below carries it, so
@@ -1677,11 +1678,12 @@ export default function App() {
       {noAgent ? null : (
       <div
         className={
-          chatOver
+          "nx-furniture " +
+          (chatOver
             ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)]"
             : folded.chat
               ? "hidden"
-              : "nx-pane min-h-0 shrink-0"
+              : "nx-pane min-h-0 shrink-0")
         }
         style={{
           width: widths.chat,

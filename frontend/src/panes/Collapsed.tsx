@@ -7,14 +7,25 @@ export default function Collapsed({
   label,
   side,
   onExpand,
+  furniture = false,
 }: {
   label: string;
   side: "left" | "right";
   onExpand: () => void;
+  /** Whether this strip stands in for furniture or for a page.
+   *
+   *  Three mount points, two answers.  The folded file rail is furniture
+   *  and stays dark in the light theme, because the column it replaces is
+   *  dark and a strip that flips colour on being folded reads as a
+   *  different object.  The folded Source and Preview strips stand in for
+   *  the two light panes and stay light for exactly the same reason.  A
+   *  prop rather than a class inside the component: the component cannot
+   *  tell which of the three it is. */
+  furniture?: boolean;
 }) {
   return (
     <button
-      className="group flex w-[26px] shrink-0 flex-col items-center gap-2 border-line bg-surface-3 pt-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+      className={`${furniture ? "nx-furniture " : ""}group flex w-[26px] shrink-0 flex-col items-center gap-2 border-line bg-surface-3 pt-[10px] transition-colors duration-[90ms] hover:bg-surface-2`}
       style={{
         borderRightWidth: side === "left" ? 1 : 0,
         borderLeftWidth: side === "right" ? 1 : 0,

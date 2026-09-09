@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import api from "../api";
 import { startDownload } from "../api";
 import { useStore } from "../store";
-import { isRenderable } from "./renderable";
+import { isRenderable } from "./file-kinds";
 
 /** A file the editor cannot open, shown rather than refused.
  *

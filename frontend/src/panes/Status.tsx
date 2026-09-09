@@ -76,7 +76,7 @@ export default function Status({
     // editor pane, which the user drags.  Segments drop out in order of how
     // little they are missed -- the path first, since the tab above says it.
     <div
-      className="@container group flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]"
+      className="nx-furniture @container group flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]"
     >
       <button
         data-testid="status"
