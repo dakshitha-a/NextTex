@@ -149,10 +149,20 @@ export function AppControls({
   projectId,
   projectName,
   onSwitch,
+  onTutorial,
+  onChangeAgent,
 }: {
   projectId: string | null;
   projectName: string;
   onSwitch: () => void;
+  /** Handed through rather than left out.  This bar exists because the rail
+   *  folded away, and the rail folds by itself below 1100px -- which is a
+   *  tablet, which this app is meant to be used on.  Without these the
+   *  settings on a tablet were two rows short of the settings on a laptop:
+   *  no way to open the tutorial and no way to change the agent, on the
+   *  screens where somebody is most likely to want the tutorial. */
+  onTutorial?: () => void;
+  onChangeAgent?: () => void;
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1 pr-1">
@@ -164,7 +174,11 @@ export function AppControls({
         <span className="truncate text-ink">{projectName}</span>
         <Chevron direction="down" />
       </button>
-      <Settings inProject />
+      <Settings
+        inProject
+        onTutorial={onTutorial}
+        onChangeAgent={onChangeAgent}
+      />
       {/* The same control as the rail's, because this is the same bar with
           the file list folded away, and two toolbars that disagree about
           where downloads live is worse than either arrangement. */}

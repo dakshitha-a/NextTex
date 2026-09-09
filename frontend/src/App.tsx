@@ -1450,6 +1450,8 @@ export default function App() {
                   projectId={projectId}
                   projectName={projectName}
                   onSwitch={leaveProject}
+                  onTutorial={openTutorial}
+                  onChangeAgent={changeAgent}
                 />
               </div>
             ) : null}
@@ -1669,6 +1671,8 @@ export default function App() {
                   projectId={projectId}
                   projectName={projectName}
                   onSwitch={leaveProject}
+                  onTutorial={openTutorial}
+                  onChangeAgent={changeAgent}
                 />
               ) : null}
               <FoldButton
