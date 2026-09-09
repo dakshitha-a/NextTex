@@ -45,11 +45,11 @@ describe("what is remembered", () => {
   it("reads back what was applied", () => {
     applyAppearance({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
-      syntax: "colour", spelling: true,
+      syntax: "colour", preview: "sharper", spelling: true,
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
-      syntax: "colour", spelling: true,
+      syntax: "colour", preview: "sharper", spelling: true,
     });
   });
 
@@ -62,7 +62,7 @@ describe("what is remembered", () => {
   it("stamps the document so CSS can use it", () => {
     applyAppearance({
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
-      syntax: "colour", spelling: true,
+      syntax: "colour", preview: "sharper", spelling: true,
     });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");

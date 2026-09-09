@@ -6,17 +6,33 @@ import { get, useStore } from "../store";
 import { uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
 import { APPEARANCE_CHANGED } from "../appearance";
+import {
+  backingFor,
+  rasterKey,
+  resolutionFor,
+  type PreviewQuality,
+} from "./pdf-raster";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /** Extra device pixels so text stays crisp without quadrupling the work.
  *
- *  Read per render rather than once at module load, because the interface
- *  size is a `zoom` on the shell: at 150% a CSS pixel covers half again as
- *  many device pixels, and a canvas drawn for the old ratio is stretched by
- *  the browser.  A soft page is the one thing this pane cannot ship. */
+ *  Read per render rather than once at module load, because three of its
+ *  three inputs change while the app is open: the interface size is a `zoom`
+ *  on the shell, the device ratio changes when the window moves to another
+ *  screen or the browser's own zoom is used, and the writer can ask for a
+ *  different quality.  A canvas drawn for the old ratio is stretched by the
+ *  browser, and a soft page is the one thing this pane cannot ship.
+ *
+ *  The arithmetic is in `pdf-raster.ts` so it can be tested; this reads the
+ *  three inputs out of the window and hands them over. */
+function quality(): PreviewQuality {
+  const asked = window.document.documentElement.dataset.previewQuality;
+  return asked === "faster" || asked === "sharper" ? asked : "balanced";
+}
+
 function resolution(): number {
-  return Math.min((window.devicePixelRatio || 1) * uiScale(), 3);
+  return resolutionFor(window.devicePixelRatio || 1, uiScale(), quality());
 }
 
 /** How far outside the viewport a page is still worth drawing. */
@@ -69,6 +85,10 @@ type PageView = {
   scale: number;
   /** The document generation this canvas was drawn from. */
   drawnFor: number;
+  /** The device-pixel ratio this canvas was actually drawn at.  Kept so a
+   *  browser zoom or a move to another screen can be noticed: those change
+   *  the ratio without changing the layout, so nothing else would. */
+  drawnAt: number;
   task: pdfjs.RenderTask | null;
 };
 
@@ -206,14 +226,47 @@ export default function Pdf({
     try {
       const page = await document.getPage(index + 1);
       if (mine !== generation.current) return;
-      const viewport = page.getViewport({ scale: view.scale * resolution() });
+      // The box the canvas is actually painted into, which is not the one
+      // the page container was given.  `.nx-page` carries a one pixel
+      // border, and the canvas fills the content box inside it, so a
+      // container asked for 441 shows a canvas 439 wide.  The backing store
+      // was sized from the container all the same, so every page was drawn
+      // two device pixels wider than the box it was displayed in and then
+      // squashed to fit.  That is a resample of every pixel of every page at
+      // every zoom, and it is what a soft page looks like.
+      //
+      // Measured from the element rather than by subtracting a border, so a
+      // later change to the page's frame cannot quietly bring this back.
       const canvas = view.canvas;
-      if (canvas.width !== Math.floor(viewport.width)) {
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
+      const boxWidth = canvas.clientWidth || view.width;
+      const boxHeight = canvas.clientHeight || view.height;
+      // One function returns the store and the ratio together, from one
+      // floored box, so the two cannot be rounded separately again.  It also
+      // carries the area guard, which reduces the ratio rather than the box
+      // when a page would be too big for the browser to allocate at all.
+      const backing = backingFor(boxWidth, boxHeight, resolution());
+      const natural = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: backing.width / natural.width });
+      const width = Math.floor(viewport.width);
+      const height = Math.floor(viewport.height);
+      // Both dimensions, and together: the height used to be assigned only
+      // when the width happened to change, so a page that grew taller at the
+      // same width kept a stale backing store.
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
       }
+      // And shown at exactly the size it was drawn.  The height the
+      // container was given comes from a viewport floored at a different
+      // scale, so it can be a pixel taller than the page's own aspect ratio
+      // asks for, and a canvas told to fill it is stretched by that pixel.
+      // Any leftover is a hairline of the page's own white inside its frame.
+      const shown = width / backing.ratio;
+      canvas.style.width = `${shown}px`;
+      canvas.style.height = `${height / backing.ratio}px`;
       const context = canvas.getContext("2d", { alpha: false });
       if (!context) return;
+      view.drawnAt = rasterKey(width / boxWidth);
       view.task = page.render({ canvasContext: context, viewport } as any);
       await view.task.promise;
       if (mine === generation.current) view.drawnFor = mine;
@@ -249,16 +302,57 @@ export default function Pdf({
     if (first >= 0 && first + 1 !== currentRef.current) setCurrent(first + 1);
   }, [renderPage, renderText]);
 
-  // A change of interface size changes how many device pixels a page needs.
-  // Nothing else invalidates the canvases, so say so explicitly.
-  useEffect(() => {
-    const redraw = () => {
-      for (const view of pages.current) view.drawnFor = -1;
-      drawVisible();
-    };
-    window.addEventListener(APPEARANCE_CHANGED, redraw);
-    return () => window.removeEventListener(APPEARANCE_CHANGED, redraw);
+  // Everything that changes how many device pixels a page needs, and
+  // nothing that changes its size on screen.
+  //
+  // Deliberately not a bump of `generation`, which is the supersession token
+  // for `layout`: raising it from out here makes any layout currently
+  // between awaits give up at its next check and leave the pane unlaid.
+  // Cancel the drawing instead.  That also closes the hole this had: a page
+  // whose render was in flight when the interface changed was skipped by the
+  // in-flight guard and then marked current, keeping the bitmap it had drawn
+  // at the old resolution.
+  const invalidateRaster = useCallback(() => {
+    for (const view of pages.current) {
+      view.task?.cancel();
+      view.task = null;
+      view.drawnFor = -1;
+      view.drawnAt = 0;
+    }
+    drawVisible();
   }, [drawVisible]);
+
+  useEffect(() => {
+    window.addEventListener(APPEARANCE_CHANGED, invalidateRaster);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, invalidateRaster);
+  }, [invalidateRaster]);
+
+  // (b) The window moved to a screen of another density, or the browser's
+  // own zoom changed, both of which change `devicePixelRatio` and neither of
+  // which fires anything this pane was listening for.  A resolution query is
+  // pinned to the value it was made with, so it is re-armed after each
+  // change rather than kept.
+  useEffect(() => {
+    let query: MediaQueryList | null = null;
+    let cancelled = false;
+    const arm = () => {
+      if (cancelled) return;
+      query?.removeEventListener("change", onChange);
+      query = window.matchMedia(
+        `(resolution: ${window.devicePixelRatio || 1}dppx)`,
+      );
+      query.addEventListener("change", onChange);
+    };
+    const onChange = () => {
+      arm();
+      invalidateRaster();
+    };
+    arm();
+    return () => {
+      cancelled = true;
+      query?.removeEventListener("change", onChange);
+    };
+  }, [invalidateRaster]);
 
   const onScroll = useCallback(() => {
     // A pinch sets `scrollTop` itself, and the scroll that follows is not a
@@ -358,7 +452,7 @@ export default function Pdf({
         element.appendChild(text);
         views.push({
           container: element, canvas, text, width, height,
-          scale: effective, drawnFor: -1, textFor: -1, textScale: 0, task: null,
+          scale: effective, drawnFor: -1, drawnAt: 0, textFor: -1, textScale: 0, task: null,
         });
       }
 
@@ -468,7 +562,21 @@ export default function Pdf({
       if ((entries[0]?.contentRect.width ?? 0) < 80) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        if (doc.current && !scale) layoutRef.current(doc.current, true);
+        if (doc.current && !scale) {
+          layoutRef.current(doc.current, true);
+          return;
+        }
+        // At a reader-chosen zoom the layout does not change, so this used
+        // to call `drawVisible`, which skips every page already marked
+        // current and therefore redrew nothing.  A browser Ctrl-plus changes
+        // the pane width and the device ratio together, so the page was left
+        // stretched over a bigger box until something else invalidated it.
+        // Compare what the raster was drawn for, and redraw only if it moved.
+        const wanted = rasterKey(resolution());
+        const stale = pages.current.some(
+          (view) => view.drawnFor >= 0 && view.drawnAt !== wanted,
+        );
+        if (stale) invalidateRaster();
         else drawVisible();
       }, 120);
     });
@@ -477,7 +585,7 @@ export default function Pdf({
       observer.disconnect();
       window.clearTimeout(timer);
     };
-  }, [drawVisible, scale]);
+  }, [drawVisible, invalidateRaster, scale]);
 
   // ---- zooming with the wheel or a trackpad -----------------------------
   // A reader zooms a page the way they zoom everything else: ctrl with the

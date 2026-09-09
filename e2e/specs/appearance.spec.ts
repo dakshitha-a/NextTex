@@ -49,26 +49,96 @@ test("the interface scales, and the projects screen scales with it", async ({
   await expect(tab.getByTestId("appearance")).toBeVisible();
 });
 
-test("a bigger interface does not soften the page", async ({ tab }) => {
-  // `zoom` changes how many device pixels a CSS pixel covers, but not
-  // `devicePixelRatio`.  A canvas sized for the old ratio is stretched by
-  // the browser, and a blurry preview is the one thing this pane cannot
-  // ship.
-  const canvas = tab.locator(".pdf-page canvas, canvas").first();
+/** How far the canvas is from carrying one device pixel per pixel it shows.
+ *
+ *  This is the invariant the whole pane rests on: the backing store should be
+ *  the box it is painted into, times the device ratio, times the interface
+ *  scale.  Anything else is a bitmap the browser has to stretch or squash,
+ *  which is what a soft page is.
+ */
+async function rasterError(canvas: import("@playwright/test").Locator) {
+  return canvas.evaluate((element) => {
+    const canvasElement = element as HTMLCanvasElement;
+    const box = canvasElement.getBoundingClientRect();
+    const scale = Number(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--nx-ui-scale",
+      ) || 1,
+    );
+    // `getBoundingClientRect` is in zoomed pixels, so the interface scale is
+    // already in it: undo it to get the CSS box, then ask for it back.
+    const wanted = (box.width / scale) * window.devicePixelRatio * scale;
+    return Math.abs(canvasElement.width - wanted);
+  });
+}
+
+test("the page is drawn at the resolution it is shown at", async ({ tab }) => {
+  // This assertion used to be that the backing store grew after stepping the
+  // interface up, which is not an invariant of anything: in fit-width mode a
+  // larger interface shrinks the CSS box and raises the resolution, so the
+  // store barely moves.  It also selected `.pdf-page canvas`, and the class
+  // this pane renders is `nx-page`, so it matched nothing and fell through to
+  // a bare canvas.  A correctly-selected wrong assertion is worse than an
+  // obviously broken one, because it looks like coverage.
+  //
+  // What is asserted instead is the thing the defects violated, and it was
+  // watched to fail: against the previous pane it measures exactly 2, which
+  // is the width of the page's own border.  The container was 441 wide, the
+  // canvas inside it 439, and the backing store was sized from the container,
+  // so every page was drawn two device pixels wide of the box it was shown
+  // in and squashed to fit.  It measures 0 now.
+  const canvas = tab.locator(".nx-page canvas").first();
   await canvas.waitFor({ timeout: 30_000 });
-  const before = await canvas.evaluate((el) => (el as HTMLCanvasElement).width);
+  await expect.poll(async () => rasterError(canvas), { timeout: 15_000 }).toBeLessThan(2);
 
   await open(tab);
   for (const _ of [0, 1, 2]) {
     await tab.getByRole("button", { name: "Larger interface" }).click();
   }
   await tab.keyboard.press("Escape");
-  // The redraw is debounced behind the relayout.
-  await expect
-    .poll(async () => canvas.evaluate((el) => (el as HTMLCanvasElement).width), {
-      timeout: 15_000,
-    })
-    .toBeGreaterThan(before);
+  await expect.poll(async () => rasterError(canvas), { timeout: 15_000 }).toBeLessThan(2);
+});
+
+test("a page drawn on one screen is redrawn for another", async ({ tab }) => {
+  // Moving a window to a display of a different density changes
+  // `devicePixelRatio` and nothing else: no resize, no relayout, no event
+  // this pane was listening for.  The page kept whatever ratio it was drawn
+  // with and the browser stretched it from then on.  A CDP metrics override
+  // is the same change arriving the same way.
+  const canvas = tab.locator(".nx-page canvas").first();
+  await canvas.waitFor({ timeout: 30_000 });
+  await expect.poll(async () => rasterError(canvas), { timeout: 15_000 }).toBeLessThan(2);
+
+  const session = await tab.context().newCDPSession(tab);
+  await session.send("Emulation.setDeviceMetricsOverride", {
+    width: 0,
+    height: 0,
+    deviceScaleFactor: 2,
+    mobile: false,
+  });
+  await expect.poll(async () => rasterError(canvas), { timeout: 15_000 }).toBeLessThan(2);
+  await session.send("Emulation.clearDeviceMetricsOverride");
+});
+
+test("the preview quality setting changes what a page is drawn with", async ({
+  tab,
+}) => {
+  const canvas = tab.locator(".nx-page canvas").first();
+  await canvas.waitFor({ timeout: 30_000 });
+  const width = async () =>
+    canvas.evaluate((el) => (el as HTMLCanvasElement).width);
+  const balanced = await width();
+
+  await open(tab);
+  // A pressed-state button rather than a radio, so `check` cannot drive it.
+  await tab.getByTestId("preview-sharper").click();
+  await tab.keyboard.press("Escape");
+  await expect.poll(width, { timeout: 15_000 }).toBeGreaterThan(balanced);
+
+  await open(tab);
+  await tab.getByTestId("preview-faster").click();
+  await tab.keyboard.press("Escape");
+  await expect.poll(width, { timeout: 15_000 }).toBeLessThanOrEqual(balanced);
 });
 
 test("reset puts everything back", async ({ tab }) => {
