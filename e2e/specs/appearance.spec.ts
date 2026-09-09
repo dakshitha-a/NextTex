@@ -41,6 +41,11 @@ test("the interface scales, and the projects screen scales with it", async ({
   await tab.getByRole("button", { name: "Larger interface" }).click();
   await expect(tab.locator("#root")).toHaveCSS("zoom", "1.1");
 
+  // The settings are a sheet rather than a popover now, so leaving them is
+  // its own act: a click on the scrim dismisses and does not also press
+  // what is underneath it, which is what a modal is for.
+  await tab.getByTestId("settings-close").click();
+
   // The whole point of putting it on #root: it covers the screens that
   // return before the editor shell is ever built.
   await tab.getByTestId("switch-project").click();
