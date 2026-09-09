@@ -194,11 +194,21 @@ test("a replaced figure keeps the one it replaced, and gives it back", async ({
     .click();
   await expect(tab.getByTestId("version").first()).toBeVisible({ timeout: 15_000 });
 
-  await tab.getByTestId("version").first().click();
-  const open = tab.getByTestId("version-open").first();
-  await expect(open).toBeVisible();
-  await open.getByRole("button", { name: "Restore this" }).click();
-  await open.getByRole("button", { name: "Restore", exact: true }).click();
+  // An old version of a figure opens in the pane that shows the figure,
+  // at the size the writer chooses, rather than as a thumbnail inside the
+  // panel.  So the assertion is that the viewer is pointed at that
+  // version's own bytes, and that the strip above it says as much.
+  const older = tab.getByTestId("version").last();
+  const sha = await older.getAttribute("data-sha");
+  await older.click();
+  await expect(tab.getByText(/viewing/i).first()).toBeVisible();
+  await expect(
+    tab.getByTestId("file-view").locator("img"),
+  ).toHaveAttribute("src", new RegExp(`sha=${sha}`), { timeout: 10_000 });
+
+  // And restoring it is offered where the version being looked at is.
+  await tab.getByRole("button", { name: "Restore this" }).click();
+  await tab.getByRole("button", { name: "Restore", exact: true }).click();
 
   await expect
     .poll(

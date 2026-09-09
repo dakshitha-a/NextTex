@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api, { startDownload, type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
 import { Chevron } from "../chrome";
-import { isRenderable, isText } from "./file-kinds";
+import { isRenderable, isText, isViewable } from "./file-kinds";
 
 /** Whose version this is.
  *
@@ -50,9 +50,7 @@ export default function History({
   const binary = Boolean(activePath) && !isText(activePath!);
   const blobUrl = (sha: string, download = false) =>
     projectId && activePath
-      ? `/api/projects/${projectId}/history/blob?path=${encodeURIComponent(
-          activePath,
-        )}&sha=${sha}&${download ? "download=1" : "raw=1"}`
+      ? api.historyBlobUrl(projectId, activePath, sha, download)
       : "";
 
   useEffect(() => {
@@ -65,11 +63,21 @@ export default function History({
 
   const choose = (version: Version, selected: boolean) => {
     const sha = version.sha;
-    // A version whose contents are not on this machine has nothing to show
-    // in the editor, so it opens in place and says so instead.
-    if (binary || version.here === false) {
-      // No viewing mode: there is no text to lock, nothing to diff, and no
-      // banner that could say anything true about a PNG.
+    // Two versions of a file open in two different places, and which of
+    // them applies is a question about the file rather than the version.
+    //
+    // A picture or a PDF opens in the pane that shows the file, at the size
+    // the writer chooses, with the same zoom and the same page controls as
+    // the current one.  Judging a figure is the whole reason to open an old
+    // one, and a 180px thumbnail inside a 264px panel is not judging it --
+    // and a PDF figure, which is the format figures are kept in precisely
+    // because it scales, had no preview here at all.
+    //
+    // What still opens in place is a version this machine does not hold,
+    // which has nothing to show anywhere, and a file neither viewer can
+    // draw, where the honest offer is the download.
+    const shown = Boolean(activePath) && isViewable(activePath!);
+    if (version.here === false || (binary && !shown)) {
       setConfirming(null);
       setOpened((current) => (current === sha ? null : sha));
       return;
@@ -233,14 +241,11 @@ export default function History({
                 ) : null}
                 {binary && !elsewhere && opened === version.sha ? (
                   <div className="mt-2" data-testid="version-open">
-                    {isRenderable(activePath ?? "") ? (
-                      <img
-                        src={blobUrl(version.sha)}
-                        alt={`${name} as it was at ${timeOf(version.at)}`}
-                        className="max-h-[180px] max-w-[244px] rounded-[3px] bg-surface-3 object-contain p-2"
-                      />
-                    ) : null}
-                    <div className="mt-2 flex items-center gap-3">
+                    {/* No thumbnail here any more.  A file that reaches this
+                        branch is one neither viewer can draw, so there was
+                        never a picture to show; the ones that can be drawn
+                        now open in the pane. */}
+                    <div className="flex items-center gap-3">
                       {confirming === version.sha ? (
                         <>
                           <span className="t-micro text-ink-2">
@@ -330,12 +335,20 @@ export function ViewingBanner({
   onBack,
   onToggleChanges,
   showingChanges,
+  onDownload,
 }: {
   version: Version;
   onRestore: () => void;
   onBack: () => void;
   onToggleChanges: () => void;
   showingChanges: boolean;
+  /** Present when what is being viewed is a figure rather than text.
+   *
+   *  Two things follow from it, and they are the same fact twice: there is
+   *  no diff to show, so the toggle that offers one goes; and the panel's
+   *  own download button went with the thumbnail it sat under, so it comes
+   *  back here, where the version it applies to is the one on screen. */
+  onDownload?: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const me = useStore((s) => s.peerId);
@@ -374,9 +387,15 @@ export function ViewingBanner({
       ) : (
         <span className="flex-1" />
       )}
-      <button className="quiet t-micro" onClick={onToggleChanges}>
-        {showingChanges ? "Hide what's gone" : "Show what's gone"}
-      </button>
+      {onDownload ? (
+        <button className="quiet t-micro" onClick={onDownload}>
+          Download
+        </button>
+      ) : (
+        <button className="quiet t-micro" onClick={onToggleChanges}>
+          {showingChanges ? "Hide what's gone" : "Show what's gone"}
+        </button>
+      )}
       <Rule />
       {confirming ? (
         <>
