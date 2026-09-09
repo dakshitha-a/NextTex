@@ -146,3 +146,53 @@ def test_evicting_collects_the_blobs_nothing_refers_to(client, opened, monkeypat
 
     assert collected == [True]
     assert opened["id"] not in server_main.SESSIONS
+
+
+def test_a_shared_project_still_collects_its_blobs(client, opened, monkeypatch):
+    """The failure the eviction sweep was added to fix, reintroduced.
+
+    A shared project is deliberately never evicted -- somebody may be typing
+    into it from another machine this second -- and eviction was the only
+    routine moment anything was swept. So unless the writer emptied the trash
+    or cleared a file by hand, a shared project kept every thinned version's
+    contents for ever.
+    """
+    session = server_main.session_for(opened["id"])
+    gone_stale(session)
+    session.peers.share.share_id = "a-share"
+    session.collected_at = 0.0
+
+    collected: list[bool] = []
+    monkeypatch.setattr(
+        session.history, "collect", lambda *a, **k: collected.append(True)
+    )
+    try:
+        reap(client)
+        assert opened["id"] in server_main.SESSIONS, "it was evicted after all"
+        assert collected == [True], "a shared project was never swept"
+
+        # And not again on the next pass, a moment later.
+        reap(client)
+        assert collected == [True]
+    finally:
+        session.peers.share.share_id = ""
+
+
+def test_a_session_is_closed_before_its_blobs_are_swept(client, opened, monkeypatch):
+    """Closing flushes documents that are still pending, and each of those
+    writes a version. Sweeping first took its picture of what is referenced
+    before those lines existed."""
+    session = server_main.session_for(opened["id"])
+    gone_stale(session)
+
+    order: list[str] = []
+    monkeypatch.setattr(session.history, "collect", lambda *a, **k: order.append("swept"))
+    original = session.close
+
+    async def closing():
+        order.append("closed")
+        await original()
+
+    monkeypatch.setattr(session, "close", closing)
+    reap(client)
+    assert order == ["closed", "swept"]

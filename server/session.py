@@ -214,6 +214,9 @@ class ProjectSession:
         self.transcript = Transcript(project.state_dir / "transcript.jsonl")
         self.history = History(project.state_dir / "history")
         self.symbols = SymbolCache(project.root)
+        #: When the contents nothing refers to were last swept out of
+        #: this project's history.  The reaper reads it; see COLLECT_EVERY.
+        self.collected_at = 0.0
         self.trash = Trash(
             project.state_dir / "trash", self.history, project.root,
             # The trash writes versions straight onto the history rather

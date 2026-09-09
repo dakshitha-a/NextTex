@@ -39,8 +39,14 @@ from .history import History
 #: Named `logger` rather than `log`, which on this class is the ledger.
 logger = logging.getLogger("nexttex.trash")
 
-# Names that are never carried into the trash: they are regenerated, and
-# keeping them would make an entry ten times its useful size.
+# Directories whose contents are not *listed* in a trash entry: they are
+# regenerated, and listing them would make an entry ten times its useful
+# size.  They still travel, because the whole folder is moved in one piece.
+#
+# Matched against the path *inside the project*.  Matched against the whole
+# absolute path, as this was, a project living anywhere under a directory
+# called `.git` or `node_modules` had every one of its files skipped: no
+# final versions, a count of zero, nothing restored and nothing forgotten.
 SKIP_DIRS = {".git", "__pycache__", ".nexttex", "node_modules"}
 
 # Above this, a file's text is not worth a final version -- it is a figure
@@ -264,7 +270,7 @@ class Trash:
             dirs = [
                 str(path.resolve().relative_to(root))
                 for path in sorted(target.rglob("*"))
-                if path.is_dir() and not any(part in SKIP_DIRS for part in path.parts)
+                if path.is_dir() and not self._skipped(path, root)
             ]
 
         entry = TrashEntry(
@@ -282,13 +288,20 @@ class Trash:
 
         # Move rather than copy: same filesystem, so this is instant however
         # large the folder is, and it preserves everything about the files.
-        holding = self.root / entry.id
+        holding = self._holding(entry)
         holding.mkdir(parents=True, exist_ok=True)
+        # Written down *before* it moves.  The other way round -- move,
+        # then record -- meant a crash in between left the payload sitting
+        # under an id nothing listed: not restorable, because nothing knew
+        # it was there, and never reclaimed either, because emptying the
+        # trash walks the ledger.  This way round the worst a crash leaves
+        # is an entry whose restore says the payload is gone, which is
+        # visible, and which emptying the trash can clear.
+        self._append(entry.as_dict())
         try:
             target.rename(holding / target.name)
         except OSError:
             shutil.move(str(target), str(holding / target.name))
-        self._append(entry.as_dict())
         return entry
 
     def restore(self, entry_id: str) -> dict:
@@ -358,6 +371,18 @@ class Trash:
             "path": entry.path,
         }
 
+    @staticmethod
+    def _skipped(path: Path, root: Path) -> bool:
+        """Whether this is somewhere a trash entry does not list.
+
+        Against the project-relative parts, never the absolute ones.
+        """
+        try:
+            inside = path.resolve().relative_to(root)
+        except (OSError, ValueError):
+            return True
+        return any(part in SKIP_DIRS for part in inside.parts)
+
     def _destroy(self, entry: TrashEntry) -> None:
         """Take one entry's payload off the disk, and say so if it will not go.
 
@@ -381,7 +406,11 @@ class Trash:
         self._destroy(entry)
         self._forget(entry)
         self._append({"id": entry.id, "removed": True, "at": time.time() * 1000})
-        self._rewrite(self.entries())
+        # No compaction here.  It read the ledger and wrote the whole thing
+        # back, so a delete landing between the read and the rename was
+        # erased -- its payload left on disk under an id nothing knew about.
+        # The tombstone above is enough on its own; emptying the trash is
+        # where the file gets shortened.
         return True
 
     def empty(self) -> int:
@@ -405,13 +434,13 @@ class Trash:
             if not (self.project_root / file.path).exists():
                 self.history.forget(file.path)
 
-    @staticmethod
-    def _members(target: Path) -> list[Path]:
+    def _members(self, target: Path) -> list[Path]:
         if target.is_file() and not target.is_symlink():
             return [target]
         found: list[Path] = []
+        root = self.project_root.resolve()
         for path in sorted(target.rglob("*")):
-            if any(part in SKIP_DIRS for part in path.parts):
+            if self._skipped(path, root):
                 continue
             # A symlink is followed by is_file(), and resolve() below would
             # then record its *target's* path -- a file that still exists,

@@ -44,6 +44,7 @@ write, and why none of them may await anything in between.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -215,7 +216,7 @@ class BlobStore:
             if not shard.is_dir():
                 continue
             for blob in shard.iterdir():
-                if blob.name in keep or blob.name.endswith(".tmp"):
+                if blob.name in keep:
                     continue
                 try:
                     if blob.stat().st_mtime > cutoff:
@@ -224,6 +225,12 @@ class BlobStore:
                     removed += 1
                 except OSError:
                     pass
+            # An emptied shard is an empty directory for ever otherwise, and
+            # the walk above pays for it on every collection from now on.
+            # `rmdir` refuses a directory with anything in it, so this needs
+            # no check of its own.
+            with contextlib.suppress(OSError):
+                shard.rmdir()
         return removed
 
 

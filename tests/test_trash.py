@@ -7,6 +7,7 @@ restore must also never clobber whatever is at that path now.
 
 import json
 import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -423,3 +424,77 @@ def test_a_delete_version_says_which_install_made_it(tmp_path):
     assert last.op == "delete"
     assert last.peer == "a" * 64
     assert last.who == "Ada"
+
+
+def test_a_project_under_a_build_directory_can_still_be_trashed(tmp_path):
+    """The skip list is about paths inside the project, not about where the
+    project happens to live.
+
+    Matched against the whole absolute path, as this was, a project sitting
+    anywhere under a directory called `.git` or `node_modules` had every one
+    of its files skipped: no final versions, a count of zero, nothing
+    restored on the way back, and nothing forgotten on a purge.
+    """
+    awkward = tmp_path / "node_modules" / "work"
+    awkward.mkdir(parents=True)
+    history = History(awkward / ".nexttex" / "history")
+    trash = Trash(awkward / ".nexttex" / "trash", history, awkward)
+
+    (awkward / "chapter.tex").write_text("months of work", encoding="utf-8")
+    entry = trash.delete(awkward / "chapter.tex")
+
+    assert [f.path for f in entry.files] == ["chapter.tex"]
+    assert entry.as_dict()["bytes"] == len("months of work")
+    assert history.versions("chapter.tex")[-1].op == "delete"
+    assert trash.restore(entry.id)["restored"] == ["chapter.tex"]
+
+
+def test_a_crash_before_the_payload_moves_leaves_something_findable(tmp_path):
+    """The ledger line is written first on purpose.
+
+    Move first and a crash in between left the payload under an id nothing
+    listed: not restorable, because nothing knew it was there, and never
+    reclaimed either, because emptying the trash walks the ledger.
+    """
+    trash, project = bin(tmp_path)
+    (project / "chapter.tex").write_text("months of work", encoding="utf-8")
+    entry = trash.delete(project / "chapter.tex")
+
+    # What a crash between the two steps looks like from here.
+    shutil.rmtree(trash.payload_of(entry).parent)
+
+    assert [e.id for e in trash.entries()] == [entry.id], "nothing knew it was there"
+    with pytest.raises(FileNotFoundError):
+        trash.restore(entry.id)
+    assert trash.empty() == 1, "and it could never be cleared away"
+
+
+def test_a_scratch_file_left_by_a_crash_does_not_live_for_ever(tmp_path):
+    """It was skipped by name and removed by nothing, so it stayed on disk
+    and was counted in what the history costs."""
+    import os
+
+    history = History(tmp_path / "history")
+    version = history.record("main.tex", "the chapter")
+    shard = history.blobs.path_for(version.sha).parent
+    scratch = shard / (version.sha + ".nexttex-tmp")
+    scratch.write_bytes(b"half a blob")
+    old = time.time() - 4 * 3600
+    os.utime(scratch, (old, old))
+
+    history.collect()
+    assert not scratch.exists()
+    assert history.blobs.get(version.sha) == b"the chapter"
+
+
+def test_an_emptied_shard_does_not_stay_on_disk(tmp_path):
+    history = History(tmp_path / "history")
+    sha = history.blobs.put(b"nothing will ever refer to this")
+    shard = history.blobs.path_for(sha).parent
+    import os
+
+    old = time.time() - 4 * 3600
+    os.utime(history.blobs.path_for(sha), (old, old))
+
+    assert history.collect() == 1
+    assert not shard.exists()
