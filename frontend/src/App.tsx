@@ -6,6 +6,7 @@ import Boundary from "./Boundary";
 import {
   connect,
   disconnect,
+  dismissNotice,
   get,
   handlers,
   refreshContext,
@@ -177,7 +178,7 @@ export default function App() {
   const projectName = useStore((s) => s.projectName);
   const tabs = useStore((s) => s.tabs);
   const activePath = useStore((s) => s.activePath);
-  const error = useStore((s) => s.error);
+  const notices = useStore((s) => s.notices);
   const viewing = useStore((s) => s.viewing);
 
   /** Go back to what was being written, or to the list if there is nothing.
@@ -1764,17 +1765,37 @@ export default function App() {
         </Suspense>
       ) : null}
 
-      {error ? (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-[3px] border border-error bg-surface px-3 py-2">
-          <span className="t-meta text-error">{error}</span>
-          <button
-            className="t-micro ml-3 text-ink-3 hover:text-ink"
-            onClick={() => set({ error: null })}
+      {/* A live region, always present rather than mounted with the first
+          failure: a region that appears at the same moment as its content
+          is not announced by every screen reader, and the whole purpose of
+          this is to say something to somebody who cannot see it. `polite`
+          rather than `assertive` because none of these interrupts what the
+          writer is doing; it reports what the app just failed to do. */}
+      <div
+        className="pointer-events-none absolute bottom-3 left-1/2 z-50 flex
+                   -translate-x-1/2 flex-col items-center gap-2"
+        role="status"
+        aria-live="polite"
+        data-testid="notices"
+      >
+        {notices.map((notice) => (
+          <div
+            key={notice.id}
+            className="nx-arrive pointer-events-auto flex max-w-[52ch] items-start
+                       gap-3 rounded-[3px] border border-error bg-surface px-3 py-2
+                       shadow-float"
           >
-            Dismiss
-          </button>
-        </div>
-      ) : null}
+            <span className="t-meta text-error">{notice.text}</span>
+            <button
+              className="t-micro shrink-0 text-ink-3 hover:text-ink"
+              onClick={() => dismissNotice(notice.id)}
+              aria-label={`Dismiss: ${notice.text}`}
+            >
+              Dismiss
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
