@@ -159,7 +159,7 @@ export default function AccessCard({
         aria-modal="true"
         aria-labelledby="access-heading"
         data-testid="access-card"
-        className="nx-arrive max-h-full w-[380px] overflow-y-auto rounded-[5px] border border-line bg-surface shadow-float"
+        className="nx-furniture nx-arrive max-h-full w-[380px] overflow-y-auto rounded-[5px] border border-line bg-surface shadow-float"
       >
         <div className="flex items-center justify-between px-[12px] pt-[10px] pb-[6px]">
           <span id="access-heading" className="t-ui text-ink">

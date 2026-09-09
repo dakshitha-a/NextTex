@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api, { startDownload, type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
 import { Chevron } from "../chrome";
-import { isRenderable } from "./renderable";
+import { isRenderable, isText } from "./file-kinds";
 
 /** Whose version this is.
  *
@@ -410,16 +410,3 @@ function size(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** Which files the editor can hold, and therefore which have text history
- *  rather than the byte kind.  Kept beside the panel rather than read from
- *  the tree: the panel is often open on a file whose row is scrolled out
- *  of the tree, and a suffix is the same answer either way. */
-const TEXT_SUFFIXES = new Set([
-  ".tex", ".ltx", ".sty", ".cls", ".bib", ".bbl", ".txt", ".md", ".json",
-  ".yml", ".yaml", ".csv", ".toml", ".cfg", ".ini", ".log", ".py", ".sh",
-]);
-
-export function isText(path: string): boolean {
-  const dot = path.lastIndexOf(".");
-  return dot <= 0 || TEXT_SUFFIXES.has(path.slice(dot).toLowerCase());
-}

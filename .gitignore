@@ -4,12 +4,12 @@
 examples/**/build/
 # Frontend
 frontend/dist/
-frontend/node_modules/
+frontend/node_modules
 frontend/.vite/
 *.key
 # LaTeX build output from the example project
 .nexttex-preview.tex
-node_modules/
+node_modules
 *.pem
 *.pyc
 __pycache__/
@@ -21,17 +21,20 @@ __pycache__/
 # accident along with the example project.
 .nexttex/
 examples/**/.nexttex/
-.venv/
+.venv
 venv/
 
 # Browser tests
 # Renders from e2e/shots are for looking at, not for committing.  The two
 # the README uses live in docs/ and are written there deliberately.
 e2e/shots/*.png
-e2e/node_modules/
+# The sweep renders every surface at every breakpoint in both themes --
+# seventy-odd files per run, for a person to go through and then discard.
+e2e/shots/sweep/
+e2e/node_modules
 e2e/test-results/
 e2e/playwright-report/
-frontend/node_modules/
+frontend/node_modules
 bench/report/
 
 # uv, when the installer fetched its own rather than using one on PATH.

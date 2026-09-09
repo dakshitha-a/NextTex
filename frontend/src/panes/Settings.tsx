@@ -18,6 +18,7 @@ import {
   step,
   storedAppearance,
   type Appearance,
+  type EditorTheme,
 } from "../appearance";
 
 /** Everything the writer gets to choose, in one card.
@@ -83,6 +84,81 @@ function Choice<T extends string | boolean>({
             onClick={() => onPick(option.value)}
           >
             {option.text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The ground the editor draws its page on, chosen by looking at it.
+ *
+ *  This was a row of three words, and the words were the problem: "Light"
+ *  in this row and "Light" in the Theme row directly above it mean two
+ *  different things, which is why every button in a Choice has to carry its
+ *  group's name in its accessibility label to be comprehensible at all.
+ *  Six grounds could not have survived that.  A colour is also simply the
+ *  honest way to offer a colour.
+ *
+ *  Each swatch is painted by putting the app's own palette class on it and
+ *  filling with var(--surface), so what the writer sees is the real token
+ *  and there is no second list of hexes here to drift from styles.css.
+ *  "Match" is drawn as both palettes at once, because that is what it
+ *  means.  The caption underneath names the current choice, so the row is
+ *  readable rather than a guessing game of six grey rectangles.
+ */
+const GROUNDS: readonly {
+  value: EditorTheme;
+  text: string;
+  skin: string;
+  id: string;
+}[] = [
+  { value: "match", text: "Matches the theme", skin: "", id: "editor-theme-match" },
+  { value: "light", text: "Proofing grey", skin: "nx-theme-light", id: "editor-theme-light" },
+  { value: "white", text: "White", skin: "nx-theme-light nx-theme-white", id: "editor-theme-white" },
+  { value: "warm", text: "Warm white", skin: "nx-theme-light nx-theme-warm", id: "editor-theme-warm" },
+  { value: "cool", text: "Cool white", skin: "nx-theme-light nx-theme-cool", id: "editor-theme-cool" },
+  { value: "dark", text: "Dark", skin: "nx-theme-dark", id: "editor-theme-dark" },
+];
+
+function Grounds({
+  value,
+  onPick,
+}: {
+  value: EditorTheme;
+  onPick: (value: EditorTheme) => void;
+}) {
+  const current = GROUNDS.find((g) => g.value === value) ?? GROUNDS[0];
+  return (
+    <div className="border-t border-line px-[10px] py-[7px]">
+      <div className="flex items-center justify-between">
+        <span className="t-meta text-ink-2">Editor page</span>
+        <span className="t-micro text-ink-3">{current.text}</span>
+      </div>
+      <div role="group" aria-label="Editor page" className="mt-[6px] flex gap-[5px]">
+        {GROUNDS.map((ground) => (
+          <button
+            key={ground.id}
+            data-testid={ground.id}
+            aria-pressed={value === ground.value}
+            aria-label={`Editor page ${ground.text.toLowerCase()}`}
+            title={ground.text}
+            onClick={() => onPick(ground.value)}
+            className="nx-swatch"
+            data-chosen={value === ground.value ? "yes" : undefined}
+          >
+            {/* The palette class goes on the fill, not on the button: the
+                ring that marks the chosen one is drawn in --pen, and it
+                should be the panel's pen rather than the swatch's own, or
+                a pale violet ring lands on a pale popover. */}
+            {ground.value === "match" ? (
+              <>
+                <span className="nx-theme-light nx-swatch-half" />
+                <span className="nx-theme-dark nx-swatch-half" />
+              </>
+            ) : (
+              <span className={`nx-swatch-half ${ground.skin}`} />
+            )}
           </button>
         ))}
       </div>
@@ -166,7 +242,7 @@ export default function Settings({
           ref={card}
           role="dialog"
           aria-labelledby="settings-heading"
-          className={`nx-arrive absolute top-[30px] z-40 w-[248px] rounded-[5px] border border-line bg-surface shadow-float ${
+          className={`nx-furniture nx-arrive absolute top-[30px] z-40 w-[248px] rounded-[5px] border border-line bg-surface shadow-float ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -207,15 +283,8 @@ export default function Settings({
               want it out of the way in the dark; the editor is the page
               being written, and a writer who thinks in paper wants that
               white whatever the frame is doing. */}
-          <Choice
-            label="Editor"
-            name="Editor background"
+          <Grounds
             value={look.editorTheme}
-            options={[
-              { value: "match", text: "Match", id: "editor-theme-match" },
-              { value: "light", text: "Light", id: "editor-theme-light" },
-              { value: "dark", text: "Dark", id: "editor-theme-dark" },
-            ] as const}
             onPick={(editorTheme) => change({ editorTheme })}
           />
 

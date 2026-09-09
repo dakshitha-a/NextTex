@@ -9,14 +9,29 @@
 
 export type Theme = "light" | "dark";
 
-/** The editor's own light or dark, or whatever the rest of the app is.
+/** The ground the editor draws its page on.
  *
  *  Separate from the interface theme because the two are answering
  *  different questions.  The shell is chrome and some people want it out of
  *  the way in the dark; the editor is the page being written, and a writer
  *  who thinks in paper wants that white whatever the frame is doing.
- *  `match` is the default and means exactly that: follow the theme. */
-export type EditorTheme = "match" | "light" | "dark";
+ *  `match` is the default and means exactly that: follow the theme.
+ *
+ *  `light` is the proofing grey the light theme is built on, which is still
+ *  the right answer for most people and is what `match` gives them.  The
+ *  three after it are brighter pages for the writer who has only ever
+ *  composed on white: `white` is exactly #FFFFFF, `warm` is the colour of
+ *  book paper, `cool` is white with the yellow taken out.  They are not
+ *  separate palettes -- see the note in styles.css -- they are the light
+ *  palette with its four surfaces moved up, which is why the syntax
+ *  highlighting comes with them rather than having to be redrawn. */
+export type EditorTheme = "match" | "light" | "dark" | "white" | "warm" | "cool";
+
+/** The grounds that are a page rather than a following of the theme.  One
+ *  list rather than a condition repeated in three files. */
+export const EDITOR_GROUNDS: EditorTheme[] = [
+  "match", "light", "white", "warm", "cool", "dark",
+];
 
 /** Whether control sequences are told apart by colour.
  *
@@ -125,10 +140,9 @@ export function storedAppearance(): Appearance {
     theme: theme === "light" || theme === "dark" ? theme : DEFAULTS.theme,
     scale: scale ? nearest(scale, SCALES) : DEFAULTS.scale,
     editor: editor ? nearest(editor, EDITOR_SIZES) : DEFAULTS.editor,
-    editorTheme:
-      editorTheme === "light" || editorTheme === "dark" || editorTheme === "match"
-        ? editorTheme
-        : DEFAULTS.editorTheme,
+    editorTheme: EDITOR_GROUNDS.includes(editorTheme as EditorTheme)
+      ? (editorTheme as EditorTheme)
+      : DEFAULTS.editorTheme,
     syntax: syntax === "colour" || syntax === "subtle" ? syntax : DEFAULTS.syntax,
     preview:
       preview === "faster" || preview === "sharper" || preview === "balanced"

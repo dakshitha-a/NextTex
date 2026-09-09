@@ -36,6 +36,20 @@ function palette(block: string): Record<string, string> {
 const LIGHT = palette(".nx-theme-light {");
 const DARK = palette(".nx-theme-dark {");
 
+/** The three paper grounds, composed the way the browser composes them.
+ *
+ *  Each is applied *together with* `.nx-theme-light` and moves only the four
+ *  surfaces, so measuring the block on its own would measure four hexes in
+ *  isolation and certify nothing.  Spreading it over the light palette is
+ *  what a writer actually looks at.  They are listed here rather than left
+ *  out because the failure this file exists to prevent is a palette nobody
+ *  measured: a block the test was never told about is not caught by the
+ *  `no such block` throw, it is simply never checked. */
+const ground = (block: string) => ({ ...LIGHT, ...palette(block) });
+const WHITE = ground(".nx-theme-white {");
+const WARM = ground(".nx-theme-warm {");
+const COOL = ground(".nx-theme-cool {");
+
 function channel(hex: string, index: number): number {
   const value = parseInt(hex.slice(1 + index * 2, 3 + index * 2), 16) / 255;
   return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
@@ -97,6 +111,11 @@ const BODY_TEXT: [string, string][] = [
   ["syn-math", "surface"],
   ["syn-preamble", "surface"],
   ["syn-cite", "surface"],
+  // A filled --pen button writes its label in --on-pen.  White on the light
+  // violet, near-black on the pale dark one; the token exists so the button
+  // asks the palette in force rather than the root's theme, which is the
+  // wrong question inside the light theme's dark furniture.
+  ["on-pen", "pen"],
 ];
 
 /** The five command families, which have to be told apart from one another
@@ -106,6 +125,9 @@ const SYNTAX = ["syn-structure", "syn-env", "syn-math", "syn-preamble", "syn-cit
 describe.each([
   ["light", LIGHT],
   ["dark", DARK],
+  ["white page", WHITE],
+  ["warm page", WARM],
+  ["cool page", COOL],
 ])("%s theme", (_name, tokens) => {
   test("every token the palette names is defined", () => {
     for (const name of ["ink", "ink-2", "ink-3", "pen", "hint", "error", "warn",
@@ -130,7 +152,7 @@ test("the dark theme redefines every colour the light one names", () => {
   // that exists only in one theme is the classic unreadable-artifact bug.
   const colours = [
     "surround", "surface", "surface-2", "surface-3",
-    "ink", "ink-2", "ink-3", "pen", "hint", "error", "warn", "ok",
+    "ink", "ink-2", "ink-3", "pen", "on-pen", "hint", "error", "warn", "ok",
     ...SYNTAX,
   ];
   for (const name of colours) {
