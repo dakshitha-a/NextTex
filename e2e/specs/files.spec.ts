@@ -134,9 +134,11 @@ test("a name already there is asked about before anything is written", async ({
   ).toBeVisible();
 
   await chooser.getByRole("button", { name: "Keep both" }).click();
+  // Said on the row it applies to rather than once underneath, so it is
+  // still an answer when several files clash at once.
   await expect(
-    chooser.getByText("The new one comes in as plot (2).png."),
-  ).toBeVisible();
+    chooser.locator('[data-upload-row="plot.png"]'),
+  ).toContainText("becomes plot (2).png");
   await chooser.getByRole("button", { name: "Upload", exact: true }).click();
 
   await expect(
