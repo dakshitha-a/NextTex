@@ -667,3 +667,25 @@ def test_a_card_waiting_on_an_answer_can_be_handed_back(tmp_path):
     assert "id" in card
     # And it is gone once answered, so a later reload does not revive it.
     assert after == []
+
+
+def test_a_notebook_edit_is_judged_by_the_only_path_it_carries(tmp_path):
+    """`notebook_path` was read by the rule and not by the fence.
+
+    The write branch looked at `file_path` and `path`, so a NotebookEdit
+    carrying only `notebook_path` arrived with nothing to check, was refused
+    as though it pointed outside the project, and drew a card that named no
+    file at all: "Write outside the project: " with an empty detail.  A
+    writer cannot answer that, and the notebook was inside their project.
+    """
+    fence = agent(tmp_path)
+    inside = fence.root / "notes.ipynb"
+    inside.write_text("{}", encoding="utf-8")
+    assert decision(hook(fence, "NotebookEdit", {"notebook_path": str(inside)})) == "allow"
+
+    outside = tmp_path / "away.ipynb"
+    outside.write_text("{}", encoding="utf-8")
+    fence._ask_user = _refuse
+    assert decision(hook(fence, "NotebookEdit", {"notebook_path": str(outside)})) == "deny"
+    card = fence.describe("NotebookEdit", {"notebook_path": str(outside)})
+    assert str(outside) in card["headline"]

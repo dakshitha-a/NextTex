@@ -74,6 +74,18 @@ A session owns what must not be duplicated: the compile scheduler that serialise
 
 Eviction is safe because a session can always be rebuilt from disk. It is never about losing state, only about what would be interrupted.
 
+**One thing about the fence that is not settled.** `Task` is waved through by
+`_ALWAYS_OK`, which covers spawning a subagent and says nothing about what that
+subagent then does. Whether `PreToolUse` fires for the tool calls made inside
+one is a decision of the CLI rather than of this code, and it cannot be
+observed from the test suite here: the whole suite runs against a stand-in
+agent, and answering it needs a real account and a real turn. If the hook does
+not fire there, then the shell rule and the outside-project fence are both
+reachable around, which would make it the most serious thing in this file. It
+is recorded rather than guessed at, and the way to settle it is a live run that
+asks an agent to use a subagent to write outside the project and watches
+whether a card appears.
+
 **One constraint worth knowing before you touch this.** A session's CRDT objects are bound to the thread that created them. pycrdt panics outright, not raises, if one is used from another thread. That is why the reaper is a task on the event loop rather than a thread, and why a test that closes a session has to do it on the app's own loop.
 
 ## The document model
