@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
-import api, { captureToken, landingAfter, saveBlob, startDownload } from "./api";
-import { useDismiss } from "./useDismiss";
+import api, { captureToken, landingAfter, startDownload } from "./api";
 import { forget, keep, recall, recallText } from "./remember";
 import {
   ShareIcon,
-  DownloadIcon,
   DownloadMenu,
   AppControls,
   Chevron,
@@ -24,9 +22,9 @@ import {
   refreshContext,
   refreshGit,
   refreshHistory,
-  refreshTrash,
   replayTranscript,
   set,
+  type Tab,
   useStore,
 } from "./store";
 import Editor, { type EditorHandle } from "./panes/Editor";
@@ -66,7 +64,6 @@ import { APPEARANCE_CHANGED } from "./appearance";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
 import SectionsPanel, { includePath } from "./panes/SectionsPanel";
-import { agentName } from "./agent-name";
 
 const DRAWER_CLOSED = 0;
 const DRAWER_OPEN = 168;
@@ -81,7 +78,6 @@ const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 /** The project the writer was in, so a reload comes back to the document. */
 const LAST_PROJECT = "nexttex.lastProject";
 
-/** Every file path in a tree, flattened. */
 /** How a file can be shown, from the tree the store already holds. */
 function kindOf(tree: any, path: string): string | undefined {
   const find = (node: any): any =>
@@ -94,6 +90,7 @@ function kindOf(tree: any, path: string): string | undefined {
   return find(tree)?.kind;
 }
 
+/** Every file path in a tree, flattened. */
 function pathsIn(node: any): string[] {
   if (!node) return [];
   const here = node.type === "file" && node.path ? [node.path as string] : [];
@@ -375,7 +372,7 @@ export default function App() {
     // second round trip, because the strip is drawn on the first frame.
     const previewed: string[] = (project as any).previews ?? [main];
     set({
-      tabs: strip.map((path) => ({ path, dirty: false })),
+      tabs: strip.map((path): Tab => ({ path })),
       previews: previewed,
       activePreview: previewed.includes(active) ? active : previewed[0] ?? main,
       candidates: (project as any).candidates ?? [],
@@ -1815,10 +1812,3 @@ export default function App() {
   );
 }
 
-/** Sharing, as a glyph: two people, and the line between them.
- *
- *  Drawn rather than fetched, like the cog beside it, so the interface
- *  carries no icon font and no sprite sheet.  Every attribute is quoted --
- *  an unquoted one ending in a slash swallows the tag's own close and the
- *  path draws nothing at all, which has happened here before.
- */

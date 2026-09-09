@@ -734,13 +734,16 @@ export function shortRule(rule: string): string {
   return `${verb}: ${parts.length > 2 ? "\u2026/" : "/"}${tail}`;
 }
 
-/** The controls under the composer.  Drawn here rather than pulled from an
- *  icon set: five paths cost a few hundred bytes and a library costs tens
- *  of kilobytes on a bundle that is already close to its budget. */
+/** The shared box for a control under the composer: the size, the corner
+ *  and the hover, in one place so the four of them cannot drift apart. */
 const ICON =
   "quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] transition-colors duration-[90ms] hover:bg-surface-3 disabled:opacity-40 disabled:hover:bg-transparent";
 const ICON_ON = "bg-surface-3";
 
+/** The shared attributes of the four icons under the composer.  They are
+ *  drawn here rather than pulled from an icon set because four of them cost
+ *  a few hundred bytes and a library costs tens of kilobytes on a bundle
+ *  that is already close to its budget. */
 const stroke = {
   width: 13,
   height: 13,
@@ -834,15 +837,6 @@ const HIDDEN_TOOLS = new Set(["ToolSearch", "TodoWrite"]);
 
 function verb(name: string): string {
   return VERBS[name] ?? name.replace(/^mcp__[a-z]+__/, "").replace(/_/g, " ");
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="t-micro text-ink-3">{label}</span>
-      <span className="t-micro tabular-nums text-ink">{value}</span>
-    </div>
-  );
 }
 
 function compact(value: number): string {
