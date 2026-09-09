@@ -787,7 +787,14 @@ class ProjectSession:
         except Exception:
             # A shared document that cannot take an edit must not stop the
             # agent finishing its turn; the file on disk is already right.
-            pass
+            #
+            # Said out loud, though.  The visible consequence is that the
+            # browser goes on showing text the agent has already replaced,
+            # which reads to the writer as the agent having done nothing --
+            # and in silence there was no way to tell that from a turn that
+            # genuinely changed nothing.
+            log.warning("could not fold the agent's edit to %s into the "
+                        "shared document", relative, exc_info=True)
 
     def reveal_in_editor(self, path: str, line: int) -> None:
         """Ask the open editor to show a line."""
@@ -830,7 +837,13 @@ class ProjectSession:
                 try:
                     event = self.transcript.record(event)
                 except Exception:
-                    pass
+                    # The transcript is the account of what was done to
+                    # somebody's dissertation.  It may not take the whole
+                    # turn down, which is why this is caught at all, but a
+                    # record that quietly stops recording is the one failure
+                    # here nobody would ever notice on their own.
+                    log.warning("the transcript did not record a %s event",
+                                event.get("type", "?"), exc_info=True)
                 try:
                     await self.events.publish({"scope": "agent", **event})
                 except asyncio.CancelledError:
