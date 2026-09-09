@@ -501,13 +501,11 @@ class CompileScheduler:
             # above is made from this document rather than from a guess.
             self._full_fast_ms = elapsed
 
-        log = None
-        if self.paths.log.exists():
-            log = parse_log(
-                self.paths.log.read_text(encoding="utf-8", errors="replace"),
-                self.paths.root,
-                self.paths.main,
-            )
+        # Multi-megabyte on a thesis and regex-heavy, and this is the path
+        # that publishes the result to every subscriber, so parsing it inline
+        # held the loop for as long as it took after every single build.
+        log = await asyncio.to_thread(self._read_log)
+        if log is not None:
             self._remap_shadow(log)
 
         # A PDF from a previous good build is better than none: the preview
@@ -518,6 +516,20 @@ class CompileScheduler:
             outcome, log, pdf, time.monotonic() - started, scope,
             "full" if full_pass else "fast",
         )
+
+    def _read_log(self) -> ParsedLog | None:
+        """Read and parse the engine's log, off the loop.
+
+        The existence check this replaces was a separate call, so a log that
+        went away between the two raised out of the build.  Missing and
+        unreadable are the same answer here: there is nothing to say about
+        what the engine did.
+        """
+        try:
+            text = self.paths.log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        return parse_log(text, self.paths.root, self.paths.main)
 
     def full_argv(self, source_file: Path) -> list[str]:
         """latexmk with biber: citations, cross-references, the lot.

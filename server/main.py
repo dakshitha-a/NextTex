@@ -2474,17 +2474,24 @@ async def git_action(
 ):
     session = session_for(project_id)
     root = session.project.root
+    # Every one of these is a synchronous `subprocess.run` with a two minute
+    # timeout, and `push` and `pull` reach the network.  Called inline they
+    # stopped the whole server for as long as they took: every autosave,
+    # every event stream, every collaborator's socket, on a push to a remote
+    # that was not answering.  `git_status` two functions above already knew
+    # this and said so in its own comment.
     try:
         if action == "commit":
-            return {"ok": True, "output": gitrepo.commit(root, message)}
+            output = await asyncio.to_thread(gitrepo.commit, root, message)
+            return {"ok": True, "output": output}
         if action == "push":
-            return {"ok": True, "output": gitrepo.push(root)}
+            return {"ok": True, "output": await asyncio.to_thread(gitrepo.push, root)}
         if action == "pull":
-            output = gitrepo.pull(root)
+            output = await asyncio.to_thread(gitrepo.pull, root)
             await session.events.publish({"type": "files_changed", "paths": []})
             return {"ok": True, "output": output}
         if action == "init":
-            gitrepo.initialise(root)
+            await asyncio.to_thread(gitrepo.initialise, root)
             return {"ok": True}
     except gitrepo.GitError as error:
         raise HTTPException(400, str(error))
@@ -2502,12 +2509,16 @@ async def git_backup(
     """Point a project at GitHub, either by making the repository or joining one."""
     session = session_for(project_id)
     root = session.project.root
+    # The same reason as the route above, and this one was not in the
+    # finding: `create_github` shells out to `gh`, which makes its own
+    # network calls, so it is the slowest thing here.
     try:
         if url:
-            remote = gitrepo.attach_remote(root, url, token)
+            remote = await asyncio.to_thread(gitrepo.attach_remote, root, url, token)
         else:
-            remote = gitrepo.create_github(
-                root, name or session.project.config.name, private
+            remote = await asyncio.to_thread(
+                gitrepo.create_github, root,
+                name or session.project.config.name, private,
             )
         return {"ok": True, "remote": remote}
     except gitrepo.GitError as error:
@@ -3179,7 +3190,9 @@ async def instance():
     process it is talking to is a new one.
     """
     try:
-        head = gitrepo._run(INSTALL_ROOT, "rev-parse", "--short", "HEAD").strip()
+        head = (await asyncio.to_thread(
+            gitrepo._run, INSTALL_ROOT, "rev-parse", "--short", "HEAD"
+        )).strip()
     except gitrepo.GitError:
         head = ""
     return {
