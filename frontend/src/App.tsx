@@ -12,6 +12,15 @@ import {
   Handle,
 } from "./chrome";
 import { onFrame } from "./timing";
+import {
+  BREAKPOINTS,
+  breakpoints,
+  clampWidths,
+  dragBounds,
+  minPairFor,
+  nextFolded,
+  type Widths,
+} from "./layout";
 import Boundary from "./Boundary";
 import {
   connect,
@@ -73,7 +82,6 @@ const DRAWER_OPEN = 168;
 // its own summary with the errors it summarised out of sight.
 const DRAWER_WITH_SUMMARY = 248;
 
-type Widths = { rail: number; editor: number; chat: number };
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 
 /** The project the writer was in, so a reload comes back to the document. */
@@ -128,8 +136,7 @@ export default function App() {
   // interface size a 1680px display has 1120px to arrange, and the
   // narrow-layout breakpoints are written in those units.
   const [width, setWidth] = useState(viewportWidth);
-  const narrow = width < 1400;
-  const tight = width < 900;
+  const { narrow, tight } = breakpoints(width);
   // Open unless the window is too narrow to dock it, so a narrow window
   // does not paint an overlay on the first frame and close it on the
   // second.
@@ -670,42 +677,20 @@ export default function App() {
   }, [projectId, activePath, wordScope, builtAt]);
 
   // ---- pane dragging ----------------------------------------------------
-  // Minimum widths, in pixels.  The panes carry these as CSS too; the drag
-  // has to know them or it computes ratios the layout cannot honour.
-  const MIN_EDITOR = 420;
-  const MIN_PDF = 320;
-
-  // The widths the writer chose are kept, but the window may no longer be
-  // able to honour them -- it has been made narrower, or the widths were
-  // restored from a session on a bigger screen.  The middle two panes carry
-  // hard minimums in CSS and will not go below them, so without this the row
-  // simply overflows and the shell clips whatever is on the right.
+  // The arithmetic itself is in `layout.ts`, where it can be tested: it is
+  // what decides whether this row fits the window, and the shell clips
+  // rather than scrolls, so getting it wrong makes part of the interface
+  // unreachable rather than merely awkward.
   useEffect(() => {
-    if (tight) return;
-    const railShown = !(railHidden || folded.rail);
-    const chatShown = !noAgent && !chatOver && !folded.chat;
-    const minPair =
-      (folded.editor ? 0 : MIN_EDITOR) + (folded.pdf ? 0 : MIN_PDF);
-    setWidths((current) => {
-      const over =
-        (railShown ? current.rail : 0) +
-        (chatShown ? current.chat : 0) +
-        minPair -
-        width;
-      if (over <= 0) return current;
-      // Taken from the agent first and the file list second: the source and
-      // the page are what is being looked at.
-      const chat = chatShown ? Math.max(320, current.chat - over) : current.chat;
-      const left =
-        (railShown ? current.rail : 0) +
-        (chatShown ? chat : 0) +
-        minPair -
-        width;
-      const rail =
-        left > 0 && railShown ? Math.max(180, current.rail - left) : current.rail;
-      if (rail === current.rail && chat === current.chat) return current;
-      return { ...current, rail, chat };
-    });
+    setWidths((current) =>
+      clampWidths(current, {
+        width,
+        tight,
+        railShown: !(railHidden || folded.rail),
+        chatShown: !noAgent && !chatOver && !folded.chat,
+        minPair: minPairFor(folded),
+      }),
+    );
   }, [width, tight, railHidden, folded, chatOver, noAgent]);
 
   const startDrag =
@@ -720,19 +705,12 @@ export default function App() {
       // all 400 px back before anything moves, which reads as the handle
       // being stuck in the direction you now want to go.  Re-anchoring
       // means the pane starts moving the instant you reverse.
-      const bounds =
-        which === "rail"
-          ? { min: 180, max: 400 }
-          : which === "chat"
-            ? { min: 320, max: 560 }
-            : { min: MIN_EDITOR, max: 0 };
-
       // `getBoundingClientRect` reports viewport pixels even inside the
-      // zoomed shell, so bring it back into the space `bounds` is written in.
+      // zoomed shell, so bring it back into the space the bounds are written
+      // in.
       const editorWidth = toShell(editorPane.current?.getBoundingClientRect().width ?? 0);
       const pdfWidth = toShell(pdfPane.current?.getBoundingClientRect().width ?? 0);
       const pair = editorWidth + pdfWidth;
-      if (which === "split") bounds.max = Math.max(pair - MIN_PDF, MIN_EDITOR);
       setEditorWide(editorWidth > 700);
 
       // The browser reads a divider drag as a text selection too, and left
@@ -747,19 +725,11 @@ export default function App() {
             ? widthsRef.current.chat
             : editorWidth;
 
-      // A side pane may only take the room the middle two can actually
-      // give up.  Its ceiling used to be a bare constant, so the chat could
-      // be dragged to 560 px against an editor and a page that together
-      // refuse to go below 740 -- the row overflowed, the shell clipped it,
-      // and the pane appeared to expand behind the preview instead of
-      // beside it.
-      if (which !== "split") {
-        const minPair = tight
-          ? 0
-          : (folded.editor ? 0 : MIN_EDITOR) + (folded.pdf ? 0 : MIN_PDF);
-        const slack = Math.max(pair - minPair, 0);
-        bounds.max = Math.max(Math.min(bounds.max, anchorWidth + slack), bounds.min);
-      }
+      const bounds = dragBounds(which, {
+        pair,
+        anchorWidth,
+        minPair: tight ? 0 : minPairFor(folded),
+      });
 
       // The same reason, on the other end of a drag: pointer moves arrive
       // faster than frames, and every one of these set state on the root.
@@ -853,10 +823,7 @@ export default function App() {
     setFocus(null);
     beforeFocus.current = null;
     setFolded((current) => {
-      const next = { ...current, [pane]: !current[pane] };
-      // One of the two middle panes always stays open.
-      if (pane === "editor" && next.editor) next.pdf = false;
-      if (pane === "pdf" && next.pdf) next.editor = false;
+      const next = nextFolded(current, pane);
       const id = get().projectId;
       if (id) {
         keep(`nexttex.folded.${id}`, next);
@@ -1166,7 +1133,7 @@ export default function App() {
   // hand -- which a focus mode counts as.
   useEffect(() => {
     if (railByHand.current) return;
-    setRailHidden(width < 1100);
+    setRailHidden(width < BREAKPOINTS.rail);
   }, [width]);
 
   /** The active file, when it is one the editor cannot open.
