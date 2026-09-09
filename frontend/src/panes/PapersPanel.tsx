@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Chevron } from "../App";
+import { Chevron } from "../chrome";
 import api, { type LibraryProgress } from "../api";
 import { get, set, useStore } from "../store";
 

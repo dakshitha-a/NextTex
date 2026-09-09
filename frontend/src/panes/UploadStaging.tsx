@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { viewportHeight, viewportWidth } from "../viewport";
-import { Chevron } from "../App";
+import { Chevron } from "../chrome";
 import api from "../api";
 import { get, set, useStore } from "../store";
 import { useDismiss } from "../useDismiss";

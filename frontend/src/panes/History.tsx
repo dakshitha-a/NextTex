@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import api, { startDownload, type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
-import { Chevron } from "../App";
+import { Chevron } from "../chrome";
 import { isRenderable } from "./renderable";
 
 /** Whose version this is.

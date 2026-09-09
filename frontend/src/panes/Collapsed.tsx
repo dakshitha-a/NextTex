@@ -1,4 +1,4 @@
-import { Chevron } from "../App";
+import { Chevron } from "../chrome";
 
 /** A collapsed pane leaves a strip behind, so it is obvious that something
  *  is folded away and obvious how to get it back.  The chevron sits at the
