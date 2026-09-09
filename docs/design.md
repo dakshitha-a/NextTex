@@ -703,6 +703,65 @@ breakpoint, or a rewrite of the shell. A tablet in landscape is the honest
 target, because that is where a person edits a thesis and reads its proof.
 A phone is not, and saying so is more useful than half-supporting one.
 
+**Built, and four of the measurements above were wrong.** They are corrected
+here rather than left, because the paragraph presents them as measured rather
+than estimated, and a document that is wrong about its own numbers teaches the
+next reader not to trust the rest.
+
+There are no width media queries in the source CSS at all. The breakpoints are
+JavaScript, in `layout.ts` now, and they are in shell units rather than
+viewport pixels: the interface size is a `zoom`, so at 150 per cent a 1600
+pixel window is a 1067 pixel shell and reaches them the way a much smaller
+window would. Below 1400 the chat undocks, below 1100 the rail folds, below 900
+the source and the preview take turns.
+
+The smallest targets are not 22 by 26, which is the icon button size. The three
+controls named above are smaller: the tab close button is 16 by 16, the file
+tree row menu carries no size class at all inside a 16 pixel span, and the
+preview zoom controls are about 13 by 16. Two of them are also `opacity-0`
+until `group-hover`, which is a different and worse problem than being small:
+on a device with no hover they are not hard to hit, they are invisible, and no
+gesture reveals them. Those are gated on a `hoverable` variant now, so a mouse
+sees them appear as before and a finger simply sees them.
+
+The 44 pixel rule could not be applied flat. A file tree row is on a 22 pixel
+pitch, so a 44 pixel tall invisible target centred on its menu would reach into
+the rows above and below and take their taps, which is a worse bug than a small
+control. The rule is therefore 44 on the axis with room and the row's own pitch
+on the axis without it, through a pseudo-element, so no visible control changes
+size and the density changes nowhere.
+
+The clipping was at two layers, `body` and the shell, and the shell's is
+deliberate: it clips with `overflow: clip` precisely so that nothing, including
+a browser scrolling a focused element into view, can drag the window's frame
+sideways. So the scroll fallback went outside it rather than into it. A shell
+that cannot fit is wider than the frame around it and the frame scrolls, while
+focus inside the shell still cannot scroll the shell. The minimum is a stated
+number rather than `min-content`, which was tried and is wrong here: the
+preview zooms to 300 per cent, and a zoomed page makes that pane's min-content
+enormous, so the shell ballooned and the whole interface became horizontally
+scrollable at high zoom. A pane that scrolls its own content must not be
+allowed to set the width of the window it sits in.
+
+The pinch feeds the zoom path the trackpad already uses, converted through one
+tested function, so the limits, the frame coalescing, the redraw rationing and
+the commit are all unchanged. One real difference is worth stating: a touch
+gesture has an end event, and the settle delay exists only because a wheel does
+not, so a pinch commits when the fingers lift rather than waiting out a timer
+that is guessing.
+
+The dividers were also mis-described. The vertical ones are a one pixel line
+with a nine pixel invisible grab span, which is a comfortable mouse target and
+a poor finger one, so it widens to twenty-four on a coarse pointer. Only the
+diagnostics resizer was a bare three pixels, and it was a second copy of the
+drag code that had never adopted the shared frame throttle. It uses the same
+handle as the pane dividers now, with an axis.
+
+The browser tier has a second project for this: a tablet-sized viewport with a
+real touch pointer, running one spec. Not a spread of a device preset, because
+those carry a WebKit browser type and this tier launches a pinned Chromium. All
+three of its assertions were watched to fail against the interface as it was.
+
 **Accepting an invite is a two-step answer, and the first step writes
 nothing.** Joining used to sync the whole project, write every file, and
 register it, and the first moment a person could look at what they had

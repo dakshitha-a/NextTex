@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_CANVAS_AREA,
   backingFor,
+  pinchDelta,
   rasterKey,
   resolutionFor,
 } from "./pdf-raster";
@@ -95,5 +96,26 @@ describe("rasterKey", () => {
   it("ignores a difference no eye and no pixel can carry", () => {
     expect(rasterKey(2.0000001)).toBe(rasterKey(2));
     expect(rasterKey(2.5)).not.toBe(rasterKey(2));
+  });
+});
+
+describe("pinchDelta", () => {
+  it("is nothing when the fingers have not moved", () => {
+    // Negative zero is still zero to every consumer of this number.
+    expect(pinchDelta(100, 100)).toBeCloseTo(0, 10);
+  });
+
+  it("is equal and opposite for a pinch and a spread of the same size", () => {
+    expect(pinchDelta(100, 200)).toBeCloseTo(-pinchDelta(200, 100), 6);
+  });
+
+  it("spreads apart to zoom in, which is the sign the wheel path expects", () => {
+    // `apply` uses exp(-delta * 0.002), so zooming in is a negative delta.
+    expect(pinchDelta(100, 200)).toBeLessThan(0);
+  });
+
+  it("survives a gesture that starts with the fingers together", () => {
+    expect(pinchDelta(0, 200)).toBe(0);
+    expect(Number.isFinite(pinchDelta(100, 0))).toBe(true);
   });
 });

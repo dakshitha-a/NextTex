@@ -27,4 +27,28 @@ export default defineConfig({
     trace: "retain-on-failure",
     video: "off",
   },
+  // Two projects rather than one, and the default keeps every setting it had
+  // so no existing spec has to be re-tagged or re-timed.
+  //
+  // The tablet is a browser on the tailnet reaching an install that stays on
+  // its own machine: nothing is installed on a tablet, and a tablet in
+  // landscape is the honest target rather than a phone.  Deliberately not a
+  // spread of `devices["iPad ..."]`, because those carry
+  // `defaultBrowserType: "webkit"` and this tier launches a pinned Chromium.
+  projects: [
+    {
+      name: "desktop",
+      testIgnore: /touch\.spec\.ts/,
+    },
+    {
+      name: "tablet",
+      testMatch: /touch\.spec\.ts/,
+      use: {
+        viewport: { width: 1180, height: 820 },
+        hasTouch: true,
+        isMobile: false,
+        deviceScaleFactor: 2,
+      },
+    },
+  ],
 });

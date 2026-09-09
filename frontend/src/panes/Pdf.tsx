@@ -8,6 +8,7 @@ import { absenceFrom, type Absence } from "./pdf-absence";
 import { APPEARANCE_CHANGED } from "../appearance";
 import {
   backingFor,
+  pinchDelta,
   rasterKey,
   resolutionFor,
   type PreviewQuality,
@@ -238,8 +239,14 @@ export default function Pdf({
       // Measured from the element rather than by subtracting a border, so a
       // later change to the page's frame cannot quietly bring this back.
       const canvas = view.canvas;
-      const boxWidth = canvas.clientWidth || view.width;
-      const boxHeight = canvas.clientHeight || view.height;
+      // The container's content box, which is what the canvas fills: the
+      // border is outside it.  Read from the container rather than the canvas
+      // because the canvas keeps `width: 100%`, and it has to: the pinch
+      // gesture rescales the container and lets what is already drawn follow
+      // it, instantly, at the right scroll extents.  Pinning the canvas to a
+      // pixel size here froze it mid-gesture.
+      const boxWidth = view.container.clientWidth || view.width;
+      const boxHeight = view.container.clientHeight || view.height;
       // One function returns the store and the ratio together, from one
       // floored box, so the two cannot be rounded separately again.  It also
       // carries the area guard, which reduces the ratio rather than the box
@@ -256,14 +263,6 @@ export default function Pdf({
         canvas.width = width;
         canvas.height = height;
       }
-      // And shown at exactly the size it was drawn.  The height the
-      // container was given comes from a viewport floored at a different
-      // scale, so it can be a pixel taller than the page's own aspect ratio
-      // asks for, and a canvas told to fill it is stretched by that pixel.
-      // Any leftover is a hairline of the page's own white inside its frame.
-      const shown = width / backing.ratio;
-      canvas.style.width = `${shown}px`;
-      canvas.style.height = `${height / backing.ratio}px`;
       const context = canvas.getContext("2d", { alpha: false });
       if (!context) return;
       view.drawnAt = rasterKey(width / boxWidth);
@@ -695,9 +694,65 @@ export default function Pdf({
       if (!frame) frame = window.requestAnimationFrame(apply);
     };
 
+    // The same gesture from two fingers.  Everything downstream is the wheel
+    // path unchanged: the limits, the frame coalescing, the redraw rationing
+    // while the gesture runs, and the commit when it stops.
+    //
+    // One real difference, and it is worth saying rather than hiding: a touch
+    // gesture has an end event.  `ZOOM_SETTLE` exists only because a wheel
+    // does not, so a pinch commits when the fingers lift instead of waiting
+    // out a timer that is guessing.
+    let spread = 0;
+    const between = (touches: TouchList) => {
+      const [a, b] = [touches[0], touches[1]];
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      event.preventDefault();
+      spread = between(event.touches);
+      if (!box) box = root.getBoundingClientRect();
+      zooming.current = true;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || !spread) return;
+      event.preventDefault();
+      const now = between(event.touches);
+      const [a, b] = [event.touches[0], event.touches[1]];
+      pending = {
+        deltaY: (pending?.deltaY ?? 0) + pinchDelta(spread, now),
+        x: (a.clientX + b.clientX) / 2,
+        y: (a.clientY + b.clientY) / 2,
+      };
+      spread = now;
+      if (!box) box = root.getBoundingClientRect();
+      if (!frame) frame = window.requestAnimationFrame(apply);
+    };
+
+    const onTouchEnd = () => {
+      if (!spread) return;
+      spread = 0;
+      // The fingers have lifted, so there is nothing left to wait for.
+      window.clearTimeout(commit.current);
+      commit.current = window.setTimeout(() => {
+        zooming.current = false;
+        setScale(liveScale.current);
+      }, 0);
+    };
+
     root.addEventListener("wheel", onWheel, { passive: false });
+    root.addEventListener("touchstart", onTouchStart, { passive: false });
+    root.addEventListener("touchmove", onTouchMove, { passive: false });
+    root.addEventListener("touchend", onTouchEnd);
+    root.addEventListener("touchcancel", onTouchEnd);
     return () => {
       root.removeEventListener("wheel", onWheel);
+      root.removeEventListener("touchstart", onTouchStart);
+      root.removeEventListener("touchmove", onTouchMove);
+      root.removeEventListener("touchend", onTouchEnd);
+      root.removeEventListener("touchcancel", onTouchEnd);
       window.clearTimeout(commit.current);
       if (frame) window.cancelAnimationFrame(frame);
     };
@@ -888,7 +943,7 @@ export default function Pdf({
         {mode === "page" ? (
           <span className="flex shrink-0 items-center gap-1">
             <button
-              className="nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
+              className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
               disabled={current <= 1}
               onClick={() => step(-1)}
               aria-label="Previous page"
@@ -899,7 +954,7 @@ export default function Pdf({
               {pageCount ? `Page ${current} of ${pageCount}` : "—"}
             </span>
             <button
-              className="nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
+              className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
               disabled={current >= pageCount}
               onClick={() => step(1)}
               aria-label="Next page"
@@ -914,7 +969,7 @@ export default function Pdf({
         )}
         <Rule />
         <button
-          className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
+          className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
           onClick={() =>
             setScale((value) =>
               Math.max(MIN_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) - 0.15).toFixed(2)),
@@ -930,7 +985,7 @@ export default function Pdf({
           data-testid="zoom"
         />
         <button
-          className="nx-hover t-micro px-1 text-ink-2 hover:text-ink"
+          className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
           onClick={() =>
             setScale((value) =>
               Math.min(MAX_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) + 0.15).toFixed(2)),

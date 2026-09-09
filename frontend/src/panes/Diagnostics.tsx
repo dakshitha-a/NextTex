@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { uiScale } from "../viewport";
+import { Handle } from "../chrome";
+import { onFrame } from "../timing";
 import { useStore } from "../store";
 
 function summarise(rows: { severity: string }[]): string {
@@ -52,19 +54,24 @@ export default function Diagnostics({
       data-testid="diagnostics"
       style={{ height }}
     >
-      <div
-        className="h-[3px] shrink-0 cursor-row-resize"
+      <Handle
+        axis="row"
         onPointerDown={(event) => {
           event.preventDefault();
           const startY = event.clientY;
           const startHeight = height;
-          const move = (moveEvent: PointerEvent) => {
+          // Once per frame, keeping the newest position rather than the
+          // first: this is a position, so the last one is the true one.  The
+          // pane dividers went through `onFrame` when it was written and this
+          // resizer, being a second copy of the same code, did not.
+          const move = onFrame((moveEvent: PointerEvent) => {
             // Pointer travel is in viewport pixels; the height is not.
             const next =
               startHeight + (startY - moveEvent.clientY) / uiScale();
             onResize(Math.min(Math.max(next, 84), 320));
-          };
+          });
           const up = () => {
+            move.cancel();
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", up);
             // A drag can also end without a pointerup: a browser dialog, a
@@ -187,7 +194,7 @@ export default function Diagnostics({
                   </span>
                 ) : null}
                 <button
-                  className="ghost-button mr-2 h-[22px] shrink-0 px-2 t-micro opacity-0 focus:opacity-100 group-hover:opacity-100"
+                  className="ghost-button mr-2 h-[22px] nx-tap [--nx-tap-y:22px] shrink-0 px-2 t-micro hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     onFix(

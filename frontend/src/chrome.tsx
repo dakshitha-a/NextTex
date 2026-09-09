@@ -259,17 +259,37 @@ export function Segmented({
 export function Handle({
   onPointerDown,
   onReset,
+  axis = "column",
 }: {
   onPointerDown: (e: React.PointerEvent) => void;
   onReset?: () => void;
+  /** `column` divides two panes side by side; `row` divides them top and
+   *  bottom.  The diagnostics drawer had its own copy of this rather than an
+   *  axis, which is how it ended up with a bare three pixel target and none
+   *  of the fixes the pane dividers had learned. */
+  axis?: "column" | "row";
 }) {
+  const row = axis === "row";
   return (
     <div
-      className="nx-handle relative w-px shrink-0 cursor-col-resize"
+      className={`nx-handle relative shrink-0 ${
+        row ? "h-px w-full cursor-row-resize" : "w-px cursor-col-resize"
+      }`}
       onPointerDown={onPointerDown}
       onDoubleClick={onReset}
     >
-      <span className="absolute -left-1 top-0 h-full w-[9px]" />
+      {/* The visible line is one pixel; this is what the pointer actually
+          has to hit.  Nine pixels is a comfortable mouse target and a poor
+          finger one, so on a coarse pointer it widens to twenty-four.  The
+          divider does not move and nothing reflows: only the area that
+          answers a press changes. */}
+      <span
+        className={
+          row
+            ? "absolute -top-1 left-0 w-full h-[9px] [@media(pointer:coarse)]:-top-3 [@media(pointer:coarse)]:h-[24px]"
+            : "absolute -left-1 top-0 h-full w-[9px] [@media(pointer:coarse)]:-left-3 [@media(pointer:coarse)]:w-[24px]"
+        }
+      />
     </div>
   );
 }
