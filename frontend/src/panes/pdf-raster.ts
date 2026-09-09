@@ -107,3 +107,17 @@ export function backingFor(
 export function rasterKey(ratio: number): number {
   return Math.round(ratio * 1000) / 1000;
 }
+
+/** A two finger pinch, in the units the wheel path already speaks.
+ *
+ *  `apply` turns a delta into a scale with `exp(-delta * 0.002)`, so a
+ *  distance ratio becomes a delta by taking its logarithm and undoing that
+ *  constant.  Converting here rather than at the touch handler means the
+ *  limits, the frame coalescing, the redraw rationing and the commit are all
+ *  the ones the trackpad already goes through, which is the whole point of
+ *  feeding the same path instead of writing a second one.
+ */
+export function pinchDelta(from: number, to: number): number {
+  if (!(from > 0) || !(to > 0)) return 0;
+  return -Math.log(to / from) / 0.002;
+}

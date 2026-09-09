@@ -51,6 +51,55 @@ test("below 1100 the file rail folds to a strip that says where it went", async 
   await expect(tab.locator(".cm-editor")).toBeVisible();
 });
 
+/** How much of the interface is off the right hand edge, in pixels. */
+async function offScreen(tab: import("@playwright/test").Page) {
+  return tab
+    .locator(".nx-frame")
+    .evaluate((el) => el.scrollWidth - el.clientWidth);
+}
+
+test("a window narrower than the layout scrolls instead of cutting off", async ({
+  tab,
+}) => {
+  // Below the stated minimum the panes stop being arranged and start being
+  // crushed, so the layout says so and the frame outside it scrolls.  What
+  // this replaced was silent: the right hand edge was simply unreachable,
+  // with nothing to indicate anything was missing.
+  // Measured rather than guessed: the tight arrangement is one middle pane
+  // and a folded rail, and `min-content` follows that, so 700 and even 460
+  // still fit and correctly do not scroll.  This is a width where the panes
+  // really cannot be honoured.
+  await tab.setViewportSize({ width: 380, height: 900 });
+  await expect.poll(() => offScreen(tab)).toBeGreaterThan(0);
+
+  // Everything is reachable: the frame can be scrolled to the far edge of the
+  // interface rather than merely reporting that something is out there.
+  const reached = await tab.locator(".nx-frame").evaluate((el) => {
+    el.scrollLeft = el.scrollWidth;
+    return el.scrollLeft;
+  });
+  expect(reached).toBeGreaterThan(0);
+
+  // And the shell still cannot be scrolled, which is the property that stops
+  // a focused composer dragging the whole layout sideways.  It overflows, and
+  // `overflow: clip` means there is no scroll port to move: asking it to
+  // scroll does nothing.  The port is the frame outside it, deliberately.
+  const shellMoved = await tab.locator(".nx-shell").evaluate((el) => {
+    el.scrollLeft = 200;
+    return el.scrollLeft;
+  });
+  expect(shellMoved).toBe(0);
+});
+
+test("a window the layout does fit does not scroll at all", async ({ tab }) => {
+  // The guard on the test above: a scroll port that appears at every width
+  // would be a regression rather than a fix, and this is the width the
+  // narrowest existing arrangement is written for.
+  await tab.setViewportSize({ width: 860, height: 1000 });
+  await expect(tab.getByTestId("view-toggle")).toBeVisible();
+  await expect.poll(() => offScreen(tab)).toBe(0);
+});
+
 test("below 900 the source and the preview take turns", async ({ tab }) => {
   await tab.setViewportSize({ width: 860, height: 1000 });
   const toggle = tab.getByTestId("view-toggle");

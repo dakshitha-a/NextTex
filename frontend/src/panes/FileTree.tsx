@@ -503,7 +503,11 @@ export default function FileTree({
           ) : null}
           <button
             ref={menu === node.path ? menuButton : undefined}
-            className="quiet opacity-0 focus:opacity-100 group-hover:opacity-100"
+            // Gated on a pointer that can hover: without that this control is not
+              // small on a touch device, it is invisible.  The row is 22px, so the
+              // tap area takes the row's height rather than 44 and steals nothing
+              // from its neighbours.
+              className="nx-tap quiet hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100 [--nx-tap-y:22px]"
             aria-label={`Actions for ${node.name}`}
             aria-expanded={menu === node.path}
             onClick={(event) => {

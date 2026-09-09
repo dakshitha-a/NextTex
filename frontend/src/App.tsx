@@ -1230,10 +1230,14 @@ export default function App() {
   const railFolded = railHidden || folded.rail;
 
   return (
-    // `nx-shell` rather than an `overflow-hidden` utility: the class clips
-    // with `overflow: clip`, which is not a scroll container at all, so
-    // nothing can ever scroll the window's own frame sideways again.  See
-    // the rule in styles.css for why it is written as two declarations.
+    // Two elements rather than one, and which is which matters.  `nx-frame`
+    // is the scroll port, so a window narrower than the layout's stated
+    // minimum can be scrolled across instead of having its right hand edge
+    // quietly cut off.  `nx-shell` inside it clips with `overflow: clip` and
+    // is therefore not a scroll container at all, which is what stops a
+    // browser scrolling a focused element into view and taking the whole
+    // layout with it.  See the rules in styles.css for both.
+    <div className="nx-frame bg-surround">
     <div ref={shell} className="nx-shell relative flex h-full w-full bg-surround">
       {railHidden || folded.rail ? (
         <Collapsed
@@ -1779,6 +1783,7 @@ export default function App() {
           </div>
         ))}
       </div>
+    </div>
     </div>
   );
 }

@@ -57,11 +57,20 @@ describe("clampWidths", () => {
     expect(fitted.rail).toBeGreaterThanOrEqual(MIN_RAIL);
   });
 
-  it("never takes a pane below its floor, even in a window that cannot fit", () => {
-    const fitted = clampWidths(roomy, room(700));
+  it("never takes a pane below its floor in a window that can still be fitted", () => {
+    const fitted = clampWidths(roomy, room(760));
     expect(fitted.rail).toBeGreaterThanOrEqual(MIN_RAIL);
     expect(fitted.chat).toBeGreaterThanOrEqual(MIN_CHAT);
   });
+
+  it("stops squeezing below the width the layout claims", () => {
+    // Under the stated minimum the frame scrolls instead.  Squeezing here as
+    // well would crush the panes below widths the layout has just said it
+    // will not honour, which is the state this replaced: unreachable content
+    // with nothing to say it was there.
+    expect(clampWidths(roomy, room(700))).toBe(roomy);
+  });
+
 
   it("leaves the widths alone below the tight breakpoint", () => {
     // The middle panes take turns there, so the arithmetic above does not

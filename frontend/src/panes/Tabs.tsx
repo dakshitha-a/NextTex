@@ -150,7 +150,7 @@ export default function Tabs({
               ) : null}
             </button>
             <button
-              className="group flex h-4 w-4 shrink-0 items-center justify-center text-ink-3 hover:text-ink"
+              className="nx-tap group flex h-4 w-4 shrink-0 items-center justify-center text-ink-3 hover:text-ink [--nx-tap-y:26px]"
               aria-label={`Close ${name}`}
               onClick={(event) => {
                 event.stopPropagation();

@@ -24,6 +24,16 @@ export const MIN_PDF = 320;
 export const MIN_RAIL = 180;
 export const MIN_CHAT = 320;
 
+/** The narrowest shell this layout claims to be.
+ *
+ *  Below it the panes stop being arranged and start being crushed: this is a
+ *  two pane editor with a third pane for an agent, and there is a width at
+ *  which that is not a layout but a concession.  Saying the number out loud
+ *  is what lets the frame scroll instead of clip, so a narrow window is
+ *  awkward rather than broken.
+ */
+export const MIN_SHELL = 720;
+
 /** The widths at which the arrangement changes.
  *
  *  Shell units rather than viewport pixels: the interface size is a `zoom`,
@@ -71,6 +81,11 @@ export function minPairFor(folded: { editor: boolean; pdf: boolean }): number {
  */
 export function clampWidths(current: Widths, room: Room): Widths {
   if (room.tight) return current;
+  // Below the stated minimum the shell stops trying to fit and the frame
+  // scrolls instead.  Squeezing here as well would take the panes below
+  // widths the layout has just declared it will not honour, and the writer
+  // would get a crushed row rather than a scrollable one.
+  if (room.width < MIN_SHELL) return current;
   const over =
     (room.railShown ? current.rail : 0) +
     (room.chatShown ? current.chat : 0) +
