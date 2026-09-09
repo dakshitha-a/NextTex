@@ -11,6 +11,7 @@ going, which is the only claim worth making and the only one that would
 notice the `await asyncio.to_thread` being dropped.
 """
 
+import pathlib
 import threading
 import time
 
@@ -144,3 +145,77 @@ def test_parsing_a_build_log_happens_off_the_loop():
     # And nothing else parses it inline behind the scheduler's back.
     module = inspect.getsource(inspect.getmodule(CompileScheduler))
     assert module.count("parse_log(") == 1
+
+
+def test_opening_a_project_does_not_stop_everybody_else(client, opened, monkeypatch):
+    """The route a writer waits for when they click a project in the list.
+
+    It had no `await` in it at all.  The bench puts the filesystem work at
+    125 ms on a thesis: a directory walk, the transcript, and a dependency
+    scan that read every `.tex` in the project.  All of it ran on the loop,
+    so for that eighth of a second nobody else's autosave, event stream or
+    collaborator socket made any progress.
+
+    The session for `opened` is already built, and rebuilding one here would
+    measure construction rather than this.  So the session is left alone and
+    the scan inside the route is what is made slow.
+    """
+    from nexttex.deps import DependencyGraph
+
+    def slow_scan(self, documents):
+        time.sleep(HELD)
+        return []
+
+    monkeypatch.setattr(DependencyGraph, "standalone_candidates", slow_scan)
+    result = race(client, f"/api/projects/{opened['id']}/open")
+
+    assert result["slow_status"] == 200
+    assert result["quick_status"] == 200
+    assert result["whole_race"] > HELD, "the slow call did not actually take time"
+    assert result["quick_took"] < HELD / 2, (
+        f"the cheap request took {result['quick_took']:.3f}s while a project opened"
+    )
+
+
+def test_the_dependency_scan_does_not_read_the_build_directory(tmp_path):
+    """It listed everything and filtered afterwards, which is not the same thing.
+
+    `rglob("*")` walks the whole of `.git` and the whole build directory
+    before anything is discarded, and on a real project that is thousands of
+    objects and intermediates.  Asserted on the work done rather than on the
+    result, because filtering afterwards produces the right answer while
+    doing all of it.
+    """
+    from nexttex.deps import DependencyGraph
+
+    root = tmp_path / "project"
+    (root / "build").mkdir(parents=True)
+    (root / ".git").mkdir()
+    (root / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}",
+        encoding="utf-8",
+    )
+    decoy = "\\documentclass{article}\\begin{document}decoy\\end{document}"
+    (root / "build" / "leftover.tex").write_text(decoy, encoding="utf-8")
+    (root / ".git" / "hook.tex").write_text(decoy, encoding="utf-8")
+
+    opened: list[str] = []
+    graph = DependencyGraph(root, skip=lambda path: path.name == "build")
+
+    real_read = pathlib.Path.read_text
+
+    def watched(self, *args, **kwargs):
+        opened.append(str(self))
+        return real_read(self, *args, **kwargs)
+
+    import pytest as _pytest  # noqa: F401  (monkeypatching without the fixture)
+
+    pathlib.Path.read_text = watched
+    try:
+        found = graph.standalone_candidates(["main.tex"])
+    finally:
+        pathlib.Path.read_text = real_read
+
+    assert found == []
+    assert not any("build" in name for name in opened), opened
+    assert not any(".git" in name for name in opened), opened

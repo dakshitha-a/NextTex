@@ -20,6 +20,7 @@ comment on `owners` says which way and why.
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
@@ -244,6 +245,57 @@ class DependencyGraph:
                 out.setdefault(name, []).append(document)
         return out
 
+    def _source_files(self) -> list[Path]:
+        """Every `.tex` or `.ltx` in the project, skipping what cannot be one.
+
+        A descent rather than `rglob("*")`, and the difference is not tidiness.
+        `rglob` lists everything and leaves the filtering until afterwards, so
+        it walked the whole of `.git` and the whole build directory, including
+        every object file and every intermediate, on a path that runs when a
+        writer opens a project.  Pruning a directory before descending into it
+        is the same rule applied one step earlier.
+
+        The rules are the ones that were applied after the fact before.
+        Anything hidden, and anything under a hidden directory, is skipped:
+        this is not tidiness either, because NextTex writes its own stand-in
+        beside the main file when it builds part of a document, and that file
+        is a copy of `main.tex`, so it has a documentclass, nothing reads it,
+        and it was being offered to the writer as a second document to
+        preview.  Caught against a real dissertation.
+
+        The same rule that `Project.tree` applies with `_excluded`, expressed
+        for a second walker, which is a thing worth noticing if either
+        changes.
+        """
+        found: list[Path] = []
+
+        def descend(directory: Path) -> None:
+            try:
+                entries = sorted(os.scandir(directory), key=lambda e: e.name)
+            except OSError:
+                return
+            for entry in entries:
+                if entry.name.startswith("."):
+                    continue
+                path = Path(entry.path)
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        if not self._skip(path):
+                            descend(path)
+                        continue
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                except OSError:
+                    continue
+                if path.suffix.lower() not in (".tex", ".ltx"):
+                    continue
+                if self._skip(path):
+                    continue
+                found.append(path)
+
+        descend(self.root)
+        return found
+
     def reachable(self, documents: Sequence[str]) -> set[str]:
         """Every file any of these documents reads."""
         reach = self._walk(documents)
@@ -266,19 +318,7 @@ class DependencyGraph:
         """
         read = self.reachable(documents)
         found: list[str] = []
-        for path in sorted(self.root.rglob("*")):
-            if path.suffix.lower() not in (".tex", ".ltx") or not path.is_file():
-                continue
-            # Anything hidden, and anything under a hidden directory. This
-            # is not tidiness: NextTex writes its own stand-in beside the
-            # main file when it builds part of a document, and that file is
-            # a copy of main.tex -- so it has a documentclass, nothing reads
-            # it, and it was being offered to the writer as a second
-            # document to preview. Caught against a real dissertation.
-            if any(part.startswith(".") for part in path.relative_to(self.root).parts):
-                continue
-            if self._skip(path):
-                continue
+        for path in self._source_files():
             name = self._relative(path)
             if name is None or name in read:
                 continue

@@ -1482,19 +1482,32 @@ async def open_project(project_id: str):
     project as recently opened.
     """
     fresh = project_id not in SESSIONS
+    # Construction stays synchronous, and the docstring on `session_for` says
+    # why: two requests arriving together must not build two sessions for one
+    # project.  What was never necessary is doing the *filesystem* work on the
+    # loop as well.  The bench measured it at 125 ms on a thesis, every open,
+    # during which no other request could be served and no autosave, event
+    # stream or collaborator socket could make progress.
     session = session_for(project_id)
     if fresh:
         REGISTRY.touch(session.project.root)
-    return {
-        **session.project.as_dict(),
-        "tree": session.project.tree(),
-        "context": [d.as_dict() for d in session.context.documents()],
-        "transcript": session.transcript.items(),
-        # Which documents are previewed, which others could be, and who
-        # reads what -- in the same payload rather than a second round trip,
-        # because the preview strip is drawn on the first frame.
-        **session.documents_payload(),
-    }
+
+    def gather() -> dict:
+        # None of this touches a CRDT object, which is what makes it safe to
+        # move: the constraint recorded in `docs/architecture.md` is about
+        # pycrdt documents and the thread that built them, and these are a
+        # directory walk, a transcript read and a dependency scan.
+        return {
+            "tree": session.project.tree(),
+            "context": [d.as_dict() for d in session.context.documents()],
+            "transcript": session.transcript.items(),
+            # Which documents are previewed, which others could be, and who
+            # reads what -- in the same payload rather than a second round
+            # trip, because the preview strip is drawn on the first frame.
+            **session.documents_payload(),
+        }
+
+    return {**session.project.as_dict(), **await asyncio.to_thread(gather)}
 
 
 @app.get("/api/projects/{project_id}/tree")
