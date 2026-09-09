@@ -1031,8 +1031,14 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-math-tooltip .katex { color: var(--ink); font-size: 1.18em; }
 
 /* ---- autocomplete ------------------------------------------------------- */
+/* --surface-2, not --surface: this list floats over the page, and every
+   other floating surface in the editor -- the maths tooltip above, the find
+   panel below -- is a step off it.  Painted in --surface it was the page's
+   own colour, held apart by a hairline and a shadow alone, which is thin on
+   the proofing grey and thinner still on a white page where --line is
+   mixed against a brighter ground. */
 .cm-tooltip.cm-tooltip-autocomplete {
-  background: var(--surface) !important;
+  background: var(--surface-2) !important;
   border: 1px solid var(--line) !important;
   border-radius: 5px;
   box-shadow: var(--float);
