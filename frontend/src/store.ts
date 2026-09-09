@@ -195,6 +195,7 @@ export type State = {
    *  a project has been shared, which is when it starts mattering. */
   peerId: string;
   error: string | null;
+  notices: Notice[];
 };
 
 const state: State = {
@@ -240,6 +241,7 @@ const state: State = {
   peerId: "",
   words: null,
   error: null,
+  notices: [],
 };
 
 const listeners = new Set<() => void>();
@@ -250,9 +252,35 @@ function commit() {
   for (const listener of listeners) listener();
 }
 
+/** One thing that went wrong, with an identity of its own. */
+export type Notice = { id: number; text: string };
+
+let noticeCounter = 0;
+
 export function set(patch: Partial<State>) {
+  // `error` is a single string and thirty call sites write to it, so a
+  // second failure used to erase the first without a word: two uploads
+  // refused, one message. Keeping the write API and turning it into a queue
+  // here is what lets all thirty stay as they are.
+  if (typeof patch.error === "string" && patch.error && patch.notices === undefined) {
+    noticeCounter += 1;
+    const notice = { id: noticeCounter, text: patch.error };
+    // The same message twice in a row is one event to a reader, not two.
+    const already = state.notices[state.notices.length - 1];
+    if (!already || already.text !== notice.text) {
+      patch = { ...patch, notices: [...state.notices, notice] };
+    }
+  } else if (patch.error === null && patch.notices === undefined) {
+    patch = { ...patch, notices: [] };
+  }
   Object.assign(state, patch);
   commit();
+}
+
+/** Take one notice off the stack, leaving the others. */
+export function dismissNotice(id: number) {
+  const left = state.notices.filter((notice) => notice.id !== id);
+  set({ notices: left, error: left.length ? state.error : null });
 }
 
 export function get(): State {

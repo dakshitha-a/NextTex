@@ -639,11 +639,24 @@ reachable, and would tell Google every time someone opened their thesis. The
 three families ship as `@fontsource` packages in the bundle. The typefaces and
 their roles are unchanged.
 
-**There is one transient message, at the bottom of the shell.** §6 says "no
-toasts". It carries save and download failures only — the cases where an action
-the user took did not happen and nothing else on screen would say so. It has no
-timer: it stays until dismissed, because a failed save that fades out is worse
-than no message at all.
+**There is a stack of transient messages, at the bottom of the shell.** §6 says
+"no toasts". It carries save and download failures only — the cases where an
+action the user took did not happen and nothing else on screen would say so. It
+has no timer: a message stays until dismissed, because a failed save that fades
+out is worse than no message at all.
+
+A stack rather than one message, because for a long time it was one string and
+thirty places wrote to it, so a second failure erased the first without a word:
+two files refused in one drop, one message on screen. Each message has an
+identity and its own dismiss control, and two identical messages in a row are
+one event to somebody reading them.
+
+The container is a `role="status"` live region and it is always in the
+document, empty or not. A live region that appears at the same moment as its
+content is not announced by every screen reader, and announcing these is the
+whole purpose: they are the only report that something a person asked for did
+not happen. `polite` rather than `assertive`, because none of them interrupts
+what the writer is doing.
 
 **Editor syntax highlighting is near-monochrome, and colour is opt-in.** The
 specification does not cover token colours. By default — and this default is
