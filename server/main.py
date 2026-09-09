@@ -550,12 +550,28 @@ def _secure(response: Response) -> Response:
     return response
 
 
+# The most this install will take in one request.  Starlette spools a
+# multipart body to a temporary file before any route sees it, so without a
+# gate here the per-file limits below bound what lands in the project and
+# nothing bounds what the machine absorbs on the way.  A chunked request
+# sends no `Content-Length` and slips past this, which is why the per-file
+# limits exist as well rather than instead.
+MAX_BODY_BYTES = 512 * 1024 * 1024
+
+
 @app.middleware("http")
 async def authenticate(request: Request, call_next):
     if not _same_origin_request(request):
         return JSONResponse(
             {"error": "This request came from another page, so it was refused."},
             status_code=403,
+        )
+
+    length = request.headers.get("content-length", "")
+    if length.isdigit() and int(length) > MAX_BODY_BYTES:
+        return JSONResponse(
+            {"error": "That request is larger than this install accepts at once."},
+            status_code=413,
         )
 
     if request.url.path.startswith(OPEN_PATHS):
@@ -1333,6 +1349,33 @@ async def project_tree(project_id: str):
 
 # ---------------------------------------------------------------------------
 # Files
+#
+# What one request may put into a project, and what the editor will open.
+# There was no limit of any kind on either.
+#
+# The numbers are meant to sit well past anything a document needs and well
+# short of anything that hurts.  A high resolution figure is a few megabytes
+# and a scanned hundred page appendix is tens of them, so a quarter of a
+# gigabyte for one file is generous.  A `.tex` file is kilobytes, and the
+# editor is unusable long before ten megabytes of it: refusing to open one
+# that large is kinder than freezing the browser that asked.
+
+MAX_UPLOAD_BYTES = 256 * 1024 * 1024
+# The same number the length gate uses, deliberately: one drop of files is
+# the largest thing anybody sends this server, so the two limits are the one
+# limit seen from either end of the request.
+MAX_UPLOAD_TOTAL = MAX_BODY_BYTES
+MAX_UPLOAD_FILES = 200
+MAX_TEXT_BYTES = 10 * 1024 * 1024
+
+
+def _size(count: int) -> str:
+    """A size a person reads, for a message a person is shown."""
+    if count >= 1 << 20:
+        return f"{count / (1 << 20):.0f} MB"
+    if count >= 1 << 10:
+        return f"{count / (1 << 10):.0f} kB"
+    return f"{count} bytes"
 
 
 @app.get("/api/projects/{project_id}/file")
@@ -1341,11 +1384,20 @@ async def read_file(project_id: str, path: str):
     target = _safe(session, path)
     if not target.is_file():
         raise HTTPException(404, "no such file")
+    stat = target.stat()
+    if stat.st_size > MAX_TEXT_BYTES:
+        # Read and encoded on the event loop, so a big enough file does not
+        # merely fail slowly: it stalls every other browser on the install
+        # while it is read, and then again while it is turned into JSON.
+        raise HTTPException(
+            413,
+            f"That file is {_size(stat.st_size)}, and the editor opens files "
+            f"up to {_size(MAX_TEXT_BYTES)}.",
+        )
     try:
         text = target.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         raise HTTPException(415, "not a text file")
-    stat = target.stat()
     return {
         "path": path, "text": text,
         "mtime": stat.st_mtime, "size": stat.st_size,
@@ -1697,8 +1749,16 @@ async def upload(
     if not isinstance(wanted, dict):
         wanted = {}
 
+    if len(files) > MAX_UPLOAD_FILES:
+        raise HTTPException(
+            413,
+            f"That is {len(files)} files, and one upload carries up to "
+            f"{MAX_UPLOAD_FILES}.",
+        )
+
     written: list[str] = []
     results: list[dict] = []
+    accepted = 0
     for item in files:
         # The name is taken apart, never trusted: an upload called
         # "../../.bashrc" lands in this directory like anything else.
@@ -1714,6 +1774,17 @@ async def upload(
         # neither is the only thing standing there.
         if is_control_path(target.relative_to(session.project.root)):
             results.append({"name": name, "path": "", "outcome": "refused"})
+            continue
+
+        # Starlette has already spooled the whole body before this route is
+        # called, so `size` is known and reliable here.  That also means this
+        # check is about what lands in the project rather than about what the
+        # server absorbed; what bounds *that* is the length gate in
+        # `authenticate`.  Refused per file, like a control file, so the rest
+        # of a drop still lands.
+        size = item.size or 0
+        if size > MAX_UPLOAD_BYTES or accepted + size > MAX_UPLOAD_TOTAL:
+            results.append({"name": name, "path": "", "outcome": "too-big"})
             continue
 
         if target.exists() and choice == "skip":
@@ -1754,6 +1825,7 @@ async def upload(
             while chunk := await item.read(1 << 20):
                 handle.write(chunk)
         temp.replace(target)
+        accepted += size
         session.mark_written(target)
         relative = session.project.relative(target)
         # Uploads suppress the watcher, so this is the only way an uploaded
@@ -2067,6 +2139,16 @@ async def add_context(
         raise HTTPException(400, f"kind must be one of {', '.join(KINDS)}")
     added = []
     for item in files:
+        if (item.size or 0) > MAX_UPLOAD_BYTES:
+            # This one reads the whole file into memory in a single call,
+            # with nothing in front of it, which is why it is capped even
+            # though the upload route streams.
+            raise HTTPException(
+                413,
+                f"{Path(item.filename or 'that file').name} is "
+                f"{_size(item.size or 0)}, and one file may be up to "
+                f"{_size(MAX_UPLOAD_BYTES)}.",
+            )
         data = await item.read()
         document = session.context.add(
             kind, Path(item.filename or "upload").name, data, note

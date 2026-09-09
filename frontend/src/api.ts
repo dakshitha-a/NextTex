@@ -226,6 +226,30 @@ export type AuthState = {
   sessions: BrowserSession[];
 };
 
+/**
+ * What became of one file in an upload.
+ *
+ * This listed four outcomes and the server had been answering with six.
+ * `refused` arrived with the rule against uploading a file the build would
+ * run, and `too-big` with the size limits, and both were dropped on the
+ * floor: the writer dropped five files, four appeared, and nothing anywhere
+ * said what happened to the fifth.
+ */
+export type UploadOutcome =
+  | "written"
+  | "replaced"
+  | "renamed"
+  | "skipped"
+  | "refused"
+  | "too-big";
+
+export type UploadResult = {
+  name: string;
+  path: string;
+  outcome: UploadOutcome;
+  renamedTo?: string;
+};
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -651,12 +675,7 @@ const api = {
     if (!response.ok) throw new ApiError(response.status, "upload failed");
     return response.json() as Promise<{
       written: string[];
-      results: {
-        name: string;
-        path: string;
-        outcome: "written" | "replaced" | "renamed" | "skipped";
-        renamedTo?: string;
-      }[];
+      results: UploadResult[];
     }>;
   },
   uploadContext: async (
