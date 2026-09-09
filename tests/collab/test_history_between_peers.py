@@ -18,7 +18,8 @@ question no amount of local thinning can change the answer to.
 import pytest
 
 from .conftest import Peer, join_up, settle, until
-from server.collab import transport
+from server.collab import transport, wire
+from server.collab.peers import HISTORY_NUDGE_SECONDS
 
 
 def texts(peer: Peer, relative: str = "main.tex") -> set[str]:
@@ -294,3 +295,66 @@ async def test_a_deletion_reaches_the_other_machines_trash(tmp_path):
 
     await alice.close()
     await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_three_of_them_in_a_ring_do_not_talk_forever(tmp_path):
+    """Relaying has to stop.
+
+    Everybody tells everybody when a file gains a past, and everybody passes
+    on what they absorb, so three machines all linked to each other is the
+    shape where an announcement could go round and round: Bob absorbs
+    Alice's line, says so to Carol, Carol absorbs it and says so to Bob, and
+    on for ever.
+
+    Two things stop it, and this is the test that they do.  Nobody offers a
+    peer that peer's own records, and a mark only ever moves forward, so the
+    second time Carol asks Bob about Alice there is nothing at or below the
+    moment Carol already reached.  What must be true afterwards is that each
+    of them holds the line exactly once and that the frames stop coming.
+    """
+    alice = Peer(tmp_path / "alice").be("a" * 64)
+    bob = Peer(tmp_path / "bob", {"main.tex": ""}).be("b" * 64)
+    carol = Peer(tmp_path / "carol", {"main.tex": ""}).be("c" * 64)
+
+    await join_up(alice, bob)
+    assert await carol.network.join(alice.network.invite(), "Carol") == ""
+    assert await carol.network.join(bob.network.invite(), "Carol") == ""
+    await settle()
+
+    announcements = []
+    made = wire.hist_new
+
+    def counted(file_id: str) -> bytes:
+        announcements.append(file_id)
+        return made(file_id)
+
+    wire.hist_new = counted
+    try:
+        alice.history.record("main.tex", "Alice wrote this once.\n", op="create",
+                             who="Alice")
+        wanted = alice.versions("main.tex")[-1].sha
+
+        assert await until(lambda: wanted in texts(bob) and wanted in texts(carol), 10.0), (
+            "the line did not reach both of the others"
+        )
+        # Long enough for another round of the debounced nudge to have run,
+        # had there been one to run.
+        await settle(HISTORY_NUDGE_SECONDS * 2)
+        settled = len(announcements)
+        assert settled, "nothing was announced at all, so this proves nothing"
+        await settle(HISTORY_NUDGE_SECONDS * 2)
+        assert len(announcements) == settled, (
+            f"still announcing: {len(announcements) - settled} more frames"
+        )
+    finally:
+        wire.hist_new = made
+
+    for peer in (alice, bob, carol):
+        held = [v for v in peer.versions("main.tex") if v.sha == wanted]
+        assert len(held) == 1, f"{peer.name} holds {len(held)} copies"
+        assert held[0].peer in ("", "a" * 64), f"{peer.name} credits {held[0].peer}"
+
+    await alice.close()
+    await bob.close()
+    await carol.close()
