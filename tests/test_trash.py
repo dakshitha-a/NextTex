@@ -5,10 +5,14 @@ cannot reach, so nothing is destroyed until the writer says so twice.  A
 restore must also never clobber whatever is at that path now.
 """
 
+import json
+import shutil
 from pathlib import Path
 
+import pytest
+
 from nexttex.history import History
-from nexttex.trash import Trash
+from nexttex.trash import Trash, TrashEntry
 
 
 def bin(tmp_path) -> tuple[Trash, Path]:
@@ -257,15 +261,25 @@ def test_a_restore_may_still_put_back_a_control_file(tmp_path):
     "../../etc", "..", "a/b", "", "NOTANID", "t" + "f" * 40,
 ])
 def test_a_payload_id_cannot_be_a_path(tmp_path, bad_id):
-    """The id is joined onto `.nexttex/trash/`, so it has to be one segment."""
+    """The id is joined onto `.nexttex/trash/`, so it has to be one segment.
+
+    The check used to sit on `payload_of`, which meant every *other* reader
+    had to remember to make it -- and `purge` and `empty` did not, while
+    handing what they built to `rmtree`.  So it moved to where the ledger is
+    parsed: a line with an id `delete` could not have written never becomes
+    an entry, and there is nothing downstream left to forget.
+    """
     trash, project = bin(tmp_path)
     (project / "chapter.tex").write_text("months of work", encoding="utf-8")
     trash.delete(project / "chapter.tex")
 
     _rewrite_entry(trash, id=bad_id)
-    found = next(e for e in trash.entries() if e.path == "chapter.tex")
+    assert [e.path for e in trash.entries()] == []
+    # And the door has a second lock, for a caller holding an entry it did
+    # not get from the ledger.
+    forged = TrashEntry(id=bad_id, at=1.0, by="you", path="chapter.tex", kind="file")
     with pytest.raises(PermissionError):
-        trash.payload_of(found)
+        trash.payload_of(forged)
 
 
 def test_the_ids_this_module_makes_are_all_acceptable(tmp_path):
@@ -285,3 +299,68 @@ def test_an_ordinary_restore_still_works(tmp_path):
     entry = trash.delete(project / "chapters" / "one.tex")
     trash.restore(entry.id)
     assert (project / "chapters" / "one.tex").read_text(encoding="utf-8") == "the chapter"
+
+
+def test_a_ledger_line_with_an_impossible_id_is_ignored(tmp_path):
+    """The ledger is a file, and a file is whatever is in it.
+
+    Every reader joins an entry's id onto a path and one of them hands the
+    result to `rmtree`, so a line `delete` could not have written is dropped
+    where the ledger is parsed rather than at each use.
+    """
+    trash, project = bin(tmp_path)
+    (project / "real.tex").write_text("real", encoding="utf-8")
+    trash.delete(project / "real.tex")
+    with trash.log.open("a", encoding="utf-8") as handle:
+        for made_up in ("../../..", "..", "t00/../..", "", "NOTANID"):
+            handle.write(
+                json.dumps({"id": made_up, "at": 1.0, "path": "x", "kind": "dir"}) + "\n"
+            )
+    assert [e.path for e in trash.entries()] == ["real.tex"]
+
+
+def test_emptying_cannot_reach_outside_the_trash(tmp_path):
+    trash, project = bin(tmp_path)
+    outside = tmp_path / "not-the-trash"
+    outside.mkdir()
+    (outside / "somebody-elses.tex").write_text("theirs", encoding="utf-8")
+    with trash.log.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps({"id": "../../..", "at": 1.0, "path": "x", "kind": "dir"}) + "\n"
+        )
+    trash.empty()
+    assert (outside / "somebody-elses.tex").read_text(encoding="utf-8") == "theirs"
+    assert project.is_dir()
+
+
+def test_purging_cannot_reach_outside_the_trash(tmp_path):
+    trash, project = bin(tmp_path)
+    outside = tmp_path / "not-the-trash"
+    outside.mkdir()
+    (outside / "somebody-elses.tex").write_text("theirs", encoding="utf-8")
+    with trash.log.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps({"id": "../../..", "at": 1.0, "path": "x", "kind": "dir"}) + "\n"
+        )
+    assert trash.purge("../../..") is False
+    assert (outside / "somebody-elses.tex").read_text(encoding="utf-8") == "theirs"
+    assert project.is_dir()
+
+
+def test_naming_a_payload_directory_is_checked_even_off_the_ledger(tmp_path):
+    """The second lock on the same door, for a caller that never parsed a line."""
+    trash, _ = bin(tmp_path)
+    forged = TrashEntry(id="../../..", at=1.0, by="you", path="x", kind="dir")
+    with pytest.raises(PermissionError):
+        trash._holding(forged)
+    with pytest.raises(PermissionError):
+        trash.payload_of(forged)
+
+
+def test_a_purge_whose_payload_is_already_gone_still_finishes(tmp_path):
+    trash, project = bin(tmp_path)
+    (project / "one.tex").write_text("one", encoding="utf-8")
+    entry = trash.delete(project / "one.tex")
+    shutil.rmtree(trash.payload_of(entry).parent)
+    assert trash.purge(entry.id) is True
+    assert trash.entries() == []
