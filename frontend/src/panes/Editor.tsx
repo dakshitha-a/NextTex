@@ -531,7 +531,10 @@ export default function Editor({
     };
   }, []);
 
-  const compileResult = useStore((s) => s.compile);
+  // A number written once when a build lands, rather than the build result
+  // itself, whose identity changes for reasons the symbol table does not
+  // care about. See the same change in App.tsx.
+  const builtAt = useStore((s) => s.pdfStamp);
   const projectId = useStore((s) => s.projectId);
   useEffect(() => {
     if (!projectId) return;
@@ -545,7 +548,7 @@ export default function Editor({
     return () => {
       cancelled = true;
     };
-  }, [projectId, compileResult]);
+  }, [projectId, builtAt]);
 
   useEffect(() => {
     if (!pendingOpen) return;
