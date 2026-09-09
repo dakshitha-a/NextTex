@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import api, { captureToken, landingAfter, saveBlob, startDownload } from "./api";
 import { useDismiss } from "./useDismiss";
 import Boundary from "./Boundary";
@@ -1152,6 +1152,32 @@ export default function App() {
     setRailHidden(width < 1100);
   }, [width]);
 
+  /** The active file, when it is one the editor cannot open.
+   *
+   * Above the early returns with every other hook, for the reason the
+   * comment at the top of this component gives: a hook that only runs on
+   * the renders which get that far is React error #310, and it took the
+   * whole editor with it once already. It used to be an IIFE further down
+   * that walked the entire tree on every render and read it through `get()`,
+   * so it was both repeated work and a value React had no idea it depended
+   * on.
+   */
+  const tree = useStore((s) => s.tree);
+  const activeBinary = useMemo(() => {
+    if (!activePath) return null;
+    const find = (node: any): any =>
+      node?.path === activePath
+        ? node
+        : (node?.children ?? []).reduce(
+            (hit: any, child: any) => hit ?? find(child),
+            null,
+          );
+    const node = find(tree);
+    return node && node.type === "file" && node.kind && node.kind !== "text"
+      ? node
+      : null;
+  }, [activePath, tree]);
+
   if (view === "loading") {
     return <div className="h-full bg-surround" />;
   }
@@ -1208,22 +1234,6 @@ export default function App() {
   // Whether the rail went by hand or by window width, everything it holds
   // has to be reachable from somewhere else.
   const railFolded = railHidden || folded.rail;
-
-  /** The active file, when it is one the editor cannot open. */
-  const activeBinary = (() => {
-    if (!activePath) return null;
-    const find = (node: any): any =>
-      node?.path === activePath
-        ? node
-        : (node?.children ?? []).reduce(
-            (hit: any, child: any) => hit ?? find(child),
-            null,
-          );
-    const node = find(get().tree);
-    return node && node.type === "file" && node.kind && node.kind !== "text"
-      ? node
-      : null;
-  })();
 
   return (
     <div ref={shell} className="relative flex h-full w-full overflow-hidden bg-surround">
