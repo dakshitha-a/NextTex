@@ -10,6 +10,7 @@ import {
   search as searchTree,
 } from "../tree";
 import UploadStaging, { type Staging } from "./UploadStaging";
+import { whatDidNotLand } from "../upload-report";
 import FolderChooser from "./FolderChooser";
 import PapersChooser from "./PapersChooser";
 
@@ -163,6 +164,10 @@ export default function FileTree({
           .then((answer) => {
             onRefresh();
             reveal(answer.written ?? []);
+            // A file the server refused is not in the tree, and until this
+            // was here nothing said so: the drop simply came up short.
+            const trouble = whatDidNotLand(answer.results ?? []);
+            if (trouble) set({ error: trouble });
           })
           .catch((error: any) => set({ error: error.message }));
         return;

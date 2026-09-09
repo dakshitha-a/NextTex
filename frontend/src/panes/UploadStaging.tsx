@@ -5,6 +5,7 @@ import api from "../api";
 import { get, set, useStore } from "../store";
 import { useDismiss } from "../useDismiss";
 import { collisions, keptBothName, namesIn } from "../tree";
+import { whatDidNotLand } from "../upload-report";
 import FolderChooser from "./FolderChooser";
 
 /** Where these files go, and what to do about the ones already there.
@@ -94,6 +95,8 @@ export default function UploadStaging({
       } catch {
         /* private browsing: it just will not be remembered */
       }
+      const trouble = whatDidNotLand(answer.results ?? []);
+      if (trouble) set({ error: trouble });
       onDone(answer.written ?? []);
     } catch (error: any) {
       set({ error: error.message });
