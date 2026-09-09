@@ -40,7 +40,7 @@ The lifespan starts four background tasks and cancels them on the way out.
 
 **The file watcher** tells browsers when files change underneath them. An external edit, a `git pull`, a checkout, somebody's own editor, has to reach the open tab or it will save over a change it never saw. NextTex's own writes must not, or the browser would be told to reload the buffer it just sent.
 
-**The reaper** runs every sixty seconds. It disconnects idle agents, evicts idle sessions, collects unreferenced history blobs, and discards joins nobody answered.
+**The reaper** runs every sixty seconds. It disconnects idle agents, evicts idle sessions, sweeps unreferenced history blobs out of every open project about once an hour, and discards joins nobody answered.
 
 **The rejoin task** opens every shared project so its peers can reach it again after a restart.
 
@@ -160,7 +160,9 @@ The transcript is the record of what was done to the document: every edit with i
 
 Every write NextTex knows about is recorded before the new text lands. This is not a replacement for git: it is what you want when you deleted a paragraph forty minutes ago and cannot remember what it said, at a moment when committing was the last thing on your mind.
 
-Deleting is not a delete. The contents go into the blob store, an entry is written to the trash, and only then does the working copy go away. Nothing is cleaned up on a timer, because a trash that empties itself after thirty days loses the thing you go looking for on day thirty-one. Blobs nothing refers to are collected when the trash is emptied and when a session is evicted, which is the one moment a project is certainly idle.
+Deleting is not a delete. An entry is written to the trash and the file is moved aside rather than removed — moved, so a folder of figures does not have to be compressed before it can be deleted. A text file also gets a final version recorded in its own history on the way out; a figure or a dataset does not, so for those the moved-aside payload is the only copy and it is what protects them. Nothing is cleaned up on a timer, because a trash that empties itself after thirty days loses the thing you go looking for on day thirty-one.
+
+Blobs nothing refers to are collected in four places: when the trash is emptied, when one trash entry is purged, when a file's history is cleared, and on a timer for every project that is open. That last one is not an optimisation. A shared project is deliberately never evicted, eviction used to be the only routine sweep, and so a shared project kept every thinned version's contents for ever unless somebody emptied the trash by hand.
 
 ## Where state lives
 

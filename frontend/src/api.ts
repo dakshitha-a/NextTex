@@ -82,6 +82,14 @@ export type Version = {
   peer?: string;
   /** The name that peer went by at the time. */
   who?: string;
+  /** Whether this version's contents are on this machine.
+   *
+   *  A collaborator's version arrives as a line and its contents come when
+   *  somebody asks for them, so a version can be listed and not openable.
+   *  If its author has since thinned that record away and swept the
+   *  contents, it never will be, and the panel should say so rather than
+   *  offer a restore that cannot work. */
+  here?: boolean;
 };
 
 export type TrashEntry = {

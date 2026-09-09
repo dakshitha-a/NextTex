@@ -1,8 +1,9 @@
 """What two NextTex installs say to each other.
 
-A frame is a one-byte kind, a four-byte big-endian length, a JSON header, and
-an optional binary payload.  Small and boring on purpose: the interesting
-bytes are the Yjs updates inside it, and those already have a format.
+A frame is a one-byte kind, a four-byte header length, a four-byte payload
+length, a JSON header, and an optional binary payload.  Small and boring on
+purpose: the interesting bytes are the Yjs updates inside it, and those
+already have a format.
 
 The `sync` and `aware` payloads are **byte-for-byte what the browser's
 WebSocket carries**.  That is the property worth protecting: one codec, two
@@ -32,8 +33,12 @@ SYNC = 4             # a y-protocols sync message, for one document
 AWARE = 5            # a y-protocols awareness message, for one document
 BLOB_WANT = 6        # send me the bytes with this sha256
 BLOB_HAVE = 7        # here they are
-HIST_WANT = 8        # what have you recorded for this file since index N
-HIST_GIVE = 9        # these lines
+HIST_WANT = 8        # what have you got for this file after these moments
+HIST_GIVE = 9        # these lines, and how far each author's past now reaches
+HIST_NEW = 10        # I have written new lines for this file
+
+#: An unknown kind falls off the end of the handler's chain without a word,
+#: so a frame added here is safe to send to an install that predates it.
 
 
 @dataclass
@@ -97,12 +102,41 @@ def blob_have(sha: str, data: bytes) -> bytes:
     return Frame(BLOB_HAVE, {"sha": sha}, data).encode()
 
 
-def hist_want(file_id: str, peer: str, cursor: int) -> bytes:
-    return Frame(HIST_WANT, {"file": file_id, "peer": peer, "cursor": cursor}).encode()
+def hist_want(file_id: str, peer: str, since: dict) -> bytes:
+    """Ask for a file's past, from a moment per author.
+
+    `since` rather than the `cursor` this used to carry, and a new field
+    rather than the old one reused: the receiving side reads `cursor` with
+    `int(...)`, so a map arriving in it would take an older install's link
+    down.  An install that does not understand `since` reads it as absent,
+    treats the ask as "from the beginning", and sends one batch; absorbing
+    is idempotent, so the cost of that is bytes rather than duplicates.
+    """
+    return Frame(HIST_WANT, {"file": file_id, "peer": peer, "since": since}).encode()
 
 
-def hist_give(file_id: str, peer: str, cursor: int, lines: list[dict]) -> bytes:
+def hist_give(file_id: str, peer: str, reached: dict, lines: list[dict]) -> bytes:
+    """Hand over lines, and say how far each author's past now reaches."""
+    return Frame(
+        HIST_GIVE,
+        {"file": file_id, "peer": peer, "reached": reached, "lines": lines},
+    ).encode()
+
+
+def hist_give_by_index(file_id: str, peer: str, cursor: int, lines: list[dict]) -> bytes:
+    """The old shape, for an install that asked in the old shape."""
     return Frame(
         HIST_GIVE,
         {"file": file_id, "peer": peer, "cursor": cursor, "lines": lines},
     ).encode()
+
+
+def hist_new(file_id: str) -> bytes:
+    """Say that this file has a past it did not have a moment ago.
+
+    History used to be asked for once, when a connection opened, and never
+    again -- so two people working together for a week watched each other
+    type continuously and never saw one another's versions until somebody's
+    laptop closed.
+    """
+    return Frame(HIST_NEW, {"file": file_id}).encode()
