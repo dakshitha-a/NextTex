@@ -645,7 +645,10 @@ export default function Pdf({
         /* a click that lands on nothing is not an error worth reporting */
       }
     },
-    [onNavigate],
+    // `showing` is read inside and was missing, so after switching preview
+    // tabs a double-click asked synctex about the document that had been
+    // open before, and landed the caret in the wrong file.
+    [onNavigate, showing],
   );
 
   useEffect(() => {
@@ -689,7 +692,10 @@ export default function Pdf({
         }
       },
     });
-  }, [handleRef, renderPage]);
+    // `showing` for the same reason as the handler above: forward search
+    // would look up a line in whichever document was open when this was
+    // last built.
+  }, [handleRef, renderPage, showing]);
 
   // ---- keyboard, in page mode ------------------------------------------
   const step = useCallback(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { statusFor } from "./status-dot";
 
@@ -48,8 +48,17 @@ export default function Status({
     return () => window.clearTimeout(timer);
   }, [compiling]);
 
-  const errors = diagnostics.filter((item) => item.severity === "error").length;
-  const warnings = diagnostics.filter((item) => item.severity === "warning").length;
+  // Counted once per build rather than twice per render. The strip
+  // re-renders on the cursor moving, which is every keystroke.
+  const [errors, warnings] = useMemo(() => {
+    let bad = 0;
+    let iffy = 0;
+    for (const item of diagnostics) {
+      if (item.severity === "error") bad += 1;
+      else if (item.severity === "warning") iffy += 1;
+    }
+    return [bad, iffy];
+  }, [diagnostics]);
 
   // `state` says the same thing as the dot's colour, in a form a test can
   // read.  Asserting on the colour class would pass on a dot that is the

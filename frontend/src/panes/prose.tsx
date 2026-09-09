@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 
 /** Just enough Markdown for what an agent writes about a document.
  *
@@ -8,7 +8,7 @@ import { type ReactNode } from "react";
  *  literal text the model wrote, which is the honest failure mode.
  */
 
-type Block =
+export type Block =
   | { kind: "paragraph"; text: string }
   | { kind: "code"; text: string; language: string }
   | { kind: "heading"; text: string; level: number }
@@ -131,60 +131,84 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
   return nodes;
 }
 
+/** Whether two blocks would render identically.
+ *
+ *  `parseBlocks` builds fresh objects every time it runs, so reference
+ *  equality is always false and `memo` on its own would never skip
+ *  anything. Comparing the text is what makes it work, and it is cheap
+ *  next to what it saves: while an answer streams in, every block but the
+ *  last is unchanged, and this is the difference between React rebuilding
+ *  the whole message twenty times a second and rebuilding its final
+ *  paragraph.
+ */
+export function same(before: { block: Block }, after: { block: Block }): boolean {
+  const one = before.block;
+  const two = after.block;
+  if (one.kind !== two.kind) return false;
+  if (one.kind === "list" && two.kind === "list") {
+    return (
+      one.ordered === two.ordered
+      && one.items.length === two.items.length
+      && one.items.every((item, at) => item === two.items[at])
+    );
+  }
+  if (one.kind === "heading" && two.kind === "heading") {
+    return one.level === two.level && one.text === two.text;
+  }
+  if (one.kind === "code" && two.kind === "code") {
+    return one.language === two.language && one.text === two.text;
+  }
+  return "text" in one && "text" in two && one.text === two.text;
+}
+
+const Rendered = memo(function Rendered(
+  { block, id: key }: { block: Block; id: string },
+) {
+  if (block.kind === "code") {
+    return (
+      <pre className="t-code-sm overflow-x-auto rounded-[3px] bg-surface-2 p-2">
+        {block.text}
+      </pre>
+    );
+  }
+  if (block.kind === "heading") {
+    return (
+      <div className="t-ui-lg font-serif text-ink">{inline(block.text, key)}</div>
+    );
+  }
+  if (block.kind === "list") {
+    const Tag = block.ordered ? "ol" : "ul";
+    return (
+      <Tag
+        className={`flex flex-col gap-1 pl-5 ${
+          block.ordered ? "list-decimal" : "list-disc"
+        }`}
+      >
+        {block.items.map((item, itemIndex) => (
+          <li key={`${key}-${itemIndex}`}>{inline(item, `${key}-${itemIndex}`)}</li>
+        ))}
+      </Tag>
+    );
+  }
+  if (block.kind === "quote") {
+    return (
+      <blockquote className="border-l border-line pl-3 italic text-ink-2">
+        {inline(block.text, key)}
+      </blockquote>
+    );
+  }
+  return <p className="whitespace-pre-wrap">{inline(block.text, key)}</p>;
+}, same);
+
 export default function Prose({ text }: { text: string }) {
-  const blocks = parseBlocks(text);
+  // Parsed once per distinct message rather than once per render: a chat
+  // re-renders for reasons that have nothing to do with any one message.
+  const blocks = useMemo(() => parseBlocks(text), [text]);
   return (
     <div className="t-prose flex flex-col gap-3 text-ink">
-      {blocks.map((block, index) => {
-        const key = `b${index}`;
-        if (block.kind === "code") {
-          return (
-            <pre
-              key={key}
-              className="t-code-sm overflow-x-auto rounded-[3px] bg-surface-2 p-2"
-            >
-              {block.text}
-            </pre>
-          );
-        }
-        if (block.kind === "heading") {
-          return (
-            <div key={key} className="t-ui-lg font-serif text-ink">
-              {inline(block.text, key)}
-            </div>
-          );
-        }
-        if (block.kind === "list") {
-          const Tag = block.ordered ? "ol" : "ul";
-          return (
-            <Tag
-              key={key}
-              className={`flex flex-col gap-1 pl-5 ${
-                block.ordered ? "list-decimal" : "list-disc"
-              }`}
-            >
-              {block.items.map((item, itemIndex) => (
-                <li key={`${key}-${itemIndex}`}>{inline(item, `${key}-${itemIndex}`)}</li>
-              ))}
-            </Tag>
-          );
-        }
-        if (block.kind === "quote") {
-          return (
-            <blockquote
-              key={key}
-              className="border-l border-line pl-3 italic text-ink-2"
-            >
-              {inline(block.text, key)}
-            </blockquote>
-          );
-        }
-        return (
-          <p key={key} className="whitespace-pre-wrap">
-            {inline(block.text, key)}
-          </p>
-        );
-      })}
+      {blocks.map((block, index) => (
+        <Rendered key={`b${index}`} id={`b${index}`} block={block} />
+      ))}
     </div>
   );
 }
