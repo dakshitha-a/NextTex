@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import api, { captureToken, landingAfter, saveBlob, startDownload } from "./api";
 import { useDismiss } from "./useDismiss";
+import { forget, keep, recall, recallText } from "./remember";
+import {
+  ShareIcon,
+  DownloadIcon,
+  DownloadMenu,
+  AppControls,
+  Chevron,
+  downloadPdf,
+  FoldButton,
+  Segmented,
+  Handle,
+} from "./chrome";
 import { onFrame } from "./timing";
 import Boundary from "./Boundary";
 import {
@@ -191,7 +203,7 @@ export default function App() {
   const resumeOrList = useCallback(async () => {
     let last = "";
     try {
-      last = window.localStorage.getItem(LAST_PROJECT) ?? "";
+      last = recallText(LAST_PROJECT);
     } catch {
       /* nothing was remembered */
     }
@@ -271,7 +283,7 @@ export default function App() {
   /** Go back to the list, and stop reopening this project on a reload. */
   const leaveProject = useCallback(() => {
     try {
-      window.localStorage.removeItem(LAST_PROJECT);
+      forget(LAST_PROJECT);
     } catch {
       /* nothing was remembered anyway */
     }
@@ -309,51 +321,28 @@ export default function App() {
     // So a reload, or a browser restoring its tabs tomorrow morning, comes
     // back to the document rather than to the list of projects.
     try {
-      window.localStorage.setItem(LAST_PROJECT, id);
+      keep(LAST_PROJECT, id);
     } catch {
       /* private browsing: the app works, it just forgets */
     }
     // Reset first: a project with nothing stored gets the default, not
     // whatever the project before it was left in.
-    let rail = { files: true, sections: true };
-    try {
-      const storedRail = window.localStorage.getItem(`nexttex.rail.${id}`);
-      if (storedRail) rail = { ...rail, ...JSON.parse(storedRail) };
-    } catch {
-      /* a corrupt entry is not worth reporting */
-    }
-    setRailOpen(rail);
-    const storedFolds = window.localStorage.getItem(`nexttex.folded.${id}`);
-    if (storedFolds) {
-      try {
-        setFolded((current) => ({ ...current, ...JSON.parse(storedFolds) }));
-      } catch {
-        /* a corrupt entry is not worth reporting */
-      }
-    }
-    const stored = window.localStorage.getItem(`nexttex.widths.${id}`);
-    if (stored) {
-      try {
-        setWidths({ ...DEFAULTS, ...JSON.parse(stored) });
-      } catch {
-        /* a corrupt entry is not worth reporting */
-      }
-    }
+    setRailOpen(recall(`nexttex.rail.${id}`, { files: true, sections: true }));
+    setFolded((current) => recall(`nexttex.folded.${id}`, current));
+    setWidths(recall(`nexttex.widths.${id}`, DEFAULTS));
     // The files that were open last time, and the one that was in front.
     // Opening the main file instead would be right once and wrong every
     // time after that.
-    let reopened: string[] = [];
-    let front = "";
-    try {
-      const remembered = window.localStorage.getItem(`nexttex.open.${id}`);
-      if (remembered) {
-        const parsed = JSON.parse(remembered);
-        reopened = Array.isArray(parsed.tabs) ? parsed.tabs.slice(0, 12) : [];
-        front = typeof parsed.active === "string" ? parsed.active : "";
-      }
-    } catch {
-      /* a corrupt entry is not worth reporting */
-    }
+    // Still checked field by field after `recall` has handed back an
+    // object: `recall` guarantees the shape of the entry and not the shape
+    // of what is inside it, and these two go on to open files.
+    const open = recall(`nexttex.open.${id}`, { tabs: [], active: "" } as {
+      tabs: unknown; active: unknown;
+    });
+    const reopened: string[] = Array.isArray(open.tabs)
+      ? (open.tabs as string[]).filter((t) => typeof t === "string").slice(0, 12)
+      : [];
+    const front = typeof open.active === "string" ? open.active : "";
     const main = project.main ?? "main.tex";
     const inTree = new Set(pathsIn(project.tree));
     const active = inTree.has(front) ? front : main;
@@ -440,7 +429,7 @@ export default function App() {
       const id = get().projectId;
       try {
         if (id) {
-          window.localStorage.setItem(`nexttex.rail.${id}`, JSON.stringify(next));
+          keep(`nexttex.rail.${id}`, next);
         }
       } catch {
         /* private browsing: the app works, it just forgets */
@@ -572,14 +561,10 @@ export default function App() {
   useEffect(() => {
     const id = get().projectId;
     if (!id || view !== "editor") return;
-    try {
-      window.localStorage.setItem(
-        `nexttex.open.${id}`,
-        JSON.stringify({ tabs: tabs.map((tab) => tab.path), active: activePath }),
-      );
-    } catch {
-      /* private browsing: the app works, it just forgets */
-    }
+    keep(`nexttex.open.${id}`, {
+      tabs: tabs.map((tab) => tab.path),
+      active: activePath,
+    });
   }, [tabs, activePath, view]);
 
   const refreshTree = useCallback(async () => {
@@ -790,10 +775,7 @@ export default function App() {
         window.removeEventListener("pointercancel", up);
         const id = get().projectId;
         if (id) {
-          window.localStorage.setItem(
-            `nexttex.widths.${id}`,
-            JSON.stringify(widthsRef.current),
-          );
+          keep(`nexttex.widths.${id}`, widthsRef.current);
         }
       };
       window.addEventListener("pointermove", move);
@@ -861,7 +843,7 @@ export default function App() {
       if (pane === "pdf" && next.pdf) next.editor = false;
       const id = get().projectId;
       if (id) {
-        window.localStorage.setItem(`nexttex.folded.${id}`, JSON.stringify(next));
+        keep(`nexttex.folded.${id}`, next);
       }
       return next;
     });
@@ -1821,254 +1803,3 @@ export default function App() {
  *  an unquoted one ending in a slash swallows the tag's own close and the
  *  path draws nothing at all, which has happened here before.
  */
-function ShareIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
-      <g
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      >
-        <circle cx="12.2" cy="3.4" r="2.1" />
-        <circle cx="3.8" cy="8" r="2.1" />
-        <circle cx="12.2" cy="12.6" r="2.1" />
-        <path d="M5.65 6.99 L10.35 4.41" />
-        <path d="M5.65 9.01 L10.35 11.59" />
-      </g>
-    </svg>
-  );
-}
-
-/** A copy of this, to keep: the arrow and the shelf it lands on. */
-function DownloadIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
-      <g
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M8 1.9 L8 9.6" />
-        <path d="M4.7 6.5 L8 9.8 L11.3 6.5" />
-        <path d="M2.6 12.4 L2.6 13.7 L13.4 13.7 L13.4 12.4" />
-      </g>
-    </svg>
-  );
-}
-
-/** The two ways out of a project, behind one button.
- *
- *  A menu rather than a dialog: there is nothing to decide, only which of
- *  two things to fetch, and a card with a heading would be more ceremony
- *  than the act deserves.
- */
-function DownloadMenu({
-  onZip,
-  onPdf,
-}: {
-  onZip: () => void;
-  onPdf: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const trigger = useRef<HTMLButtonElement | null>(null);
-  const menu = useRef<HTMLDivElement | null>(null);
-  useDismiss(menu, open, () => setOpen(false), trigger);
-
-  const choose = (what: () => void) => () => {
-    setOpen(false);
-    what();
-  };
-
-  return (
-    <div className="relative flex items-center">
-      <button
-        ref={trigger}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title="Download a copy"
-        aria-label="Download a copy"
-        data-testid="open-download"
-        className="quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <DownloadIcon />
-      </button>
-      {open ? (
-        <div
-          ref={menu}
-          role="menu"
-          data-testid="download-menu"
-          className="nx-arrive absolute top-[30px] right-0 z-40 w-[176px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
-        >
-          <button
-            role="menuitem"
-            data-testid="download-zip"
-            className="t-ui block w-full px-[10px] py-[5px] text-left text-ink hover:bg-surface-2"
-            onClick={choose(onZip)}
-          >
-            Whole project
-            <span className="t-micro ml-[6px] text-ink-3">.zip</span>
-          </button>
-          <button
-            role="menuitem"
-            data-testid="download-pdf"
-            className="t-ui block w-full px-[10px] py-[5px] text-left text-ink hover:bg-surface-2"
-            onClick={choose(onPdf)}
-          >
-            Typeset page
-            <span className="t-micro ml-[6px] text-ink-3">.pdf</span>
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** A PDF download can fail -- the document may not typeset -- and a plain
- *  link would save the error as a .pdf.  Fetching first lets it say why. */
-async function downloadPdf(projectId: string, name: string) {
-  try {
-    const response = await fetch(api.downloadUrl(projectId, { format: "pdf" }), {
-      credentials: "same-origin",
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body.detail || "the project did not typeset");
-    }
-    saveBlob(await response.blob(), `${name || "project"}.pdf`);
-  } catch (error: any) {
-    set({ error: `Could not download the PDF: ${error.message}` });
-  }
-}
-
-function AppControls({
-  projectId,
-  projectName,
-  onSwitch,
-}: {
-  projectId: string | null;
-  projectName: string;
-  onSwitch: () => void;
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-1 pr-1">
-      <button
-        className="quiet t-meta flex h-[26px] max-w-[200px] items-center gap-1 rounded-[3px] px-2 font-serif hover:bg-surface-3"
-        onClick={onSwitch}
-        title="Switch project"
-      >
-        <span className="truncate text-ink">{projectName}</span>
-        <Chevron direction="down" />
-      </button>
-      <Settings align="left" inProject />
-      {/* The same control as the rail's, because this is the same bar with
-          the file list folded away, and two toolbars that disagree about
-          where downloads live is worse than either arrangement. */}
-      <DownloadMenu
-        onZip={() =>
-          projectId && startDownload(api.downloadUrl(projectId, { format: "zip" }))
-        }
-        onPdf={() => projectId && downloadPdf(projectId, projectName)}
-      />
-    </div>
-  );
-}
-
-/** One chevron drawing, so the app speaks one language of arrows. */
-export function Chevron({
-  direction = "left",
-}: {
-  direction?: "left" | "right" | "up" | "down";
-}) {
-  const path = {
-    left: "M6 1 L2 5 L6 9",
-    right: "M2 1 L6 5 L2 9",
-    up: "M1 6 L5 2 L9 6",
-    down: "M1 2 L5 6 L9 2",
-  }[direction];
-  const size = direction === "left" || direction === "right" ? [8, 10] : [10, 8];
-  return (
-    <svg width={size[0]} height={size[1]} viewBox={direction === "left" || direction === "right" ? "0 0 8 10" : "0 0 10 8"} aria-hidden>
-      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** A padded fold control, so it is a button rather than punctuation. */
-function FoldButton({
-  direction,
-  label,
-  onClick,
-}: {
-  direction: "left" | "right";
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className="quiet flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded-[3px] hover:bg-surface-3"
-      title={label}
-      aria-label={label}
-      onClick={onClick}
-    >
-      <Chevron direction={direction} />
-    </button>
-  );
-}
-
-function Segmented({
-  value,
-  onChange,
-}: {
-  value: "source" | "preview";
-  onChange: (value: "source" | "preview") => void;
-}) {
-  return (
-    // A group of two buttons with a pressed state, not a tablist: there is
-    // no panel associated with either and no arrow-key navigation between
-    // them, and claiming a role whose contract is not honoured tells a
-    // screen reader something untrue.
-    <div
-      role="group"
-      aria-label="Show the source or the preview"
-      data-testid="view-toggle"
-      className="mr-2 flex shrink-0 overflow-hidden rounded-[3px] border border-line"
-    >
-      {(["source", "preview"] as const).map((option) => (
-        <button
-          key={option}
-          aria-pressed={value === option}
-          className={`t-micro border-b-2 px-2 py-[3px] transition-colors duration-[90ms] ${
-            value === option
-              ? "border-hint bg-surface text-ink"
-              : "border-transparent text-ink-3 hover:text-hint"
-          }`}
-          onClick={() => onChange(option)}
-        >
-          {option === "source" ? "Source" : "Preview"}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Handle({
-  onPointerDown,
-  onReset,
-}: {
-  onPointerDown: (e: React.PointerEvent) => void;
-  onReset?: () => void;
-}) {
-  return (
-    <div
-      className="nx-handle relative w-px shrink-0 cursor-col-resize"
-      onPointerDown={onPointerDown}
-      onDoubleClick={onReset}
-    >
-      <span className="absolute -left-1 top-0 h-full w-[9px]" />
-    </div>
-  );
-}

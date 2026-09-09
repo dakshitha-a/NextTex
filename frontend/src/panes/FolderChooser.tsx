@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Chevron } from "../App";
+import { Chevron } from "../chrome";
 import api from "../api";
 import { get } from "../store";
 import { foldersIn } from "../tree";

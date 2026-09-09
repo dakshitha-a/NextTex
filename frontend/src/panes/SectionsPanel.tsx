@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { headingAt, type Heading } from "../outline";
 import { useStore } from "../store";
-import { Chevron } from "../App";
+import { Chevron } from "../chrome";
 import { findNode } from "../tree";
 
 /** The indent step, matching the file tree above it: the width of a Source

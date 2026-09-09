@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import { get, refreshContext, set, useStore } from "../store";
-import { Chevron } from "../App";
+import { Chevron } from "../chrome";
 import { agentName } from "../agent-name";
 
 const KINDS: {

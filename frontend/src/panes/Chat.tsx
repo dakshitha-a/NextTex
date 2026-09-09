@@ -11,7 +11,7 @@ import { createTwoFilesPatch } from "diff";
 import Prose from "./prose";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
 import { agentName, usageNote } from "../agent-name";
-import { Chevron } from "../App";
+import { Chevron } from "../chrome";
 import api from "../api";
 import {
   clearChat,
