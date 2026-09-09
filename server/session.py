@@ -124,6 +124,11 @@ class Broadcaster:
     def unsubscribe(self, queue: asyncio.Queue) -> None:
         self._subscribers.discard(queue)
 
+    @property
+    def watchers(self) -> int:
+        """How many browsers are holding this project's event stream open."""
+        return len(self._subscribers)
+
     async def publish(self, event: dict) -> None:
         for queue in list(self._subscribers):
             try:
@@ -201,6 +206,10 @@ class ProjectSession:
         api_key: str = "",
     ):
         self.project = project
+        #: When a request last asked for this session.  A session can always
+        #: be rebuilt from disk, so this is not state, it is a hint about
+        #: whether holding it open is still earning its memory.
+        self.touched = time.monotonic()
         self.context = ProjectContext(project.state_dir)
         self.transcript = Transcript(project.state_dir / "transcript.jsonl")
         self.history = History(project.state_dir / "history")
@@ -858,6 +867,25 @@ class ProjectSession:
             return
         if self.agent.idle_seconds > AGENT_IDLE_TIMEOUT:
             await self.agent.disconnect()
+
+    def in_use(self) -> bool:
+        """Whether anything is still relying on this session being open.
+
+        A session can be rebuilt from disk on the next request, so evicting
+        one is never a question of losing state.  It is a question of what
+        would be interrupted, and four things would.  A browser holding the
+        event stream, a browser holding an editing socket, an agent turn in
+        flight, and a shared project, which is counted as in use whether or
+        not a collaborator is connected this second: closing the peer network
+        is what takes the project off the network, and somebody who was told
+        they could reach it should be able to.
+        """
+        return bool(
+            self.events.watchers
+            or any(self.sync.rooms.values())
+            or self.agent.busy
+            or self.peers.share.share_id
+        )
 
     async def close(self) -> None:
         # First, so anything still only in a document reaches the disk
