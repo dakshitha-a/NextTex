@@ -664,6 +664,9 @@ There is a tutorial inside the app: the cog in the file list's masthead has a
 cog. Both explain what is on the screen you are looking at, which is usually
 faster than the files below.
 
+- [docs/architecture.md](docs/architecture.md): how it works inside. What the
+  parts are, what each one owns, and why the awkward decisions are the way
+  they are.
 - [docs/first-session.md](docs/first-session.md): the long version of the
   walkthrough above.
 - [docs/design.md](docs/design.md): the specification the interface was built
