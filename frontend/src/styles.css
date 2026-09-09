@@ -534,7 +534,13 @@ button { font: inherit; color: inherit; }
    gutter, and everything in the stream starts at 15px. */
 .stream-indent { padding-left: 15px; }
 input, textarea { font: inherit; color: inherit; background: transparent; }
-:focus-visible { outline: 1px solid var(--pen); outline-offset: 1px; }
+/* Two pixels rather than one, which is what WCAG 2.2's focus appearance
+   asks for and is the one place this interface's taste for hairlines was
+   working against the person using it: a 1px ring at 1px offset is a
+   hairline in a design full of hairlines, and on a busy row -- a tree item
+   with an icon, a name and a hover menu -- it read as one more border.
+   The colour and the offset are unchanged, so nothing else moves. */
+:focus-visible { outline: 2px solid var(--pen); outline-offset: 1px; }
 /* Some elements take focus so they can answer the keyboard, not because the
    user tabbed to them.  A --pen ring on a --warn permission gate would say
    "Claude is talking" at the moment it should say "this needs an answer". */
@@ -545,7 +551,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .permission-card { outline: none; }
 .permission-card:focus-visible,
 .permission-card:focus-within {
-  outline: 1px solid var(--warn);
+  outline: 2px solid var(--warn);
   outline-offset: 2px;
 }
 /* Not --pen-wash: pen means "Claude touched this", and an ordinary

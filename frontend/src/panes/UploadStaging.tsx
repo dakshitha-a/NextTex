@@ -60,6 +60,32 @@ export default function UploadStaging({
   );
   const wanted = clashing.filter((name) => !skipped.has(name));
 
+  /** What each clashing file would be called if both are kept.
+   *
+   *  Worked out here rather than in the row, and in order, because the
+   *  answer for one upload depends on the ones before it: uploading both
+   *  `plot.png` and `plot (2).png` into a folder that already has
+   *  `plot.png` gives the first of them the name the second already has,
+   *  and two rows each computed against the folder alone would both
+   *  promise `plot (2).png`.
+   *
+   *  It says this per row rather than once underneath because underneath
+   *  it could only name the file when there was exactly one of them --
+   *  everything else got "The new ones come in numbered", which is the
+   *  question the writer was asking, answered with the fact that it has an
+   *  answer. */
+  const keptNames = useMemo(() => {
+    const taken = new Set(namesIn(tree, directory));
+    const answer = new Map<string, string>();
+    for (const name of names) {
+      if (!clashing.includes(name)) continue;
+      const next = keptBothName(taken, name);
+      answer.set(name, next);
+      taken.add(next);
+    }
+    return answer;
+  }, [tree, directory, names, clashing]);
+
   const close = () => {
     // Whatever closed this, the picked files go with it and focus comes
     // back to the control that started it -- otherwise the writer is left
@@ -159,8 +185,17 @@ export default function UploadStaging({
                   {file.name}
                 </span>
                 {clash && !skip ? (
-                  <span className="t-micro shrink-0 text-ink-3">
-                    {policy === KEEP ? "keeps both" : "replaces"}
+                  <span
+                    className="t-micro max-w-[45%] shrink-0 truncate text-ink-3"
+                    title={
+                      policy === KEEP
+                        ? `Comes in as ${keptNames.get(file.name)}`
+                        : "Replaces the file already there, which stays in its history"
+                    }
+                  >
+                    {policy === KEEP
+                      ? `becomes ${keptNames.get(file.name)}`
+                      : "replaces"}
                   </span>
                 ) : null}
                 <button
@@ -217,12 +252,7 @@ export default function UploadStaging({
           <p className="t-micro mt-2 text-ink-3">
             {policy === REPLACE
               ? "What it replaces stays in that file's history."
-              : wanted.length === 1
-                ? `The new one comes in as ${keptBothName(
-                    namesIn(tree, directory),
-                    wanted[0],
-                  )}.`
-                : "The new ones come in numbered."}
+              : "Each one comes in beside the file it would have replaced."}
           </p>
         </div>
       ) : null}
