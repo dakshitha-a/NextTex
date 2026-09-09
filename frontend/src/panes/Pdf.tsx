@@ -4,6 +4,7 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import api from "../api";
 import { get, useStore } from "../store";
 import { uiScale } from "../viewport";
+import { absenceFrom, type Absence } from "./pdf-absence";
 import { APPEARANCE_CHANGED } from "../appearance";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -112,7 +113,7 @@ export default function Pdf({
   }, []);
   const [pageCount, setPageCount] = useState(0);
   const [current, setCurrent] = useState(1);
-  const [missing, setMissing] = useState(false);
+  const [absence, setAbsence] = useState<Absence>("");
 
   // This document's own build stamp, not the project's: a build of another
   // preview must not make this pane re-fetch a PDF that has not changed.
@@ -403,7 +404,7 @@ export default function Pdf({
           credentials: "same-origin",
         });
         if (!response.ok) {
-          setMissing(true);
+          setAbsence(absenceFrom(response));
           return;
         }
         const data = await response.arrayBuffer();
@@ -415,11 +416,13 @@ export default function Pdf({
         }
         const previous = doc.current;
         doc.current = loaded;
-        setMissing(false);
+        setAbsence("");
         await layoutRef.current(loaded, previous !== null);
         previous?.destroy();
       } catch {
-        setMissing(true);
+        // Never got an answer at all, which is not the same as being told
+        // there is nothing to show.
+        setAbsence(absenceFrom(null));
       }
     })();
     return () => {
@@ -708,7 +711,7 @@ export default function Pdf({
           if (event.key === "ArrowLeft" || event.key === "PageUp") step(-1);
         }}
       >
-        {missing ? (
+        {absence === "empty" ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">
               <p className="t-display text-ink-3">Nothing has been typeset yet.</p>
@@ -725,6 +728,17 @@ export default function Pdf({
                   Load a basic document
                 </button>
               ) : null}
+            </div>
+          </div>
+        ) : null}
+        {absence === "unreachable" ? (
+          <div className="flex h-full items-center justify-center px-8 text-center">
+            <div className="max-w-[42ch]">
+              <p className="t-display text-ink-3">The preview could not be fetched.</p>
+              <p className="t-meta mt-2 text-ink-2">
+                Your document is not the problem, and nothing has been lost.
+                This tries again after the next build.
+              </p>
             </div>
           </div>
         ) : null}

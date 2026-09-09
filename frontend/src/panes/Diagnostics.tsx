@@ -67,9 +67,16 @@ export default function Diagnostics({
           const up = () => {
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", up);
+            // A drag can also end without a pointerup: a browser dialog, a
+            // tab switch, an interrupted touch. App.tsx learned this for the
+            // pane splitters and this resizer never got the same fix, so an
+            // interrupted drag left the move listener attached and the
+            // drawer resized on every mouse movement afterwards.
+            window.removeEventListener("pointercancel", up);
           };
           window.addEventListener("pointermove", move);
           window.addEventListener("pointerup", up);
+          window.addEventListener("pointercancel", up);
         }}
       />
       {/* The whole bar closes the drawer, the way the preview's and the
