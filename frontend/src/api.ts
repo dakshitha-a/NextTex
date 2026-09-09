@@ -216,6 +216,10 @@ export type CollabState = {
   address: string;
   /** False where iroh publishes no wheel -- an Intel Mac, today. */
   available: boolean;
+  /** Whether this install is in the share it is holding the record of.
+   *  False on a machine the project folder was copied to: the share record
+   *  travels inside the project and the identity does not. */
+  member: boolean;
   members: Member[];
   error: string;
 };

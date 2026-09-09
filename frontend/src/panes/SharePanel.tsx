@@ -137,6 +137,27 @@ export default function SharePanel({ projectId, onClose }: {
               anywhere.
             </p>
           </div>
+        ) : state.shared && !state.member ? (
+          /* A project that was copied to this machine. The share record
+             travels inside the project and the identity does not, so this
+             install is a stranger to a share it holds the record of. Every
+             member shows as not connected, and without this the honest
+             reading of that is "nobody is here", which sends somebody to
+             check their network for a problem that is not there. */
+          <div className="px-[12px] pb-[12px]">
+            <p className="t-meta text-ink-2">
+              This copy of the project is not in its own share. That happens
+              when a project folder is moved to another machine or restored
+              from a backup: the share travels with the files and the identity
+              does not, because it belongs to the install rather than to the
+              project.
+            </p>
+            <p className="t-meta mt-[8px] text-ink-2">
+              The work is not affected and nothing has been lost. To collaborate
+              from here, ask somebody already in the share for a new invite, and
+              accept it into an empty folder.
+            </p>
+          </div>
         ) : !state.shared ? (
           <div className="px-[12px] pb-[12px]">
             {/* The consequence first. The paragraph that matters most here
