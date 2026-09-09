@@ -609,15 +609,50 @@ export function disconnect() {
 let reconcileTimer: number | undefined;
 let reconcileWatching = false;
 
-async function reconcile() {
+export async function reconcile() {
   const id = state.projectId;
-  if (!id || !state.thinking) return;
-  let report: { busy?: boolean };
+  if (!id) return;
+  let report: Awaited<ReturnType<typeof api.usage>>;
   try {
     report = await api.usage(id);
   } catch {
     return; // the server is unreachable; saying so is the stream's job
   }
+  if (state.projectId !== id) return; // they moved on while we asked
+
+  // A card outlives the page that showed it.  `replayTranscript` marks an
+  // unanswered card as denied, on the reasoning that the turn waiting for it
+  // is gone -- which is right after a crash and wrong after a reload, where
+  // the turn is still there and still waiting.  So the ones the server says
+  // are open come back, answerable, matched by the id the transcript already
+  // carries so a revived card replaces its own record rather than sitting
+  // beside it.
+  const open = report.pending ?? [];
+  if (open.length) {
+    const known = new Set(state.chat.map((item) => item.id));
+    const chat = state.chat.map((item) =>
+      item.kind === "permission" && open.some((card) => card.id === item.id)
+        ? { ...item, decision: undefined }
+        : item,
+    );
+    for (const card of open) {
+      if (known.has(card.id)) continue;
+      chat.push({
+        kind: "permission",
+        id: card.id,
+        tool: card.tool,
+        rule: card.rule ?? "",
+        headline: card.headline ?? `Use ${card.tool}`,
+        detail: card.detail ?? "",
+        consequence: card.consequence ?? "",
+        reason: card.reason ?? "",
+        at: Date.now(),
+      });
+    }
+    set({ chat, awaitingPermission: true, thinking: true });
+    return;
+  }
+
   if (report.busy || !state.thinking) return;
   endText();
   pushChat({

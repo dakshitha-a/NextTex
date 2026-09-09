@@ -23,6 +23,7 @@ stream cleanly with a result.
 from __future__ import annotations
 
 import asyncio
+import time
 
 from nexttex import agent as agent_module
 from nexttex.agent import ProjectAgent
@@ -261,3 +262,95 @@ def test_answering_a_card_twice_is_refused_the_second_time(tmp_path):
     first, second = asyncio.run(run())
     assert first is True
     assert second is False
+
+def test_a_long_running_command_is_not_mistaken_for_a_dead_turn(tmp_path, monkeypatch):
+    """The turn watchdog measures silence, and a tool emits nothing while it runs.
+
+    In auto mode the approval goes out before the command starts, so a build
+    that took longer than the silence timeout was ended with "the agent
+    stopped responding", which is a false statement about a machine that is
+    working.  A thesis with biber is twenty seconds here, but a first run
+    that installs packages is bounded by nothing this app knows.
+    """
+    from nexttex import agent as agent_module
+
+    fence = ProjectAgent(tmp_path, tmp_path / ".nexttex")
+    monkeypatch.setattr(agent_module, "WATCHDOG_INTERVAL", 0.01)
+    monkeypatch.setattr(agent_module, "TURN_SILENCE_TIMEOUT", 0.02)
+    monkeypatch.setattr(agent_module, "TOOL_RUNNING_TIMEOUT", 30.0)
+
+    async def scenario():
+        async def turn():
+            await asyncio.sleep(5)
+
+        fence._turn = asyncio.create_task(turn())
+        fence.set_auto(True)
+        await fence._pre_tool(
+            {"tool_name": "Bash", "tool_input": {"command": "latexmk"}}, "call-1", None
+        )
+        assert "call-1" in fence._running_tools
+        # Long past the point where silence alone would have ended it.
+        fence._last_event = time.monotonic() - 600
+        watch = asyncio.create_task(fence._watch_for_silence())
+        await asyncio.sleep(0.15)
+        alive = not fence._turn.done()
+        watch.cancel()
+        fence._turn.cancel()
+        return alive
+
+    assert asyncio.run(scenario())
+
+
+def test_a_command_that_never_returns_still_ends_the_turn(tmp_path, monkeypatch):
+    """Holding the turn open for a running tool must not mean holding it for ever."""
+    from nexttex import agent as agent_module
+
+    fence = ProjectAgent(tmp_path, tmp_path / ".nexttex")
+    monkeypatch.setattr(agent_module, "WATCHDOG_INTERVAL", 0.01)
+    monkeypatch.setattr(agent_module, "TURN_SILENCE_TIMEOUT", 0.02)
+    monkeypatch.setattr(agent_module, "TOOL_RUNNING_TIMEOUT", 0.05)
+
+    async def scenario():
+        async def turn():
+            await asyncio.sleep(5)
+
+        fence._turn = asyncio.create_task(turn())
+        fence._running_tools["call-1"] = ("Bash", time.monotonic() - 600)
+        fence._last_event = time.monotonic() - 600
+        watch = asyncio.create_task(fence._watch_for_silence())
+        await asyncio.sleep(0.2)
+        ended = fence._turn.cancelled() or fence._turn.done()
+        said = []
+        queue = fence._queue()
+        while not queue.empty():
+            said.append(queue.get_nowait())
+        watch.cancel()
+        fence._turn.cancel()
+        return ended, said
+
+    ended, said = asyncio.run(scenario())
+    assert ended
+    message = " ".join(event.get("message", "") for event in said)
+    # It says what it was waiting for rather than blaming the model for silence.
+    assert "Bash" in message
+    assert "stopped responding" not in message
+
+
+def test_the_pair_of_hooks_brackets_a_running_call(tmp_path):
+    """What the watchdog reads has to be cleared by every path, including
+    the early returns in the post hook that only an edit gets past."""
+    fence = ProjectAgent(tmp_path, tmp_path / ".nexttex")
+
+    async def scenario():
+        await fence._pre_tool(
+            {"tool_name": "Read", "tool_input": {"file_path": "main.tex"}}, "call-9", None
+        )
+        during = "call-9" in fence._running_tools
+        await fence._post_tool(
+            {"tool_name": "Read", "tool_input": {"file_path": "main.tex"}}, "call-9", None
+        )
+        return during, "call-9" in fence._running_tools
+
+    during, after = asyncio.run(scenario())
+    assert during
+    assert not after

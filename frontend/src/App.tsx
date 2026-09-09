@@ -19,6 +19,7 @@ import {
   dismissNotice,
   get,
   handlers,
+  reconcile,
   refreshContext,
   refreshGit,
   refreshHistory,
@@ -323,6 +324,9 @@ export default function App() {
       },
     });
     replayTranscript(project.transcript ?? []);
+    // A card the server is still waiting on outlives the page that showed
+    // it, and the replay above marks it denied.  Ask what is really open.
+    void reconcile();
     connect(id);
     refreshContext(id);
     setView("editor");

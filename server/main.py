@@ -3229,6 +3229,11 @@ async def agent_usage(project_id: str):
         # promise a change that does not happen.
         "auto": bool(getattr(session.agent, "auto", False)),
         "asks": callable(getattr(session.agent, "set_auto", None)),
+        # The cards waiting on an answer, so a browser that reloaded gets
+        # them back rather than showing a card it cannot answer.  A reload
+        # loses the card and not the turn, and the turn then waited out its
+        # full ten minutes for an answer nobody could give.
+        "pending": list(getattr(session.agent, "pending_cards", []) or []),
     }
 
 

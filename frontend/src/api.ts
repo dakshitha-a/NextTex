@@ -615,6 +615,18 @@ const api = {
        *  kind of agent that ever asks.  A reload has no other way to know. */
       auto: boolean;
       asks: boolean;
+      /** Cards still waiting on an answer.  A reload loses the card and not
+       *  the turn, so a browser coming back asks for these rather than
+       *  leaving the turn to wait out its timeout. */
+      pending: {
+        id: string;
+        tool: string;
+        rule: string;
+        headline: string;
+        detail: string;
+        consequence: string;
+        reason: string;
+      }[];
     }>(`/projects/${id}/agent/usage`),
   setModel: (id: string, model: string) =>
     request<{ ok: boolean; model: string; deferred: boolean }>(

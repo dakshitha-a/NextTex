@@ -82,6 +82,27 @@ PERMISSION_TIMEOUT = 600.0
 # has a timeout of its own.
 TURN_SILENCE_TIMEOUT = 900.0
 
+# How long one approved tool call may run before the turn gives up on it.
+#
+# The silence timeout above measures between emitted events, and a tool call
+# emits nothing while it runs.  In auto mode the approval is emitted before
+# the command starts, so a build that takes longer than the silence timeout
+# was ended with "the agent stopped responding", which is a false statement
+# about a machine that is working: a full thesis with biber is nineteen
+# seconds here, but a first run that installs packages, or a document with a
+# heavy tikz chapter, is not bounded by anything this app knows.
+#
+# So a running tool holds the turn open, and this is the bound on that, since
+# a tool that never returns must not hold a project for ever.  An hour is far
+# longer than any build this editor has measured and far shorter than a
+# writer's patience with a project that will not answer.
+TOOL_RUNNING_TIMEOUT = 3600.0
+
+# How often the watchdog looks.  A constant rather than a literal in the
+# loop so a test can drive it: waiting the real interval to find out whether
+# a turn survives a long build is not a test anybody would run.
+WATCHDOG_INTERVAL = 30.0
+
 # Tools that never need asking about wherever they point: they change
 # nothing outside the model's own head, and nothing leaves this machine.
 #
@@ -286,6 +307,17 @@ class ProjectAgent:
 
         # A permission request in flight, waiting on the browser.
         self._pending: dict[str, asyncio.Future] = {}
+        # The card each of those put on screen, kept so a browser that
+        # reloaded can be given it back.  Without this the card was lost
+        # with the page: the turn went on waiting for an answer nobody could
+        # give any more, and the writer was shown a greyed "Denied" row that
+        # they had not denied.
+        self._pending_cards: dict[str, dict] = {}
+        # Tool calls the fence has approved that have not come back yet, by
+        # the id the SDK gives them, with the moment each started.  A turn is
+        # not silent while one of these is running: it is waiting on work it
+        # was told to do.
+        self._running_tools: dict[str, tuple[str, float]] = {}
         # Prefixes the user chose to always allow, e.g. "Bash:latexmk".
         # Persisted, because the README says the permission rules you have
         # set carry over and they did not: this lived in memory, so a
@@ -633,6 +665,16 @@ class ProjectAgent:
             )
         return ""
 
+    @property
+    def pending_cards(self) -> list[dict]:
+        """The cards waiting on an answer right now.
+
+        A browser asks for these when it comes back, because a reload loses
+        the card and not the turn: the future is still there, and the tab
+        that could have resolved it is gone.
+        """
+        return list(self._pending_cards.values())
+
     def resolve_permission(self, request_id: str, decision: str) -> bool:
         future = self._pending.get(request_id)
         if future is None or future.done():
@@ -688,6 +730,25 @@ class ProjectAgent:
         }}
 
     async def _pre_tool(self, input_data: dict, tool_use_id: str | None, ctx: Any) -> dict:
+        """Decide whether a tool call may proceed, and note that it started.
+
+        The decision is `_decide` below, which is the security boundary.
+        This wrapper exists so that every path through it, and there are
+        six, records an approved call in one place rather than six.
+        """
+        result = await self._decide(input_data, tool_use_id, ctx)
+        allowed = (
+            result.get("hookSpecificOutput", {}).get("permissionDecision")
+            == "allow"
+        )
+        if allowed and tool_use_id:
+            self._running_tools[tool_use_id] = (
+                input_data.get("tool_name", ""),
+                time.monotonic(),
+            )
+        return result
+
+    async def _decide(self, input_data: dict, tool_use_id: str | None, ctx: Any) -> dict:
         """Decide whether a tool call may proceed, and snapshot what it will change.
 
         This is the security boundary.  It runs before every tool call and
@@ -807,13 +868,15 @@ class ProjectAgent:
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
 
-        await self._emit({
+        card = {
             "type": "permission",
             "id": request_id,
             "tool": tool_name,
             "rule": rule,
             **self.describe(tool_name, tool_input),
-        })
+        }
+        self._pending_cards[request_id] = card
+        await self._emit(card)
 
         try:
             decision = await asyncio.wait_for(future, timeout=PERMISSION_TIMEOUT)
@@ -838,6 +901,7 @@ class ProjectAgent:
             return "deny"
         finally:
             self._pending.pop(request_id, None)
+            self._pending_cards.pop(request_id, None)
 
         if decision == "always":
             # An empty key means there was nothing nameable to remember: a
@@ -855,6 +919,10 @@ class ProjectAgent:
 
     async def _post_tool(self, input_data: dict, tool_use_id: str | None, ctx: Any) -> dict:
         """Record what an edit did, for the chip and its undo."""
+        # First, and before any of the early returns below: this call has
+        # come back, so it is no longer holding the turn open.
+        if tool_use_id:
+            self._running_tools.pop(tool_use_id, None)
         tool_name = input_data.get("tool_name", "")
         if tool_name not in self._WRITE_TOOLS:
             return {}
@@ -1538,14 +1606,39 @@ class ProjectAgent:
         writing is not stuck, and a turn waiting on a permission card is not
         stuck either -- the card has its own timeout, and answering it
         counts as an event.
+
+        A turn waiting on a tool call it approved is not stuck either, and
+        that one was missing.  A tool emits nothing while it runs, and in
+        auto mode the approval goes out before the command starts, so a
+        build longer than the silence timeout was declared dead while it was
+        working.  A running call holds the turn open until
+        `TOOL_RUNNING_TIMEOUT`, after which the turn does end, and says what
+        it was waiting for rather than blaming the model for silence.
         """
         while True:
-            await asyncio.sleep(30)
+            await asyncio.sleep(WATCHDOG_INTERVAL)
             quiet = time.monotonic() - self._last_event
             if quiet < TURN_SILENCE_TIMEOUT:
                 continue
             if self._pending:  # waiting on a person, not on the model
                 continue
+            running = self._longest_running_tool()
+            if running is not None:
+                name, elapsed = running
+                if elapsed < TOOL_RUNNING_TIMEOUT:
+                    continue
+                log.warning("%s has been running for %.0fs; ending the turn", name, elapsed)
+                await self._emit({
+                    "type": "error",
+                    "message": (
+                        f"{name} has been running for "
+                        f"{int(elapsed // 60)} minutes with no sign of "
+                        "finishing, so the turn was ended."
+                    ),
+                })
+                if self._turn is not None and not self._turn.done():
+                    self._turn.cancel()
+                return
             log.warning("no agent activity for %.0fs; ending the turn", quiet)
             await self._emit({
                 "type": "error",
@@ -1557,6 +1650,16 @@ class ProjectAgent:
             if self._turn is not None and not self._turn.done():
                 self._turn.cancel()
             return
+
+    def _longest_running_tool(self) -> tuple[str, float] | None:
+        """The approved call that has been running longest, and for how long."""
+        if not self._running_tools:
+            return None
+        now = time.monotonic()
+        name, started = max(
+            self._running_tools.values(), key=lambda entry: now - entry[1]
+        )
+        return name, now - started
 
     async def _stream(self, prompt: str) -> None:
         async with self._lock:
