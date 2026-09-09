@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
+import { onFrame } from "../timing";
 /** Fetched when somebody else turns up, which for most sessions is never.
  *  It draws nothing at all until then, so the parent decides whether to
  *  mount it and the chunk follows -- `bundle.initial_kb` is measured on the
@@ -66,12 +67,18 @@ export default function Tabs({
         ).length,
       );
     };
+    // `measure` reads `offsetLeft` and `offsetWidth` for every tab, which
+    // forces layout, and it ran on every scroll event and every resize
+    // notification. Once per frame is as often as the answer can change on
+    // screen.
+    const settle = onFrame(measure);
     measure();
-    element.addEventListener("scroll", measure);
-    const observer = new ResizeObserver(measure);
+    element.addEventListener("scroll", settle);
+    const observer = new ResizeObserver(settle);
     observer.observe(element);
     return () => {
-      element.removeEventListener("scroll", measure);
+      settle.cancel();
+      element.removeEventListener("scroll", settle);
       observer.disconnect();
     };
   }, [tabs.length]);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import api, { captureToken, landingAfter, saveBlob, startDownload } from "./api";
 import { useDismiss } from "./useDismiss";
+import { onFrame } from "./timing";
 import Boundary from "./Boundary";
 import {
   connect,
@@ -251,9 +252,15 @@ export default function App() {
   }, [resumeOrList]);
 
   useEffect(() => {
-    const onResize = () => setWidth(viewportWidth());
+    // A browser fires `resize` far faster than it paints, and this reads
+    // computed style and then re-renders the root, so once per frame is
+    // both as often as it can be seen and as often as it is worth doing.
+    const onResize = onFrame(() => setWidth(viewportWidth()));
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    return () => {
+      onResize.cancel();
+      window.removeEventListener("resize", onResize);
+    };
   }, []);
 
   const openProjectRef = useRef<((id: string) => Promise<void>) | null>(null);
@@ -744,7 +751,9 @@ export default function App() {
         bounds.max = Math.max(Math.min(bounds.max, anchorWidth + slack), bounds.min);
       }
 
-      const move = (moveEvent: PointerEvent) => {
+      // The same reason, on the other end of a drag: pointer moves arrive
+      // faster than frames, and every one of these set state on the root.
+      const move = onFrame((moveEvent: PointerEvent) => {
         const direction = which === "chat" ? -1 : 1;
         const wanted =
           anchorWidth + (direction * (moveEvent.clientX - anchorX)) / uiScale();
@@ -759,9 +768,10 @@ export default function App() {
           if (pair <= 0) return current;
           return { ...current, editor: settled / pair };
         });
-      };
+      });
 
       const up = () => {
+        move.cancel();
         document.body.classList.remove("nx-dragging");
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
