@@ -629,3 +629,41 @@ def test_remembering_a_compound_command_does_not_widen_auto_mode(tmp_path):
     fence.set_auto(True)
     fence._ask_user = _refuse
     assert decision(hook(fence, "Bash", {"command": command})) == "deny"
+
+
+def test_a_card_waiting_on_an_answer_can_be_handed_back(tmp_path):
+    """A reload loses the card and not the turn.
+
+    The browser marks an unanswered card denied when it replays a
+    transcript, which is right after a crash and wrong after a reload: the
+    future is still open on this side, so the writer was shown a greyed
+    "Denied" row they had not denied while the turn waited out its ten
+    minutes.  The card is kept here so it can be given back.
+    """
+    fence = agent(tmp_path)
+
+    async def scenario():
+        asking = asyncio.create_task(
+            fence._ask_user("Bash", {"command": "latexmk; echo done"})
+        )
+        for _ in range(50):
+            await asyncio.sleep(0.001)
+            if fence.pending_cards:
+                break
+        handed_back = list(fence.pending_cards)
+        request_id = handed_back[0]["id"] if handed_back else ""
+        if request_id:
+            fence.resolve_permission(request_id, "deny")
+        await asking
+        return handed_back, list(fence.pending_cards)
+
+    while_open, after = asyncio.run(scenario())
+    assert len(while_open) == 1
+    card = while_open[0]
+    # Everything the browser needs to draw it again, including why it is up.
+    assert card["tool"] == "Bash"
+    assert card["detail"] == "latexmk; echo done"
+    assert card["headline"]
+    assert "id" in card
+    # And it is gone once answered, so a later reload does not revive it.
+    assert after == []
