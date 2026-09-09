@@ -89,11 +89,29 @@ test("the surfaces this pass changed", async ({ app, project, tab }) => {
     await openFolders(tab, "figures/spectrum.pdf");
     await tab.waitForTimeout(300);
     await shot(tab, "06-tree-open", theme);
-    await tab.getByText("spectrum.pdf").click();
+    await tab.getByRole("tree").getByText("spectrum.pdf").click();
     await tab.waitForTimeout(2500);
     await shot(tab, "07-pdf-from-tree", theme);
-    await tab.getByText("alpha.png").click();
+    await tab.getByRole("tree").getByText("alpha.png").click();
     await tab.waitForTimeout(1200);
     await shot(tab, "08-image-viewer", theme);
+  }
+});
+
+test("the screens with no document on them", async ({ app, page }) => {
+  // The project list, the sign-in screen and the reconnect screen are all
+  // chrome and nothing else -- there is no page being written on any of
+  // them -- so they take the furniture whole rather than being the one pale
+  // field left in a light theme that went dark everywhere else.
+  for (const theme of THEMES) {
+    await page.goto(`${app.base}/?token=${app.token}`);
+    await page.evaluate(
+      (t) => window.localStorage.setItem("nexttex.theme", t),
+      theme,
+    );
+    await page.reload();
+    await page.getByText("Projects", { exact: false }).first().waitFor();
+    await page.waitForTimeout(700);
+    await shot(page, "09-projects", theme);
   }
 });

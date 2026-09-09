@@ -136,7 +136,13 @@
 
    It goes *before* `.nx-theme-dark` because contrast.test.ts finds this
    block by searching for the literal string `.nx-theme-dark {`, and a
-   selector appended after that one would take the brace with it. */
+   selector appended after that one would take the brace with it.
+
+   The screens with no document on them -- the project list, signing in,
+   waiting to reconnect, and the error boundary -- take it whole rather than
+   in parts.  There is no page being written on any of them, so all four are
+   chrome from edge to edge, and leaving them out made the project list the
+   one pale field in a light theme that had gone dark everywhere else. */
 :root[data-theme="dark"],
 :root[data-theme="light"] .nx-furniture,
 .nx-theme-dark {

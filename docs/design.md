@@ -2662,3 +2662,72 @@ them on `--surface-2`, so a plot exported with a transparent background —
 which is most of them — was judged against near-black in the dark theme,
 where a white axis label simply is not there. Paper is also the honest
 preview: white is what transparent will be once it is on the page.
+
+## 25. The mark, and the screens with no document on them
+
+Both of these were added to the run by the writer partway through, and both
+turned out to be the same observation from two directions: the design stops
+at the edge of the editor.
+
+### The screens outside the editor
+
+The project list, the sign-in screen, the reconnect screen and the error
+boundary are chrome from edge to edge. There is no page being written on any
+of them and nothing on them is a document, so they take `.nx-furniture`
+whole rather than in parts. Leaving them out made the project list the one
+pale field in a light theme that had gone dark everywhere else — you set up
+a project in a dark interface, pressed Back, and the room changed colour.
+
+The project list needed more than a palette, though. It was a masthead, a
+form and a status line centred in an empty field, with nothing under any of
+them: at 1000px tall, three hundred pixels of nothing above the first word.
+Every other surface in this application is drawn as an object lying on the
+proofing grey — the typeset page, the panes, the cards, the figures — and
+this screen was the one place that idea had been dropped. It is a sheet now.
+The project list inside it steps down to `--surface-2` rather than carrying
+a border of its own, because a card inside a card is two objects claiming to
+be one.
+
+### The mark
+
+Redrawn, and the reasoning is in `frontend/src/Logo.tsx` at length because a
+mark is the one thing in a codebase nobody can reconstruct from the code.
+The short version is three failures that only show up beside the rest of the
+interface.
+
+It was in a rounded square. That is the most generic container in software,
+it said nothing the sheet inside it was not already saying, and it cost the
+glyph half its height in a 20px slot.
+
+Its chevron read as damage. A notch cut into a page's edge is a torn page
+before it is an arrow, and it sat on the *left* edge, where a control
+meaning "back" would be. It was carrying the wrong half of the name at the
+cost of the silhouette.
+
+And it was a sheet with a folded corner — which is to say it was almost
+exactly the glyph this same pass drew beside every file in the tree. A logo
+that is also the file icon has stopped being a logo. Nothing in it said
+typesetting, and nothing in it said TeX.
+
+It is now a page with a backslash struck across it. Every command in the
+language this application exists to write begins with one; it is a single
+stroke, so it survives 16px; and no other product's mark is a backslash.
+
+**The page is drawn in `--ink` and only the backslash is `--pen`.** That is
+the part to keep if it is ever redrawn again. Violet in this application
+means the agent touched something, and a mark washed in it spends a colour
+the interface has reserved — one stroke of it is a signature, a whole glyph
+of it is a claim. It also means the mark takes the theme's own inks and is
+legible on both grounds without a second set of values, which a single fixed
+brand violet would not be: `#7B45A0` on the dark rail measures 2.8:1, under
+the 3:1 a graphic needs. NexusQC's rule that a logo should not follow a
+preference is right for a dark-only app and wrong here.
+
+The favicon is a different drawing on purpose, and it now lives only in
+`index.html`. There used to be a `FAVICON_SVG` export beside the component
+with no consumer anywhere — a second copy of the mark, free to drift from
+the first, and already differing from it. A tab icon has to be right before
+any script runs, so `index.html` is its home; and at 16px the page outline
+closes up into a grey box with something in it, so the small cut keeps only
+the stroke and puts it *on* the violet rather than in it, because a tab has
+no ground of its own to sit on.

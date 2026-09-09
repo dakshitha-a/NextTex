@@ -34,7 +34,7 @@ export default function SignIn({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="flex h-full items-center justify-center bg-surround px-6">
+    <div className="nx-furniture flex h-full items-center justify-center bg-surround px-6">
       <div className="w-full max-w-[560px] rounded-[5px] border border-line bg-surface p-6">
         <div className="flex items-start justify-between gap-3">
           <div>

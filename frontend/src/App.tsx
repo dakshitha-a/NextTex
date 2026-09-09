@@ -1168,7 +1168,7 @@ export default function App() {
     // it is an absence. This is the first thing anybody sees, and on a slow
     // first connection it was the only thing, for as long as it took.
     return (
-      <div className="flex h-full items-center justify-center bg-surround">
+      <div className="nx-furniture flex h-full items-center justify-center bg-surround">
         <p className="t-ui text-ink-3" role="status">
           Opening NextTex
         </p>
@@ -1182,7 +1182,7 @@ export default function App() {
     // by "not answering", which would be a false statement about a machine
     // that is listening.
     return (
-      <div className="flex h-full items-center justify-center bg-surround">
+      <div className="nx-furniture flex h-full items-center justify-center bg-surround">
         <div className="text-center">
           <p className="t-ui text-ink">Waiting for NextTex</p>
           <p className="t-meta mt-1 text-ink-2">
