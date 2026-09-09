@@ -1354,6 +1354,29 @@ def _safe(session: ProjectSession, relative: str) -> Path:
         raise HTTPException(400, "bad path")
 
 
+def _safe_rel(session: ProjectSession, relative: str) -> tuple[Path, str]:
+    """The resolved path, and the canonical name the history files it under.
+
+    `slug_for` hashes the exact string it is handed, so `./main.tex` and
+    `main.tex` are two different files as far as a version log is concerned
+    and only one of them is ever real.  Everything that *writes* history goes
+    through `Project.relative` first.  The routes that read it, name it,
+    clear it and rename it did not: they called `_safe` for the fence, threw
+    away the path it resolved, and passed the raw query string on.
+
+    So asking for the history of `./main.tex` returned an empty list with a
+    200, clearing it reported that nothing had been cleared, and -- the one
+    that cost something -- renaming through a dotted path moved the file on
+    disk, left its entire past filed under a name nothing would ever look up
+    again, and answered `{"ok": true}`.
+    """
+    target = _safe(session, relative)
+    try:
+        return target, session.project.relative(target)
+    except (OSError, ValueError):
+        raise HTTPException(400, "bad path")
+
+
 # ---------------------------------------------------------------------------
 # Projects
 
@@ -1677,7 +1700,8 @@ async def create_entry(
 @app.post("/api/projects/{project_id}/file/rename")
 async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(...)):
     session = session_for(project_id)
-    source, target = _safe(session, path), _safe(session, to)
+    source, path = _safe_rel(session, path)
+    target, to = _safe_rel(session, to)
     if not source.exists():
         raise HTTPException(404, "no such file")
     if target.exists():
@@ -1741,12 +1765,16 @@ async def restore_trash(project_id: str, entry_id: str):
     # Which build path a restore needs depends on what came back.  Without
     # this the scheduler reused whatever the last edit left set, so
     # restoring a .bib skipped the biber pass its citations needed.
-    for relative in result["restored"]:
+    for was, relative in zip(result["was"], result["restored"]):
         restored = session.project.root / relative
         # A file coming back out of the trash is a file coming back into the
         # project: it has to reach the shared document, and its record has to
         # stop being marked trashed or nothing will ever write it again.
-        session.collab.untrash(relative, read_text(restored))
+        #
+        # Told what it *was* called as well as what it is called now.  Those
+        # differ when the old name had been taken, and matching on the new
+        # one alone found no trashed record at all.
+        session.collab.untrash(was, relative, read_text(restored))
         session.note_edit(restored, read_text(restored), None)
     session.schedule_compile()
     return {"ok": True, **result}
@@ -1779,8 +1807,18 @@ async def empty_trash(project_id: str):
 @app.get("/api/projects/{project_id}/history")
 async def file_history(project_id: str, path: str):
     session = session_for(project_id)
-    _safe(session, path)   # refuse to describe anything outside the project
-    versions = [v.as_dict() for v in session.history.versions(path)]
+    # The fence, and the name the history files this under.
+    _, path = _safe_rel(session, path)
+    # And which of them can actually be opened.  A collaborator's version
+    # arrives as a line, and its contents come when somebody asks for them,
+    # so the panel has to be able to tell "here" from "not here yet" -- and,
+    # when nobody is connected, from "nobody left to ask".
+    here = session.history.have(path)
+    versions = []
+    for version in session.history.versions(path):
+        entry = version.as_dict()
+        entry["here"] = version.sha in here
+        versions.append(entry)
     versions.reverse()     # newest first, as the panel reads it
     return {"path": path, "versions": versions}
 
@@ -1798,7 +1836,7 @@ async def history_blob(
     and its Download both ask for.
     """
     session = session_for(project_id)
-    _safe(session, path)
+    _, path = _safe_rel(session, path)
     await _fetch_missing_blob(session, sha)
     if raw or download:
         data = session.history.bytes_of(path, sha)
@@ -1849,7 +1887,7 @@ async def restore_version(
 ):
     """Put an old version back, as a new version. Nothing is overwritten."""
     session = session_for(project_id)
-    target = _safe(session, path)
+    target, path = _safe_rel(session, path)
     # Bytes rather than text, so restoring a figure gives back the figure.
     text = session.history.bytes_of(path, sha)
     if text is None:
@@ -1883,7 +1921,7 @@ async def label_version(
     label: str = Body(""),
 ):
     session = session_for(project_id)
-    _safe(session, path)
+    _, path = _safe_rel(session, path)
     if not session.history.set_label(path, sha, label.strip() or None):
         raise HTTPException(404, "no such version")
     return {"ok": True}
@@ -1932,7 +1970,7 @@ async def purge_history(project_id: str, path: str, reseed: bool = True):
     is in PERMANENT_OPS so the marker is never thinned away.
     """
     session = session_for(project_id)
-    target = _safe(session, path)
+    target, path = _safe_rel(session, path)
     before = await asyncio.to_thread(session.history.size)
     removed = len(session.history.versions(path))
     session.history.forget(path)

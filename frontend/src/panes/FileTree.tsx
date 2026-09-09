@@ -67,6 +67,9 @@ export default function FileTree({
   const tree = useStore((s) => s.tree);
   const activePath = useStore((s) => s.activePath);
   const diagnostics = useStore((s) => s.diagnostics);
+  /** Empty until a project has been shared, which is exactly when clearing
+   *  a history stops being a decision about one disk only. */
+  const peerId = useStore((s) => s.peerId);
   /** Which folders are open.  Open, not shut: a project opens with its
    *  tree collapsed, every time, so the first thing a writer sees is the
    *  shape of the document rather than every file in it.  This used to be
@@ -614,6 +617,17 @@ export default function FileTree({
                   The file itself is not touched. Disk is released within the
                   hour.
                 </p>
+                {/* Said plainly, and only where it is true. Clearing a
+                    history is a decision about this disk, and a control
+                    that looked as though it reached everybody's copy and
+                    did not would be worse than no control -- the same
+                    reason the sentence about removing a collaborator sits
+                    beside that button rather than in the documentation. */}
+                {peerId ? (
+                  <p className="t-micro mt-1 text-ink-3">
+                    Only on this computer. Collaborators keep their own copies.
+                  </p>
+                ) : null}
                 <div className="mt-2 flex gap-2">
                   <button
                     className="ghost-button h-[26px] px-2 t-micro"

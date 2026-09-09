@@ -364,3 +364,62 @@ def test_a_purge_whose_payload_is_already_gone_still_finishes(tmp_path):
     shutil.rmtree(trash.payload_of(entry).parent)
     assert trash.purge(entry.id) is True
     assert trash.entries() == []
+
+
+def test_a_restore_under_a_new_name_brings_its_past_with_it(tmp_path):
+    """A restore whose old name has been taken comes back beside it.
+
+    Its history cannot simply be renamed across, because history is keyed by
+    path: the log at the old name holds this file's past *and* the past of
+    whatever took the name after it went.  It is cut at the deletion, which
+    is always there because a deletion is never thinned away.
+    """
+    trash, project = bin(tmp_path)
+    (project / "chapter.tex").write_text("months of work", encoding="utf-8")
+    trash.history.record("chapter.tex", "an early draft", op="create")
+    entry = trash.delete(project / "chapter.tex")
+
+    # Something else takes the name while it is in the trash.
+    (project / "chapter.tex").write_text("a different chapter", encoding="utf-8")
+    trash.history.record("chapter.tex", "a different chapter", op="create")
+
+    result = trash.restore(entry.id)
+    assert result["renamed"], "it should have come back beside, not over"
+
+    came_back = trash.history.versions(result["renamed"])
+    assert [v.op for v in came_back] == ["create", "delete", "restore"]
+    # And the file that took the name keeps its own past, untouched.
+    assert [v.op for v in trash.history.versions("chapter.tex")] == ["create"]
+
+
+def test_an_ordinary_restore_leaves_the_history_where_it_was(tmp_path):
+    """Nothing to split when the name was free."""
+    trash, project = bin(tmp_path)
+    (project / "chapter.tex").write_text("months of work", encoding="utf-8")
+    trash.history.record("chapter.tex", "an early draft", op="create")
+    entry = trash.delete(project / "chapter.tex")
+
+    result = trash.restore(entry.id)
+    assert result["renamed"] == ""
+    assert [v.op for v in trash.history.versions("chapter.tex")] == [
+        "create", "delete", "restore",
+    ]
+
+
+def test_a_delete_version_says_which_install_made_it(tmp_path):
+    """The trash records straight onto the history rather than through the
+    session, so without this it went out unstamped -- and unstamped means
+    "written here" to whoever receives it."""
+    history = History(tmp_path / "history")
+    trash = Trash(
+        tmp_path / "trash", history, tmp_path / "project",
+        identity=lambda: {"peer": "a" * 64, "who": "Ada"},
+    )
+    (tmp_path / "project").mkdir()
+    (tmp_path / "project" / "chapter.tex").write_text("gone", encoding="utf-8")
+    trash.delete(tmp_path / "project" / "chapter.tex")
+
+    last = history.versions("chapter.tex")[-1]
+    assert last.op == "delete"
+    assert last.peer == "a" * 64
+    assert last.who == "Ada"

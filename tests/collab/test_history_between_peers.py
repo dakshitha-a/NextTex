@@ -229,3 +229,68 @@ async def test_what_this_machine_types_is_still_its_own(tmp_path):
 
     await alice.close()
     await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_a_rename_reaches_the_other_machine(tmp_path):
+    """A path is a property of a file, so a rename is one field changing.
+
+    That is what keeps everybody's editor pointed at the same document.  What
+    it does not do is move the file, and nothing used to: the other machine
+    kept the old name with the old contents, the new name appeared only when
+    somebody happened to type into that document, and then it had both.
+    """
+    alice = Peer(tmp_path / "alice").be("a" * 64)
+    bob = Peer(tmp_path / "bob", {"main.tex": ""}).be("b" * 64)
+    alice.history.record("main.tex", "the chapter as it was\n", op="create")
+
+    await join_up(alice, bob)
+    assert await until(
+        lambda: (bob.project.root / "main.tex").read_text() == "The chapter.\n"
+    ), "the file never reached Bob"
+    assert await until(lambda: bool(bob.versions("main.tex")))
+
+    (alice.project.root / "main.tex").rename(alice.project.root / "chapter-one.tex")
+    alice.history.note_move("main.tex", "chapter-one.tex")
+    alice.store.rename("main.tex", "chapter-one.tex")
+
+    assert await until(
+        lambda: (bob.project.root / "chapter-one.tex").exists(), 8.0
+    ), "Bob's copy kept the old name"
+    assert not (bob.project.root / "main.tex").exists(), "Bob ended up with both"
+    # And the past came with it, rather than staying filed under a name
+    # nothing would ever look up again.
+    assert bob.versions("chapter-one.tex"), "the history stayed behind"
+    assert bob.versions("main.tex") == []
+
+    await alice.close()
+    await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_a_deletion_reaches_the_other_machines_trash(tmp_path):
+    """Otherwise the file is a ghost on that disk.
+
+    In the tree, written by nothing, with no trash entry and so no way for
+    the person sitting at it to put the file back.
+    """
+    alice = Peer(tmp_path / "alice").be("a" * 64)
+    bob = Peer(tmp_path / "bob", {"main.tex": ""}).be("b" * 64)
+
+    await join_up(alice, bob)
+    assert await until(
+        lambda: (bob.project.root / "main.tex").read_text() == "The chapter.\n"
+    )
+
+    (alice.project.root / "main.tex").unlink()
+    alice.store.ingest("main.tex", None, gone=True)   # what the watcher does
+
+    assert await until(
+        lambda: not (bob.project.root / "main.tex").exists(), 8.0
+    ), "Bob's copy was left sitting there, written by nothing"
+    assert [e.path for e in bob.trash.entries()] == ["main.tex"], (
+        "Bob has no way to put it back"
+    )
+
+    await alice.close()
+    await bob.close()
