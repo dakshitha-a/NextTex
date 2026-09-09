@@ -244,3 +244,21 @@ every test used small files and passed in milliseconds; the bench found it
 because the bench builds a project the size of a real thesis. And the
 regression guard for it lives in `tests/collab/test_store.py` rather than in
 the bench, so an ordinary `scripts/check.sh` would catch it coming back.
+
+## The suite used to sign the developer out of Claude Code
+
+`nexttex/claude_auth.py` looks for the CLI at `NEXTTEX_CLAUDE_BINARY`, then on `PATH`, then at `~/.local/bin/claude`, because a self-hosted install genuinely does sign in with the machine's own `claude`. `tests/api/conftest.py` redirects `XDG_DATA_HOME` and `XDG_CONFIG_HOME` but not `HOME`, so for one day nothing stood between a test and the developer's own login.
+
+The test that did it was `test_the_same_origin_is_not_refused`. It posts to every body-less route to prove the `Origin` check is not a wall in front of the app's own fetches, and one of those routes is `/api/claude/logout`. Being allowed through means reaching the handler, and that handler runs `claude auth logout`, which deletes `~/.claude/.credentials.json`. Nothing failed, because signing out is exactly what the route is for. The whole of the damage was outside the repository, which is why no amount of reading the test output would have shown it.
+
+There are now three guards, and they are deliberately at three different levels.
+
+`tests/conftest.py` points `NEXTTEX_CLAUDE_BINARY` at `tests/fake_claude.py` for the entire session. It is in the root conftest rather than at the call sites so that it covers the tests nobody has written yet.
+
+`test_the_suite_never_reaches_the_real_cli` asserts that `claude_auth._claude()` resolves to the stand-in, so removing that guard fails here rather than on somebody's login.
+
+A session-scoped autouse fixture checks that `~/.claude/.credentials.json` still exists when the run ends. That one is a tripwire around the whole run rather than around the CLI lookup, so it catches a future route or library that reaches the real `claude` by some path nobody has thought of yet. It checks existence and never contents, because a token refresh landing mid-run rewrites the file legitimately and must not fail the suite, whereas a sign-out removes it. On a machine with no Claude Code installed, which is what CI is, it does nothing.
+
+If you are adding a test that exercises signing in or out, point `NEXTTEX_CLAUDE_BINARY` at `tests/fake_claude.py` and set `NEXTTEX_FAKE_CLAUDE_STATE` to a file under `tmp_path`. The browser tier does the same thing in `e2e/server.ts` through `NEXTTEX_FAKE_CLAUDE_AUTH`, which `status` and `logout` both honour.
+
+The way this was found is worth keeping as well, because it generalises to anything that damages the machine rather than the repository. Put a stand-in first on `PATH` that logs its own `argv`, its parent process chain and `PYTEST_CURRENT_TEST`, then run the suite. A full run was reaching the real CLI fifteen times: fourteen `auth status` and one `auth logout`. That turns a theory into a recording, and it is safe, because the suite hits the stand-in rather than the real thing.
