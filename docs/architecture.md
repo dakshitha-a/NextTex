@@ -188,7 +188,7 @@ React with a single mutable store read through `useSyncExternalStore`. A context
 
 Three channels run at once. Ordinary **HTTP** for everything transactional. A **server-sent event stream** per project carrying `compile_start`, `compile_done`, `files_changed`, `trash_changed` and a dozen more. A **WebSocket per open document** carrying the CRDT sync and awareness traffic.
 
-The editor is CodeMirror 6; the preview is pdf.js; maths hovers are KaTeX. The PDF pane, KaTeX, the collaboration client, the spell checker's word list, the tutorial, the upload card, the paper chooser and the file viewer are all fetched when they are wanted rather than before anything draws.
+The editor is CodeMirror 6; the preview is pdf.js; maths hovers are KaTeX. The PDF pane, KaTeX, the collaboration client, the spell checker's word list, the tutorial, the upload card, the paper chooser, the file viewer, the version panel and the settings sheet are all fetched when they are wanted rather than before anything draws. Each of those is behind a click, and `bundle.initial_kb` counts only the entry script, so the test of whether something belongs out here is whether a session that never opens it should pay for it.
 
 Work whose result is drawn goes through `onFrame` in `timing.ts`, because a browser fires `resize`, `pointermove` and `scroll` far faster than it paints.
 
@@ -217,6 +217,8 @@ Enforced: origin on every unsafe method, two separate credentials with constant-
 
 ## Testing
 
-Four tiers, described in `docs/testing.md`. The short version: `scripts/check.sh` runs types, the frontend unit tests and the Python suite; `--all` adds the browser tier; `--bench` runs the budgets against a thesis-shaped project.
+Four tiers, described in `docs/testing.md`. The short version: `scripts/check.sh` runs types, the frontend unit tests and the Python suite; `--all` adds the frontend build, the bundle budget and the browser tier; `--bench` runs the rest of the budgets against a thesis-shaped project.
+
+The bundle budget is in `--all` rather than in `--bench` because it is a property of `frontend/dist` and needs nothing else: no synthetic thesis, no minute of LaTeX. It lived only in the benchmark tier, which is started by hand, and was therefore over budget for an unknown length of time with every routine check passing. A budget nothing routine looks at is a comment.
 
 The Python suite needs nothing but Python. The agent is replaced by a scripted one, the network by the loopback transport, and the compile tests assert the command line rather than running an engine, so CI installs no TeX. Tests that genuinely need a TeX tool skip when it is absent, and put the tree on `PATH` before deciding to skip, or they skip on the one machine they were written for.
