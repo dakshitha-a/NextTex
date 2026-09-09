@@ -28,6 +28,16 @@ export type EditorTheme = "match" | "light" | "dark";
  *  skimmable for the shape of the document rather than its words. */
 export type SyntaxMode = "subtle" | "colour";
 
+/** How many device pixels the preview draws a page with.
+ *
+ *  The page is rasterised at the device ratio times the interface scale, so
+ *  a retina screen or a scaled-up interface already costs several times the
+ *  pixels of an ordinary one, and that is where the work is.  `balanced` is
+ *  what this pane always did and stays the default.  `faster` caps it, which
+ *  matters on a laptop battery and on a tablet; `sharper` oversamples, which
+ *  keeps text crisp when a reader zooms in on a figure. */
+export type { PreviewQuality } from "./panes/pdf-raster";
+
 export type Appearance = {
   theme: Theme;
   /** Interface size as a percentage.  100 is the size everything was drawn at. */
@@ -38,6 +48,8 @@ export type Appearance = {
   editorTheme: EditorTheme;
   /** Whether control sequences are coloured by family. */
   syntax: SyntaxMode;
+  /** How many device pixels the preview draws a page with. */
+  preview: import("./panes/pdf-raster").PreviewQuality;
   /** Whether the prose is spell checked.
    *
    *  Off by default, and deliberately: it downloads a word list, and until
@@ -54,7 +66,7 @@ export const EDITOR_SIZES = [12, 13.5, 15, 17, 19, 21];
 
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
-  syntax: "subtle", spelling: false,
+  syntax: "subtle", preview: "balanced", spelling: false,
 };
 
 const KEYS = {
@@ -63,6 +75,7 @@ const KEYS = {
   editor: "nexttex.editor.size",
   editorTheme: "nexttex.editor.theme",
   syntax: "nexttex.editor.syntax",
+  preview: "nexttex.preview.quality",
   spelling: "nexttex.editor.spelling",
 };
 
@@ -104,6 +117,7 @@ export function storedAppearance(): Appearance {
   const editor = Number(read(KEYS.editor));
   const editorTheme = read(KEYS.editorTheme);
   const syntax = read(KEYS.syntax);
+  const preview = read(KEYS.preview);
   const spelling = read(KEYS.spelling);
   return {
     // Dark by default: this is an instrument you sit in front of for hours,
@@ -116,6 +130,10 @@ export function storedAppearance(): Appearance {
         ? editorTheme
         : DEFAULTS.editorTheme,
     syntax: syntax === "colour" || syntax === "subtle" ? syntax : DEFAULTS.syntax,
+    preview:
+      preview === "faster" || preview === "sharper" || preview === "balanced"
+        ? preview
+        : DEFAULTS.preview,
     spelling: spelling === "on",
   };
 }
@@ -140,6 +158,12 @@ export function applyAppearance(appearance: Appearance): void {
   // paint rather than one frame after it.
   root.dataset.editorTheme = appearance.editorTheme;
   root.dataset.syntax = appearance.syntax;
+  // On the root so the preview can read it without a prop, the same way the
+  // editor reads its theme.  Deliberately not in the pre-paint script in
+  // index.html: that script exists because a theme applied one frame late is
+  // a visible flash, and nothing rasterises a page before React mounts, so a
+  // third blocking read on the boot path would buy nothing and can throw.
+  root.dataset.previewQuality = appearance.preview;
   root.dataset.spelling = appearance.spelling ? "on" : "off";
 
   write(KEYS.theme, appearance.theme);
@@ -147,6 +171,7 @@ export function applyAppearance(appearance: Appearance): void {
   write(KEYS.editor, String(appearance.editor));
   write(KEYS.editorTheme, appearance.editorTheme);
   write(KEYS.syntax, appearance.syntax);
+  write(KEYS.preview, appearance.preview);
   write(KEYS.spelling, appearance.spelling ? "on" : "off");
 
   // The preview draws to a canvas whose backing store is sized for the
@@ -166,6 +191,7 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.editor === DEFAULTS.editor &&
     appearance.editorTheme === DEFAULTS.editorTheme &&
     appearance.syntax === DEFAULTS.syntax &&
+    appearance.preview === DEFAULTS.preview &&
     appearance.spelling === DEFAULTS.spelling
   );
 }

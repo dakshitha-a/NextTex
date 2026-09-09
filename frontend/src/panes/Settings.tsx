@@ -237,6 +237,26 @@ export default function Settings({
             onPick={(syntax) => change({ syntax })}
           />
 
+          {/* What the preview spends on a page.  The page is rasterised at
+              the device ratio times the interface scale, so a retina screen
+              or a scaled-up interface already costs several times the pixels
+              of an ordinary one: that is where the work is, and that is what
+              "Faster" caps.  "Sharper" oversamples instead, which is what
+              keeps a figure crisp when a reader zooms into it.  "Balanced"
+              is what this pane always did, so nobody who never opens this
+              control sees a change. */}
+          <Choice
+            label="Preview"
+            name="Preview quality"
+            value={look.preview}
+            options={[
+              { value: "faster", text: "Faster", id: "preview-faster" },
+              { value: "balanced", text: "Balanced", id: "preview-balanced" },
+              { value: "sharper", text: "Sharper", id: "preview-sharper" },
+            ] as const}
+            onPick={(preview) => change({ preview })}
+          />
+
           {/* Off by default.  It fetches a word list, and until a writer
               has told it about the vocabulary of their own subject it has
               something to say about a great many correctly spelled words --
