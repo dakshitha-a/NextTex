@@ -15,6 +15,13 @@ import { set } from "./store";
 import { useDismiss } from "./useDismiss";
 import Settings from "./panes/Settings";
 
+/** Sharing, as a glyph: two people, and the line between them.
+ *
+ *  Drawn rather than fetched, like the cog beside it, so the interface
+ *  carries no icon font and no sprite sheet.  Every attribute is quoted --
+ *  an unquoted one ending in a slash swallows the tag's own close and the
+ *  path draws nothing at all, which has happened here before.
+ */
 export function ShareIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">

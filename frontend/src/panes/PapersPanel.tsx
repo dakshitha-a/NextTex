@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Chevron } from "../chrome";
 import api, { type LibraryProgress } from "../api";
-import { get, set, useStore } from "../store";
+import { set, useStore } from "../store";
 
 /** The papers this project has collected, and what could not be read.
  *

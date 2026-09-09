@@ -163,14 +163,14 @@ export type State = {
   contextStale: string[];
   /** The three per-project switches from the settings card. */
   settings: { autocompile: boolean; markErrors: boolean; markWarnings: boolean };
-  /** Which agent this instance uses, and whether it is ready.  Named
-   *  `agent` rather than `claude` since there are three answers now, one
-   *  of which is that there is deliberately no agent at all. */
   /** A folder-read in flight, or the one that just finished. */
   library: import("./api").LibraryProgress | null;
   /** Set only on an install started with `--instance`: a second NextTex
    *  on the same machine, which has to be tellable from the first. */
   instance: string;
+  /** Which agent this instance uses, and whether it is ready.  Named
+   *  `agent` rather than `claude` since there are three answers now, one
+   *  of which is that there is deliberately no agent at all. */
   agent: {
     provider: "claude" | "openai" | "none";
     ready: boolean;
@@ -184,9 +184,6 @@ export type State = {
    *  buffer on the same debounce as the save.  Empty with no file open. */
   outline: Heading[];
   words: number | null;
-  // Set when a save was refused because the file changed underneath this
-  // tab.  Nothing is written and nothing is thrown away until the writer
-  // says which copy they want.
   /** Who else is in this project, and where they are looking. */
   collaborators: Collaborator[];
   /** Whether this browser is joined to the shared documents. */
