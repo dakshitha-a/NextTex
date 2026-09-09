@@ -444,6 +444,18 @@ const api = {
       `/projects/${id}/history/label`,
       json({ path, sha, label }),
     ),
+  /** Throw away every stored version of one file.  The file is untouched;
+   *  what comes back says how many versions went and roughly how much disk
+   *  the collector will release.  "Roughly", because a blob written in the
+   *  last hour is inside the collector's grace window and goes on the next
+   *  pass -- which is why the interface says "within the hour". */
+  purgeHistory: (id: string, path: string) =>
+    request<{ ok: boolean; removed: number; freed: number }>(
+      `/projects/${id}/history?path=${encodeURIComponent(path)}`,
+      { method: "DELETE" },
+    ),
+  historySize: (id: string) =>
+    request<{ bytes: number }>(`/projects/${id}/history/size`),
 
   trash: (id: string) =>
     request<{ entries: TrashEntry[] }>(`/projects/${id}/trash`),

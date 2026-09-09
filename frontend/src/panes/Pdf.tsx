@@ -98,6 +98,7 @@ export default function Pdf({
   onLoadTemplate,
   handleRef,
   document: showing = "",
+  source,
 }: {
   onNavigate: (file: string, line: number, word?: string) => void;
   onLoadTemplate?: () => void;
@@ -105,6 +106,20 @@ export default function Pdf({
   /** Which document's PDF this pane is showing.  Empty means the main one,
    *  which is what a project with a single document has always meant. */
   document?: string;
+  /** A PDF that is not build output.
+   *
+   *  A writer keeps figures as PDF so they scale, and until this existed
+   *  the one thing this app could not show was a PDF: the tree called it an
+   *  image, the image viewer refused it, and it fell through to a Download
+   *  button in an application that has PDF.js loaded a column away.  Given
+   *  a URL, this pane draws that instead of the build, with the same zoom,
+   *  the same page controls and the same rasteriser.
+   *
+   *  Double-clicking still asks synctex where a word came from when this is
+   *  absent, and does nothing when it is set: there is no source file
+   *  behind somebody's figure, and an inverse search against the main
+   *  document would land on a line that has nothing to do with it. */
+  source?: string;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const sheet = useRef<HTMLDivElement | null>(null);
@@ -493,7 +508,7 @@ export default function Pdf({
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(api.pdfUrl(projectId, showing, stamp), {
+        const response = await fetch(source || api.pdfUrl(projectId, showing, stamp), {
           credentials: "same-origin",
         });
         if (!response.ok) {
@@ -522,8 +537,9 @@ export default function Pdf({
       cancelled = true;
     };
     // `showing` too: switching preview tabs is a different document,
-    // not a rebuild of this one.
-  }, [projectId, showing, stamp]);
+    // not a rebuild of this one.  `source` for the same reason: opening a
+    // second figure is a different document, not a redraw of the first.
+  }, [projectId, showing, stamp, source]);
 
   // Zoom, mode and pane width all change the layout but not the document.
   useEffect(() => {
@@ -784,6 +800,10 @@ export default function Pdf({
     async (event: React.MouseEvent) => {
       const projectId = get().projectId;
       if (!projectId) return;
+      // A figure has no source file behind it, so there is nothing to jump
+      // to.  Asking anyway would run an inverse search against the main
+      // document and land the caret on an unrelated line.
+      if (source) return;
       const target = (event.target as HTMLElement).closest(".nx-page");
       if (!target) return;
       const index = pages.current.findIndex((view) => view.container === target);
@@ -811,7 +831,7 @@ export default function Pdf({
     // `showing` is read inside and was missing, so after switching preview
     // tabs a double-click asked synctex about the document that had been
     // open before, and landed the caret in the wrong file.
-    [onNavigate, showing],
+    [onNavigate, showing, source],
   );
 
   useEffect(() => {

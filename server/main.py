@@ -1887,6 +1887,73 @@ async def history_timeline(project_id: str, limit: int = 80):
     return {"versions": session.history.timeline(max(1, min(limit, 500)))}
 
 
+@app.get("/api/projects/{project_id}/history/size")
+async def history_size(project_id: str):
+    """What the stored history costs on disk.
+
+    So the writer deciding whether to clear a file's history is told what
+    they would get back rather than asked to guess.  `History.size` has
+    existed since the store was written and had no caller.
+    """
+    session = session_for(project_id)
+    return {"bytes": await asyncio.to_thread(session.history.size)}
+
+
+@app.delete("/api/projects/{project_id}/history")
+async def purge_history(project_id: str, path: str, reseed: bool = True):
+    """Delete every stored version of one file.  The file is not touched.
+
+    Nothing here unlinks a blob by name, and that is the whole safety of it.
+    Blobs are content-addressed and therefore shared -- with this file's own
+    past, with any other file that happens to hold identical bytes, and with
+    the final version recorded for a file now sitting in the trash -- so the
+    only correct way to free them is to drop this file's log and then let
+    `collect` sweep whatever no *remaining* log still points at.  Its one
+    hour grace is what stops it racing a `record` that has written a blob
+    and not yet its line, so a version made in the last hour survives this
+    call and goes on the next one.  The copy in the interface says "within
+    the hour" for that reason and must not promise sooner.
+
+    The order matters.  Forget, then re-seed, then collect: collecting first
+    would unlink the blob holding the file's current contents and the
+    re-seed would immediately write it back, which is harmless but makes the
+    freed figure a lie.
+
+    The re-seed is a floor.  Without it the file has no past at all, the
+    panel is empty, and the next edit has nothing to diff against; `create`
+    is in PERMANENT_OPS so the marker is never thinned away.
+    """
+    session = session_for(project_id)
+    target = _safe(session, path)
+    before = await asyncio.to_thread(session.history.size)
+    removed = len(session.history.versions(path))
+    session.history.forget(path)
+    seeded = False
+    if reseed and target.is_file():
+        session.record_version(
+            target, read_bytes(target), by="you",
+            why="history was cleared", op="create",
+        )
+        seeded = True
+    # Off the event loop: both of these walk the whole store, and the store
+    # is as big as the project's editing history.  The trash routes above
+    # call `collect` inline, which is a wart rather than a precedent.
+    await asyncio.to_thread(session.history.collect)
+    after = await asyncio.to_thread(session.history.size)
+    await session.events.publish({"type": "files_changed", "paths": [path]})
+    # A peer's copy of this file's history is on their disk and stays there.
+    # That is consistent with two collaborators being allowed to keep
+    # different depths of the same file, which this project already treats
+    # as correct rather than as a fault.
+    return {
+        "ok": True,
+        "path": path,
+        "removed": removed,
+        "seeded": seeded,
+        "freed": max(0, before - after),
+    }
+
+
 @app.post("/api/projects/{project_id}/upload")
 async def upload(
     project_id: str,
