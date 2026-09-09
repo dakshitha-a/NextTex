@@ -1960,7 +1960,7 @@ async def history_size(project_id: str):
 
 
 @app.delete("/api/projects/{project_id}/history")
-async def purge_history(project_id: str, path: str, reseed: bool = True):
+async def purge_history(project_id: str, path: str):
     """Delete every stored version of one file.  The file is not touched.
 
     Nothing here unlinks a blob by name, and that is the whole safety of it.
@@ -1970,18 +1970,32 @@ async def purge_history(project_id: str, path: str, reseed: bool = True):
     only correct way to free them is to drop this file's log and then let
     `collect` sweep whatever no *remaining* log still points at.  Its one
     hour grace is what stops it racing a `record` that has written a blob
-    and not yet its line, so a version made in the last hour survives this
-    call and goes on the next one.  The copy in the interface says "within
-    the hour" for that reason and must not promise sooner.
+    and not yet its line -- and it is keyed on the blob's own mtime, which
+    is why `put` touches a blob it finds already there rather than leaving
+    it alone.  A version made in the last hour survives this call and goes
+    on the next one.  The copy in the interface says "within the hour" for
+    that reason and must not promise sooner.
+
+    **On a shared project this clears one disk.**  A collaborator's copy of
+    this file's past is on their machine and stays there, which §22 already
+    treats as correct rather than as a fault, and nothing is sent to say
+    otherwise: one person's decision about their own disk space must not
+    reach into somebody else's copy.  What stops it coming straight back is
+    the floor `History.forget` leaves behind, which refuses those records on
+    the way in.  The confirmation says so, on a shared project only.
 
     The order matters.  Forget, then re-seed, then collect: collecting first
     would unlink the blob holding the file's current contents and the
     re-seed would immediately write it back, which is harmless but makes the
     freed figure a lie.
 
-    The re-seed is a floor.  Without it the file has no past at all, the
-    panel is empty, and the next edit has nothing to diff against; `create`
-    is in PERMANENT_OPS so the marker is never thinned away.
+    The re-seed is a floor, and not optional.  Without it the file has no
+    past at all, the panel is empty, and the next edit has nothing to diff
+    against; `create` is in PERMANENT_OPS so the marker is never thinned
+    away.  It used to be switchable through a `reseed` query parameter that
+    no document mentioned, no test exercised, and nothing in the interface
+    could reach -- an undocumented way to turn off the one safety property
+    this route claims.
     """
     session = session_for(project_id)
     target, path = _safe_rel(session, path)
@@ -1989,7 +2003,7 @@ async def purge_history(project_id: str, path: str, reseed: bool = True):
     removed = len(session.history.versions(path))
     session.history.forget(path)
     seeded = False
-    if reseed and target.is_file():
+    if target.is_file():
         session.record_version(
             target, read_bytes(target), by="you",
             why="history was cleared", op="create",

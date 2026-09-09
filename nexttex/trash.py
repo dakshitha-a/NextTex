@@ -1,9 +1,15 @@
 """Deleted files, kept until somebody says otherwise.
 
 Deleting a chapter is the one action in a writing app that cannot be taken
-back by pressing undo, so it is not really a delete: the file's contents go
-into the history's blob store, an entry is written here, and only then does
-the working copy go away.  Restoring puts it back.
+back by pressing undo, so it is not really a delete: an entry is written
+here and the file is moved aside rather than removed.  Restoring puts it
+back.
+
+A *text* file also gets a final version recorded in its own history on the
+way out, which is what lets the timeline end with the state it was in when
+it went.  A figure or a dataset does not -- only files that decode as UTF-8
+and come in under two megabytes do -- so for everything else the moved-aside
+payload is the only copy there is, and it is the payload that protects it.
 
 Nothing is ever cleaned up automatically.  A trash that empties itself after
 thirty days is a trash that loses the thing you went looking for on day
