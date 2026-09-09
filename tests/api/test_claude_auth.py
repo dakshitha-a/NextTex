@@ -163,3 +163,30 @@ def test_cancelling_a_login_leaves_nothing_running(monkeypatch, tmp_path, client
 
 def test_cancelling_when_nothing_is_running_is_not_an_error(client):
     assert client.post("/api/claude/login/cancel").json()["ok"] is True
+
+
+def test_the_suite_never_reaches_the_real_cli():
+    """The guard in `tests/conftest.py`, and the reason it is there.
+
+    `/api/claude/logout` runs `claude auth logout` for real, and the CLI it
+    finds is whichever one is installed on the machine running the suite.  For
+    one day it found the developer's own, and every full run deleted their
+    credentials and signed them out of Claude Code.  Nothing failed, because
+    signing out is what that route is for; the damage was entirely outside the
+    repository.  This asserts the stand-in is what the code resolves to, so
+    that removing the guard fails here rather than on somebody's login."""
+    from nexttex import claude_auth
+
+    assert Path(claude_auth._claude() or "") == FAKE_CLI
+
+
+def test_the_browser_tests_cannot_sign_the_machine_out(monkeypatch, client):
+    """`e2e/server.ts` sets NEXTTEX_FAKE_CLAUDE_AUTH so the browser tests get
+    past the sign-in screen without an account.  `status` honoured that flag
+    and `logout` did not, so a browser test that clicked sign out would have
+    run the real CLI against the account of whoever was running it."""
+    monkeypatch.setenv("NEXTTEX_FAKE_CLAUDE_AUTH", "1")
+    monkeypatch.delenv("NEXTTEX_CLAUDE_BINARY", raising=False)
+
+    body = client.post("/api/claude/logout").json()
+    assert body["ok"] is True
