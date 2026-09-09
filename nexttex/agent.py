@@ -583,7 +583,9 @@ class ProjectAgent:
                 "consequence": data.get("description", ""),
                 "reason": self._reason(why, shell_syntax_in(command)),
             }
-        path = data.get("file_path") or data.get("path") or ""
+        path = (
+            data.get("file_path") or data.get("path") or data.get("notebook_path") or ""
+        )
         display = path
         try:
             display = str(Path(path).resolve().relative_to(self.root))
@@ -772,7 +774,16 @@ class ProjectAgent:
                 return self._allow("Inside the writing project.")
 
         if tool_name in self._WRITE_TOOLS:
-            raw = tool_input.get("file_path") or tool_input.get("path")
+            # `notebook_path` belongs here too.  Without it a NotebookEdit
+            # carrying only that argument arrived with nothing to check, was
+            # refused as though it pointed outside the project, and drew a
+            # card naming no file at all.  `_rule_for` had always read it,
+            # so the two disagreed about what the call was even about.
+            raw = (
+                tool_input.get("file_path")
+                or tool_input.get("path")
+                or tool_input.get("notebook_path")
+            )
             if self._inside_project(raw) and not self._is_control_file(raw):
                 # Snapshot first: the undo chip needs the previous contents,
                 # and after the edit lands they are gone.
