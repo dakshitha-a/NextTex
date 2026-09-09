@@ -639,6 +639,30 @@ reachable, and would tell Google every time someone opened their thesis. The
 three families ship as `@fontsource` packages in the bundle. The typefaces and
 their roles are unchanged.
 
+**A dialog keeps Tab, and gives focus back when it closes.** There was no Tab
+handler anywhere in the source, so seven of the nine dialogs let Tab walk out
+into the page behind them while they were still covering it, and dismissing one
+left focus on `document.body`: the next Tab started from the top of the app
+rather than from the control that had opened the dialog.
+
+Both live in `useDismiss`, which every dialog already uses to close, so no
+dialog had to ask for them. The trap is keyed on `role="dialog"` and nothing
+else. A menu or a popover is not modal, and taking Tab away from the page
+behind one would be a worse answer than the page behind it receiving Tab.
+
+A dialog that opens with nothing focusable inside it still takes the caret,
+through a `tabindex` of -1 on the panel, because otherwise the next key press
+goes to the editor underneath.
+
+Focus is given back on the way out, but only when nobody else has claimed it.
+Restoring unconditionally is wrong and the browser tier said so: the file
+tree's Rename item closes its menu and an inline input takes the caret in the
+same gesture, so putting the caret back took it straight off again and the new
+name was typed into nothing.
+
+The one dialog this does not reach is the tutorial overlay, which does not use
+the hook.
+
 **There is a stack of transient messages, at the bottom of the shell.** §6 says
 "no toasts". It carries save and download failures only — the cases where an
 action the user took did not happen and nothing else on screen would say so. It
