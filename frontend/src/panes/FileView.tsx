@@ -137,17 +137,33 @@ function ImageView({ source, name }: { source: string; name: string }) {
   );
 }
 
-export default function FileView({ path, size }: { path: string; size?: number }) {
+export default function FileView({
+  path,
+  size,
+  source: given,
+}: {
+  path: string;
+  size?: number;
+  /** The bytes to show, when they are not the ones currently at `path`.
+   *
+   *  This is how an old version of a figure is looked at.  `path` still
+   *  decides which viewer to reach for and what to call the file, because
+   *  a version of a PNG is a PNG; only where the bytes come from changes.
+   *  Without it the only way to see version three of a plot was a 180px
+   *  thumbnail inside a 264px panel, and for a PDF figure there was no way
+   *  at all -- while the viewer that could have shown it was one pane
+   *  away. */
+  source?: string;
+}) {
   const projectId = useStore((s) => s.projectId);
   const stamp = useStore((s) => s.pdfStamp);
   const name = path.split("/").pop() ?? path;
   const kind = kindOf(path);
   const source = useMemo(
     () =>
-      projectId
-        ? `${api.downloadUrl(projectId, { path })}&at=${stamp}`
-        : "",
-    [projectId, path, stamp],
+      given ??
+      (projectId ? `${api.downloadUrl(projectId, { path })}&at=${stamp}` : ""),
+    [given, projectId, path, stamp],
   );
 
   if (kind === "pdf" && source) {

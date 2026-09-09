@@ -821,6 +821,15 @@ const api = {
    *  which is what every caller written before this sent. */
   pdfUrl: (id: string, document: string, stamp: number) =>
     `/api/projects/${id}/pdf?document=${encodeURIComponent(document)}&v=${stamp}`,
+  /** One version's bytes.  No cache-busting stamp, and deliberately: the
+   *  response is keyed by sha and is immutable, so the browser holding on
+   *  to it is the behaviour that is wanted rather than the one to defeat.
+   *  Two panes ask for this now -- the list draws its thumbnails from it
+   *  and the viewer is pointed at it -- and it was written out by hand in
+   *  one of them. */
+  historyBlobUrl: (id: string, path: string, sha: string, download = false) =>
+    `/api/projects/${id}/history/blob?path=${encodeURIComponent(path)}` +
+    `&sha=${encodeURIComponent(sha)}&${download ? "download=1" : "raw=1"}`,
 };
 
 export default api;

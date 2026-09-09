@@ -251,9 +251,26 @@ test("the tutorial contents are one tab stop, walked with the arrows", async ({
 }) => {
   await tab.getByTestId("appearance").click();
   await tab.getByTestId("tutorial-open").click();
+
+  // The index is one row until it is asked for: eleven entries above the
+  // fold is a third of the sheet spent on a list of places nobody has been
+  // yet.  The row that opens it is what takes focus.
+  const open = tab.getByTestId("tutorial-contents");
+  await expect(open).toBeFocused();
+  await expect(open).toHaveAttribute("aria-expanded", "false");
+  await expect(tab.getByTestId("tutorial-contents-row")).toHaveCount(0);
+
+  await tab.keyboard.press("Enter");
   const rows = tab.getByTestId("tutorial-contents-row");
+  // Focus lands on the section you are in, so the first arrow moves from
+  // where you are rather than from the top.
   await expect(rows.first()).toBeFocused();
   await expect(rows.nth(1)).toHaveAttribute("tabindex", "-1");
   await tab.keyboard.press("ArrowDown");
   await expect(rows.nth(1)).toBeFocused();
+
+  // Choosing takes you there and gives the sheet back.
+  await tab.keyboard.press("Enter");
+  await expect(open).toHaveAttribute("aria-expanded", "false");
+  await expect(open).toBeFocused();
 });

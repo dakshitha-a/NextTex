@@ -64,6 +64,21 @@ const CASES = [
   // And the default, which this setting exists not to change.
   { name: "dark-match-subtle",  theme: "dark",  editor: "match", syntax: "subtle" },
   { name: "light-match-subtle", theme: "light", editor: "match", syntax: "subtle" },
+  // The three paper grounds, which are the whole reason the setting exists:
+  // a writer who has only ever composed on white.  They are the light
+  // palette with its surfaces moved up and nothing else changed, so the
+  // question they ask is whether colours certified against the proofing
+  // grey still hold against a page that is two shades brighter.  Both
+  // modes, because on a white page the near-monochrome one is the harder
+  // case: it has only weight and italics to work with.
+  { name: "white-colour", theme: "light", editor: "white", syntax: "colour" },
+  { name: "warm-colour",  theme: "light", editor: "warm",  syntax: "colour" },
+  { name: "cool-colour",  theme: "light", editor: "cool",  syntax: "colour" },
+  { name: "white-subtle", theme: "light", editor: "white", syntax: "subtle" },
+  { name: "warm-subtle",  theme: "light", editor: "warm",  syntax: "subtle" },
+  // A white page inside a dark frame, which is the arrangement most likely
+  // to expose furniture that was only ever checked against its own theme.
+  { name: "dark-whitepage-colour", theme: "dark", editor: "white", syntax: "colour" },
 ];
 
 for (const shot of CASES) {

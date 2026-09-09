@@ -52,6 +52,16 @@ const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 /** Lazily loaded, like the tutorial. Most sessions never open it, and the
  *  entry bundle is measured. */
 const SharePanel = lazy(() => import("./panes/SharePanel"));
+/** The version panel and the strip that says you are looking at an old
+ *  version.  Two exports of one module, so they arrive together in one
+ *  chunk -- and the strip is only ever reachable through the panel, so by
+ *  the time it can be mounted the module is already here.  Both are
+ *  behind a click on a session where anybody opens history at all, and
+ *  most sessions do not. */
+const HistoryPanel = lazy(() => import("./panes/History"));
+const ViewingBanner = lazy(() =>
+  import("./panes/History").then((m) => ({ default: m.ViewingBanner })),
+);
 import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
 import Tabs from "./panes/Tabs";
@@ -64,7 +74,6 @@ import Projects from "./panes/Projects";
 import SignIn from "./panes/SignIn";
 import ContextPanel from "./panes/ContextPanel";
 import Collapsed from "./panes/Collapsed";
-import HistoryPanel, { ViewingBanner } from "./panes/History";
 import TrashPanel from "./panes/TrashPanel";
 import Logo from "./Logo";
 import Settings from "./panes/Settings";
@@ -74,6 +83,7 @@ import { APPEARANCE_CHANGED } from "./appearance";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
 import SectionsPanel, { includePath } from "./panes/SectionsPanel";
+import { isText, isViewable } from "./panes/file-kinds";
 
 const DRAWER_CLOSED = 0;
 const DRAWER_OPEN = 168;
@@ -496,9 +506,22 @@ export default function App() {
   }, []);
 
   const viewVersion = useCallback(async (sha: string | null) => {
-    const path = get().activePath;
+    const state = get();
+    const path = state.activePath;
     if (!path) return;
     setShowingChanges(false);
+    // A figure has no buffer to park, so `viewing` is set here rather than
+    // by the editor: the pane showing the file is simply pointed at the
+    // version's own bytes instead of at the ones on disk.
+    if (!isText(path)) {
+      if (!sha) {
+        set({ viewing: null });
+        return;
+      }
+      const version = state.history.find((item) => item.sha === sha);
+      if (version) set({ viewing: { path, sha, version } });
+      return;
+    }
     if (!sha) {
       editor.current?.backToNow();
       return;
@@ -529,10 +552,26 @@ export default function App() {
 
   const closeHistory = useCallback(() => {
     // Every way out of the panel is also a way out of viewing a version.
+    // `backToNow` puts a parked buffer back and is a no-op when there is
+    // none; a figure has no buffer, so its state is cleared outright.
     editor.current?.backToNow();
+    if (get().viewing) set({ viewing: null });
     setShowingChanges(false);
     setHistoryOpen(false);
   }, []);
+
+  /** Leaving the file stops viewing its past.
+   *
+   *  The editor does this for itself when it opens another buffer.  A
+   *  figure has no buffer to open, so without this the banner went on
+   *  saying you were looking at last Tuesday's plot while the pane below it
+   *  showed the file you had just clicked. */
+  useEffect(() => {
+    const looking = get().viewing;
+    if (looking && !isText(looking.path) && looking.path !== activePath) {
+      set({ viewing: null });
+    }
+  }, [activePath]);
 
   /** Carry an open file across a rename.
    *
@@ -1162,6 +1201,16 @@ export default function App() {
       : null;
   }, [activePath, tree]);
 
+  /** The version of the open figure being looked at, if one is.
+   *
+   *  Hoisted rather than asked inline: `viewing?.path === node.path` does
+   *  not narrow `viewing` for the expression after it, so asking twice in
+   *  one attribute costs a non-null assertion that this avoids. */
+  const viewedFigure =
+    viewing && activeBinary && viewing.path === activeBinary.path
+      ? viewing
+      : null;
+
   if (view === "loading") {
     // Words rather than a spinner, because §6 of the specification does not
     // have spinners and because a coloured rectangle is not a loading state,
@@ -1282,7 +1331,6 @@ export default function App() {
                   <ShareIcon />
                 </button>
                 <Settings
-                  align="left"
                   inProject
                   onTutorial={openTutorial}
                   onChangeAgent={changeAgent}
@@ -1402,6 +1450,8 @@ export default function App() {
                   projectId={projectId}
                   projectName={projectName}
                   onSwitch={leaveProject}
+                  onTutorial={openTutorial}
+                  onChangeAgent={changeAgent}
                 />
               </div>
             ) : null}
@@ -1426,12 +1476,30 @@ export default function App() {
             ) : null}
           </div>
           {viewing ? (
+            <Suspense fallback={null}>
             <ViewingBanner
               version={viewing.version}
               showingChanges={showingChanges}
+              onDownload={
+                projectId && !isText(viewing.path) && isViewable(viewing.path)
+                  ? () =>
+                      startDownload(
+                        api.historyBlobUrl(
+                          projectId,
+                          viewing.path,
+                          viewing.sha,
+                          true,
+                        ),
+                      )
+                  : undefined
+              }
               onRestore={restoreVersion}
               onBack={() => {
-                editor.current?.backToNow();
+                // A figure was never parked in a buffer, so there is
+                // nothing for the editor to put back: clearing the state
+                // is the whole of going back to now.
+                if (isText(viewing.path)) editor.current?.backToNow();
+                else set({ viewing: null });
                 setShowingChanges(false);
               }}
               onToggleChanges={() => {
@@ -1440,6 +1508,7 @@ export default function App() {
                 editor.current?.showChanges(next);
               }}
             />
+            </Suspense>
           ) : null}
           <div className="relative flex min-h-0 flex-1">
             <div className="relative min-h-0 flex-1">
@@ -1453,7 +1522,25 @@ export default function App() {
               {activeBinary ? (
                 <div className="absolute inset-0">
                   <Suspense fallback={null}>
-                    <FileView path={activeBinary.path} size={activeBinary.size} />
+                    <FileView
+                      path={activeBinary.path}
+                      size={activeBinary.size}
+                      // An old version of this figure, when one is being
+                      // looked at.  Keyed on the sha as well, so switching
+                      // between two versions remounts the viewer rather
+                      // than leaving the first one's zoom and page on the
+                      // second one's pages.
+                      key={viewedFigure ? viewedFigure.sha : "now"}
+                      source={
+                        projectId && viewedFigure
+                          ? api.historyBlobUrl(
+                              projectId,
+                              activeBinary.path,
+                              viewedFigure.sha,
+                            )
+                          : undefined
+                      }
+                    />
                   </Suspense>
                 </div>
               ) : null}
@@ -1465,11 +1552,13 @@ export default function App() {
               ) : null}
             </div>
             {historyOpen ? (
-              <HistoryPanel
-                docked={!tight && editorWide}
-                onView={viewVersion}
-                onClose={closeHistory}
-              />
+              <Suspense fallback={null}>
+                <HistoryPanel
+                  docked={!tight && editorWide}
+                  onView={viewVersion}
+                  onClose={closeHistory}
+                />
+              </Suspense>
             ) : null}
           </div>
           <Status
@@ -1582,6 +1671,8 @@ export default function App() {
                   projectId={projectId}
                   projectName={projectName}
                   onSwitch={leaveProject}
+                  onTutorial={openTutorial}
+                  onChangeAgent={changeAgent}
                 />
               ) : null}
               <FoldButton

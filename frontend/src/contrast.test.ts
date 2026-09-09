@@ -187,13 +187,23 @@ test("no palette shadows the sizes appearance.ts sets on the root", () => {
   }
 });
 
-describe.each([
+/** Everything that has to hold for a palette a person can actually be
+ *  looking at.  The three papers are in here as well as the two themes,
+ *  and today they pass by inheritance: a paper redefines its surfaces,
+ *  --ink-3 and --line, and takes every accent and every syntax family from
+ *  the light palette unchanged.  That is exactly why they belong here.  A
+ *  paper that reaches for one more token -- a warmer --syn-preamble on book
+ *  paper is the obvious temptation -- is measured by nothing otherwise, and
+ *  the list above only forces a new paper to be *named* here, not checked. */
+const PALETTES = [
   ["light", LIGHT],
   ["dark", DARK],
   ["white page", WHITE],
   ["warm page", WARM],
   ["cool page", COOL],
-])("%s theme", (_name, tokens) => {
+] as const;
+
+describe.each(PALETTES)("%s theme", (_name, tokens) => {
   test("every token the palette names is defined", () => {
     for (const name of ["ink", "ink-2", "ink-3", "pen", "hint", "error", "warn",
                         "ok", "surround", "surface", "surface-2", "surface-3",
@@ -262,10 +272,7 @@ function oklch(hex: string): { chroma: number; hue: number } {
 
 const ACCENTS = ["pen", "hint", "error", "warn", "ok"];
 
-describe.each([
-  ["light", LIGHT],
-  ["dark", DARK],
-])("%s theme structure", (_name, tokens) => {
+describe.each(PALETTES)("%s theme structure", (_name, tokens) => {
   test("secondary and tertiary text are visibly different", () => {
     const gap = Math.abs(lightness(tokens["ink-2"]) - lightness(tokens["ink-3"]));
     expect(Number(gap.toFixed(1)), `--ink-2 to --ink-3 is ${gap.toFixed(1)} L*`)
@@ -299,10 +306,7 @@ describe.each([
   });
 });
 
-describe.each([
-  ["light", LIGHT],
-  ["dark", DARK],
-])("%s theme syntax families", (_name, tokens) => {
+describe.each(PALETTES)("%s theme syntax families", (_name, tokens) => {
   test("no two families are the same colour", () => {
     // Colouring the source is only worth doing if the colours mean
     // something, and five hues nobody can tell apart mean nothing.  The
