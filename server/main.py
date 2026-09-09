@@ -9,6 +9,7 @@ between someone cloning the repository and having an editor open.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 import json
@@ -22,6 +23,7 @@ import time
 import zipfile
 from functools import partial
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -111,6 +113,9 @@ async def lifespan(app: FastAPI):
         reaper.cancel()
         rejoin.cancel()
         warm.cancel()
+        for pending in list(PENDING_JOINS.values()):
+            PENDING_JOINS.pop(pending.token, None)
+            await pending.release(keep=False)
         for session in list(SESSIONS.values()):
             await session.close()
 
@@ -288,6 +293,16 @@ async def _reap_once() -> None:
     Separated from the loop so a test can run it without waiting a minute
     for the sleep or half an hour for the timeout.
     """
+    # A join nobody answered holds a peer connection and a set of documents
+    # open, so it is bounded here like everything else in this file.
+    for token, pending in list(PENDING_JOINS.items()):
+        if time.monotonic() - pending.at <= JOIN_DECISION_TIMEOUT:
+            continue
+        if PENDING_JOINS.pop(token, None) is not None:
+            log.info("a join of %s was never answered, and was discarded",
+                     pending.target)
+            await pending.release(keep=False)
+
     for project_id, session in list(SESSIONS.items()):
         try:
             if (
@@ -912,14 +927,113 @@ async def join_share(
         store.close()
 
     if reason:
+        await network.close()
+        store.close()
         shutil.rmtree(target, ignore_errors=True)
         raise HTTPException(400, reason)
 
-    # Registered only now: a join that failed half way leaves nothing behind
-    # for somebody to find later and wonder about.
-    REGISTRY.add(str(target))
+    # Held open rather than written and registered. Accepting an invite is
+    # downloading somebody else's files, and until now the first moment a
+    # person could look at what they had accepted was after all of it was on
+    # their disk. The documents are in memory here and the manifest names
+    # every one of them, so the answer is offered before anything is written.
+    token = secrets.token_urlsafe(16)
+    PENDING_JOINS[token] = PendingJoin(
+        token=token, target=target, project=project, store=store,
+        network=network, at=time.monotonic(),
+    )
+    return {
+        "ok": True,
+        "token": token,
+        "path": str(target),
+        "files": _offered_files(store, project),
+    }
+
+
+@dataclass
+class PendingJoin:
+    """A join that has arrived and has not been accepted."""
+
+    token: str
+    target: Path
+    project: Project
+    store: object
+    network: object
+    at: float
+
+    async def release(self, keep: bool) -> None:
+        """Close the connection, and remove the folder unless it is kept."""
+        with contextlib.suppress(Exception):
+            await self.network.close()
+        with contextlib.suppress(Exception):
+            self.store.close()
+        if not keep:
+            shutil.rmtree(self.target, ignore_errors=True)
+
+
+#: Joins waiting for somebody to look at them. Bounded by the reaper below,
+#: because each one holds a peer connection and a set of documents open.
+PENDING_JOINS: dict[str, PendingJoin] = {}
+
+#: How long a join may sit unanswered. Long enough to read a list of files
+#: and short enough that a tab closed on the question does not hold a peer
+#: connection open for the life of the server.
+JOIN_DECISION_TIMEOUT = 10 * 60
+
+
+def _offered_files(store, project: Project) -> list[dict]:
+    """What the other end has sent, as a person would want to see it.
+
+    `refused` rather than silently absent: a joiner is better served by
+    being told that a `latexmkrc` was offered and will not be written than
+    by a list that quietly omits it. What was offered is the more
+    interesting fact of the two.
+    """
+    offered = []
+    for record in store.files.values():
+        if record.get("trashed"):
+            continue
+        relative = str(record.get("path") or "")
+        if not relative:
+            continue
+        offered.append({
+            "path": relative,
+            "kind": str(record.get("kind") or "binary"),
+            "size": int(record.get("size") or 0),
+            "refused": is_control_path(Path(relative)),
+        })
+    offered.sort(key=lambda item: item["path"])
+    return offered
+
+
+@app.post("/api/collab/join/accept")
+async def accept_join(token: str = Body(..., embed=True)):
+    """Write what arrived, and make it a project."""
+    pending = PENDING_JOINS.pop(token, None)
+    if pending is None:
+        raise HTTPException(404, "That invite is no longer waiting to be answered.")
+    try:
+        pending.store.flush()
+    finally:
+        await pending.release(keep=True)
+    # Registered only now: a join that was never accepted leaves nothing
+    # behind for somebody to find later and wonder about.
+    REGISTRY.add(str(pending.target))
     _restart_watch()
-    return {"ok": True, "project": {"id": project.id, "path": str(target)}}
+    return {
+        "ok": True,
+        "project": {"id": pending.project.id, "path": str(pending.target)},
+    }
+
+
+@app.post("/api/collab/join/discard")
+async def discard_join(token: str = Body(..., embed=True)):
+    """Say no, and leave nothing behind."""
+    pending = PENDING_JOINS.pop(token, None)
+    if pending is None:
+        raise HTTPException(404, "That invite is no longer waiting to be answered.")
+    await pending.release(keep=False)
+    return {"ok": True}
 
 
 async def _wait_for_the_project(store, seconds: float = 30.0) -> str:

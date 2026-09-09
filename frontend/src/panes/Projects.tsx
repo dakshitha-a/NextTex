@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import api, { saveBlob, startDownload, type ProjectSummary } from "../api";
+import api, {
+  saveBlob,
+  startDownload,
+  type JoinOffer,
+  type ProjectSummary,
+} from "../api";
 import Logo from "../Logo";
 import Settings from "./Settings";
 import UpdateFooter from "./UpdateFooter";
@@ -32,6 +37,8 @@ export default function Projects({
   const [path, setPath] = useState("");
   const [mode, setMode] = useState<"add" | "create" | "join">("create");
   const [invite, setInvite] = useState("");
+  /** What a peer is offering, before any of it is written. */
+  const [offer, setOffer] = useState<JoinOffer | null>(null);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,19 +82,49 @@ export default function Projects({
     if (!path.trim()) return;
     setError(null);
     try {
+      if (mode === "join") {
+        // Nothing is on disk yet. What comes back is the list of what the
+        // other end is offering, and the decision is the next screen.
+        setOffer(await api.joinShare(invite.trim(), path.trim()));
+        return;
+      }
       const project =
-        mode === "join"
-          ? (await api.joinShare(invite.trim(), path.trim())).project
-          : mode === "create"
+        mode === "create"
           ? await api.createProject(path.trim(), newName.trim())
           : await api.addProject(path.trim());
       setPath("");
       setNewName("");
+      await refresh();
+      if (project.id) onOpen(project.id);
+    } catch (problem: any) {
+      setError(problem.message);
+    }
+  };
+
+  const acceptOffer = async () => {
+    if (!offer) return;
+    setError(null);
+    try {
+      const { project } = await api.acceptJoin(offer.token);
+      setOffer(null);
+      setPath("");
       setInvite("");
       await refresh();
       if (project.id) onOpen(project.id);
     } catch (problem: any) {
       setError(problem.message);
+      setOffer(null);
+    }
+  };
+
+  const discardOffer = async () => {
+    if (!offer) return;
+    const token = offer.token;
+    setOffer(null);
+    try {
+      await api.discardJoin(token);
+    } catch {
+      /* the server reaps an unanswered join on its own */
     }
   };
 
@@ -399,6 +436,11 @@ export default function Projects({
               : "Join"}
           </button>
         </div>
+        {offer ? <JoinOfferCard
+          offer={offer}
+          onAccept={acceptOffer}
+          onDiscard={discardOffer}
+        /> : null}
         {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}
         <PasswordNudge />
         <UpdateFooter onBusy={setLocked} />
@@ -429,4 +471,91 @@ function QuestionMark() {
       <circle cx="8" cy="12.6" r="1.05" fill="currentColor" stroke="none" />
     </svg>
   );
+}
+
+
+/** What a peer is offering, before a byte of it is written.
+ *
+ *  Accepting an invite is downloading somebody else's files, and until this
+ *  existed the first moment anybody could look at what they had accepted was
+ *  after all of it was on their disk. The documents are held open on the
+ *  server while this is on screen, so discarding really does leave nothing
+ *  behind rather than deleting something that was written a moment ago.
+ */
+function JoinOfferCard({
+  offer,
+  onAccept,
+  onDiscard,
+}: {
+  offer: JoinOffer;
+  onAccept: () => void;
+  onDiscard: () => void;
+}) {
+  const landing = offer.files.filter((file) => !file.refused);
+  const refused = offer.files.filter((file) => file.refused);
+  const total = landing.reduce((sum, file) => sum + file.size, 0);
+
+  return (
+    <div
+      className="mt-3 rounded-[3px] border border-line bg-surface"
+      data-testid="join-offer"
+    >
+      <div className="border-b border-line px-3 py-2">
+        <p className="t-ui text-ink">
+          {landing.length} {landing.length === 1 ? "file" : "files"}, {size(total)}
+        </p>
+        <p className="t-meta mt-[2px] text-ink-2">
+          Nothing has been written yet. This is what would arrive in{" "}
+          <span className="t-code-sm">{offer.path}</span>.
+        </p>
+      </div>
+      <div className="max-h-[220px] overflow-y-auto">
+        {landing.map((file) => (
+          <div
+            key={file.path}
+            className="flex items-baseline justify-between gap-3 px-3 py-[3px]"
+          >
+            <span className="t-code-sm truncate text-ink">{file.path}</span>
+            <span className="t-micro shrink-0 text-ink-3">{size(file.size)}</span>
+          </div>
+        ))}
+      </div>
+      {refused.length ? (
+        <div className="border-t border-line px-3 py-2">
+          <p className="t-meta text-ink-2">
+            {refused.length}{" "}
+            {refused.length === 1 ? "file was offered" : "files were offered"}{" "}
+            that NextTex will not write, because the build would run{" "}
+            {refused.length === 1 ? "it" : "them"}:{" "}
+            <span className="t-code-sm">
+              {refused.map((file) => file.path).join(", ")}
+            </span>
+          </p>
+        </div>
+      ) : null}
+      <div className="flex justify-end gap-2 border-t border-line px-3 py-2">
+        <button
+          className="ghost-button h-[26px] px-3 t-ui"
+          data-testid="discard-join"
+          onClick={onDiscard}
+        >
+          Discard
+        </button>
+        <button
+          className="pen-button h-[26px] px-3 t-ui"
+          data-testid="accept-join"
+          onClick={onAccept}
+        >
+          Accept
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** A size a person reads. */
+function size(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

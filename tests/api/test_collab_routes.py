@@ -188,3 +188,94 @@ def test_a_private_project_is_left_alone_at_startup(client, project):
     server_main.SESSIONS.clear()
     asyncio.run(server_main._rejoin_shared_projects())
     assert project["id"] not in server_main.SESSIONS
+
+
+# --- accepting an invite, in two steps --------------------------------------
+#
+# Accepting an invite is downloading somebody else's files, and it used to
+# write all of them and register the project before anybody could look at any
+# of it. The join now stops with the documents in memory and the manifest in
+# hand, and the answer decides whether a byte is written.
+
+
+def test_what_a_peer_offers_is_described_before_it_is_written(tmp_path):
+    """The manifest a joiner is shown, built from what arrived."""
+    from pycrdt import Map
+
+    from nexttex.project import Project
+    from server.collab.store import CollabStore
+
+    root = tmp_path / "offered"
+    root.mkdir()
+    (root / "main.tex").write_text("x", encoding="utf-8")
+    project = Project.open(root)
+    store = CollabStore(project)
+    for file_id, path, kind, size, trashed in [
+        ("aaaaaaaaaaaaaaa1", "chapters/02.tex", "text", 2048, False),
+        ("aaaaaaaaaaaaaaa2", "main.tex", "text", 4096, False),
+        ("aaaaaaaaaaaaaaa3", "latexmkrc", "text", 12, False),
+        ("aaaaaaaaaaaaaaa4", "gone.tex", "text", 1, True),
+    ]:
+        store.files[file_id] = Map({
+            "path": path, "kind": kind, "size": size, "trashed": trashed,
+        })
+
+    offered = server_main._offered_files(store, project)
+    store.close()
+
+    # Sorted, so the list does not reorder itself between two people looking
+    # at the same share.
+    assert [f["path"] for f in offered] == [
+        "chapters/02.tex", "latexmkrc", "main.tex",
+    ]
+    # A file already in the trash is not being offered.
+    assert all(f["path"] != "gone.tex" for f in offered)
+    # And what will not be written says so rather than being left out: what
+    # was offered is the more interesting fact of the two.
+    refused = {f["path"] for f in offered if f["refused"]}
+    assert refused == {"latexmkrc"}
+
+
+def test_answering_an_invite_that_is_no_longer_waiting(client):
+    for route in ("/api/collab/join/accept", "/api/collab/join/discard"):
+        answer = client.post(route, json={"token": "not-a-real-token"})
+        assert answer.status_code == 404
+        assert "no longer waiting" in answer.json()["detail"]
+
+
+def test_an_invite_nobody_answers_does_not_hold_a_connection_open(client, tmp_path):
+    """Each unanswered join holds a peer connection and a set of documents
+    open, so it is bounded by the same reaper as everything else here."""
+    import asyncio
+
+    target = tmp_path / "never-answered"
+    target.mkdir()
+    (target / "arrived.tex").write_text("from somebody else", encoding="utf-8")
+
+    closed: list[str] = []
+
+    class Stub:
+        def close(self):
+            closed.append("store")
+
+        async def close_async(self):
+            closed.append("network")
+
+    class Network:
+        async def close(self):
+            closed.append("network")
+
+    pending = server_main.PendingJoin(
+        token="t0", target=target, project=object(), store=Stub(),
+        network=Network(),
+        at=__import__("time").monotonic() - server_main.JOIN_DECISION_TIMEOUT - 1,
+    )
+    server_main.PENDING_JOINS["t0"] = pending
+
+    client.portal.call(server_main._reap_once)
+
+    assert "t0" not in server_main.PENDING_JOINS
+    assert sorted(closed) == ["network", "store"]
+    # And the folder it was going to be written into is gone, rather than
+    # left for somebody to find and wonder about.
+    assert not target.exists()

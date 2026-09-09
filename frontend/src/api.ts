@@ -209,6 +209,24 @@ export type Member = {
   removed: boolean;
 };
 
+/** One file the other end has offered, before any of it is written. */
+export type OfferedFile = {
+  path: string;
+  kind: string;
+  size: number;
+  /** Offered and will not be written: a file the build would run. Shown
+   *  rather than omitted, because what was offered is the more interesting
+   *  fact of the two. */
+  refused: boolean;
+};
+
+export type JoinOffer = {
+  ok: true;
+  token: string;
+  path: string;
+  files: OfferedFile[];
+};
+
 export type CollabState = {
   shared: boolean;
   shareId: string;
@@ -351,10 +369,16 @@ const api = {
     request<CollabState>(`/projects/${id}/collab/share`, json({ name })),
   makeInvite: (id: string) =>
     request<{ invite: string }>(`/projects/${id}/collab/invite`, json({})),
+  /** Accept an invite as far as *looking* at it. Nothing is written to
+   *  disk: the documents are held open on the server until the answer. */
   joinShare: (invite: string, path: string) =>
+    request<JoinOffer>("/collab/join", json({ invite, path })),
+  acceptJoin: (token: string) =>
     request<{ ok: true; project: { id: string; path: string } }>(
-      "/collab/join", json({ invite, path }),
+      "/collab/join/accept", json({ token }),
     ),
+  discardJoin: (token: string) =>
+    request<{ ok: true }>("/collab/join/discard", json({ token })),
   removeMember: (id: string, peer: string) =>
     request<CollabState>(`/projects/${id}/collab/member/${peer}`, {
       method: "DELETE",

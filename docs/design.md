@@ -685,6 +685,28 @@ breakpoint, or a rewrite of the shell. A tablet in landscape is the honest
 target, because that is where a person edits a thesis and reads its proof.
 A phone is not, and saying so is more useful than half-supporting one.
 
+**Accepting an invite is a two-step answer, and the first step writes
+nothing.** Joining used to sync the whole project, write every file, and
+register it, and the first moment a person could look at what they had
+accepted was after all of it was on their disk. Accepting an invite is
+downloading somebody else's files, and vetting them is not an unreasonable
+thing to want to do first.
+
+So the join stops with the documents in memory and the connection held open,
+and answers with the manifest: every path, its kind and its size. Accept
+writes them and registers the project. Discard closes the connection and
+removes the folder, which really does leave nothing behind rather than
+deleting something written a moment earlier.
+
+A file the build would run is listed as offered and marked as one that will
+not be written, rather than being quietly left out. What somebody tried to
+send is the more interesting of the two facts.
+
+The connection cannot be held indefinitely: an unanswered join is discarded
+after ten minutes by the same reaper that evicts idle sessions, and every
+pending one is released when the server stops. A tab closed on the question
+must not hold a peer connection open for the life of the process.
+
 **A dialog keeps Tab, and gives focus back when it closes.** There was no Tab
 handler anywhere in the source, so seven of the nine dialogs let Tab walk out
 into the page behind them while they were still covering it, and dismissing one
