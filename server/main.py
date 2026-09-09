@@ -538,9 +538,16 @@ def _same_origin_request(request: Request) -> bool:
 # React writes `style` attributes all over this interface, and no policy that
 # forbids those survives contact with the code.
 #
-# `blob:` appears twice on purpose.  pdf.js renders pages through a worker
-# and hands the viewer object URLs, and the history panel builds one for
-# every figure thumbnail it draws.
+# `blob:` is here for pdf.js, which runs its renderer in a worker built
+# from a blob.  It was also in `img-src`, on the grounds that the history
+# panel made an object URL for every figure thumbnail.  It does not and
+# never did: `blobUrl(sha)` in that panel returns this app's own history
+# route, an ordinary URL that happens to be named after what it fetches,
+# and it goes straight into an `img` src.  There is no `createObjectURL`
+# anywhere in this interface except the one in `saveBlob`, which hands a
+# download to an anchor and is not an image at all.  So `img-src` no longer
+# says `blob:`, because a policy is only worth having as tight as it can
+# actually be.
 SECURITY_HEADERS = {
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
@@ -581,7 +588,7 @@ def _content_policy() -> str:
         "default-src 'self'",
         f"script-src 'self' {_inline_hashes()}".strip(),
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob:",
+        "img-src 'self' data:",
         "font-src 'self' data:",
         # The event stream and the collaboration sockets are same-origin, but
         # a websocket scheme is not covered by `'self'` in every browser.

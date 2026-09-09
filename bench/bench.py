@@ -334,7 +334,29 @@ def main() -> int:
     parser.add_argument("--out", type=Path, help="write the measurements here")
     parser.add_argument("--keep", action="store_true",
                         help="leave the synthetic project on disk")
+    parser.add_argument("--bundle-only", action="store_true",
+                        help="measure only the built bundle, and nothing that "
+                             "needs a project on disk")
     arguments = parser.parse_args()
+
+    # The bundle is a fact about `frontend/dist`: no LaTeX, no synthetic
+    # thesis, no minute of work.  Splitting it out is what lets the browser
+    # tier check it, and a budget nothing routine checks is a comment.
+    if arguments.bundle_only:
+        only = bundle_size()
+        if only is None:
+            print("no frontend/dist to measure; build it first")
+            return 1
+        thresholds = json.loads((ROOT / "bench" / "thresholds.json").read_text())
+        limit = thresholds.get(only["name"])
+        over = limit is not None and only["median"] > limit
+        mark = "!!" if over else "  "
+        print(f"{mark} {only['name']}  {only['median']} {only['unit']}"
+              + (f"  (budget {limit})" if limit is not None else ""))
+        if over:
+            print("\nover budget")
+            return 1
+        return 0
 
     sandbox = Path(tempfile.mkdtemp(prefix="nexttex-bench-"))
     try:

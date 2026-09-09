@@ -52,6 +52,16 @@ const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 /** Lazily loaded, like the tutorial. Most sessions never open it, and the
  *  entry bundle is measured. */
 const SharePanel = lazy(() => import("./panes/SharePanel"));
+/** The version panel and the strip that says you are looking at an old
+ *  version.  Two exports of one module, so they arrive together in one
+ *  chunk -- and the strip is only ever reachable through the panel, so by
+ *  the time it can be mounted the module is already here.  Both are
+ *  behind a click on a session where anybody opens history at all, and
+ *  most sessions do not. */
+const HistoryPanel = lazy(() => import("./panes/History"));
+const ViewingBanner = lazy(() =>
+  import("./panes/History").then((m) => ({ default: m.ViewingBanner })),
+);
 import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
 import Tabs from "./panes/Tabs";
@@ -64,7 +74,6 @@ import Projects from "./panes/Projects";
 import SignIn from "./panes/SignIn";
 import ContextPanel from "./panes/ContextPanel";
 import Collapsed from "./panes/Collapsed";
-import HistoryPanel, { ViewingBanner } from "./panes/History";
 import TrashPanel from "./panes/TrashPanel";
 import Logo from "./Logo";
 import Settings from "./panes/Settings";
@@ -1426,6 +1435,7 @@ export default function App() {
             ) : null}
           </div>
           {viewing ? (
+            <Suspense fallback={null}>
             <ViewingBanner
               version={viewing.version}
               showingChanges={showingChanges}
@@ -1440,6 +1450,7 @@ export default function App() {
                 editor.current?.showChanges(next);
               }}
             />
+            </Suspense>
           ) : null}
           <div className="relative flex min-h-0 flex-1">
             <div className="relative min-h-0 flex-1">
@@ -1465,11 +1476,13 @@ export default function App() {
               ) : null}
             </div>
             {historyOpen ? (
-              <HistoryPanel
-                docked={!tight && editorWide}
-                onView={viewVersion}
-                onClose={closeHistory}
-              />
+              <Suspense fallback={null}>
+                <HistoryPanel
+                  docked={!tight && editorWide}
+                  onView={viewVersion}
+                  onClose={closeHistory}
+                />
+              </Suspense>
             ) : null}
           </div>
           <Status

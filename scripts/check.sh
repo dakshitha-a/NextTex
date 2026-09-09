@@ -39,6 +39,14 @@ if [ "${1:-}" = "--all" ]; then
   step "Frontend build"
   (cd frontend && npm run build >/dev/null)
 
+  # Here rather than in --bench, because the number is a property of the
+  # build that has just happened and needs nothing else.  It lived only in
+  # the benchmark tier, which is run by hand, so the budget was breached by
+  # seventeen kilobytes for an unknown length of time with every routine
+  # check passing.
+  step "Bundle"
+  .venv/bin/python -m bench.bench --bundle-only
+
   step "Browser"
   (cd e2e && node_modules/.bin/playwright test)
 fi
