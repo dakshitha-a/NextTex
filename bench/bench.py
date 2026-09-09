@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from nexttex.history import History                    # noqa: E402
+from nexttex.deps import DependencyGraph
 from nexttex.project import Project, Registry, id_for   # noqa: E402
 from nexttex.symbols import SymbolCache, scan           # noqa: E402
 from server.transcript import Transcript                # noqa: E402
@@ -213,6 +214,21 @@ def measure(root: Path) -> list[dict]:
     project_id = id_for(root)
     results.append(timed("registry.find_ms",
                          lambda: registry.find(project_id)))
+
+    # What opening a project costs, which is what a writer waits for when
+    # they click one in the list.  Not the session construction, which cannot
+    # run outside the app's own loop, but the three things the route does with
+    # the filesystem: walking the tree, working out what else could be
+    # previewed, and working out who reads what.  Those are the parts that
+    # were on the event loop, so this is the number the change has to move.
+    def open_work() -> None:
+        project.tree()
+        deps = DependencyGraph(root)
+        names = [project.config.main]
+        deps.standalone_candidates(names)
+        deps.reverse(names)
+
+    results.append(timed("project.open_ms", open_work, runs=3))
 
     results.append(timed("download.zip_ms", lambda: zip_size(root), runs=1))
     results.extend(compile_passes(root))
