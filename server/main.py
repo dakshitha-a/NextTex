@@ -528,10 +528,17 @@ def _content_policy() -> str:
 CONTENT_POLICY = ""
 
 
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
+def _secure(response: Response) -> Response:
+    """Stamp the security headers onto one response.
+
+    A function and not only a middleware, because two kinds of response never
+    reach that middleware.  `authenticate` refuses some requests before it,
+    and an unhandled exception becomes a response above it, in Starlette's own
+    error middleware.  The sign-in page was one of those: the one page an
+    unauthenticated visitor actually sees, and the one most worth framing,
+    came back with no content policy, no nosniff and no framing rule at all.
+    """
     global CONTENT_POLICY
-    response = await call_next(request)
     if not CONTENT_POLICY:
         # Built on the first response rather than at import, because the
         # sign-in page and the built index are both read from disk and this
@@ -572,6 +579,41 @@ async def authenticate(request: Request, call_next):
         if wants_page or request.query_params.get("token"):
             _issue_session(response, request)
     return response
+
+
+# Declared after `authenticate`, which is what puts it outside it: Starlette
+# builds the stack with the last middleware added on the outside.  So this now
+# sees the refusals `authenticate` returns without ever calling a route.
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    return _secure(await call_next(request))
+
+
+@app.exception_handler(Exception)
+async def unhandled(request: Request, exc: Exception) -> Response:
+    """What the writer is told when something breaks that nothing anticipated.
+
+    Starlette answers an unhandled exception with the plain text "Internal
+    Server Error", which is not JSON, so the browser's single error path could
+    not read it and fell back to the status line.  The writer was told
+    "Internal Server Error" and given no way to connect that to anything.
+    This answers in the shape `api.ts` already reads, and puts a short
+    reference in both halves so the message on screen and the line in the
+    terminal name each other.
+
+    The traceback is deliberately not repeated here.  Starlette re-raises once
+    this returns and uvicorn logs the stack immediately after this line, so
+    logging it again would put two copies of it in front of somebody trying to
+    read one.
+    """
+    reference = secrets.token_hex(4)
+    log.error("unhandled %s during %s %s [%s]", type(exc).__name__,
+              request.method, request.url.path, reference)
+    return _secure(JSONResponse(
+        {"error": "Something went wrong inside NextTex. The server's log has "
+                  f"the details, under {reference}."},
+        status_code=500,
+    ))
 
 
 def _sign_in_page() -> str:

@@ -232,6 +232,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Where a failure on the first load should send the writer.
+ *
+ * Only the two statuses that mean "we do not know who you are" lead to the
+ * sign-in screen.  A 500 means the server is broken, and asking somebody for
+ * a password because a machine has a bug is a question they cannot answer:
+ * the same mistake as sending them there when the server was not listening,
+ * one level further in.  A failure carrying no status never reached the
+ * server at all.
+ */
+export function landingAfter(problem: unknown): "signin" | "offline" {
+  const status = (problem as { status?: number } | null | undefined)?.status;
+  return status === 401 || status === 403 ? "signin" : "offline";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
     credentials: "same-origin",
