@@ -257,6 +257,14 @@ class CollabStore:
 
         # The three guards against a write loop.  See the module docstring.
         self._projecting: set[str] = set()
+        #: True while a peer's update is being applied, so the watcher can
+        #: tell a change made here from one made on somebody else's machine.
+        #: A flag rather than the transaction's origin, because pycrdt's
+        #: event does not carry one.
+        self.applying_remote = False
+        #: Files whose pending changes include at least one made here.  Only
+        #: those get a version written when they are projected; see `_write`.
+        self._authored: set[str] = set()
         self.last_projected: dict[str, str] = {}
 
         self._dirty: set[str] = set()
@@ -474,6 +482,14 @@ class CollabStore:
             # A change that came from disk is already on disk.
             if file_id in self._projecting:
                 return
+            if not self.applying_remote:
+                # Somebody at this keyboard, or this install's agent.  Noted
+                # so that the projection knows whether it is writing this
+                # install's own work or somebody else's; see `_write`.
+                #
+                # A flag rather than the transaction's origin, because
+                # pycrdt's event does not carry one.
+                self._authored.add(file_id)
             self._dirty.add(file_id)
             self._schedule()
 
@@ -801,6 +817,12 @@ class CollabStore:
         self._compact()
 
     def _write(self, file_id: str) -> None:
+        # Taken first, and taken whatever happens below.  It says whether the
+        # changes about to be projected include one made at this keyboard,
+        # which is what decides whether this install writes a version for
+        # them or waits to be told about somebody else's.
+        authored = file_id in self._authored
+        self._authored.discard(file_id)
         record = self.files.get(file_id)
         text = self._body.get(file_id)
         if record is None or text is None or record.get("trashed"):
@@ -831,7 +853,30 @@ class CollabStore:
                 # page stops following a collaborator's typing, which is
                 # most of the point of any of this.
                 session.mark_written(path)
-                session.record_version(path, content, previous=previous)
+                if authored:
+                    session.record_version(path, content, previous=previous)
+                else:
+                    # Not ours to record.  Every install projects the merged
+                    # document to its own disk, and recording that wrote a
+                    # version stamped with *this* install -- so a
+                    # collaborator's paragraph entered your history under
+                    # your name, and was then offered back to them as your
+                    # work.  Nothing deduplicated it, because both the
+                    # moment and the author differed, so a shared file's log
+                    # grew by roughly one wrongly attributed entry per edit
+                    # per person.
+                    #
+                    # The person who typed it records it; everybody else
+                    # receives that record through history sync, which is
+                    # what history sync is for.  It also makes "this
+                    # install's own records" a set that means something,
+                    # which is what the whole per-author scheme rests on.
+                    #
+                    # The contents are kept even so.  It is the same sha
+                    # their line will name, so their version opens here with
+                    # no round trip, and an orphan goes to the collector
+                    # like any other.
+                    session.history.blobs.put(content.encode("utf-8"))
                 session.note_edit(path, content, previous)
                 session.schedule_compile()
         finally:

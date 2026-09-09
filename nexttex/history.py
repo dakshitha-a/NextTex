@@ -50,6 +50,7 @@ import re
 import threading
 import time
 import zlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -256,6 +257,24 @@ class History:
         #: project's log holds both, the empty ones from before it was
         #: shared and the stamped ones from after.
         self.me: str = ""
+        #: Called with a file's path when its log gains something.  Hung
+        #: here rather than on the session because the trash records
+        #: straight onto this object, and because taking somebody else's
+        #: lines has to say so as much as writing our own does -- a relaying
+        #: install that stayed quiet would leave a file that only reaches
+        #: the project through it syncing on reconnection alone.
+        self.on_change: Callable[[str], None] | None = None
+
+    def _changed(self, relative_path: str) -> None:
+        listener = self.on_change
+        if listener is None:
+            return
+        try:
+            listener(relative_path)
+        except Exception:
+            # Failing to tell anybody must never cost the version that was
+            # just written, which is on disk by the time this runs.
+            pass
 
     def author_of(self, version: Version) -> str:
         """Whose sequence this version belongs to."""
@@ -587,6 +606,7 @@ class History:
             kept = existing[:-1] if coalesce else existing
             kept.append(version)
             self._write_log(relative_path, self._thin(kept))
+            self._changed(relative_path)
             return version
 
     def absorb(
@@ -652,6 +672,7 @@ class History:
             # away the author will not offer them again.
             self._remember_path(relative_path)
             self._write_log(relative_path, kept)
+            self._changed(relative_path)
             return [version for version in added if version in kept]
 
     def split_at_delete(self, old_path: str, new_path: str) -> int:

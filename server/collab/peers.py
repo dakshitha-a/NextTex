@@ -57,6 +57,7 @@ from pathlib import Path
 from pycrdt import Map, create_sync_message, handle_sync_message
 
 from nexttex.atomic import write_atomically
+from nexttex.history import now_ms
 
 from . import history_sync, identity, transport, wire
 
@@ -65,6 +66,15 @@ log = logging.getLogger("nexttex.collab")
 # How long to wait before dialling a peer again, growing to a resting rate.
 # The common failure is a laptop closing its lid, so the first few are quick.
 BACKOFF = [1, 2, 4, 8, 15, 30, 60]
+
+#: How long after a version is written before the other installs are told.
+#: An editing burst is already one version, so there is nothing to say more
+#: often than this.
+HISTORY_NUDGE_SECONDS = 2.0
+
+#: A collaborator's version this new, or one they named, has its contents
+#: fetched as the line arrives rather than when somebody clicks it.
+EAGER_BLOB_HOURS = 24.0
 
 # An invite that is never used should not be usable for ever.
 INVITE_TTL_SECONDS = 7 * 24 * 60 * 60
@@ -285,12 +295,25 @@ class PeerLink:
                 continue
             self.offered.add(doc_id)
             await self.send(wire.sync(doc_id, create_sync_message(doc)))
-            # And what this file used to say. Cheap to ask, and it is the
-            # difference between joining a project and joining a project
-            # with its past.
+
+        # And what those files used to say.  Cheap to ask, and it is the
+        # difference between joining a project and joining a project with
+        # its past.
+        #
+        # **Every file the manifest names, not only the text ones.**  This
+        # ask used to sit inside the loop above, behind its `kind != "text"`
+        # guard, so a figure's past was never asked for and never offered.
+        # That went unnoticed until figures were given a viewer, version
+        # viewing and a clear-history button of their own, all of which
+        # assume it travels.  Trashed records included: a deletion is a
+        # version, and it is one that is never thinned away.
+        for file_id in list(store.files):
+            asked = f"hist/{file_id}"
+            if asked in self.offered:
+                continue
+            self.offered.add(asked)
             await self.send(wire.hist_want(
-                file_id, self.peer_id,
-                self.network.cursors.at(self.peer_id, file_id),
+                file_id, self.peer_id, self.network.marks.since(file_id),
             ))
 
     async def run(self) -> None:
@@ -327,10 +350,12 @@ class PeerLink:
             if not frame.payload or frame.payload[0] != 0:
                 return
             self.network.applying = self
+            store.applying_remote = True
             try:
                 reply = handle_sync_message(frame.payload[1:], doc)
             finally:
                 self.network.applying = None
+                store.applying_remote = False
             if reply is not None:
                 await self.send(wire.sync(doc_id, reply))
             if doc_id == "manifest":
@@ -376,6 +401,18 @@ class PeerLink:
             await self._send_history(frame)
         elif frame.kind == wire.HIST_GIVE:
             await self._take_history(frame)
+        elif frame.kind == wire.HIST_NEW:
+            # Somebody wrote something.  History used to be asked for once,
+            # when a connection opened, and never again -- so two people
+            # working together for a week watched each other type
+            # continuously and saw one another's versions only when a laptop
+            # closed and the link was rebuilt.
+            new_file = frame.header.get("file", "")
+            if self.network.store.path_for(new_file):
+                await self.send(wire.hist_want(
+                    new_file, self.peer_id,
+                    self.network.marks.since(new_file),
+                ))
         elif frame.kind == wire.BLOB_WANT:
             await self._send_blob(frame.header.get("sha", ""))
         elif frame.kind == wire.BLOB_HAVE:
@@ -385,7 +422,13 @@ class PeerLink:
             self.alive = False
 
     async def _send_history(self, frame: wire.Frame) -> None:
-        """Our own lines for a file, from where they left off."""
+        """What we hold for a file, from where this peer has got to.
+
+        What we hold, not what we wrote.  Two collaborators in different
+        time zones are rarely online at the same moment, and if nobody
+        passes on what they hold for somebody else then the two of them
+        never exchange a single version, however long the project runs.
+        """
         network = self.network
         history = network.history()
         if history is None:
@@ -394,9 +437,33 @@ class PeerLink:
         relative = network.store.path_for(file_id)
         if not relative:
             return
-        after = int(frame.header.get("cursor") or 0)
-        lines, reached = history_sync.mine(
-            history, relative, network.peer_id, after,
+
+        since = frame.header.get("since")
+        if not isinstance(since, dict):
+            # An install from before per-author marks.  It reads what comes
+            # back with `int(...)`, so answering in the new shape would take
+            # its link down.  Answered in the old one instead, which sends
+            # only our own lines and counts into a list thinning shortens:
+            # the defect this was rewritten to fix, and there is no better
+            # answer to that question than the question allows.
+            lines, reached = await asyncio.to_thread(
+                history_sync.mine, history, relative, network.peer_id,
+                int(frame.header.get("cursor") or 0),
+            )
+            if lines:
+                await self.send(wire.hist_give_by_index(
+                    file_id, network.peer_id, reached, lines,
+                ))
+            return
+
+        floors = {
+            str(author): float(at)
+            for author, at in since.items()
+            if isinstance(at, (int, float))
+        }
+        lines, reached = await asyncio.to_thread(
+            history_sync.offer, history, relative,
+            network.peer_id, self.peer_id, floors,
         )
         if lines:
             await self.send(wire.hist_give(
@@ -413,15 +480,34 @@ class PeerLink:
         if not relative:
             return
         lines = frame.header.get("lines") or []
-        history_sync.absorb(history, relative, lines)
-        network.cursors.advance(
-            self.peer_id, file_id, int(frame.header.get("cursor") or 0),
+        # Off the loop: absorbing takes the history's lock and rewrites a
+        # whole log, at up to a batch of records a frame.
+        added = await asyncio.to_thread(
+            history.absorb, relative, lines, me=network.peer_id,
         )
-        # There may be more where those came from.
-        if len(lines) >= history_sync.BATCH:
+        await network.fetch_recent(added)
+
+        reached = frame.header.get("reached")
+        if not isinstance(reached, dict):
+            # An install that answered in the old shape, counting positions
+            # into its own list.  There is nothing here a mark can be moved
+            # to, so this is one batch and no more: asking again would fetch
+            # the same batch for ever.
+            return
+        moved = False
+        for author, at in reached.items():
+            if isinstance(at, (int, float)):
+                moved = network.marks.advance(
+                    str(author), file_id, float(at),
+                ) or moved
+        if moved:
+            network.save_marks_soon()
+        # There may be more where those came from -- but only if something
+        # actually moved.  A peer answering with what we already hold is
+        # otherwise a loop with no end to it.
+        if moved and len(lines) >= history_sync.BATCH:
             await self.send(wire.hist_want(
-                file_id, self.peer_id,
-                network.cursors.at(self.peer_id, file_id),
+                file_id, self.peer_id, network.marks.since(file_id),
             ))
 
     async def _send_blob(self, sha: str) -> None:
@@ -451,7 +537,7 @@ class PeerNetwork:
         self.hub = hub
         self.session = session
         self.share = Share(store.project.state_dir / "collab")
-        self.cursors = history_sync.Cursors(store.project.state_dir / "collab")
+        self.marks = history_sync.Marks(store.project.state_dir / "collab")
         self.transport: transport.Transport | None = None
         self.links: dict[str, PeerLink] = {}
         self.applying: PeerLink | None = None
@@ -462,6 +548,12 @@ class PeerNetwork:
         self._dialling: set[str] = set()
         self._closed = False
         self._me = ""
+        #: The loop this network runs on, so that a history write finishing
+        #: on a worker thread can still say so.
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._nudging: set[str] = set()
+        self._nudge: asyncio.Task | None = None
+        self._marks_save: asyncio.Task | None = None
 
     # --- identity ---------------------------------------------------------
 
@@ -482,6 +574,8 @@ class PeerNetwork:
             return
         if not self.share.shared:
             return
+        self._loop = asyncio.get_running_loop()
+        self._teach_history()
         self.transport = self._make_transport()
         await self.transport.start(self._accept)
         self.store.listeners.append(self._document_changed)
@@ -655,6 +749,8 @@ class PeerNetwork:
         self.share.joined_at = time.time()
         self.share.save()
 
+        self._loop = asyncio.get_running_loop()
+        self._teach_history()
         self.transport = self.transport or self._make_transport()
         await self.transport.start(self._accept)
         self.store.listeners.append(self._document_changed)
@@ -822,6 +918,103 @@ class PeerNetwork:
         """
         return getattr(self.session, "history", None)
 
+    def _teach_history(self) -> None:
+        """Tell the history who we are, and how to say a file has changed.
+
+        `me` is what tells a record written before this project was shared
+        -- which carries no peer at all -- apart from one written by
+        somebody else.  Both are in the same log on a shared project, and
+        every comparison about whose sequence a record belongs to goes
+        through it.
+        """
+        history = self.history()
+        if history is None:
+            return
+        history.me = self.peer_id if self.share.shared else ""
+        history.on_change = self.note_history
+
+    def note_history(self, relative: str) -> None:
+        """A file has a past it did not have a moment ago; say so.
+
+        Hung off the history rather than off `record_version`, for two
+        reasons.  The trash records its delete and restore versions straight
+        onto the history and would otherwise never say a word.  And a
+        relaying install has to say so when it *absorbs* somebody else's
+        lines as much as when it writes its own, or a file that only reaches
+        this project through a relay is back to syncing on reconnection
+        alone.
+
+        Safe from a worker thread: recording runs off the loop.
+        """
+        loop = self._loop
+        if self._closed or loop is None or not relative:
+            return
+        try:
+            loop.call_soon_threadsafe(self._history_changed, relative)
+        except RuntimeError:
+            pass
+
+    def _history_changed(self, relative: str) -> None:
+        if self._closed or not self.links:
+            return
+        self._nudging.add(relative)
+        if self._nudge is None or self._nudge.done():
+            self._nudge = asyncio.create_task(self._say_what_changed())
+
+    async def _say_what_changed(self) -> None:
+        """Tell everyone, once, a moment after the typing stops.
+
+        Debounced because a save is a save: an editing burst already
+        collapses into one version, so there is nothing to say more often
+        than that.
+        """
+        await asyncio.sleep(HISTORY_NUDGE_SECONDS)
+        changed, self._nudging = self._nudging, set()
+        if self._closed:
+            return
+        for relative in changed:
+            file_id = self.store.file_id_for(relative)
+            if not file_id:
+                continue
+            frame = wire.hist_new(file_id)
+            for link in list(self.links.values()):
+                if link.alive:
+                    link.enqueue(frame)
+
+    def save_marks_soon(self) -> None:
+        if self._closed:
+            return
+        if self._marks_save is None or self._marks_save.done():
+            self._marks_save = asyncio.create_task(self._save_marks())
+
+    async def _save_marks(self) -> None:
+        await asyncio.sleep(2.0)
+        await asyncio.to_thread(self.marks.save)
+
+    async def fetch_recent(self, versions) -> None:
+        """Ask for the contents of a collaborator's newest versions.
+
+        Bounded on purpose.  Almost nobody opens almost any old version, so
+        pulling a peer's whole past down before the first keystroke is the
+        wrong trade -- and it is the trade this deliberately does not make.
+        But a version listed and permanently unopenable is worse than one
+        not listed at all, and the ones somebody reaches for are the recent
+        ones and the ones they named.
+
+        Across every link rather than the one that sent the line: a relay
+        can pass on a record for content it does not itself hold.
+        """
+        history = self.history()
+        if history is None or not versions:
+            return
+        fresh = now_ms() - EAGER_BLOB_HOURS * 3600 * 1000
+        for version in versions:
+            if version.at < fresh and not version.label:
+                continue
+            if history.blobs.has(version.sha):
+                continue
+            await self.fetch_blob(version.sha)
+
     def take_blob(self, sha: str, data: bytes) -> None:
         """Store a blob a peer sent, if it is really the one asked for."""
         history = self.history()
@@ -874,6 +1067,8 @@ class PeerNetwork:
 
     async def close(self) -> None:
         self._closed = True
+        # Before the tasks are cancelled: the debounced save is one of them.
+        self.marks.save()
         if self._document_changed in self.store.listeners:
             self.store.listeners.remove(self._document_changed)
         if self.hub is not None and self.hub.on_awareness is self._awareness_changed:
