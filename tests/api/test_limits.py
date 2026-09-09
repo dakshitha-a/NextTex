@@ -18,12 +18,21 @@ import pytest
 from server import main as server_main
 
 
-def test_the_limits_are_ordered():
-    """The shipped values, which the rest of this file lowers."""
+def test_the_shipped_limits_are_what_they_should_be():
+    """The real values, which the rest of this file lowers to test the
+    mechanism.
+
+    Stated rather than related to each other. The first version of this
+    asserted `MAX_UPLOAD_TOTAL == MAX_BODY_BYTES`, which is how they are
+    defined one line apart, so it could not have failed and covered nothing.
+    """
+    assert server_main.MAX_TEXT_BYTES == 10 * 1024 * 1024
+    assert server_main.MAX_UPLOAD_BYTES == 256 * 1024 * 1024
+    assert server_main.MAX_BODY_BYTES == 512 * 1024 * 1024
+    assert server_main.MAX_UPLOAD_FILES == 200
+    # A .tex file the editor will open is much smaller than a figure it will
+    # accept, and one drop of files is the largest thing anybody sends here.
     assert server_main.MAX_TEXT_BYTES < server_main.MAX_UPLOAD_BYTES
-    assert server_main.MAX_UPLOAD_BYTES <= server_main.MAX_UPLOAD_TOTAL
-    # One drop of files is the largest thing anybody sends this server, so
-    # a request may carry a full upload and no more.
     assert server_main.MAX_UPLOAD_TOTAL == server_main.MAX_BODY_BYTES
 
 
@@ -124,3 +133,41 @@ def test_a_context_file_too_large_is_refused(client, opened, monkeypatch):
     )
     assert answer.status_code == 413
     assert "brief.pdf" in answer.json()["detail"]
+
+
+def test_the_download_check_does_not_walk_the_repository(project_dir):
+    """Deciding whether the PDF on disk is current used to be `rglob("*")`
+    with a stat per entry, so it walked `.git` and the whole build directory
+    in full before discarding almost everything it found. A thesis carries
+    more history than text."""
+    import os
+
+    from nexttex.project import Project
+
+    opened = Project.open(project_dir)
+    stamp = 1_000_000.0
+
+    def age(path, when):
+        os.utime(path, (when, when))
+
+    # Newer than the PDF, and in the two places that are supposed to be
+    # pruned rather than filtered out afterwards.
+    for directory in (project_dir / ".git", opened.build_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+        recent = directory / "chapter.tex"
+        recent.write_text("newer than the pdf", encoding="utf-8")
+        age(recent, stamp + 5000)
+
+    # Everything the check would look at, not only the .tex files: the
+    # template ships a .bib as well, and it counts.
+    from nexttex.symbols import walk_project
+
+    for source in walk_project(project_dir, build_dir=opened.build_dir):
+        age(source, stamp - 5000)
+
+    assert server_main._source_newer_than(opened, stamp) is False
+
+    # And a real source file still counts, or the pruning would have gone
+    # too far and a download would hand over a stale PDF.
+    age(opened.main, stamp + 5000)
+    assert server_main._source_newer_than(opened, stamp) is True

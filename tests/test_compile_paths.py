@@ -5,6 +5,7 @@ every real chapter on the slow path forever, because every real chapter cites
 something.  What matters is whether the set of keys changed.
 """
 
+import time
 from pathlib import Path
 
 import pytest
@@ -222,3 +223,44 @@ def _scheduler(tmp_path):
     return CompileScheduler(ProjectPaths(
         root=tmp_path, main=tmp_path / "main.tex", build_dir=tmp_path / "build",
     ))
+
+
+def test_a_build_superseded_while_it_starts_up_stops_itself(tmp_path):
+    """`cancel` reads `_process`, and that is None for the whole of a
+    build's setup: deciding the scope, writing the shadow file, mirroring
+    the build tree, spawning. A build arriving in that window cancelled
+    nothing, and the older one then ran to its two minute timeout holding
+    the lock the newer one was waiting on.
+
+    `sleep` stands in for the engine. What is under test is the handover,
+    not LaTeX, and a real build would make this depend on an installed
+    engine and take as long as one.
+    """
+    import asyncio
+
+    from nexttex.compile import Outcome
+
+    (tmp_path / "main.tex").write_text(r"\documentclass{article}", encoding="utf-8")
+    build = scheduler(tmp_path)
+    build.timeout = 30
+
+    # Long enough that finishing on its own is not an explanation.
+    monkeypatched = ["sleep", "20"]
+    build.fast_argv = lambda source: monkeypatched
+    build.full_argv = lambda source: monkeypatched
+
+    original = build._mirror_build_tree
+
+    def supersede(main_source):
+        # Exactly the window: after the lock, before the process exists.
+        build._generation += 1
+        return original(main_source)
+
+    build._mirror_build_tree = supersede
+
+    started = time.monotonic()
+    result = asyncio.run(build.build())
+    took = time.monotonic() - started
+
+    assert result.outcome is Outcome.CANCELLED
+    assert took < 10, f"it ran for {took:.1f}s rather than stopping"

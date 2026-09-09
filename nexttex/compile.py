@@ -426,6 +426,7 @@ class CompileScheduler:
 
     async def _run(self, focus: Path | None, force_full: bool) -> CompileResult:
         started = time.monotonic()
+        generation = self._generation
         self.paths.build_dir.mkdir(parents=True, exist_ok=True)
 
         main_source = self.paths.main.read_text(encoding="utf-8", errors="replace")
@@ -468,6 +469,14 @@ class CompileScheduler:
                 "full" if full_pass else "fast",
             )
         self._process = proc
+        if generation != self._generation:
+            # Superseded while this was starting up.  `cancel` reads
+            # `_process`, and it was None for the whole of the setup above:
+            # deciding the scope, writing the shadow file, mirroring the
+            # build tree, spawning.  A build arriving in that window
+            # cancelled nothing, and this one then ran to its two minute
+            # timeout holding the lock the newer one was waiting on.
+            await self.cancel()
 
         try:
             await asyncio.wait_for(proc.wait(), timeout=self.timeout)
