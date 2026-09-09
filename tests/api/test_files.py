@@ -6,7 +6,26 @@ write to a directory, rename what is not there -- because those are the
 mistakes that turn into a 500 and a stranded temp file.
 """
 
+import shutil
+
 import pytest
+
+from nexttex.config import ensure_tex_on_path
+
+# The TeX tree is not on the default PATH here any more than it is for the
+# app, and chktex lives in it. Put it there before deciding to skip, or these
+# skip on the one machine they were written for.
+ensure_tex_on_path()
+
+# These two ran unguarded and passed on every machine that happened to have a
+# TeX tree, which is every machine they had ever run on. The Python CI added
+# by this run has no TeX at all, so the first push after it landed is what
+# said so: chktex was absent, the lint route honestly reported nothing, and
+# both tests read that as a failure. The claim that this suite needs nothing
+# but Python was true of every test except these.
+chktex = pytest.mark.skipif(
+    shutil.which("chktex") is None, reason="chktex is not installed here"
+)
 
 ESCAPES = [
     "../outside.tex",
@@ -215,6 +234,7 @@ def test_lint_will_not_read_outside_the_project(client, opened):
     assert answer.status_code in (400, 403)
 
 
+@chktex
 def test_lint_reports_what_chktex_finds(client, opened, project_dir):
     """The rules in `.chktexrc` are load-bearing, and were inert for the
     whole life of the file: it used a `WarnOff` keyword chktex has never
@@ -237,6 +257,7 @@ def test_lint_reports_what_chktex_finds(client, opened, project_dir):
                for item in body["diagnostics"])
 
 
+@chktex
 def test_lint_honours_the_projects_own_suppressions(client, opened, project_dir):
     """Warning 11 -- "you should use \\ldots" -- is style rather than
     correctness, and is switched off on purpose.  It is the cheapest proof
