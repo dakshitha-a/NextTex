@@ -19,10 +19,12 @@ and it is what curl, the installer and this test client send.
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from starlette.testclient import TestClient
 
+from nexttex import claude_auth
 from server import main as server_main
 
 # A page on the same host and a different port: same-site, cross-origin.
@@ -54,8 +56,27 @@ def test_a_neighbouring_page_is_refused(client, path):
     assert "another page" in answer.json()["error"]
 
 
+@pytest.fixture
+def handlers_that_do_not_act(monkeypatch):
+    """The same-origin case is allowed through, which means it reaches the
+    handler, and two of these routes act on the machine the suite is running
+    on: one signs the writer out of Claude, the other fetches from the
+    repository and reinstalls.  Signing out is not hypothetical.  Until this
+    was written the suite ran `claude auth logout` against the developer's own
+    installation on every full run, which deleted their credentials and left
+    them staring at a sign-in screen.  What is under test here is the origin
+    check standing in front of these routes, not what they go on to do, so the
+    two that act are stubbed and the middleware is left alone."""
+    monkeypatch.setattr(claude_auth, "logout", lambda: {"ok": True, "status": {}})
+    monkeypatch.setattr(
+        server_main.UPDATES,
+        "get",
+        lambda force=False: SimpleNamespace(can_update=False, reason="nothing to update"),
+    )
+
+
 @pytest.mark.parametrize("path", BODYLESS)
-def test_the_same_origin_is_not_refused(client, path):
+def test_the_same_origin_is_not_refused(client, handlers_that_do_not_act, path):
     """The check must not be a wall in front of the app's own fetches."""
     answer = client.post(path, headers={"origin": "http://testserver", "host": "testserver"})
     assert answer.status_code != 403

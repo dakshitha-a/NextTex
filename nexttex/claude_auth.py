@@ -273,6 +273,14 @@ async def cancel_login() -> None:
 
 
 def logout() -> dict:
+    if os.environ.get("NEXTTEX_FAKE_CLAUDE_AUTH") == "1":
+        # The same flag `status` honours, and for the same reason.  It says
+        # there is no real account behind this server, and a sign-out that
+        # reached past it would reach the account of whoever is running the
+        # browser tests, on their own machine.  `status` had this branch from
+        # the start and this function did not, which is the whole of the
+        # difference between a stand-in and the real CLI here.
+        return {"ok": True, "status": status()}
     binary = _claude()
     if not binary:
         return {"ok": False, "error": "The Claude CLI is not installed."}
