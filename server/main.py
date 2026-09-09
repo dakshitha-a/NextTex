@@ -269,20 +269,52 @@ def _restart_watch() -> None:
         WATCH_RESTART.pop().set()
 
 
+# How long a project stays open after the last request that wanted it.
+#
+# Nothing evicted a session at all: the reaper disconnected the idle agent
+# and left everything else resident, so opening a project was a one way
+# door.  Fifty projects touched over a week is fifty CRDT stores, symbol
+# caches, dependency graphs and libraries held until the server restarts,
+# on a machine somebody is also trying to write on.  The same half hour the
+# agent gets, because the two are the same judgement: a person who has not
+# touched this project in half an hour has moved on.
+SESSION_IDLE_TIMEOUT = 30 * 60
+
+
+async def _reap_once() -> None:
+    """One pass of the reaper.
+
+    Separated from the loop so a test can run it without waiting a minute
+    for the sleep or half an hour for the timeout.
+    """
+    for project_id, session in list(SESSIONS.items()):
+        try:
+            if (
+                not session.in_use()
+                and time.monotonic() - session.touched > SESSION_IDLE_TIMEOUT
+            ):
+                # `session_for` builds it again on the next request that asks,
+                # so this is giving memory back rather than closing anything
+                # the writer would notice.
+                if SESSIONS.pop(project_id, None) is not None:
+                    await session.close()
+                    _restart_watch()
+                continue
+            await session.reap_idle_agent()
+        except Exception:
+            # One session's reaping must not stop the others being reaped, so
+            # this is caught per session rather than around the loop.  But a
+            # reaper that has silently stopped reaping leaves an agent
+            # subprocess per project alive for as long as the server runs, and
+            # nothing anywhere would say so.
+            log.warning("could not reap the idle session for %s",
+                        session.project.id, exc_info=True)
+
+
 async def _reap_idle() -> None:
     while True:
         await asyncio.sleep(60)
-        for session in list(SESSIONS.values()):
-            try:
-                await session.reap_idle_agent()
-            except Exception:
-                # One session's reaping must not stop the others being
-                # reaped, so this is caught per session rather than around
-                # the loop.  But a reaper that has silently stopped reaping
-                # leaves an agent subprocess per project alive for as long
-                # as the server runs, and nothing anywhere would say so.
-                log.warning("could not reap the idle agent for %s",
-                            session.project.id, exc_info=True)
+        await _reap_once()
 
 
 app = FastAPI(title="NextTex", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -1135,6 +1167,7 @@ def session_for(project_id: str) -> ProjectSession:
     """
     session = SESSIONS.get(project_id)
     if session is not None:
+        session.touched = time.monotonic()
         return session
     project = REGISTRY.find(project_id)
     if project is None:
