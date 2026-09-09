@@ -22,6 +22,7 @@ import pytest
 os.environ["NEXTTEX_COLLAB_TRANSPORT"] = "loopback"
 
 from nexttex.history import History                              # noqa: E402
+from nexttex.trash import Trash                                  # noqa: E402
 from nexttex.project import Project                              # noqa: E402
 from server.collab import transport                              # noqa: E402
 from server.collab.peers import PeerNetwork                      # noqa: E402
@@ -51,6 +52,9 @@ class Peer:
         self.project = Project.open(root)
         self.name = root.name.title()
         self.history = History(self.project.state_dir / "history")
+        self.trash = Trash(
+            self.project.state_dir / "trash", self.history, self.project.root,
+        )
         # The session goes to the store as well as to the network.  Every
         # two-peer test in this directory built the store without one, so
         # `_write` found no session, skipped all four of the things every

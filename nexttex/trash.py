@@ -31,6 +31,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from collections.abc import Callable
+
 from .atomic import unique_name, write_atomically
 from .history import History
 
@@ -107,12 +109,33 @@ class TrashEntry:
 class Trash:
     """What has been deleted from one project, and how to get it back."""
 
-    def __init__(self, root: Path, history: History, project_root: Path):
+    def __init__(
+        self,
+        root: Path,
+        history: History,
+        project_root: Path,
+        *,
+        identity: Callable[[], dict] | None = None,
+    ):
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
         self.log = self.root / "entries.jsonl"
         self.history = history
         self.project_root = project_root
+        #: Who this install is, for the versions written from here.  The
+        #: trash records straight onto the history rather than through the
+        #: session, so without this a delete or a restore on a shared
+        #: project went out unstamped while every other record carried an
+        #: id -- and unstamped means "written here" to whoever receives it.
+        self._identity = identity
+
+    def _who(self) -> dict:
+        if self._identity is None:
+            return {}
+        try:
+            return self._identity() or {}
+        except Exception:
+            return {}
 
     # -- reading -----------------------------------------------------------
     def entries(self) -> list[TrashEntry]:
@@ -231,7 +254,7 @@ class Trash:
                     self.history.record(
                         member_relative,
                         member.read_text(encoding="utf-8"),
-                        by=by, why="deleted", op="delete",
+                        by=by, why="deleted", op="delete", **self._who(),
                     )
                 except (OSError, UnicodeDecodeError):
                     pass   # an image has no text history, only its bytes
@@ -294,6 +317,20 @@ class Trash:
             else str(target.relative_to(self.project_root))
             for file in entry.files
         ]
+        # The past comes back with it, even under another name.
+        #
+        # Not by renaming the log.  History is keyed by path, so the log at
+        # the old name holds this file's past *and* the past of whatever
+        # took the name after it was deleted -- which is exactly why
+        # `_forget` checks whether anything lives there before forgetting.
+        # Moving it wholesale would hand one file's history to another.  It
+        # is cut at the deletion instead, which is always there to cut at
+        # because a deletion is never thinned away.
+        if renamed:
+            for file, now_called in zip(entry.files, restored):
+                if file.path != now_called:
+                    self.history.split_at_delete(file.path, now_called)
+
         for relative in restored:
             back = self.project_root / relative
             try:
@@ -301,6 +338,7 @@ class Trash:
                     self.history.record(
                         relative, back.read_text(encoding="utf-8"),
                         by="you", why="restored from the trash", op="restore",
+                        **self._who(),
                     )
             except (OSError, UnicodeDecodeError):
                 pass
@@ -310,7 +348,15 @@ class Trash:
         except OSError:
             pass
         self._append({"id": entry.id, "removed": True, "at": time.time() * 1000})
-        return {"restored": restored, "renamed": renamed, "path": entry.path}
+        # `was` pairs with `restored`: what each file was called before it
+        # was deleted, and what it is called now.  The shared document needs
+        # both, because it knows the file by the old name.
+        return {
+            "restored": restored,
+            "was": [file.path for file in entry.files],
+            "renamed": renamed,
+            "path": entry.path,
+        }
 
     def _destroy(self, entry: TrashEntry) -> None:
         """Take one entry's payload off the disk, and say so if it will not go.

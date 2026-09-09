@@ -485,6 +485,21 @@ class History:
             return None
         return self.blobs.get(sha)
 
+    def have(self, relative_path: str) -> set[str]:
+        """Which of this file's versions have their contents on this disk.
+
+        A collaborator's version arrives as a line and its contents come
+        when somebody asks for them, so a version that is listed is not
+        necessarily one that can be opened -- and if its author has since
+        thinned that record away and swept the contents, it never will be.
+        The panel says so rather than offering a restore that cannot work.
+        """
+        return {
+            version.sha
+            for version in self.versions(relative_path)
+            if self.blobs.has(version.sha)
+        }
+
     def content(self, relative_path: str, sha: str) -> str | None:
         """One version's text, if it is still on disk."""
         data = self.bytes_of(relative_path, sha)

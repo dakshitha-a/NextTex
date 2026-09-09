@@ -63,8 +63,11 @@ export default function History({
   // Which install this is, so a version can say "you" rather than a name.
   const me = useStore((s) => s.peerId);
 
-  const choose = (sha: string, selected: boolean) => {
-    if (binary) {
+  const choose = (version: Version, selected: boolean) => {
+    const sha = version.sha;
+    // A version whose contents are not on this machine has nothing to show
+    // in the editor, so it opens in place and says so instead.
+    if (binary || version.here === false) {
       // No viewing mode: there is no text to lock, nothing to diff, and no
       // banner that could say anything true about a PNG.
       setConfirming(null);
@@ -129,6 +132,9 @@ export default function History({
           const day = dayOf(version.at);
           const first = index === 0 || dayOf(versions[index - 1].at) !== day;
           const selected = viewing?.sha === version.sha;
+          // Listed, and not on this disk. A collaborator's version arrives
+          // as a line and its contents come when somebody asks for them.
+          const elsewhere = version.here === false;
           return (
             <div key={`${version.sha}-${version.at}`}>
               {first ? (
@@ -145,7 +151,7 @@ export default function History({
                 className={`group relative flex cursor-pointer flex-col gap-[2px] px-[10px] py-[6px] ${
                   selected ? "bg-surface-2" : "hover:bg-surface-2"
                 }`}
-                onClick={() => choose(version.sha, selected)}
+                onClick={() => choose(version, selected)}
                 onKeyDown={(event) => {
                   // Only keys aimed at the row itself.  The naming input is
                   // a child of it, so without this every space typed into a
@@ -154,7 +160,7 @@ export default function History({
                   if (event.target !== event.currentTarget) return;
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    choose(version.sha, selected);
+                    choose(version, selected);
                   }
                 }}
               >
@@ -167,7 +173,7 @@ export default function History({
                       aria-hidden
                       className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center self-center overflow-hidden rounded-[3px] bg-surface-3"
                     >
-                      {isRenderable(activePath ?? "") ? (
+                      {isRenderable(activePath ?? "") && !elsewhere ? (
                         <img
                           src={blobUrl(version.sha)}
                           alt=""
@@ -191,8 +197,15 @@ export default function History({
                   <span className="flex-1" />
                   {/* The naming control takes the size's place on hover
                       rather than sitting on top of it. */}
-                  <span className="t-micro tnum text-ink-3 group-hover:hidden">
-                    {size(version.bytes)}
+                  <span
+                    className="t-micro tnum text-ink-3 group-hover:hidden"
+                    title={
+                      elsewhere
+                        ? "Only a collaborator has this one"
+                        : undefined
+                    }
+                  >
+                    {elsewhere ? "elsewhere" : size(version.bytes)}
                   </span>
                   <button
                     className="quiet t-micro hidden group-hover:block"
@@ -210,7 +223,15 @@ export default function History({
                 ) : version.why ? (
                   <span className="t-micro truncate text-ink-2">{version.why}</span>
                 ) : null}
-                {binary && opened === version.sha ? (
+                {elsewhere && opened === version.sha ? (
+                  <div className="mt-2" data-testid="version-elsewhere">
+                    <span className="t-micro text-ink-2">
+                      Only a collaborator has this one. It arrives when they
+                      are next online.
+                    </span>
+                  </div>
+                ) : null}
+                {binary && !elsewhere && opened === version.sha ? (
                   <div className="mt-2" data-testid="version-open">
                     {isRenderable(activePath ?? "") ? (
                       <img
