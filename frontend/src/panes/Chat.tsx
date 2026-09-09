@@ -1028,7 +1028,7 @@ function EditChip({
               Undo
             </button>
           ) : (
-            <span className="t-micro text-ink-3">Can't undo — you edited this</span>
+            <span className="t-micro text-ink-3">Can’t undo — you edited this</span>
           )}
         </span>
       </div>

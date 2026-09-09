@@ -1198,7 +1198,17 @@ export default function App() {
   }, [activePath, tree]);
 
   if (view === "loading") {
-    return <div className="h-full bg-surround" />;
+    // Words rather than a spinner, because §6 of the specification does not
+    // have spinners and because a coloured rectangle is not a loading state,
+    // it is an absence. This is the first thing anybody sees, and on a slow
+    // first connection it was the only thing, for as long as it took.
+    return (
+      <div className="flex h-full items-center justify-center bg-surround">
+        <p className="t-ui text-ink-3" role="status">
+          Opening NextTex
+        </p>
+      </div>
+    );
   }
   if (view === "offline") {
     // Said plainly and without a button: there is nothing the reader can

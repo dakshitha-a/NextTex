@@ -639,6 +639,52 @@ reachable, and would tell Google every time someone opened their thesis. The
 three families ship as `@fontsource` packages in the bundle. The typefaces and
 their roles are unchanged.
 
+**Proposed: what this specification would have to say to support touch, and
+what it costs.** Written and not built, deliberately. The interface review
+found that touch is not partially supported here, it is absent, and the
+difference matters: a partial answer can be improved in place, and an absent
+one is a decision about who the app is for. That decision belongs in this
+document before any of it is coded.
+
+What is actually there today, measured rather than estimated. **Zero** touch
+handlers in the entire source. Three files handle `pointerdown`, all of them
+for dragging a pane divider, and a pointer event from a finger arrives without
+the hover that the affordance around it assumes. The smallest interactive
+targets are 22 by 26 pixels, against the 44 by 44 that both platform
+guidelines ask for. The preview's zoom is a `wheel` event with `ctrlKey` set,
+which is a trackpad pinch and a mouse wheel and nothing a finger can produce.
+The breakpoints above go down to 900 px and stop; below that the layout does
+not reflow, it overflows, and there is no scroll fallback, so the right-hand
+edge is simply unreachable.
+
+The proposal, in the order the work would have to happen.
+
+First, a stated minimum. This app is a two-pane editor with a third pane for
+an agent, and there is a width below which that is not a layout, it is a
+concession. Say 720 px, and below it give the shell a horizontal scroll rather
+than a clip, so a narrow window is awkward and not broken. That is a small
+change and it is the one that stops the current silent failure.
+
+Second, hit targets, which is not a global size change. The rule would be that
+anything a finger is expected to hit carries a 44 px touch area, through
+padding or a pseudo-element, without the visual control growing. Applying it
+everywhere would coarsen an interface whose density is the point; applying it
+to the row menus, the tab close buttons and the preview controls is most of
+the benefit.
+
+Third, the gestures that have no keyboard or mouse equivalent. Pinch-to-zoom
+in the preview is the only one, and it is `touchstart`/`touchmove` with two
+points feeding the same zoom path the trackpad already uses.
+
+Fourth, the pane dividers. A 3 px divider is a mouse target. On touch it needs
+either a wider invisible grab area or, better, the folding controls that
+already exist as the primary way to change the layout.
+
+What is deliberately not proposed: a separate mobile layout, a phone-sized
+breakpoint, or a rewrite of the shell. A tablet in landscape is the honest
+target, because that is where a person edits a thesis and reads its proof.
+A phone is not, and saying so is more useful than half-supporting one.
+
 **A dialog keeps Tab, and gives focus back when it closes.** There was no Tab
 handler anywhere in the source, so seven of the nine dialogs let Tab walk out
 into the page behind them while they were still covering it, and dismissing one

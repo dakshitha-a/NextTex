@@ -19,7 +19,7 @@ import type { Symbols } from "../api";
 
 /** Commands worth offering, with their argument shapes.
  *  `#{n}` marks a field the writer tabs through. */
-const COMMANDS: [string, string, string][] = [
+export const COMMANDS: [string, string, string][] = [
   // structure
   ["section", "\\section{#{title}}", "a numbered section"],
   ["subsection", "\\subsection{#{title}}", "a numbered subsection"],
@@ -105,6 +105,86 @@ const COMMANDS: [string, string, string][] = [
   ["input", "\\input{#{file}}", ""],
   ["include", "\\include{#{file}}", "a chapter, on its own page"],
   ["bibliography", "\\printbibliography", ""],
+  // Added after a writer reached for `\\textcolor` and was offered nothing.
+  // The list is the floor and not the point, but a floor with holes in it
+  // reads as a feature that does not work rather than as a deliberate
+  // shortlist, and colour, spacing and cross-referencing are not exotic.
+  // colour
+  ["textcolor", "\\textcolor{#{red}}{#{text}}", "coloured text, xcolor"],
+  ["color", "\\color{#{red}}", "everything after this, xcolor"],
+  ["colorbox", "\\colorbox{#{yellow}}{#{text}}", "xcolor"],
+  ["definecolor", "\\definecolor{#{name}}{#{RGB}}{#{0,0,0}}", "xcolor"],
+  // spacing and breaks
+  ["hspace", "\\hspace{#{1em}}", ""],
+  ["vspace", "\\vspace{#{1em}}", ""],
+  ["quad", "\\quad", ""],
+  ["qquad", "\\qquad", ""],
+  ["hfill", "\\hfill", "push what follows to the right"],
+  ["vfill", "\\vfill", ""],
+  ["smallskip", "\\smallskip", ""],
+  ["medskip", "\\medskip", ""],
+  ["bigskip", "\\bigskip", ""],
+  ["newline", "\\newline", ""],
+  ["linebreak", "\\linebreak", ""],
+  ["pagebreak", "\\pagebreak", ""],
+  ["item", "\\item ", ""],
+  ["today", "\\today", ""],
+  ["mbox", "\\mbox{#{text}}", "text that will not be broken"],
+  ["verb", "\\verb|#{code}|", "literal, inline"],
+  ["textnormal", "\\textnormal{#{text}}", ""],
+  ["textsl", "\\textsl{#{text}}", "slanted"],
+  // more maths
+  ["boldsymbol", "\\boldsymbol{#{x}}", "bold in maths"],
+  ["mathbb", "\\mathbb{#{R}}", "blackboard bold"],
+  ["mathfrak", "\\mathfrak{#{g}}", ""],
+  ["operatorname", "\\operatorname{#{tr}}", "an operator name, upright"],
+  ["overline", "\\overline{#{x}}", ""],
+  ["underbrace", "\\underbrace{#{x}}_{#{note}}", ""],
+  ["overbrace", "\\overbrace{#{x}}^{#{note}}", ""],
+  ["binom", "\\binom{#{n}}{#{k}}", ""],
+  ["displaystyle", "\\displaystyle", ""],
+  ["pm", "\\pm", ""], ["mp", "\\mp", ""],
+  ["equiv", "\\equiv", ""], ["propto", "\\propto", ""],
+  ["sim", "\\sim", ""], ["simeq", "\\simeq", ""],
+  ["ll", "\\ll", ""], ["gg", "\\gg", ""],
+  ["in", "\\in", ""], ["notin", "\\notin", ""],
+  ["subset", "\\subset", ""], ["subseteq", "\\subseteq", ""],
+  ["cup", "\\cup", ""], ["cap", "\\cap", ""],
+  ["forall", "\\forall", ""], ["exists", "\\exists", ""],
+  ["ldots", "\\ldots", ""], ["cdots", "\\cdots", ""],
+  ["leftarrow", "\\leftarrow", ""], ["Rightarrow", "\\Rightarrow", ""],
+  ["Leftrightarrow", "\\Leftrightarrow", ""], ["mapsto", "\\mapsto", ""],
+  // the Greek letters the list was missing
+  ["zeta", "\\zeta", ""], ["eta", "\\eta", ""], ["iota", "\\iota", ""],
+  ["kappa", "\\kappa", ""], ["xi", "\\xi", ""], ["upsilon", "\\upsilon", ""],
+  ["varepsilon", "\\varepsilon", ""], ["varphi", "\\varphi", ""],
+  ["vartheta", "\\vartheta", ""],
+  ["Gamma", "\\Gamma", ""], ["Theta", "\\Theta", ""],
+  ["Lambda", "\\Lambda", ""], ["Xi", "\\Xi", ""], ["Pi", "\\Pi", ""],
+  ["Sigma", "\\Sigma", ""], ["Upsilon", "\\Upsilon", ""], ["Phi", "\\Phi", ""],
+  // cross-referencing and citations
+  ["cref", "\\cref{#{label}}", "cleveref, names the kind for you"],
+  ["Cref", "\\Cref{#{label}}", "cleveref, capitalised"],
+  ["citet", "\\citet{#{key}}", "the author's name in the sentence"],
+  ["parencite", "\\parencite{#{key}}", "biblatex"],
+  ["footcite", "\\footcite{#{key}}", "biblatex, in a footnote"],
+  ["nocite", "\\nocite{#{key}}", "in the bibliography, uncited"],
+  ["addbibresource", "\\addbibresource{#{references.bib}}", "biblatex"],
+  ["bibliographystyle", "\\bibliographystyle{#{plain}}", "natbib"],
+  // tables and boxes
+  ["hline", "\\hline", ""],
+  ["cline", "\\cline{#{2-3}}", ""],
+  ["multicolumn", "\\multicolumn{#{2}}{#{c}}{#{text}}", ""],
+  ["multirow", "\\multirow{#{2}}{#{*}}{#{text}}", ""],
+  ["resizebox", "\\resizebox{\\linewidth}{!}{#{content}}", ""],
+  // preamble
+  ["setlength", "\\setlength{\\#{parindent}}{#{0pt}}", ""],
+  ["renewcommand", "\\renewcommand{\\#{name}}{#{definition}}", ""],
+  ["DeclareMathOperator", "\\DeclareMathOperator{\\#{tr}}{#{tr}}", ""],
+  ["newtheorem", "\\newtheorem{#{theorem}}{#{Theorem}}", ""],
+  ["graphicspath", "\\graphicspath{{#{figures/}}}", ""],
+  ["linespread", "\\linespread{#{1.5}}", ""],
+  ["pagestyle", "\\pagestyle{#{plain}}", ""],
 ];
 
 const ENVIRONMENTS = [
@@ -113,6 +193,9 @@ const ENVIRONMENTS = [
   "enumerate", "description", "abstract", "quote", "quotation", "verbatim",
   "center", "flushleft", "flushright", "minipage", "subfigure", "theorem",
   "proof", "lemma", "definition", "algorithm", "lstlisting", "tikzpicture",
+  "equation*", "align*", "gather*", "multline", "subequations", "longtable",
+  "tabularx", "thebibliography", "corollary", "proposition", "remark",
+  "example", "landscape", "adjustbox",
 ];
 
 const PACKAGES = [
@@ -121,6 +204,8 @@ const PACKAGES = [
   "xcolor", "tikz", "pgfplots", "caption", "subcaption", "float", "multirow",
   "longtable", "listings", "algorithm2e", "cleveref", "mhchem", "chemfig",
   "fontenc", "inputenc", "lmodern", "setspace", "titlesec", "tocloft", "url",
+  "mathtools", "physics", "bm", "array", "tabularx", "adjustbox", "fancyhdr",
+  "csquotes", "xspace", "todonotes", "lipsum", "appendix", "acronym",
 ];
 
 const commandOptions: Completion[] = COMMANDS.map(([name, template, detail]) =>

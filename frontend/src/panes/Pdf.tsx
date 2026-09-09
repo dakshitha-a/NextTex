@@ -707,7 +707,7 @@ export default function Pdf({
     <div className="flex h-full min-h-0 flex-col bg-surround">
       <div
         ref={scroller}
-        className={`min-h-0 flex-1 ${mode === "page" ? "overflow-auto" : "overflow-auto"}`}
+        className="min-h-0 flex-1 overflow-auto"
         onScroll={mode === "scroll" ? onScroll : undefined}
         onDoubleClick={onDoubleClick}
         tabIndex={0}

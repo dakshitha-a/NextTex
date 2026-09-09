@@ -528,6 +528,17 @@ export default function FileTree({
         {menu === node.path ? (
           <div
             ref={menuRef}
+            // Deliberately still not `role="menu"`, having tried it. The
+            // three menus this was supposed to match carry the roles and
+            // none of them implements the arrow-key navigation the role
+            // promises, so copying them here would have spread an
+            // incomplete pattern to a fourth place and told assistive
+            // technology this is a menu widget when it is a column of
+            // buttons. The real answer is roving focus in all four, which
+            // is not done. Five browser specs failing on `getByRole
+            // ("button")` is what made the difference visible: the role
+            // does change what this is, and it should not change it until
+            // it is true.
             data-testid="file-menu"
             // Fixed, not absolute: an absolute menu is clipped by the
             // tree's own scroll box, so the last row's menu was cut in half.

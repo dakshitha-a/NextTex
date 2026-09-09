@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import api from "../api";
 import { startDownload } from "../api";
 import { useStore } from "../store";
+import { isRenderable } from "./renderable";
 
 /** A file the editor cannot open, shown rather than refused.
  *
@@ -15,12 +16,6 @@ import { useStore } from "../store";
  *  what the file is and offers the two things worth doing to it.
  */
 
-const RENDERABLE = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"]);
-
-export function isRenderable(path: string): boolean {
-  const dot = path.lastIndexOf(".");
-  return dot > 0 && RENDERABLE.has(path.slice(dot).toLowerCase());
-}
 
 export function readableSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
