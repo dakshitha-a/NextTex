@@ -1,7 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import { CompletionContext } from "@codemirror/autocomplete";
 import { EditorState } from "@codemirror/state";
-import { latexSource } from "./latex-complete";
+import { COMMANDS, latexSource } from "./latex-complete";
 import type { Symbols } from "../api";
 
 /** Which list of completions, and whether there is one at all.
@@ -119,5 +119,43 @@ describe("staying open while a word grows", () => {
 
   test("and a command list says the same", () => {
     expect(at("\\se")!.validFor).toBeDefined();
+  });
+});
+
+/** The list is described in this file as "the floor, not the point", and
+ *  that is right, but a floor with holes in it reads as a feature that does
+ *  not work rather than as a deliberate shortlist. A writer reached for
+ *  `\textcolor` and was offered nothing at all. */
+describe("the commands the floor has to hold", () => {
+  const names = new Set(COMMANDS.map(([name]) => name));
+
+  it.each([
+    // The one that was reported.
+    "textcolor",
+    // Its neighbours, which were missing for the same reason.
+    "color", "colorbox", "definecolor",
+    // Spacing, which no document avoids.
+    "hspace", "vspace", "quad", "hfill", "item", "today", "newline",
+    // Cross-referencing beyond the two styles that were there.
+    "cref", "Cref", "citet", "parencite", "nocite",
+    // Tables.
+    "hline", "multicolumn", "multirow",
+    // Greek letters the list simply skipped.
+    "zeta", "eta", "kappa", "xi", "varepsilon", "varphi",
+    "Gamma", "Lambda", "Sigma", "Phi",
+    // Maths that a thesis uses on most pages.
+    "pm", "equiv", "propto", "in", "ldots", "mathbb", "boldsymbol",
+  ])("offers \\%s", (name) => {
+    expect(names.has(name)).toBe(true);
+  });
+
+  it("still offers the ones it always did", () => {
+    for (const name of ["section", "textbf", "frac", "cite", "includegraphics"]) {
+      expect(names.has(name)).toBe(true);
+    }
+  });
+
+  it("names no command twice", () => {
+    expect(names.size).toBe(COMMANDS.length);
   });
 });
