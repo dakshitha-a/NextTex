@@ -154,6 +154,22 @@ class LoopbackHub:
             await first.heal()
             await second.heal()
 
+    async def cut(self) -> None:
+        """Drop every link the way a connection really drops.
+
+        `sever` is a *delay*: what is written while it is down is held and
+        delivered on `heal`.  That is the right model for a partition and the
+        wrong one for testing what happens afterwards, because nothing ever
+        falls out of `PeerLink.run`, so no link is ever rebuilt and the
+        dialling loop is never exercised.  For a long time that was the only
+        moment history was exchanged at all, which meant the suite could not
+        reach it.
+        """
+        links, self.links = self.links, []
+        for first, second in links:
+            await first.close()
+            await second.close()
+
 
 HUB = LoopbackHub()
 
