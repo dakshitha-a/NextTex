@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect } from "../fixtures";
+import { test, expect, openFolders } from "../fixtures";
 import type { Page } from "@playwright/test";
 
 /** Whether the app can be used by somebody who is not using a mouse, or
@@ -135,6 +135,7 @@ test("the upload chooser is announced, including its conflicts", async ({
     },
     { base: app.base, token: app.token, id: project.id },
   );
+  await openFolders(tab, "figures/plot.png");
   await expect(
     tab.getByRole("treeitem", { name: /plot\.png/ }).first(),
   ).toBeVisible({ timeout: 15_000 });

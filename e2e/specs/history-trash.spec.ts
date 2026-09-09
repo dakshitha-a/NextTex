@@ -23,7 +23,11 @@ async function typeAndSave(page: Page, text: string, app: any, project: any) {
 
 async function openHistory(page: Page) {
   await page.getByLabel("Actions for main.tex").click();
-  await page.getByRole("tree").getByRole("button", { name: "History" }).click();
+  // Exact: "Delete version history…" is in the same menu now.
+  await page
+    .getByRole("tree")
+    .getByRole("button", { name: "History", exact: true })
+    .click();
   await expect(page.getByTestId("version").first()).toBeVisible({
     timeout: 10_000,
   });

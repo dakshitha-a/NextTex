@@ -31,6 +31,9 @@ e2e/shots/*.png
 # The sweep renders every surface at every breakpoint in both themes --
 # seventy-odd files per run, for a person to go through and then discard.
 e2e/shots/sweep/
+# And the same for the pass renders: the surfaces one change touched,
+# photographed to be judged and then thrown away.
+e2e/shots/pass/
 e2e/node_modules
 e2e/test-results/
 e2e/playwright-report/

@@ -415,10 +415,18 @@ button { font: inherit; color: inherit; }
   transition: border-color 90ms var(--ease), color 90ms var(--ease),
     background-color 90ms var(--ease);
 }
-.ghost-button:hover:not(:disabled) {
+.ghost-button:hover:not(:disabled):not([data-tone="danger"]) {
   border-color: var(--hint);
   color: var(--hint);
   background: var(--hint-wash);
+}
+/* A button that destroys something does not get the colour that means
+   "safe, and worth touching" when the pointer arrives on it.  The same
+   exclusion `.quiet` already makes, and for the same reason: under the
+   pointer is exactly the moment the writer is deciding. */
+.ghost-button[data-tone="danger"]:hover:not(:disabled) {
+  border-color: var(--error);
+  color: var(--error);
 }
 .ghost-button:disabled { opacity: 0.4; }
 

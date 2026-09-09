@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures";
+import { test, expect, openFolders } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { landed } from "../typing";
 
@@ -108,6 +108,7 @@ test("a name already there is asked about before anything is written", async ({
   app, project, tab,
 }) => {
   await put(tab, app.base, app.token, project.id, "figures/plot.png");
+  await openFolders(tab, "figures/plot.png");
   await expect(
     tab.getByRole("treeitem", { name: /plot\.png/ }).first(),
   ).toBeVisible({ timeout: 15_000 });
@@ -185,7 +186,12 @@ test("a replaced figure keeps the one it replaced, and gives it back", async ({
   await expect(tab.getByTestId("file-view")).toBeVisible({ timeout: 15_000 });
 
   await tab.getByLabel("Actions for plot.png").click();
-  await tab.getByRole("tree").getByRole("button", { name: "History" }).click();
+  // Exact: the row menu now also offers "Delete version history…", and a
+  // substring match on "History" finds both.
+  await tab
+    .getByRole("tree")
+    .getByRole("button", { name: "History", exact: true })
+    .click();
   await expect(tab.getByTestId("version").first()).toBeVisible({ timeout: 15_000 });
 
   await tab.getByTestId("version").first().click();
@@ -265,8 +271,12 @@ test("the file list can be searched, and clearing it gives the tree back", async
     timeout: 15_000,
   });
 
-  // Collapse a folder first: clearing the search has to give this back
-  // rather than leaving the tree unfolded on the writer's behalf.
+  // Open a folder and shut it again: clearing the search has to give the
+  // fold back rather than leaving the tree unfolded on the writer's behalf.
+  // The tree arrives collapsed now, so the state being restored has to be
+  // arrived at rather than assumed.
+  await row(tab, "chapters").click();
+  await expect(row(tab, "chapters/02_theory.tex")).toBeVisible();
   await row(tab, "chapters").click();
   await expect(row(tab, "chapters/02_theory.tex")).toBeHidden();
 
@@ -314,6 +324,7 @@ test("a folder dragged into itself is refused, and nothing moves", async ({
   await expect(row(tab, "chapters")).toBeVisible({
     timeout: 15_000,
   });
+  await openFolders(tab, "chapters/figures/plot.tex");
   await expect(row(tab, "chapters/figures")).toBeVisible();
 
   await dragRow(tab, "chapters", "chapters/figures");
@@ -336,6 +347,7 @@ test("a tab follows the folder it was in", async ({ app, project, tab }) => {
   await tab.keyboard.press("Enter");
   await expect(row(tab, "parts")).toBeVisible({ timeout: 15_000 });
 
+  await openFolders(tab, "chapters/02_theory.tex");
   await row(tab, "chapters/02_theory.tex").click();
   await expect(
     tab.locator('[data-tab][data-path="chapters/02_theory.tex"]'),

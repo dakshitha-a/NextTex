@@ -27,6 +27,32 @@ export const test = base.extend<Fixtures>({
   },
 });
 
+/** Open the folders on the way to a file, so its row is on screen.
+ *
+ *  A project opens with its tree collapsed now -- every time, deliberately,
+ *  so the first thing a writer sees is the shape of the document rather
+ *  than every file in it -- and five specs had been quietly relying on the
+ *  old behaviour, where everything was open on arrival. They were not
+ *  testing that; they were testing an upload, a search, a drag and a tab,
+ *  and each of them happened to need a nested row to be visible first.
+ *
+ *  So this is what a person does, and the specs now say so: click the
+ *  folder, then use the file. `aria-expanded` is what it asks, because the
+ *  row carries it and a click on an already open folder would shut it. */
+export async function openFolders(page: Page, filePath: string): Promise<void> {
+  const parts = filePath.split("/").slice(0, -1);
+  let prefix = "";
+  for (const part of parts) {
+    prefix = prefix ? `${prefix}/${part}` : part;
+    const folder = page.locator(`[role="tree"] [data-path="${prefix}"]`);
+    await folder.waitFor({ timeout: 15_000 });
+    if ((await folder.getAttribute("aria-expanded")) !== "true") {
+      await folder.click();
+    }
+    await page.waitForTimeout(120);
+  }
+}
+
 export async function openProject(page: Page, root: string): Promise<void> {
   const name = root.split("/").pop()!;
   await page.getByText(name, { exact: false }).first().click();
