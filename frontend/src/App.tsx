@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
-import api, { captureToken, saveBlob, startDownload } from "./api";
+import api, { captureToken, landingAfter, saveBlob, startDownload } from "./api";
 import { useDismiss } from "./useDismiss";
 import Boundary from "./Boundary";
 import {
@@ -90,6 +90,10 @@ export default function App() {
   >(
     "loading",
   );
+  // What the server said when it refused to start us, if it said anything.
+  // A server that is not listening says nothing; a server that is broken
+  // answers, and what it answers is the only thing the writer can act on.
+  const [waitingBecause, setWaitingBecause] = useState("");
   // Configured with no writing agent at all.  Read here with every other
   // hook, above the early returns: a `useStore` further down runs only on
   // the renders that get that far, which is React error #310 and took the
@@ -228,12 +232,14 @@ export default function App() {
           else await resumeOrList();
           return;
         } catch (problem: any) {
-          if (problem?.status !== undefined) {
-            // The server answered, and said no.
+          if (landingAfter(problem) === "signin") {
             set({ agent: null });
             setView("signin");
             return;
           }
+          // A server that answered said something; a server that is not
+          // listening said nothing, and the screen supplies its own words.
+          setWaitingBecause(problem?.status !== undefined ? problem?.message ?? "" : "");
           setView("offline");
           await new Promise((wake) => window.setTimeout(wake, Math.min(500 * 2 ** attempt, 4000)));
         }
@@ -1151,13 +1157,17 @@ export default function App() {
   }
   if (view === "offline") {
     // Said plainly and without a button: there is nothing the reader can
-    // press that would help, and the app reconnects on its own.
+    // press that would help, and the app reconnects on its own.  When the
+    // server did answer, what it said goes here rather than being replaced
+    // by "not answering", which would be a false statement about a machine
+    // that is listening.
     return (
       <div className="flex h-full items-center justify-center bg-surround">
         <div className="text-center">
           <p className="t-ui text-ink">Waiting for NextTex</p>
           <p className="t-meta mt-1 text-ink-2">
-            The server is not answering. This page reconnects on its own.
+            {waitingBecause || "The server is not answering."} This page
+            reconnects on its own.
           </p>
         </div>
       </div>
