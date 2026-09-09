@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
 import { useDismiss } from "../useDismiss";
 import api, { startDownload, type TreeNode } from "../api";
@@ -9,10 +9,13 @@ import {
   isInside,
   search as searchTree,
 } from "../tree";
-import UploadStaging, { type Staging } from "./UploadStaging";
+import { type Staging } from "./UploadStaging";
+// Both open on a deliberate action and neither is on the first paint,
+// so a first visit does not download either.
+const UploadStaging = lazy(() => import("./UploadStaging"));
 import { whatDidNotLand } from "../upload-report";
 import FolderChooser from "./FolderChooser";
-import PapersChooser from "./PapersChooser";
+const PapersChooser = lazy(() => import("./PapersChooser"));
 
 /** 13px is the width of a Source Sans lowercase n at 13px, so indentation
  *  reads as a typographic quad rather than an arbitrary gap. */
@@ -823,12 +826,14 @@ export default function FileTree({
         }}
       />
       {papersFor ? (
+        <Suspense fallback={null}>
         <PapersChooser
           bibName={papersFor.name}
           at={papersFor.at}
           onClose={() => setPapersFor(null)}
           onStarted={() => setPapersFor(null)}
         />
+        </Suspense>
       ) : null}
       {moving ? (
         <MoveTo
@@ -843,6 +848,7 @@ export default function FileTree({
         />
       ) : null}
       {staging ? (
+        <Suspense fallback={null}>
         <UploadStaging
           staging={staging}
           onClose={() => setStaging(null)}
@@ -852,6 +858,7 @@ export default function FileTree({
             reveal(written);
           }}
         />
+        </Suspense>
       ) : null}
     </div>
   );

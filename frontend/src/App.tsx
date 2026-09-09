@@ -18,7 +18,9 @@ import {
   useStore,
 } from "./store";
 import Editor, { type EditorHandle } from "./panes/Editor";
-import FileView from "./panes/FileView";
+// Shown only for a file CodeMirror cannot hold, which most sessions
+// never open, so it is fetched when one is.
+const FileView = lazy(() => import("./panes/FileView"));
 // Loaded when the editor opens, not when the app does.  PDF.js is a third
 // of the bundle and the first screen is the project list, which has no
 // preview on it at all.
@@ -1466,7 +1468,9 @@ export default function App() {
                   one that CodeMirror cannot hold has to be shown here. */}
               {activeBinary ? (
                 <div className="absolute inset-0">
-                  <FileView path={activeBinary.path} size={activeBinary.size} />
+                  <Suspense fallback={null}>
+                    <FileView path={activeBinary.path} size={activeBinary.size} />
+                  </Suspense>
                 </div>
               ) : null}
 
