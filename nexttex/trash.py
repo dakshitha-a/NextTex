@@ -23,14 +23,19 @@ history first, because that is cheap and it keeps the timeline honest.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import secrets
+import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .atomic import unique_name, write_atomically
 from .history import History
+
+#: Named `logger` rather than `log`, which on this class is the ledger.
+logger = logging.getLogger("nexttex.trash")
 
 # Names that are never carried into the trash: they are regenerated, and
 # keeping them would make an entry ten times its useful size.
@@ -40,8 +45,10 @@ SKIP_DIRS = {".git", "__pycache__", ".nexttex", "node_modules"}
 # or a dataset, and the trash keeps its bytes anyway.
 MAX_TEXT_VERSION_BYTES = 2_000_000
 
-#: What `delete` makes: "t", the millisecond, and six hex characters.  Used
-#: to check an id read back out of the ledger before it is joined onto a path.
+#: What `delete` makes: "t", the millisecond, and six hex characters.  An id
+#: read back out of the ledger is checked against this before it is joined
+#: onto a path, and `entries` does that checking so that nothing downstream
+#: has to remember to.
 _IS_ENTRY_ID = re.compile(r"t[0-9a-f]{1,20}")
 
 
@@ -119,6 +126,14 @@ class Trash:
                 data = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            # Every reader joins an entry's id onto a path and one of them
+            # hands the result to `rmtree`, so an id that `delete` could not
+            # have written is dropped here rather than at each use.  Nothing
+            # is lost by dropping it: the payloads on disk are named by ids
+            # this module made, so a line naming anything else names nothing.
+            if not _IS_ENTRY_ID.fullmatch(str(data.get("id") or "")):
+                logger.warning("ignoring a trash entry whose id is not one of ours")
+                continue
             if data.get("removed"):
                 out = [entry for entry in out if entry.id != data.get("id")]
                 continue
@@ -129,17 +144,25 @@ class Trash:
     def find(self, entry_id: str) -> TrashEntry | None:
         return next((e for e in self.entries() if e.id == entry_id), None)
 
-    def payload_of(self, entry: TrashEntry) -> Path:
-        """Where a deleted file or folder is actually sitting.
+    def _holding(self, entry: TrashEntry) -> Path:
+        """The directory one deleted thing is sitting in.
 
         The id is checked rather than trusted.  It is joined onto a path, and
         it comes out of `entries.jsonl`, which is a file on disk: the ids this
         module writes are `t<hex><hex>` and could never be anything else, but
         the ledger is a file and a file is whatever is in it.
+
+        `entries` already refuses a line whose id is not one of ours, so this
+        is the second lock on the same door.  It is worth having, because the
+        caller below hands what this returns to `rmtree`.
         """
         if not _IS_ENTRY_ID.fullmatch(entry.id):
             raise PermissionError(f"not a trash entry id: {entry.id[:40]!r}")
-        return self.root / entry.id / Path(entry.path).name
+        return self.root / entry.id
+
+    def payload_of(self, entry: TrashEntry) -> Path:
+        """Where a deleted file or folder is actually sitting."""
+        return self._holding(entry) / Path(entry.path).name
 
     def _restore_target(self, relative: str) -> Path:
         """Where a restore is allowed to put something back.
@@ -241,8 +264,6 @@ class Trash:
         try:
             target.rename(holding / target.name)
         except OSError:
-            import shutil
-
             shutil.move(str(target), str(holding / target.name))
         self._append(entry.as_dict())
         return entry
@@ -291,25 +312,36 @@ class Trash:
         self._append({"id": entry.id, "removed": True, "at": time.time() * 1000})
         return {"restored": restored, "renamed": renamed, "path": entry.path}
 
+    def _destroy(self, entry: TrashEntry) -> None:
+        """Take one entry's payload off the disk, and say so if it will not go.
+
+        Deliberately not `ignore_errors`: the ledger is about to record that
+        this happened, and a purge that quietly did nothing is how "delete for
+        good" becomes a lie.  A payload that is already gone is not a failure.
+        """
+        holding = self._holding(entry)
+        try:
+            shutil.rmtree(holding)
+        except FileNotFoundError:
+            pass
+        except OSError as failure:
+            logger.warning("could not destroy %s: %s", holding.name, failure)
+
     def purge(self, entry_id: str) -> bool:
         """Delete one entry for good, and the history of what it held."""
-        import shutil
-
         entry = self.find(entry_id)
         if entry is None:
             return False
-        shutil.rmtree(self.root / entry.id, ignore_errors=True)
+        self._destroy(entry)
         self._forget(entry)
         self._append({"id": entry.id, "removed": True, "at": time.time() * 1000})
         self._rewrite(self.entries())
         return True
 
     def empty(self) -> int:
-        import shutil
-
         entries = self.entries()
         for entry in entries:
-            shutil.rmtree(self.root / entry.id, ignore_errors=True)
+            self._destroy(entry)
             self._forget(entry)
         self._rewrite([])
         return len(entries)
