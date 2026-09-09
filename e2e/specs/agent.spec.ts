@@ -93,14 +93,23 @@ test("a shell command asks first, and the buttons are not clickable instantly", 
   await expect(tab.getByText("Done.")).toBeVisible({ timeout: 20_000 });
 });
 
-test("a command that runs more than one command is never remembered", async ({
+test("a compound command names what stopped it, and can be remembered as itself", async ({
   tab,
 }) => {
+  // This spec used to assert the opposite, and it was pinning a sentence
+  // that was false: the card said "it runs more than one command" about
+  // every command carrying shell syntax, including `latexmk > build.log`,
+  // which runs one.  It also asserted that no rule was offered, because a
+  // rule on the first word would have been a promise the fence cannot keep.
+  // Both of those changed, so this changed with them.
   await ask(tab, "shellsyntax", "Run the compound command.");
   await expect(
-    tab.getByText("This one is asked every time"),
+    tab.getByText("runs a second command after this one"),
   ).toBeVisible({ timeout: 20_000 });
-  await expect(tab.getByTestId("always")).toHaveCount(0);
+  await expect(tab.getByText("This one is asked every time")).toHaveCount(0);
+  // Offered now, and what it remembers is this exact command rather than
+  // its first word.
+  await expect(tab.getByTestId("always")).toHaveCount(1);
 });
 
 test("a second question while Claude is writing goes next, not nowhere", async ({

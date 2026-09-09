@@ -296,7 +296,17 @@ class ScriptedAgent:
     async def _permission(self, step: dict) -> str:
         self._counter += 1
         request_id = f"scripted-perm-{self._counter}"
-        if self.auto:
+        # Auto mode does not cover every step, and this stand-in used to
+        # behave as though it did: it approved whatever the script said,
+        # which meant no browser test could see the case a writer actually
+        # runs into.  The real fence asks whenever it could not write a rule
+        # for the call, so a step with no rule asks here too.
+        #
+        # A step may also say plainly that it is not covered, which is what
+        # a network call is: the fence holds those back whatever the switch
+        # says, and the step carries the sentence explaining that.
+        covered = bool(step.get("rule", "Bash:echo")) and not step.get("uncovered")
+        if self.auto and covered:
             # The same pre-decided card the real fence emits, so the browser
             # specs exercise what a writer would actually see.
             await self._emit({
@@ -308,6 +318,7 @@ class ScriptedAgent:
                 "headline": step.get("headline", "Run a shell command"),
                 "detail": step.get("detail", "echo hello"),
                 "consequence": step.get("consequence", ""),
+                "reason": step.get("reason", ""),
             })
             return "allow"
         future: asyncio.Future = asyncio.get_running_loop().create_future()
@@ -320,6 +331,7 @@ class ScriptedAgent:
             "headline": step.get("headline", "Run a shell command"),
             "detail": step.get("detail", "echo hello"),
             "consequence": step.get("consequence", ""),
+            "reason": step.get("reason", ""),
         })
         try:
             return await future

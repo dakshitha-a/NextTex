@@ -37,6 +37,11 @@ export type ChatItem =
       headline: string;
       detail: string;
       consequence: string;
+      /** Which rule put this card up, when the answer is not simply "this
+       *  app asks".  Empty unless auto mode is on and something held the
+       *  call back anyway, which is the case that reads as the switch not
+       *  working. */
+      reason: string;
       at: number;
       decision?: "allow" | "always" | "deny" | "auto";
     }
@@ -333,7 +338,8 @@ export function replayTranscript(items: any[]) {
       chat.push({
         kind: "permission", id: item.id || nextId(), tool: item.tool ?? "",
         rule: item.rule ?? "", headline: item.headline ?? "",
-        detail: item.detail ?? "", consequence: item.consequence ?? "", at,
+        detail: item.detail ?? "", consequence: item.consequence ?? "",
+        reason: item.reason ?? "", at,
         decision: item.decision,
       });
     } else if (item.kind === "notice") {
@@ -817,6 +823,7 @@ function receive(event: any) {
         headline: event.headline ?? `Use ${event.tool}`,
         detail: event.detail ?? "",
         consequence: event.consequence ?? "",
+        reason: event.reason ?? "",
         decision: decided || undefined,
         at: Date.now(),
       });

