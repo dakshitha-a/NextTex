@@ -1,0 +1,50 @@
+# Run the Python suite on every push and every pull request.
+#
+# It had never run anywhere but a laptop.  720 tests, four tiers of care
+# behind them, and the only workflow in this repository built the frontend
+# bundle -- so a change that broke a route stayed broken until somebody
+# happened to run `scripts/check.sh` by hand.
+#
+# The suite needs nothing but Python.  It was written that way on purpose:
+# the agent is replaced by `nexttex/scripted_agent.py`, the network by
+# `NEXTTEX_COLLAB_TRANSPORT=loopback`, and the compile tests assert the
+# command line rather than running an engine.  So there is no TeX Live
+# install here, which is what would otherwise turn a one minute job into a
+# ten minute one.  If a test ever does need an engine, it belongs behind a
+# `shutil.which` skip like the one `chktex` already has.
+
+name: python
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: python-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The floor named in requirements.txt, so the tests run against
+          # the oldest Python an install is allowed to have rather than
+          # against whatever happens to be newest.
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      # From the repository root: `tests/conftest.py` puts it on sys.path,
+      # since there is no packaging metadata to install from.
+      - name: Test
+        run: python -m pytest tests/ -q
