@@ -78,6 +78,11 @@ export default function FileTree({
    *  make what you see on opening depend on what you did last week, and the
    *  whole value of collapsed-on-open is that it is the same every time. */
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  /** Which file the menu is asking about clearing, if any. */
+  const [purging, setPurging] = useState<string | null>(null);
+  /** What the last clearing did, so the writer is told rather than left to
+   *  wonder whether anything happened. */
+  const [purged, setPurged] = useState<string>("");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
@@ -202,7 +207,17 @@ export default function FileTree({
   const act = async (action: string, node: TreeNode) => {
     const projectId = get().projectId;
     if (!projectId) return;
+    // Clearing a file's versions is the one item here that asks first, and
+    // it asks inside the menu rather than in a dialog over the app: the
+    // question is about the row the menu is already pointing at, and a
+    // sheet in the middle of the screen would lose that.  Trash does not
+    // ask, and the difference is real -- the trash keeps what it takes.
+    if (action === "purge") {
+      setPurging(node.path);
+      return;
+    }
     setMenu(null);
+    setPurging(null);
     try {
       if (action === "download") {
         startDownload(
@@ -579,7 +594,53 @@ export default function FileTree({
             style={menuAt ? { left: menuAt.x, top: menuAt.y } : undefined}
             onClick={(event) => event.stopPropagation()}
           >
-            {[
+            {purging === node.path ? (
+              <div className="px-3 py-2" data-testid="purge-confirm">
+                {/* Says what goes and what stays, in that order, because
+                    "delete version history" beside a file reads a great
+                    deal like "delete the file" and the writer has to be
+                    able to rule that out without thinking about it. */}
+                <p className="t-meta text-ink">
+                  Delete every stored version of {node.name}?
+                </p>
+                <p className="t-micro mt-1 text-ink-3">
+                  The file itself is not touched. Disk is released within the
+                  hour.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    className="ghost-button h-[26px] px-2 t-micro hover:text-error"
+                    data-testid="purge-confirm-yes"
+                    onClick={async () => {
+                      const projectId = get().projectId;
+                      setMenu(null);
+                      setPurging(null);
+                      if (!projectId) return;
+                      const answer = await api.purgeHistory(projectId, node.path);
+                      setPurged(
+                        answer.removed === 1
+                          ? "Deleted 1 version."
+                          : `Deleted ${answer.removed} versions.`,
+                      );
+                      window.setTimeout(() => setPurged(""), 6000);
+                    }}
+                  >
+                    Delete history
+                  </button>
+                  <button
+                    className="ghost-button h-[26px] px-2 t-micro"
+                    data-testid="purge-confirm-no"
+                    onClick={() => {
+                      setPurging(null);
+                      setMenu(null);
+                    }}
+                  >
+                    Keep
+                  </button>
+                </div>
+              </div>
+            ) : (
+            [
               ["rename", "Rename"],
               ["move", "Move to…"],
               // A .bib file's reason to have a menu opened on it at all is
@@ -603,24 +664,40 @@ export default function FileTree({
                 : candidates.includes(node.path)
                   ? [["preview", "Preview this document"]]
                   : []),
-              ...(!isDirectory ? [["history", "History"]] : []),
+              // Everything about this file's past, kept together: looking
+              // at it and throwing it away are the same subject, and the
+              // second is the reason somebody opens the first.
+              ...(!isDirectory
+                ? [["rule:past", ""], ["history", "History"],
+                   ["purge", "Delete version history…"]]
+                : []),
+              ["rule:out", ""],
               ["download", isDirectory ? "Download as zip" : "Download"],
+              ["rule:new", ""],
               ["upload", "Upload here"],
               ["newfile", "New file here"],
               ["newfolder", "New folder here"],
+              ["rule:gone", ""],
               ["delete", isDirectory ? "Move folder to trash" : "Move to trash"],
-            ].map(([key, label]) => (
+            ].map(([key, label]) =>
+              // Twelve items in one undivided column was a list you had to
+              // read all of to find anything. The groups are what the items
+              // are about: this file's name and place, its past, getting a
+              // copy out, putting something new in, and taking it away.
+              key.startsWith("rule:") ? (
+                <div key={key} className="my-1 border-t border-line" />
+              ) : (
               <button
                 key={key}
                 className={[
                   "block w-full px-3 py-[3px] text-left t-ui hover:bg-surface-2",
-                  key === "delete" ? "hover:text-error" : "",
+                  key === "delete" || key === "purge" ? "hover:text-error" : "",
                 ].join(" ")}
                 onClick={() => act(key, node)}
               >
                 {label}
               </button>
-            ))}
+            )))}
           </div>
         ) : null}
       </div>,
@@ -800,6 +877,14 @@ export default function FileTree({
               {found}
             </span>
           ) : null}
+        </div>
+      ) : null}
+      {purged ? (
+        // Said once and then gone. Clearing a history is silent by nature --
+        // the file does not change and the tree does not move -- so without
+        // a line here the writer has no way to know it worked.
+        <div className="t-micro px-[10px] py-1 text-ink-3" data-testid="purged-notice">
+          {purged}
         </div>
       ) : null}
       <div

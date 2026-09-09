@@ -7,9 +7,22 @@
 
 ## 1. Design direction
 
-**The composing room.** The rendered PDF is the only white object on screen; everything
-around it is the grey surround of a proofing table, and the only saturated colour in the
-entire chrome is the pen the agent writes with. This comes from the practice of judging
+**The composing room.** The rendered PDF is the only white object the *app* chooses;
+everything around it is the grey surround of a proofing table, and the only saturated colour
+in the entire chrome is the pen the agent writes with.
+
+> Revised. This sentence used to read "the only white object on screen", flatly, and §23
+> records why it could not stay that way: a writer may now set the editor page to paper
+> white, and three of them will. The rule the sentence was protecting is still the rule —
+> the app is drawn on proofing grey and defaults to it, and nothing in the chrome is ever
+> white — but the editor page is the one surface the writer may overrule, because the object
+> it holds is the thing they are *making* rather than the thing they are *judging*. The
+> claim is now about what the app picks, not about what can be on screen.
+
+§23 also records the other half of the light theme, which is that it is no longer light all
+the way through. The rail, the agent column, the status strip and everything that floats are
+furniture, and they take the dark palette even while the theme is light — so the light theme
+is a lit editor and a lit page set into dark furniture, rather than a cloud. This comes from the practice of judging
 printed matter — you set proofs against a neutral mid-grey, never against white, because
 white chrome around a white page makes the page stop reading as an object. It gives NextTex
 a light theme no other code editor has, keeps the UI permanently subordinate to the typeset
@@ -2436,3 +2449,216 @@ And removing a collaborator disconnects them without retracting anything.
 There is no owner, so there is no authority that could rotate a key, and a
 button that looked like revocation and was not would be worse than no button.
 The sentence saying so is next to the button and not in a footnote.
+
+## 23. A page you can choose, and furniture you cannot
+
+Two axes were added to the theming in one pass, and the second one found
+bugs in the first that no amount of looking would have.
+
+### The light theme was a cloud
+
+Four surfaces five L\* apart, all of them light, with the frame only five
+points below the panes. The result was one grey field divided by hairlines:
+the rail, the editor, the agent column and the surround read as the same
+object, and the typeset page — which §1 says is the point of the whole
+palette — was no brighter than the panes beside it. The writer's own words
+for it were that it looked "completely light everywhere, like a cloud", and
+that there should be contrast between the panes and the things in front of
+them.
+
+The answer is *furniture*. The rail, the agent column, the status strip, the
+diagnostics drawer, the folded rail's spine and every floating card take the
+**dark** palette while the theme is light. The editor and the preview stay
+light, so the light theme is now a lit editor and a lit page set into dark
+furniture.
+
+The mechanism is one selector added to the dark block:
+
+```css
+:root[data-theme="dark"],
+:root[data-theme="light"] .nx-furniture,
+.nx-theme-dark { ... }
+```
+
+and nothing else. This works because `@theme inline` keeps the `var()`
+indirection inside every compiled Tailwind utility — `bg-surface` in the
+bundle is `background-color: var(--surface)` — so a container that
+redeclares the palette repaints everything inside it with no component
+changes at all.
+
+**Why not a third palette, or a layer of `--chrome-*` tokens.** Both were
+considered and both are worse for the same reason. A third palette is three
+dozen values that have to be authored, measured, and then kept in step; §2
+records twice what happens when two copies of a palette are free to drift.
+A `--chrome-*` layer doubles the token count, gives every component a second
+vocabulary to choose between, and creates a whole matrix of pairs — `--pen`
+on `--chrome-2`, `--error` on `--chrome` — that `contrast.test.ts` has no
+curated entries for. Reusing the dark palette creates **zero** new pairs:
+every pair already certified for dark holds verbatim.
+
+The new selector goes *before* `.nx-theme-dark`, because `contrast.test.ts`
+finds the block by searching for the literal string `.nx-theme-dark {`, and
+a selector appended after that one would take the brace with it.
+
+### Three papers for the editor page
+
+`editorTheme` was `match | light | dark`, and "light" meant the proofing
+grey. That is the right ground for judging a page and the wrong one for
+somebody who has composed on white for twenty years. There are now six
+grounds: `match`, `light` (the proofing grey), `white`, `warm`, `cool` and
+`dark`. `white` is exactly `#FFFFFF`, because that was the request, and a
+near-white pretending to be white is worse than either.
+
+They are **not** three more palettes. Each is applied together with
+`.nx-theme-light`, which supplies the inks, the five accents and the five
+syntax hues, and moves only the four surfaces upward. That is what makes the
+syntax highlighting come with them instead of having to be redrawn, and it
+is why `contrast.test.ts` composes them (`{...LIGHT, ...paper}`) rather than
+measuring four hexes in isolation.
+
+Two tokens move with the surfaces, and both move opposite to the obvious
+direction.
+
+**`--ink-3` gets louder on a brighter page, not fainter.** It measures
+6.2:1 on the proofing grey and 7.9:1 on white. Left alone, a comment would
+have outranked the prose it annotates, so the papers lift it back to roughly
+the weight it was chosen for. This is the only ink they touch: `--ink` and
+`--ink-2` merely gain contrast, which is never a fault.
+
+**`--line` is the one thing that genuinely weakens**, and not because of the
+ink. It is `color-mix(in oklab, var(--ink-3) 55%, transparent)` — an alpha
+mix, so what shows is 55% of the ink over 45% of the ground. Brighten the
+ground *and* lighten the ink and the hairline moves two steps toward the
+page, taking the gutter rule and the search panel's borders with it. The
+papers mix it at 68% to stand still.
+
+### The three bugs the furniture found
+
+**`--on-pen`.** A filled `--pen` button decided its label colour with
+`:root[data-theme="dark"] .pen-button { color: var(--surround) }` — it asked
+the *root* what theme it was. That is the wrong question inside a subtree,
+and it was already latently wrong for a `.nx-theme-dark` editor. The moment
+the agent column became furniture it went actively wrong: Send in the light
+theme would have been white on `#C988E7` at 2.6:1, in the one control the
+agent's entire colour reservation exists for. It is a token now, written as
+a literal hex in every palette so the contrast test's regex captures it, and
+the selector is gone. This is the `--on-accent` idea from NexusQC, and it
+earned its place here for exactly the reason it earned it there.
+
+**Colour inherits as a value, not as the variable.** The project name, the
+agent column's heading and several buttons went invisible the instant the
+furniture arrived. `color` inherits *resolved*: `body` computes its colour
+from the light `--ink` once, and every descendant inherits that dark grey
+even inside a subtree that has since redeclared `--ink` for a dark ground.
+One line — `.nx-furniture { color: var(--ink) }` — retires the whole class
+of it. Anything else handed a palette by a class needs the same line.
+
+**`theme-color` was the wrong token.** The meta tag declared `#121614`, the
+dark theme's `--surface`, in both themes. The browser paints its own chrome
+with it, so it should be the app's outermost ground and it should follow the
+theme. The pre-paint script sets it now.
+
+### The editor ground is offered as a colour
+
+The Settings card used a `Choice` row of words, and words were the problem:
+"Light" in that row and "Light" in the Theme row directly above it meant two
+different things, which is why every button in a `Choice` carries its group's
+name in its accessibility label. Six grounds could not have survived that.
+
+They are swatches, and each is painted by putting the app's own palette class
+on the fill and filling with `var(--surface)`. There is no list of preview
+hexes here to go stale — the swatch *is* the token. `Match` is drawn as both
+palettes at once, split down the middle, because that is what it means, and
+a caption names the current choice so the row reads as a sentence rather than
+as six grey rectangles to guess between.
+
+## 24. Clearing a file's history, and one registry for what a file is
+
+### Clearing
+
+`DELETE /api/projects/{id}/history?path=` throws away every stored version of
+one file. It is the only destructive operation in the history store, so what
+it must *not* do is the whole design.
+
+Blobs are content-addressed and therefore shared: with the file's own past,
+with any other file that happens to hold identical bytes, and with the final
+version recorded for something now sitting in the trash. Nothing in the route
+unlinks a blob by name. It drops one log with `History.forget`, then lets
+`History.collect` sweep whatever no *remaining* log points at. The
+collector's one-hour grace exists to stop it racing a `record` that has
+written a blob and not yet its line, so a version made in the last hour
+survives the call and goes on the next one — which is why the interface says
+disk comes back "within the hour" and must not promise sooner.
+
+The order is forget, re-seed, collect. Collecting first would unlink the blob
+holding the file's current contents and the re-seed would immediately write
+it back: harmless, but it makes the reported figure a lie.
+
+The re-seed is a floor. Without it the file has no past at all, the panel is
+empty, and the next edit has nothing to diff against. It is recorded as
+`create`, which is in `PERMANENT_OPS` and therefore never thinned.
+
+**The working file is untouched**, by construction: `forget` only removes
+`log/<slug>.jsonl` and the `paths.json` entry, and nothing else in the route
+opens the file except to read it for the marker. The confirmation says so
+before it says anything else, because "delete version history" beside a file
+reads a great deal like "delete the file".
+
+**A peer's copy is not purged.** What a collaborator keeps of this file is on
+their disk, and §22 already treats two collaborators holding different depths
+of one file's history as correct rather than as a fault.
+
+*Known gap, not fixed here.* `history_sync` cursors are indices into a peer's
+own contribution list, and they only ever move forward. After a purge the
+local list is length one while a collaborator's cursor still sits at N, so
+the next N versions of that file would not be sent. A `HIST_RESET` frame is
+the minimal fix and a cursor keyed on the last absorbed timestamp is the
+durable one. Neither is in this change.
+
+### One registry for what a file is
+
+There were four answers to "what kind of thing is this file", and they
+disagreed. `project.py` has `TEXT_SUFFIXES` and `IMAGE_SUFFIXES`; the
+frontend had a `RENDERABLE` set that excluded `.pdf`; `History.tsx` had a
+*second* `TEXT_SUFFIXES` including `.bbl`, `.csv`, `.log`, `.py` and `.sh`
+where the server's did not; and the file tree asked about `.bib` and `.tex`
+with regular expressions written inline.
+
+The visible consequence: a PDF figure was called an image by the server, so
+the editor was skipped; refused by the renderer, because `RENDERABLE`
+excluded it; and offered as a download in an application that had PDF.js
+loaded one column away. Writers keep figures as PDF precisely so they scale,
+so the one file this app could not show was the one it was best equipped to.
+
+`frontend/src/panes/file-kinds.ts` is now the single answer, and it has **no
+imports and may never gain one**: `History.tsx` imports it statically, and a
+static import anywhere keeps the module in the entry chunk — which is what
+stopped `FileView` being split out of it before.
+
+The server's sets are deliberately not merged into it. Those decide what the
+editor may open, which is a question about bytes on disk and has to be
+answered on the server whatever the browser believes; this one decides how to
+draw a row and which viewer to reach for. A vitest asserts the containment
+that has to hold — every suffix the server will hand over as text is text
+here too — so the two can differ without drifting.
+
+### The viewers
+
+`FileView`'s docstring used to say it was "deliberately not a viewer: no
+zoom, no pan, no page controls". That call is reversed rather than left to
+contradict the code. A figure is not an attachment; it is the object the
+writer is judging, and judging it means seeing it at a size they choose.
+
+PDFs go to the preview pane's own viewer, which now takes an optional
+`source` URL instead of the build output — the same rasteriser, the same
+zoom ladder, the same page controls. Double-click inverse search is inert
+when `source` is set: there is no source file behind somebody's figure, and
+asking synctex anyway would land the caret on an unrelated line of the main
+document.
+
+Images get zoom, fit and their real pixel dimensions, and they are drawn **on
+paper**, with the page's own shadow, on the surround. The old viewer centred
+them on `--surface-2`, so a plot exported with a transparent background —
+which is most of them — was judged against near-black in the dark theme,
+where a white axis label simply is not there. Paper is also the honest
+preview: white is what transparent will be once it is on the page.
