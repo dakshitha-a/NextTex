@@ -583,7 +583,7 @@ export default function App() {
 
   // ---- events from the server ------------------------------------------
   useEffect(() => {
-    handlers.onFilesChanged = (paths, structural = true) => {
+    handlers.onFilesChanged = (_paths, structural = true) => {
       // A plain save in another tab changes a file, not the shape of the
       // project, and walking the tree for one of those on every keystroke
       // burst in the other window is work for nothing.

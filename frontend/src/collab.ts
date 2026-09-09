@@ -114,10 +114,6 @@ class DocSocket {
   private attempt = 0;
   private closing = false;
   private timer: number | null = null;
-  /** Set while applying something that arrived, so the update it produces is
-   *  not sent straight back to where it came from. */
-  private applying = false;
-
   constructor(
     private url: string,
     readonly doc: Y.Doc,
@@ -194,12 +190,10 @@ class DocSocket {
       if (kind === MESSAGE_SYNC) {
         const encoder = encoding.createEncoder();
         encoding.writeVarUint(encoder, MESSAGE_SYNC);
-        this.applying = true;
-        try {
-          syncProtocol.readSyncMessage(decoder, encoder, this.doc, this);
-        } finally {
-          this.applying = false;
-        }
+        // `this` is the transaction origin, which is what stops the update
+        // this produces being sent straight back where it came from: the
+        // document listener returns early when it sees its own origin.
+        syncProtocol.readSyncMessage(decoder, encoder, this.doc, this);
         if (encoding.length(encoder) > 1) this.send(encoding.toUint8Array(encoder));
       } else if (kind === MESSAGE_AWARENESS) {
         applyAwarenessUpdate(

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api";
-import { get, refreshTrash, set, useStore } from "../store";
+import { refreshTrash, set, useStore } from "../store";
 import { Chevron } from "../chrome";
 
 /** What has been deleted, and how to get it back.
