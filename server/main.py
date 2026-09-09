@@ -297,6 +297,13 @@ async def _reap_once() -> None:
                 # so this is giving memory back rather than closing anything
                 # the writer would notice.
                 if SESSIONS.pop(project_id, None) is not None:
+                    # The one moment a project is certainly idle, which is
+                    # what blob collection wants: it walks the whole store,
+                    # and it only ever ran when somebody emptied the trash,
+                    # so a writer who never empties it kept every thinned
+                    # blob forever.  In a thread because the walk is
+                    # unbounded and this is still the event loop.
+                    await asyncio.to_thread(session.history.collect)
                     await session.close()
                     _restart_watch()
                 continue

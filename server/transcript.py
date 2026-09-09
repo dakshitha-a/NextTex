@@ -32,6 +32,13 @@ TAIL_BYTES = 4_000_000
 # Checked on append, which is cheap: one stat.
 COMPACT_ABOVE_BYTES = 24_000_000
 
+# How many archived conversations a project keeps.  Deliberately generous,
+# because these are the record of what an assistant did to somebody's
+# dissertation and archiving renames rather than deletes on purpose.  But
+# nothing removed one either, so a project that starts a new conversation
+# every morning kept every morning it had ever had.
+MAX_ARCHIVES = 50
+
 
 class Transcript:
     def __init__(self, path: Path):
@@ -57,14 +64,27 @@ class Transcript:
             self._compact_if_large()
 
     def _compact_if_large(self) -> None:
-        """Cut the file down to what would ever be read back."""
+        """Cut the file down to what would ever be read back.
+
+        This used to read the whole file, all twenty-four megabytes of it,
+        and keep the last eight thousand lines.  Two things were wrong with
+        that.  The read was the entire file rather than the part anybody
+        ever looks at, on the event loop.  And a line count is not a size:
+        every edit line holds the file before and after, so eight thousand
+        of them can be larger than the threshold that triggered the
+        compaction, and the next sixty-four appends would read the whole
+        thing again, and the sixty-four after that.  Keeping exactly what
+        `_tail` returns bounds the result in bytes instead, so compaction is
+        guaranteed to make progress.
+        """
         try:
             if self.path.stat().st_size < COMPACT_ABOVE_BYTES:
                 return
-            lines = self.path.read_text(encoding="utf-8").splitlines()
         except OSError:
             return
-        keep = lines[-MAX_ITEMS * 2:]
+        keep = self._tail()[-MAX_ITEMS * 2:]
+        if not keep:
+            return
         temp = self.path.with_name(self.path.name + ".tmp")
         try:
             temp.write_text("\n".join(keep) + "\n", encoding="utf-8")
@@ -100,9 +120,29 @@ class Transcript:
             self.path.rename(target)
         except OSError:
             return None
+        self._prune_archives()
         # The next append recreates the file, and `_tail` already copes with
         # it not being there in the meantime.
         return target.name
+
+    def _prune_archives(self) -> None:
+        """Keep the most recent archived conversations and no more.
+
+        Sorted by name rather than by modification time, because the name
+        carries the timestamp the archive was made at and the modification
+        time does not survive copying a project from one machine to another.
+        """
+        try:
+            archives = sorted(
+                self.path.parent.glob("transcript-*.jsonl"), key=lambda old: old.name
+            )
+        except OSError:
+            return
+        for old in archives[:-MAX_ARCHIVES]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
 
     def _flush_text(self) -> None:
         if not self._buffer:
