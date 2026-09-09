@@ -85,10 +85,16 @@ export async function startServer(
     if (value === "") delete env[key];
   }
 
+  // `detached` makes the server its own process group leader, so stopping it
+  // can take its children with it. It spawns real builds, and `latexmk` and
+  // `pdflatex` are grandchildren of this runner: killing only the server left
+  // them writing into the sandbox while `stop()` was deleting it, which
+  // surfaced as an intermittent ENOTEMPTY from a directory that had been
+  // emptied a moment earlier.
   const child: ChildProcess = spawn(
     join(ROOT, ".venv", "bin", "python"),
     ["-m", "server.run"],
-    { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] },
+    { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"], detached: true },
   );
   let log = "";
   child.stdout?.on("data", (chunk) => (log += chunk));
@@ -117,7 +123,17 @@ export async function startServer(
   // listening, for as long as the machine stayed up. Four of them were once
   // found six hours later. `exit` fires for all of those, and may only do
   // synchronous work, which `kill` is.
-  const orphanGuard = () => child.kill("SIGKILL");
+  /** Signal the whole group, and do not care if it has already gone. */
+  const endGroup = (signal: NodeJS.Signals) => {
+    if (child.pid === undefined) return;
+    try {
+      process.kill(-child.pid, signal);
+    } catch {
+      /* already reaped, or never started */
+    }
+  };
+
+  const orphanGuard = () => endGroup("SIGKILL");
   process.on("exit", orphanGuard);
 
   return {
@@ -127,10 +143,23 @@ export async function startServer(
     sandbox,
     async stop() {
       process.off("exit", orphanGuard);
-      child.kill("SIGTERM");
+      endGroup("SIGTERM");
       await new Promise((resolve) => setTimeout(resolve, 400));
-      if (child.exitCode === null) child.kill("SIGKILL");
-      rmSync(sandbox, { recursive: true, force: true });
+      if (child.exitCode === null) endGroup("SIGKILL");
+
+      // Even with the group gone, a build's last write can still be settling,
+      // and a recursive delete that races one raises ENOTEMPTY from a
+      // directory it has just emptied. Retried rather than trusted once: this
+      // is teardown, and failing here fails a test that has already passed.
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          rmSync(sandbox, { recursive: true, force: true });
+          return;
+        } catch (problem) {
+          if (attempt >= 5) throw problem;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
     },
   };
 }
