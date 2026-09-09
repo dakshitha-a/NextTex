@@ -214,7 +214,17 @@ class ProjectSession:
         self.transcript = Transcript(project.state_dir / "transcript.jsonl")
         self.history = History(project.state_dir / "history")
         self.symbols = SymbolCache(project.root)
-        self.trash = Trash(project.state_dir / "trash", self.history, project.root)
+        #: When the contents nothing refers to were last swept out of
+        #: this project's history.  The reaper reads it; see COLLECT_EVERY.
+        self.collected_at = 0.0
+        self.trash = Trash(
+            project.state_dir / "trash", self.history, project.root,
+            # The trash writes versions straight onto the history rather
+            # than through `record_version`, so it needs its own way of
+            # saying whose install this is.  Unstamped means "written here"
+            # to whoever receives it.
+            identity=lambda: {"peer": self._peer_id(), "who": self._peer_name()},
+        )
         self.library = Library(project.state_dir / "library")
         self.dictionary = ProjectDictionary(project.state_dir)
         self.events = Broadcaster()

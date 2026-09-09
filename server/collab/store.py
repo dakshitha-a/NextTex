@@ -67,6 +67,7 @@ editor in another terminal -- and records those as such.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import difflib
 import logging
 import re
@@ -76,7 +77,7 @@ from typing import Callable
 
 from pycrdt import Doc, Map, Text
 
-from nexttex.atomic import read_text, write_atomically
+from nexttex.atomic import read_text, unique_name, write_atomically
 from nexttex.history import slug_for
 from nexttex.project import TEXT_SUFFIXES, Project
 
@@ -257,6 +258,20 @@ class CollabStore:
 
         # The three guards against a write loop.  See the module docstring.
         self._projecting: set[str] = set()
+        #: True while a peer's update is being applied, so the watcher can
+        #: tell a change made here from one made on somebody else's machine.
+        #: A flag rather than the transaction's origin, because pycrdt's
+        #: event does not carry one.
+        self.applying_remote = False
+        #: Files whose pending changes include at least one made here.  Only
+        #: those get a version written when they are projected; see `_write`.
+        self._authored: set[str] = set()
+        #: What each file was called here, last time this machine looked.
+        #: The manifest is the authority on a file's name, and following it
+        #: means noticing when it has moved out from under what is on disk.
+        self._named: dict[str, str] = {}
+        #: Set when the manifest changes, cleared by the next flush.
+        self._paths_moved = False
         self.last_projected: dict[str, str] = {}
 
         self._dirty: set[str] = set()
@@ -368,8 +383,14 @@ class CollabStore:
         # Dropped rather than repaired: this runs inside the transaction that
         # fired it, where reading the document is not allowed.
         self._by_path = None
+        # A file may have been renamed or deleted somewhere else.  Noted
+        # here and acted on by the next flush, which is outside this
+        # transaction: following it means touching the disk and the history,
+        # and neither is allowed from in here.
+        self._paths_moved = True
         self._persist("manifest", event.update)
         self._moved("manifest", event.update)
+        self._schedule()
 
     def _moved(self, doc_id: str, update: bytes) -> None:
         """Tell everyone watching. Runs inside the transaction that made the
@@ -474,6 +495,14 @@ class CollabStore:
             # A change that came from disk is already on disk.
             if file_id in self._projecting:
                 return
+            if not self.applying_remote:
+                # Somebody at this keyboard, or this install's agent.  Noted
+                # so that the projection knows whether it is writing this
+                # install's own work or somebody else's; see `_write`.
+                #
+                # A flag rather than the transaction's origin, because
+                # pycrdt's event does not carry one.
+                self._authored.add(file_id)
             self._dirty.add(file_id)
             self._schedule()
 
@@ -601,17 +630,26 @@ class CollabStore:
         except (OSError, ValueError):
             return ""
 
-    def untrash(self, relative: str, text: str | None) -> None:
+    def untrash(self, original: str, relative: str, text: str | None) -> None:
         """A file coming back from the trash, under the id it had before.
 
         `file_id_for` skips trashed records, so an ordinary `ingest` would
         mint a *new* id for the same path and orphan the document -- and its
         history with it. Clearing the flag first is what keeps a restore a
         restore rather than a new file that happens to have the old name.
+
+        `original` and `relative` differ when the old name had been taken
+        and the file came back beside it.  This used to be told only the new
+        name, which matched no trashed record at all, so a fresh id was
+        minted after all: the original document stayed trashed for ever with
+        a collaborator's offline edits sealed inside it, and that peer went
+        on holding a stale file it could no longer write to.
         """
         for file_id, record in self.files.items():
-            if record.get("path") == relative and record.get("trashed"):
+            if record.get("path") == original and record.get("trashed"):
                 record["trashed"] = False
+                if relative != original:
+                    record["path"] = relative
                 break
         if text is not None:
             self.ingest(relative, text)
@@ -762,6 +800,98 @@ class CollabStore:
         self._timer = None
         self.flush()
 
+    def settle_paths(self) -> None:
+        """Follow renames and deletions that were made somewhere else.
+
+        A path is a *property* of a file in the manifest, so a rename is one
+        field changing, which is what keeps everybody's editor pointed at the
+        same document however often it is renamed.  What it does not do is
+        move the file, and nothing here used to either.  So the other machine
+        kept the old name with the old contents, the new name did not appear
+        until somebody happened to type into that document, and then that
+        machine had both -- with its history still filed under a name nothing
+        would look up again.
+
+        A deletion had the mirror of it.  The record is flagged, projection
+        stops writing that file, and the file simply sits there: in the tree,
+        written by nothing, with no trash entry and therefore no way for the
+        person at that machine to put it back.  Worse, opening it in another
+        editor made the watcher ingest a path whose record is trashed, and
+        `file_id_for` skips trashed records, so that machine ended up with
+        two documents for one path.
+
+        Never called from inside the manifest's own transaction: it touches
+        the disk and the history, and neither is allowed from in there.
+        """
+        if self._closed:
+            return
+        for file_id, record in list(self.files.items()):
+            path = record.get("path") or ""
+            if not path:
+                continue
+            was = self._named.get(file_id)
+            if was is None:
+                # First sight of this file. Nothing to follow yet; this is
+                # the baseline the next change is measured against.
+                self._named[file_id] = path
+                continue
+            if record.get("trashed"):
+                if self._trash_locally(was):
+                    self._named.pop(file_id, None)
+            elif path != was:
+                self._rename_locally(file_id, was, path)
+
+    def _rename_locally(self, file_id: str, was: str, now_called: str) -> None:
+        source = self.project.root / was
+        try:
+            target = self.project.resolve_for_write(now_called)
+        except (PermissionError, OSError, ValueError):
+            # The same fence the projection uses: a path proposed by whoever
+            # is on the other end of the connection does not get to name
+            # `.git/config` or a `latexmkrc`.
+            return
+        if not source.exists():
+            self._named[file_id] = now_called
+            return
+        if target.exists():
+            # This is not the disk the rename was made on.  The sender
+            # refused a rename onto a name that was taken *there*, which says
+            # nothing about here.  The manifest is the authority on what this
+            # file is called, so whatever is in the way steps aside.
+            with contextlib.suppress(OSError):
+                target.rename(unique_name(target, "was here"))
+            if target.exists():
+                return   # left for the next flush rather than written over
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            source.rename(target)
+        except OSError:
+            return
+        session = self.session
+        if session is not None:
+            # Without this the past stays filed under the old name, and the
+            # file's whole history is unreachable from either name.
+            session.history.note_move(was, now_called)
+        self._named[file_id] = now_called
+
+    def _trash_locally(self, was: str) -> bool:
+        """Put a file somebody else deleted into this machine's own trash."""
+        trash = getattr(self.session, "trash", None)
+        try:
+            target = self.project.resolve_for_write(was)
+        except (PermissionError, OSError, ValueError):
+            return False
+        if not target.exists():
+            return True
+        if trash is None:
+            return False
+        try:
+            trash.delete(target)
+        except Exception:
+            log.warning("could not follow a deletion into the trash: %s", was)
+            return False
+        return True
+
     def flush(self) -> None:
         """Write every changed document out, now.
 
@@ -774,6 +904,9 @@ class CollabStore:
         is a timer callback, and nothing was ever retried because the set was
         already empty.
         """
+        if self._paths_moved:
+            self._paths_moved = False
+            self.settle_paths()
         pending, self._dirty = self._dirty, set()
         failed: set[str] = set()
         for file_id in pending:
@@ -801,6 +934,12 @@ class CollabStore:
         self._compact()
 
     def _write(self, file_id: str) -> None:
+        # Taken first, and taken whatever happens below.  It says whether the
+        # changes about to be projected include one made at this keyboard,
+        # which is what decides whether this install writes a version for
+        # them or waits to be told about somebody else's.
+        authored = file_id in self._authored
+        self._authored.discard(file_id)
         record = self.files.get(file_id)
         text = self._body.get(file_id)
         if record is None or text is None or record.get("trashed"):
@@ -824,6 +963,7 @@ class CollabStore:
         try:
             write_atomically(path, content)
             self.last_projected[file_id] = content
+            self._named[file_id] = relative
             session = self.session
             if session is not None:
                 # The four things every write in this app has always done.
@@ -831,7 +971,30 @@ class CollabStore:
                 # page stops following a collaborator's typing, which is
                 # most of the point of any of this.
                 session.mark_written(path)
-                session.record_version(path, content, previous=previous)
+                if authored:
+                    session.record_version(path, content, previous=previous)
+                else:
+                    # Not ours to record.  Every install projects the merged
+                    # document to its own disk, and recording that wrote a
+                    # version stamped with *this* install -- so a
+                    # collaborator's paragraph entered your history under
+                    # your name, and was then offered back to them as your
+                    # work.  Nothing deduplicated it, because both the
+                    # moment and the author differed, so a shared file's log
+                    # grew by roughly one wrongly attributed entry per edit
+                    # per person.
+                    #
+                    # The person who typed it records it; everybody else
+                    # receives that record through history sync, which is
+                    # what history sync is for.  It also makes "this
+                    # install's own records" a set that means something,
+                    # which is what the whole per-author scheme rests on.
+                    #
+                    # The contents are kept even so.  It is the same sha
+                    # their line will name, so their version opens here with
+                    # no round trip, and an orphan goes to the collector
+                    # like any other.
+                    session.history.blobs.put(content.encode("utf-8"))
                 session.note_edit(path, content, previous)
                 session.schedule_compile()
         finally:

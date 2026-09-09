@@ -286,6 +286,16 @@ def _restart_watch() -> None:
 # touched this project in half an hour has moved on.
 SESSION_IDLE_TIMEOUT = 30 * 60
 
+# How often an *open* project has the contents nothing refers to swept out
+# of its history.  Collection used to happen only when a session was
+# evicted, and a shared project is deliberately never evicted -- somebody
+# may be typing into it from another machine this second -- so unless the
+# writer emptied the trash or cleared a file by hand, a shared project kept
+# every thinned version's contents for ever.  That is the exact failure
+# eviction-time collection was added to fix, reintroduced by the rule that
+# keeps shared projects alive.
+COLLECT_EVERY = 60 * 60
+
 
 async def _reap_once() -> None:
     """One pass of the reaper.
@@ -313,17 +323,21 @@ async def _reap_once() -> None:
                 # so this is giving memory back rather than closing anything
                 # the writer would notice.
                 if SESSIONS.pop(project_id, None) is not None:
-                    # The one moment a project is certainly idle, which is
-                    # what blob collection wants: it walks the whole store,
-                    # and it only ever ran when somebody emptied the trash,
-                    # so a writer who never empties it kept every thinned
-                    # blob forever.  In a thread because the walk is
-                    # unbounded and this is still the event loop.
-                    await asyncio.to_thread(session.history.collect)
+                    # Closed *before* collecting.  Closing flushes whatever
+                    # documents are still pending out to disk, and each of
+                    # those writes a version; collecting first took its
+                    # picture of what is referenced before those lines
+                    # existed.  In a thread because the walk is unbounded
+                    # and this is still the event loop.
                     await session.close()
+                    await asyncio.to_thread(session.history.collect)
                     _restart_watch()
                 continue
             await session.reap_idle_agent()
+            if time.monotonic() - session.collected_at > COLLECT_EVERY:
+                # Open, and swept anyway. See COLLECT_EVERY.
+                session.collected_at = time.monotonic()
+                await asyncio.to_thread(session.history.collect)
         except Exception:
             # One session's reaping must not stop the others being reaped, so
             # this is caught per session rather than around the loop.  But a
@@ -1354,6 +1368,29 @@ def _safe(session: ProjectSession, relative: str) -> Path:
         raise HTTPException(400, "bad path")
 
 
+def _safe_rel(session: ProjectSession, relative: str) -> tuple[Path, str]:
+    """The resolved path, and the canonical name the history files it under.
+
+    `slug_for` hashes the exact string it is handed, so `./main.tex` and
+    `main.tex` are two different files as far as a version log is concerned
+    and only one of them is ever real.  Everything that *writes* history goes
+    through `Project.relative` first.  The routes that read it, name it,
+    clear it and rename it did not: they called `_safe` for the fence, threw
+    away the path it resolved, and passed the raw query string on.
+
+    So asking for the history of `./main.tex` returned an empty list with a
+    200, clearing it reported that nothing had been cleared, and -- the one
+    that cost something -- renaming through a dotted path moved the file on
+    disk, left its entire past filed under a name nothing would ever look up
+    again, and answered `{"ok": true}`.
+    """
+    target = _safe(session, relative)
+    try:
+        return target, session.project.relative(target)
+    except (OSError, ValueError):
+        raise HTTPException(400, "bad path")
+
+
 # ---------------------------------------------------------------------------
 # Projects
 
@@ -1677,7 +1714,8 @@ async def create_entry(
 @app.post("/api/projects/{project_id}/file/rename")
 async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(...)):
     session = session_for(project_id)
-    source, target = _safe(session, path), _safe(session, to)
+    source, path = _safe_rel(session, path)
+    target, to = _safe_rel(session, to)
     if not source.exists():
         raise HTTPException(404, "no such file")
     if target.exists():
@@ -1741,12 +1779,16 @@ async def restore_trash(project_id: str, entry_id: str):
     # Which build path a restore needs depends on what came back.  Without
     # this the scheduler reused whatever the last edit left set, so
     # restoring a .bib skipped the biber pass its citations needed.
-    for relative in result["restored"]:
+    for was, relative in zip(result["was"], result["restored"]):
         restored = session.project.root / relative
         # A file coming back out of the trash is a file coming back into the
         # project: it has to reach the shared document, and its record has to
         # stop being marked trashed or nothing will ever write it again.
-        session.collab.untrash(relative, read_text(restored))
+        #
+        # Told what it *was* called as well as what it is called now.  Those
+        # differ when the old name had been taken, and matching on the new
+        # one alone found no trashed record at all.
+        session.collab.untrash(was, relative, read_text(restored))
         session.note_edit(restored, read_text(restored), None)
     session.schedule_compile()
     return {"ok": True, **result}
@@ -1779,8 +1821,18 @@ async def empty_trash(project_id: str):
 @app.get("/api/projects/{project_id}/history")
 async def file_history(project_id: str, path: str):
     session = session_for(project_id)
-    _safe(session, path)   # refuse to describe anything outside the project
-    versions = [v.as_dict() for v in session.history.versions(path)]
+    # The fence, and the name the history files this under.
+    _, path = _safe_rel(session, path)
+    # And which of them can actually be opened.  A collaborator's version
+    # arrives as a line, and its contents come when somebody asks for them,
+    # so the panel has to be able to tell "here" from "not here yet" -- and,
+    # when nobody is connected, from "nobody left to ask".
+    here = session.history.have(path)
+    versions = []
+    for version in session.history.versions(path):
+        entry = version.as_dict()
+        entry["here"] = version.sha in here
+        versions.append(entry)
     versions.reverse()     # newest first, as the panel reads it
     return {"path": path, "versions": versions}
 
@@ -1798,7 +1850,7 @@ async def history_blob(
     and its Download both ask for.
     """
     session = session_for(project_id)
-    _safe(session, path)
+    _, path = _safe_rel(session, path)
     await _fetch_missing_blob(session, sha)
     if raw or download:
         data = session.history.bytes_of(path, sha)
@@ -1849,7 +1901,7 @@ async def restore_version(
 ):
     """Put an old version back, as a new version. Nothing is overwritten."""
     session = session_for(project_id)
-    target = _safe(session, path)
+    target, path = _safe_rel(session, path)
     # Bytes rather than text, so restoring a figure gives back the figure.
     text = session.history.bytes_of(path, sha)
     if text is None:
@@ -1883,7 +1935,7 @@ async def label_version(
     label: str = Body(""),
 ):
     session = session_for(project_id)
-    _safe(session, path)
+    _, path = _safe_rel(session, path)
     if not session.history.set_label(path, sha, label.strip() or None):
         raise HTTPException(404, "no such version")
     return {"ok": True}
@@ -1908,7 +1960,7 @@ async def history_size(project_id: str):
 
 
 @app.delete("/api/projects/{project_id}/history")
-async def purge_history(project_id: str, path: str, reseed: bool = True):
+async def purge_history(project_id: str, path: str):
     """Delete every stored version of one file.  The file is not touched.
 
     Nothing here unlinks a blob by name, and that is the whole safety of it.
@@ -1918,26 +1970,40 @@ async def purge_history(project_id: str, path: str, reseed: bool = True):
     only correct way to free them is to drop this file's log and then let
     `collect` sweep whatever no *remaining* log still points at.  Its one
     hour grace is what stops it racing a `record` that has written a blob
-    and not yet its line, so a version made in the last hour survives this
-    call and goes on the next one.  The copy in the interface says "within
-    the hour" for that reason and must not promise sooner.
+    and not yet its line -- and it is keyed on the blob's own mtime, which
+    is why `put` touches a blob it finds already there rather than leaving
+    it alone.  A version made in the last hour survives this call and goes
+    on the next one.  The copy in the interface says "within the hour" for
+    that reason and must not promise sooner.
+
+    **On a shared project this clears one disk.**  A collaborator's copy of
+    this file's past is on their machine and stays there, which §22 already
+    treats as correct rather than as a fault, and nothing is sent to say
+    otherwise: one person's decision about their own disk space must not
+    reach into somebody else's copy.  What stops it coming straight back is
+    the floor `History.forget` leaves behind, which refuses those records on
+    the way in.  The confirmation says so, on a shared project only.
 
     The order matters.  Forget, then re-seed, then collect: collecting first
     would unlink the blob holding the file's current contents and the
     re-seed would immediately write it back, which is harmless but makes the
     freed figure a lie.
 
-    The re-seed is a floor.  Without it the file has no past at all, the
-    panel is empty, and the next edit has nothing to diff against; `create`
-    is in PERMANENT_OPS so the marker is never thinned away.
+    The re-seed is a floor, and not optional.  Without it the file has no
+    past at all, the panel is empty, and the next edit has nothing to diff
+    against; `create` is in PERMANENT_OPS so the marker is never thinned
+    away.  It used to be switchable through a `reseed` query parameter that
+    no document mentioned, no test exercised, and nothing in the interface
+    could reach -- an undocumented way to turn off the one safety property
+    this route claims.
     """
     session = session_for(project_id)
-    target = _safe(session, path)
+    target, path = _safe_rel(session, path)
     before = await asyncio.to_thread(session.history.size)
     removed = len(session.history.versions(path))
     session.history.forget(path)
     seeded = False
-    if reseed and target.is_file():
+    if target.is_file():
         session.record_version(
             target, read_bytes(target), by="you",
             why="history was cleared", op="create",
