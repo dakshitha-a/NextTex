@@ -423,6 +423,102 @@ test("a parked overlay cannot be reached, and cannot drag the layout", async ({
   expect((await geometry()).railX).toBe(0);
 });
 
+/** Where the layout actually sits, in viewport pixels: what a screenshot of
+ *  the window would show rather than what the classes say it should. */
+const placement = (page: any) =>
+  page.evaluate(() => {
+    // The shell is the outermost of these, so it is first in document
+    // order; the PDF pane carries the same ground colour further down.
+    const shell = document.querySelector(".bg-surround") as HTMLElement;
+    const rail = document
+      .querySelector('[role="tree"]')
+      ?.closest(".nx-pane") as HTMLElement | null;
+    const panel = document.querySelector(
+      "[data-testid=chat-panel]",
+    ) as HTMLElement;
+    const pill = document.querySelector(
+      "[data-testid^=agent-button-]",
+    ) as HTMLElement;
+    const box = panel.getBoundingClientRect();
+    return {
+      scroll: Math.round(shell.scrollLeft),
+      railX: rail ? Math.round(rail.getBoundingClientRect().x) : null,
+      // How much of the shell's own ground is showing to the right of the
+      // panel.  The black band in the report was this, and it was as wide
+      // as the panel itself.
+      gap: Math.round(shell.getBoundingClientRect().right - box.right),
+      // The pill is `position: fixed`, so it cannot move.  If it ends up
+      // over the panel, the panel moved out from under it.
+      pillInsidePanel: pill.getBoundingClientRect().right > box.left + 1,
+    };
+  });
+
+for (const scale of [100, 110]) {
+  test(`opening the overlay never drags the layout, at ${scale}%`, async ({
+    tab,
+  }) => {
+    // The parked panel is held outside the shell by a transform, so while
+    // it is sliding in the composer is still beyond the right edge -- and
+    // `toggleChat` puts the caret in that composer 60ms after opening it.
+    // A bare `focus()` has the browser scroll the composer into view, and
+    // the shell is `overflow: hidden`, which hides the scrollbar but is
+    // still a scroll container.  What that leaves is the rail off the
+    // screen, the editor's gutter clipped at x=0, and a band of bare
+    // ground down the right the width of the panel.  Reported from a
+    // screenshot; intermittent in life because it turns on how far the
+    // slide had got by the time the focus landed, and on whether anything
+    // later relaid the shell out and clamped the offset away.
+    //
+    // Holding the panel where it is parked takes the timing out of it.  It
+    // is the same position the slide passes through, and the caret lands
+    // in it either way, so a focus that can scroll the shell will scroll
+    // it every time rather than on the runs where the machine was slow.
+    if (scale !== 100) {
+      await tab.evaluate((value: number) => {
+        localStorage.setItem("nexttex.ui.scale", String(value));
+      }, scale);
+      await tab.reload();
+      await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
+    }
+    // 1300px is an overlay at either size, and still wide enough at both to
+    // keep the file rail on screen, which is what shows the drag.
+    await tab.setViewportSize({ width: 1300, height: 900 });
+    await chatAway(tab);
+    const held = await tab.addStyleTag({
+      content:
+        '[data-testid="chat-panel"] { transform: translateX(100%) !important;' +
+        " transition: none !important; }",
+    });
+
+    await tab.keyboard.press("Control+Alt+KeyA");
+    await chatThere(tab);
+    // Past the 60ms the focus waits for, with frames to spare.
+    await tab.waitForTimeout(300);
+    const opening = await placement(tab);
+    expect(
+      opening.scroll,
+      "the caret landing in the composer scrolled the shell sideways",
+    ).toBe(0);
+    expect(opening.railX, "the file rail was dragged off the left").toBe(0);
+
+    // And with the panel let go, it covers the right edge, with the pill
+    // that opened it still outside it.
+    await held.evaluate((tag: HTMLElement) => tag.remove());
+    await tab.waitForTimeout(400);
+    const settled = await placement(tab);
+    expect(settled.scroll, "the shell is scrolled sideways").toBe(0);
+    expect(settled.railX, "the file rail was dragged off the left").toBe(0);
+    expect(
+      Math.abs(settled.gap),
+      "a band of bare ground beside the panel",
+    ).toBeLessThanOrEqual(1);
+    expect(
+      settled.pillInsidePanel,
+      "the agent pill is sitting inside the panel",
+    ).toBe(false);
+  });
+}
+
 test("the agent button never sits on top of the panel it opens", async ({
   tab,
 }) => {

@@ -30,7 +30,13 @@ test.afterAll(async () => {
   await app?.stop();
 });
 
-type Fault = { label: string; scrollW: number; clientW: number; right: number };
+type Fault = {
+  label: string;
+  shellScroll: number;
+  scrollW: number;
+  clientW: number;
+  right: number;
+};
 
 async function settled(page: any, label: string, faults: Fault[]) {
   // Past the 180ms slide, so an animation in flight is not read as a fault.
@@ -39,7 +45,12 @@ async function settled(page: any, label: string, faults: Fault[]) {
     const panel = document.querySelector("[data-testid=chat-panel]") as HTMLElement | null;
     if (!panel) return null;
     const box = panel.getBoundingClientRect();
+    // The shell as well as the document.  The document never scrolled for
+    // this bug: it was the shell, one element in, that the browser moved
+    // when the caret landed in a composer still outside it.
+    const shell = document.querySelector(".bg-surround") as HTMLElement;
     return {
+      shellScroll: shell ? Math.round(shell.scrollLeft) : 0,
       scrollW: document.documentElement.scrollWidth,
       clientW: document.documentElement.clientWidth,
       right: Math.round(box.right),
@@ -54,6 +65,9 @@ async function settled(page: any, label: string, faults: Fault[]) {
   expect(info.panels).toBe(1);
   if (info.scrollW > info.clientW + 1) {
     faults.push({ label: `${label}: the page scrolls sideways`, ...info });
+  }
+  if (info.shellScroll > 1) {
+    faults.push({ label: `${label}: the shell scrolls sideways`, ...info });
   }
   if (!info.hidden && info.right > info.clientW + 1) {
     faults.push({ label: `${label}: the panel hangs off the right`, ...info });
@@ -82,6 +96,41 @@ test("the panel stays where it belongs through every change", async ({ browser }
     await settled(page, `at ${width}px`, faults);
     await page.keyboard.press("Control+Alt+a");
     await settled(page, `at ${width}px, toggled`, faults);
+  }
+
+  expect(faults).toEqual([]);
+  await context.close();
+});
+
+test("the panel stays where it belongs at every interface size", async ({
+  browser,
+}) => {
+  // The interface size is a `zoom` on the root, so stepping it changes the
+  // space the layout has to arrange in without the window changing size and
+  // without a `resize` to notice it by.  At 1500px the app crosses the
+  // 1400px breakpoint on the size alone: 100% is a docked column and every
+  // size above it is an overlay, so this walks the same swap the resize
+  // sweep above walks, by the other route.
+  const faults: Fault[] = [];
+  const context = await browser.newContext({
+    viewport: { width: 1500, height: 900 },
+  });
+  const page = await context.newPage();
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText(project.root.split("/").pop()!, { exact: false }).first().click();
+  await page.locator(".cm-editor").waitFor({ timeout: 45_000 });
+
+  for (const size of ["100%", "110%", "125%", "150%"]) {
+    if (size !== "100%") {
+      await page.getByTestId("appearance").first().click();
+      await page.getByRole("button", { name: "Larger interface" }).click();
+      await page.keyboard.press("Escape");
+    }
+    await settled(page, `at ${size}`, faults);
+    await page.keyboard.press("Control+Alt+a");
+    await settled(page, `at ${size}, opened`, faults);
+    await page.keyboard.press("Control+Alt+a");
+    await settled(page, `at ${size}, closed again`, faults);
   }
 
   expect(faults).toEqual([]);

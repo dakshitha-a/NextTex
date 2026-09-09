@@ -88,9 +88,18 @@ test("reset puts everything back", async ({ tab }) => {
   await expect(tab.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
+const WIDE = 1700;
+
 test("a floating card still lands on screen at a larger interface", async ({
   tab,
 }) => {
+  // Wide enough that the layout still has its 1100px at 150%, since 1700
+  // divided by 1.5 is 1133.  The window has to be given that room now that
+  // a change of interface size is measured when it happens rather than at
+  // the next time the window is dragged: at the default 1600 the layout is
+  // down to 1067px at 150% and the file rail correctly folds itself away,
+  // taking with it the row this opens a menu from.
+  await tab.setViewportSize({ width: WIDE, height: 1000 });
   await open(tab);
   for (const _ of [0, 1, 2]) {
     await tab.getByRole("button", { name: "Larger interface" }).click();
@@ -108,7 +117,7 @@ test("a floating card still lands on screen at a larger interface", async ({
   const box = await menu.boundingBox();
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(1680 + 1);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(WIDE + 1);
 });
 
 test("the project switches are absent when there is no project", async ({ tab }) => {

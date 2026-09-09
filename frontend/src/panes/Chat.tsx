@@ -143,13 +143,16 @@ export default function Chat({
   const keepButton = useRef<HTMLButtonElement | null>(null);
   const setupRef = useRef<HTMLDivElement | null>(null);
   const setupButton = useRef<HTMLButtonElement | null>(null);
+  // Every focus inside this panel is `preventScroll`, for the reason given
+  // over `handleRef` below: the panel can be outside the shell when one of
+  // these runs, and a focus that scrolls takes the whole window with it.
   const closeConfirm = useCallback(() => {
     setConfirmClear(false);
-    clearButton.current?.focus();
+    clearButton.current?.focus({ preventScroll: true });
   }, []);
   const closeSetup = useCallback(() => {
     setSetupOpen(false);
-    setupButton.current?.focus();
+    setupButton.current?.focus({ preventScroll: true });
   }, []);
   useDismiss(confirmRef, confirmClear, closeConfirm, clearButton);
   useDismiss(setupRef, setupOpen, closeSetup, setupButton);
@@ -220,13 +223,22 @@ export default function Chat({
       .catch(() => undefined);
   }, [projectId, thinking]);
 
+  // `preventScroll` on both, and this one is not a nicety.  Opening the
+  // panel puts the caret in the composer 60ms later, and when the panel is
+  // an overlay it is still sliding in from beyond the right edge at that
+  // point -- so the box being focused is outside the shell.  A bare
+  // `focus()` has the browser scroll it into view, the shell is a scroll
+  // container even though its overflow is hidden, and the whole layout ends
+  // up dragged left by the width of the panel: the file rail off the
+  // screen, the editor's gutter clipped at x=0, and a band of bare ground
+  // down the right where the panes no longer reach.
   useEffect(() => {
     handleRef({
       seed: (text: string) => {
         setDraft(text);
-        composer.current?.focus();
+        composer.current?.focus({ preventScroll: true });
       },
-      focusComposer: () => composer.current?.focus(),
+      focusComposer: () => composer.current?.focus({ preventScroll: true }),
     });
   }, [handleRef]);
 
@@ -560,7 +572,10 @@ export default function Chat({
                   // Into the block, and onto the safe half of it: this
                   // ends a conversation, so the default answer is no.
                   if (!asking) {
-                    window.setTimeout(() => keepButton.current?.focus(), 0);
+                    window.setTimeout(
+                      () => keepButton.current?.focus({ preventScroll: true }),
+                      0,
+                    );
                   }
                   return !asking;
                 });
@@ -666,7 +681,7 @@ export default function Chat({
                       () =>
                         setupRef.current
                           ?.querySelector<HTMLElement>("button")
-                          ?.focus(),
+                          ?.focus({ preventScroll: true }),
                       0,
                     );
                   }
