@@ -1331,7 +1331,6 @@ export default function App() {
                   <ShareIcon />
                 </button>
                 <Settings
-                  align="left"
                   inProject
                   onTutorial={openTutorial}
                   onChangeAgent={changeAgent}

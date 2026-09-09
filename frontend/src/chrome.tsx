@@ -164,7 +164,7 @@ export function AppControls({
         <span className="truncate text-ink">{projectName}</span>
         <Chevron direction="down" />
       </button>
-      <Settings align="left" inProject />
+      <Settings inProject />
       {/* The same control as the rail's, because this is the same bar with
           the file list folded away, and two toolbars that disagree about
           where downloads live is worse than either arrangement. */}
