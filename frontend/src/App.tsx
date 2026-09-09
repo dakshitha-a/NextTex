@@ -639,14 +639,20 @@ export default function App() {
 
   // Word counts are cheap but not free, so they follow the build rather
   // than every keystroke.
-  const compileResult = useStore((s) => s.compile);
+  // The build's *identity* used to be the dependency here, and a build
+  // replaces that object, so one finished build fanned out into a git
+  // status, a word count and a whole symbol table, three round trips for
+  // a thing that happens 1.6 seconds after every pause in typing. The
+  // stamp is a number written once when a build lands, which is exactly
+  // the event these three actually want.
+  const builtAt = useStore((s) => s.pdfStamp);
   const git = useStore((s) => s.git);
 
   // Roughly as often as the files on disk change, and it costs one
   // `git status`.
   useEffect(() => {
     if (projectId) refreshGit(projectId);
-  }, [projectId, compileResult]);
+  }, [projectId, builtAt]);
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
@@ -657,7 +663,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, activePath, wordScope, compileResult]);
+  }, [projectId, activePath, wordScope, builtAt]);
 
   // ---- pane dragging ----------------------------------------------------
   // Minimum widths, in pixels.  The panes carry these as CSS too; the drag
