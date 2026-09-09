@@ -286,6 +286,16 @@ def _restart_watch() -> None:
 # touched this project in half an hour has moved on.
 SESSION_IDLE_TIMEOUT = 30 * 60
 
+# How often an *open* project has the contents nothing refers to swept out
+# of its history.  Collection used to happen only when a session was
+# evicted, and a shared project is deliberately never evicted -- somebody
+# may be typing into it from another machine this second -- so unless the
+# writer emptied the trash or cleared a file by hand, a shared project kept
+# every thinned version's contents for ever.  That is the exact failure
+# eviction-time collection was added to fix, reintroduced by the rule that
+# keeps shared projects alive.
+COLLECT_EVERY = 60 * 60
+
 
 async def _reap_once() -> None:
     """One pass of the reaper.
@@ -313,17 +323,21 @@ async def _reap_once() -> None:
                 # so this is giving memory back rather than closing anything
                 # the writer would notice.
                 if SESSIONS.pop(project_id, None) is not None:
-                    # The one moment a project is certainly idle, which is
-                    # what blob collection wants: it walks the whole store,
-                    # and it only ever ran when somebody emptied the trash,
-                    # so a writer who never empties it kept every thinned
-                    # blob forever.  In a thread because the walk is
-                    # unbounded and this is still the event loop.
-                    await asyncio.to_thread(session.history.collect)
+                    # Closed *before* collecting.  Closing flushes whatever
+                    # documents are still pending out to disk, and each of
+                    # those writes a version; collecting first took its
+                    # picture of what is referenced before those lines
+                    # existed.  In a thread because the walk is unbounded
+                    # and this is still the event loop.
                     await session.close()
+                    await asyncio.to_thread(session.history.collect)
                     _restart_watch()
                 continue
             await session.reap_idle_agent()
+            if time.monotonic() - session.collected_at > COLLECT_EVERY:
+                # Open, and swept anyway. See COLLECT_EVERY.
+                session.collected_at = time.monotonic()
+                await asyncio.to_thread(session.history.collect)
         except Exception:
             # One session's reaping must not stop the others being reaped, so
             # this is caught per session rather than around the loop.  But a
