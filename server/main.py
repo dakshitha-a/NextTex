@@ -55,6 +55,7 @@ from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
     is_ours,
 )
+from nexttex.symbols import walk_project
 from nexttex import deps, updates
 from server.session import CLOSED, ProjectSession, spawn
 
@@ -2399,6 +2400,32 @@ async def download(project_id: str, path: str = "", format: str = "auto"):
     )
 
 
+SOURCE_SUFFIXES = {".tex", ".bib", ".cls", ".sty"}
+
+
+def _source_newer_than(project: Project, stamp: float) -> bool:
+    """Whether any source file has changed since that PDF was made.
+
+    This walked the project with `rglob("*")` and a `stat` per entry, which
+    means it walked `.git` and the whole build directory before discarding
+    almost everything it had found, on the path a download takes.
+    `walk_project` prunes those two rather than filtering their contents
+    afterwards, which is the difference between reading a thesis and reading
+    its entire history.
+    """
+    for path in walk_project(project.root, build_dir=project.build_dir):
+        if path.suffix.lower() not in SOURCE_SUFFIXES or is_ours(path.name):
+            continue
+        try:
+            if path.stat().st_mtime > stamp:
+                return True
+        except OSError:
+            # It went away between the walk and the question, which is not
+            # a reason to rebuild.
+            continue
+    return False
+
+
 async def _project_pdf(project: Project, session: ProjectSession | None) -> Path:
     """The project's rendered PDF, built first if it is missing or stale.
 
@@ -2418,14 +2445,7 @@ async def _project_pdf(project: Project, session: ProjectSession | None) -> Path
     fresh = paths.pdf.is_file() and scheduler.pdf_is_complete()
     if fresh:
         stamp = paths.pdf.stat().st_mtime
-        for item in project.root.rglob("*"):
-            if item.suffix.lower() not in {".tex", ".bib", ".cls", ".sty"}:
-                continue
-            if project.build_dir in item.parents or is_ours(item.name):
-                continue
-            if item.stat().st_mtime > stamp:
-                fresh = False
-                break
+        fresh = not await asyncio.to_thread(_source_newer_than, project, stamp)
     if fresh:
         return paths.pdf
 
