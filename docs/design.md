@@ -2194,22 +2194,56 @@ below 1100 px and cannot describe itself while covering itself; **disclosure
 inside the settings**, because those are dismissed by an outside press, so the
 first attempt to try a gesture would close them.
 
-### Contents fixed, document scrolling
+### One scrolling document, and an index one click from it
 
 This is reference material as much as a first read, and both uses are served
-by one arrangement: a single scrolling document ordered by when you meet
-each thing, under a contents block that never scrolls away, so any section
-is one click from anywhere. Nine rows at 26 px is what makes the block fixed
+by a single scrolling document ordered by when you meet each thing.
+
+The index above it used to be a fixed block of every section. **That
+arrangement set its own tripwire and then walked past it twice.** The
+paragraph here said: "Nine rows at 26 px is what makes the block fixed
 rather than scrolling, and a tenth section is the practical signal to cut
-one instead.
+one instead." There are eleven sections. Nobody cut anything and nobody
+re-read this, so 290 px of a 380 px sheet — a third of the surface, above
+the fold, permanently — was an index of places a first-time reader has not
+been yet.
 
-Not an accordion: Ctrl-F finds nothing inside a collapsed panel, and a
-return visit would have everything shut again.
+It is one 30 px row now, and it does two jobs at once. Closed, it names the
+section you are in, which is the other thing the old block did badly: the
+mark was a 4 px dot at the end of a row, on the far side of the sheet from
+the words it marked. Open, it is the same list it always was, and choosing
+from it closes it again, because you asked to be somewhere rather than to
+have a list.
 
-The row you are in takes `aria-current` and a dot, and nothing else — §19
-already recorded why a fill is wrong there, and the same argument applies:
-it would make the current row the one row that does not answer the pointer.
-One tab stop with arrow keys, not nine, for the reason §10 and §19 both give.
+**Still not an accordion**, and the distinction is the whole reason this is
+allowed. What collapses is the index, not the document: every section stays
+expanded, so Ctrl-F still finds every word, and the only text hidden by the
+closed state is a list of links whose words are also the headings they point
+at. Collapsing the *sections* would still be wrong for exactly the reason
+recorded here before.
+
+The row you are in is marked with a 2 px leading bar in `--pen`, which is
+what the file tree, the history panel, the diagnostics list and the folder
+chooser all use to say "this one" — §19's argument against a fill still
+holds and the bar was always the app's answer to it. One tab stop with arrow
+keys, not eleven, for the reason §10 and §19 both give; opening the index
+puts the caret on the section you are in, so the first arrow moves from where
+you are.
+
+**And the sections are numbered.** `Section`'s docstring has called them "one
+numbered part of the tutorial" since it was written and nothing was numbered.
+A number is only worth drawing when the thing really is a sequence, and this
+one is: read top to bottom the first time, dipped into afterwards, which is
+the shape a number serves. It also gives the closed row something exact to
+say.
+
+**Each section leads with the sentence it would give if it could give only
+one**, set in `--ink` where the rest of the prose is `--ink-2`. Eleven
+sections of three or four undifferentiated paragraphs in a 380 px column is a
+wall; eleven leads is a page a reader can skim for the answer they came for.
+It is the first paragraph promoted rather than a summary written on top of
+one — a section whose opening sentence cannot carry it wants rewriting rather
+than labelling.
 
 ### Figures
 
