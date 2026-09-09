@@ -641,6 +641,30 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .cm-editor .cm-searchMatch-selected {
   background: color-mix(in oklab, var(--hint) 45%, transparent); }
 
+/* The window's own frame, and the one element in the app that must never
+   scroll.  Every pane inside it scrolls for itself.
+
+   It was `overflow: hidden`, which hides the scrollbars but still makes a
+   scroll container, and a scroll container is something the browser will
+   move on your behalf: the agent panel is parked outside the shell on a
+   transform, and putting the caret in its composer while it slid in had
+   the browser scroll the composer into view and take the whole layout with
+   it -- the file rail off the left of the screen, the editor's gutter
+   clipped at x=0, and a band of bare ground down the right as wide as the
+   panel.  The offset then stayed, because finishing a transform does not
+   force the relayout that would clamp it back.
+
+   `overflow: clip` produces the same clipping without the scroll port, so
+   there is nothing left to scroll.  The two declarations are deliberate
+   rather than redundant: a browser that does not know `clip` drops the
+   second and keeps the first, whereas Tailwind's `overflow-clip` utility
+   on its own would fall back to `visible` and let the panes spill out of
+   the window. */
+.nx-shell {
+  overflow: hidden;
+  overflow: clip;
+}
+
 /* ---- motion --------------------------------------------------------------
    Everything here is a hint, not decoration: it tells the eye that a thing
    is interactive, that something arrived, or that a panel went somewhere

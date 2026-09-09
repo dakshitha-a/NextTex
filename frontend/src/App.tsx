@@ -62,6 +62,7 @@ import Logo from "./Logo";
 import Settings from "./panes/Settings";
 import InstanceBadge from "./panes/InstanceBadge";
 import { toShell, uiScale, viewportWidth } from "./viewport";
+import { APPEARANCE_CHANGED } from "./appearance";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
 import SectionsPanel, { includePath } from "./panes/SectionsPanel";
@@ -272,9 +273,19 @@ export default function App() {
     // both as often as it can be seen and as often as it is worth doing.
     const onResize = onFrame(() => setWidth(viewportWidth()));
     window.addEventListener("resize", onResize);
+    // The interface size changes the space the layout has without the
+    // window changing size at all: it is a `zoom` on the root, and
+    // `viewportWidth` is the window divided by it.  No `resize` follows, so
+    // until this was listened for, everything measured stayed at the old
+    // number until the window itself was dragged -- `narrow`, `tight`,
+    // `chatOver` and `railHidden`, and the effect that keeps the pane
+    // widths inside the window.  Stepping the size up therefore left the
+    // agent panel docked in a row too narrow to hold it.
+    window.addEventListener(APPEARANCE_CHANGED, onResize);
     return () => {
       onResize.cancel();
       window.removeEventListener("resize", onResize);
+      window.removeEventListener(APPEARANCE_CHANGED, onResize);
     };
   }, []);
 
@@ -599,7 +610,11 @@ export default function App() {
       const composerHasFocus = document.activeElement?.tagName === "TEXTAREA";
       await openFile(path, line);
       if (composerHasFocus) {
-        (document.querySelector("textarea") as HTMLTextAreaElement | null)?.focus();
+        // `preventScroll` for the same reason every focus in the panel
+        // carries it: the composer can be outside the shell, and a focus
+        // that scrolls it into view drags the whole layout with it.
+        (document.querySelector("textarea") as HTMLTextAreaElement | null)
+          ?.focus({ preventScroll: true });
       }
     };
     handlers.onProjectChanged = (main) => {
@@ -1247,7 +1262,11 @@ export default function App() {
   const railFolded = railHidden || folded.rail;
 
   return (
-    <div ref={shell} className="relative flex h-full w-full overflow-hidden bg-surround">
+    // `nx-shell` rather than an `overflow-hidden` utility: the class clips
+    // with `overflow: clip`, which is not a scroll container at all, so
+    // nothing can ever scroll the window's own frame sideways again.  See
+    // the rule in styles.css for why it is written as two declarations.
+    <div ref={shell} className="nx-shell relative flex h-full w-full bg-surround">
       {railHidden || folded.rail ? (
         <Collapsed
           label="Files"
