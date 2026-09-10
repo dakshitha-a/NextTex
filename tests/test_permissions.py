@@ -689,3 +689,67 @@ def test_a_notebook_edit_is_judged_by_the_only_path_it_carries(tmp_path):
     assert decision(hook(fence, "NotebookEdit", {"notebook_path": str(outside)})) == "deny"
     card = fence.describe("NotebookEdit", {"notebook_path": str(outside)})
     assert str(outside) in card["headline"]
+
+
+# -- delegation ----------------------------------------------------------
+# Refused rather than fenced, and the reason is the writer's rather than the
+# fence's: a subagent's tool calls do not appear in the panel, so anything
+# one did would be invisible to the person whose document it is.
+
+
+def test_a_subagent_is_refused_under_either_name(tmp_path):
+    """The Python SDK never names this tool, so both names are refused.
+
+    `ClaudeAgentOptions.forward_subagent_text` says subagents are spawned
+    "via the Agent tool", and this file was written when it was `Task`. A
+    refusal keyed on the name that has moved on is the same hole with a
+    comment over it.
+    """
+    fence = agent(tmp_path)
+    for name in ("Task", "Agent"):
+        result = hook(fence, name, {"prompt": "review every chapter"})
+        assert decision(result) == "deny", name
+        reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "does not run subagents" in reason
+
+
+def test_the_refusal_comes_before_anything_that_could_allow_it(tmp_path):
+    """Ordering, not tidiness.
+
+    The position of the branch is the security property. The last branch of
+    `_decide` allows a tool it has never heard of when the writer has asked
+    for no cards, so a refusal placed after the mode logic is a refusal that
+    position walks around. Putting the name into `_ALWAYS_OK` is the
+    strongest available statement of "something later would have allowed
+    this".
+    """
+    fence = agent(tmp_path)
+    fence._ALWAYS_OK = frozenset(fence._ALWAYS_OK) | {"Task", "Agent"}
+    for name in ("Task", "Agent"):
+        assert decision(hook(fence, name, {})) == "deny", name
+
+
+def test_a_call_from_inside_a_subagent_is_refused_whatever_the_tool_is(tmp_path):
+    """The layer that does not depend on a name.
+
+    A tool-lifecycle hook fired from inside a subagent carries an
+    `agent_id`; one on the main thread does not. So a `Read` that would
+    otherwise be waved through is refused when it arrives from somewhere
+    the panel cannot show.
+    """
+    fence = agent(tmp_path)
+    plain = {"tool_name": "Read", "tool_input": {"file_path": "main.tex"}}
+    assert decision(asyncio.run(fence._pre_tool(plain, None, None))) == "allow"
+    from_subagent = {**plain, "agent_id": "agent-7"}
+    assert decision(asyncio.run(fence._pre_tool(from_subagent, None, None))) == "deny"
+
+
+def test_the_options_take_the_subagent_tools_out_of_the_model_s_context(tmp_path):
+    """The second layer, which is not a refusal but an absence.
+
+    `disallowed_tools` does not shadow the hook the way `allowed_tools`
+    would; it removes the tool, so the model is not offered a thing it
+    would then be refused.
+    """
+    fence = agent(tmp_path)
+    assert sorted(fence._options().disallowed_tools) == ["Agent", "Task"]

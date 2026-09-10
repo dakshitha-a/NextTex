@@ -152,6 +152,27 @@ READING_TOOLS = frozenset({"Read", "NotebookRead", "Glob", "Grep"})
 # writing" was also answering a question about somebody else's.
 NETWORK_TOOLS = frozenset({"WebFetch", "WebSearch"})
 
+# What the model is told when it reaches for a subagent.
+#
+# Not a permission card, because a card is a question and this is not one.
+# The reason is the writer's rather than the fence's: a subagent's work
+# arrives as one line saying a subagent ran, so the panel that is supposed
+# to show what was done to the manuscript shows nothing, and work nobody
+# can watch is work nobody can correct.  There is a second reason and it is
+# not the one that decided this: `Task` sat in `_ALWAYS_OK` and covered
+# spawning a subagent while saying nothing about what that subagent then
+# did.
+#
+# Phrased as an instruction the model can act on rather than as a rule it
+# has broken, because the useful outcome is that it does the work in this
+# conversation, not that it apologises and stops.
+_SUBAGENT_REFUSAL = (
+    "NextTex does not run subagents: their tool calls do not appear in the "
+    "writer's panel, so anything one did would be invisible to the person "
+    "whose document it is. Do the work yourself in this conversation, one "
+    "step at a time."
+)
+
 
 def _auto_covers(tool_name: str, rule: str) -> bool:
     if tool_name in ("Bash", "BashOutput", "KillShell"):
@@ -702,8 +723,17 @@ class ProjectAgent:
         # Allow without looking, which is exactly what the cards are for.
         "ToolSearch",
         "TodoWrite",
-        "Task",
     }
+    #: Delegation, under both names it has had.  Refused outright: see
+    #: `_decide`, whose first statement this is, and `_SUBAGENT_REFUSAL`.
+    #:
+    #: The Python SDK never names this tool, because the name comes from
+    #: the CLI.  `ClaudeAgentOptions.forward_subagent_text` says subagents
+    #: are "spawned via the Agent tool", so `Agent` is the current name and
+    #: `Task` is the one this file was written against.  Both are listed,
+    #: because a refusal keyed on a name that has moved on is the same hole
+    #: with a comment over it.
+    _SUBAGENT_TOOLS = frozenset({"Task", "Agent"})
     _WRITE_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
     #: Tools whose card names one path.  Their remembered rule is that
     #: path, never the verb -- see `_rule_for`.
@@ -759,6 +789,26 @@ class ProjectAgent:
         """
         tool_name = input_data.get("tool_name", "")
         tool_input = input_data.get("tool_input") or {}
+
+        # First, before anything that could allow it.  The ordering is the
+        # security-relevant part rather than a tidiness preference: a
+        # refusal placed after the mode branches is a refusal that the
+        # position with no cards walks straight around, because that
+        # position's last branch allows a tool name it has never heard of.
+        # There is a test that puts these names into `_ALWAYS_OK` and
+        # checks they are refused anyway, so a later reordering fails
+        # rather than quietly reopening this.
+        if tool_name in self._SUBAGENT_TOOLS:
+            return self._deny(_SUBAGENT_REFUSAL)
+        # And a refusal that does not depend on a name at all.  A
+        # tool-lifecycle hook fired from inside a subagent carries an
+        # `agent_id`, and one on the main thread does not, which the SDK's
+        # own `_SubagentContextMixin` says in as many words.  So if some
+        # later path spawns one without going through a tool this app has
+        # heard of, its work is refused rather than done where nobody can
+        # see it.
+        if input_data.get("agent_id") or input_data.get("agentId"):
+            return self._deny(_SUBAGENT_REFUSAL)
 
         if tool_name in self._ALWAYS_OK or tool_name.startswith(self._OWN_TOOL_PREFIX):
             return self._allow()
@@ -1500,6 +1550,16 @@ class ProjectAgent:
             # hook for that tool, and the hook is the fence.  Read-only tools
             # are waved through inside the hook instead, which keeps every
             # permission decision in one readable place.
+            #
+            # `disallowed_tools` is the exception, and it does not shadow
+            # anything: it takes the tool out of the model's context, so a
+            # subagent is not offered rather than being offered and refused.
+            # The hook refuses it as well, because these two layers answer
+            # different questions -- one is what the model can see, the
+            # other is what this process will run -- and a subagent is the
+            # one thing where being refused twice is cheaper than finding
+            # out which layer moved.
+            disallowed_tools=sorted(self._SUBAGENT_TOOLS),
             mcp_servers={"nexttex": self._tools_server()},
             hooks={
                 "PreToolUse": [HookMatcher(hooks=[self._pre_tool])],
@@ -1776,6 +1836,42 @@ class ProjectAgent:
                         self._session_id = session_id
                         self._save_session(session_id)
                     continue
+
+                # A message from inside a subagent, which after the two
+                # layers above should be unreachable, and that is exactly
+                # why this is here.  The SDK emits a subagent's `tool_use`
+                # and `tool_result` blocks as ordinary assistant and user
+                # messages carrying the id of the call that spawned them,
+                # so a non-null `parent_tool_use_id` means work is
+                # happening somewhere this panel cannot show it.  If it
+                # ever fires, the fence is being routed around and the
+                # writer is told, rather than nobody being told.
+                if getattr(message, "parent_tool_use_id", None):
+                    log.warning(
+                        "a message arrived from inside a subagent (parent %s)",
+                        message.parent_tool_use_id,
+                    )
+                    await self._emit({
+                        "type": "notice",
+                        "message": (
+                            "Something started a subagent, which NextTex does "
+                            "not allow because you would not be able to see "
+                            "what it was doing. The turn was stopped."
+                        ),
+                    })
+                    # Not `self.interrupt()`: that cancels the task this
+                    # code is running inside, which works only by way of
+                    # cancellation semantics subtle enough that the next
+                    # reader would have to work them out.  The CLI is told
+                    # to stop, and then the turn ends down the path
+                    # `_run_turn` already has for an interrupted one, which
+                    # emits `done` so the panel is not left thinking.
+                    self._cancelled = True
+                    try:
+                        await client.interrupt()
+                    except Exception as exc:
+                        log.warning("stopping the subagent's turn failed: %s", exc)
+                    raise asyncio.CancelledError
 
                 if isinstance(message, AssistantMessage):
                     for block in message.content:

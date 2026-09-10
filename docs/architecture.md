@@ -74,17 +74,9 @@ A session owns what must not be duplicated: the compile scheduler that serialise
 
 Eviction is safe because a session can always be rebuilt from disk. It is never about losing state, only about what would be interrupted.
 
-**One thing about the fence that is not settled.** `Task` is waved through by
-`_ALWAYS_OK`, which covers spawning a subagent and says nothing about what that
-subagent then does. Whether `PreToolUse` fires for the tool calls made inside
-one is a decision of the CLI rather than of this code, and it cannot be
-observed from the test suite here: the whole suite runs against a stand-in
-agent, and answering it needs a real account and a real turn. If the hook does
-not fire there, then the shell rule and the outside-project fence are both
-reachable around, which would make it the most serious thing in this file. It
-is recorded rather than guessed at, and the way to settle it is a live run that
-asks an agent to use a subagent to write outside the project and watches
-whether a card appears.
+**There are no subagents, and the question this paragraph used to ask is settled.** It asked whether `PreToolUse` fires for the tool calls a subagent makes, said the test suite could not observe it, and said the way to settle it was a live run with a real account. The answer was in the installed SDK the whole time, in the `.venv` this checkout has always had. `PreToolUseHookInput` inherits `_SubagentContextMixin`, whose docstring says `agent_id` is present only when the hook fires from inside a spawned subagent and absent on the main thread, so the hook does fire there; and `ClaudeAgentOptions.forward_subagent_text` says a subagent's `tool_use` and `tool_result` blocks are already emitted as ordinary messages carrying the id of the call that spawned them. It was recorded as needing an account and a turn when it needed a grep, which is the more useful half of the lesson: the dependency you vendored is a primary source, and reading it is cheaper than any experiment.
+
+The fence was therefore never reachable around, and subagents are refused anyway, for a different and simpler reason. A subagent's work reaches the panel as one line saying a subagent ran. The panel is supposed to be the account of what was done to somebody's manuscript, and work nobody can watch is work nobody can correct. Three layers, because the tool's name belongs to the CLI rather than to this code: the fence refuses `Task` and `Agent` as the *first* statement in `_decide`, before anything that could allow them, since the last branch there allows a tool name it has never heard of when the writer has asked for no cards; `disallowed_tools` removes both from the model's context so it is not offered a thing it would then be refused; and any call arriving with an `agent_id`, or any message arriving with a `parent_tool_use_id`, is refused whatever it is and ends the turn with a notice, which depends on no name at all. That last one should be unreachable, and it exists so that a change in the CLI cannot make the first two quietly untrue.
 
 **One constraint worth knowing before you touch this.** A session's CRDT objects are bound to the thread that created them. pycrdt panics outright, not raises, if one is used from another thread. That is why the reaper is a task on the event loop rather than a thread, and why a test that closes a session has to do it on the app's own loop.
 
@@ -164,7 +156,7 @@ The transcript is the record of what was done to the document: every edit with i
 
 Every write NextTex knows about is recorded before the new text lands. This is not a replacement for git: it is what you want when you deleted a paragraph forty minutes ago and cannot remember what it said, at a moment when committing was the last thing on your mind.
 
-Deleting is not a delete. An entry is written to the trash and the file is moved aside rather than removed — moved, so a folder of figures does not have to be compressed before it can be deleted. A text file also gets a final version recorded in its own history on the way out; a figure or a dataset does not, so for those the moved-aside payload is the only copy and it is what protects them. Nothing is cleaned up on a timer, because a trash that empties itself after thirty days loses the thing you go looking for on day thirty-one.
+Deleting is not a delete. An entry is written to the trash and the file is moved aside rather than removed, and moved rather than copied, so a folder of figures does not have to be compressed before it can be deleted. A text file also gets a final version recorded in its own history on the way out; a figure or a dataset does not, so for those the moved-aside payload is the only copy and it is what protects them. Nothing is cleaned up on a timer, because a trash that empties itself after thirty days loses the thing you go looking for on day thirty-one.
 
 Blobs nothing refers to are collected in four places: when the trash is emptied, when one trash entry is purged, when a file's history is cleared, and on a timer for every project that is open. That last one is not an optimisation. A shared project is deliberately never evicted, eviction used to be the only routine sweep, and so a shared project kept every thinned version's contents for ever unless somebody emptied the trash by hand.
 
@@ -215,7 +207,7 @@ A single process with no database means nothing is bounded unless something boun
 
 Ranked the way the threat model is: an install may sit on a tailnet behind its password, and separately its project may have come from somebody else.
 
-Enforced: origin on every unsafe method, two separate credentials with constant-time comparison, scrypt off the event loop, a rate limiter keyed on the socket address rather than a forwarded header, a content policy built from hashes of the two inline scripts this app really serves, blobs served as attachments with a fixed content type, control files refused on the peer path and on upload, `nexttex.toml` validated rather than trusted, `latexmk -norc`, and option-shaped arguments kept away from `git` and `gh`.
+Enforced: origin on every unsafe method, two separate credentials with constant-time comparison, scrypt off the event loop, a rate limiter keyed on the socket address rather than a forwarded header, a content policy built from hashes of the two inline scripts this app really serves, blobs served as attachments with a fixed content type, control files refused on the peer path and on upload, `nexttex.toml` validated rather than trusted, `latexmk -norc`, option-shaped arguments kept away from `git` and `gh`, and delegation refused under both of its names, before any branch that could allow it and again for any call that arrives from inside one.
 
 **One thing is not fixed, and it is written down rather than claimed.** `openin_any` is passed to the engine and the pdfTeX this was tested against ignores it, under `a`, `r` and `p` alike, through the environment and through a `texmf.cnf`. Writes out of a project are refused; reads into it are not. A hostile source file can therefore read what the server's user can read and write it into a project file, which on a shared project reaches every peer. No amount of code here closes that.
 
