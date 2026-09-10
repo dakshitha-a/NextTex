@@ -130,6 +130,19 @@ class Console:
     def note(self, text: str = "") -> None:
         self.write(("    " + text).rstrip())
 
+    def paragraph(self, text: str, lead: str = "") -> None:
+        """Prose, wrapped to the window rather than to a guess about it.
+
+        Hand-broken lines are wrong on every terminal except the one they
+        were written in: too long in a narrow window, and a ragged column
+        down the left of a wide one.
+        """
+        import textwrap
+
+        room = max(24, min(self.width - 2, 78) - 4 - len(lead))
+        for line in textwrap.wrap(text, room) or [""]:
+            self.note(lead + line)
+
     def rule(self, title: str = "") -> None:
         width = min(self.width, 74)
         if title:
@@ -309,11 +322,12 @@ class Console:
         self.note(self.dash * max(8, width - 4))
         self.write("")
         if advice:
-            self.note(advice)
+            for line in advice.splitlines():
+                self.paragraph(line) if len(line) > 60 else self.note(line)
         if self.log is not None:
             self.note(f"All of it: {self.log}")
-        self.note("Run the installer again once that is sorted. It picks up where")
-        self.note("it left off and touches nothing you have made.")
+        self.paragraph("Run the installer again once that is sorted. It picks "
+                       "up where it left off and touches nothing you have made.")
 
     # -- asking -------------------------------------------------------------
 

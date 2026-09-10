@@ -100,16 +100,20 @@ class Survey:
 # The command that installs a thing NextTex will not install for you.  Named
 # per platform, because "install poppler" is not an instruction anybody can
 # act on and `sudo apt install poppler-utils` is.
+#
+# Short enough to fit an eighty-column terminal without wrapping, and with
+# nothing after them in parentheses.  These are meant to be copied, and a
+# copy-paste line that wraps is one somebody has to reassemble by hand.
 COMMANDS = {
     "git": {
-        "linux": "sudo apt install git   (or your distribution's)",
+        "linux": "sudo apt install git",
         "macos": "xcode-select --install",
         "windows": "winget install --id Git.Git -e",
     },
     "pdftotext": {
-        "linux": "sudo apt install poppler-utils   (or your distribution's)",
+        "linux": "sudo apt install poppler-utils",
         "macos": "brew install poppler",
-        "windows": "https://github.com/oschwartz10612/poppler-windows/releases",
+        "windows": "winget install --id oschwartz10612.Poppler",
     },
     "tailscale": {
         "linux": "https://tailscale.com/download",
@@ -117,7 +121,7 @@ COMMANDS = {
         "windows": "winget install --id tailscale.tailscale",
     },
     "node": {
-        "linux": "https://nodejs.org   (only if the download below fails)",
+        "linux": "https://nodejs.org",
         "macos": "brew install node",
         "windows": "winget install OpenJS.NodeJS.LTS",
     },

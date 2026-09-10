@@ -75,7 +75,7 @@ def test_everything_you_must_install_yourself_comes_with_the_command(platform, t
 def test_the_command_is_the_one_for_this_platform(tmp_path):
     assert "apt install poppler-utils" in bare("linux", tmp_path).get("pdftotext").command
     assert "brew install poppler" in bare("macos", tmp_path).get("pdftotext").command
-    assert "poppler-windows" in bare("windows", tmp_path).get("pdftotext").command
+    assert "winget install" in bare("windows", tmp_path).get("pdftotext").command
 
 
 @pytest.mark.parametrize("platform", PLATFORMS)
@@ -184,3 +184,84 @@ def test_an_existing_configuration_is_read_so_the_plan_can_show_it(tmp_path, mon
     result = survey("linux", tmp_path, which=which_none,
                     exists=lambda _p: False, check_network=False)
     assert result.config.get("tailscale") is True
+
+
+# ---------------------------------------------------------------------------
+# What it looks like, which is the whole complaint this answered
+
+
+def render(platform, root, columns=80):
+    """The survey and the plan as somebody at a terminal would see them."""
+    import io
+
+    from nexttex.install import __main__ as installer
+    from nexttex.install.plan import build_plan
+    from nexttex.install.ui import Console
+
+    class Narrow(Console):
+        width = columns
+
+    console = Narrow(stream=io.StringIO(), plain=True)
+    result = bare(platform, root)
+    result.service = "windows" if platform == "windows" else "systemd"
+    installer.show_survey(console, result)
+    installer.show_plan(console, build_plan(result, interactive=True))
+    return console.stream.getvalue()
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
+@pytest.mark.parametrize("columns", [80, 60, 120])
+def test_nothing_runs_off_the_edge_of_the_terminal(platform, columns, tmp_path):
+    """Several of these explanations are a whole sentence, and at a column of
+    thirty-four they ran to a hundred characters -- so the first screen of
+    the first thing anybody runs was a wall of stumps in a normal window."""
+    for line in render(platform, tmp_path, columns).splitlines():
+        assert len(line) <= columns, f"{len(line)} columns: {line}"
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
+def test_a_command_meant_to_be_copied_is_never_wrapped(platform, tmp_path):
+    """A copy-paste line broken across two rows is one somebody has to
+    reassemble by hand before it will run."""
+    text = render(platform, tmp_path)
+    for finding in bare(platform, tmp_path).of_kind(YOURS):
+        assert finding.command in text, finding.key
+        assert len(finding.command) <= 46, (
+            f"{finding.command!r} is too long to sit in the wide column"
+        )
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
+def test_nothing_that_is_not_needed_is_given_an_install_command(platform, tmp_path):
+    """An instruction under "Not needed here" is one nobody asked for."""
+    text = render(platform, tmp_path)
+    tail = text[text.index("Not needed here"):text.index("The plan")]
+    for finding in bare(platform, tmp_path).of_kind(NOT_NEEDED):
+        if finding.command:
+            assert finding.command not in tail, finding.key
+
+
+def test_tinytex_is_named_where_it_actually_lands(tmp_path):
+    """`~/.TinyTeX` names a directory a Windows user will not find."""
+    from nexttex.install.plan import build_plan
+
+    for platform, expected in (("linux", "~/.TinyTeX"),
+                               ("macos", "~/Library/TinyTeX"),
+                               ("windows", r"%APPDATA%\TinyTeX")):
+        plan = build_plan(bare(platform, tmp_path), interactive=True)
+        assert expected in plan.item("tex").option("tinytex").label
+
+
+def test_the_estimate_does_not_promise_a_tex_install_in_three_minutes(tmp_path):
+    """An estimate that is under by a factor of five is worse than none:
+    somebody told three minutes and fifteen minutes in has been given a
+    reason to think it has hung.  The first-session guide says twenty."""
+    from nexttex.install.plan import build_plan
+
+    with_tex = build_plan(bare("linux", tmp_path), interactive=True)
+    assert with_tex.choice("tex") == "tinytex"
+    assert with_tex.minutes >= 10
+
+    without = build_plan(bare("linux", tmp_path), interactive=True,
+                         answers={"tex": "none"})
+    assert without.minutes < with_tex.minutes
