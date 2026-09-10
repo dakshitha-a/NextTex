@@ -216,7 +216,16 @@ class ProjectSession:
         self.symbols = SymbolCache(project.root)
         #: When the contents nothing refers to were last swept out of
         #: this project's history.  The reaper reads it; see COLLECT_EVERY.
-        self.collected_at = 0.0
+        #:
+        #: Negative infinity rather than 0.0, and the difference is not
+        #: pedantry.  This is compared against `time.monotonic()`, whose
+        #: zero is an arbitrary point -- the boot, on Linux -- so 0.0 is
+        #: not "never", it is "when this machine started".  A server
+        #: launched at login, which is how every install of this is set
+        #: up, therefore swept nothing at all for its first hour of
+        #: uptime.  A sentinel compared against a clock has to be a value
+        #: that clock can never return.
+        self.collected_at = float("-inf")
         self.trash = Trash(
             project.state_dir / "trash", self.history, project.root,
             # The trash writes versions straight onto the history rather
