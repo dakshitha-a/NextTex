@@ -1,0 +1,14 @@
+# Shell scripts keep Unix line endings on every checkout, including a Windows
+# one.
+#
+# Git for Windows converts LF to CRLF by default, and a shell script with
+# carriage returns in it does not run: dash reports `Syntax error: word
+# unexpected` on the first `case`, because the `\r` is part of the word.  The
+# CI job on windows-latest found exactly that.  These scripts are not run on
+# Windows, but the repository is checked out there, and a file that is
+# corrupt on disk is worth preventing whether or not anything reads it today.
+*.sh text eol=lf
+
+# The PowerShell scripts are deliberately left alone. Every PowerShell that
+# will read them is happy with either ending, and pinning them to CRLF would
+# rewrite the working copy on this machine for no benefit.

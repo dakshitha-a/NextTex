@@ -6,6 +6,7 @@ These are the ones that can be checked without the other machine.
 """
 
 import ast
+import os
 import re
 import shutil
 import subprocess
@@ -74,7 +75,10 @@ def test_the_pseudo_terminal_login_says_so_rather_than_failing():
 def test_tex_is_looked_for_on_all_three_platforms():
     from nexttex.config import TEX_HINTS
 
-    joined = " ".join(str(hint) for hint in TEX_HINTS)
+    # Separators normalised, because `Path("/Library/TeX/texbin")` renders
+    # itself with backslashes on Windows and this is an assertion about the
+    # list, not about the platform reading it.
+    joined = " ".join(str(hint).replace("\\", "/") for hint in TEX_HINTS)
     assert "x86_64-linux" in joined, "no Linux TinyTeX path"
     assert "universal-darwin" in joined, "no macOS TinyTeX path"
     assert "TeX/texbin" in joined, "no MacTeX path"
@@ -106,7 +110,7 @@ def test_the_installer_looks_for_tex_where_macos_puts_it():
     """
     from nexttex.tools import TEX_HINTS
 
-    joined = " ".join(str(hint) for hint in TEX_HINTS)
+    joined = " ".join(str(hint).replace("\\", "/") for hint in TEX_HINTS)
     assert "universal-darwin" in joined
     assert "TeX/texbin" in joined
     assert "TinyTeX/bin/windows" in joined
@@ -163,8 +167,13 @@ def test_the_installer_is_posix_shell_because_the_readme_pipes_it_into_sh():
     assert "pipefail" not in code
     assert "[[" not in code, "a bash conditional in a script run by dash"
     shell = shutil.which("dash") or shutil.which("sh")
-    if shell is None:                                    # pragma: no cover
-        pytest.skip("no POSIX shell to check against")
+    if shell is None or os.name == "nt":                 # pragma: no cover
+        # Git for Windows ships a dash, and also converts LF to CRLF on
+        # checkout, so the file it would be handed there has carriage
+        # returns in it and fails on the first `case` whatever the syntax
+        # is.  `.gitattributes` now pins `*.sh` to LF, but the check itself
+        # belongs where the script actually runs.
+        pytest.skip("no POSIX shell whose checkout of this file is faithful")
     assert subprocess.run([shell, "-n", str(ROOT / "scripts" / "install.sh")],
                           capture_output=True).returncode == 0
 
