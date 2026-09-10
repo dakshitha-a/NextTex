@@ -1969,6 +1969,59 @@ own `install.ps1` stopped on the same missing cmdlet. An old `powershell` is
 a real thing on real machines, and the only honest thing to do about
 somebody else's script is to say so.
 
+### The cmdlet that was there, on a machine that could not see it
+
+The previous entry got the cause wrong, and the way it was wrong is worth
+keeping. `Get-FileHash` was missing from the install log, `Get-FileHash`
+arrived in PowerShell 4.0, so the machine was old. It was not old. It runs
+Windows 11 with PowerShell 7.6.5 and Windows PowerShell 5.1 side by side,
+and both have the cmdlet. One missing name had been read as a version
+number.
+
+What is actually happening is that the two PowerShells use the same
+variable, `PSModulePath`, for different directories. The install line is
+typed into pwsh 7, so pwsh 7's module path is inherited by our Python
+installer, which passes it to the `powershell.exe` it starts. 5.1 then sees
+two copies of `Microsoft.PowerShell.Utility`, PowerShell 7's sorting first
+because `c:\program files\powershell\7\Modules` comes before the
+system32 entry, imports that one, and `Get-FileHash` is not in what it
+exports.
+
+It was settled by spawning the same child three times with only that one
+variable changed: inherited, the cmdlet was missing; removed, present;
+forced to 5.1's own value, present. Removing is what we do, because
+PowerShell rebuilds its default when the variable is absent, so nothing
+here has to know the right value for a machine it cannot see.
+
+Three details in that finding are worth more than the fix.
+
+**The bug is invisible by hand.** A `powershell.exe` started directly by
+pwsh 7 gets a clean 5.1 module path; the pollution only arrives through an
+intermediary that is not itself PowerShell. So anyone reproducing this at a
+prompt sees it work, and only the installer fails. That is why it survived
+three installs and two wrong diagnoses.
+
+**`os.environ` upper-cases its keys on Windows.** `env.pop("PSModulePath")`
+therefore removes nothing while looking exactly like it worked, and a first
+attempt at the fix produced a convincing false negative. The comparison has
+to be case-insensitive, and the test uses an upper-case key for that reason
+alone.
+
+**Two spawn sites, not one.** The installer's `Console.run` is the one place
+the install starts a child, which is the whole design of that module, but
+the settings sheet starts the Claude CLI installer on its own. A correction
+applied at one of them would have been half a fix.
+
+### An interactive test that was not one
+
+Found in the same pass, on the same machine. `Test-Interactive` gated the
+directory prompt on `[Environment]::UserInteractive`, which tracks the
+window station rather than the keyboard: it reports true inside a child
+started with its input on the null device, which is precisely where
+`Read-Host` waits for an answer that can never arrive. Redirected input is
+the part that means nobody can type, and it stays false in a real console
+even for `irm | iex`, so both are checked now.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the

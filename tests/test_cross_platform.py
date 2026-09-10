@@ -582,3 +582,89 @@ def test_no_windows_script_needs_a_powershell_newer_than_three():
                 f"{script.name} calls {cmdlet}, which needs PowerShell "
                 f"{version}, and Windows machines older than that exist"
             )
+
+
+def test_windows_powershell_does_not_inherit_powershell_sevens_modules():
+    """The bug that cost a user three installs.
+
+    Windows PowerShell and PowerShell 7 use the same variable name for
+    different directories. An install line typed into pwsh 7 hands
+    PowerShell 7's `PSModulePath` to this installer, which hands it to the
+    `powershell.exe` it starts; 5.1 then imports PowerShell 7's
+    `Microsoft.PowerShell.Utility` instead of its own, and `Get-FileHash`
+    is not in it. The install stops on "the term is not recognized" on a
+    machine that has the cmdlet.
+
+    The upper-case key is the whole point of the test: `os.environ`
+    upper-cases its keys on Windows, so a `pop("PSModulePath")` written the
+    way PowerShell spells it removes nothing and looks like it worked.
+    """
+    from nexttex.install.ui import child_env
+
+    polluted = {
+        "PSMODULEPATH": r"C:\Program Files\PowerShell\7\Modules",
+        "PATH": r"C:\Windows",
+    }
+    cleaned = child_env(["powershell", "-File", "x.ps1"], polluted)
+    assert not any(key.upper() == "PSMODULEPATH" for key in cleaned), cleaned
+    assert cleaned["PATH"] == r"C:\Windows"
+
+    mixed = child_env(["C:\\Windows\\powershell.exe"], {"PSModulePath": "x", "PATH": "y"})
+    assert not any(key.upper() == "PSMODULEPATH" for key in mixed), mixed
+
+
+def test_powershell_seven_keeps_the_module_path_it_was_given():
+    """Only Windows PowerShell is corrected. pwsh wants what it inherits,
+    and a child that is not PowerShell at all is not this function's
+    business."""
+    from nexttex.install.ui import child_env
+
+    env = {"PSMODULEPATH": "keep me"}
+    assert child_env(["pwsh", "-File", "x.ps1"], env) == env
+    assert child_env(["git", "status"], env) == env
+    assert child_env(["git", "status"], None) is None
+
+
+def test_the_powershell_correction_reaches_the_process_that_is_started(monkeypatch):
+    """The helper being right is worth nothing if `run` does not use it,
+    and `run` is the one place the installer starts anything."""
+    import io
+
+    from nexttex.install import ui as installer_ui
+
+    seen = {}
+
+    class FakePopen:
+        def __init__(self, argv, **kwargs):
+            seen["argv"] = argv
+            seen["env"] = kwargs.get("env")
+            self.stdout = io.StringIO("")
+            self.stdin = None
+            self.returncode = 0
+
+        def poll(self):
+            return 0
+
+        def terminate(self):
+            pass
+
+    monkeypatch.setattr(installer_ui.subprocess, "Popen", FakePopen)
+    monkeypatch.setitem(os.environ, "PSMODULEPATH", r"C:\Program Files\PowerShell\7\Modules")
+
+    console = installer_ui.Console(stream=io.StringIO(), plain=True)
+    console.run("probe", ["powershell", "-NoProfile", "-File", "x.ps1"])
+    assert seen["env"] is not None, "the child inherited the polluted environment"
+    assert not any(key.upper() == "PSMODULEPATH" for key in seen["env"])
+
+    console.run("probe", ["git", "status"])
+    assert seen["env"] is None, "a child that is not PowerShell should inherit"
+
+
+def test_the_installer_asks_nobody_when_input_is_redirected():
+    """`[Environment]::UserInteractive` tracks the window station, not the
+    keyboard: it is true inside a child started with its input on the null
+    device, which is exactly where `Read-Host` waits for an answer that
+    cannot come. Measured on a real machine, not reasoned about."""
+    text = (ROOT / "scripts" / "install.ps1").read_text(encoding="utf-8")
+    body = text.split("function Test-Interactive")[1].split("\nfunction ")[0]
+    assert "IsInputRedirected" in body, body
