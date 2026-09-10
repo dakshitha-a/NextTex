@@ -2089,6 +2089,41 @@ not days later, when a build fails, with nothing to bring back. A failure
 that reports success is not a smaller bug than one that stops; it is the
 same bug with the evidence removed.
 
+### Detection and execution disagreeing about one word
+
+Fixing the previous bug unblocked the step it had been skipping, and the
+step failed immediately:
+
+    Adding biber, synctex, chktex, texcount  FAILED
+      [WinError 2] The system cannot find the file specified
+
+On a machine where tlmgr was present, working, and had just been detected.
+`shutil.which("tlmgr")` returns `tlmgr.BAT`, because it honours PATHEXT.
+`subprocess` without a shell goes to `CreateProcess`, which appends only
+`.exe` to a bare name and cannot find a `.bat`. The installer ran
+`["tlmgr", "install", ...]`, so it asked one function where the tool was,
+threw the answer away, and asked a different function to run the name.
+
+That is the third appearance of the same shape in one afternoon. A bare
+`shutil.which` that could not see the TeX directory. A `which` bound too
+early in a default argument to be replaced. And now a resolved path
+discarded in favour of the string it was resolved from. In all three the
+code contains the right question and something between the question and the
+answer makes it unaskable, which is why they read as correct.
+
+So `tex_tool` returns the path rather than a boolean, and
+`install_tex_extras` takes that path with no default, because a default of
+`"tlmgr"` is the bug wearing a hat. Twenty-six lines below it, the npm step
+already read `shutil.which("npm") or "npm"`: npm is `npm.cmd` on Windows and
+somebody had met this before, in the same file, without the lesson reaching
+the function above.
+
+**Windows-only, which is why it lasted.** On Linux and macOS `tlmgr` is an
+extensionless executable and the bare name resolves, so every test and every
+developer install was blind to it. The test now stubs a `.BAT` path
+deliberately: a stub returning a bare name would pass whatever the code did,
+which makes it a test of nothing.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the

@@ -458,3 +458,46 @@ def test_tex_is_put_on_path_before_anything_asks_what_is_missing(sandbox, monkey
     console = Recorder()
     run_install(console, sandbox, tex="none", service="no")
     assert order[:2] == ["path", "ask"], order
+
+
+def test_tlmgr_is_run_by_the_path_it_was_found_at(sandbox, monkeypatch):
+    """Detection and execution have to agree about what "tlmgr" means.
+
+    On Windows they did not. TinyTeX ships `tlmgr.bat`; `shutil.which`
+    honours PATHEXT and returns it, while `CreateProcess` appends only
+    `.exe` to a bare name and cannot find it. So the installer detected
+    tlmgr, decided four packages were missing, ran the step, and died with
+    "[WinError 2] The system cannot find the file specified" on a machine
+    where tlmgr was present and working. The fix that made the detection
+    correct is what exposed this: the step had never run here before.
+
+    The stub returns a .BAT path for the same reason, since a bare name
+    would pass whatever the code did.
+    """
+    tlmgr_path = "C:\\TinyTeX\\bin\\windows\\tlmgr.BAT"
+    seen = {"tlmgr": False}
+
+    def which(name):
+        if not seen["tlmgr"]:
+            return None
+        if name == "tlmgr":
+            return tlmgr_path
+        return f"C:\\TinyTeX\\bin\\windows\\{name}.EXE" if name == "pdflatex" else None
+
+    console = Recorder()
+    real_run = console.run
+
+    def run(label, argv, **kwargs):
+        result = real_run(label, argv, **kwargs)
+        if "install-tinytex" in " ".join(str(a) for a in argv):
+            seen["tlmgr"] = True
+        return result
+
+    console.run = run
+    monkeypatch.setattr(installer.shutil, "which", which)
+    run_install(console, sandbox, tex="tinytex", service="no")
+
+    adding = [call for call in console.calls
+              if len(call) > 1 and call[1] == "install" and "biber" in call]
+    assert adding, f"tlmgr never ran\n{console.ran}"
+    assert adding[0][0] == tlmgr_path, adding[0]

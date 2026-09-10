@@ -276,14 +276,23 @@ def install_tex(console: Console, root: Path, platform: str, choice: str,
 
 
 def install_tex_extras(console: Console, root: Path, missing: list,
-                       counter: str = "") -> Result:
+                       tlmgr: str, counter: str = "") -> Result:
     """latexmk, biber, synctex, chktex, texcount.
 
     The same five on every platform, for the same reason: a project that uses
     biber or chktex must not fail on its first build.
+
+    `tlmgr` is the resolved path and not the name, and it has no default so
+    that a caller has to have found it.  This ran as `["tlmgr", ...]` and
+    failed on Windows with "[WinError 2] The system cannot find the file
+    specified" on a machine where tlmgr was present and had just been
+    detected: TinyTeX ships `tlmgr.bat`, `shutil.which` finds it because it
+    honours PATHEXT, and `CreateProcess` appends only `.exe` to a bare name.
+    Detection and execution disagreed about what "tlmgr" meant.  The npm
+    step below had already learned this; this one had not.
     """
     return console.run("Adding " + ", ".join(missing),
-                       ["tlmgr", "install", *missing], cwd=root, counter=counter)
+                       [tlmgr, "install", *missing], cwd=root, counter=counter)
 
 
 # ---------------------------------------------------------------------------

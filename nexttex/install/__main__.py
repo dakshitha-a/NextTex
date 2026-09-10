@@ -336,8 +336,9 @@ def execute(console: Console, plan, root: Path, platform: str,
     # synctex, chktex or texcount: a NextTex that starts, opens a project,
     # and fails on its first full build.
     missing = _missing_tex_extras(result.tex_dir)
-    if missing and tex_tool("tlmgr", result.tex_dir):
-        extras = steps.install_tex_extras(console, root, missing)
+    tlmgr = tex_tool("tlmgr", result.tex_dir)
+    if missing and tlmgr:
+        extras = steps.install_tex_extras(console, root, missing, tlmgr)
         if not extras.ok:
             notes.append("tlmgr could not add " + ", ".join(missing)
                          + "; NextTex says which at startup")

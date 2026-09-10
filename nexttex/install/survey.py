@@ -42,8 +42,16 @@ PLATFORMS = ("linux", "macos", "windows")
 TEX_EXTRAS = ("latexmk", "biber", "synctex", "chktex", "texcount")
 
 
-def tex_tool(name: str, tex_dir, *, which=None, exists=None) -> bool:
-    """Whether a TeX tool can be run: on PATH, or inside the TeX directory.
+def tex_tool(name: str, tex_dir, *, which=None, exists=None):
+    """Where a TeX tool is, or None: on PATH, or inside the TeX directory.
+
+    It answers with the path rather than with yes, because on Windows those
+    are different questions and answering the easy one shipped a bug.
+    `shutil.which` honours PATHEXT and happily returns `tlmgr.BAT`, while
+    `CreateProcess` appends only `.exe` to a bare name and cannot run it.
+    So the installer found tlmgr and then failed to start it, on the same
+    machine, for the same file. Anything that runs what this found must run
+    the path it returns.
 
     PATH alone is not the question, and believing it cost a real install.
     TinyTeX does not put its bin directory on PATH, so on a machine that
@@ -62,14 +70,16 @@ def tex_tool(name: str, tex_dir, *, which=None, exists=None) -> bool:
     # afterwards to describe a machine that is not this one.
     which = which or shutil.which
     exists = exists or (lambda p: Path(p).exists())
-    if which(name):
-        return True
+    found = which(name)
+    if found:
+        return found
     if not tex_dir:
-        return False
-    return any(
-        exists(Path(tex_dir) / (name + suffix))
-        for suffix in ("", ".exe", ".bat", ".cmd")
-    )
+        return None
+    for suffix in ("", ".exe", ".bat", ".cmd"):
+        candidate = Path(tex_dir) / (name + suffix)
+        if exists(candidate):
+            return str(candidate)
+    return None
 
 
 def this_platform() -> str:
@@ -310,7 +320,7 @@ def survey(
                     why="pdflatex, latexmk and synctex; nothing can be typeset "
                         "without them"))
 
-    result.tlmgr = tex_tool("tlmgr", result.tex_dir, which=which, exists=exists)
+    result.tlmgr = bool(tex_tool("tlmgr", result.tex_dir, which=which, exists=exists))
     result.missing_tex_extras = [
         name for name in TEX_EXTRAS
         if not tex_tool(name, result.tex_dir, which=which, exists=exists)
