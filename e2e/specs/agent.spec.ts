@@ -472,3 +472,21 @@ test("nothing moves under a writer who is mid-sentence", async ({ tab }) => {
   // And nothing was highlighted under the hands that were typing.
   await expect(tab.locator(".cm-line-flash")).toHaveCount(0);
 });
+
+test("the preview follows an agent edit to its page once the build lands", async ({
+  tab,
+}) => {
+  // Both halves of "go and look at what changed": the editor scrolls to the
+  // line, and the typeset page shows where that line ended up. The preview
+  // waits for the build, because forward search reads the map the last
+  // build wrote and would otherwise answer for the document as it was.
+  //
+  // The answer is a flash drawn over the page, for the reason the
+  // navigation spec gives: a page number would prove nothing about whether
+  // the right part of the page was found.
+  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  await ask(tab, "edit", "Add a sentence above the equation.");
+  await expect(tab.locator(".nx-flash").first()).toBeVisible({
+    timeout: 45_000,
+  });
+});

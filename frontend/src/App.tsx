@@ -199,6 +199,9 @@ export default function App() {
   const [words, setWords] = useState<number | null>(null);
   const editor = useRef<EditorHandle | null>(null);
   const pdf = useRef<PdfHandle | null>(null);
+  /** Where the agent last wrote, held until the build that edit scheduled
+   *  has landed, because forward search reads the previous build's map. */
+  const agentWrote = useRef<{ path: string; line: number } | null>(null);
   const chat = useRef<ChatHandle | null>(null);
   const shell = useRef<HTMLDivElement | null>(null);
   const editorPane = useRef<HTMLDivElement | null>(null);
@@ -661,6 +664,12 @@ export default function App() {
       // Nothing to reload: the agent's edit went into the shared document,
       // so it is already on screen. What is left is going to look at it.
       refreshTree();
+      // And the preview follows too, but not yet: forward search reads the
+      // `.synctex.gz` from the last build, so asking now would answer for
+      // the document as it was before this edit. The build that this edit
+      // schedules is when there is something true to move to, so the place
+      // is held here and used by `onCompileDone`.
+      agentWrote.current = { path, line };
       // Go and look at what changed, and never take the caret to do it.
       // This used to move the caret and then hand it back if the writer had
       // been in the composer, which spared one of the two places somebody
@@ -680,6 +689,23 @@ export default function App() {
     // still typing an equation, and having the error list jump up over the
     // document at that moment is the most irritating thing this app can do.
     // The status strip colours its dot; opening the list stays your choice.
+    //
+    // The preview is the other half of that rule and it points the other
+    // way. An agent edit puts content somewhere the writer was not looking,
+    // which is exactly what forward search is for, so the page follows it
+    // once the build that produced it has landed. The reader's own typing
+    // deliberately does not move the preview: the build fires 1.6 seconds
+    // after every pause, and a page that jumps then is the diagnostics
+    // drawer's mistake in the other pane.
+    handlers.onCompileDone = () => {
+      const wrote = agentWrote.current;
+      if (!wrote) return;
+      agentWrote.current = null;
+      if (busyTyping()) return;
+      // Gentle: it moves the view only if the reader is not already looking
+      // at that part of the page, and flashes the box either way.
+      void pdf.current?.reveal(wrote.path, wrote.line, true);
+    };
     return () => {
       handlers.onFilesChanged = undefined;
       handlers.onRenamed = undefined;
