@@ -1907,6 +1907,32 @@ tab title, in `--warn` rather than the accent, because it is a caution rather
 than a feature. The ordinary install shows nothing — almost every install is
 the only one on its machine, and a badge reading "the normal one" is noise.
 
+### The install line that stopped on its own options
+
+Reported from a Windows machine, one line in: `irm ... /install.ps1 | iex`
+answered with "the attribute cannot be added because variable Tex with value
+would no longer be valid", and nothing was installed.
+
+`iex` has no script file to bind parameters against. It runs the `param`
+block in the caller's scope, where each entry becomes a variable with an
+attribute attached rather than a parameter with a default, and a
+`ValidateSet` that forbids its own default is then an attribute that cannot
+be applied to the value sitting in the variable. `-Tex` was simply the first
+of three.
+
+What makes it worth writing down is that it held for months by accident. The
+only validated option used to be `-Bind`, and its default was `localhost`,
+which is a member of its own set. Adding `-Tex` and `-Agent` and giving all
+three an empty default broke a rule nobody knew was being kept. The empty
+string is now a member of each set, since the empty string is what "not
+answered yet" means here.
+
+The check for it lives in the cross-platform tests rather than the
+PowerShell ones, because the PowerShell tests skip on the machine this is
+written on and this is a Windows-only failure. A `pwsh` test runs the real
+prologue too, in CI, with everything after the `param` block cut off so that
+testing the install does not perform one.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the

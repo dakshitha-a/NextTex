@@ -156,3 +156,24 @@ foreach ($parameter in $block.Parameters) {{
              if argument.startswith("-") and argument not in
              ("-NoProfile", "-ExecutionPolicy", "-File")}
     assert given <= names, f"the installer passes {given - names}, which the script has no parameter for"
+
+
+def test_the_documented_install_line_can_run_its_own_prologue():
+    """`irm ... | iex` is the install line the README gives, and everything
+    it does before the first prompt is the comment-based help and the
+    `param` block.  `iex` has no script file to bind parameters against, so
+    that block runs in the caller's scope, and an attribute there is applied
+    to a variable rather than declared on a parameter.  A `ValidateSet` that
+    forbids its own default therefore stops the install on line one, which
+    is how a user found it.
+
+    Everything after the `param` block is cut off so that running this does
+    not run an install.  `test_every_windows_default_is_allowed_by_its_own
+    _validate_set` in the cross-platform tests is the cheap version of the
+    same check, and the one that runs on a machine without `pwsh`.
+    """
+    text = (SCRIPTS / "install.ps1").read_text(encoding="utf-8")
+    head, cut, _ = text.partition("$ErrorActionPreference")
+    assert cut, "the prologue no longer ends where this test cuts it"
+    output = pwsh("Invoke-Expression @'\n" + head + "\n'@\nWrite-Host 'ran'")
+    assert "ran" in output
