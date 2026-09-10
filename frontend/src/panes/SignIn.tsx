@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Settings from "./Settings";
 import api from "../api";
+import { loginRefusal } from "../signin";
 
 /** Choosing what, if anything, writes alongside you.
  *
@@ -285,7 +286,12 @@ function ClaudeLogin({
     setRunning(true);
     try {
       await api.chooseProvider("claude");
-      await api.startLogin(mode === "console");
+      const refused = loginRefusal(await api.startLogin(mode === "console"));
+      if (refused) {
+        setError(refused);
+        setRunning(false);
+        return;
+      }
     } catch (problem: any) {
       setError(problem.message);
       setRunning(false);
