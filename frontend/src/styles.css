@@ -91,33 +91,41 @@
      than as five unrelated colours, and every one clears 4.5:1 on --surface
      in both palettes -- certified in contrast.test.ts.
 
-     They used to sit at OKLab lightness 0.45, which is --ink-3's lightness,
-     and that is the whole reason they read as washed out on a light page:
-     a coloured control sequence was fainter than the prose around it and
-     no darker than a comment, so the colour arrived as a loss of contrast
-     rather than as information.  The dark palette never had the problem --
-     its families reach 9.4:1 against the page where its body text reaches
-     14.7:1, about two thirds -- while these reached 5.8:1 against 14.4:1,
-     about two fifths.  Dropping them to 0.40 puts them between --ink-2 and
-     --ink-3 instead of below both: 7.0 to 7.9:1 on the proofing grey, and
-     8.7 to 9.9:1 on the three papers, which is the dark palette's number
-     on the ground this setting is most often looked at.
+     They used to sit at OKLab lightness 0.45, and then briefly at 0.40,
+     and both were wrong in the same direction.  The prose here is a
+     near-black ink, so a colour that is made darker moves *toward* the
+     body text: at 0.40 a coloured control sequence sat 22.6 L* from the
+     prose, where the faintest ink of all sits 27.3 away, and it melted
+     into the words it was supposed to stand out from.  Worse, at that
+     lightness sRGB has no room to be colourful.  #18448C is a chroma of
+     0.129 and still reads as navy-dark rather than as blue, because
+     colourfulness is chroma weighted by how light a thing is, and a
+     saturated near-black is not a colour anyone can see the hue of.
 
-     The chroma ceiling went with it, 0.115 to 0.13, which is where the
-     dark palette already was.  Three of the five sit on it; teal and the
-     preamble brown are stopped by the sRGB gamut well below it and always
-     will be at any lightness dark enough to read, which is why weight and
-     not more colour is the other half of this.
+     0.52 with the chroma ceiling lifted off entirely is the answer, and
+     it was chosen by looking at all five candidates rendered as real
+     source on all four light pages rather than by arithmetic.  Each hue
+     now takes the most chroma sRGB will give it at that lightness: 0.213
+     for the blue and 0.208 for the red, against 0.115 before.  A family
+     stands 34 to 39 L* clear of the prose, where the dark palette -- the
+     one this was always being measured against -- manages 14 to 18.
+
+     The cost is real and was accepted deliberately.  On the proofing grey
+     these measure 4.1 to 4.9:1, so the faintest of them is under the
+     4.5:1 that small text is supposed to clear; on the three papers, which
+     is where this setting is actually looked at, they are 4.8 to 6.1:1.
+     See the note on SYNTAX_ON_PAGE in contrast.test.ts for why that is a
+     defensible trade here and nowhere else in this file.
 
      Held apart from the five interface accents deliberately, and violet most
      of all: inside the editor those appear only as gutter bars, dotted
      underlines and line washes, never as the colour of the text, and --pen
      means the agent touched this line. */
-  --syn-structure: #18448C;
-  --syn-env: #005257;
-  --syn-math: #005812;
-  --syn-preamble: #633F00;
-  --syn-cite: #7F1E30;
+  --syn-structure: #005DE0;
+  --syn-env: #00787E;
+  --syn-math: #00801F;
+  --syn-preamble: #8E5D00;
+  --syn-cite: #C40040;
 
   /* How much heavier the editor sets its text on this palette than the
      weight the writer chose.  Dark type on a light ground looks thinner

@@ -891,23 +891,45 @@ was protecting:
   both `.nx-theme-light` and `.nx-theme-dark` — the editor's own theme carries
   them, so a white page in a dark shell gets the light palette's colours.
   `contrast.test.ts` certifies every one against `--surface` in both.
-- **A coloured token is never fainter than a comment**, which is the rule a
-  4.5:1 floor cannot see and the light palette broke for a year. Its five
-  families sat at OKLab lightness 0.45 — `--ink-3`'s lightness — so a
-  coloured control sequence measured 5.7–6.3:1 on a page where `--ink-3`
-  itself measured 6.3:1 and the prose measured 14.4:1. Colouring a token
-  made it *quieter* than the words around it and no louder than a comment,
-  which is exactly why the setting read as washed out on a white page and
-  looked right on a dark one, where the families had always been well clear
-  of `--ink-3`. They now sit at 0.40, between `--ink-2` and `--ink-3`:
-  7.0–7.9:1 on the proofing grey and 8.7–9.9:1 on the three papers, which is
-  the dark palette's own number on the ground the setting is most often
-  looked at. The chroma ceiling went with it, 0.115 to 0.13, where dark
-  already was. Three of the five reach it; teal and the preamble brown are
-  stopped by the sRGB gamut well below it at any lightness dark enough to
-  read, which is why weight rather than more colour is the other half of
-  this. The test states the rule against `--ink-3` rather than as a number,
-  because that is what it actually is.
+- **A keyword must never melt into the prose**, which is the writer's own
+  rule and the one the light palette broke for a year: "they should color
+  match to the theme but when the focus is on the text, the keywords should
+  be differentiated enough from normal text and vice versa." It is a rule
+  about the *text*, not the paper, and that distinction is the whole story
+  here. On a light page the prose is a near-black ink, so raising contrast
+  against the page means going darker, which moves a colour **toward** the
+  words it has to stand out from. The families sat at OKLab lightness 0.45,
+  then briefly at 0.40, and both were rejected as melting in — at 0.40 a
+  coloured command stood 22.6 L\* clear of the prose where even `--ink-3`
+  stands 27.3 clear, while measuring a comfortable 7.0:1 against the paper.
+  Contrast was never the axis.
+- **Colourfulness is chroma weighted by lightness, and that is what the
+  tests measure now.** `#18448C` carries a chroma of 0.129 — more than the
+  dark theme's blue — and still reads as navy-dark rather than as blue,
+  because a saturated near-black is not a colour whose hue anyone can see.
+  So the palette went to lightness 0.52 with the chroma ceiling removed
+  entirely, each hue taking the most sRGB will give it there: 0.213 for the
+  blue and 0.208 for the red against 0.115 before, standing 34–39 L\* clear
+  of the prose where the dark theme manages 14–18. `contrast.test.ts` scores
+  chroma × L\* and holds the floor just under what this palette measures;
+  the two rejected ones score 0.021 and 0.028 against its 0.040 and dark's
+  0.079. In every light palette the weakest is the teal, which sRGB starves
+  at any lightness a light page can use.
+- **These five are held to 4:1 rather than 4.5:1, deliberately, and it is
+  the only such exemption in the file.** They measure 4.1–4.9:1 on the
+  proofing grey and 4.8–6.1:1 on the three papers. Three things make the
+  trade defensible here and nowhere else: colouring is off by default, so
+  nobody is given it without asking; it is never the only carrier, because a
+  control sequence is set 200 weights above the prose whatever this setting
+  says, so removing the colour entirely leaves the file legible — which is
+  the condition WCAG actually asks for; and it applies to control sequences,
+  a fixed vocabulary five to fifteen characters long, not to running prose,
+  which is still 14.4:1 and untouched. The floor is 4:1 rather than absent
+  so that the next change has to be as deliberate as this one.
+- **The choice was made by looking, not by arithmetic.** Five candidates
+  were rendered as real source on all four light pages and the writer picked
+  one. Every number above is a justification of that choice or a guard on
+  it, not the thing that produced it.
 - None of them is violet. `--pen` means the agent touched this line and is the
   one accent that appears near the text itself; the test asserts 35° of hue
   clearance from it, so a heading can never be mistaken for an edit. The other
