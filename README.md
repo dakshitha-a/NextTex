@@ -513,6 +513,41 @@ permission rules you have set.
 paper you have already written; it reads them once, distils them, and keeps
 the result in its instructions from then on.
 
+### It draws a figure from your data, and the first attempt looks right
+
+Point at a dataset in the file list and ask for a plot, or just say which
+file and what to plot. The agent reads the data, writes a Python script,
+runs it, and puts the figure in your document.
+
+**The script is saved in your project, under `scripts/`.** That is the part
+worth caring about. A figure a model drew and threw the script away for is a
+figure you cannot change next year when a referee asks for the same plot on
+a log axis, so the script is a file in your project with a version history
+like any other, and re-drawing is running it again rather than asking again.
+
+**The first attempt is already the right shape for a paper**, which is the
+difference between a figure you keep and one you redraw by hand. The first
+time it plots, NextTex puts two small files in `scripts/`: a matplotlib
+style sheet and a nine-line helper. They set a serif face to match your
+document, a 10 pt label to match your body text, two hairline spines instead
+of a box, ticks pointing in, no grid, a colour-blind-safe palette, and a
+frameless legend. The single most important thing they do is size the figure
+to the width it will be printed at, so that a 10 pt label in the script is a
+10 pt label on the page. Matplotlib's default is 6.4 inches wide, and
+including that at `0.8\linewidth` shrinks every label to about 5 pt, which
+is why a default figure is unreadable and why this one is not.
+
+Both files are yours. Open them, change them, and nothing overwrites them
+again.
+
+Figures are written as PDF, because a figure in a paper is vector line work
+and a PNG of it is resolution-locked the moment it is written. Pass a name
+ending in `.png` for the cases where a raster is honestly right, a
+micrograph or a heatmap with a million cells.
+
+If a plot needs a package this install does not have, it says which one and
+asks. Installing it is your press.
+
 ### It cannot invent a citation
 
 The agent searches Crossref, OpenAlex or Semantic Scholar and gets back real
@@ -729,7 +764,7 @@ than the PDF it produces.
 
 NextTex serves your own files from your own machine and ships its own
 typefaces, so the interface works on a host with no route to the internet.
-Five things go out, all of them things you asked for:
+Six things go out, all of them things you asked for:
 
 1. What you send the agent, to Anthropic or OpenAI.
 2. Reference lookups, to Crossref, OpenAlex, Semantic Scholar, arXiv and
@@ -743,7 +778,12 @@ Five things go out, all of them things you asked for:
 4. GitHub, to check whether this install is behind and to download the
    interface for the commit it is on. Nothing about you or your documents
    goes with either request.
-5. **Only once you share a project**, and not before: iroh's discovery at
+5. **Only if you agree to it**, and never on its own: `pypi.org`, when a
+   figure needs a Python package this install does not have. The agent
+   reports the missing package and asks; installing it is a press of yours
+   and a card you answer, and nothing about your documents goes with the
+   request.
+6. **Only once you share a project**, and not before: iroh's discovery at
    `dns.iroh.link` and its relays at `relay.n0.iroh.link`, so two
    collaborators can find each other through whatever home routers and
    university firewalls are in the way.

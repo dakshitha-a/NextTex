@@ -82,6 +82,26 @@ export function isBib(path: string): boolean {
   return extensionOf(path) === ".bib";
 }
 
+/** Whether this is a file somebody would plot.
+ *
+ *  Named for the question rather than for a format, because that is what
+ *  the caller is asking: the file-tree row offers "Plot this" on these and
+ *  on nothing else, and an item that explains itself by failing is worse
+ *  than no item.
+ *
+ *  `.dat` and `.txt` are in and `.log` is not, which is the one judgement
+ *  call here: a `.txt` beside a thesis is usually columns of numbers, and a
+ *  `.log` is always a build.
+ */
+const DATA = new Set([
+  ".csv", ".tsv", ".dat", ".txt", ".json", ".parquet",
+  ".xlsx", ".xls", ".ods", ".h5", ".hdf5", ".npy", ".npz",
+]);
+
+export function isData(path: string): boolean {
+  return DATA.has(extensionOf(path));
+}
+
 export function isTeX(path: string): boolean {
   const extension = extensionOf(path);
   return extension === ".tex" || extension === ".ltx";

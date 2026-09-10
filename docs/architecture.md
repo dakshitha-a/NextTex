@@ -154,6 +154,8 @@ An agent edit is written to disk and then folded into the shared document, so th
 
 The transcript is the record of what was done to the document: every edit with its diff, every reverted edit, every command allowed or refused. It is an audit trail rather than session state, and it is what lets the panel survive a restart, since the model resumes its own memory by session id and would otherwise talk about "the sentence I added earlier" into an empty window.
 
+**A figure is drawn by running a script, and that is the one own-tool the fence asks about.** Every other `mcp__nexttex__` tool is waved past the hook because none can reach the shell or a path outside the project. A tool that runs Python the model wrote can do both, and more than `Bash` can, so it is fenced like a shell call: asked at the first permission position with the script as the card's literal text, silent at the other two. It runs with `sys.executable` and no shell, because that is the environment `requirements.txt` installed matplotlib into and the answer must not depend on the writer's shell; with `MPLBACKEND=Agg` and no `DISPLAY`, so `show()` cannot hang the run waiting for a window; with the build's own timeout and its process group killed on it; and with output clipped, for the reason images are clipped. The script is written into the project's `scripts/` directory through the ordinary agent write path, so it is versioned source the writer can change rather than a temporary file, and the run is verified rather than trusted: a script that exits zero having written nothing is the common failure.
+
 ## History, trash and versions
 
 **Content addressing.** A version is a sha256 of the file's bytes, stored once under that name, zlib compressed. Saving a file back to a state it has been in before costs nothing.
@@ -206,6 +208,8 @@ A single process with no database means nothing is bounded unless something boun
 | Unanswered join | discarded after 10 minutes |
 | Transcript | compacted by bytes, and 50 archived conversations kept |
 | Build | 120 second timeout, then the process group is killed |
+| A figure script | 120 second timeout, then the process group is killed; 64 kB of output per stream |
+| Installing a package | 300 second timeout |
 
 ## Security posture
 

@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
-import { iconFor, isBib, isTeX } from "./file-kinds";
+import { iconFor, isBib, isData, isTeX } from "./file-kinds";
 import api, { startDownload, type TreeNode } from "../api";
 import { get, set, useStore } from "../store";
 import {
@@ -50,6 +50,7 @@ export default function FileTree({
   onHistory,
   onPreview,
   onUnpreview,
+  onAskAbout,
   mainFile,
 }: {
   onOpen: (path: string) => void;
@@ -57,6 +58,9 @@ export default function FileTree({
   /** A file has a new name: whatever holds it open needs to know. */
   onRename?: (from: string, to: string) => void;
   onHistory?: () => void;
+  /** Hand a question about a file to the agent, seeded into the composer.
+   *  Used by "Plot this", which is how a writer points at a dataset. */
+  onAskAbout?: (prompt: string) => void;
   /** Put a document on the preview strip, or take it off.  Owned by the
    *  shell rather than here, because adding one also brings its tab
    *  forward and opens its source. */
@@ -255,6 +259,16 @@ export default function FileTree({
       } else if (action === "history") {
         onOpen(node.path);
         onHistory?.();
+      } else if (action === "plot") {
+        // Pointing at a dataset, which is the whole interaction: naming a
+        // file in prose is unreliable, and this is the same gesture the
+        // selection verbs use one pane over. Seeded rather than sent, for
+        // the reason the `Fix` button gives: the writer always presses
+        // Enter on their own message, and here the second half of the
+        // sentence is what the figure is actually about.
+        onAskAbout?.(
+          `Plot ${node.path}. Read it first, then say what you plotted and why: `,
+        );
       } else if (action === "papers") {
         const box = menuRef.current?.getBoundingClientRect();
         setPapersFor({
@@ -671,6 +685,13 @@ export default function FileTree({
               // operations every row has.
               ...(!isDirectory && isBib(node.name)
                 ? [["papers", "Add papers from a folder…"]]
+                : []),
+              // A dataset's reason to have a menu opened on it is that
+              // somebody wants a figure out of it, so this sits up here
+              // with the other contents-of-the-file items rather than down
+              // with the file operations every row has.
+              ...(!isDirectory && isData(node.name) && onAskAbout
+                ? [["plot", "Plot this…"]]
                 : []),
               ...(!isDirectory && isTeX(node.name) &&
               node.path !== mainFile

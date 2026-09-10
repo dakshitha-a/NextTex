@@ -24,3 +24,28 @@ pycrdt>=0.14
 
 tomli>=2.0; python_version < "3.11"
 requests>=2.31             # scholarly lookups for the reference tools
+
+# What a figure is drawn with.
+#
+# A figure in a scientific paper is nearly always drawn from a dataset the
+# writer already has, and these four are the smallest set that covers the
+# ordinary case: matplotlib to draw, numpy to compute, pandas to read the
+# csv or the spreadsheet the data actually arrived in, and scipy for the fit
+# or the transform the figure is usually about.
+#
+# They are heavy, roughly 150 MB installed against a few megabytes for
+# everything else in this file, and that is paid by every install including
+# the ones that only ever write prose. That cost is accepted deliberately
+# rather than overlooked. The alternative was asking for them the first time
+# somebody plots, and a scientific writing tool that cannot draw a figure
+# until it has downloaded a hundred and fifty megabytes is a tool that
+# cannot draw a figure the first time you ask.
+#
+# Nothing in the server imports any of them. They are imported by the script
+# the agent writes, which runs in a subprocess, so a platform with a broken
+# wheel for one of them loses the plot tool rather than the app -- and the
+# installer shrugs at them the way it already shrugs at iroh.
+matplotlib>=3.8
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11

@@ -288,6 +288,10 @@ OUTBOUND = {
 THROUGH_A_LIBRARY = {
     "dns.iroh.link":            "iroh's discovery, so two peers can find each other",
     "relay.n0.iroh.link":       "iroh's relays, when two peers cannot reach each other directly",
+    # `install_package` runs `pip install`, and pip knows its own index, so
+    # no URL for it appears in any file of ours either.  Exactly the shape
+    # the iroh entries above are here for.
+    "pypi.org":                 "pip, when you agree to install a package a figure needs",
 }
 
 
