@@ -432,3 +432,43 @@ test("a run of automatic approvals collapses to one row with a count", async ({
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText("×2");
 });
+
+test("the editor goes to the line before the edit lands, without taking the caret", async ({
+  tab,
+}) => {
+  // The editor already went to an agent's edit once it existed. This is the
+  // other half: the fence knows where the write is about to land at the
+  // moment it approves the call, so the pane scrolls and the range flashes
+  // while the writing is still happening rather than afterwards.
+  await ask(tab, "edit", "Add a sentence above the equation.");
+
+  // The highlight arrives, in the agent's own colour, because `--pen` means
+  // Claude touched this.
+  await expect(tab.locator(".cm-line-flash").first()).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // And the caret did not move into the document. Focus is wherever the
+  // writer left it, which after pressing Send is the Send button; what
+  // matters is that it is not in the editor. This used to move focus there
+  // and then hand it back if the writer had been in the composer, which
+  // spared one of the two places somebody can be typing.
+  await expect(tab.locator(".cm-content")).not.toBeFocused();
+});
+
+test("nothing moves under a writer who is mid-sentence", async ({ tab }) => {
+  // The old rule spared the composer and not the editor, so a writer typing
+  // in their own document had the caret thrown across it by the agent's
+  // edit. Three seconds is a pause in typing rather than in thinking.
+  const editor = tab.locator(".cm-editor .cm-content");
+  await editor.click();
+  await tab.keyboard.type("still writing this");
+
+  await ask(tab, "edit", "Add a sentence above the equation.");
+  // The file really changes, so the turn is doing its work.
+  await expect(tab.getByText("main.tex").first()).toBeVisible({
+    timeout: 20_000,
+  });
+  // And nothing was highlighted under the hands that were typing.
+  await expect(tab.locator(".cm-line-flash")).toHaveCount(0);
+});

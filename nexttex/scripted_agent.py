@@ -31,6 +31,25 @@ from typing import Any, AsyncIterator, Callable
 
 from .modes import MODES
 
+
+def first_changed_line(before: str, after: str) -> int:
+    """Where two versions of a file diverge, 1-based.
+
+    A third copy of this, and the reason is the one `writing.py` gives:
+    importing `agent.py` for it would pull in the Claude SDK, and the whole
+    point of this module is that it runs where that agent does not. The
+    other two are in `nexttex/agent.py` and `frontend/src/store.ts`, and all
+    three are held to the same cases by tests that name each other.
+    """
+    if before == after:
+        return 1
+    old = before.split("\n")
+    new = after.split("\n")
+    for index in range(min(len(old), len(new))):
+        if old[index] != new[index]:
+            return index + 1
+    return min(len(old), len(new)) + 1
+
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "tests" / "scripts"
 
 # How long a `text` step takes to "stream", in total.  Short enough that a
@@ -329,6 +348,15 @@ class ScriptedAgent:
             find, replace = step.get("find", ""), step.get("replace", "")
             after = before.replace(find, replace, 1) if find else before
         after = str(after)
+
+        # Where the write is about to land, before it lands, which is what
+        # the real fence emits from the moment it approves the call. The
+        # gap after it is deliberate and is the only reason a browser spec
+        # can tell "the editor went there first" from "the editor went
+        # there afterwards", which is the whole feature.
+        line = first_changed_line(before, after)
+        await self._emit({"type": "focus", "path": relative, "line": line})
+        await asyncio.sleep(float(step.get("before_ms", 250)) / 1000)
 
         if self.apply_edit is not None:
             self.apply_edit(target, after)

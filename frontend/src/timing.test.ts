@@ -1,6 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
 
-import { afterQuiet, onFrame } from "./timing";
+import {
+  TYPING_GRACE,
+  afterQuiet,
+  busyTyping,
+  forgetTyping,
+  noteTyping,
+  onFrame,
+} from "./timing";
 
 describe("running work no oftener than it can be seen", () => {
   let frames: FrameRequestCallback[];
@@ -90,5 +97,37 @@ describe("running work once somebody has stopped", () => {
     run.cancel();
     vi.advanceTimersByTime(500);
     expect(seen).toEqual([]);
+  });
+});
+
+/** Whether somebody is mid-sentence, which decides whether the view may
+ *  move under them.
+ *
+ *  The agent now says where it is about to write and the editor goes to
+ *  look. That is welcome when the writer is reading and unwelcome when they
+ *  are typing, and a focus check cannot answer it: the caret sits in the
+ *  editor for the whole time somebody is reading their own paragraph.
+ */
+describe("whether the writer is mid-sentence", () => {
+  test("nobody has typed yet, so nothing is pinned", () => {
+    forgetTyping();
+    expect(busyTyping()).toBe(false);
+  });
+
+  test("a keystroke pins the view for a few seconds", () => {
+    forgetTyping();
+    noteTyping(1_000_000);
+    expect(busyTyping(1_000_000)).toBe(true);
+    expect(busyTyping(1_002_000)).toBe(true);
+  });
+
+  test("and lets go once the typing stops", () => {
+    // Three seconds is a pause in typing rather than a pause in thinking:
+    // long enough that finishing a word is not interrupted, short enough
+    // that a writer who has stopped to read gets taken to the edit.
+    forgetTyping();
+    noteTyping(1_000_000);
+    expect(busyTyping(1_000_000 + TYPING_GRACE)).toBe(false);
+    expect(busyTyping(1_010_000)).toBe(false);
   });
 });

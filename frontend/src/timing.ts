@@ -68,3 +68,38 @@ export function afterQuiet<A extends unknown[]>(
   };
   return run;
 }
+
+/** When this person last typed into the document, and whether that was
+ *  recently enough that nothing should move under them.
+ *
+ *  Lives here rather than in the store because it is read imperatively by
+ *  whoever is about to move the view, and it must not cause a render: it
+ *  changes on every keystroke.
+ *
+ *  It exists because the agent now says where it is about to write, and the
+ *  editor goes to look. That is welcome when the writer is reading and
+ *  unwelcome when they are mid-sentence, and "mid-sentence" is not a state
+ *  a focus check can answer on its own: the caret sits in the editor for the
+ *  whole time somebody is reading their own paragraph.
+ */
+let typedAt = 0;
+
+/** Only ever called for a change this keyboard made. A collaborator's edit
+ *  arriving over the socket is not this person typing. */
+export function noteTyping(now = Date.now()): void {
+  typedAt = now;
+}
+
+/** Three seconds, which is a pause in typing rather than a pause in
+ *  thinking: long enough that finishing a word is not interrupted, short
+ *  enough that a writer who has stopped to read gets taken to the edit. */
+export const TYPING_GRACE = 3000;
+
+export function busyTyping(now = Date.now()): boolean {
+  return typedAt > 0 && now - typedAt < TYPING_GRACE;
+}
+
+/** For tests, and for a document being closed. */
+export function forgetTyping(): void {
+  typedAt = 0;
+}

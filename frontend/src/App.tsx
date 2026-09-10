@@ -11,7 +11,7 @@ import {
   Segmented,
   Handle,
 } from "./chrome";
-import { onFrame } from "./timing";
+import { busyTyping, onFrame } from "./timing";
 import {
   BREAKPOINTS,
   breakpoints,
@@ -432,6 +432,10 @@ export default function App() {
      *  this came from. The editor puts the cursor on it rather than at the
      *  start of the line. */
     word?: string,
+    /** False when this is the agent saying where it is about to write.
+     *  The pane scrolls and the range flashes; the caret is left where the
+     *  writer put it. */
+    steal = true,
   ) => {
     const state = get();
     if (!state.tabs.some((tab) => tab.path === path)) {
@@ -444,7 +448,7 @@ export default function App() {
     set({
       activePath: path,
       ...(kindOf(get().tree, path) === "text" || !kindOf(get().tree, path)
-        ? { pendingOpen: { path, line, word, nonce: Date.now() } }
+        ? { pendingOpen: { path, line, word, steal, nonce: Date.now() } }
         : {}),
     });
   }, []);
@@ -647,22 +651,23 @@ export default function App() {
     handlers.onReveal = (path, line) => {
       openFile(path, line);
     };
+    // Where the agent is *about* to write, from the moment the fence
+    // approves the call. Never takes the caret: see `busyTyping`.
+    handlers.onAgentFocus = (path, line) => {
+      if (busyTyping()) return;
+      void openFile(path, line, undefined, false);
+    };
     handlers.onAgentEdit = async (path, line) => {
       // Nothing to reload: the agent's edit went into the shared document,
       // so it is already on screen. What is left is going to look at it.
       refreshTree();
-      // Go to what Claude changed.  The caret follows unless the writer is
-      // mid-sentence in the composer, in which case moving focus would
-      // interrupt a question they are still asking.
-      const composerHasFocus = document.activeElement?.tagName === "TEXTAREA";
-      await openFile(path, line);
-      if (composerHasFocus) {
-        // `preventScroll` for the same reason every focus in the panel
-        // carries it: the composer can be outside the shell, and a focus
-        // that scrolls it into view drags the whole layout with it.
-        (document.querySelector("textarea") as HTMLTextAreaElement | null)
-          ?.focus({ preventScroll: true });
-      }
+      // Go and look at what changed, and never take the caret to do it.
+      // This used to move the caret and then hand it back if the writer had
+      // been in the composer, which spared one of the two places somebody
+      // can be typing: a writer typing in the *editor* had their cursor
+      // thrown across the document by the agent's own edit.
+      if (busyTyping()) return;
+      await openFile(path, line, undefined, false);
     };
     handlers.onProjectChanged = (main) => {
       // The event carries what changed, so this no longer re-reads the
@@ -680,6 +685,7 @@ export default function App() {
       handlers.onRenamed = undefined;
       handlers.onReveal = undefined;
       handlers.onAgentEdit = undefined;
+      handlers.onAgentFocus = undefined;
       handlers.onProjectChanged = undefined;
       handlers.onCompileDone = undefined;
     };

@@ -128,6 +128,10 @@ export type State = {
     /** From a double-click on the typeset page: the word that was under
      *  the pointer, used to place the cursor exactly. */
     word?: string;
+    /** False when the agent is saying where it is about to write, rather
+     *  than the writer asking to be taken somewhere. The pane scrolls and
+     *  the range flashes; the caret stays where they put it. */
+    steal?: boolean;
     nonce: number;
   } | null;
   /** What is highlighted in the editor right now. Read when a question is
@@ -616,6 +620,7 @@ export type EventHandlers = {
   onCompileDone?: (result: CompileResult) => void;
   onPreviewsChanged?: (previews: string[]) => void;
   onAgentEdit?: (path: string, line: number) => void | Promise<void>;
+  onAgentFocus?: (path: string, line: number) => void;
   onRenamed?: (from: string, to: string) => void;
 };
 export const handlers: EventHandlers = {};
@@ -863,6 +868,13 @@ function receive(event: any) {
       break;
     case "reveal":
       handlers.onReveal?.(event.path, event.line);
+      break;
+    // Where the agent is *about* to write, emitted the moment the fence
+    // approves the call rather than after the edit has landed. The editor
+    // already followed an edit once it existed; this is the half that makes
+    // it feel like watching somebody work rather than reading a report.
+    case "focus":
+      handlers.onAgentFocus?.(event.path, event.line);
       break;
     case "context_changed":
       if (state.projectId) refreshContext(state.projectId);

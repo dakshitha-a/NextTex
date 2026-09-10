@@ -15,6 +15,10 @@ import {
  *  line, or a chip that says +3/−3 for a paragraph that moved.
  */
 
+// These exact cases are asserted against the two Python copies of this
+// function in `tests/test_agent_parity.py`, because one answer with three
+// implementations drifts apart silently and nothing in either language
+// would notice.
 describe("where an edit begins", () => {
   test("identical text has no first changed line", () => {
     expect(firstChangedLine("a\nb\nc", "a\nb\nc")).toBe(1);

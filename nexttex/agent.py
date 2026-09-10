@@ -174,6 +174,73 @@ NETWORK_COMMANDS = frozenset({
 NETWORK_GIT_VERBS = frozenset({"push", "pull", "fetch", "clone", "remote", "submodule"})
 
 
+def first_changed_line(before: str, after: str) -> int:
+    """The first line where two versions of a file diverge, 1-based.
+
+    A twin of `firstChangedLine` in `frontend/src/store.ts`, which exists
+    there for the same purpose and could not be reached from here.  It is
+    not a diff and is not trying to be one: it answers "where should the
+    reader be looking", and for an append that is the first new line rather
+    than the end of the old text.  The two have a test each over the same
+    cases so they cannot drift apart.
+    """
+    if before == after:
+        return 1
+    old = before.split("\n")
+    new = after.split("\n")
+    for index in range(min(len(old), len(new))):
+        if old[index] != new[index]:
+            return index + 1
+    return min(len(old), len(new)) + 1
+
+
+def landing_line(tool_name: str, data: dict, before: str) -> int | None:
+    """Which line a write is about to land on, against the text as it is now.
+
+    Computed at the moment the fence approves the call, which is the only
+    moment this is knowable: the tool arguments say what the model is
+    matching on, and the snapshot the fence has just taken is what it will
+    match against.  A second later the file has changed and the question has
+    no answer.
+
+    None rather than a guess wherever the answer is not certain.  A flash on
+    the wrong paragraph is worse than no flash: it sends the reader to look
+    at something that did not change and costs them the trust that the
+    highlight means anything.
+    """
+    if tool_name == "Edit":
+        needle = data.get("old_string")
+        if not isinstance(needle, str) or not needle:
+            return None
+        # Ambiguous is as good as unknown.  `Edit` with
+        # `replace_all` may touch several places, and picking the first
+        # would point at one arbitrarily.
+        if before.count(needle) != 1:
+            return None
+        return before.count("\n", 0, before.index(needle)) + 1
+    if tool_name == "MultiEdit":
+        edits = data.get("edits")
+        if not isinstance(edits, list):
+            return None
+        for edit in edits:
+            if not isinstance(edit, dict):
+                continue
+            needle = edit.get("old_string")
+            if isinstance(needle, str) and needle and before.count(needle) == 1:
+                return before.count("\n", 0, before.index(needle)) + 1
+        return None
+    if tool_name == "Write":
+        content = data.get("content")
+        if not before:
+            return 1
+        if not isinstance(content, str):
+            return None
+        return first_changed_line(before, content)
+    # A notebook edit has no line in a text file's sense, so it gets no
+    # event rather than an invented one.
+    return None
+
+
 def reaches_the_network(command: str) -> str:
     """The first segment of a shell command that leaves this machine, or "".
 
@@ -974,6 +1041,22 @@ class ProjectAgent:
                     )
                 except OSError:
                     self._file_snapshots[str(path)] = ""
+                # Where to look, before there is anything to see.  The
+                # editor already goes to an agent's edit once it has landed;
+                # this is the other half, and it is only knowable here,
+                # because the tool arguments say what the model is matching
+                # on and the snapshot above is what it will match against.
+                line = landing_line(
+                    tool_name, tool_input, self._file_snapshots[str(path)]
+                )
+                if line is not None:
+                    try:
+                        display = str(path.resolve().relative_to(self.root))
+                    except (ValueError, OSError):
+                        display = str(path)
+                    await self._emit({
+                        "type": "focus", "path": display, "line": line,
+                    })
                 return self._allow("Inside the writing project.")
             # Falls through, and at the middle position this still asks.
             # Everything inside the project is the writing, which is what
