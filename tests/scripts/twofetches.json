@@ -1,0 +1,16 @@
+[
+  {"kind": "text", "text": "Two references, then.", "pieces": 1},
+  {"kind": "permission", "tool": "WebFetch", "rule": "WebFetch",
+   "holds": "network",
+   "headline": "Fetch a page from the internet",
+   "detail": "https://api.crossref.org/works/10.1/one",
+   "consequence": "This is the first thing in a turn that leaves this machine.",
+   "stop_if_denied": false},
+  {"kind": "permission", "tool": "WebFetch", "rule": "WebFetch",
+   "holds": "network",
+   "headline": "Fetch a page from the internet",
+   "detail": "https://api.crossref.org/works/10.1/two",
+   "consequence": "This is the first thing in a turn that leaves this machine.",
+   "stop_if_denied": false},
+  {"kind": "text", "text": "Both added.", "pieces": 1}
+]

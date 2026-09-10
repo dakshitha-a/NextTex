@@ -86,6 +86,7 @@ class ScriptedAgent:
             lambda _note: (False, "This project has nowhere to keep a memory.")
         )
         self.mode = "ask"
+        self._conversation_allow: set[str] = set()
         self.compile_now = compile_now
         self.apply_edit = apply_edit
         self.on_edit = on_edit
@@ -138,6 +139,7 @@ class ScriptedAgent:
         if self.busy:
             raise RuntimeError("a turn is still running")
         self.asked.clear()
+        self._conversation_allow.clear()
 
     def set_mode(self, mode: str) -> None:
         if mode not in MODES:
@@ -351,7 +353,16 @@ class ScriptedAgent:
         # including the compound commands it used to card; the last position
         # asks about nothing.
         holds = step.get("holds") or ("network" if step.get("uncovered") else "")
-        silent = self.mode == "all" or (self.mode == "project" and not holds)
+        rule = step.get("rule", "Bash:echo")
+        silent = (
+            self.mode == "all"
+            or (self.mode == "project" and not holds)
+            # An answer given earlier in this conversation, which the real
+            # fence consults in the same place. Without this the stand-in
+            # asked again, so a browser spec could see the button and not
+            # what pressing it buys.
+            or (rule and rule in self._conversation_allow)
+        )
         if silent:
             # The same pre-decided card the real fence emits, so the browser
             # specs exercise what a writer would actually see.
@@ -359,8 +370,12 @@ class ScriptedAgent:
                 "type": "permission",
                 "id": f"auto-{self._counter}",
                 "tool": step.get("tool", "Bash"),
-                "rule": step.get("rule", "Bash:echo"),
-                "decision": "auto",
+                "rule": rule,
+                "decision": (
+                    "conversation"
+                    if rule and rule in self._conversation_allow
+                    else "auto"
+                ),
                 "headline": step.get("headline", "Run a shell command"),
                 "detail": step.get("detail", "echo hello"),
                 "consequence": step.get("consequence", ""),
@@ -380,8 +395,11 @@ class ScriptedAgent:
             "reason": step.get("reason", ""),
         })
         try:
-            return await future
+            answer = await future
         except asyncio.CancelledError:
             return "deny"
         finally:
             self._pending.pop(request_id, None)
+        if answer == "conversation" and rule:
+            self._conversation_allow.add(rule)
+        return answer
