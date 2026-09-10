@@ -59,6 +59,14 @@ export function tidy(items: ChatItem[]): ChatItem[] {
       out[out.length - 1] = {
         ...previous,
         repeats: (previous.repeats ?? 1) + 1,
+        // Summed, not the first one's.  Fourteen reads collapsed into one
+        // row should say what the fourteen cost, which is the number worth
+        // knowing about a turn that spent a while looking things up.
+        ms:
+          previous.ms == null && item.ms == null
+            ? undefined
+            : (previous.ms ?? 0) + (item.ms ?? 0),
+        ok: previous.ok !== false && item.ok !== false,
       };
       continue;
     }
@@ -89,25 +97,23 @@ export default function Chat({
   const thinking = useStore((s) => s.thinking);
   const selected = useStore((s) => s.selected);
   const blocked = useStore((s) => s.awaitingPermission);
-  // What the agent is doing at this moment.  Until now the only sign of
-  // life was a line under the composer that said "is writing" whether it
-  // was writing or reading a file for twenty seconds, so a turn spent in
-  // tools looked like a turn that had stopped.
-  const activity = useMemo(() => {
-    if (blocked) return "Waiting";
-    if (!thinking) return "";
-    for (let index = shown.length - 1; index >= 0; index -= 1) {
-      const item = shown[index];
-      if (item.kind === "claude" && item.streaming) return "Writing";
-      if (item.kind === "tool") {
-        const what = item.summary ? ` ${shorten(item.summary)}` : "";
-        return `${verb(item.name)}${what}`;
-      }
-      if (item.kind === "edit") return `Editing ${shorten(item.path)}`;
-      if (item.kind === "user") break;
-    }
-    return "Thinking";
-  }, [shown, thinking, blocked]);
+  // What the agent is doing at this moment, read from the events rather
+  // than guessed at.  This used to walk the whole transcript backwards on
+  // every render, which is twenty walks a second while an answer streams,
+  // and it could not tell a finished call from a running one because
+  // nothing said a call had finished: a turn that spent twenty seconds in
+  // one tool showed the same line throughout and read as a turn that had
+  // stopped.
+  const current = useStore((s) => s.activity);
+  const activity = blocked
+    ? "Waiting"
+    : !thinking
+      ? ""
+      : current
+        ? current.kind === "tool"
+          ? `${verb(current.name)}${current.label ? ` ${shorten(current.label)}` : ""}`
+          : current.label
+        : "Thinking";
   const agent = useStore((s) => s.agent);
   const provider = agent?.provider;
   const name = agentName(provider);
@@ -322,6 +328,7 @@ export default function Chat({
             <span className="t-micro truncate text-ink-2" title={activity}>
               {activity}
             </span>
+            <Elapsed since={blocked ? null : current?.since ?? null} />
           </span>
         ) : null}
         {auto ? (
@@ -832,8 +839,14 @@ function shorten(text: string, limit = 28): string {
   return line.includes("/") ? `…${tail}` : `${line.slice(0, limit - 1)}…`;
 }
 
-/** Tools that are plumbing rather than work: showing them is noise. */
-const HIDDEN_TOOLS = new Set(["ToolSearch", "TodoWrite"]);
+/** Tools that are plumbing rather than work: showing them is noise.
+ *
+ *  `TodoWrite` used to be in here and is not plumbing. It is the model
+ *  saying what it intends to do next, and it never reaches this function
+ *  now: the store takes it before a tool row is made and turns it into the
+ *  turn's plan, replaced in place as later calls revise it. `ToolSearch`
+ *  genuinely is plumbing, and stays. */
+const HIDDEN_TOOLS = new Set(["ToolSearch"]);
 
 function verb(name: string): string {
   return VERBS[name] ?? name.replace(/^mcp__[a-z]+__/, "").replace(/_/g, " ");
@@ -882,13 +895,29 @@ const Item = memo(function Item({
   if (item.kind === "tool") {
     return (
       <div className="flex items-baseline gap-2 stream-indent">
-        <span className="t-micro text-ink-2">{verb(item.name)}</span>
+        <span className={`t-micro ${item.ok === false ? "text-error" : "text-ink-2"}`}>
+          {verb(item.name)}
+        </span>
         <span className="t-code-sm truncate text-ink-3">{item.summary}</span>
         {item.repeats && item.repeats > 1 ? (
           <span className="t-micro tabular-nums text-ink-3">×{item.repeats}</span>
         ) : null}
+        {/* What it cost, and only once it is worth reading.  A duration on
+            every row would be a column of "0.0s" down the transcript;
+            half a second is where a reader starts to care, and it turns
+            the tool rows from a list of verbs into a record of where a
+            turn actually went. */}
+        {item.ms != null && item.ms >= 500 ? (
+          <span className="t-micro shrink-0 tabular-nums text-ink-3">
+            {duration(item.ms)}
+          </span>
+        ) : null}
       </div>
     );
+  }
+
+  if (item.kind === "plan") {
+    return <Plan item={item} />;
   }
 
   if (item.kind === "notice") {
@@ -905,6 +934,110 @@ const Item = memo(function Item({
 
   return <Permission item={item} />;
 })
+
+/** How long the thing on screen has been going, once that is worth saying.
+ *
+ *  Not a spinner, and section 6 of the design specification forbids one for
+ *  a reason this respects rather than works around: an indicator shown at
+ *  0ms on a fast task is what tells the reader the task is slow. So this
+ *  appears only after three seconds, which is the same argument as the
+ *  compile hairline's 400ms threshold applied to a tool call, and it is a
+ *  tabular integer that counts rather than anything that moves. Nothing
+ *  goes on the wire for it: one timestamp arrives with the event and the
+ *  subtraction happens here.
+ *
+ *  A reserved minimum width, because the status strip's rule against
+ *  reflow applies to any number that changes under the eye, and this one
+ *  sits beside a truncating label in a 32px bar.
+ */
+function Elapsed({ since }: { since: number | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (since === null) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [since]);
+  if (since === null) return null;
+  const seconds = Math.floor((now - since) / 1000);
+  if (seconds < 3) return null;
+  return (
+    <span
+      className="t-micro shrink-0 text-right tabular-nums text-ink-3"
+      style={{ minWidth: "3ch" }}
+    >
+      {seconds < 60
+        ? `${seconds}s`
+        : `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, "0")}`}
+    </span>
+  );
+}
+
+/** The model's plan for this turn.
+ *
+ *  `TodoWrite` was in `HIDDEN_TOOLS` as plumbing, so the one thing the
+ *  agent writes to say what it intends to do next arrived on the wire and
+ *  was thrown away. It is the clearest answer anybody has found to "what is
+ *  this thing doing for the next minute", and it costs nothing to show
+ *  because the data was already here.
+ *
+ *  Drawn as rows rather than a card: a 3px stripe per item, `--ok` for what
+ *  is done, `--pen` for the one in hand and `--line` for what is still to
+ *  come, which is the same vocabulary the transcript already uses for a
+ *  message and a gate. No checkbox glyphs, because they invite a click that
+ *  does nothing.
+ */
+function Plan({ item }: { item: Extract<ChatItem, { kind: "plan" }> }) {
+  const done = item.items.filter((entry) => entry.state === "done").length;
+  return (
+    <div className="stream-indent">
+      <div className="flex items-baseline gap-2">
+        <span className="t-micro text-ink-2">Plan</span>
+        <span className="t-micro tabular-nums text-ink-3">
+          {done} of {item.items.length}
+        </span>
+      </div>
+      <div className="mt-1 flex flex-col gap-[2px]">
+        {item.items.map((entry, index) => (
+          <div key={index} className="flex items-start gap-2">
+            <span
+              className={`mt-[6px] h-[3px] w-[10px] shrink-0 ${
+                entry.state === "done"
+                  ? "bg-ok"
+                  : entry.state === "active"
+                    ? "bg-pen"
+                    : "bg-line"
+              }`}
+            />
+            <span
+              className={`t-meta min-w-0 ${
+                entry.state === "done"
+                  ? "text-ink-3 line-through"
+                  : entry.state === "active"
+                    ? "text-ink"
+                    : "text-ink-2"
+              }`}
+            >
+              {entry.text}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A duration a person reads, not a number of milliseconds.
+ *
+ *  Sans with tabular figures rather than mono: the mono rule is for a
+ *  literal string the machine produced or consumes, and an elapsed time is
+ *  numeric metadata. */
+export function duration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60_000);
+  return `${minutes}m ${Math.round((ms % 60_000) / 1000)}s`;
+}
 
 function AgentMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> }) {
   const name = agentName(useStore((s) => s.agent?.provider));

@@ -512,10 +512,22 @@ class OpenAIAgent:
         await self._emit({
             "type": "tool_use", "id": call["id"], "name": name, "input": args,
         })
+        # The pair, for the same reason the Claude agent emits it: a panel
+        # that is never told a call ended goes on naming it.  This is the
+        # one place this agent runs a tool, so the whole of its liveness is
+        # here.
+        started = time.monotonic()
+        ok = True
         try:
             return await self._dispatch(name, args)
         except Exception as error:
+            ok = False
             return f"That failed: {error}"
+        finally:
+            await self._emit({
+                "type": "tool_done", "id": call["id"], "name": name,
+                "ms": int((time.monotonic() - started) * 1000), "ok": ok,
+            })
 
     async def _dispatch(self, name: str, args: dict) -> str:
         if name == "list_files":

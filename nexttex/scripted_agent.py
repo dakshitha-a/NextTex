@@ -227,12 +227,18 @@ class ScriptedAgent:
 
         elif kind == "tool":
             self._counter += 1
-            await self._emit({
-                "type": "tool_use",
-                "id": f"scripted-tool-{self._counter}",
-                "name": step.get("name", "Read"),
-                "input": step.get("input") or {},
-            })
+            # A pair, not one event.  A real turn always finishes the calls
+            # it starts, so a stand-in whose tool rows never complete is a
+            # stand-in kinder than the thing it stands in for, which is the
+            # failure the parity test exists to catch.  The step gains an
+            # optional `ms` so a spec can assert a number it chose, and
+            # every script written before this keeps working.
+            await self._tool(
+                step.get("name", "Read"),
+                step.get("input") or {},
+                int(step.get("ms", 40)),
+                bool(step.get("ok", True)),
+            )
 
         elif kind == "edit":
             await self._edit(step)
@@ -245,17 +251,23 @@ class ScriptedAgent:
         elif kind == "remember":
             # Writes for real, through the same callback the model's tool
             # uses, so the panel and the prompt section are both exercised.
-            self._counter += 1
             note = str(step.get("note", ""))
             _kept, message = self.remember_note(note)
-            await self._emit({
-                "type": "tool_use",
-                "id": f"scripted-tool-{self._counter}",
-                "name": "mcp__nexttex__remember",
-                "input": {"note": note},
-            })
+            await self._tool("mcp__nexttex__remember", {"note": note}, 12, True)
             await self._emit({"type": "text", "text": message})
             await self._emit({"type": "text_end"})
+
+        elif kind == "thinking":
+            # No text, only the fact of it.  The panel shows that the model
+            # is reasoning and never what the reasoning says.
+            await self._emit({"type": "thinking"})
+            await asyncio.sleep(float(step.get("seconds", 0.05)))
+            await self._emit({"type": "thinking_end",
+                              "ms": int(step.get("ms", 50))})
+
+        elif kind == "notice":
+            await self._emit({"type": "notice",
+                              "message": step.get("message", "")})
 
         elif kind == "error":
             await self._emit({"type": "error", "message": step.get("message", "")})
@@ -265,6 +277,18 @@ class ScriptedAgent:
 
         elif kind == "vanish":
             raise Vanish
+
+    async def _tool(self, name: str, args: dict, ms: int, ok: bool) -> None:
+        """One tool call, started and finished, the way a real one is."""
+        self._counter += 1
+        identifier = f"scripted-tool-{self._counter}"
+        await self._emit({
+            "type": "tool_use", "id": identifier, "name": name, "input": args,
+        })
+        await self._emit({
+            "type": "tool_done", "id": identifier, "name": name,
+            "ms": ms, "ok": ok,
+        })
 
     async def _edit(self, step: dict) -> None:
         """A real write, so everything downstream of one runs for real."""
