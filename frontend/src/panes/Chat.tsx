@@ -293,7 +293,7 @@ export default function Chat({
   const send = async () => {
     const text = draft.trim();
     const projectId = get().projectId;
-    if (!text || !projectId || blocked) return;
+    if (!text || !projectId) return;
     // Taken now rather than when the turn actually starts: a queued
     // question goes later, and by then the writer has usually clicked
     // somewhere else and the selection they meant is gone.
@@ -649,9 +649,22 @@ export default function Chat({
           ref={composer}
           rows={3}
           value={draft}
-          disabled={blocked}
-          placeholder={blocked ? "Waiting on your approval" : `Ask ${name}`}
-          className="t-ui w-full resize-none rounded-[3px] border border-line bg-surface-2 px-2 py-[6px] outline-none transition-colors duration-[90ms] placeholder:text-ink-3 disabled:border-warn disabled:bg-surface disabled:text-ink-3"
+          // Not disabled while a card is open, which is a deviation from
+          // the specification and is recorded in section 28. The writer's
+          // next question is very often about the thing the card is asking
+          // about, and a box that will not take typing has taken the
+          // conversation away at the one moment they have something to
+          // say. The queue that makes this safe already existed for a
+          // question asked mid-turn; a card open means a turn is running,
+          // so the question goes next rather than nowhere.
+          //
+          // The card's own keys stay bound to the card and not to the
+          // window, which is what makes a live composer safe: typing `a`
+          // into a textarea cannot answer a gate.
+          placeholder={blocked ? `Ask ${name}, or answer above` : `Ask ${name}`}
+          className={`t-ui w-full resize-none rounded-[3px] border bg-surface-2 px-2 py-[6px] outline-none transition-colors duration-[90ms] placeholder:text-ink-3 ${
+            blocked ? "border-warn" : "border-line"
+          }`}
           onFocus={() => setFocusedComposer(true)}
           onBlur={() => setFocusedComposer(false)}
           onChange={(event) => setDraft(event.target.value)}
@@ -847,9 +860,14 @@ export default function Chat({
               <Page />
             </button>
           </div>
+          {/* The change announces itself once rather than being
+              discovered. A card open used to print nothing here, because
+              the box beside it was dead. */}
           <span className="t-micro min-w-0 flex-1 truncate text-ink-3">
             {blocked
-              ? ""
+              ? queuedCount
+                ? "Waiting on your approval · yours will go next"
+                : "Waiting on your approval, or ask something else"
               : thinking
                 ? queuedCount
                   ? `${name} is working · yours will go next`
@@ -860,11 +878,11 @@ export default function Chat({
           </span>
           <button
             className={
-              draft.trim() && !blocked
+              draft.trim()
                 ? "pen-button h-[28px] shrink-0 px-3 t-ui"
                 : "h-[28px] shrink-0 rounded-[3px] border border-line px-3 t-ui text-ink-3"
             }
-            disabled={blocked || !draft.trim()}
+            disabled={!draft.trim()}
             onClick={send}
           >
             Send

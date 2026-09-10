@@ -345,3 +345,44 @@ test("the new-conversation question can be answered from the keyboard", async ({
   await expect(tab.getByTestId("clear-confirm")).toHaveCount(0);
   await expect(tab.getByTestId("clear-chat")).toBeFocused();
 });
+
+test("a card does not take the conversation away while it waits", async ({
+  tab,
+}) => {
+  // The composer used to disable itself while a card was open, which the
+  // design specification asked for and which is wrong: the writer's next
+  // question is very often about the thing the card is asking about, and a
+  // box that will not take typing has taken the conversation away at the
+  // one moment they have something to say.
+  await ask(tab, "permission", "Run the command.");
+  await expect(tab.getByTestId("allow")).toBeVisible({ timeout: 20_000 });
+
+  const composer = tab.locator("textarea");
+  await expect(composer).toBeEnabled();
+  await composer.fill("Actually, why does that need a shell?");
+  await tab.getByRole("button", { name: "Send" }).click();
+  // It goes next rather than nowhere, on the queue that already existed
+  // for a question asked mid-turn.
+  await expect(tab.getByText("yours will go next")).toBeVisible();
+
+  // And the card is still there to answer, unmoved by any of that.
+  await expect(tab.getByTestId("allow")).toBeVisible();
+  await tab.getByTestId("allow").click();
+});
+
+test("typing a card's keys into the composer does not answer it", async ({
+  tab,
+}) => {
+  // What makes a live composer safe: the card's keys are bound to the card
+  // and not to the window, so `a` and `d` are letters in a question.
+  await ask(tab, "permission", "Run the command.");
+  await expect(tab.getByTestId("allow")).toBeVisible({ timeout: 20_000 });
+  await tab.waitForTimeout(500);
+
+  const composer = tab.locator("textarea");
+  await composer.click();
+  await composer.type("add a diagram");
+  await expect(tab.getByTestId("allow")).toBeVisible();
+  await expect(composer).toHaveValue("add a diagram");
+  await tab.getByTestId("deny").click();
+});

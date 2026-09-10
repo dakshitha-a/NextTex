@@ -3648,3 +3648,15 @@ So there is a fourth answer, and the whole of "for this conversation" is that it
 `ScriptedAgent` modelled the boolean, so a browser spec could see two of the three cases and not the third. It carries the mode now and it takes `holds` in the fence's own vocabulary, `outside`, `control` or `network`, so a script says what would stop a call rather than saying whether the switch covers it.
 
 The part worth recording is smaller and cost a real half hour. The stand-in emitted `tool_use` and `tool_done` back to back, which no real call does, so every scripted call started and finished before anything could draw and the activity line went straight back to `Thinking`. A spec asserting that the panel names the file being read could not see the case a writer sees. The gap is the feature: the stand-in now waits its scripted duration between the two events. `docs/testing.md` says a stand-in kinder than the real thing tests nothing, and a stand-in *faster* than the real thing is the same failure wearing a different hat.
+
+### The card stops taking the conversation away, which section 5 asked for
+
+Section 5 specifies that the permission card blocks and that the composer disables and reads `Waiting on your approval`. The build did that, and it is wrong, so this is a recorded deviation rather than a drift.
+
+The argument for the block was written for a world with a handful of cards in a session. What it does in practice is take the conversation away at the exact moment the writer has something to say, because the question they want to ask is very often *about* the thing the card is asking about: why does that need a shell, do it a different way, no, use the other file. A box that will not accept typing turns that into a thought they have to hold until the machine is ready for it.
+
+What makes the change safe is machinery that was already there and unused by this surface. A question asked while a turn is running goes onto a queue and out when the turn ends, which is the `yours will go next` line. A card open means a turn is running, so a question typed during one queues itself with no new code at all. And the card's keyboard answers are bound to the card element rather than to the window, which section 5 records as being for CodeMirror's sake: the consequence is that typing `a` or `d` into a live composer is a letter in a sentence and cannot answer a gate.
+
+Two things deliberately do not change. `awaitingPermission` still drives the `--warn` dot in the header and the state dot on the floating pill, because *the agent is waiting for you* has to be visible when the panel is closed, which is precisely when it needs saying. And the 350 ms input shield stays: it protects against a click already travelling toward the composer, which is a different concern from whether the writer may type.
+
+The composer's own line says what changed, once, rather than leaving it to be discovered: `Waiting on your approval, or ask something else`. It used to print nothing there, because the box beside it was dead.
