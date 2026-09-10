@@ -271,11 +271,20 @@ export default function SettingsSheet({
                 }}
               />
               {onChangeAgent ? (
+                /* Named rather than described, and the verb follows the
+                   state.  This row used to read "Working on your own" with
+                   a "Change" beside it, which describes how things are
+                   without saying what the control does: somebody who wanted
+                   an agent had no reason to think this was the way to one.
+                   "Writing agent: not set up" with "Set up" says both. */
                 <Away
                   label={
-                    provider === "none" ? "Working on your own" : agentName(provider)
+                    provider === "none"
+                      ? "Writing agent: not set up"
+                      : `Writing agent: ${agentName(provider)}`
                   }
-                  action="Change"
+                  action={provider === "none" ? "Set up" : "Change"}
+                  emphasis={provider === "none"}
                   testId="change-agent"
                   onClick={() => {
                     onClose();
@@ -364,16 +373,32 @@ function Away({
   action,
   testId,
   onClick,
+  emphasis = false,
 }: {
   label: string;
   action: string;
   testId: string;
   onClick: () => void;
+  /** For a row offering something the writer does not have yet, rather than
+   *  reporting something they do.  One row in the sheet at most: an accent
+   *  spent on everything is an accent spent on nothing. */
+  emphasis?: boolean;
 }) {
   return (
     <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
-      <span className="t-meta min-w-0 truncate text-ink-2">{label}</span>
-      <button className="quiet t-micro shrink-0" data-testid={testId} onClick={onClick}>
+      <span
+        className={[
+          "t-meta min-w-0 truncate",
+          emphasis ? "text-ink" : "text-ink-2",
+        ].join(" ")}
+      >
+        {label}
+      </span>
+      <button
+        className={["quiet t-micro shrink-0", emphasis ? "text-pen" : ""].join(" ")}
+        data-testid={testId}
+        onClick={onClick}
+      >
         {action}
       </button>
     </div>

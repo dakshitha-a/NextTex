@@ -183,6 +183,21 @@ export default function Projects({
               <InstanceBadge />
             </h1>
             <p className="t-meta mt-1 text-ink-2">{tagline}</p>
+            {/* The only way to an agent used to be a settings row that
+                described the writer's situation rather than naming the
+                control, so somebody who had chosen "no agent" at install
+                time had nothing on this screen telling them it was a
+                decision they could revisit.  One line, under the strapline
+                that stops mentioning an agent at all in that case. */}
+            {provider === "none" && onChangeAgent ? (
+              <button
+                className="t-meta mt-[6px] text-pen hover:underline"
+                data-testid="set-up-agent"
+                onClick={onChangeAgent}
+              >
+                Set up a writing agent
+              </button>
+            ) : null}
           </div>
           <div className="relative flex shrink-0 items-center gap-3">
             {canClose ? (
