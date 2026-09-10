@@ -101,6 +101,63 @@ transport and runs everything above it for real — the streaming parser, the
 tool loop, the path fence, the edits, the usage accounting and the event
 vocabulary. Whether OpenAI still returns those shapes is unproven.
 
+## The installer had no tests at all, which is why it had so many bugs
+
+For a long time this repository had four tiers of tests and nothing
+whatsoever on the first thing anybody runs. Every divergence between the two
+installers survived because a shell script is only assertable by grepping
+it, and a grep test would have passed for all of them: `test_cross_platform`
+checked that the word `LaunchAgents` appeared somewhere in `install.sh`,
+which says nothing about whether the plist it wrote was correct.
+
+The installer is Python now, behind a short bootstrap in each shell, and the
+seam that makes it testable is that **`survey()` takes its platform as an
+argument rather than detecting it**. So `tests/test_install_survey.py` and
+`tests/test_install_plan.py` assert exactly what a Windows machine with
+nothing installed would be told, from Linux, with no Windows anywhere.
+`tests/test_install_steps.py` runs a whole install with a recording console
+in place of the real one and asserts the sequence of argv — uv before the
+venv before pip, no certificate for a localhost install, the service last,
+and, most importantly, that a step which fails **stops** rather than
+reaching "Ready". `tests/test_install_service_files.py` snapshots the
+systemd unit, the launchd plist and the Windows helper's arguments.
+`tests/test_install_stdlib_only.py` walks the imports and then actually runs
+`python -I -S -c "import nexttex.install.steps"`, because the installer runs
+on a bare interpreter before there is a virtual environment and the server
+imports that same module from inside one.
+
+`tests/test_install_ui.py` covers the progress display, including one case
+that has no business passing on Linux: a `TextIOWrapper` opened as `cp1252`,
+which is what a Windows console on a legacy code page reports, where the
+braille spinner raises `UnicodeEncodeError` inside the draw loop.
+
+**`tests/test_install_bootstrap_sh.py` runs the real script**, under `sh`,
+which here and on Debian and Ubuntu is dash — because `curl ... | sh` is the
+documented command and in that shape the shebang is never read. The
+interactive cases use `pty.fork`, not `pty.openpty` with an inherited
+descriptor: only the fork makes the pty a *controlling* terminal, and
+without one `tty_available` says no, so a test built the other way would
+quietly exercise the unattended branch and assert nothing about the branch
+every reported bug has been in.
+
+Writing that file found two bugs that had already shipped. `set -o pipefail`
+on line seven, which dash rejects outright, so the documented install
+command died before printing a word on the most common Linux there is. And a
+`/dev/tty` probe written as `{ : < /dev/tty; }` — `:` is a POSIX *special
+built-in*, and a redirection error on one of those is defined to end the
+shell, so on a machine with no controlling terminal that line did not report
+"nobody there", it killed the installer. Neither was visible by reading.
+
+**`pwsh` is not installed on this machine**, so nothing here can execute
+`install.ps1`. The PowerShell tests are written behind
+`skipif(shutil.which("pwsh") is None)`: they skip locally and run in CI,
+where `ubuntu-latest` ships PowerShell 7. What only a real `windows-latest`
+job can ever answer is `winget`, `schtasks`, the `WScript.Shell` COM call
+and a genuine legacy code page.
+
+And what nothing asserts, on any platform, is a real fresh machine reaching
+a served project. The README says so and should go on saying so.
+
 ## Two things the browser tier cannot prove
 
 **A drag is the real gesture, and the shortcut nearly cost a feature.**

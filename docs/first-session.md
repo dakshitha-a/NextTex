@@ -23,10 +23,18 @@ cd NextTex
 
 On Windows, `powershell -ExecutionPolicy Bypass -File scripts\install.ps1`.
 
-It asks three questions: whether to install TinyTeX if you have no LaTeX,
-whether to install the Claude CLI, and whether the server should answer on
-localhost only or also on your tailnet. Most of the twenty minutes is TinyTeX
-downloading; nothing else in the script is slow.
+It looks at the machine first and prints what it found: what is already
+here, what it will download and how large each one is, what you will have to
+install yourself — with the command for your platform — and what is missing
+but does not matter. Then it prints the plan, priced, and asks once. Press
+return to take it, a number to change one item, `q` to stop. Run from inside
+a checkout like this it installs the checkout you are standing in, so it
+does not ask where to put itself; started from the `curl` line in the README
+it asks that first, because there is nothing to look at until it has cloned.
+
+Most of the twenty minutes is TinyTeX downloading, which the plan says
+before you agree to it. Every long step shows how long it has been running
+and the last line the thing itself printed, so nothing sits silent.
 
 It ends by printing a URL.
 
@@ -56,7 +64,11 @@ Three options, and the third is a real one:
   exactly the same. The chat column is not there at all rather than sitting
   greyed out.
 
-You can change this later, and nothing you write depends on the choice.
+You can change this later, and nothing you write depends on the choice. If
+you installed with no agent and change your mind, *Settings → Change* comes
+back to this screen; choosing Claude on a machine that has no `claude` on it
+offers to install it there and then, running the same vendor installer the
+terminal installer runs, with its output on the page.
 
 *Asserted by: a fresh install asks how you want to work, not who you are;
 choosing to work alone gets straight to the projects; signing in shows the
