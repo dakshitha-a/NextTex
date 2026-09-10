@@ -356,6 +356,40 @@ def test_the_pair_of_hooks_brackets_a_running_call(tmp_path):
     assert not after
 
 
+def test_a_notebook_edit_naming_only_notebook_path_is_still_an_edit(tmp_path):
+    """The post hook read one path key and the pre hook read three.
+
+    A NotebookEdit carries `notebook_path` and no `file_path`, so the pre
+    hook snapshotted the file and the post hook returned before it looked
+    at anything: no edit event, so no chip and no undo, and the snapshot
+    stayed in `_file_snapshots` until a new conversation cleared it.  A
+    notebook is not the common case here, which is exactly why nobody
+    noticed a whole file's text being held for the life of the agent.
+    """
+    project = tmp_path / "project"
+    (project / ".nexttex").mkdir(parents=True)
+    notebook = project / "analysis.ipynb"
+    notebook.write_text("before", encoding="utf-8")
+    fence = ProjectAgent(project, project / ".nexttex")
+    call = {"tool_name": "NotebookEdit", "tool_input": {"notebook_path": str(notebook)}}
+
+    async def scenario():
+        await fence._pre_tool(call, "call-1", None)
+        snapshotted = len(fence._file_snapshots)
+        notebook.write_text("after", encoding="utf-8")
+        await fence._post_tool(call, "call-1", None)
+        return snapshotted
+
+    snapshotted = asyncio.run(scenario())
+    assert snapshotted == 1
+    edits = fence.drain_edits()
+    assert [edit.path for edit in edits] == ["analysis.ipynb"]
+    assert edits[0].before == "before"
+    assert edits[0].after == "after"
+    # And nothing is left behind, which is the half that leaked.
+    assert fence._file_snapshots == {}
+
+
 def test_a_dead_client_is_not_kept_for_the_next_question(tmp_path):
     """The second half of a real incident, and the worse half.
 
