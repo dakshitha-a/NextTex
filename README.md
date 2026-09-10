@@ -72,11 +72,18 @@ On Windows, in PowerShell:
 irm https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.ps1 | iex
 ```
 
-It clones into `~/apps/NextTex` (`NEXTTEX_DIR` to choose elsewhere) and
-installs from there. `git` is the only thing you need beforehand — Python,
-TeX and the Claude CLI are all fetched if they are missing. If you would
-rather see what you are running first, clone it yourself and run
-`scripts/install.sh` from inside; the script does the same thing either way.
+It asks where to put itself, offering `~/apps/NextTex`, and installs from
+there. Press return to take the default, or give it any empty directory —
+`--dir=PATH`, or `NEXTTEX_DIR`, answers in advance, and an install with no
+terminal to ask at takes the default silently. Your projects live outside
+whichever directory you choose and are not touched by an install, an update
+or an uninstall.
+
+`git` is the only thing you need beforehand — Python, TeX and the Claude CLI
+are all fetched if they are missing. If you would rather see what you are
+running first, clone it yourself and run `scripts/install.sh` from inside;
+the script does the same thing either way, except that it then installs into
+the checkout you are standing in rather than asking.
 
 The installer prints a URL with an access token in it. That is how you get
 in the first time; NextTex then asks you to set a password, and any browser
@@ -90,8 +97,8 @@ stays the only way in, which is fine on a machine only you can reach.
 
 <details><summary>What the installer actually does</summary>
 
-Checks for Python 3.10+ and makes a virtual environment, then installs the
-Python dependencies into it, and tries iroh separately so that a platform it
+Asks where to install, then checks for Python 3.10+ and makes a virtual
+environment, then installs the Python dependencies into it, and tries iroh separately so that a platform it
 has no build for loses sharing rather than the install. Looks for a TeX
 installation where TinyTeX, MacTeX, MiKTeX and TeX Live put one, and offers to
 install TinyTeX (Linux and macOS) or MiKTeX (Windows) if there is none. Uses `tlmgr` to add `latexmk`,
