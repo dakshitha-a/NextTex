@@ -354,3 +354,31 @@ def test_a_machine_with_everything_runs_almost_nothing(sandbox):
     # The packages are still checked, which is what "brought up to date"
     # means and is why re-running the installer is the documented repair.
     assert "requirements.txt" in console.ran
+
+
+def test_windows_tinytex_runs_the_script_not_the_wrapper(monkeypatch, tmp_path):
+    """TinyTeX publishes a .bat next to its .ps1, and the .bat is a wrapper
+    whose whole job is to fetch the .ps1 and run it.  It fetches it with
+    `curl.exe -fsSLO 'https://...'`, and cmd.exe does not strip single
+    quotes, so curl is handed a URL beginning with one and refuses it.  The
+    next line then runs a script that was never downloaded, and the line
+    after deletes it.  A user's install did all three and ended with no TeX.
+
+    Nothing on our side can repair a wrapper like that, so we fetch what it
+    was trying to fetch.
+    """
+    urls: list = []
+
+    def download(console, label, url, dest, counter=""):
+        urls.append(url)
+        Path(dest).write_text("", encoding="utf-8")
+        return Result(True, 0, 0.0, [])
+
+    monkeypatch.setattr(steps, "download", download)
+    console = Recorder()
+    steps.install_tex(console, tmp_path, "windows", "tinytex")
+
+    assert urls == ["https://tinytex.yihui.org/install-bin-windows.ps1"]
+    assert "cmd.exe" not in console.ran
+    assert "powershell" in console.ran
+    assert console.ran.endswith("install-tinytex.ps1"), console.ran

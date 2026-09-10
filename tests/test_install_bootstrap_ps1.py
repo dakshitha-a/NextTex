@@ -14,6 +14,7 @@ legacy code page.
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 import subprocess
 from pathlib import Path
@@ -177,3 +178,23 @@ def test_the_documented_install_line_can_run_its_own_prologue():
     assert cut, "the prologue no longer ends where this test cuts it"
     output = pwsh("Invoke-Expression @'\n" + head + "\n'@\nWrite-Host 'ran'")
     assert "ran" in output
+
+
+def test_the_interface_checksum_is_right_without_get_filehash(tmp_path):
+    """`Get-FileHash` arrived in PowerShell 4.0, and a user's machine had
+    something older: the interface downloaded, both halves, and then the
+    script stopped on "the term 'Get-FileHash' is not recognized", so the
+    install finished with no interface in it.
+
+    A checksum that is merely present is worth nothing, and a hand-rolled
+    one is exactly the kind that silently returns the wrong string, so this
+    checks the digest against Python's rather than checking that it ran.
+    """
+    payload = b"the interface, or something standing in for it\n"
+    target = tmp_path / "payload.tar.gz"
+    target.write_bytes(payload)
+
+    output = pwsh(with_functions_of(
+        "fetch-interface.ps1", f"Write-Host (Get-Sha256 '{target}')"
+    ))
+    assert hashlib.sha256(payload).hexdigest() in output

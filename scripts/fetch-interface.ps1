@@ -15,6 +15,36 @@
 param([string]$Sha = '')
 
 $ErrorActionPreference = 'Stop'
+
+function Get-Sha256 {
+  <#
+    .SYNOPSIS
+      The sha256 of a file, without Get-FileHash.
+
+    .DESCRIPTION
+      Get-FileHash arrived in PowerShell 4.0, and a Windows machine can
+      still be running something older: this script reached a user whose
+      `powershell` ran Invoke-WebRequest happily, downloaded both files,
+      and then stopped dead on "the term 'Get-FileHash' is not
+      recognized", leaving the install with no interface at all.  That was
+      the only thing here that needed 4.0, so it is the only thing worth
+      replacing.  The .NET class underneath is available everywhere this
+      script can run.
+  #>
+  param([string]$Path)
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+      return ([BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLower()
+    } finally {
+      $stream.Dispose()
+    }
+  } finally {
+    $sha.Dispose()
+  }
+}
+
 Set-Location (Join-Path $PSScriptRoot '..')
 $Root = (Get-Location).Path
 
@@ -66,7 +96,7 @@ try {
     Write-Error "the published checksum for $Sha is not a sha256"
     exit 1
   }
-  $actual = (Get-FileHash (Join-Path $work $name) -Algorithm SHA256).Hash.ToLower()
+  $actual = Get-Sha256 (Join-Path $work $name)
   if ($expected.ToLower() -ne $actual) {
     Write-Error 'the downloaded interface does not match its checksum'
     exit 1

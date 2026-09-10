@@ -268,7 +268,8 @@ OUTBOUND = {
     "claude.ai",                # the sign-in screen links to the download page
     "github.com",               # the prebuilt interface, and the update check
     # The installer, and only what the plan it printed said it would fetch.
-    "yihui.org",                # TinyTeX
+    "yihui.org",                # TinyTeX on Unix
+    "tinytex.yihui.org",        # TinyTeX on Windows, where the .bat is broken
     "astral.sh",                # uv, when this Python cannot make a venv
     "codeload.github.com",      # reachability probe before anything is asked
     # Named in what the installer prints, never contacted: these appear in
@@ -540,3 +541,44 @@ def test_every_windows_default_is_allowed_by_its_own_validate_set():
             f"-{name} defaults to '{default}', which its ValidateSet "
             f"({', '.join(members)}) forbids, so `irm | iex` cannot run"
         )
+
+
+# Cmdlets that a Windows machine can be too old to have, and the PowerShell
+# version each one arrived in.  `Invoke-WebRequest` is 3.0 and is used, which
+# is the floor these scripts already stand on.
+TOO_NEW_FOR_SOME_WINDOWS = {
+    "Get-FileHash": "4.0",
+    "Expand-Archive": "5.0",
+    "Compress-Archive": "5.0",
+    "Get-ItemPropertyValue": "5.0",
+    "New-TemporaryFile": "5.0",
+}
+
+
+def _powershell_code(text: str) -> str:
+    """A script with its comments taken out.
+
+    Crude on purpose: a `#` inside a string literal would take the rest of
+    the line with it, and none of these scripts has one.  It exists so that
+    a cmdlet named in a comment, explaining why it is not called, does not
+    read as a call.
+    """
+    text = re.sub(r"<#.*?#>", "", text, flags=re.S)
+    return "\n".join(line.split("#")[0] for line in text.splitlines())
+
+
+def test_no_windows_script_needs_a_powershell_newer_than_three():
+    """A user's install downloaded both halves of the interface and then
+    stopped on "the term 'Get-FileHash' is not recognized", which is what a
+    `powershell` older than 4.0 says.  Everything else in that script is
+    3.0, so one cmdlet cost the whole interface, and the install had no way
+    to say what was wrong.  The .NET class underneath works everywhere, and
+    this keeps the dependency from creeping back in.
+    """
+    for script in sorted((ROOT / "scripts").glob("*.ps1")):
+        code = _powershell_code(script.read_text(encoding="utf-8"))
+        for cmdlet, version in TOO_NEW_FOR_SOME_WINDOWS.items():
+            assert cmdlet not in code, (
+                f"{script.name} calls {cmdlet}, which needs PowerShell "
+                f"{version}, and Windows machines older than that exist"
+            )

@@ -1933,6 +1933,42 @@ written on and this is a Windows-only failure. A `pwsh` test runs the real
 prologue too, in CI, with everything after the `param` block cut off so that
 testing the install does not perform one.
 
+### Two more things the same Windows machine found
+
+With the options fixed, that install ran to the end and printed a URL, and
+two of its steps had failed on the way past without stopping it.
+
+**TinyTeX ships a wrapper that cannot work.** We fetched
+`install-bin-windows.bat`, which is four lines whose entire job is to fetch
+`install-bin-windows.ps1` and run it. It fetches it with `curl.exe -fsSLO
+'https://...'`, and cmd.exe does not strip single quotes, so curl was handed
+a URL starting with one and answered "URL using bad/illegal format". The
+next line then ran a script that had never been downloaded, and the line
+after deleted it. Three errors, no TeX, and the install carried on. Nothing
+here can repair somebody else's batch file, so we now fetch the script it
+was reaching for.
+
+**One cmdlet cost the whole interface.** `fetch-interface.ps1` stopped on
+"the term 'Get-FileHash' is not recognized", which is what a `powershell`
+older than 4.0 says. It had already downloaded the tarball and the
+checksum, because `Invoke-WebRequest` is 3.0, and everything else in the
+script is 3.0 as well: one call was holding the floor a version higher than
+the rest of it. The .NET SHA256 class underneath is available wherever this
+runs, so the checksum is computed from that instead, and the check itself
+stays required rather than becoming advisory on old machines.
+
+The test for it is worth more than the fix. A hand-rolled digest is exactly
+the kind of code that returns a plausible wrong string for ever, so the
+`pwsh` test compares what the function produces against Python's `hashlib`
+rather than checking that it ran. Alongside it, a plain Python test refuses
+any cmdlet newer than 3.0 in any shipped script, since that is a rule the
+next person would otherwise have to know.
+
+What neither of them can fix is the third failure in that log: Anthropic's
+own `install.ps1` stopped on the same missing cmdlet. An old `powershell` is
+a real thing on real machines, and the only honest thing to do about
+somebody else's script is to say so.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the
