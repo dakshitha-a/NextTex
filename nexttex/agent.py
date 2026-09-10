@@ -938,7 +938,19 @@ class ProjectAgent:
         tool_name = input_data.get("tool_name", "")
         if tool_name not in self._WRITE_TOOLS:
             return {}
-        raw = (input_data.get("tool_input") or {}).get("file_path")
+        # The same three keys `_decide` reads, and for the same reason it
+        # reads them.  This read only `file_path`, so a NotebookEdit
+        # carrying only `notebook_path` was snapshotted on the way in and
+        # returned here with nothing to look at: no edit event, no chip, no
+        # undo, and its snapshot left in `_file_snapshots` until somebody
+        # started a new conversation.  Two functions disagreeing about what
+        # a call is even about is how that survived.
+        tool_input = input_data.get("tool_input") or {}
+        raw = (
+            tool_input.get("file_path")
+            or tool_input.get("path")
+            or tool_input.get("notebook_path")
+        )
         if not raw or not self._inside_project(raw):
             return {}
         path = Path(raw)
