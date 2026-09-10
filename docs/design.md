@@ -2014,14 +2014,30 @@ It is not. The settings sheet starts the Claude CLI installer on its own,
 and the in-app update button starts the updater from the server, which
 inherits its environment from whatever launched the server. The first two
 were corrected together; the third was found by somebody reading the fix
-rather than the bug, which is the better time to find it. A list of the
-three is now a test, so a fourth has to be declared rather than discovered.
+rather than the bug, which is the better time to find it.
 
-The claim being made by that test is a rule, not an inventory: anything that
-starts a child which might be Windows PowerShell corrects the module path
-first. It is worth stating that way because the correction is invisible when
-it works, and the failure it prevents appears in a different program, on
-somebody else's machine, months later.
+The first attempt at guarding that was worse than nothing, and the way it
+was wrong is the part worth keeping. It named the three files, asserted that
+each mentioned `child_env` somewhere, and skipped those three in the sweep
+over everything else. Both halves were weak in the same direction: the
+assertion passes on an import line, and the exemption means the three files
+most likely to grow a fourth spawn were the three least protected. A guard
+that is inverted like that is worse than an absent one, because it reports
+that the rule is being kept.
+
+What replaced it asserts on the call rather than the file. The test parses
+each source file, finds the calls that start a process, and requires
+`env=child_env(...)` on every one that sits in a function naming PowerShell,
+with no file exempted; the three known sites are additionally named by
+function and checked call by call. The list of spawning names is wider than
+what the code uses today, because the rule is about what somebody reaches
+for next.
+
+It was then checked by breaking it: with the correction deleted the guard
+fails, with a fresh PowerShell spawn added inside an already-listed file it
+fails, and with both restored it passes. A test written to catch a mistake
+that has already been made should be made to catch it once, or it is only a
+claim.
 
 ### An interactive test that was not one
 
