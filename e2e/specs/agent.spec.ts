@@ -490,3 +490,48 @@ test("the preview follows an agent edit to its page once the build lands", async
     timeout: 45_000,
   });
 });
+
+test("a selected paragraph can be handed to the agent by its verb", async ({
+  tab,
+}) => {
+  // A writer who has highlighted a paragraph has already said what they
+  // mean by pointing at it, so making them describe it again is a tax.
+  const content = tab.locator(".cm-editor .cm-content");
+  await content.click();
+  await tab.keyboard.press("Control+Home");
+  // Down to a line with real prose on it, then select the line.
+  for (let i = 0; i < 6; i += 1) await tab.keyboard.press("ArrowDown");
+  await tab.keyboard.press("Home");
+  await tab.keyboard.press("Shift+End");
+
+  const row = tab.getByTestId("selection-actions");
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  // It says which lines it is about, so the writer can see what the agent
+  // is being handed before they hand it over.
+  await expect(row).toContainText("Line");
+
+  await tab.getByTestId("selection-reword").click();
+  // Seeded, not sent: the writer always presses Enter on their own message,
+  // and the second half of the instruction is usually the part that matters.
+  const composer = tab.locator("textarea");
+  await expect(composer).toHaveValue(/Reword this/);
+  await expect(composer).toBeFocused();
+  await expect(tab.getByTestId("selection-actions")).toHaveCount(0);
+  // And the panel shows what goes with the question.
+  await expect(tab.getByTestId("selection-chip")).toBeVisible();
+});
+
+test("selecting one word does not put a row of verbs over it", async ({
+  tab,
+}) => {
+  // A double-click on a word happens constantly while reading, and a
+  // control appearing over it every time would be the diagnostics drawer's
+  // mistake in a third place.
+  const content = tab.locator(".cm-editor .cm-content");
+  await content.click();
+  await tab.keyboard.press("Control+Home");
+  await tab.keyboard.press("Shift+ArrowRight");
+  await tab.keyboard.press("Shift+ArrowRight");
+  await tab.waitForTimeout(200);
+  await expect(tab.getByTestId("selection-actions")).toHaveCount(0);
+});

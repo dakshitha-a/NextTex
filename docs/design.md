@@ -3685,7 +3685,7 @@ The browser side is `jump` with two things taken out rather than a second functi
 
 `busyTyping` lives in `timing.ts` rather than in the store, because it is read imperatively by whoever is about to move the view and must not cause a render: it changes on every keystroke. It counts only local changes, using the annotation the collaboration binding already sets, so a co-author typing does not pin this person's view in place.
 
-There are now three copies of `firstChangedLine`, in `agent.py`, in `scripted_agent.py` and in `store.ts`, and that is deliberate rather than sloppy. The fence needs it, the stand-in cannot import the file that has it without pulling in the Claude SDK, and the browser needs it without a round trip. Nothing in either language would notice them drifting, so `tests/test_agent_parity.py` asserts the same six cases against both Python copies and the comment above the browser's own test says where its twin is.
+`firstChangedLine` exists twice, once in Python and once in the browser, and the Python side briefly had it three times before that got fixed properly. The fence needs it, the stand-in needs it, the OpenAI agent needs it, and none of them may import `agent.py` to get it, because that pulls in the Claude SDK: so it lives in `nexttex/lines.py` alongside the `\end{document}` scan, which was also written twice and for the same reason. The browser's copy cannot be shared and stays, and `tests/test_agent_parity.py` asserts the same six cases against the Python one with a comment in each file naming the other.
 
 ### The preview follows too, and the anti-jump rule decides how
 
@@ -3698,3 +3698,25 @@ An agent edit gets it now, and it waits for the build. Forward search reads the 
 So the rule is that an *agent* edit moves the preview and the writer's own typing does not. A page that jumped 1.6 seconds after every pause would be the diagnostics drawer's mistake in the other pane, and it would be worse there, because the reader may have scrolled to page 2 on purpose to check something while editing chapter five.
 
 Even for an agent edit the move is gentle, which is a flag on `reveal` rather than a second function. It moves the view only when the target is not already in front of the reader, and both modes need that question answered differently: page mode asks whether the page on screen is this one, scroll mode asks whether the box is inside the part of the document the reader can see. Either way the box flashes, because something did change there, and the flash is now a helper rather than a tail of one code path, since there are two exits from that function and both owe it.
+
+### Select a paragraph and say what to do with it
+
+The selection already reached the store undebounced, already travelled with the question, and the composer already showed a chip saying which lines went with it. Two things were missing, and one of them is not an interface problem at all.
+
+The interface half is a row of verbs over a non-empty selection: **Reword**, **Shorten**, **Expand**, **Ask**. Placed from the document rather than from the pointer, so a selection made with the keyboard gets one too, and above the first selected line rather than below it, because below is where the rest of the paragraph is.
+
+It seeds the composer and does not send. Section 5 settled that rule for the `Fix` button on a diagnostic, and gave the reason: the user always presses Enter on their own message. The argument is stronger here rather than weaker, because rewording forty lines of a chapter is a larger act than fixing one error, and because the second half of the instruction is usually the part that matters. Reword this, *and keep the citation*. The seeded text is a sentence rather than a command word for exactly that reason: it is a first draft of the question, and the writer finishes it.
+
+Four verbs, and the two that are absent are the decision. There is no **Improve**, which says nothing about what will change and produces the diff nobody can review. There is no **Cite**, because section 17's rule is that a citation is never composed, and a verb that looks like it produces one is a promise this app does not make.
+
+A selection has to be worth acting on before the row appears. A double-click on a single word happens constantly while reading, and a control appearing over it every time would be the diagnostics drawer's mistake in a third pane, so the row wants a dozen characters before it draws. It is fetched on that first selection rather than before anything draws, like every other surface in this app that sits behind a gesture.
+
+### The other half was a tool, not a control
+
+"Reword this paragraph" used to reach the model as text and come back as an `Edit` carrying an `old_string` the model had reconstructed from what it was shown. That is fragile in general and specifically fragile here: this project's own writing rule is that one paragraph is one line however long, so the string being reproduced exactly is often several hundred characters, and a stray `%` or an unusual macro breaks it. Worse than breaking, it can match the wrong occurrence in a chapter that repeats a phrase.
+
+`replace_range` takes the path, a first and last line, the replacement, and the text the model was shown. The last of those is the check that matters and it is the one thing this tool has that `Edit` does not need: a turn can spend half a minute thinking while the writer keeps typing, and an edit that silently overwrote what they typed in that window would be the one real harm this feature could do. It is refused instead, with a sentence saying why.
+
+It goes through the same `apply_edit` path as every other in-process tool, so the edit is confined to the project, versioned, folded into the shared document, shown as a chip with its diff, and undoable. It refuses a control file for the same reason `insert_figure` refuses a path outside the project: these tools are waved past the fence precisely because each one promises to stay inside the writing, so the promise is where the test goes.
+
+The OpenAI agent got the same tool, because its `edit_file` is a find-and-replace with the same weakness, and adding a second write tool there finally split the edit event and the fallback write out of `_write` into one `_save` that both use.

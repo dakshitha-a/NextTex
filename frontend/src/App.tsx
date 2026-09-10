@@ -924,6 +924,26 @@ export default function App() {
     setView("signin");
   }, []);
 
+  /** Hand a question about the selection to the agent.
+   *
+   *  Seeded into the composer rather than sent, which is the `Fix` button's
+   *  rule: the writer always presses Enter on their own message. The
+   *  selection itself is already in the store and already travels with the
+   *  question, so the seeded text is the verb and the writer's own
+   *  qualification goes after it.
+   *
+   *  Opens the panel first if it is closed, since below 1400px it is an
+   *  overlay and a question seeded into a box nobody can see is a question
+   *  nobody asks. */
+  const askAboutSelection = useCallback((prompt: string) => {
+    if (get().agent?.provider === "none") return;
+    if (chatOverRef.current && !chatOpenRef.current) setChatOpen(true);
+    window.setTimeout(() => {
+      chat.current?.seed(prompt);
+      chat.current?.focusComposer();
+    }, 60);
+  }, []);
+
   /** Open the tutorial, putting the agent overlay away first.
    *
    *  Below 1400px the agent is itself an overlay over the preview, and two
@@ -1544,7 +1564,10 @@ export default function App() {
           ) : null}
           <div className="relative flex min-h-0 flex-1">
             <div className="relative min-h-0 flex-1">
-              <Editor handleRef={(handle) => (editor.current = handle)} />
+              <Editor
+                handleRef={(handle) => (editor.current = handle)}
+                onAskAbout={askAboutSelection}
+              />
 
               {/* A figure is a file in this project like any other: it has
                   a tab, a place in the tree, and -- since it can now be

@@ -1011,6 +1011,7 @@ const VERBS: Record<string, string> = {
   mcp__nexttex__insert_at_cursor: "Inserted at your cursor",
   mcp__nexttex__insert_figure: "Inserted a figure",
   mcp__nexttex__insert_table: "Inserted a table",
+  mcp__nexttex__replace_range: "Rewrote what you selected",
   mcp__nexttex__goto: "Moved your editor",
   mcp__nexttex__find_papers: "Searched the literature",
   mcp__nexttex__add_reference: "Added a reference",

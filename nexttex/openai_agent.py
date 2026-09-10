@@ -41,6 +41,7 @@ import requests
 
 from .atomic import read_text
 from .references import appended, entry_for
+from .lines import first_changed_line
 from .writing import PROSE
 
 API_URL = "https://api.openai.com/v1/chat/completions"
@@ -141,6 +142,32 @@ TOOLS: list[dict] = [
                     "replace": {"type": "string"},
                 },
                 "required": ["path", "find", "replace"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "replace_range",
+            "description": (
+                "Replace an exact range of lines in a file. Use this when the "
+                "user has selected something and asked you to change, reword "
+                "or expand it: the selection is a line range, and this edits "
+                "that range rather than matching on a string. Pass `expected`, "
+                "the current text of those lines, so the edit is refused if "
+                "the user has typed there since. Lines are 1-based and "
+                "inclusive."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "from_line": {"type": "integer"},
+                    "to_line": {"type": "integer"},
+                    "text": {"type": "string"},
+                    "expected": {"type": "string"},
+                },
+                "required": ["path", "from_line", "to_line", "text"],
             },
         },
     },
@@ -306,6 +333,50 @@ class OpenAIAgent:
     #: nothing.
     mode = "ask"
     auto = False
+
+    async def _replace_range(self, args: dict) -> str:
+        """Replace exactly the lines the writer selected.
+
+        The same tool the Claude agent has, and for the same reason:
+        `edit_file` here is a find-and-replace, so "reword this paragraph"
+        means the model reproducing hundreds of characters exactly, and this
+        project's rule that one paragraph is one line makes that likelier to
+        go wrong rather than less.  Shorter than the Claude version by
+        exactly the amount `_resolve` already does: every path here is
+        confined by construction, so there is no fence to satisfy.
+        """
+        target = self._resolve(str(args.get("path") or ""))
+        if target is None or not target.is_file():
+            return "That file is outside the project, or not there."
+        try:
+            before = target.read_text(encoding="utf-8")
+        except OSError as error:
+            return f"Could not read it: {error}"
+        lines = before.split("\n")
+        try:
+            first = int(args.get("from_line") or 0)
+            last = int(args.get("to_line") or 0)
+        except (TypeError, ValueError):
+            return "from_line and to_line have to be numbers."
+        if first < 1 or last < first or last > len(lines):
+            return f"That file has {len(lines)} lines, so that is not a range in it."
+        current = "\n".join(lines[first - 1:last])
+        expected = args.get("expected")
+        if (
+            isinstance(expected, str)
+            and expected.strip()
+            and expected.strip() != current.strip()
+        ):
+            return (
+                "Those lines are not what you were shown any more, so nothing "
+                "was changed. Read the file again and decide whether the "
+                "change still applies."
+            )
+        text = str(args.get("text", ""))
+        after = "\n".join(lines[:first - 1] + text.split("\n") + lines[last:])
+        if after == before:
+            return "That would not change anything."
+        return await self._save(target, before, after)
 
     async def set_model(self, model: str | None) -> None:
         self.model = model or DEFAULT_MODEL
@@ -562,6 +633,9 @@ class OpenAIAgent:
         if name in ("write_file", "edit_file"):
             return await self._write(name, args)
 
+        if name == "replace_range":
+            return await self._replace_range(args)
+
         if name == "add_reference":
             return await asyncio.to_thread(self._add_reference, str(args.get("doi") or ""))
 
@@ -629,6 +703,15 @@ class OpenAIAgent:
                 return f"`find` appears {hits} times; it has to identify one place."
             after = before.replace(find, replace, 1)
 
+        return await self._save(target, before, after)
+
+    async def _save(self, target, before, after: str) -> str:
+        """Write a file and say so, once, for every tool that writes one.
+
+        Lifted out of `_write` when a second write tool arrived, because two
+        copies of the edit event and the fallback path is two places for
+        them to stop agreeing about what a write announces.
+        """
         if before == after:
             return "That would change nothing."
         if self.apply_edit is not None:
@@ -640,6 +723,10 @@ class OpenAIAgent:
                 await self._maybe(self.on_edit(target, before, after))
 
         relative = str(target.relative_to(self.root))
+        await self._emit({
+            "type": "focus", "path": relative,
+            "line": first_changed_line(before or "", after),
+        })
         await self._emit({
             "type": "edit", "path": relative, "before": before or "", "after": after,
         })

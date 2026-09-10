@@ -5,11 +5,13 @@ what the model is matching on, and the snapshot the fence has just taken is
 what it will match against.  A second later the file has changed and the
 question has no answer.
 
-`first_changed_line` is a twin of `firstChangedLine` in
-`frontend/src/store.ts`, which exists there for the same purpose and cannot
-be reached from here.  The cases below are the cases that file's own tests
-use, deliberately and in the same order, because two implementations of one
-answer drift apart silently.
+`first_changed_line` lives in `nexttex/lines.py`, shared by the fence, the
+scripted stand-in and the OpenAI agent, none of which may import `agent.py`
+to reach it.  Its twin is `firstChangedLine` in `frontend/src/store.ts`,
+which cannot be shared because the editor needs the answer without a round
+trip.  The cases below are the cases that file's own tests use, deliberately
+and in the same order, because two implementations of one answer drift apart
+silently.
 """
 
 import pytest

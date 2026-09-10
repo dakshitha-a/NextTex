@@ -218,21 +218,18 @@ def test_every_agent_can_say_where_its_permission_control_is(kind, tmp_path):
         assert agent.mode == "ask"
 
 
-def test_the_three_copies_of_first_changed_line_agree():
-    """One answer, three implementations, and nothing in any language that
-    would notice them drifting.
+def test_the_browser_s_copy_of_first_changed_line_has_the_same_answers():
+    """One answer, two implementations, in two languages.
 
-    `nexttex/agent.py` has one because the fence needs it, the scripted
-    stand-in has one because importing that file would pull in the Claude
-    SDK, and `frontend/src/store.ts` has one because the browser needs it
-    without a round trip. The third is held to these cases by
-    `frontend/src/store.test.ts`, and the comment there says so.
+    Python has one copy, in `nexttex/lines.py`, shared by the fence, the
+    stand-in and the OpenAI agent. The browser has the other, in
+    `frontend/src/store.ts`, because the editor needs it without a round
+    trip and it cannot import Python. Nothing in either language would
+    notice them drifting, so these are the cases both are held to, and
+    `frontend/src/store.test.ts` carries the same list with a comment
+    naming this test.
     """
-    from nexttex.scripted_agent import first_changed_line as scripted
-
-    if ProjectAgent is None:
-        pytest.skip("no SDK on this machine")
-    from nexttex.agent import first_changed_line as real
+    from nexttex.lines import first_changed_line
 
     cases = [
         ("a\nb\nc", "a\nb\nc", 1),
@@ -243,5 +240,4 @@ def test_the_three_copies_of_first_changed_line_agree():
         ("", "the first sentence", 1),
     ]
     for before, after, line in cases:
-        assert real(before, after) == line, (before, after)
-        assert scripted(before, after) == line, (before, after)
+        assert first_changed_line(before, after) == line, (before, after)
