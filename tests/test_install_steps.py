@@ -382,3 +382,79 @@ def test_windows_tinytex_runs_the_script_not_the_wrapper(monkeypatch, tmp_path):
     assert "cmd.exe" not in console.ran
     assert "powershell" in console.ran
     assert console.ran.endswith("install-tinytex.ps1"), console.ran
+
+
+def test_a_tex_tool_in_the_tex_directory_counts_as_present(tmp_path):
+    """TinyTeX does not put its bin directory on PATH, so `shutil.which`
+    answers "no" for tools that are sitting right there. Windows spells an
+    executable more than one way and TinyTeX uses two of them in the same
+    directory: `tlmgr.bat` beside `latexmk.exe`."""
+    from nexttex.install.survey import tex_tool
+
+    tex_dir = tmp_path / "TinyTeX" / "bin" / "windows"
+    tex_dir.mkdir(parents=True)
+    (tex_dir / "tlmgr.bat").write_text("", encoding="utf-8")
+    (tex_dir / "latexmk.exe").write_text("", encoding="utf-8")
+
+    nothing_on_path = lambda _name: None  # noqa: E731
+    assert tex_tool("tlmgr", str(tex_dir), which=nothing_on_path)
+    assert tex_tool("latexmk", str(tex_dir), which=nothing_on_path)
+    assert not tex_tool("biber", str(tex_dir), which=nothing_on_path)
+    assert not tex_tool("tlmgr", None, which=nothing_on_path)
+    assert tex_tool("biber", None, which=lambda _name: "/usr/bin/biber")
+
+
+def test_the_extras_are_counted_against_the_tex_directory_too(tmp_path, monkeypatch):
+    """The list that goes in the "still missing" note. `latexmk` appeared
+    in it on a machine that had `latexmk.exe`, which is how the whole thing
+    came to light.
+
+    PATH is emptied for the duration, because the machine these tests are
+    written on has all five installed and would pass without testing
+    anything.
+    """
+    import shutil as shutil_module
+
+    from nexttex.install.survey import TEX_EXTRAS
+
+    monkeypatch.setattr(shutil_module, "which", lambda _name: None)
+
+    tex_dir = tmp_path / "bin"
+    tex_dir.mkdir()
+    (tex_dir / "latexmk.exe").write_text("", encoding="utf-8")
+
+    missing = installer._missing_tex_extras(str(tex_dir))
+    assert "latexmk" not in missing, missing
+    assert set(missing) == set(TEX_EXTRAS) - {"latexmk"}
+
+
+def test_tex_is_put_on_path_before_anything_asks_what_is_missing(sandbox, monkeypatch):
+    """The bug, in the order it happened.
+
+    Putting TeX's own directory on PATH used to run only in the branch
+    where TinyTeX had just been installed, which is the one case where it
+    mattered least. A machine that already had TeX skipped it, the question
+    that follows was a bare `shutil.which`, and the install announced that
+    there was no tlmgr and that latexmk, biber, synctex, chktex and
+    texcount were all missing, standing next to a directory holding tlmgr
+    and latexmk that it had printed on screen two lines earlier. Then it
+    exited successfully.
+
+    That is the worst shape a bug can take here: the person is told the
+    install worked, and finds out it did not when a build fails days later
+    with no error to bring back. So the order is what is asserted, on every
+    path and not just the one that installs something.
+    """
+    order = []
+    monkeypatch.setattr(installer, "_add_tex_to_path", lambda: order.append("path"))
+    real = installer._missing_tex_extras
+
+    def counted(tex_dir=None):
+        order.append("ask")
+        return real(tex_dir)
+
+    monkeypatch.setattr(installer, "_missing_tex_extras", counted)
+
+    console = Recorder()
+    run_install(console, sandbox, tex="none", service="no")
+    assert order[:2] == ["path", "ask"], order

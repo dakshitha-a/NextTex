@@ -36,6 +36,42 @@ NOT_NEEDED = "not-needed"  # absent and that is fine; said so it is not alarming
 PLATFORMS = ("linux", "macos", "windows")
 
 
+# The five a project needs beyond pdflatex.  Here rather than beside the
+# installer's own code because the survey and the installer both ask about
+# them, and asking differently is how the answers came apart.
+TEX_EXTRAS = ("latexmk", "biber", "synctex", "chktex", "texcount")
+
+
+def tex_tool(name: str, tex_dir, *, which=None, exists=None) -> bool:
+    """Whether a TeX tool can be run: on PATH, or inside the TeX directory.
+
+    PATH alone is not the question, and believing it cost a real install.
+    TinyTeX does not put its bin directory on PATH, so on a machine that
+    already has TeX, `tlmgr` is sitting right there and `shutil.which` says
+    it is not.  An installer that trusts `which` then reports tlmgr missing
+    while standing next to it, skips the step that would have added biber
+    and synctex, and exits successfully, leaving a NextTex that opens a
+    project and dies on its first full build.
+
+    Windows spells an executable more than one way, so the suffixes are
+    tried too: TinyTeX ships `tlmgr.bat` and `latexmk.exe` in the same
+    directory.
+    """
+    # Both resolved here rather than in the signature: a default argument
+    # binds at import, and the installer's tests replace `shutil.which`
+    # afterwards to describe a machine that is not this one.
+    which = which or shutil.which
+    exists = exists or (lambda p: Path(p).exists())
+    if which(name):
+        return True
+    if not tex_dir:
+        return False
+    return any(
+        exists(Path(tex_dir) / (name + suffix))
+        for suffix in ("", ".exe", ".bat", ".cmd")
+    )
+
+
 def this_platform() -> str:
     if sys.platform == "darwin":
         return "macos"
@@ -274,15 +310,10 @@ def survey(
                     why="pdflatex, latexmk and synctex; nothing can be typeset "
                         "without them"))
 
-    result.tlmgr = bool(which("tlmgr")) or bool(
-        result.tex_dir and (exists(Path(result.tex_dir) / "tlmgr")
-                            or exists(Path(result.tex_dir) / "tlmgr.bat"))
-    )
+    result.tlmgr = tex_tool("tlmgr", result.tex_dir, which=which, exists=exists)
     result.missing_tex_extras = [
-        name for name in ("latexmk", "biber", "synctex", "chktex", "texcount")
-        if not which(name)
-        and not (result.tex_dir and (exists(Path(result.tex_dir) / name)
-                                     or exists(Path(result.tex_dir) / (name + ".exe"))))
+        name for name in TEX_EXTRAS
+        if not tex_tool(name, result.tex_dir, which=which, exists=exists)
     ]
 
     # -- the ones NextTex will not install for you --------------------------

@@ -33,7 +33,8 @@ from ..paths import state_home
 from . import service as service_mod
 from . import steps
 from .plan import build_plan
-from .survey import FETCHED, NOT_NEEDED, PRESENT, YOURS, survey, this_platform
+from .survey import (FETCHED, NOT_NEEDED, PRESENT, TEX_EXTRAS, YOURS,
+                     survey, tex_tool, this_platform)
 from .ui import Console
 
 
@@ -317,8 +318,16 @@ def execute(console: Console, plan, root: Path, platform: str,
             console.failed(tex, "TeX did not install. Everything else is fine; "
                                 "run the installer again to retry just this.")
             notes.append("TeX did not install, so builds will fail")
-        else:
-            _add_tex_to_path()
+
+    # Whatever happened above, TeX's own directory goes on PATH before
+    # anything asks what is installed.  This used to run only where TinyTeX
+    # had just been installed, which is the one case where it was least
+    # needed: a machine that already had TeX skipped it, `shutil.which`
+    # then found no tlmgr, and the install said "no tlmgr, so latexmk,
+    # biber, synctex, chktex and texcount are still missing" with tlmgr and
+    # latexmk both present in a directory it had just printed on screen.
+    # It exited successfully, which is the worst version of that.
+    _add_tex_to_path()
 
     # Asked again, not read off the survey.  The survey ran before TinyTeX
     # existed, so on a fresh machine it said there was no tlmgr and no way
@@ -326,8 +335,8 @@ def execute(console: Console, plan, root: Path, platform: str,
     # that stale answer left every new install without latexmk, biber,
     # synctex, chktex or texcount: a NextTex that starts, opens a project,
     # and fails on its first full build.
-    missing = _missing_tex_extras()
-    if missing and shutil.which("tlmgr"):
+    missing = _missing_tex_extras(result.tex_dir)
+    if missing and tex_tool("tlmgr", result.tex_dir):
         extras = steps.install_tex_extras(console, root, missing)
         if not extras.ok:
             notes.append("tlmgr could not add " + ", ".join(missing)
@@ -511,16 +520,20 @@ def _start_yourself(root: Path, platform: str) -> str:
     return ".venv/bin/python server/run.py"
 
 
-TEX_EXTRAS = ("latexmk", "biber", "synctex", "chktex", "texcount")
 
 
-def _missing_tex_extras() -> list:
-    """Which of the five a project needs are still not on PATH, asked now.
+def _missing_tex_extras(tex_dir=None) -> list:
+    """Which of the five a project needs are still missing, asked now.
 
     A project that uses biber or chktex must not fail on its first build,
     and the answer changes the moment TinyTeX finishes installing.
+
+    `tex_dir` is consulted as well as PATH, through the same `tex_tool` the
+    survey uses.  A bare `shutil.which` here reported `latexmk` missing on
+    a machine that had it, because TinyTeX's bin directory is not on PATH
+    by default.
     """
-    return [name for name in TEX_EXTRAS if not shutil.which(name)]
+    return [name for name in TEX_EXTRAS if not tex_tool(name, tex_dir)]
 
 
 def _add_tex_to_path() -> None:

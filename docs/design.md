@@ -2049,6 +2049,46 @@ started with its input on the null device, which is precisely where
 the part that means nobody can type, and it stays false in a real console
 even for `irm | iex`, so both are checked now.
 
+### An install that said Ready and had skipped the step that mattered
+
+The verification run succeeded in sixteen seconds and exposed a different
+bug on the way past, which is the best thing a verification run can do.
+
+It ended with a note saying there was no tlmgr, so latexmk, biber, synctex,
+chktex and texcount were still missing and a project using them would not
+build. Both halves were false. `tlmgr.bat` and `latexmk.exe` were sitting in
+a directory the installer had printed on screen two lines earlier, under
+"already here".
+
+TinyTeX does not put its bin directory on PATH. The installer knows this and
+has a function to fix it, and that function was called in exactly one place:
+the branch where TinyTeX had just been installed. A machine that already had
+TeX skipped the whole block, so PATH was never corrected, and the question
+four lines later was a bare `shutil.which`, which answered no to everything.
+The install then skipped the step that would have added the four that were
+genuinely absent, and exited successfully.
+
+The irony is in the comment above that question. It explains, correctly,
+that the survey's answer is stale on a fresh machine and so the question is
+asked again. The survey asks it properly, consulting the TeX directory as
+well as PATH. The re-ask asks it badly. Fixing the staleness had quietly
+dropped the directory-aware half, which is the third time in this
+investigation that one idea existed in two places and the second one was the
+one that ran.
+
+So there is now one `tex_tool` in `survey.py` that both callers use, PATH is
+corrected before anything asks what is installed rather than only where
+something was installed, and the five tool names live in one tuple. The
+suffixes matter too: TinyTeX ships `tlmgr.bat` next to `latexmk.exe`, and
+the old survey code checked `.bat` for one and `.exe` for the other.
+
+**Why this one is worse than a crash.** It fires only when TeX is already
+present, so it cannot happen on a first install and must happen on every
+one after that. The person is told the install worked. They find out it did
+not days later, when a build fails, with nothing to bring back. A failure
+that reports success is not a smaller bug than one that stops; it is the
+same bug with the evidence removed.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the
