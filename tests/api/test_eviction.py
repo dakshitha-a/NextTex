@@ -148,6 +148,24 @@ def test_evicting_collects_the_blobs_nothing_refers_to(client, opened, monkeypat
     assert opened["id"] not in server_main.SESSIONS
 
 
+def test_a_new_session_is_due_for_its_first_sweep(client, opened):
+    """The bug underneath the one below, stated so it cannot come back.
+
+    `collected_at` is compared against `time.monotonic()`, and monotonic's
+    zero is an arbitrary point rather than any epoch, so the old 0.0 sentinel
+    quietly meant "swept at boot" instead of "never swept".  Nothing was
+    collected for the first hour of a machine's uptime, and every install
+    starts this server at login.
+
+    Written as a question about the gap rather than about the value, so it
+    holds whatever the clock happens to read.
+    """
+    session = server_main.session_for(opened["id"])
+    assert (
+        time.monotonic() - session.collected_at > server_main.COLLECT_EVERY
+    ), "a session that has never been swept must be due for one"
+
+
 def test_a_shared_project_still_collects_its_blobs(client, opened, monkeypatch):
     """The failure the eviction sweep was added to fix, reintroduced.
 
@@ -160,7 +178,12 @@ def test_a_shared_project_still_collects_its_blobs(client, opened, monkeypatch):
     session = server_main.session_for(opened["id"])
     gone_stale(session)
     session.peers.share.share_id = "a-share"
-    session.collected_at = 0.0
+    # "Never collected", said the way the code says it.  This was 0.0, which
+    # is a perfectly ordinary `time.monotonic()` reading on a machine that
+    # booted a moment ago -- so this test passed on a laptop that had been up
+    # for weeks and failed on a CI runner thirty seconds old, which is
+    # exactly what it did.
+    session.collected_at = float("-inf")
 
     collected: list[bool] = []
     monkeypatch.setattr(
