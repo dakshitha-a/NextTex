@@ -900,7 +900,11 @@ def test_the_linux_shortcut_launches_rather_than_bookmarks(tmp_path):
     assert "Terminal=false" in text
     assert "token" not in text, "the shortcut must not carry a copy of the token"
     # A .desktop without the executable bit shows as a text file on GNOME.
-    assert made.stat().st_mode & 0o100
+    # Asserted only where the bit exists: Windows has no such thing, `chmod`
+    # there does almost nothing, and this file is never written on a Windows
+    # machine anyway. The content above is worth checking on every runner.
+    if os.name != "nt":
+        assert made.stat().st_mode & 0o100
 
 
 def test_the_macos_shortcut_is_runnable(tmp_path):
@@ -913,7 +917,8 @@ def test_the_macos_shortcut_is_runnable(tmp_path):
     assert made == home / "Desktop" / "NextTex.command"
     assert made.read_text(encoding="utf-8").startswith("#!/bin/sh")
     assert "--open" in made.read_text(encoding="utf-8")
-    assert made.stat().st_mode & 0o100
+    if os.name != "nt":
+        assert made.stat().st_mode & 0o100
 
 
 def test_a_second_install_gets_its_own_shortcut(tmp_path):
