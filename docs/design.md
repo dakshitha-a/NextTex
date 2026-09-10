@@ -2124,6 +2124,31 @@ developer install was blind to it. The test now stubs a `.BAT` path
 deliberately: a stub returning a bare name would pass whatever the code did,
 which makes it a test of nothing.
 
+### A refusal that arrived as a success
+
+Reported from Windows: clicking Sign in with Claude showed "Starting..." and
+then nothing, for ever.
+
+The server was not silent. `start_login` checks for a pseudo-terminal, finds
+none on Windows, and answers with a sentence naming both ways out: run
+`claude auth login` in a terminal once, or use an OpenAI key. It answers with
+HTTP 200 and `{ok: false, error}`, because a refusal is not a server fault.
+The sign-in pane awaited that call inside a `try`, caught nothing, and went
+straight on to open an event stream for a login that had never started. The
+one screen that could have shown the explanation was the one that discarded
+it.
+
+So the shape of the bug is a status code and a body disagreeing, and the
+caller believing the status code. It is the same family as the rest of this
+chapter: `shutil.which` and `CreateProcess` disagreeing about a name, a
+survey and an installer disagreeing about what "installed" means. Two
+answers to one question, and the code consulting whichever is easier to
+reach.
+
+The check lives in `loginRefusal` rather than inline, so it can be tested
+without rendering a React tree, and so that the rule has a name. A caller
+that only catches exceptions is not reading the whole answer.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the
