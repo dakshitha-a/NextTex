@@ -668,3 +668,42 @@ def test_the_installer_asks_nobody_when_input_is_redirected():
     text = (ROOT / "scripts" / "install.ps1").read_text(encoding="utf-8")
     body = text.split("function Test-Interactive")[1].split("\nfunction ")[0]
     assert "IsInputRedirected" in body, body
+
+
+# Every place that starts a child which might be Windows PowerShell. The
+# correction has to be applied at each of them, and there is no single choke
+# point: the installer has one, the settings sheet starts the Claude CLI
+# installer on its own, and the server starts the updater. Two of the three
+# were found only after somebody went looking a second time.
+POWERSHELL_SPAWN_SITES = (
+    "nexttex/install/ui.py",
+    "nexttex/claude_auth.py",
+    "server/main.py",
+)
+
+
+def test_every_place_that_starts_powershell_corrects_the_module_path():
+    for name in POWERSHELL_SPAWN_SITES:
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert "child_env" in text, (
+            f"{name} starts a child process without passing its argv through "
+            "child_env, so Windows PowerShell there inherits PowerShell 7's "
+            "module path"
+        )
+
+
+def test_no_unlisted_file_starts_powershell():
+    """The list above is only worth having if adding a fourth spawn site
+    fails here rather than being found by a user."""
+    spawners = ("subprocess.Popen", "create_subprocess_exec", "subprocess.run")
+    for path in python_sources():
+        relative = str(path.relative_to(ROOT)).replace("\\", "/")
+        if relative in POWERSHELL_SPAWN_SITES:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "powershell" not in text.lower():
+            continue
+        assert not any(word in text for word in spawners), (
+            f"{relative} names PowerShell and starts a process; add it to "
+            "POWERSHELL_SPAWN_SITES and pass its argv through child_env"
+        )
