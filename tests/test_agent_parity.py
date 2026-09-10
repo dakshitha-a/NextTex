@@ -173,3 +173,23 @@ def test_a_conversation_cannot_be_cleared_out_from_under_a_running_turn(kind, tm
             agent._turn.cancel()
 
     asyncio.run(scenario())
+
+
+def test_no_implementation_offers_a_way_to_delegate():
+    """One rule, checked against every tool list this app writes itself.
+
+    The Claude agent's native tools come from the CLI, so `Agent` and
+    `Task` are refused at the fence and removed through `disallowed_tools`,
+    which `tests/test_permissions.py` asserts. The OpenAI agent's list is
+    ours to write, so the way to keep it free of delegation is to say so
+    here rather than to trust that nobody adds one. Every tool below runs
+    in this process and shows up in the panel; a tool that farmed work out
+    to a second conversation would not.
+    """
+    from nexttex.agent import ProjectAgent as _Claude  # noqa: F401  (import guarded above)
+    from nexttex.openai_agent import TOOLS
+
+    names = {tool["function"]["name"] for tool in TOOLS}
+    assert names, "the OpenAI agent has no tools at all, which is a different bug"
+    for banned in ("task", "agent", "subagent", "delegate", "spawn"):
+        assert not [name for name in names if banned in name.lower()], names

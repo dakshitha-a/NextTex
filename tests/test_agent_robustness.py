@@ -481,3 +481,47 @@ def test_the_agent_is_told_which_claude_to_run(tmp_path, monkeypatch):
     monkeypatch.setattr(agent_module, "claude_binary",
                         lambda: "C:\\Users\\ada\\.local\\bin\\claude.exe")
     assert subject._options().cli_path == "C:\\Users\\ada\\.local\\bin\\claude.exe"
+
+
+class SubagentMessage:
+    """A message the SDK emits for a call made inside a subagent.
+
+    The real ones are `AssistantMessage` and `UserMessage`; what matters to
+    `_stream` is only that `parent_tool_use_id` is not None, which is how
+    the SDK marks a block that came from a spawned agent rather than from
+    the main thread.
+    """
+
+    def __init__(self, parent: str = "toolu_parent"):
+        self.parent_tool_use_id = parent
+        self.content = []
+
+
+def test_a_message_from_inside_a_subagent_ends_the_turn(tmp_path):
+    """The layer that is supposed to be unreachable, which is why it is here.
+
+    Subagents are refused at the fence and removed from the model's
+    context, so nothing should ever arrive carrying a parent id. If one
+    does, the fence is being routed around, and the writer finds out in the
+    panel instead of nobody finding out. A turn that quietly rendered a
+    subagent's work would be the same failure as the one this whole change
+    is about: work happening where the person whose document it is cannot
+    see it.
+    """
+    subject = make_agent(tmp_path)
+    client = StubClient(messages=[SubagentMessage()])
+    subject._client = client
+
+    async def run():
+        await subject.ask("do it in parallel")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    kinds = [event["type"] for event in events]
+    # It says so, it stops, and it ends where the panel can see.
+    assert "notice" in kinds, kinds
+    assert "subagent" in "".join(event.get("message", "") for event in events)
+    assert events[-1]["type"] == "done"
+    assert events[-1]["subtype"] == "interrupted"
+    assert client.interrupted
+    assert not subject.busy
