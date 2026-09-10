@@ -79,18 +79,39 @@ advance rather than being asked, build the script block instead:
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.ps1))) -Dir 'D:\NextTex'
 ```
 
-It asks where to put itself, offering `~/apps/NextTex`, and installs from
-there. Press return to take the default, or give it any empty directory —
-`--dir=PATH`, or `NEXTTEX_DIR`, answers in advance, and an install with no
-terminal to ask at takes the default silently. Your projects live outside
-whichever directory you choose and are not touched by an install, an update
-or an uninstall.
+**It asks two things, and it shows you everything before it asks either.**
+
+First, where to put itself, offering `~/apps/NextTex`. That one has to come
+first: before the clone there is no checkout and nothing to look at. Press
+return to take the default, or give it any empty directory — `--dir=PATH`,
+or `NEXTTEX_DIR`, answers in advance, and an install with no terminal to ask
+at takes the default silently. Your projects live outside whichever
+directory you choose and are not touched by an install, an update or an
+uninstall.
+
+Then it looks at the machine — all of it, at once, before another word — and
+prints what it found in four groups: what is already here, what it is going
+to download and how large each one is, **what you will have to install
+yourself, with the command for your platform**, and what is missing but does
+not matter. Then the plan: the numbered list of what it will do, what the
+whole thing costs in megabytes and roughly how many minutes, and where
+anything gets written outside this directory.
+
+The second question is that plan. Return accepts it, a number opens that one
+item to change it, `q` stops. Nothing is asked again once the work starts.
 
 `git` is the only thing you need beforehand — Python, TeX and the Claude CLI
-are all fetched if they are missing. If you would rather see what you are
-running first, clone it yourself and run `scripts/install.sh` from inside;
-the script does the same thing either way, except that it then installs into
-the checkout you are standing in rather than asking.
+are all fetched if they are missing and you asked for them. If you would
+rather see what you are running first, clone it yourself and run
+`scripts/install.sh` from inside; the script does the same thing either way,
+except that it then installs into the checkout you are standing in rather
+than asking.
+
+Every long step shows a spinner, how long it has been going and the last
+line the thing itself printed, so a slow mirror looks like a slow mirror
+rather than a hang. If a step fails you get what it actually said, the path
+of the full log, and an installer that stopped rather than one that carried
+on to tell you it was ready. Running it again picks up where it left off.
 
 The installer prints a URL with an access token in it. That is how you get
 in the first time; NextTex then asks you to set a password, and any browser
@@ -104,19 +125,35 @@ stays the only way in, which is fine on a machine only you can reach.
 
 <details><summary>What the installer actually does</summary>
 
-Asks where to install, then checks for Python 3.10+ and makes a virtual
-environment, then installs the Python dependencies into it, and tries iroh separately so that a platform it
-has no build for loses sharing rather than the install. Looks for a TeX
-installation where TinyTeX, MacTeX, MiKTeX and TeX Live put one, and offers to
-install TinyTeX (Linux and macOS) or MiKTeX (Windows) if there is none. Uses `tlmgr` to add `latexmk`,
-`biber`, `synctex`, `chktex` and `texcount` if they are missing. Asks which
-agent you want, if any, and installs nothing unless you say Claude — the
-default is none, and the app asks again on its first screen. Downloads the
-interface built for this commit
-(building it locally with Node 20+ only if that download fails). Asks whether the
-server should answer on localhost only or also on your tailnet. Writes a
-`systemd --user` unit on Linux, a launchd agent on macOS, or a scheduled task
-on Windows. Then prints the URL.
+`scripts/install.sh` and `scripts/install.ps1` are bootstraps, and they are
+short. They do only what has to happen before any Python is known to exist:
+refuse a platform they are not for, check for `git`, ask where the checkout
+goes, clone it, and find an interpreter — any Python 3.10 or newer will do,
+and if the machine has none at all they say so and fetch `uv`, which brings
+its own. Then they hand over to `python -m nexttex.install`, which is the
+same code on Linux, macOS and Windows.
+
+**The survey.** `git`, the Python that is running this and whether it can
+make a virtual environment at all (Debian and Ubuntu ship one that cannot,
+which used to be the most common way a first install failed); `uv`; whether
+`.venv` is already here; a TeX installation wherever TinyTeX, MacTeX, MiKTeX
+or TeX Live puts one, and which of `latexmk`, `biber`, `synctex`, `chktex`
+and `texcount` are missing from it; `pdftotext`; `claude`; `tailscale`;
+Node; whether this machine can start things at login; and whatever
+configuration a previous install left. It also opens a two-second connection
+to each host it may need, so being offline is something you are told rather
+than something you wait three minutes to discover.
+
+**The plan.** A virtual environment and the Python dependencies, with `iroh`
+tried separately so a platform it has no build for loses sharing rather than
+the install. TinyTeX if you want one, or MiKTeX on Windows, and `tlmgr` to
+add whichever of the five tools are missing. A writing agent, if any —
+nothing is installed unless you say Claude, the default is none, and the app
+asks again on its first screen. The interface built for this commit,
+downloaded rather than built, with Node 20+ used only if that download
+fails. Whether the server answers on localhost only or also on your tailnet.
+And a `systemd --user` unit on Linux, a launchd agent on macOS, or a logon
+task on Windows, written only if you asked for one.
 
 All of it is idempotent. Run it again after installing something it said was
 missing and it picks up where it left off without touching your projects.
@@ -154,9 +191,9 @@ Start-ScheduledTask -TaskName NextTex
 Stop-ScheduledTask  -TaskName NextTex
 ```
 
-Registering that task wants administrator, so on an ordinary account the
-installer falls back to a shortcut in your Startup folder and says which it
-used. If it is the shortcut, there is no task to start or stop: run
+Registering that task wants administrator, so on an ordinary account
+`scripts\register-task.ps1` — which is what the installer calls for this —
+falls back to a shortcut in your Startup folder and says which it used. If it is the shortcut, there is no task to start or stop: run
 `.venv\Scripts\pythonw.exe server\run.py` to start it, and end the
 `pythonw` process to stop it. `shell:startup` in the Run box opens the folder
 the shortcut is in.
@@ -563,26 +600,41 @@ was empty; the TinyTeX and Claude CLI installers were both fetched with
 byte array in PowerShell 7 rather than a string, and the TinyTeX one is a
 `.bat` that `Invoke-Expression` could never have run in any case; and
 registering the login task failed with *Access is denied* on an account
-without administrator. What has still not been proved is a running server
-serving a project, so treat Windows as unverified until somebody reports
-one. Signing in to Claude from the browser needs a
+without administrator.
+
+Since then the whole install after the clone has become the same Python that
+Linux and macOS run, so the parts that used to be Windows-only code are now
+Windows-only *branches* of code the test suite exercises on every platform —
+including the console-encoding fallback that a legacy code page needs. What
+that leaves genuinely unproven is smaller than it was and is still real: no
+download here has ever been fetched by a Windows PowerShell, the logon task
+and the Startup shortcut have not run since they moved into their own
+script, and nothing has yet reported a running server serving a project. So
+treat Windows as unverified until somebody reports one. Signing in to Claude
+from the browser needs a
 pseudo-terminal, which Windows does not have, so run `claude auth login` in a
 terminal once or use an OpenAI key. Reports welcome.
 
 ## Requirements
 
+The last column has three states, and the middle one is the one that used to
+be missing: **named** means the installer will not fetch it, but it tells you
+so on its survey before it asks you anything, with the command for the
+platform you are on, so you can install it and run the installer again.
+
 | What | Why | Supplied by the installer? |
 |---|---|---|
-| Python 3.10+ | The server | no |
-| Node 20+ | Only to build the interface locally, if the prebuilt one cannot be downloaded | no |
-| `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | TinyTeX or MiKTeX, if you let it |
+| `git` | NextTex is a checkout, and stays one so it can update itself | **named** |
+| Python 3.10+ | The server | yes — `uv` brings one if this machine has none |
+| Node 20+ | Only to build the interface locally, if the prebuilt one cannot be downloaded | **named** |
+| `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | yes — TinyTeX, or MiKTeX on Windows, if you let it |
 | `biber` | biblatex bibliographies | yes, via `tlmgr` |
 | `chktex`, `texcount` | Linting and word counts | yes, via `tlmgr` |
-| `pdftotext` | Only for reading a folder of papers into your `.bib` | no, it comes with poppler-utils |
-| The [Claude CLI](https://claude.ai/download) | Only for the Claude agent | yes, if you let it |
-| An OpenAI API key | Only for the OpenAI agent | no |
+| `pdftotext` | Only for reading a folder of papers into your `.bib` | **named** — it comes with poppler-utils |
+| The [Claude CLI](https://claude.ai/download) | Only for the Claude agent | yes, if you choose it — at install time or later, from the settings sheet |
+| An OpenAI API key | Only for the OpenAI agent | no — you paste it into the app |
 | `gh`, signed in | Only for *Back this up to GitHub* | no |
-| `tailscale` | Only to reach this install from another machine | no |
+| `tailscale` | Only to reach this install from another machine | **named** |
 | iroh | Only to share a project with another writer | yes, with the Python dependencies |
 
 Nothing in the bottom half of that table is needed to write and typeset.

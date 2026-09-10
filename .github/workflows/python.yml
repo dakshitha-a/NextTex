@@ -44,7 +44,61 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Lint the shell installer
+        # It is run as `curl ... | sh`, so it has to be POSIX shell rather
+        # than bash: on Debian and Ubuntu `sh` is dash.  This is cheap and
+        # it is the tier that has burned this repository twice.
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck -S warning scripts/install.sh
+
+      - name: Lint the PowerShell scripts
+        # ubuntu-latest ships PowerShell 7, which is more than the machine
+        # this was written on has -- so this is the only place the .ps1
+        # files go through a real parser at all.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($file in Get-ChildItem scripts/*.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $errors; throw "$($file.Name) does not parse" }
+            Write-Host "ok $($file.Name)"
+          }
+
       # From the repository root: `tests/conftest.py` puts it on sys.path,
       # since there is no packaging metadata to install from.
+      - name: Test
+        run: python -m pytest tests/ -q
+
+  # The Windows and macOS branches of the installer are written and asserted
+  # on Linux, because the survey takes its platform as an argument.  What
+  # that cannot answer is the console encoding, the escape-sequence support,
+  # `winget`, `schtasks` and the launchd calls -- so those branches run here,
+  # on the real thing, and nowhere else.
+  other-platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: The installer runs on a bare interpreter here too
+        run: python -I -S -c "import sys; sys.path.insert(0, '.'); import nexttex.install.__main__"
+
       - name: Test
         run: python -m pytest tests/ -q

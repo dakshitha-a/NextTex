@@ -130,22 +130,28 @@ function Get-ForwardedArguments {
   # Every bound parameter except -Dir, which is already spent: by the time
   # this is forwarded we are standing in the directory it chose.
   #
-  # Built from $PSBoundParameters rather than written out.  The old version
-  # forwarded -Yes and -Bind and nothing else, so -Instance, -Tex and
-  # -NoService were silently dropped after the clone: the second run of the
-  # script never saw them, and somebody who asked for a named instance got
-  # an ordinary one with no message saying why.
+  # Built from the caller's bound parameters rather than written out.  The
+  # old version forwarded -Yes and -Bind and nothing else, so -Instance,
+  # -Tex and -NoService were silently dropped after the clone: the second
+  # run of the script never saw them, and somebody who asked for a named
+  # instance got an ordinary one with no message saying why.
+  #
+  # And they are passed *in*.  $PSBoundParameters is an automatic variable
+  # in every scope, so reading it inside a function that takes no parameters
+  # of its own reads an empty one -- which would have forwarded nothing at
+  # all, which is worse than the bug this replaced.  Proved by running it.
+  param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Bound)
   $forward = @()
-  foreach ($name in $PSBoundParameters.Keys) {
+  foreach ($name in $Bound.Keys) {
     if ($name -eq 'Dir') { continue }
-    $value = $PSBoundParameters[$name]
+    $value = $Bound[$name]
     if ($value -is [switch]) {
       if ($value.IsPresent) { $forward += "-$name" }
     } elseif ($null -ne $value -and "$value" -ne '') {
       $forward += @("-$name", "$value")
     }
   }
-  return $forward
+  return ,$forward
 }
 
 # ---------------------------------------------------------------------------
@@ -235,7 +241,7 @@ if ($scriptDir -and (Test-Path (Join-Path $scriptDir '..\requirements.txt'))) {
     }
   }
 
-  $forward = Get-ForwardedArguments
+  $forward = Get-ForwardedArguments $PSBoundParameters
   # The current host's own executable rather than the string 'powershell',
   # so somebody running PowerShell 7 does not get dropped into Windows
   # PowerShell 5.1 halfway through their own install.

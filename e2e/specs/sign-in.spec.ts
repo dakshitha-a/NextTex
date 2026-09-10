@@ -133,6 +133,49 @@ test("working alone leaves nothing on screen that needs an agent", async ({
     .toBeVisible();
 });
 
+test("a machine with no Claude CLI is offered one rather than a download page", async ({
+  page,
+}) => {
+  // Somebody who chose "no agent" during the install and has changed their
+  // mind. Until now this screen told them to go and fetch the CLI
+  // themselves, which is a dead end on the first screen of a new install --
+  // while the terminal installer three feet away would have done it.
+  //
+  // Its own server, because whether the CLI is here is read from
+  // NEXTTEX_CLAUDE_BINARY, and every other test in this file wants one that
+  // is. The install itself is never started: nothing here fetches a vendor
+  // script, and the button being offered is the thing under test.
+  const other = await startServer({
+    NEXTTEX_FAKE_CLAUDE_AUTH: "",
+    NEXTTEX_CLAUDE_BINARY: join(tmpdir(), "nexttex-no-claude-here"),
+  });
+  try {
+    await fetch(`${other.base}/api/agent/provider`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-nexttex-token": other.token,
+      },
+      body: JSON.stringify({ provider: "claude" }),
+    });
+    await page.goto(`${other.base}/?token=${other.token}`);
+    await page.getByRole("button", { name: /With Claude/ }).click();
+
+    await expect(page.getByTestId("install-claude")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/not on this machine yet/)).toBeVisible();
+    // And it does not offer to sign in to something that is not there.
+    await expect(
+      page.getByRole("button", { name: "Sign in with a Claude account" }),
+    ).toHaveCount(0);
+    // Back is still there: the way out of this screen is never closed.
+    await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+  } finally {
+    await other.stop();
+  }
+});
+
 test("a writer who chose ChatGPT is never told they are talking to Claude", async ({
   page,
 }) => {
