@@ -772,3 +772,39 @@ def test_no_unguarded_spawn_sits_next_to_the_word_powershell():
                         "process in a function that names PowerShell, without "
                         "env=child_env(...)"
                     )
+
+
+def test_the_windows_launcher_does_not_buffer_the_log_it_names():
+    """A log that cannot be written is worse than no log.
+
+    Python block-buffers stdout when it is a file rather than a console, so
+    a server that stays up writes nothing into a redirected `server.log`
+    however much it prints: the buffer never fills and the process never
+    exits to flush it. Measured, not assumed: after three seconds a live
+    child's stdout file was still empty and its stderr file was not, and
+    with `-u` the banner was there at once.
+
+    That matters because emptiness is the thing a person reads the file for.
+    Unbuffered, empty means it never started. Buffered, empty means nothing
+    at all, and the installer was pointing at that file by name.
+    """
+    text = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
+    starts = [line for line in text.splitlines()
+              if "ArgumentList" in line or "$shortcut.Arguments" in line]
+    assert starts, "the launcher no longer starts anything"
+    for line in starts:
+        assert "-u" in line, (
+            f"{line.strip()} starts the server with a buffered stdout, so the "
+            "log it redirects to stays empty while it runs"
+        )
+
+
+def test_the_launcher_names_the_log_that_carries_errors():
+    """The success message used to name `server.log`, the one that could not
+    contain anything, while the installer's failure note named
+    `server.err.log`. The reassuring message pointed at the empty file."""
+    text = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
+    started = [line for line in text.splitlines() if "Write-Output \"started" in line]
+    assert started, "the launcher no longer says it started anything"
+    for line in started:
+        assert "$err" in line, line.strip()
