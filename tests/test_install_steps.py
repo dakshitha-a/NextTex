@@ -13,6 +13,7 @@ working.
 from __future__ import annotations
 
 import io
+import os
 import sys
 from pathlib import Path
 
@@ -62,6 +63,10 @@ def sandbox(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    # Path.home() reads USERPROFILE on Windows and HOME everywhere else, so
+    # without this the "nothing was written" assertions below sweep the real
+    # home directory of whoever is running the tests.
+    monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.setenv("XDG_DATA_HOME", str(home / "state"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / "config"))
     monkeypatch.delenv("NEXTTEX_INSTANCE", raising=False)
@@ -75,6 +80,20 @@ def sandbox(tmp_path, monkeypatch):
     root = tmp_path / "NextTex"
     (root / "scripts").mkdir(parents=True)
     return root
+
+
+
+def _unit_path(root, instance):
+    from nexttex.install import service as service_mod
+
+    return service_mod.unit_path(Path.home(), instance,
+                                 os.environ.get("XDG_CONFIG_HOME", ""))
+
+
+def _plist_path(root, instance):
+    from nexttex.install import service as service_mod
+
+    return service_mod.plist_path(Path.home(), instance)
 
 
 def a_survey(root, platform="linux", **overrides):
@@ -263,7 +282,7 @@ def test_an_instance_reaches_the_configuration_and_the_unit(sandbox):
     run_install(console, sandbox, instance="scratch", tex="none", service="yes")
     config = [c for c in console.calls if "settings.save()" in " ".join(c)][0]
     assert config[-1] == "scratch"
-    unit = (Path.home() / "config" / "systemd" / "user" / "nexttex-scratch.service")
+    unit = _unit_path(sandbox, "scratch")
     assert unit.is_file(), sorted(Path.home().rglob("*.service"))
     assert "NEXTTEX_INSTANCE=scratch" in unit.read_text()
 
@@ -277,15 +296,15 @@ def test_nothing_is_written_when_the_service_is_declined(sandbox):
     no still left a file behind."""
     console = Recorder()
     run_install(console, sandbox, tex="none", service="no")
-    assert not list(Path.home().rglob("*.service"))
-    assert not list(Path.home().rglob("*.plist"))
+    assert not _unit_path(sandbox, "").exists()
+    assert not _plist_path(sandbox, "").exists()
     assert "systemctl" not in console.ran
 
 
 def test_macos_gets_a_plist_and_linux_gets_a_unit(sandbox):
     console = Recorder()
     run_install(console, sandbox, platform="macos", tex="none", service="yes")
-    assert list(Path.home().rglob("com.nexttex.server.plist"))
+    assert _plist_path(sandbox, "").is_file()
     assert "launchctl load" in console.ran
     assert "systemctl" not in console.ran
 
@@ -294,7 +313,7 @@ def test_windows_calls_the_helper_rather_than_writing_a_unit(sandbox):
     console = Recorder()
     run_install(console, sandbox, platform="windows", tex="none", service="yes")
     assert "register-task.ps1" in console.ran
-    assert not list(Path.home().rglob("*.service"))
+    assert not _unit_path(sandbox, "").exists()
 
 
 def test_the_stray_directory_the_old_windows_installer_made_is_removed(

@@ -29,9 +29,11 @@
 # off without touching your projects.
 set -eu
 
+# A guard and nothing more.  Which of the two this is stopped mattering here
+# when the install moved into Python: `nexttex.install` works it out for
+# itself, so there is no longer a variable to carry it.
 case "$(uname -s)" in
-  Darwin) PLATFORM=macos ;;
-  Linux)  PLATFORM=linux ;;
+  Darwin|Linux) ;;
   *) printf '\033[31mThis script is for Linux and macOS. On Windows run scripts/install.ps1 in PowerShell.\033[0m\n' >&2
      exit 1 ;;
 esac
@@ -73,6 +75,12 @@ ask() {  # ask "the prompt" "what to assume when nobody can be asked"
 # ~ is only expanded by the shell when the user types it unquoted, and a
 # path read with `read` never is, so "~/code/NextTex" would otherwise become
 # a directory called "~".
+#
+# shellcheck disable=SC2088
+# SC2088 warns that a tilde in quotes will not expand, which is the whole
+# point here: these are case *patterns* matching a literal tilde somebody
+# typed, not a tilde this script wants expanded.  Expanding it is what the
+# body does.
 expand_path() {
   case "$1" in
     "~")   printf '%s' "$HOME" ;;
