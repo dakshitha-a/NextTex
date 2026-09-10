@@ -3179,9 +3179,18 @@ produces an 851 KB line and squeaks under the limit, which is why this is a
 failure shaped like NextTex rather than one everybody hits.
 
 The ceiling is now sixty-four megabytes. Not "enough for that figure":
-enough for any image the model will accept, because the guard bounds the
-length of a line rather than the size of an allocation, so being generous
-costs nothing and being exact costs another incident.
+enough for any image the model will accept. Nothing is preallocated, so a
+ceiling that high only costs memory when a line really is that long, and
+being exact instead of generous only buys another incident.
+
+The same reader taught a second lesson on the way past. A call is recorded
+when its `PreToolUse` hook fires and forgotten when `PostToolUse` fires, so
+a turn that dies between the two leaves a call that is running for ever.
+Nothing noticed, because the table is only read by the watchdog that ends
+silent turns, and it reads it on the *next* turn: a phantom `Read` would
+hold a stuck turn open, and then, minutes later, end a healthy one by
+reporting that a tool nobody had called was still going. No turn begins
+with a call already running, so a turn now begins by emptying it.
 
 **A dead client is still an object.** When the reader died, the client
 stayed in `self._client`, connected to a subprocess whose reader task was

@@ -1472,8 +1472,8 @@ class ProjectAgent:
             # message.  A 290 KB PNG measured 1.15 MB on the wire and
             # killed the reader mid-turn.  Reading a figure it has just
             # drawn is ordinary work here, so the guard is raised well
-            # clear of it.  It bounds a line rather than an allocation, so
-            # a generous number costs nothing.
+            # clear of it.  Nothing is preallocated, so a ceiling this
+            # high only costs memory when a line really is that long.
             max_buffer_size=64 * 1024 * 1024,
             # allowed_tools is deliberately empty and can_use_tool is
             # deliberately unset.  An entry in either shadows the PreToolUse
@@ -1626,6 +1626,14 @@ class ProjectAgent:
         *interrupted* or *error* is more useful than one that only says it
         stopped.
         """
+        # A call whose PostToolUse never arrived -- the turn was stopped
+        # mid-command, or the transport died under it -- leaves an entry
+        # here for ever, and `_watch_for_silence` reads this table on
+        # every later turn.  A phantom Read would first hold a stuck turn
+        # open and then end a perfectly healthy one, minutes in, saying a
+        # tool nobody called had been running since the incident.  No turn
+        # starts with a call already running, so this starts empty.
+        self._running_tools.clear()
         watchdog = asyncio.create_task(self._watch_for_silence())
         try:
             await self._stream(prompt)
