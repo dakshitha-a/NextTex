@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
+from .claude_auth import claude_binary
 from .project import is_control_path
 from .writing import PROSE
 
@@ -1460,6 +1461,13 @@ class ProjectAgent:
             cwd=str(self.root),
             system_prompt=system,
             model=self.model,
+            # The same CLI the sign-in screen found, rather than leaving the
+            # SDK to look again.  It searches PATH, and the official Windows
+            # installer writes ~/.local/bin/claude.exe into a directory that
+            # is not on PATH and says so.  Detecting it and then not saying
+            # where it is would have left the agent unable to start on a
+            # machine where the setup screen had just reported success.
+            cli_path=claude_binary(),
             # The project's own CLAUDE.md and settings load; NextTex's do not.
             setting_sources=["project"],
             include_partial_messages=True,

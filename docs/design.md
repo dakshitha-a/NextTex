@@ -2194,6 +2194,31 @@ success reported without being verified: an install that skipped tlmgr and
 said Ready, a sign-in refusal read as a start, a launch that printed
 "started" into the dark.
 
+### An install that succeeded, reported as a failure
+
+From a second Windows machine. The in-app Claude setup ended in red, saying
+the CLI had not installed. The installer's own output was still on the screen
+above it: "Claude Code successfully installed", version 2.1.267, location
+`C:\Users\<name>\.local\bin\claude.exe`. It had installed perfectly.
+
+Between those two messages is a warning the official installer prints, and it
+is the whole story: the directory it wrote to is not on PATH, and it asks the
+person to add it by hand through System Properties. So the ordinary outcome
+of a successful Windows install is a CLI that exists and that `shutil.which`
+cannot see. Our fallback looked for `~/.local/bin/claude` with no extension
+and missed `claude.exe`, which is the same mistake as running `tlmgr` by a
+name Windows cannot resolve: found by the eye, missed by the code.
+
+The second half is worse and would not have shown up until later. The SDK
+that actually runs the agent does its own lookup, on PATH, and we had never
+told it what we found. So even with detection fixed, the agent would have
+failed to start on the machine where the setup screen had just reported
+success. `cli_path` now carries the answer across, and there is one resolver
+rather than two opinions.
+
+This is the same shape as the rest of the Windows run: two ways of asking
+where something is, and the code taking the one that is easier to reach.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the

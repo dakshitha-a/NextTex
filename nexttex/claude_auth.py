@@ -70,7 +70,28 @@ class _Login:
 _current: _Login | None = None
 
 
-def _claude() -> str | None:
+# What an executable is called, in the order worth trying.  Windows needs
+# the extension: `claude.exe` is what the official installer writes, and a
+# bare "claude" matches nothing there.
+_SUFFIXES = ("", ".exe", ".cmd", ".bat")
+
+
+def claude_binary() -> str | None:
+    """Where the Claude CLI is, or None if it is not on this machine.
+
+    PATH is asked first and is not the whole answer.  The official installer
+    writes `~/.local/bin/claude.exe` on Windows and says so, then warns that
+    the directory is not on PATH and asks the person to add it by hand
+    through System Properties.  So the ordinary outcome of a successful
+    install is a CLI that exists and that `shutil.which` cannot see, and
+    NextTex told the user "The Claude CLI did not install" while it sat
+    there, installed, with the installer's own success message still on
+    screen above.
+
+    The fallback used to check `~/.local/bin/claude` with no extension,
+    which is the same mistake as running `tlmgr` by a name Windows cannot
+    resolve: the file was found by the eye and missed by the code.
+    """
     # A test points this at a stand-in that answers `auth status` and `auth
     # login` predictably.  Everything else about the sign-in -- the
     # pseudo-terminal, the pump, the URL it finds, the `done` it ends with
@@ -79,9 +100,19 @@ def _claude() -> str | None:
     stand_in = os.environ.get("NEXTTEX_CLAUDE_BINARY", "")
     if stand_in:
         return stand_in if os.path.exists(stand_in) else None
-    return shutil.which("claude") or (
-        str(p) if (p := os.path.expanduser("~/.local/bin/claude")) and os.path.exists(p) else None
-    )
+    found = shutil.which("claude")
+    if found:
+        return found
+    base = os.path.expanduser("~/.local/bin/claude")
+    for suffix in _SUFFIXES:
+        if os.path.exists(base + suffix):
+            return base + suffix
+    return None
+
+
+# The old private name, kept because this module uses it in five places and
+# renaming them adds nothing.
+_claude = claude_binary
 
 
 def status() -> dict:
