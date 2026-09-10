@@ -38,3 +38,21 @@ for (const theme of ["light", "dark"] as const) {
     await tab.screenshot({ path: `../docs/screenshot-${theme}.png` });
   });
 }
+
+/** The editor lit apart from the shell, which is the one thing about this
+ *  app that a screenshot explains faster than a sentence: a dark frame
+ *  around a white page, because the page is what is being typeset and the
+ *  frame is not.  Colouring is switched on here and is off by default --
+ *  the README's caption says so -- because the five command families are
+ *  the other half of what this picture is for. */
+test("a white page in a dark shell", async ({ tab }) => {
+  await tab.evaluate(() => {
+    window.localStorage.setItem("nexttex.theme", "dark");
+    window.localStorage.setItem("nexttex.editor.theme", "white");
+    window.localStorage.setItem("nexttex.editor.syntax", "colour");
+  });
+  await tab.setViewportSize({ width: 1680, height: 1000 });
+  await tab.reload();
+  await stage(tab);
+  await tab.screenshot({ path: "../docs/screenshot-white-page.png" });
+});

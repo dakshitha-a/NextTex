@@ -20,7 +20,7 @@ the tab. No database, no Docker, no nginx.
 ## Highlights
 
 - **The page follows your typing.** An ordinary edit typesets only the section
-  you are in, measured at 357 ms on a forty-file project.
+  you are in, measured at 339 ms on a forty-file project.
 - **Nothing is ever unsaved.** A keystroke goes into the document as it is
   made and the file follows a moment later, so there is no save to lose, no
   dirty dot, and two windows on one project cannot overwrite each other.
@@ -40,14 +40,20 @@ the tab. No database, no Docker, no nginx.
   a wrong DOI is refused rather than added.
 - **Reading and writing modes**: double-click a pane header to give it the
   window, and again to get your layout back.
-- **The editor is lit on its own terms.** Light, dark, or matching the
-  interface, so a dark shell can hold a white page. The syntax colours and
-  the gutter follow it.
+- **The editor is lit on its own terms.** Six pages to choose from —
+  matching the interface, the proofing grey, white, warm white, cool white,
+  or dark — so a dark shell can hold a white page. The syntax colours, the
+  gutter and the text's weight all follow the page rather than the frame.
+- **Colour the commands, if you want them coloured.** Off by default, because
+  the typeset page two panes away has to stay the loudest thing on screen.
+  Turned on, sectioning, environments, mathematics, citations and the
+  preamble each take a hue, which is what makes a long chapter skimmable for
+  its shape rather than its words.
 - **Search and drag in the file list**, with open files following a folder
   that moves.
 - **Choose Claude, OpenAI, or no agent at all.** The last is a real option,
   not a degraded one, and the choice can be changed later in the settings
-  card rather than only when you first sign in.
+  sheet rather than only when you first sign in.
 - **Write it with somebody, without a server.** Share a project and their
   NextTex holds a whole copy of it: you see each other's typing and each
   other's cursors, and anything either of you wrote offline is merged rather
@@ -251,7 +257,7 @@ history and a GitHub backup, is in
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/pipeline-dark.svg">
-  <img alt="From a keystroke to the page: 250 ms held, 1.6 s of quiet, 357 ms in latexmk." src="docs/pipeline-light.svg">
+  <img alt="From a keystroke to the page: 250 ms held, 1.6 s of quiet, 339 ms in latexmk." src="docs/pipeline-light.svg">
 </picture>
 
 When a document uses `\include`, an ordinary edit typesets only the section
@@ -270,15 +276,17 @@ makes typing slower on the day it happens.
 
 | | measured | budget |
 |---|---|---|
-| Chapter build, as an edit triggers | 357 ms | 4 s |
-| Full build with `biber` | 19.2 s | 30 s |
-| Full symbol scan | 19.3 ms | 400 ms |
+| Chapter build, as an edit triggers | 339 ms | 4 s |
+| Full build with `biber` | 18.2 s | 30 s |
+| Full symbol scan | 18.9 ms | 400 ms |
 | Symbol lookup, cached | 0.92 ms | 6 ms |
-| Recording a version | 1.88 ms | 8 ms |
-| Rebuilding a transcript | 9.5 ms | 120 ms |
+| Opening a project | 103 ms | 400 ms |
+| Recording a version | 2.5 ms | 8 ms |
+| Rebuilding a transcript | 13.0 ms | 120 ms |
 | Project file tree | 3.3 ms | 250 ms |
-| Whole project as a zip | 69 ms | 3 s |
-| Interface bundle | 736 kB | 760 kB |
+| A collaborator's edit, applied | 3.4 ms | 40 ms |
+| Whole project as a zip | 65 ms | 3 s |
+| Interface bundle | 773.5 kB | 782 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -286,7 +294,16 @@ threw the index away and rescanned the project, 1.6 seconds after every pause
 in typing. If that comes back, the cached lookup goes from about one
 millisecond to about twenty.
 
-`scripts/check.sh --bench` runs it.
+Two of those are worth a footnote. *Opening a project* is what you wait for
+after clicking one in the list — the tree walk, the transcript and the scan
+that decides what else could be previewed — and all of it used to happen on
+the event loop, so for an eighth of a second nobody else's autosave or
+collaborator got a turn. And a kilobyte in the last row is 1024 bytes; vite's
+own console figure counts it as 1000, so a number read off the build output is
+not this measurement and the two should not be compared.
+
+`scripts/check.sh --bench` runs it, and the bundle row alone runs in
+`scripts/check.sh --all`, straight after the build that produces it.
 </details>
 
 ### It tells you what the error means
@@ -416,6 +433,11 @@ Share a project and you get an invite to send. Whoever opens it gets the
 whole project — every file, and what those files used to say — into an empty
 folder of their own, and from then on the two copies stay in step.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg">
+  <img alt="Two NextTex installs, each holding a whole copy, connected directly and encrypted to the other's public key, with a relay that forwards ciphertext only when a direct route cannot be made." src="docs/collab-light.svg">
+</picture>
+
 **Both of you keep a whole copy.** Not a cache of somebody else's: your own
 files, your own version history, your own git repository and your own
 backups. If the other person's laptop is shut, or yours is, both of you carry
@@ -451,6 +473,28 @@ your own `.git`, so committing and pushing are yours alone — pull between
 sessions rather than during one, because a pull replaces a whole file and
 will win against a collaborator's untouched paragraphs. And your conversation
 with the agent is yours: the writing is shared, the chat is not.
+
+### The page you write on
+
+The editor is lit on its own terms, because the shell and the page are
+answering different questions. The frame is chrome and plenty of people want
+it out of the way in the dark; the page is the thing being typeset, and a
+writer who thinks in paper wants that white whatever the frame is doing. Six
+grounds — matching the interface, the proofing grey, white, warm white, cool
+white, dark — and the syntax colours, the gutter and the text's weight all
+follow the page rather than the frame. Dark type on a bright ground looks
+thinner than light type on a dark one, so a light page sets the text a step
+heavier on its own; the weight is a control of its own if that lands wrong.
+
+Colouring the commands is off by default, because the typeset page two panes
+away has to stay the loudest thing on screen. Turned on, it gives sectioning,
+environments, mathematics, citations and the preamble a hue each, which is
+what makes a long chapter skimmable for its shape rather than its words.
+
+<img alt="A white page inside a dark shell, with the command families coloured: the file list and agent panel stay dark while the editor is white." src="docs/screenshot-white-page.png">
+
+*A dark shell holding a white page, with colouring switched on. Both are
+settings; neither is the default.*
 
 ### Panes, and two modes
 
@@ -581,7 +625,7 @@ gets in. That browser is then asked to set a password, the way JupyterLab
 does, and once there is one every browser after it gets a sign-in page.
 Signing in issues *that browser* its own session rather than handing it the
 install's token, so no browser is holding the master credential, and the
-settings card can sign the others out — useful when the one you left signed
+settings sheet can sign the others out — useful when the one you left signed
 in is a laptop you no longer have. The token stays as the way back in, as a query parameter or an
 `x-nexttex-token` header, so scripts are unaffected and a forgotten password
 is recoverable from the machine itself.
@@ -623,7 +667,7 @@ name = "My Thesis"
 main = "main.tex"
 build_dir = "build"
 
-# Written by the settings card and yours to edit. Per project rather than
+# Written by the settings sheet and yours to edit. Per project rather than
 # per browser: a forty-file thesis takes twenty seconds to build and a
 # one-page note takes one.
 autocompile = true      # build as you type; ⌘S builds when this is off
@@ -670,10 +714,10 @@ there, and somebody would have to invite you back.
 
 ## Documentation
 
-There is a tutorial inside the app: the cog in the file list's masthead has a
-**Tutorial** entry, and the projects screen has a question mark beside its
-cog. Both explain what is on the screen you are looking at, which is usually
-faster than the files below.
+There is a tutorial inside the app: the cog in the file list's masthead
+opens Settings, which has a **Tutorial** button at its foot, and the projects
+screen has a question mark beside its own cog. Both explain what is on the
+screen you are looking at, which is usually faster than the files below.
 
 - [docs/architecture.md](docs/architecture.md): how it works inside. What the
   parts are, what each one owns, and why the awkward decisions are the way
