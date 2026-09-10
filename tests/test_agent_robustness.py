@@ -354,3 +354,65 @@ def test_the_pair_of_hooks_brackets_a_running_call(tmp_path):
     during, after = asyncio.run(scenario())
     assert during
     assert not after
+
+
+def test_a_dead_client_is_not_kept_for_the_next_question(tmp_path):
+    """The second half of a real incident, and the worse half.
+
+    A figure the agent had just drawn was read back, and the image came
+    over the wire as a JSON line larger than the SDK would frame, so the
+    reader died mid-turn.  That much is one lost answer.  What made it a
+    lost conversation is that the client stayed cached: it was still an
+    object, so every later question went to a transport that would never
+    speak again and came back in under two milliseconds saying the
+    connection had ended.  The writer's only way out was a new
+    conversation, which loses the thread.
+    """
+    subject = make_agent(tmp_path)
+    dead = StubClient(messages=[])
+    subject._client = dead
+
+    async def run():
+        await subject.ask("does this end?")
+        return await drain(subject)
+
+    asyncio.run(run())
+    assert subject._client is None
+    assert dead.disconnected
+
+
+def test_a_client_whose_transport_raised_is_thrown_away(tmp_path):
+    """The same recovery for the loud version of the same failure."""
+    subject = make_agent(tmp_path)
+    dead = StubClient(raises=RuntimeError("the transport went away"))
+    subject._client = dead
+
+    async def run():
+        await subject.ask("and this?")
+        return await drain(subject)
+
+    asyncio.run(run())
+    assert subject._client is None
+
+
+def test_dropping_a_dead_client_leaves_a_fresh_one_alone(tmp_path):
+    """A drop names the client it is dropping, so a rebuild that has
+    already happened is not undone by a late arrival."""
+    subject = make_agent(tmp_path)
+    dead, fresh = StubClient(), StubClient()
+    subject._client = fresh
+    asyncio.run(subject._drop_client(dead))
+    assert subject._client is fresh
+    assert not fresh.disconnected
+
+
+def test_the_stdout_guard_clears_an_image_sized_message(tmp_path):
+    """The first half of that incident: the SDK frames the CLI's stdout as
+    one JSON line per message and refuses a line over a megabyte, which a
+    290 KB figure exceeded.  Base64 costs a third, and the PostToolUse
+    hook means the result crosses twice, so the ceiling has to sit well
+    above the largest image the model will accept rather than just above
+    the last one that broke it."""
+    options = make_agent(tmp_path)._options()
+    assert options.max_buffer_size is not None
+    assert options.max_buffer_size >= 32 * 1024 * 1024

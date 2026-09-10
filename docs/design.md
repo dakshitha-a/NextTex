@@ -3156,3 +3156,48 @@ It does not; the `return` is after the loop. The report's rendering of the
 indentation was misleading. It is written down here because it was nearly
 acted on, and a fix to code that is already right is how a real bug gets
 introduced.
+
+## 27. A figure the agent could not look at
+
+The agent wrote a script that drew a figure, ran it, and then read the PNG
+back to see whether the panels were right. That read killed the session.
+The reader raised `CLIJSONDecodeError`, the turn stopped mid-sentence, and
+every question typed afterwards came back in under two milliseconds saying
+the connection to the model had ended. Only a new conversation worked, and
+a new conversation loses the thread that made the figure worth checking.
+
+Two separate faults, and the second one is the expensive one.
+
+**The wire carries an image twice.** The SDK frames the CLI's stdout as
+newline-delimited JSON and refuses any single line over a megabyte, which
+sounds generous until an image is involved. Base64 adds a third. The
+`PostToolUse` hook adds the rest: with a hook registered, the CLI sends the
+result out once as a control request so the hook can see it, and again in
+the user message. A 290 KB figure measured 576 KB in the control request
+and 1,151,564 bytes in the user message. Without the hook the same read
+produces an 851 KB line and squeaks under the limit, which is why this is a
+failure shaped like NextTex rather than one everybody hits.
+
+The ceiling is now sixty-four megabytes. Not "enough for that figure":
+enough for any image the model will accept, because the guard bounds the
+length of a line rather than the size of an allocation, so being generous
+costs nothing and being exact costs another incident.
+
+**A dead client is still an object.** When the reader died, the client
+stayed in `self._client`, connected to a subprocess whose reader task was
+gone. It answered `receive_response` the way a closed stream does, by
+ending at once, so the turn fell straight through to the path that reports
+a stream with no result. That path was working exactly as written. What
+nobody had considered is that it would be reached again on the next
+question, and the one after, for ever.
+
+So both endings now drop the client: the one that raises and the one that
+quietly stops. The next question builds another, and because the session id
+is on disk the new client resumes the same conversation, which is the point.
+The drop names the client it is dropping, so a rebuild that has already
+happened elsewhere is not undone by a late arrival.
+
+There is a shape here worth keeping. A failure that loses one answer is an
+incident; a failure that poisons the cache is an outage. Anything held
+between turns has to be asked, when a turn ends badly, whether it is still
+worth holding.

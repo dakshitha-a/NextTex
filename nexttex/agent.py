@@ -1463,6 +1463,18 @@ class ProjectAgent:
             # The project's own CLAUDE.md and settings load; NextTex's do not.
             setting_sources=["project"],
             include_partial_messages=True,
+            # The SDK frames the CLI's stdout as one JSON line per message
+            # and refuses a line over its 1 MiB default, which is not much
+            # once a figure is involved.  An image tool result is base64,
+            # so a third larger than the file, and the PostToolUse hook
+            # below makes the CLI ship it twice: once as a control request
+            # carrying the result to the hook, and once in the user
+            # message.  A 290 KB PNG measured 1.15 MB on the wire and
+            # killed the reader mid-turn.  Reading a figure it has just
+            # drawn is ordinary work here, so the guard is raised well
+            # clear of it.  It bounds a line rather than an allocation, so
+            # a generous number costs nothing.
+            max_buffer_size=64 * 1024 * 1024,
             # allowed_tools is deliberately empty and can_use_tool is
             # deliberately unset.  An entry in either shadows the PreToolUse
             # hook for that tool, and the hook is the fence.  Read-only tools
@@ -1498,6 +1510,31 @@ class ProjectAgent:
         if client is not None:
             try:
                 await client.disconnect()
+            except Exception:
+                pass
+
+    async def _drop_client(self, client: ClaudeSDKClient | None = None) -> None:
+        """Throw away a client whose transport has died.
+
+        A transport that fails mid-turn leaves a client that is still an
+        object but will never yield another message.  Keeping it cached
+        turns one broken turn into a broken conversation: every later
+        question returns instantly with nothing, which the writer reads as
+        the connection having ended, for ever, with a new conversation the
+        only way out.  Dropping it lets `_ensure_client` build another,
+        and because the session id is saved that one resumes where this
+        one stopped, so the conversation on screen survives.
+
+        `client` is the one the caller was using.  If something else has
+        already replaced it, that fresh client is left alone.
+        """
+        current = self._client
+        if client is not None and current is not client:
+            return
+        self._client = None
+        if current is not None:
+            try:
+                await current.disconnect()
             except Exception:
                 pass
 
@@ -1597,6 +1634,12 @@ class ProjectAgent:
             raise
         except Exception as exc:  # a crashed turn must not stall the UI
             log.exception("the agent turn failed")
+            # The transport is what usually fails here -- the CLI exiting,
+            # or a message the reader could not frame -- and a client whose
+            # transport has died never speaks again.  Dropping it on any
+            # crash costs at worst one rebuilt process on the next
+            # question; keeping a dead one costs the conversation.
+            await self._drop_client()
             await self._emit({
                 "type": "error",
                 "message": f"{type(exc).__name__}: {exc}",
@@ -1752,6 +1795,9 @@ class ProjectAgent:
             # stops rather than raising.  Nothing here would have noticed.
             self._last_used = time.monotonic()
             log.warning("the model stream ended without a result")
+            # A stream that stops without a result has usually lost its
+            # transport, and this client will never answer again.
+            await self._drop_client(client)
             await self._emit({
                 "type": "error",
                 "message": "The connection to the model ended before the answer did.",
