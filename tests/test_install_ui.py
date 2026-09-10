@@ -86,7 +86,12 @@ def test_the_lines_downstream_matches_on_survive():
     assert "interface" in console.stream.getvalue()
 
 
-def test_with_a_terminal_the_line_is_redrawn_in_place():
+def test_with_a_terminal_the_line_is_redrawn_in_place(monkeypatch):
+    # A real terminal, and nothing telling the installer it is in CI.
+    # GitHub sets CI on every runner, and the animation is deliberately off
+    # there, so without this the test asserts the opposite of the intended
+    # behaviour on the one machine that is not a laptop.
+    monkeypatch.delenv("CI", raising=False)
     parent, child = pty.openpty()
     try:
         stream = os.fdopen(child, "w", buffering=1)
@@ -103,6 +108,24 @@ def test_with_a_terminal_the_line_is_redrawn_in_place():
         os.close(parent)
     assert "\r" in seen, "an animated run never redrew its line"
     assert "Installing" in seen
+
+
+def test_a_terminal_in_ci_still_gets_the_plain_output(monkeypatch):
+    """A build log is read afterwards, not watched, so a spinner in one is
+    thousands of redraws nobody ever saw.
+
+    This is not hypothetical: the two tests above passed on a laptop and
+    failed on every GitHub runner, because the runners set CI and the
+    animation is off there by design. The behaviour was right and the tests
+    were asserting the wrong thing on the one machine that is not a laptop.
+    """
+    monkeypatch.setenv("CI", "true")
+    parent, child = pty.openpty()
+    try:
+        console = ui.Console(stream=os.fdopen(child, "w", buffering=1))
+        assert console.animate is False
+    finally:
+        os.close(parent)
 
 
 def test_a_console_that_cannot_print_a_spinner_gets_one_it_can():
@@ -131,6 +154,7 @@ def test_a_utf8_console_gets_the_good_spinner():
 def test_the_output_is_truncated_to_the_width_of_the_terminal(monkeypatch):
     import shutil as shutil_mod
 
+    monkeypatch.delenv("CI", raising=False)
     monkeypatch.setattr(ui.shutil, "get_terminal_size",
                         lambda default=(80, 24): os.terminal_size((60, 24)))
     parent, child = pty.openpty()
