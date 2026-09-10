@@ -21,18 +21,180 @@
   step has not been tested, and shipping an untested TLS path is worse
   than not offering it.
 
+.PARAMETER Dir
+  Where to install, when you would rather not be asked. The default is
+  ~\apps\NextTex, and NEXTTEX_DIR does the same job. Only meaningful on a
+  first install: run from inside a checkout this is already decided.
+
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+
+.EXAMPLE
+  irm https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.ps1 | iex
+
+.EXAMPLE
+  # `iex` has no way to pass arguments. To give one, build the script block:
+  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.ps1))) -Dir 'D:\NextTex'
 #>
 [CmdletBinding()]
 param(
   [switch]$Yes,
   [ValidateSet('localhost')]
-  [string]$Bind = 'localhost'
+  [string]$Bind = 'localhost',
+  [string]$Dir = ''
 )
 
 $ErrorActionPreference = 'Stop'
-Set-Location (Join-Path $PSScriptRoot '..')
+
+# ---------------------------------------------------------------------------
+# Two modes, one script -- the arrangement scripts/install.sh has had all
+# along, and which this file was missing.
+#
+# Run from a checkout, with `-File scripts\install.ps1`, $PSScriptRoot points
+# at that checkout and we install it.  Fetched and evaluated instead, with
+# the `irm ... | iex` line the README gives, the script never becomes a file
+# on disk: $PSScriptRoot is the empty string, `Join-Path` refuses an empty
+# Path, and the install died on its first statement with
+#
+#     Cannot bind argument to parameter 'Path' because it is an empty string.
+#
+# So there is a clone step here now.  It is the only way the documented
+# Windows command has ever been able to work.
+
+function Test-Interactive {
+  # A scheduled task, a CI step or a remote session has nobody at the
+  # keyboard, and Read-Host there either throws or blocks for ever.  Unlike
+  # the shell installer this needs no /dev/tty dance: `irm | iex` hands the
+  # script to the parser as a string and never touches stdin, so the console
+  # is still the console.
+  if ($Yes) { return $false }
+  try { return [Environment]::UserInteractive } catch { return $false }
+}
+
+function Resolve-Target {
+  param([string]$Path)
+  $Path = $Path.Trim().Trim('"').Trim("'")
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+  # PowerShell only expands ~ for its own providers, and never in a string
+  # that came from Read-Host, so "~\code\NextTex" would otherwise become a
+  # directory actually called "~".  The tail is checked for emptiness
+  # because Join-Path refuses an empty ChildPath -- somebody answering "~\"
+  # would otherwise be handed the same complaint about an empty string that
+  # this whole bootstrap exists to stop.
+  if ($Path -eq '~') {
+    $Path = $HOME
+  } elseif ($Path.StartsWith('~\') -or $Path.StartsWith('~/')) {
+    $tail = $Path.Substring(2).Trim()
+    if ($tail) { $Path = Join-Path $HOME $tail } else { $Path = $HOME }
+  }
+  if (-not [System.IO.Path]::IsPathRooted($Path)) {
+    $Path = Join-Path (Get-Location).Path $Path
+  }
+  return [System.IO.Path]::GetFullPath($Path)
+}
+
+$scriptDir = $PSScriptRoot
+if (-not $scriptDir -and $MyInvocation.MyCommand.Path) {
+  $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+
+if ($scriptDir -and (Test-Path (Join-Path $scriptDir '..\requirements.txt'))) {
+  Set-Location (Join-Path $scriptDir '..')
+} else {
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host ''
+    Write-Host 'NextTex needs git.' -ForegroundColor Red
+    Write-Host '  winget install --id Git.Git -e'
+    return
+  }
+
+  $default = Join-Path $HOME 'apps\NextTex'
+  # Two plain statements rather than if/elseif split over lines: this file
+  # already writes `} elseif (` on one line everywhere else, and matching it
+  # is free.
+  $target = ''
+  if ($Dir) { $target = $Dir }
+  if (-not $target -and $env:NEXTTEX_DIR) { $target = $env:NEXTTEX_DIR }
+
+  if (-not $target) {
+    if (-not (Test-Interactive)) {
+      $target = $default
+    } else {
+      Write-Host ''
+      Write-Host 'Where should NextTex be installed?' -ForegroundColor White
+      Write-Host '  Everything it needs lives in this one directory, including its'
+      Write-Host '  Python environment. Your projects live outside it and are not'
+      Write-Host '  touched by an install, an update or an uninstall.'
+      while ($true) {
+        $answer = Read-Host "  Directory [$default]"
+        if ([string]::IsNullOrWhiteSpace($answer)) { $answer = $default }
+        $answer = Resolve-Target $answer
+        if (-not $answer) { $answer = Resolve-Target $default }
+        # An existing checkout is fine -- that is the update path below.  So
+        # is a directory that does not exist yet, and so is an empty one.
+        # Anything else would have git refuse with a message about the
+        # working tree rather than about the answer just given.
+        if (Test-Path (Join-Path $answer '.git')) { $target = $answer; break }
+        if (-not (Test-Path $answer)) { $target = $answer; break }
+        if ((Test-Path $answer -PathType Container) -and -not (
+              Get-ChildItem -Force -LiteralPath $answer -ErrorAction SilentlyContinue)) {
+          $target = $answer; break
+        }
+        if (Test-Path $answer -PathType Container) {
+          Write-Host "  $answer already has something in it." -ForegroundColor Red
+          Write-Host '  Choose an empty directory, or an existing NextTex checkout to update.'
+        } else {
+          Write-Host "  $answer is a file." -ForegroundColor Red
+        }
+      }
+    }
+  }
+  $target = Resolve-Target $target
+  if (-not $target) { $target = Resolve-Target $default }
+
+  # Written out rather than as `$x = if (...) {...} else {...}` across two
+  # lines, which Windows PowerShell 5.1 does not reliably parse.
+  $repo = 'https://github.com/dakshitha-a/NextTex.git'
+  if ($env:NEXTTEX_REPO) { $repo = $env:NEXTTEX_REPO }
+
+  if (Test-Path (Join-Path $target '.git')) {
+    Write-Host ''
+    Write-Host "Updating the checkout at $target" -ForegroundColor White
+    & git -C $target pull --ff-only
+  } else {
+    Write-Host ''
+    Write-Host "Cloning into $target" -ForegroundColor White
+    $parent = Split-Path -Parent $target
+    if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    & git clone --quiet $repo $target
+  }
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host ''
+    Write-Host 'git could not fetch NextTex.' -ForegroundColor Red
+    return
+  }
+
+  # Re-run from inside the checkout, where $PSScriptRoot is a real path.
+  # -Dir is deliberately not forwarded: we are already standing in the
+  # directory it chose, and the branch above will take the Set-Location.
+  #
+  # The current host's own executable rather than the string 'powershell',
+  # so somebody running PowerShell 7 does not get dropped into Windows
+  # PowerShell 5.1 halfway through their own install.
+  $forward = @()
+  if ($Yes) { $forward += '-Yes' }
+  if ($PSBoundParameters.ContainsKey('Bind')) { $forward += @('-Bind', $Bind) }
+  $psExe = $null
+  try { $psExe = (Get-Process -Id $PID).Path } catch { $psExe = $null }
+  if (-not $psExe) { $psExe = 'powershell' }
+
+  & $psExe -NoProfile -ExecutionPolicy Bypass `
+      -File (Join-Path $target 'scripts\install.ps1') @forward
+  # `return`, not `exit`: under `irm | iex` there is no script for exit to
+  # end, so it would close the window the person is watching.
+  return
+}
+
 $Root = (Get-Location).Path
 $State = Join-Path $env:LOCALAPPDATA 'nexttex'
 New-Item -ItemType Directory -Force -Path $State | Out-Null
@@ -44,7 +206,10 @@ function Have { param($n) [bool](Get-Command $n -ErrorAction SilentlyContinue) }
 
 function Confirm-Step {
   param([string]$Question, [string]$Default = 'y')
-  if ($Yes) { return $Default -eq 'y' }
+  # Test-Interactive already covers -Yes, and also covers the case -Yes was
+  # never meant to: a host with nobody at the keyboard, where Read-Host
+  # throws rather than returning an empty answer.
+  if (-not (Test-Interactive)) { return $Default -eq 'y' }
   $answer = Read-Host "  $Question [$(if ($Default -eq 'y') { 'Y/n' } else { 'y/N' })]"
   if ([string]::IsNullOrWhiteSpace($answer)) { return $Default -eq 'y' }
   return $answer -match '^[Yy]'

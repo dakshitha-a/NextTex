@@ -72,6 +72,13 @@ On Windows, in PowerShell:
 irm https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.ps1 | iex
 ```
 
+`iex` has no way to pass an argument, so if you want to answer something in
+advance rather than being asked, build the script block instead:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.ps1))) -Dir 'D:\NextTex'
+```
+
 It asks where to put itself, offering `~/apps/NextTex`, and installs from
 there. Press return to take the default, or give it any empty directory —
 `--dir=PATH`, or `NEXTTEX_DIR`, answers in advance, and an install with no
@@ -538,10 +545,15 @@ it does anywhere. The installer treats iroh as optional for the same reason —
 a missing build costs you the one feature, not the install.
 
 **Windows support is written but unverified.** `scripts/install.ps1` exists
-and the server no longer imports POSIX-only modules at startup, but nobody has
-run it on Windows yet. Signing in to Claude from the browser needs a
-pseudo-terminal, which Windows does not have, so run `claude auth login` in a
-terminal once or use an OpenAI key. Reports welcome.
+and the server no longer imports POSIX-only modules at startup, but no install
+has yet been carried all the way through to a running server. The `irm ... |
+iex` line above went straight to *"Cannot bind argument to parameter 'Path'
+because it is an empty string"* until recently: the script had no clone step,
+so `$PSScriptRoot` was empty and it fell over on its first statement. That is
+fixed, and it is a fair example of what may still be waiting further in.
+Signing in to Claude from the browser needs a pseudo-terminal, which Windows
+does not have, so run `claude auth login` in a terminal once or use an OpenAI
+key. Reports welcome.
 
 ## Requirements
 
