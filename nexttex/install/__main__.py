@@ -56,6 +56,10 @@ def parse_args(argv=None) -> argparse.Namespace:
                         const="yes", default="")
     parser.add_argument("--no-service", dest="service", action="store_const",
                         const="no")
+    parser.add_argument("--shortcut", dest="shortcut", action="store_const",
+                        const="yes", default="")
+    parser.add_argument("--no-shortcut", dest="shortcut", action="store_const",
+                        const="no")
     parser.add_argument("--instance", default=os.environ.get("NEXTTEX_INSTANCE", ""))
     parser.add_argument("--root", default="", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
@@ -99,7 +103,7 @@ def main(argv=None) -> int:
     show_survey(console, result)
 
     answers = {}
-    for key in ("tex", "agent", "bind", "service"):
+    for key in ("tex", "agent", "bind", "service", "shortcut"):
         value = getattr(args, key)
         if value:
             answers[key] = value
@@ -215,9 +219,18 @@ def show_plan(console: Console, plan) -> None:
         for line in lines[1:]:
             console.write(indent + line)
     console.write("")
+    # The promise is the reason the desktop shortcut is on the plan at all.
+    # Writing a file to somebody's desktop under a sentence saying nothing
+    # outside this directory is written would make the sentence false, and
+    # that sentence is most of why anybody trusts the screen above it.
+    outside = []
     if plan.choice("tex") in ("tinytex", "miktex"):
+        outside.append("TeX, in its own folder in your home directory")
+    if plan.choice("shortcut") == "yes":
+        outside.append("a shortcut on your desktop")
+    if outside:
         console.paragraph("Nothing outside this directory is written except "
-                          "TeX, in its own folder in your home directory.")
+                          + " and ".join(outside) + ".")
     else:
         console.paragraph("Nothing outside this directory is written.")
 
@@ -421,9 +434,54 @@ def execute(console: Console, plan, root: Path, platform: str,
     else:
         console.skipped("not set up", _start_yourself(root, platform))
 
+    # 7 -- a shortcut on the desktop -----------------------------------------
+    console.write("")
+    console.note(console.bold(f"{counter(7)} Desktop"))
+    if plan.choice("shortcut") == "yes":
+        install_shortcut(console, root, platform, instance, notes)
+    else:
+        console.skipped("not made", "open NextTex from the address below")
+
     ready(console, root, platform, instance, notes, agent,
           started=plan.choice("service") == "yes")
     return 0
+
+
+def install_shortcut(console: Console, root: Path, platform: str,
+                     instance: str, notes: list) -> None:
+    """Put something double-clickable where the person will find it.
+
+    It is never worth failing an install over.  Somebody whose desktop is
+    read-only, or who has no desktop at all, has a working NextTex either
+    way, and the address is printed a few lines below regardless.  So every
+    outcome here is a note at worst.
+    """
+    from . import desktop
+
+    if platform == "windows":
+        # Through `Console.run`, like every other child process, and in
+        # PowerShell because a .lnk is a COM object and because only
+        # GetFolderPath knows where the desktop is once OneDrive has moved
+        # it.
+        made = console.run("Making the desktop shortcut",
+                           desktop.shortcut_argv(root, instance), cwd=root)
+        if not made.ok:
+            notes.append("the desktop shortcut could not be made; nothing "
+                         "else is affected and the address below still works")
+        return
+
+    try:
+        where = desktop.write(root, platform, Path.home(),
+                              steps.venv_python(root, platform), instance)
+    except OSError as error:
+        console.skipped("not made", str(error))
+        notes.append("the desktop shortcut could not be made; nothing else "
+                     "is affected and the address below still works")
+        return
+    if where is None:
+        console.skipped("no desktop here", "nothing to put a shortcut on")
+    else:
+        console.done(str(where))
 
 
 def install_service(console: Console, root: Path, platform: str, instance: str,

@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..tools import TEX_HINTS, TOOLS
+from .desktop import desktop_dir
 
 # What the installer will do about a thing that is not here.
 PRESENT = "present"        # nothing to do
@@ -123,6 +124,10 @@ class Survey:
     claude: str = ""
     node_major: int = 0
     tailscale: bool = False
+    # Whether there is a desktop to put a shortcut on.  Only ever
+    # false on Linux, where NextTex runs on headless boxes reached
+    # from another machine and inventing a ~/Desktop would be rude.
+    desktop: bool = True
     service: str = ""          # "systemd", "launchd", "windows" or ""
     service_running: bool = False
     interface_present: bool = False
@@ -320,6 +325,8 @@ def survey(
                     why="pdflatex, latexmk and synctex; nothing can be typeset "
                         "without them"))
 
+    result.desktop = platform != "linux" or bool(
+        desktop_dir(Path.home(), environ, is_dir=exists))
     result.tlmgr = bool(tex_tool("tlmgr", result.tex_dir, which=which, exists=exists))
     result.missing_tex_extras = [
         name for name in TEX_EXTRAS

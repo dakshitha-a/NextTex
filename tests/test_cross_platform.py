@@ -850,3 +850,90 @@ def test_no_claude_anywhere_is_still_no_claude(tmp_path, monkeypatch):
     monkeypatch.setattr(shutil_module, "which", lambda _name: None)
 
     assert claude_auth.claude_binary() is None
+
+
+# ---------------------------------------------------------------------------
+# The shortcut on the desktop
+
+
+def test_a_headless_machine_gets_no_desktop_invented_for_it(tmp_path):
+    """NextTex runs on boxes reached from another machine. Creating a
+    `~/Desktop` on one of those would be inventing a directory nobody asked
+    for, so the absence is an answer rather than something to fix."""
+    from nexttex.install.desktop import desktop_dir, write
+
+    home = tmp_path / "home"
+    home.mkdir()
+    assert desktop_dir(home, environ={}) is None
+    assert write(tmp_path / "root", "linux", home, Path("/usr/bin/python3"),
+                 environ={}) is None
+
+
+def test_a_translated_desktop_is_the_one_used(tmp_path):
+    """`XDG_DESKTOP_DIR` first: a desktop called Skrivebord with a `~/Desktop`
+    beside it means the file manager shows the first and the shortcut would
+    have gone in the second."""
+    from nexttex.install.desktop import desktop_dir
+
+    home = tmp_path / "home"
+    (home / "Skrivebord").mkdir(parents=True)
+    (home / "Desktop").mkdir()
+    found = desktop_dir(home, environ={"XDG_DESKTOP_DIR": '"$HOME/Skrivebord"'})
+    assert found == home / "Skrivebord"
+
+
+def test_the_linux_shortcut_launches_rather_than_bookmarks(tmp_path):
+    """It runs `run.py --open`, not a saved URL. A URL in a file is a copy of
+    the access token that goes stale when the token or the port changes, and
+    it does nothing at all when the server is not running."""
+    from nexttex.install.desktop import write
+
+    home = tmp_path / "home"
+    (home / "Desktop").mkdir(parents=True)
+    root = tmp_path / "NextTex"
+    made = write(root, "linux", home, Path("/opt/py"), environ={})
+
+    assert made == home / "Desktop" / "NextTex.desktop"
+    text = made.read_text(encoding="utf-8")
+    assert "--open" in text
+    assert "run.py" in text
+    assert "Terminal=false" in text
+    assert "token" not in text, "the shortcut must not carry a copy of the token"
+    # A .desktop without the executable bit shows as a text file on GNOME.
+    assert made.stat().st_mode & 0o100
+
+
+def test_the_macos_shortcut_is_runnable(tmp_path):
+    from nexttex.install.desktop import write
+
+    home = tmp_path / "home"
+    (home / "Desktop").mkdir(parents=True)
+    made = write(tmp_path / "NextTex", "macos", home, Path("/opt/py"), environ={})
+
+    assert made == home / "Desktop" / "NextTex.command"
+    assert made.read_text(encoding="utf-8").startswith("#!/bin/sh")
+    assert "--open" in made.read_text(encoding="utf-8")
+    assert made.stat().st_mode & 0o100
+
+
+def test_a_second_install_gets_its_own_shortcut(tmp_path):
+    """Two NextTexes on one machine must not write the same filename over
+    each other, for the same reason they do not share a port."""
+    from nexttex.install.desktop import write
+
+    home = tmp_path / "home"
+    (home / "Desktop").mkdir(parents=True)
+    made = write(tmp_path / "NextTex", "linux", home, Path("/opt/py"),
+                 instance="thesis", environ={})
+    assert made == home / "Desktop" / "NextTex (thesis).desktop"
+
+
+def test_windows_leaves_the_shortcut_to_powershell(tmp_path):
+    """A .lnk is a COM object, and `GetFolderPath('Desktop')` is the only
+    thing that knows where the desktop is once OneDrive has moved it."""
+    from nexttex.install.desktop import shortcut_argv, write
+
+    assert write(tmp_path, "windows", tmp_path, Path("py"), environ={}) is None
+    argv = shortcut_argv(Path("C:/NextTex"), "")
+    assert argv[0] == "powershell"
+    assert "desktop-shortcut.ps1" in " ".join(argv)
