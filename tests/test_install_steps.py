@@ -501,3 +501,42 @@ def test_tlmgr_is_run_by_the_path_it_was_found_at(sandbox, monkeypatch):
               if len(call) > 1 and call[1] == "install" and "biber" in call]
     assert adding, f"tlmgr never ran\n{console.ran}"
     assert adding[0][0] == tlmgr_path, adding[0]
+
+
+def test_the_address_is_checked_rather_than_just_printed():
+    """An install that prints a link and the word Ready has claimed
+    something it never looked at. A server that died on startup left the
+    person with a browser saying the site could not be reached and an
+    installer insisting everything had worked."""
+    import socket
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+    listener.listen(1)
+    try:
+        assert installer._answers(port, timeout=2.0)
+    finally:
+        listener.close()
+
+    # And the same port once nothing is behind it.
+    assert not installer._answers(port, timeout=1.0)
+
+
+def test_the_port_is_read_out_of_whatever_the_server_printed():
+    assert installer._port_of(["http://127.0.0.1:8450/?token=abc"]) == 8450
+    assert installer._port_of(["https://box.tail.ts.net:8451/?token=abc"]) == 8451
+    assert installer._port_of(["nothing here"]) == 0
+    assert installer._port_of([]) == 0
+
+
+def test_nothing_is_checked_when_nothing_was_started(sandbox, monkeypatch):
+    """The check only makes sense where the install undertook to start it.
+    Somebody who said no to starting at login has nothing running on
+    purpose, and telling them so would be noise."""
+    called = []
+    monkeypatch.setattr(installer, "_answers",
+                        lambda port, timeout=20.0: called.append(port) or True)
+    console = Recorder()
+    run_install(console, sandbox, tex="none", service="no")
+    assert called == [], called

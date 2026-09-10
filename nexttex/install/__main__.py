@@ -421,7 +421,8 @@ def execute(console: Console, plan, root: Path, platform: str,
     else:
         console.skipped("not set up", _start_yourself(root, platform))
 
-    ready(console, root, platform, instance, notes, agent)
+    ready(console, root, platform, instance, notes, agent,
+          started=plan.choice("service") == "yes")
     return 0
 
 
@@ -473,7 +474,7 @@ def install_service(console: Console, root: Path, platform: str, instance: str,
 
 
 def ready(console: Console, root: Path, platform: str, instance: str,
-          notes: list, agent: str) -> None:
+          notes: list, agent: str, started: bool = False) -> None:
     console.rule("Ready")
     env = dict(os.environ)
     env["NEXTTEX_INSTANCE"] = instance
@@ -485,6 +486,21 @@ def ready(console: Console, root: Path, platform: str, instance: str,
     for line in url.output:
         console.note(line.strip())
     console.write("")
+    # Printing an address is not the same as there being something at it.
+    # This step used to end here, so an install whose server had died on
+    # startup still printed a link and the word Ready, and the first thing
+    # the person saw was their browser saying the site could not be reached.
+    # Nothing in the install had been checked against the one fact that
+    # matters.
+    if started:
+        port = _port_of(url.output)
+        if port and not _answers(port):
+            notes.append(
+                "NextTex was started but nothing is answering on port "
+                f"{port} yet. The link above will not open until it is. "
+                "Look in ~/.local/share/nexttex/server.err.log, and you can "
+                "always start it yourself with " + _start_yourself(root, platform)
+            )
     console.paragraph("That link contains your access token. Anyone with it "
                       "can read and edit your projects, so treat it like a "
                       "password.")
@@ -521,6 +537,41 @@ def _start_yourself(root: Path, platform: str) -> str:
     return ".venv/bin/python server/run.py"
 
 
+
+
+def _port_of(lines: list) -> int:
+    """The port out of whatever `run.py --print-url` printed, or 0."""
+    import re
+
+    for line in lines:
+        found = re.search(r"https?://[^\s/]+:(\d+)", line)
+        if found:
+            return int(found.group(1))
+    return 0
+
+
+def _answers(port: int, timeout: float = 20.0) -> bool:
+    """Whether anything accepts a connection on the loopback port.
+
+    Generous, because a first start has an interpreter to load and a
+    configuration to read, and impatient afterwards, because a server that
+    is going to answer at all answers quickly once it is up.
+    """
+    import socket
+    import time
+
+    deadline = time.monotonic() + timeout
+    while True:
+        with socket.socket() as probe:
+            probe.settimeout(1.0)
+            try:
+                probe.connect(("127.0.0.1", port))
+                return True
+            except OSError:
+                pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
 
 
 def _missing_tex_extras(tex_dir=None) -> list:
