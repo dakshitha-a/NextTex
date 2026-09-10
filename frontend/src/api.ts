@@ -613,8 +613,11 @@ const api = {
       `/projects/${id}/agent/reset`,
       { method: "POST" },
     ),
-  setAuto: (id: string, on: boolean) =>
-    request<{ auto: boolean }>(`/projects/${id}/agent/auto`, json({ on })),
+  setMode: (id: string, mode: "ask" | "project" | "all") =>
+    request<{ mode: string; auto: boolean }>(
+      `/projects/${id}/agent/mode`,
+      json({ mode }),
+    ),
 
   usage: (id: string) =>
     request<{
@@ -631,8 +634,11 @@ const api = {
       /** Whether a turn is really running.  A browser that thinks one is
        *  has no other way to find out that it is wrong. */
       busy: boolean;
-      /** Whether this agent approves without asking, and whether it is the
-       *  kind of agent that ever asks.  A reload has no other way to know. */
+      /** Where the permission control is, and whether this agent is the
+       *  kind that ever asks. A reload has no other way to know either.
+       *  `auto` travels alongside for one version, for a browser talking
+       *  to an install that has not been updated. */
+      mode: "ask" | "project" | "all";
       auto: boolean;
       asks: boolean;
       /** Cards still waiting on an answer.  A reload loses the card and not

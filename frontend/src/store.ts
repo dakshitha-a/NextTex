@@ -186,8 +186,14 @@ export type State = {
     since: number;
   } | null;
   awaitingPermission: boolean;
-  /** Whether the agent approves without asking. */
-  auto: boolean;
+  /** Where the permission control is, of its three positions.
+   *
+   *  `ask` cards every shell call, every network call and every write that
+   *  leaves the writing, and is the only complete fence. `project` runs the
+   *  work silently, including the piped and chained commands that used to
+   *  card, and still asks about what the fence can see leaving the writing
+   *  or leaving the machine. `all` asks about nothing. */
+  mode: "ask" | "project" | "all";
   git: {
     repository: boolean;
     branch: string;
@@ -263,7 +269,7 @@ const state: State = {
   thinking: false,
   activity: null,
   awaitingPermission: false,
-  auto: false,
+  mode: "ask",
   git: null,
   instance: "",
   contextDocs: [],
@@ -833,7 +839,17 @@ function receive(event: any) {
       clearChat();
       break;
     case "agent_settings":
-      set({ auto: !!event.auto });
+      // `mode` where a current server sends one, and the old boolean where
+      // it does not, so a browser talking to an install that has not been
+      // updated still shows something true.
+      set({
+        mode:
+          event.mode === "project" || event.mode === "all" || event.mode === "ask"
+            ? event.mode
+            : event.auto
+              ? "project"
+              : "ask",
+      });
       break;
     case "renamed":
       // A move in another tab.  The tree refresh that follows would show the

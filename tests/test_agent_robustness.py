@@ -284,7 +284,7 @@ def test_a_long_running_command_is_not_mistaken_for_a_dead_turn(tmp_path, monkey
             await asyncio.sleep(5)
 
         fence._turn = asyncio.create_task(turn())
-        fence.set_auto(True)
+        fence.set_mode("project")
         await fence._pre_tool(
             {"tool_name": "Bash", "tool_input": {"command": "latexmk"}}, "call-1", None
         )

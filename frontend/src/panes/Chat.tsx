@@ -168,20 +168,56 @@ export default function Chat({
     useCallback(() => setModelOpen(false), []),
     modelButton,
   );
-  const auto = useStore((s) => s.auto);
+  const mode = useStore((s) => s.mode);
   // Only the Claude agent ever puts a card up, so only it is offered the
-  // switch: a toggle on the others would promise a change that does not
+  // control: one on the others would promise a change that does not
   // happen.
   const [asks, setAsks] = useState(false);
-  const setAuto = async (on: boolean) => {
+  const [modeOpen, setModeOpen] = useState(false);
+  // The position that asks about nothing is reached through a sentence, not
+  // through a click. Held here rather than inside the popover because the
+  // confirmation opens above the composer, in the same idiom as the
+  // new-conversation question, and the popover closes on the way.
+  const [confirmAll, setConfirmAll] = useState(false);
+  const modeRef2 = useRef<HTMLDivElement | null>(null);
+  const modeButton = useRef<HTMLButtonElement | null>(null);
+  const confirmAllRef = useRef<HTMLDivElement | null>(null);
+  const keepAskingButton = useRef<HTMLButtonElement | null>(null);
+  const closeConfirmAll = useCallback(() => {
+    setConfirmAll(false);
+    modeButton.current?.focus({ preventScroll: true });
+  }, []);
+  const chooseMode = async (chosen: "ask" | "project" | "all") => {
     if (!projectId) return;
+    setModeOpen(false);
+    if (chosen === "all" && mode !== "all") {
+      setConfirmAll(true);
+      // Into the block and onto the safe half of it. The block opens
+      // *above* the composer and its buttons come after the box in the
+      // DOM, so Tab from the trigger walks away from the thing it just
+      // opened; focus has to be moved by hand, and it goes to the answer
+      // that keeps the fence up.
+      window.setTimeout(
+        () => keepAskingButton.current?.focus({ preventScroll: true }),
+        0,
+      );
+      return;
+    }
+    setConfirmAll(false);
     try {
-      await api.setAuto(projectId, on);
-      set({ auto: on });
+      await api.setMode(projectId, chosen);
+      set({ mode: chosen });
     } catch (error: any) {
       set({ error: error.message });
     }
   };
+  useDismiss(
+    modeRef2,
+    modeOpen,
+    useCallback(() => setModeOpen(false), []),
+    modeButton,
+  );
+  useDismiss(confirmAllRef, confirmAll, closeConfirmAll, modeButton);
   /** Switch the model this project's agent answers on. */
   const chooseModel = async (chosen: string) => {
     if (!projectId) return;
@@ -224,7 +260,7 @@ export default function Chat({
         setUsage(answer);
         // A reload has no other way to learn either of these.
         setAsks(!!answer.asks);
-        set({ auto: !!answer.auto });
+        set({ mode: answer.mode ?? (answer.auto ? "project" : "ask") });
       })
       .catch(() => undefined);
   }, [projectId, thinking]);
@@ -331,14 +367,24 @@ export default function Chat({
             <Elapsed since={blocked ? null : current?.since ?? null} />
           </span>
         ) : null}
-        {auto ? (
+        {/* The state, always on screen, as distinct from the control,
+            which is under the composer. A lowered fence that survives a
+            restart has to be visible without opening anything, and it now
+            has to say *which* of the two quiet positions it is in, since
+            they are not the same offer. One click steps back one position,
+            so the way out is never more than that. */}
+        {mode !== "ask" ? (
           <button
             className="t-micro shrink-0 rounded-[3px] border border-warn px-1 text-warn"
             data-testid="auto-chip"
-            title="Every action is approved without asking. Click to turn it off."
-            onClick={() => setAuto(false)}
+            title={
+              mode === "all"
+                ? "Nothing is being asked about, not even a write outside this project. Click to go back to asking about those."
+                : "The work runs without asking. A write outside the project and anything reaching the internet are still asked about. Click to start asking about everything."
+            }
+            onClick={() => chooseMode(mode === "all" ? "project" : "ask")}
           >
-            Auto
+            {mode === "all" ? "Auto, all" : "Auto"}
           </button>
         ) : null}
         <span className="flex-1" />
@@ -473,6 +519,69 @@ export default function Chat({
                 <span className="t-meta block text-ink-2">{action.detail}</span>
               </button>
             ))}
+          </div>
+        ) : null}
+        {/* Turning the fence off entirely is answered in place above the
+            composer, in the same idiom as the new-conversation question and
+            for the same reason: the sentence needs room, and this app has
+            no modals. Three sentences, because the risk has three parts and
+            summarising it into one would be the kind of warning people
+            learn to dismiss. Said once, on the way in, and never again.
+
+            The safe button takes focus, and it is the one that keeps the
+            two remaining cards. */}
+        {confirmAll ? (
+          <div
+            ref={confirmAllRef}
+            id="nx-all-confirm"
+            role="group"
+            aria-label="Stop asking about anything"
+            className="mb-2 flex rounded-[5px] border border-line bg-surface-2"
+          >
+            <span className="w-[3px] shrink-0 rounded-l-[5px] bg-warn" />
+            <div className="min-w-0 flex-1 p-2">
+              <p className="t-meta text-ink">
+                Nothing will ask. The agent will be able to write outside this
+                project, run any command and reach the internet, with no card.
+              </p>
+              <p className="t-meta mt-2 text-ink-2">
+                Some of its instructions come from this project&rsquo;s own
+                files, and those arrive from templates, clones and co-authors.
+                A sentence in somebody else&rsquo;s .bib file is an
+                instruction it may follow.
+              </p>
+              <p className="t-meta mt-2 text-ink-2">
+                Everything is still recorded in this conversation, so you can
+                read afterwards what was done.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-[6px]">
+                <button
+                  ref={keepAskingButton}
+                  className="ghost-button h-[26px] shrink-0 whitespace-nowrap px-3 t-ui"
+                  data-testid="all-keep"
+                  onClick={closeConfirmAll}
+                >
+                  Keep asking about those two
+                </button>
+                <button
+                  className="h-[26px] shrink-0 whitespace-nowrap rounded-[3px] border border-warn px-3 t-ui text-warn"
+                  data-testid="all-confirm"
+                  onClick={async () => {
+                    if (!projectId) return;
+                    setConfirmAll(false);
+                    try {
+                      await api.setMode(projectId, "all");
+                      set({ mode: "all" });
+                    } catch (error: any) {
+                      set({ error: error.message });
+                    }
+                    modeButton.current?.focus({ preventScroll: true });
+                  }}
+                >
+                  Stop asking
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
         {confirmClear ? (
@@ -647,25 +756,64 @@ export default function Chat({
               ) : null}
             </div>
             {/* Only the Claude agent ever puts a card up, so only it is
-                offered the switch: a toggle on the others would promise a
-                change that does not happen. */}
+                offered the control: one on the others would promise a
+                change that does not happen.
+
+                Three positions rather than two, so this is a popover and
+                not a switch: `role="switch"` with `aria-checked` cannot
+                describe three states, and a control that cycles through
+                them on click makes the writer press it twice to find out
+                where they are. The popover opens upward and passes its
+                anchor to `useDismiss`, without which it would close on
+                `pointerdown` and reopen on `click`. */}
             {asks ? (
-              <button
-                className={`${ICON} ${auto ? ICON_ON : ""}`}
-                data-tone={auto ? "warn" : undefined}
-                role="switch"
-                aria-checked={auto}
-                aria-label="Approve everything automatically"
-                title={
-                  auto
-                    ? "Every action is approved without asking. Click to start asking again."
-                    : "Approve everything automatically. Still recorded; a write outside the project is asked about either way."
-                }
-                data-testid="auto-toggle"
-                onClick={() => setAuto(!auto)}
-              >
-                <Bolt />
-              </button>
+              <div className="relative">
+                <button
+                  ref={modeButton}
+                  className={`${ICON} ${mode !== "ask" ? ICON_ON : ""}`}
+                  data-tone={mode !== "ask" ? "warn" : undefined}
+                  aria-haspopup="menu"
+                  aria-expanded={modeOpen}
+                  aria-label={`What to ask about: ${MODE_TITLES[mode]}`}
+                  title="What to ask about"
+                  data-testid="auto-toggle"
+                  onClick={() => setModeOpen((open) => !open)}
+                >
+                  <Bolt />
+                </button>
+                {modeOpen ? (
+                  <div
+                    ref={modeRef2}
+                    role="menu"
+                    data-testid="mode-menu"
+                    className="nx-arrive absolute bottom-[30px] left-0 z-20 w-[288px] rounded-[5px] border border-line bg-surface-2 p-1 shadow-float"
+                  >
+                    {(["ask", "project", "all"] as const).map((option) => (
+                      <button
+                        key={option}
+                        role="menuitemradio"
+                        aria-checked={mode === option}
+                        data-testid={`mode-${option}`}
+                        className={`block w-full rounded-[3px] px-2 py-[6px] text-left transition-colors duration-[90ms] hover:bg-surface-3 ${
+                          mode === option ? "bg-surface-3" : ""
+                        }`}
+                        onClick={() => chooseMode(option)}
+                      >
+                        <span
+                          className={`t-ui block ${
+                            option === "all" ? "text-warn" : "text-ink"
+                          }`}
+                        >
+                          {MODE_TITLES[option]}
+                        </span>
+                        <span className="t-micro mt-[2px] block text-ink-3">
+                          {MODE_NOTES[option]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             {/* The two things that most improve the help, kept reachable.
                 They used to live only in the welcome message, which
@@ -838,6 +986,28 @@ function shorten(text: string, limit = 28): string {
   const tail = line.slice(-(limit - 1));
   return line.includes("/") ? `…${tail}` : `${line.slice(0, limit - 1)}…`;
 }
+
+/** The three positions, in the writer's terms rather than the fence's.
+ *
+ *  Named for what happens, not for how much is switched off: "Run the work
+ *  without asking" says what the middle position does, where "everything
+ *  inside the project" would be a claim the code cannot keep. A piped
+ *  command or a script can leave the project without the fence seeing it,
+ *  because what the fence inspects is the tool call and not what the
+ *  command then does, and section 28 says so where a reader will find it.
+ */
+const MODE_TITLES: Record<"ask" | "project" | "all", string> = {
+  ask: "Ask before acting",
+  project: "Run the work without asking",
+  all: "Never ask about anything",
+};
+
+const MODE_NOTES: Record<"ask" | "project" | "all", string> = {
+  ask: "A card for every command, every fetch and every write that leaves this project.",
+  project:
+    "Commands and edits run silently. Still asked about: writing outside this project, and anything reaching the internet.",
+  all: "Nothing is asked about at all. Everything is still recorded here.",
+};
 
 /** Tools that are plumbing rather than work: showing them is noise.
  *

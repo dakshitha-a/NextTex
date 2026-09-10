@@ -20,6 +20,7 @@ import inspect
 
 import pytest
 
+from nexttex.modes import MODES
 from nexttex.providers import NoAgent, Unavailable
 from nexttex.scripted_agent import ScriptedAgent
 
@@ -38,7 +39,7 @@ CONTRACT = (
     "resolve_permission", "set_model",
 )
 #: Read, not called: `busy` and `idle_seconds` are properties everywhere.
-ATTRIBUTES = ("model", "usage", "busy", "idle_seconds")
+ATTRIBUTES = ("model", "usage", "busy", "idle_seconds", "mode")
 
 
 def build(kind, tmp_path):
@@ -193,3 +194,25 @@ def test_no_implementation_offers_a_way_to_delegate():
     assert names, "the OpenAI agent has no tools at all, which is a different bug"
     for banned in ("task", "agent", "subagent", "delegate", "spawn"):
         assert not [name for name in names if banned in name.lower()], names
+
+
+@pytest.mark.parametrize("kind", KINDS, ids=[k.__name__ for k in KINDS])
+def test_every_agent_can_say_where_its_permission_control_is(kind, tmp_path):
+    """A route reads this on every agent, so every agent has to answer.
+
+    `set_mode` is deliberately *not* on all four: only the Claude agent
+    ever puts a card up, and the interface decides whether to draw the
+    control by asking whether that method exists. So the probe and the
+    method have to agree, and the way to keep them agreeing is to say it
+    here rather than to trust that they do.
+    """
+    agent = build(kind, tmp_path)
+    assert agent.mode in MODES
+    if callable(getattr(agent, "set_mode", None)):
+        agent.set_mode("project")
+        assert agent.mode == "project"
+        with pytest.raises(ValueError):
+            agent.set_mode("nonsense")
+    else:
+        # Nothing to move, so it stays where it is rather than pretending.
+        assert agent.mode == "ask"

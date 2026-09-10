@@ -3310,23 +3310,39 @@ async def agent_reset(project_id: str):
     return {"ok": True, "archived": archived}
 
 
-@app.post("/api/projects/{project_id}/agent/auto")
-async def agent_auto(project_id: str, on: bool = Body(..., embed=True)):
+@app.post("/api/projects/{project_id}/agent/mode")
+async def agent_mode(project_id: str, mode: str = Body(..., embed=True)):
+    """Move the permission control, which has three positions now.
+
+    Was `/agent/auto` with a boolean, which could not express both of the
+    quiet positions the writer asked for. The agent validates the name
+    itself, because this is a string out of an HTTP body and the quietest
+    position is not somewhere to arrive by typo.
+    """
     session = session_for(project_id)
-    setter = getattr(session.agent, "set_auto", None)
+    setter = getattr(session.agent, "set_mode", None)
     if not callable(setter):
         raise HTTPException(400, "this agent does not ask permission")
-    setter(bool(on))
-    await session.events.publish({"type": "agent_settings", "auto": bool(on)})
-    return {"auto": bool(on)}
+    try:
+        setter(mode)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    # `auto` travels alongside for one version, so a tab that has not been
+    # reloaded does not read a control it does not understand as no fence.
+    await session.events.publish({
+        "type": "agent_settings", "mode": mode, "auto": mode != "ask",
+    })
+    return {"mode": mode, "auto": mode != "ask"}
 
 
 @app.post("/api/projects/{project_id}/agent/permission")
 async def agent_permission(
     project_id: str, id: str = Body(...), decision: str = Body(...)
 ):
-    if decision not in {"allow", "always", "deny"}:
-        raise HTTPException(400, "decision must be allow, always or deny")
+    if decision not in {"allow", "always", "conversation", "deny"}:
+        raise HTTPException(
+            400, "decision must be allow, always, conversation or deny"
+        )
     session = session_for(project_id)
     resolved = session.agent.resolve_permission(id, decision)
     if resolved:
@@ -3389,8 +3405,9 @@ async def agent_usage(project_id: str):
         # kind of agent that ever asks at all -- the OpenAI and no-agent
         # paths never put a card up, so offering the switch there would
         # promise a change that does not happen.
+        "mode": str(getattr(session.agent, "mode", "ask")),
         "auto": bool(getattr(session.agent, "auto", False)),
-        "asks": callable(getattr(session.agent, "set_auto", None)),
+        "asks": callable(getattr(session.agent, "set_mode", None)),
         # The cards waiting on an answer, so a browser that reloaded gets
         # them back rather than showing a card it cannot answer.  A reload
         # loses the card and not the turn, and the turn then waited out its

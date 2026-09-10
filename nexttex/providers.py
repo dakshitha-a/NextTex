@@ -46,6 +46,14 @@ class NoAgent:
     rather than failing.
     """
 
+    #: Where the permission control is, read by the usage route.  Always
+    #: "ask" here and it is not a placeholder: nothing this class does could
+    #: need permission, so the honest answer is the position that would ask
+    #: if there were ever anything to ask about.  There is no `set_mode`,
+    #: which is what tells the interface not to draw the control at all.
+    mode = "ask"
+    auto = False
+
     def __init__(self, *_args: Any, **_kwargs: Any):
         self.model = ""
         self.usage = {
