@@ -18,9 +18,18 @@ const edit = (path: string): ChatItem =>
      added: 1, removed: 1, state: "live" });
 
 describe("what is hidden", () => {
-  test("the agent's own housekeeping does not appear", () => {
-    const shown = tidy([tool("ToolSearch", "x"), tool("TodoWrite", "y")]);
-    expect(shown).toEqual([]);
+  test("looking up its own tools does not appear", () => {
+    expect(tidy([tool("ToolSearch", "x")])).toEqual([]);
+  });
+
+  // This used to hide `TodoWrite` as well, on the grounds that it was
+  // housekeeping. It is not: it is the model saying what it intends to do
+  // next, which is the clearest thing the panel can show about a turn that
+  // will run for a minute. It no longer reaches this function at all --
+  // the store takes it and makes the turn's plan out of it -- so if one
+  // ever does arrive here it should be shown rather than swallowed.
+  test("the model's plan for the turn is not housekeeping", () => {
+    expect(tidy([tool("TodoWrite", "y")])).toHaveLength(1);
   });
 
   test("everything else does", () => {
@@ -67,5 +76,30 @@ describe("an edit and the tool row that announced it", () => {
   test("a Read before an edit stays, because it is not the same act", () => {
     const shown = tidy([tool("Read", "one.tex"), edit("one.tex")]);
     expect(shown).toHaveLength(2);
+  });
+});
+
+describe("what a collapsed row costs", () => {
+  test("repeated calls sum their durations rather than keeping the first", () => {
+    const shown = tidy([
+      { kind: "tool", id: "a", name: "Read", summary: "main.tex", ms: 300 },
+      { kind: "tool", id: "b", name: "Read", summary: "main.tex", ms: 400 },
+      { kind: "tool", id: "c", name: "Read", summary: "main.tex", ms: 500 },
+    ]);
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toMatchObject({ repeats: 3, ms: 1200 });
+  });
+
+  test("a row with no duration at all keeps none", () => {
+    const shown = tidy([tool("Read", "x"), tool("Read", "x")]);
+    expect(shown[0]).toMatchObject({ repeats: 2, ms: undefined });
+  });
+
+  test("one failure in a collapsed row is a failed row", () => {
+    const shown = tidy([
+      { kind: "tool", id: "a", name: "Bash", summary: "latexmk", ok: true },
+      { kind: "tool", id: "b", name: "Bash", summary: "latexmk", ok: false },
+    ]);
+    expect(shown[0]).toMatchObject({ repeats: 2, ok: false });
   });
 });

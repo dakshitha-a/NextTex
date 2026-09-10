@@ -980,12 +980,44 @@ class ProjectAgent:
         return decision
 
     async def _post_tool(self, input_data: dict, tool_use_id: str | None, ctx: Any) -> dict:
-        """Record what an edit did, for the chip and its undo."""
-        # First, and before any of the early returns below: this call has
-        # come back, so it is no longer holding the turn open.
-        if tool_use_id:
-            self._running_tools.pop(tool_use_id, None)
+        """Say the call came back, and record what an edit did.
+
+        Registered for `PostToolUse` and for `PostToolUseFailure`, which is
+        a separate hook event and was not registered at all.  That mattered
+        twice.  A call that failed never cleared `_running_tools`, so it
+        held the turn open against `TOOL_RUNNING_TIMEOUT` rather than the
+        silence timeout, and a turn that then went quiet waited an hour to
+        be declared stuck instead of fifteen minutes.  And the panel had no
+        way to learn a call had ended, so its activity line went on naming
+        a tool that had already given up.
+        """
         tool_name = input_data.get("tool_name", "")
+        failed = input_data.get("hook_event_name") == "PostToolUseFailure"
+
+        # Before any of the early returns below: this call has come back,
+        # so it is no longer holding the turn open, and the panel is owed
+        # the news either way.
+        started: float | None = None
+        if tool_use_id:
+            entry = self._running_tools.pop(tool_use_id, None)
+            if entry is not None:
+                started = entry[1]
+        await self._emit({
+            "type": "tool_done",
+            # The name travels as well as the id.  The id here comes from
+            # the CLI and the panel keys its rows on the id from the
+            # assistant message; those are believed to be the same string
+            # and it cannot be proved from the SDK's source.  With the name
+            # carried too, a mismatch costs a missing duration on one row
+            # rather than an activity line that never clears, which is the
+            # thing this event exists to fix.
+            "id": tool_use_id or "",
+            "name": tool_name,
+            "ms": int((time.monotonic() - started) * 1000)
+                  if started is not None else None,
+            "ok": not failed,
+        })
+
         if tool_name not in self._WRITE_TOOLS:
             return {}
         # The same three keys `_decide` reads, and for the same reason it
@@ -1006,6 +1038,13 @@ class ProjectAgent:
         path = Path(raw)
         if not path.is_absolute():
             path = self.root / path
+        if failed:
+            # Nothing was written, so there is no edit to record -- but the
+            # snapshot the fence took on the way in is still here, and
+            # leaving it is how a file's whole text stays in memory until
+            # somebody starts a new conversation.
+            self._file_snapshots.pop(str(path), None)
+            return {}
         try:
             after = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -1564,6 +1603,12 @@ class ProjectAgent:
             hooks={
                 "PreToolUse": [HookMatcher(hooks=[self._pre_tool])],
                 "PostToolUse": [HookMatcher(hooks=[self._post_tool])],
+                # A distinct event, and it was not registered.  A tool call
+                # that fails fires this one and not `PostToolUse`, so
+                # nothing cleared the running-call table and nothing told
+                # the panel the call had ended.  One handler for both,
+                # which reads `hook_event_name` to tell them apart.
+                "PostToolUseFailure": [HookMatcher(hooks=[self._post_tool])],
             },
             resume=self._load_session(),
         )

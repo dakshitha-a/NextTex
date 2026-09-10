@@ -206,3 +206,116 @@ describe("a notice reaches the panel and keeps its tone", () => {
     expect(get().chat[0]).toMatchObject({ tone: "error" });
   });
 });
+
+/** What the agent is doing, taken from the events rather than guessed at.
+ *
+ *  The panel used to work this out by walking the whole transcript
+ *  backwards on every render, which is twenty walks a second while an
+ *  answer streams, and it could not tell a call that had finished from one
+ *  still running because nothing said a call had finished. A turn that spent
+ *  twenty seconds inside one tool showed the same line throughout and read
+ *  as a turn that had stopped.
+ */
+describe("what the agent is doing", () => {
+  test("a turn starts with nothing being done", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    expect(get().thinking).toBe(true);
+    expect(get().activity).toBeNull();
+  });
+
+  test("a tool call becomes the activity, and finishing clears it", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    __receive({
+      type: "tool_use", id: "t1", name: "Read",
+      input: { file_path: "chapters/02_theory.tex" },
+    });
+    expect(get().activity).toMatchObject({
+      kind: "tool", id: "t1", name: "Read",
+    });
+    __receive({ type: "tool_done", id: "t1", name: "Read", ms: 1200, ok: true });
+    expect(get().activity).toBeNull();
+  });
+
+  test("a completion records how long the call took, on its own row", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    __receive({ type: "tool_use", id: "t2", name: "Bash", input: { command: "latexmk" } });
+    __receive({ type: "tool_done", id: "t2", name: "Bash", ms: 4300, ok: false });
+    const row: any = get().chat.find((item: any) => item.id === "t2");
+    expect(row).toMatchObject({ ms: 4300, ok: false });
+  });
+
+  test("a completion whose id does not line up still clears the line", () => {
+    // The id in the hook is the CLI's and the id on the row is the
+    // assistant message's. They are believed to be the same string and that
+    // cannot be proved from the SDK, so a mismatch has to cost a duration
+    // rather than an activity line that never clears.
+    __receive({ type: "turn_start", prompt: "go" });
+    __receive({ type: "tool_use", id: "row-id", name: "Grep", input: { pattern: "x" } });
+    __receive({ type: "tool_done", id: "other-id", name: "Grep", ms: 90, ok: true });
+    expect(get().activity).toBeNull();
+  });
+
+  test("thinking is an activity with no text to it", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    __receive({ type: "thinking" });
+    expect(get().activity).toMatchObject({ kind: "thinking", label: "Thinking" });
+    __receive({ type: "thinking_end", ms: 6000 });
+    expect(get().activity).toBeNull();
+  });
+
+  test("done clears it whatever was happening", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    __receive({ type: "tool_use", id: "t3", name: "Read", input: {} });
+    __receive({ type: "done", subtype: "success" });
+    expect(get().activity).toBeNull();
+    expect(get().thinking).toBe(false);
+  });
+});
+
+/** The model's plan for the turn, which used to be discarded as plumbing. */
+describe("the plan for a turn", () => {
+  const write = (todos: any[]) =>
+    __receive({ type: "tool_use", id: `p${Math.random()}`, name: "TodoWrite", input: { todos } });
+
+  test("a TodoWrite becomes a plan rather than a tool row", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    write([
+      { content: "Read the theory chapter", status: "completed" },
+      { content: "Rewrite the second paragraph", status: "in_progress" },
+      { content: "Rebuild and check", status: "pending" },
+    ]);
+    const plans = get().chat.filter((item: any) => item.kind === "plan");
+    expect(plans).toHaveLength(1);
+    expect((plans[0] as any).items.map((i: any) => i.state)).toEqual([
+      "done", "active", "pending",
+    ]);
+    expect(get().chat.some((item: any) => item.name === "TodoWrite")).toBe(false);
+  });
+
+  test("a revised plan replaces the one on screen", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    write([{ content: "One", status: "pending" }]);
+    write([
+      { content: "One", status: "completed" },
+      { content: "Two", status: "in_progress" },
+    ]);
+    const plans = get().chat.filter((item: any) => item.kind === "plan");
+    expect(plans).toHaveLength(1);
+    expect((plans[0] as any).items).toHaveLength(2);
+  });
+
+  test("the plan belongs to its turn and does not outlive it", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    write([{ content: "One", status: "pending" }]);
+    __receive({ type: "done", subtype: "success" });
+    __receive({ type: "turn_start", prompt: "and again" });
+    expect(get().chat.some((item: any) => item.kind === "plan")).toBe(false);
+  });
+
+  test("an empty or unrecognised list draws nothing", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    write([]);
+    write([{ status: "pending" }]);
+    expect(get().chat.some((item: any) => item.kind === "plan")).toBe(false);
+  });
+});

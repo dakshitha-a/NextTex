@@ -3562,3 +3562,45 @@ There is a shape here worth keeping. A failure that loses one answer is an
 incident; a failure that poisons the cache is an outage. Anything held
 between turns has to be asked, when a turn ends badly, whether it is still
 worth holding.
+
+---
+
+## 28. Rebuilding the agent panel
+
+The panel had an end-to-end spec and a fence with six hundred lines of tests, and it had never been audited as a whole the way the palette, the installer and the collaboration layer had. Three things about it were unpleasant enough to be worth a run of their own: hundreds of permission cards in a row, each one disabling the composer until it was answered; a panel that went quiet while a turn worked, because nothing told it a tool call had ended; and an agent that could delegate to a subagent whose work nobody could see. The four capabilities added alongside are in the sections below.
+
+This section is written as the run goes rather than at the end, and every deviation from the specification above is recorded here with its reason, per this document's own preamble.
+
+### The panel had no way to know a call had finished
+
+Nothing emitted anything when a tool call came back. `PostToolUse` recorded an edit and returned; a call that read a file, or ran a build, or searched the literature produced one event on the way in and none on the way out. So the activity line in the header had to guess, and it guessed by walking the whole transcript backwards on every render, taking the last thing it recognised as the thing happening now. That is twenty walks a second while an answer streams, and worse than the cost is that the answer was wrong in the one case that mattered: a turn that spent twenty seconds inside a single tool showed the same line for twenty seconds and read as a turn that had stopped.
+
+There is a `tool_done` event now, carrying the call's id, its name, how long it took and whether it worked, and `activity` is a slice of state set from the events rather than derived from the rendered items. The name travels as well as the id, because the id in the hook comes from the CLI and the id on the row comes from the assistant message: those are believed to be the same string and it cannot be proved from the SDK's source, so the store matches on the id and falls back to the name. A mismatch then costs a duration on one row rather than an activity line that never clears, which is the thing the event exists to fix.
+
+**A tool that failed never reported at all, and that was a second bug underneath the first.** `PostToolUseFailure` is a separate hook event and this app registered only `PostToolUse`, so a call that failed left its entry in the running-call table for ever. The watchdog reads that table: a turn holding a phantom running call waits against the one hour tool timeout rather than the fifteen minute silence timeout, so a turn that genuinely died after a failed tool sat there for an hour before anything ended it. Both hooks are registered now, one handler reads `hook_event_name` to tell them apart, and a failed write drops the undo snapshot the fence took on the way in rather than leaving a file's whole text in memory.
+
+Durations show on a tool row only past half a second. A duration on every row is a column of `0.0s` down the transcript, and half a second is where a reader starts to care; what it buys is that the tool rows stop being a list of verbs and become a record of where a turn went. Collapsed rows sum rather than keeping the first one's number, because fourteen reads folded into one row should say what the fourteen cost.
+
+### An elapsed count, which is not the spinner section 6 forbids
+
+Section 6 says no spinners anywhere, and section 7 gives the argument: an indicator shown at 0 ms on a fast task is what converts an imperceptible wait into a watched one, which is why the compile hairline waits 400 ms before it appears. Both hold. What the panel needed was not a spinner but an answer to *is this still going*, for a turn that can legitimately spend a minute in one call.
+
+So the activity line carries an integer of seconds, in tabular figures with a reserved width, and it appears only once the current activity has passed three seconds. Three seconds is the same argument as the hairline's 400 ms applied to a tool call rather than to a build. It does not animate, it does not move, and nothing periodic goes on the wire for it: one timestamp arrives with the event and the subtraction happens in the browser. The 1400 ms breathing dot that was already there stays, and is still the only repeating animation in the panel.
+
+### The agent's own plan for the turn was being thrown away
+
+`TodoWrite` was in the panel's hidden-tools set, described as plumbing rather than work. It is not plumbing. It is the model stating what it intends to do and ticking items off as it goes, it already arrived on the wire on every turn that used it, and the panel discarded it. This was the cheapest thing in the whole run: the data was already there and nothing new had to be emitted.
+
+It is drawn as the turn's plan, pinned in the stream and replaced in place as later calls revise it, so a turn that rewrites its list four times shows one list rather than four rows. Rows rather than a card, and the stripe vocabulary is the one the panel already uses: `--ok` for what is done, `--pen` for the item in hand, `--line` for what is still to come. No checkbox glyphs, because a checkbox invites a click that would do nothing.
+
+It is deliberately not in the transcript. The transcript is the account of what was done to the manuscript and a rehearsal is not, so the plan belongs to its turn and goes when the turn does. A reload losing a finished turn's plan costs nothing. `ToolSearch` stays hidden, because that genuinely is plumbing.
+
+### Thinking is shown as a fact and never as prose
+
+`ThinkingBlock` was imported and never handled, which looked like an oversight and was two. The `thinking` option on the SDK's own options object was also never set, so it is possible no thinking block had ever arrived.
+
+What the panel shows is that the model is reasoning, not what the reasoning says. The panel is 380 px wide and sits beside a manuscript; a column of reasoning would bury the answer and the edits under text nobody reads twice, and several agent panels that do stream it are the reason this is worth stating as a decision rather than leaving as an omission.
+
+### Delegation is refused, and the question the architecture recorded is settled
+
+Recorded in `docs/architecture.md` rather than here, because it is mechanics rather than interface. The short version is that subagents are refused under both of the names the tool has had, removed from the model's context as well as refused at the fence, and refused a third time by a test that depends on no name at all; and that the open question about whether the fence reached inside a subagent was answered by the SDK vendored in this checkout's own virtual environment, having been written down as needing a live account and a real turn.

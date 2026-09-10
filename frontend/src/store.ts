@@ -52,6 +52,24 @@ export type ChatItem =
       summary: string;
       /** Consecutive identical calls are shown once, with a count. */
       repeats?: number;
+      /** How long the call took, once it has come back.  Undefined while
+       *  it is still running, and after a reload of a turn whose start
+       *  this install never saw. */
+      ms?: number;
+      /** False for a call that failed.  A tool that gave up used to look
+       *  exactly like one that was still working. */
+      ok?: boolean;
+    }
+  /** The model's own plan for the turn, replaced in place as it revises it.
+   *
+   *  Not a transcript entry: it is the turn's progress and it goes when the
+   *  turn does.  `TodoWrite` was in the hidden-tools set as plumbing, so
+   *  the one thing the agent writes to say what it intends to do next was
+   *  arriving on the wire and being thrown away. */
+  | {
+      kind: "plan";
+      id: string;
+      items: { text: string; state: "pending" | "active" | "done" }[];
     }
   | { kind: "notice"; id: string; text: string; tone: "error" | "plain" };
 
@@ -151,6 +169,22 @@ export type State = {
   pdfStamp: number;
   chat: ChatItem[];
   thinking: boolean;
+  /** What the agent is doing at this moment, and since when.
+   *
+   *  Set from the events rather than guessed at: the panel used to walk the
+   *  whole transcript backwards on every render to work this out, which is
+   *  twenty walks a second while an answer streams, and it could not tell a
+   *  finished call from a running one because nothing said a call had
+   *  finished.  `since` is a browser clock and is only ever used to
+   *  subtract, so a difference between the two machines does not matter. */
+  activity: {
+    kind: "tool" | "thinking" | "writing";
+    /** The tool call this belongs to, so its completion can clear it. */
+    id: string;
+    name: string;
+    label: string;
+    since: number;
+  } | null;
   awaitingPermission: boolean;
   /** Whether the agent approves without asking. */
   auto: boolean;
@@ -227,6 +261,7 @@ const state: State = {
   pdfStamp: 0,
   chat: [],
   thinking: false,
+  activity: null,
   awaitingPermission: false,
   auto: false,
   git: null,
@@ -326,6 +361,8 @@ export function replayTranscript(items: any[]) {
       chat.push({
         kind: "tool", id: item.id || nextId(), name: item.name ?? "",
         summary: summariseTool(item.name ?? "", item.input),
+        ms: typeof item.ms === "number" ? item.ms : undefined,
+        ok: item.ok !== false,
       });
     } else if (item.kind === "edit") {
       const { added, removed } = countDiff(item.before ?? "", item.after ?? "");
@@ -666,7 +703,7 @@ export async function reconcile() {
     text: "That answer was interrupted, and NextTex did not hear how it ended.",
     tone: "error",
   });
-  set({ thinking: false, awaitingPermission: false });
+  set({ thinking: false, awaitingPermission: false, activity: null });
 }
 
 function onWake() {
@@ -830,22 +867,90 @@ function receive(event: any) {
       handlers.onProjectChanged?.(event.main);
       break;
     case "turn_start":
-      set({ thinking: true });
+      // A new turn has no plan and no activity yet.  The plan is the
+      // turn's own, so it does not survive into the next one.
+      set({
+        thinking: true,
+        activity: null,
+        chat: state.chat.filter((item) => item.kind !== "plan"),
+      });
       break;
     case "text":
+      if (!state.activity || state.activity.kind !== "writing") {
+        set({
+          activity: {
+            kind: "writing", id: "", name: "", label: "Writing",
+            since: Date.now(),
+          },
+        });
+      }
       appendText(event.text ?? "");
       break;
     case "text_end":
       endText();
+      if (state.activity?.kind === "writing") set({ activity: null });
       break;
+    // The model's own plan for the turn.  Handled here rather than being
+    // pushed as a tool row, and replaced in place rather than appended, so
+    // a turn that revises its list four times shows one list and not four.
     case "tool_use":
       endText();
+      if (event.name === "TodoWrite") {
+        setPlan(event.input);
+        break;
+      }
       pushChat({
         kind: "tool",
         id: event.id ?? nextId(),
         name: event.name,
         summary: summariseTool(event.name, event.input),
       });
+      set({
+        activity: {
+          kind: "tool",
+          id: event.id ?? "",
+          name: event.name ?? "",
+          label: summariseTool(event.name, event.input),
+          since: Date.now(),
+        },
+      });
+      break;
+    case "tool_done": {
+      // Matched on the id, and on the name when the id does not line up.
+      // The id here is the CLI's and the row's is the assistant message's;
+      // they are believed to be the same and a mismatch must cost a
+      // duration rather than an activity line that never clears.
+      if (event.id && event.ms != null) {
+        const target = state.chat.find(
+          (item) => item.kind === "tool" && item.id === event.id,
+        );
+        if (target) {
+          updateChat(event.id, { ms: event.ms, ok: event.ok !== false } as any);
+        }
+      }
+      const running = state.activity;
+      if (
+        running &&
+        running.kind === "tool" &&
+        (running.id === event.id || running.name === event.name)
+      ) {
+        set({ activity: null });
+      }
+      break;
+    }
+    // The fact of it, never the text.  The panel is 380px wide beside a
+    // manuscript, and a column of reasoning would bury the answer and the
+    // edits under something nobody reads twice.
+    case "thinking":
+      set({
+        activity: {
+          kind: "thinking", id: "", name: "", label: "Thinking",
+          since: Date.now(),
+        },
+      });
+      break;
+    case "thinking_end":
+      if (state.activity?.kind === "thinking") set({ activity: null });
       break;
     case "permission": {
       endText();
@@ -914,9 +1019,37 @@ function receive(event: any) {
       // cancels the pending answer server-side, so the card is gone but
       // nothing was ever going to clear the flag -- and the composer stayed
       // disabled saying it was waiting on an approval that no longer exists.
-      set({ thinking: false, awaitingPermission: false });
+      set({ thinking: false, awaitingPermission: false, activity: null });
       break;
   }
+}
+
+/** The model's plan for this turn, from a `TodoWrite` call's arguments.
+ *
+ *  The shape is the CLI's: a list of items each with a content string and a
+ *  status.  Anything unrecognised is dropped rather than rendered as a
+ *  blank row, because a plan with an empty line in it reads as a bug in the
+ *  panel rather than as a model that phrased something oddly. */
+function setPlan(input: any): void {
+  const raw = Array.isArray(input?.todos) ? input.todos : [];
+  const items = raw
+    .map((entry: any) => ({
+      text: String(entry?.content ?? entry?.activeForm ?? "").trim(),
+      state:
+        entry?.status === "completed"
+          ? ("done" as const)
+          : entry?.status === "in_progress"
+            ? ("active" as const)
+            : ("pending" as const),
+    }))
+    .filter((entry: { text: string }) => entry.text);
+  if (!items.length) return;
+  const existing = state.chat.find((item) => item.kind === "plan");
+  if (existing) {
+    updateChat(existing.id, { items } as any);
+    return;
+  }
+  pushChat({ kind: "plan", id: nextId(), items });
 }
 
 function summariseTool(name: string, input: any): string {
@@ -934,7 +1067,7 @@ function summariseTool(name: string, input: any): string {
  *  Not `usage`, which is what this project has cost rather than what was
  *  said, and not the composer draft, which is the writer's own typing. */
 export function clearChat(): void {
-  set({ chat: [], thinking: false, awaitingPermission: false });
+  set({ chat: [], thinking: false, awaitingPermission: false, activity: null });
 }
 
 export function resolvePermission(id: string, decision: "allow" | "always" | "deny") {

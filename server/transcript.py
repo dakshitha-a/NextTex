@@ -204,6 +204,21 @@ class Transcript:
                 # chose from one they did not.
                 "reason": event.get("reason", ""),
             })
+        elif kind == "tool_done":
+            # An amendment to the row already written, not a row of its
+            # own: `items()` folds this onto the call it names, the way it
+            # already does for a decision and a revert, so a duration
+            # survives a reload without the transcript growing a second
+            # entry per tool call.  Nothing is written for a call whose
+            # duration is unknown, which is one whose start this process
+            # never saw.
+            if event.get("id") and event.get("ms") is not None:
+                self._append({
+                    "kind": "tool_ms",
+                    "id": event["id"],
+                    "ms": event["ms"],
+                    "ok": bool(event.get("ok", True)),
+                })
         elif kind in {"error", "notice"}:
             self._flush_text()
             # Two events, one item, and the tone is what tells them apart.
@@ -265,6 +280,12 @@ class Transcript:
                 target = index.get(item.get("id", ""))
                 if target:
                     target["state"] = item.get("state")
+                continue
+            if kind == "tool_ms":
+                target = index.get(item.get("id", ""))
+                if target:
+                    target["ms"] = item.get("ms")
+                    target["ok"] = item.get("ok", True)
                 continue
             items.append(item)
             if item.get("id"):
