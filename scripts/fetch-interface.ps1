@@ -44,16 +44,33 @@ try {
     exit 1
   }
 
-  # Advisory: a missing checksum is not worth refusing over, a wrong one is.
+  # Required, not advisory, exactly as fetch-interface.sh has it.
+  #
+  # This used to skip the check entirely whenever the .sha256 fetch failed,
+  # on the grounds that a missing one was not worth refusing over.  But this
+  # tarball becomes frontend/dist, which is the interface every browser on
+  # this install is served, so a substituted one is script running on the
+  # app's own origin with the session cookie attached -- and "the checksum
+  # could not be fetched" is exactly the state an attacker who can answer
+  # for one URL can produce for the other.  A check that any failure
+  # disables is not a check.  It was also a difference between the two
+  # platforms, which is a bug in its own right.
   try {
     Invoke-WebRequest -UseBasicParsing "$base/$name.sha256" -OutFile (Join-Path $work "$name.sha256")
-    $expected = ((Get-Content (Join-Path $work "$name.sha256")) -split '\s+')[0]
-    $actual = (Get-FileHash (Join-Path $work $name) -Algorithm SHA256).Hash.ToLower()
-    if ($expected.ToLower() -ne $actual) {
-      Write-Error 'the downloaded interface does not match its checksum'
-      exit 1
-    }
-  } catch [System.Net.WebException] { }
+  } catch {
+    Write-Error "no checksum was published for $Sha, so the interface was not installed"
+    exit 1
+  }
+  $expected = ((Get-Content (Join-Path $work "$name.sha256")) -split '\s+')[0]
+  if ($expected -notmatch '^[0-9a-fA-F]{64}$') {
+    Write-Error "the published checksum for $Sha is not a sha256"
+    exit 1
+  }
+  $actual = (Get-FileHash (Join-Path $work $name) -Algorithm SHA256).Hash.ToLower()
+  if ($expected.ToLower() -ne $actual) {
+    Write-Error 'the downloaded interface does not match its checksum'
+    exit 1
+  }
 
   # tar ships with Windows 10 1803 and later.
   tar -xzf (Join-Path $work $name) -C $work

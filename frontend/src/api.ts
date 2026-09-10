@@ -700,9 +700,18 @@ const api = {
     request<any>("/agent/provider", json({ provider, key, model })),
 
   claudeStatus: () =>
-    request<{ loggedIn: boolean; email?: string; plan?: string; method?: string }>(
-      "/claude/status",
-    ),
+    request<{
+      installed: boolean;
+      loggedIn: boolean;
+      email?: string;
+      plan?: string;
+      method?: string;
+      reason?: string;
+    }>("/claude/status"),
+  /** Install the CLI on this machine, for somebody who chose no agent at
+   *  install time and has changed their mind. Streams like the sign-in
+   *  does; a refusal arrives on the stream, not as a failed request. */
+  installClaude: () => request<any>("/claude/install", { method: "POST" }),
   /** `console` picks the API-console flow; false is the Claude.ai one.
    *  The name has to be this: the route reads a `console` boolean, and a
    *  `{mode}` body sent instead was simply ignored, so both buttons ran the

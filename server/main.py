@@ -3762,6 +3762,27 @@ async def claude_login_cancel():
     return {"ok": True}
 
 
+@app.post("/api/claude/install")
+async def claude_install():
+    """Install the Claude CLI on this machine, for somebody who opted out.
+
+    Modelled on the login pair above and streamed the same way, because it
+    is the same shape of thing: a subprocess whose output the browser
+    watches.  A failure comes back on the stream as `done, ok: false`, never
+    as a 500 -- a vendor installer that refuses is an outcome the screen
+    renders, and OpenAI and no agent are still there afterwards.
+    """
+    return await claude_auth.start_install()
+
+
+@app.get("/api/claude/install/stream")
+async def claude_install_stream():
+    async def events():
+        async for chunk in claude_auth.install_stream():
+            yield f"data: {chunk}\n\n"
+    return StreamingResponse(events(), media_type="text/event-stream")
+
+
 @app.post("/api/claude/logout")
 async def claude_logout():
     return claude_auth.logout()

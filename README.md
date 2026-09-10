@@ -629,7 +629,12 @@ Five things go out, all of them things you asked for:
 1. What you send the agent, to Anthropic or OpenAI.
 2. Reference lookups, to Crossref, OpenAlex, Semantic Scholar, arXiv and
    `doi.org`.
-3. TinyTeX and the Claude CLI, if the installer has to fetch them.
+3. What the installer downloads, and only what the plan it printed said it
+   would: TinyTeX from `yihui.org`, the Claude CLI from `claude.ai` if you
+   chose it, and `uv` from `astral.sh` when this machine's Python cannot
+   make a virtual environment on its own. It also opens a two-second
+   connection to each of those before it asks you anything, so that being
+   offline is something you are told rather than something you wait for.
 4. GitHub, to check whether this install is behind and to download the
    interface for the commit it is on. Nothing about you or your documents
    goes with either request.

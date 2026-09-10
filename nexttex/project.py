@@ -20,6 +20,8 @@ import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+from .paths import instance_name, state_home
+
 try:
     import tomllib
 except ModuleNotFoundError:  # Python 3.10
@@ -30,24 +32,10 @@ STATE_DIR = ".nexttex"
 
 # Where the registry of known projects lives.  Follows the XDG convention so
 # it sits with a user's other application state rather than in their home
-# directory root.
-def instance_name() -> str:
-    """Which install this is, when a machine carries more than one.
-
-    Empty is the ordinary case and the ordinary directory.  A name -- set
-    by `install.sh --instance` -- moves the whole state directory aside, so
-    a development copy and the copy somebody actually writes in do not
-    share a port, a token or a project list.  Validated as a single path
-    segment: a name is a label, never a way out of the directory.
-    """
-    name = os.environ.get("NEXTTEX_INSTANCE", "").strip()
-    return name if re.fullmatch(r"[A-Za-z0-9_-]{1,32}", name) else ""
-
-
-def state_home() -> Path:
-    base = os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")
-    name = instance_name()
-    return Path(base) / (f"nexttex-{name}" if name else "nexttex")
+# directory root.  Defined in `paths.py` and re-exported here, because the
+# installer needs them and cannot import this module: it runs before there
+# is a virtual environment, and the `tomli` fallback above would not be
+# importable yet.
 
 
 # Files the editor should offer to open.  Anything else is treated as an

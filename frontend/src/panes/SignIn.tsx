@@ -216,10 +216,64 @@ function ClaudeLogin({
   const [code, setCode] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** null while the answer is unknown, so the screen does not flash the
+   *  wrong half of itself before the status arrives. */
+  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [installing, setInstalling] = useState(false);
   const source = useRef<EventSource | null>(null);
   const log = useRef<HTMLPreElement | null>(null);
 
   useEffect(() => () => source.current?.close(), []);
+
+  // Somebody who chose "no agent" during the install has no `claude` on this
+  // machine, and the screen used to tell them to go and download one. It can
+  // fetch it instead: the same act the installer performs, and the same code.
+  useEffect(() => {
+    let live = true;
+    api
+      .claudeStatus()
+      .then((status) => live && setInstalled(status.installed !== false))
+      .catch(() => live && setInstalled(true));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const install = async () => {
+    setError(null);
+    setOutput("");
+    setInstalling(true);
+    try {
+      await api.installClaude();
+    } catch (problem: any) {
+      setError(problem.message);
+      setInstalling(false);
+      return;
+    }
+    source.current?.close();
+    const stream = new EventSource("/api/claude/install/stream");
+    source.current = stream;
+    stream.onmessage = (event) => {
+      let payload: any;
+      try {
+        payload = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      if (payload.type === "output")
+        setOutput((current) => current + payload.text);
+      if (payload.type === "done") {
+        stream.close();
+        setInstalling(false);
+        if (payload.ok) {
+          setInstalled(true);
+          setOutput("");
+        } else {
+          setError(payload.error ?? "The Claude CLI did not install.");
+        }
+      }
+    };
+  };
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -271,7 +325,29 @@ function ClaudeLogin({
         store — NextTex never sees them.
       </p>
 
-      {!running ? (
+      {installed === false && !installing ? (
+        <>
+          <p className="t-meta mt-4 text-ink-2">
+            The Claude CLI is not on this machine yet — you chose no agent
+            when NextTex was installed. It can be installed now, which is the
+            same thing the installer would have done.
+          </p>
+          <div className="mt-5 flex gap-2">
+            <button
+              className="h-[28px] ghost-button px-3 t-ui"
+              data-testid="install-claude"
+              onClick={install}
+            >
+              Install the Claude CLI
+            </button>
+            <button className="quiet h-[28px] px-2 t-ui" onClick={onBack}>
+              Back
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {installed !== false && !running ? (
         <div className="mt-5 flex gap-2">
           <button
             className="h-[28px] ghost-button px-3 t-ui"
@@ -289,6 +365,12 @@ function ClaudeLogin({
             Back
           </button>
         </div>
+      ) : null}
+
+      {installing ? (
+        <pre className="t-code-sm mt-4 max-h-[220px] overflow-auto whitespace-pre-wrap rounded-[3px] bg-surface-2 p-3 text-ink-2">
+          {output || "Installing…"}
+        </pre>
       ) : null}
 
       {links.length ? (
