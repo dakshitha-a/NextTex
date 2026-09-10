@@ -51,6 +51,29 @@ export function tidy(items: ChatItem[]): ChatItem[] {
     ) {
       out.pop();
     } else if (
+      // Records collapse; questions never do. A turn at one of the quiet
+      // positions writes a row for every action it took, and at the
+      // quietest one that record is the only account of what was done, so
+      // a run of forty identical `Allowed automatically` lines is both the
+      // audit trail working and unreadable. Same tool, same decision, same
+      // literal thing, consecutively, and it is one row with a count.
+      //
+      // An *undecided* card is a question, and two questions are not one
+      // question whatever they have in common, so nothing collapses until
+      // it has been answered.
+      item.kind === "permission" &&
+      previous?.kind === "permission" &&
+      item.decision &&
+      previous.decision === item.decision &&
+      previous.tool === item.tool &&
+      previous.detail === item.detail
+    ) {
+      out[out.length - 1] = {
+        ...previous,
+        repeats: (previous.repeats ?? 1) + 1,
+      };
+      continue;
+    } else if (
       item.kind === "tool" &&
       previous?.kind === "tool" &&
       previous.name === item.name &&
@@ -1439,7 +1462,9 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
     return () => window.clearTimeout(timer);
   }, []);
 
-  const decide = async (decision: "allow" | "always" | "deny") => {
+  const decide = async (
+    decision: "allow" | "always" | "conversation" | "deny",
+  ) => {
     if (!armed) return;
     const projectId = get().projectId;
     if (!projectId) return;
@@ -1483,12 +1508,21 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
     // same as one the writer allowed, and the record should not read as
     // though they had.  The dot is --warn, the permission card's own
     // colour, so the association is already built.
+    // Four states, not three. An action nobody was asked about is not the
+    // same as one the writer allowed, and an answer that lasts as long as
+    // this conversation is not the same as a rule they set for good: the
+    // record has to be able to say which, because the last of those is the
+    // one they will go looking for in their settings later.
     const label =
       item.decision === "deny"
         ? "Denied"
         : item.decision === "auto"
           ? "Allowed automatically"
-          : "Allowed";
+          : item.decision === "conversation"
+            ? "Allowed for this conversation"
+            : item.decision === "always"
+              ? "Allowed from now on"
+              : "Allowed";
     const dot =
       item.decision === "deny"
         ? "bg-ink-3"
@@ -1502,7 +1536,11 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
       >
         <span className={`h-[6px] w-[6px] rounded-full ${dot}`} />
         <span className="t-micro min-w-0 truncate text-ink-3">
-          {label} —{" "}
+          {label}
+          {item.repeats && item.repeats > 1 ? (
+            <span className="tabular-nums"> ×{item.repeats}</span>
+          ) : null}
+          {", "}
           {item.detail ? (
             <span className="t-code-sm">{item.detail}</span>
           ) : (
@@ -1534,6 +1572,9 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
       onKeyDown={(event) => {
         if (event.key === "a" && !event.shiftKey) decide("allow");
         if (event.key === "A" && event.shiftKey && item.rule) decide("always");
+        if ((event.key === "c" || event.key === "C") && item.rule) {
+          decide("conversation");
+        }
         if (event.key === "d") decide("deny");
       }}
     >
@@ -1593,6 +1634,28 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               A
             </span>
           </button>
+          {/* The answer the two remaining gates actually needed. Both of
+              the things the middle position still asks about are things a
+              turn asks about repeatedly: a run that adds eleven references
+              put up eleven identical cards, and neither existing answer
+              fitted, since Allow was too little and Allow always was a
+              permanent grant nobody wanted to make for one afternoon's
+              reading. It is remembered nowhere: a set on the object, gone
+              with the conversation and gone with the process. */}
+          {item.rule ? (
+            <button
+              className="h-[28px] shrink-0 whitespace-nowrap rounded-[3px] border border-line px-3 t-ui disabled:opacity-40"
+              data-testid="conversation"
+              disabled={!armed}
+              onClick={() => decide("conversation")}
+            >
+              For this conversation
+              <span className={`t-micro ${focused ? "text-ink-3" : "opacity-0"}`}>
+                {" "}
+                C
+              </span>
+            </button>
+          ) : null}
           {/* A command carrying shell syntax is remembered by its exact
               text rather than by its first word, because a rule on the word
               would be a promise the fence cannot keep: `Bash:git` would

@@ -386,3 +386,49 @@ test("typing a card's keys into the composer does not answer it", async ({
   await expect(composer).toHaveValue("add a diagram");
   await tab.getByTestId("deny").click();
 });
+
+test("an answer can be scoped to this conversation, and the second call goes quietly", async ({
+  tab,
+}) => {
+  // The answer the two remaining gates actually needed. A run that adds
+  // eleven references put up eleven identical cards, and neither existing
+  // answer fitted: Allow was too little, Allow always was a permanent
+  // grant nobody wanted to make for one afternoon's reading.
+  await setMode(tab, "project");
+  await ask(tab, "twofetches", "Add those two references.");
+
+  const conversation = tab.getByTestId("conversation");
+  await expect(conversation).toBeVisible({ timeout: 20_000 });
+  await expect(conversation).toBeEnabled({ timeout: 5_000 });
+  await conversation.click();
+
+  // The second identical call does not ask, and is still in the record
+  // saying which answer covered it.
+  await expect(tab.getByTestId("decided-conversation").first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(tab.getByText("Both added.")).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByTestId("allow")).toHaveCount(0);
+
+  // And a new conversation is where it ends.
+  await tab.getByTestId("clear-chat").click();
+  await tab.getByTestId("clear-confirm").click();
+  await ask(tab, "network", "Fetch that page.");
+  await expect(tab.getByTestId("allow")).toBeVisible({ timeout: 20_000 });
+  await tab.getByTestId("deny").click();
+});
+
+test("a run of automatic approvals collapses to one row with a count", async ({
+  tab,
+}) => {
+  // At a quiet position the record is the only account of what was done, so
+  // it has to stay readable: forty identical lines are the audit trail
+  // working and unreadable at the same time.
+  await setMode(tab, "project");
+  await ask(tab, "twobuilds", "Build it twice.");
+  await expect(tab.getByText("Built twice.")).toBeVisible({ timeout: 20_000 });
+
+  const rows = tab.getByTestId("decided-auto");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("×2");
+});

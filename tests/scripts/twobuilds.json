@@ -1,0 +1,12 @@
+[
+  {"kind": "text", "text": "Building twice.", "pieces": 1},
+  {"kind": "permission", "tool": "Bash", "rule": "Bash:latexmk",
+   "headline": "Run a shell command",
+   "detail": "latexmk -pdf main.tex",
+   "consequence": "", "stop_if_denied": false},
+  {"kind": "permission", "tool": "Bash", "rule": "Bash:latexmk",
+   "headline": "Run a shell command",
+   "detail": "latexmk -pdf main.tex",
+   "consequence": "", "stop_if_denied": false},
+  {"kind": "text", "text": "Built twice.", "pieces": 1}
+]

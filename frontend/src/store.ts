@@ -43,7 +43,11 @@ export type ChatItem =
        *  working. */
       reason: string;
       at: number;
-      decision?: "allow" | "always" | "deny" | "auto";
+      decision?: "allow" | "always" | "conversation" | "deny" | "auto";
+      /** Consecutive identical records are shown once, with a count. Only
+       *  ever set on a card that has been decided: two questions are not
+       *  one question. */
+      repeats?: number;
     }
   | {
       kind: "tool";
@@ -1086,7 +1090,10 @@ export function clearChat(): void {
   set({ chat: [], thinking: false, awaitingPermission: false, activity: null });
 }
 
-export function resolvePermission(id: string, decision: "allow" | "always" | "deny") {
+export function resolvePermission(
+  id: string,
+  decision: "allow" | "always" | "conversation" | "deny",
+) {
   updateChat(id, { decision } as any);
   const outstanding = state.chat.some(
     (item) => item.kind === "permission" && !item.decision && item.id !== id,

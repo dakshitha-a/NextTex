@@ -103,3 +103,61 @@ describe("what a collapsed row costs", () => {
     expect(shown[0]).toMatchObject({ repeats: 2, ok: false });
   });
 });
+
+/** Records collapse; questions never do.
+ *
+ *  A turn at one of the quiet positions writes a row for every action it
+ *  took, and at the quietest one that record is the only account of what was
+ *  done, so forty identical "Allowed automatically" lines are both the audit
+ *  trail working and unreadable.
+ */
+const card = (over: Partial<Extract<ChatItem, { kind: "permission" }>> = {}) =>
+  ({
+    kind: "permission", id: `p${Math.random()}`, tool: "Bash", rule: "Bash:latexmk",
+    headline: "Run a shell command", detail: "latexmk -pdf main.tex",
+    consequence: "", reason: "", at: 0, ...over,
+  }) as ChatItem;
+
+describe("collapsing the record", () => {
+  test("identical automatic approvals become one row with a count", () => {
+    const shown = tidy([
+      card({ decision: "auto" }),
+      card({ decision: "auto" }),
+      card({ decision: "auto" }),
+    ]);
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toMatchObject({ repeats: 3 });
+  });
+
+  test("a question is never folded into another question", () => {
+    // Two cards waiting for an answer are two answers the writer owes, and
+    // one row with a count would be one press for both.
+    const shown = tidy([card(), card()]);
+    expect(shown).toHaveLength(2);
+  });
+
+  test("a different command is a different row", () => {
+    const shown = tidy([
+      card({ decision: "auto" }),
+      card({ decision: "auto", detail: "biber main" }),
+    ]);
+    expect(shown).toHaveLength(2);
+  });
+
+  test("an approval and a refusal do not collapse into each other", () => {
+    const shown = tidy([
+      card({ decision: "auto" }),
+      card({ decision: "deny" }),
+    ]);
+    expect(shown).toHaveLength(2);
+  });
+
+  test("a run broken by something else does not fold across it", () => {
+    const shown = tidy([
+      card({ decision: "auto" }),
+      tool("Read", "main.tex"),
+      card({ decision: "auto" }),
+    ]);
+    expect(shown).toHaveLength(3);
+  });
+});

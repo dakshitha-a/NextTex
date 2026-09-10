@@ -3660,3 +3660,13 @@ What makes the change safe is machinery that was already there and unused by thi
 Two things deliberately do not change. `awaitingPermission` still drives the `--warn` dot in the header and the state dot on the floating pill, because *the agent is waiting for you* has to be visible when the panel is closed, which is precisely when it needs saying. And the 350 ms input shield stays: it protects against a click already travelling toward the composer, which is a different concern from whether the writer may type.
 
 The composer's own line says what changed, once, rather than leaving it to be discovered: `Waiting on your approval, or ask something else`. It used to print nothing there, because the box beside it was dead.
+
+### Records collapse, questions never do
+
+At a quiet position the transcript writes a row for every action, and at the quietest one that record is the only account of what was done, so a turn with forty tool calls produces forty `Allowed automatically` lines. That is the audit trail working and unreadable at the same time.
+
+Consecutive records with the same tool, the same decision and the same literal text collapse into one row with a count, which is the shape `tidy` already used for repeated tool rows. The rule that matters is the other half: an *undecided* card never collapses with anything, however much it has in common with the one above it, because a card is a question and two questions are two answers the writer owes. One row with a count would be one press for both.
+
+The resolved row also gained two states, taking it to five. `Allowed for this conversation` and `Allowed from now on` are not the same thing as each other or as `Allowed`, and the record has to be able to say which, because the last of them is the one a writer goes looking for in their settings a week later. The dots stay as they were: `--ok` for what a person allowed, `--ink-3` for what they refused, `--warn` for what nobody was asked about.
+
+The fourth button carries the keyboard hint `C`, alongside `A`, `⇧A` and `D`, and appears under the same condition `Allow always` does, which is that there is something nameable to scope the answer to. Four buttons at the panel's 320 px minimum is why section 5's `flex-wrap` note exists, and the row was already built to give way rather than pushing `Deny` off the card.
