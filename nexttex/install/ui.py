@@ -32,6 +32,51 @@ FANCY_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 PLAIN_FRAMES = "|/-\\"
 
 
+def _is_windows_powershell(argv) -> bool:
+    """Whether this argv starts Windows PowerShell rather than pwsh."""
+    if not argv:
+        return False
+    # Both separators, on every platform.  `Path` on Linux does not treat a
+    # backslash as one, and the argv being read here is a Windows one.
+    name = str(argv[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return name in ("powershell", "powershell.exe")
+
+
+def child_env(argv: list, env: dict | None = None) -> dict | None:
+    """The environment a child gets, with one Windows correction.
+
+    Windows PowerShell and PowerShell 7 use the same variable name for
+    different directories.  When the install line is typed into pwsh 7 --
+    which is what a machine with both installed does -- PowerShell 7's
+    `PSModulePath` is inherited by this process and passed down to the
+    `powershell.exe` we start.  5.1 then finds two copies of
+    `Microsoft.PowerShell.Utility`, PowerShell 7's sorting first, imports
+    that one, and `Get-FileHash` is not in it.  The install stops on "the
+    term 'Get-FileHash' is not recognized" on a machine that plainly has
+    it.
+
+    It was proved by spawning the same child three times with only this
+    variable changed: inherited it was missing, removed it was present,
+    forced to 5.1's own value it was present.  Removing is enough, because
+    PowerShell rebuilds its default when the variable is absent, so nothing
+    here has to know the right value for a machine it cannot see.
+
+    A `powershell.exe` started *directly* by pwsh 7 does not have the
+    problem; only one started through a process that is not itself
+    PowerShell, such as this installer.  So the bug cannot be reproduced by
+    hand at a prompt, which is why it survived three installs.
+
+    `pwsh` is left alone: PowerShell 7 wants the path it inherits.
+    """
+    if not _is_windows_powershell(argv):
+        return env
+    source = os.environ if env is None else env
+    # Case-insensitively, because `os.environ` upper-cases its keys on
+    # Windows: popping "PSModulePath" the way PowerShell spells it is a
+    # silent no-op that looks like it worked.
+    return {k: v for k, v in source.items() if k.upper() != "PSMODULEPATH"}
+
+
 @dataclass
 class Result:
     """What happened when a child process ran."""
@@ -206,7 +251,7 @@ class Console:
             process = subprocess.Popen(
                 [str(a) for a in argv],
                 cwd=str(cwd) if cwd else None,
-                env=env,
+                env=child_env(argv, env),
                 stdin=subprocess.PIPE if shell_input is not None else subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

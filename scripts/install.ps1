@@ -110,9 +110,19 @@ function Test-Interactive {
   # the shell installer this needs no /dev/tty dance: `irm | iex` hands the
   # script to the parser as a string and never touches stdin, so the console
   # is still the console.
+  #
+  # UserInteractive alone is not the answer, and measuring it said so: it is
+  # true inside a child started with its input on the null device, which is
+  # precisely where Read-Host waits for an answer that can never arrive.  It
+  # tracks the window station rather than the keyboard.  Redirected input is
+  # the part that means nobody can type, and it stays false in a real
+  # console even for `irm | iex`.
   if ($Yes) { return $false }
   if ($env:CI) { return $false }
-  try { return [Environment]::UserInteractive } catch { return $false }
+  try {
+    if (-not [Environment]::UserInteractive) { return $false }
+    return -not [Console]::IsInputRedirected
+  } catch { return $false }
 }
 
 function Resolve-Target {

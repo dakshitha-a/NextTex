@@ -338,6 +338,7 @@ async def _run_install(install: _Install) -> None:
         claude_script_name,
         fetch,
     )
+    from .install.ui import child_env
 
     platform = "windows" if os.name == "nt" else "posix"
     try:
@@ -355,6 +356,10 @@ async def _run_install(install: _Install) -> None:
             install.emit("Running it...\n")
             process = await asyncio.create_subprocess_exec(
                 *argv,
+                # The installer is not the only thing that starts the Claude
+                # CLI installer, and the PowerShell module path has to be
+                # corrected wherever it is started from.
+                env=child_env(argv),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
