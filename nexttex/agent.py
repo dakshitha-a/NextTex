@@ -39,6 +39,7 @@ import logging
 import os
 import re
 import secrets
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -741,6 +742,16 @@ class ProjectAgent:
         """
         if tool_name in NETWORK_TOOLS:
             return "network"
+        if tool_name == "mcp__nexttex__install_package":
+            # pip fetches from PyPI and runs what it fetches, so this asks
+            # wherever the network asks.
+            return "network"
+        if tool_name == "mcp__nexttex__run_plot_script":
+            # Not "network", because a plot script usually reaches nothing.
+            # "script" is its own answer so the card can say what it is:
+            # this is the tool that runs code, and the honest thing to put
+            # in front of the writer is the code.
+            return "script"
         if tool_name == "Bash":
             command = data.get("command") or ""
             if reaches_the_network(command):
@@ -813,6 +824,28 @@ class ProjectAgent:
                 "consequence": "This file is not part of this writing project.",
                 "reason": self._reason(why, ""),
             }
+        if tool_name == "mcp__nexttex__run_plot_script":
+            return {
+                "headline": "Run a script to draw a figure",
+                # The script itself, because that is the thing being agreed
+                # to. A summary of it would be a card about a description.
+                "detail": str(data.get("script") or ""),
+                "consequence": "This is Python, so it can do anything Python "
+                               "can: read files, write them, and reach the "
+                               "network. It is saved in scripts/ either way, "
+                               "so you can read it again afterwards.",
+                "reason": self._reason(why, ""),
+            }
+        if tool_name == "mcp__nexttex__install_package":
+            name = str(data.get("name") or "")
+            return {
+                "headline": f"Install a Python package: {name}",
+                "detail": f"{sys.executable} -m pip install --no-input {name}",
+                "consequence": "This downloads and runs installation code "
+                               "from PyPI, into the environment NextTex "
+                               "itself runs in.",
+                "reason": self._reason(why, ""),
+            }
         if tool_name == "WebFetch":
             url = str(data.get("url") or data.get("prompt") or "")[:200]
             return {
@@ -867,6 +900,11 @@ class ProjectAgent:
                 "Asked at this setting, because what is sent and where it "
                 "goes are chosen from files that may not be yours."
             )
+        if why == "script":
+            return (
+                "Asked at this setting: a script can do anything Python can, "
+                "which is more than any single command could."
+            )
         return ""
 
     @property
@@ -895,6 +933,13 @@ class ProjectAgent:
     # DOI.  None can reach the shell or a path outside the project, so a
     # card for them would be a card for nothing -- and a card for nothing
     # teaches the writer to click Allow without reading.
+    #
+    # Two of them are exceptions and are listed in `_SCRIPT_TOOLS` below.
+    # `run_plot_script` runs Python the model wrote, and Python can start a
+    # subprocess and open a socket, so that sentence is not true of it; it
+    # is fenced like a shell call instead.  This paragraph names the
+    # exception rather than leaving the next reader to discover that the
+    # rule above has a hole in it.
     _OWN_TOOL_PREFIX = "mcp__nexttex__"
     _ALWAYS_OK = frozenset(READ_ONLY_TOOLS) | {
         # How the model finds out which tools exist.  Asking the writer to
@@ -914,6 +959,15 @@ class ProjectAgent:
     #: because a refusal keyed on a name that has moved on is the same hole
     #: with a comment over it.
     _SUBAGENT_TOOLS = frozenset({"Task", "Agent"})
+    #: Ours, and asked about anyway.  `run_plot_script` runs Python the
+    #: model wrote, which can start a subprocess, open a socket and write
+    #: anywhere this user can write, so it has more reach than `Bash` and
+    #: cannot be one of the tools that are safe by construction.
+    #: `install_package` reaches PyPI and runs its installation code.
+    _SCRIPT_TOOLS = frozenset({
+        "mcp__nexttex__run_plot_script",
+        "mcp__nexttex__install_package",
+    })
     _WRITE_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
     #: Tools whose card names one path.  Their remembered rule is that
     #: path, never the verb -- see `_rule_for`.
@@ -989,6 +1043,16 @@ class ProjectAgent:
         # see it.
         if input_data.get("agent_id") or input_data.get("agentId"):
             return self._deny(_SUBAGENT_REFUSAL)
+
+        # Ours, and the one exception to the sentence above `_ALWAYS_OK`.
+        # Those tools are waved past because none of them can reach the
+        # shell or a path outside the project; a tool that runs Python the
+        # model wrote can do both, and more than `Bash` can. So it is fenced
+        # like a shell call rather than like one of ours, and the comment
+        # above `_ALWAYS_OK` names the exception rather than leaving the
+        # next reader to find it.
+        if tool_name in self._SCRIPT_TOOLS:
+            return await self._by_mode(tool_name, tool_input)
 
         if tool_name in self._ALWAYS_OK or tool_name.startswith(self._OWN_TOOL_PREFIX):
             return self._allow()
@@ -1436,6 +1500,33 @@ class ProjectAgent:
             return await self.replace_range_tool(args)
 
         @tool(
+            "run_plot_script",
+            "Draw a figure by writing and running a Python script. The "
+            "script is saved in the project's scripts/ directory under the "
+            "name you give, so the writer can read it, change it and re-run "
+            "it later. Use `figure` and `save` from figure.py, which is in "
+            "that directory: `from figure import figure, save`, then "
+            "`fig, ax = figure()`, then `save(fig, name)`. That draws the "
+            "figure at the width it will be printed at, which is what makes "
+            "the labels the right size, and writes a PDF into figures/. Read "
+            "the dataset before you write the script. Never call "
+            "pyplot.show().",
+            {"name": str, "script": str, "output": str},
+        )
+        async def run_plot_script(args: dict) -> dict:
+            return await self.plot_tool(args)
+
+        @tool(
+            "install_package",
+            "Install one Python package, when run_plot_script has said a "
+            "module is missing. Ask the writer in your reply before you call "
+            "this: it downloads and runs installation code from PyPI.",
+            {"name": str},
+        )
+        async def install_package(args: dict) -> dict:
+            return await self.install_tool(args)
+
+        @tool(
             "goto",
             "Scroll the user's editor to a line, so they can look at what you "
             "are describing. Does not change anything.",
@@ -1626,7 +1717,7 @@ class ProjectAgent:
             tools=[
                 editor_state, compile_diagnostics, compile_document,
                 insert_at_cursor, insert_figure, insert_table,
-                replace_range, goto,
+                replace_range, run_plot_script, install_package, goto,
                 search_library, find_papers, add_reference, check_references,
                 remember,
             ],
@@ -1741,6 +1832,109 @@ class ProjectAgent:
         count = last - first + 1
         return self._text(
             f"Replaced {count} line{'s' if count != 1 else ''} in {path}."
+        )
+
+    async def plot_tool(self, args: dict) -> dict:
+        """Write a script into the project, run it, and check it drew something.
+
+        Lifted out of the MCP closure like the other write tools, so the
+        checks can be exercised without a live agent and without matplotlib.
+        """
+        from . import plots
+
+        raw = str(args.get("name", "")).strip()
+        target = plots.script_path(self.root, raw)
+        if target is None:
+            return self._text(
+                f"{raw!r} is not a name I can save a script under. Use "
+                "letters, digits, dots, dashes and underscores."
+            )
+        script = str(args.get("script", ""))
+        if not script.strip():
+            return self._text("There is no script to run.")
+
+        # The baseline, once. Never overwritten, because it is the writer's
+        # to argue with and an edit of theirs has to survive the next plot.
+        seeded = plots.ensure_baseline(self.root)
+
+        try:
+            before = target.read_text(encoding="utf-8")
+        except OSError:
+            before = None
+        body = script if script.endswith("\n") else script + "\n"
+        if self.apply_edit is None:
+            return self._text("The editor is not connected.")
+        # Through the same path a chapter takes, so the script gets a
+        # version, a chip and a place in the writer's history. It is source
+        # they will read and change, not a temporary file.
+        self.apply_edit(target, body)
+        if before != body:
+            self._edits.append(
+                EditRecord("plot", self._display(target), before, body)
+            )
+
+        wanted = str(args.get("output", "")).strip()
+        expected = None
+        if wanted:
+            if not self._inside_project(wanted):
+                return self._text(f"{wanted} is outside this project.")
+            expected = (self.root / wanted).resolve()
+        stamp = expected.stat().st_mtime if expected and expected.exists() else 0.0
+
+        result = await plots.run(self.root, self.state_dir, target)
+
+        note = ""
+        if seeded:
+            note = (
+                "\n\nI also put " + " and ".join(seeded) + " in the project. "
+                "They set the figure's size, fonts and colours, and they are "
+                "yours to edit; nothing overwrites them again."
+            )
+
+        if result.get("missing"):
+            return self._text(
+                f"{result['missing']} is not installed, so the script could "
+                f"not run. Ask the writer whether to install it, and use "
+                f"install_package if they say yes." + note
+            )
+        if not result["ok"]:
+            tail = (result.get("err") or result.get("out") or "").strip()
+            return self._text(
+                f"The script failed (exit {result['code']}).\n\n{tail}" + note
+            )
+        if expected is not None:
+            if not expected.exists():
+                return self._text(
+                    f"The script ran without complaining and there is no file "
+                    f"at {wanted}. Check the name you saved it under." + note
+                )
+            if expected.stat().st_mtime <= stamp:
+                return self._text(
+                    f"{wanted} was not written by this run; it is the file "
+                    "that was already there." + note
+                )
+
+        said = (result.get("out") or "").strip()
+        where = wanted or "figures/"
+        return self._text(
+            f"Drew {where} and saved the script as "
+            f"{self._display(target)}. Insert it with insert_figure at "
+            f"width=\\linewidth, since it is already drawn at the width it "
+            f"will be printed at."
+            + (f"\n\n{said}" if said else "")
+            + note
+        )
+
+    async def install_tool(self, args: dict) -> dict:
+        """Install one package, when a plot has said one is missing."""
+        from . import plots
+
+        name = str(args.get("name", "")).strip()
+        result = await plots.install(name)
+        if result["ok"]:
+            return self._text(f"Installed {name}. Run the script again.")
+        return self._text(
+            f"Could not install {name}.\n\n{(result.get('err') or '').strip()}"
         )
 
     async def insert_figure_tool(self, args: dict) -> dict:

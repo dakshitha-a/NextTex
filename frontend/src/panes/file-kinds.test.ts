@@ -3,7 +3,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 
-import { extensionOf, iconFor, isBib, isTeX, isText, isViewable, kindOf } from "./file-kinds";
+import {
+  extensionOf,
+  iconFor,
+  isBib,
+  isData,
+  isTeX,
+  isText,
+  isViewable,
+  kindOf,
+} from "./file-kinds";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -86,4 +95,29 @@ test("every suffix the server will hand over as text is text here too", () => {
     expect(isText(`a${suffix}`), `${suffix} is text to the server but not here`)
       .toBe(true);
   }
+});
+
+/** Which files a writer would plot.
+ *
+ *  The file-tree row offers "Plot this" on these and on nothing else,
+ *  because an item that explains itself by failing is worse than no item.
+ */
+describe("what looks like a dataset", () => {
+  test("the formats data actually arrives in", () => {
+    for (const name of [
+      "data/runs.csv", "data/runs.tsv", "spectra.dat", "columns.txt",
+      "measured.json", "big.parquet", "sheet.xlsx", "cube.h5", "grid.npy",
+    ]) {
+      expect(isData(name)).toBe(true);
+    }
+  });
+
+  test("a build log is not a dataset, and neither is the writing", () => {
+    for (const name of [
+      "main.log", "main.tex", "references.bib", "figures/plot.pdf",
+      "scripts/plot.py", "notes", "main.aux",
+    ]) {
+      expect(isData(name)).toBe(false);
+    }
+  });
 });

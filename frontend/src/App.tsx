@@ -1441,6 +1441,7 @@ export default function App() {
                   onRefresh={refreshTree}
                   onRename={renameOpenFile}
                   onHistory={() => setHistoryOpen(true)}
+                  onAskAbout={noAgent ? undefined : askAboutSelection}
                   mainFile={mainFile}
                 />
               ) : null}

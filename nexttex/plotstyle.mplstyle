@@ -1,0 +1,116 @@
+# A figure that is already the right shape for a paper.
+#
+# Copied into a project's own scripts/ directory the first time the agent
+# draws something, and never overwritten after that: it is yours to argue
+# with, and an edit of yours survives every later plot.
+#
+# The single most important thing here is not in this file at all. It is
+# that a figure must be *drawn* at the width it will be *printed* at and
+# included with no scaling, so that a 9 pt label in the script is a 9 pt
+# label on the page. figure.py holds those widths and is where to change
+# them; matplotlib's own default of 6.4 by 4.8 inches, scaled down to
+# 0.8\linewidth, is what makes every default figure's text too small to read.
+
+# Text that matches the document rather than the software. A paper is set in
+# a serif face, so labels in a sans-serif one announce that the figure came
+# from somewhere else.
+#
+# STIX first, and that is a deliberate choice rather than an alphabetical
+# one: it is a Times metric-compatible face, matplotlib ships it, so it is
+# present on every machine this could run on. Times New Roman and Nimbus
+# Roman come first only if they happen to be installed. DejaVu Serif is the
+# last resort and is the one to avoid, because it is noticeably wider and
+# rounder than Times and a figure set in it looks like it came from a
+# different document.
+#
+# Matching the document *exactly* means either installing the document's own
+# face or drawing through the pgf backend, which runs LaTeX once per figure.
+# Neither is worth it for a figure whose labels are six words long, and this
+# is close enough that a reader does not notice. If yours is one of the
+# cases where it matters, the face to name here is the one in your preamble.
+font.family: serif
+font.serif: Times New Roman, Nimbus Roman, STIXGeneral, Liberation Serif, DejaVu Serif, serif
+# Match your document's own size, or a point under it. A 10 pt label in an
+# 11 pt document is the ordinary relationship and is what a journal asks
+# for; going much smaller is how a figure ends up with labels a referee has
+# to lean in to read.
+font.size: 10
+axes.labelsize: 10
+axes.titlesize: 10
+xtick.labelsize: 9
+ytick.labelsize: 9
+legend.fontsize: 9
+mathtext.fontset: stix
+
+# No title. A figure in a paper is captioned, and a title above the axes is
+# the same words twice, one of them outside the caption the typesetter
+# numbered.
+axes.titlepad: 0
+
+# Two spines, not four, and hairlines. A box around the data is a convention
+# from graph paper rather than from print.
+axes.spines.top: False
+axes.spines.right: False
+axes.linewidth: 0.6
+axes.edgecolor: 262626
+axes.labelcolor: 141414
+text.color: 141414
+
+# Ticks pointing in, minors on, no grid. A grid competes with the data for
+# the reader's attention and usually wins.
+xtick.direction: in
+ytick.direction: in
+xtick.minor.visible: True
+ytick.minor.visible: True
+xtick.major.width: 0.6
+ytick.major.width: 0.6
+xtick.minor.width: 0.4
+ytick.minor.width: 0.4
+xtick.major.size: 3
+ytick.major.size: 3
+xtick.minor.size: 1.8
+ytick.minor.size: 1.8
+xtick.color: 262626
+ytick.color: 262626
+axes.grid: False
+
+# Lines and markers heavy enough to survive being printed.
+lines.linewidth: 1.2
+lines.markersize: 3.5
+lines.markeredgewidth: 0.6
+errorbar.capsize: 2
+
+# A legend that sits in the data rather than in a box beside it.
+legend.frameon: False
+legend.handlelength: 1.6
+legend.borderaxespad: 0.4
+legend.labelspacing: 0.3
+
+# Colour-blind safe, and distinguishable in greyscale as well, because a
+# referee may print this. Okabe and Ito's set, minus its yellow, which is
+# too pale to read as a line.
+axes.prop_cycle: cycler('color', ['0072B2', 'D55E00', '009E73', 'CC79A7', '56B4E9', 'E69F00', '000000'])
+image.cmap: viridis
+
+# Vector out, tight, and on white rather than transparent, so the figure
+# looks the same in a PDF viewer as it does on paper.
+figure.constrained_layout.use: True
+figure.constrained_layout.h_pad: 0.02
+figure.constrained_layout.w_pad: 0.02
+figure.facecolor: white
+savefig.facecolor: white
+savefig.transparent: False
+# Deliberately *not* `savefig.bbox: tight`, which is matplotlib's usual
+# advice and undoes the one rule this file exists to keep. Tight bbox crops
+# the output to the ink, so the saved figure is no longer the width it was
+# drawn at, and including it at \linewidth scales it by whatever the crop
+# happened to remove. `constrained_layout` above already fits the labels
+# inside the figure, which is what tight bbox is normally compensating for,
+# so with it on the saved width is exactly the width asked for.
+savefig.pad_inches: 0.01
+savefig.dpi: 600
+# 42 embeds the font as TrueType rather than as matplotlib's Type 3 subset.
+# Type 3 is what makes a figure's text unselectable and unsearchable in the
+# finished PDF, and several publishers refuse it outright.
+pdf.fonttype: 42
+ps.fonttype: 42
