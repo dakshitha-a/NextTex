@@ -126,9 +126,17 @@ def build_plan(
     ))
 
     # 2 -- TeX --------------------------------------------------------------
+    # Where TinyTeX actually lands, which is not the same place on all
+    # three: saying `~/.TinyTeX` to a Windows user names a directory that
+    # will not exist when they go looking for it.
+    tinytex_home = {
+        "windows": r"%APPDATA%\TinyTeX",
+        "macos": "~/Library/TinyTeX",
+    }.get(result.platform, "~/.TinyTeX")
     tex_options = [
-        Option("tinytex", f"install TinyTeX  ({SIZES['tex'][0]}, into ~/.TinyTeX)"),
-        Option("miktex", "install MiKTeX instead  (Windows only)"),
+        Option("tinytex",
+               f"install TinyTeX  ({SIZES['tex'][0]}, into {tinytex_home})"),
+        Option("miktex", "install MiKTeX instead"),
         Option("none", "skip it, and install a TeX yourself later"),
     ]
     if result.platform != "windows":
@@ -261,8 +269,20 @@ class Plan:
 
     @property
     def minutes(self) -> int:
-        # Two megabytes a second on a good connection, plus a minute of
-        # resolving that has nothing to do with bandwidth.  Rounded up and
-        # described as "roughly", because a number here is a reassurance
-        # rather than a promise.
-        return max(1, round(self.megabytes / 120) + 1)
+        """Roughly how long, and deliberately not the optimistic answer.
+
+        A megabyte a second rather than the ten the connection can probably
+        do, because almost none of this is one big download: pip resolves,
+        TinyTeX unpacks, and `tlmgr` fetches a few dozen small packages from
+        a mirror that is often slow.  Installing TeX gets a further eight
+        minutes of its own for exactly that reason.
+
+        An estimate that is under by a factor of five is worse than no
+        estimate: somebody who was told three minutes and is fifteen in has
+        been given a reason to think it has hung.  The first-session guide
+        says twenty for a full first install, and this should agree with it.
+        """
+        minutes = round(self.megabytes / 60) + 1
+        if self.choice("tex") in ("tinytex", "miktex"):
+            minutes += 8
+        return max(1, minutes)

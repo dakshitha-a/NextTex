@@ -124,7 +124,24 @@ GROUP_TITLES = [
 ]
 
 
+NAME_WIDTH = 16
+RIGHT_WIDTH = 13
+
+
 def show_survey(console: Console, result) -> None:
+    """The four groups, wrapped to the terminal rather than off the edge of it.
+
+    Wrapping is not a nicety here.  Several of these explanations are a full
+    sentence, and at a column of 34 they ran to a hundred characters -- so
+    the first screen of the first thing anybody runs was a wall of wrapped
+    stumps in an eighty-column terminal.
+    """
+    import textwrap
+
+    width = min(console.width - 2, 78)
+    indent = " " * (6 + NAME_WIDTH + RIGHT_WIDTH)
+    body = max(24, width - len(indent))
+
     console.rule("What is on this machine")
     for kind, title in GROUP_TITLES:
         findings = result.of_kind(kind)
@@ -134,13 +151,38 @@ def show_survey(console: Console, result) -> None:
         console.note(console.bold(title))
         for finding in findings:
             right = finding.version or finding.size or ""
-            console.note(f"  {finding.name:<16} {right:<14} {finding.why}".rstrip())
-            if finding.where and not finding.version:
-                console.note(f"  {'':<16} {finding.where}")
-            elif finding.where and finding.version:
-                console.note(f"  {'':<16} {'':<14} {finding.where}")
-            if finding.command:
-                console.note(f"  {'':<16} {'':<14} {finding.command}")
+            head = f"  {finding.name:<{NAME_WIDTH}}{right:<{RIGHT_WIDTH}}"
+            # What goes in the wide column, in order of what is worth saying.
+            # Where it is, for something already here; why it matters, for
+            # something that is not.  A thing that is missing and does not
+            # matter gets no install command: an instruction under "not
+            # needed here" is one nobody asked for.
+            said = [finding.why] if finding.why else []
+            if finding.where:
+                said.append(finding.where)
+            if finding.command and finding.kind == YOURS:
+                said.append(finding.command)
+            if not said:
+                console.note(head.rstrip())
+                continue
+            first = True
+            for paragraph in said:
+                # A command is never wrapped: it is meant to be copied.
+                pieces = ([paragraph] if paragraph == finding.command
+                          else textwrap.wrap(paragraph, body) or [""])
+                if paragraph == finding.command:
+                    # Never wrapped, and pulled left rather than off the edge
+                    # when the window is narrow: a copy-paste line has to
+                    # arrive in one piece whatever size the terminal is.
+                    room = max(6, min(len(indent) + 2, width - len(paragraph)))
+                    console.write(" " * room + paragraph)
+                    continue
+                for piece in pieces:
+                    if first:
+                        console.note((head + piece).rstrip())
+                        first = False
+                    else:
+                        console.write(indent + piece)
     if result.offline:
         console.write("")
         console.note(console.red("Cannot reach: " + ", ".join(result.offline)))
@@ -152,22 +194,31 @@ def show_survey(console: Console, result) -> None:
 
 
 def show_plan(console: Console, plan) -> None:
+    import textwrap
+
     megabytes = plan.megabytes
-    if megabytes:
-        headline = (f"The plan -- about {megabytes} MB, "
-                    f"roughly {plan.minutes} minutes on a fast connection")
-    else:
-        headline = "The plan -- nothing to download"
-    console.rule(headline)
+    console.rule("The plan")
     console.write("")
+    if megabytes:
+        console.note(f"about {megabytes} MB, roughly {plan.minutes} minutes"
+                     " on a fast connection")
+    else:
+        console.note("nothing to download")
+    console.write("")
+    width = min(console.width - 2, 78)
+    indent = " " * (4 + 3 + 15)
     for index, item in enumerate(plan.items, 1):
-        console.note(f"{index}  {item.title:<14} {item.summary}")
+        head = f"    {index}  {item.title:<15}"
+        lines = textwrap.wrap(item.summary, max(24, width - len(indent))) or [""]
+        console.write(head + lines[0])
+        for line in lines[1:]:
+            console.write(indent + line)
     console.write("")
     if plan.choice("tex") in ("tinytex", "miktex"):
-        console.note("Nothing outside this directory is written except TeX, in its")
-        console.note("own folder in your home directory.")
+        console.paragraph("Nothing outside this directory is written except "
+                          "TeX, in its own folder in your home directory.")
     else:
-        console.note("Nothing outside this directory is written.")
+        console.paragraph("Nothing outside this directory is written.")
 
 
 def confirm(console: Console, plan, interactive: bool) -> bool:
@@ -198,13 +249,12 @@ def change(console: Console, plan, item) -> None:
     console.note(console.bold(item.title))
     if item.fixed:
         console.write("")
-        console.note("  " + item.fixed)
-        console.note("  There is nothing to decide here.")
+        console.paragraph(item.fixed, lead="  ")
+        console.paragraph("There is nothing to decide here.", lead="  ")
         return
     if item.explain:
         console.write("")
-        for line in item.explain.splitlines():
-            console.note("  " + line)
+        console.paragraph(" ".join(item.explain.split()), lead="  ")
     console.write("")
     for line in item.prompt().splitlines():
         console.note("  " + line)
@@ -415,17 +465,18 @@ def ready(console: Console, root: Path, platform: str, instance: str,
     for line in url.output:
         console.note(line.strip())
     console.write("")
-    console.note("That link contains your access token. Anyone with it can read")
-    console.note("and edit your projects, so treat it like a password.")
+    console.paragraph("That link contains your access token. Anyone with it "
+                      "can read and edit your projects, so treat it like a "
+                      "password.")
     if agent == "none":
         console.write("")
-        console.note("No agent installed. You can add one later from")
-        console.note("Settings -> Change, without reinstalling.")
+        console.paragraph("No agent installed. You can add one later from "
+                          "Settings -> Change, without reinstalling.")
     if notes:
         console.write("")
         console.note(console.bold("Not everything was perfect:"))
         for note in notes:
-            console.note("  " + note)
+            console.paragraph(note, lead="  ")
     if console.log is not None:
         console.write("")
         console.note(f"Log of everything above: {console.log}")
