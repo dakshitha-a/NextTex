@@ -65,10 +65,42 @@ const ZOOM_SETTLE = 260;
 const ZOOM_DRAW_INTERVAL = 200;
 
 export type PdfHandle = {
-  reveal(path: string, line: number): Promise<boolean>;
+  /** Show where a source line ended up on the page.
+   *
+   *  `gentle` is what an agent's edit asks for rather than what a person
+   *  asks for. A double-click or Cmd-Enter is somebody saying take me
+   *  there, so it goes there whatever is on screen. The agent announcing
+   *  that it wrote something is not, so a gentle reveal moves the view only
+   *  when the target is not already in front of the reader: section 6's
+   *  anti-jump rule exists because a preview that shifts under somebody
+   *  reading it is worse than one that has not caught up. */
+  reveal(path: string, line: number, gentle?: boolean): Promise<boolean>;
 };
 
 type Mode = "scroll" | "page";
+
+/** Paint the violet rectangle over a box on the page, and take it away.
+ *
+ *  Lifted out of the reveal handle because there are two exits from that
+ *  function now: one that scrolls first and one that has decided the reader
+ *  is already looking at the right place. Both owe them the highlight, and
+ *  the two used to be one because there was only one exit.
+ */
+function flash(
+  view: PageView,
+  position: { x: number; y: number; width: number; height: number },
+  zoom: number,
+): void {
+  const mark = window.document.createElement("div");
+  mark.className = "nx-flash";
+  mark.style.left = `${position.x * zoom}px`;
+  mark.style.top = `${(position.y - position.height) * zoom}px`;
+  mark.style.width = `${Math.max(position.width * zoom, 12)}px`;
+  mark.style.height = `${Math.max(position.height * zoom, 10)}px`;
+  view.container.appendChild(mark);
+  window.setTimeout(() => (mark.style.opacity = "0"), 250);
+  window.setTimeout(() => mark.remove(), 950);
+}
 
 type PageView = {
   container: HTMLDivElement;
@@ -836,7 +868,7 @@ export default function Pdf({
 
   useEffect(() => {
     handleRef({
-      reveal: async (path: string, line: number) => {
+      reveal: async (path: string, line: number, gentle = false) => {
         const projectId = get().projectId;
         if (!projectId) return false;
         try {
@@ -847,6 +879,23 @@ export default function Pdf({
           const root = scroller.current;
           if (!view || !root) return false;
           const zoom = drawn.current;
+          // Both modes need this and they need different arithmetic, which
+          // is why it is here rather than in the caller: in page mode there
+          // is one page on screen and the question is whether it is this
+          // one, and in scroll mode the question is whether the box is
+          // inside the part of the document the reader can see.
+          const top = view.container.offsetTop + (position.y - position.height) * zoom;
+          const alreadyInFront =
+            modeRef.current === "page"
+              ? currentRef.current === position.page
+              : top >= root.scrollTop &&
+                top <= root.scrollTop + root.clientHeight - 24;
+          if (gentle && alreadyInFront) {
+            // The reader is already looking at it. Flash it, because
+            // something did change there, and move nothing.
+            flash(view, position, zoom);
+            return true;
+          }
           if (modeRef.current === "page") {
             setCurrent(position.page);
             await renderPage(position.page - 1);
@@ -860,15 +909,7 @@ export default function Pdf({
               ),
             });
           }
-          const flash = window.document.createElement("div");
-          flash.className = "nx-flash";
-          flash.style.left = `${position.x * zoom}px`;
-          flash.style.top = `${(position.y - position.height) * zoom}px`;
-          flash.style.width = `${Math.max(position.width * zoom, 12)}px`;
-          flash.style.height = `${Math.max(position.height * zoom, 10)}px`;
-          view.container.appendChild(flash);
-          window.setTimeout(() => (flash.style.opacity = "0"), 250);
-          window.setTimeout(() => flash.remove(), 950);
+          flash(view, position, zoom);
           return true;
         } catch {
           return false;
