@@ -103,14 +103,6 @@ const BODY_TEXT: [string, string][] = [
   ["warn", "surface-2"],
   ["ok", "surface"],
   ["ok", "surface-2"],
-  // The syntax families sit on the editor's background, which is --surface
-  // in whichever palette the editor has been given.  --surface-2 is not
-  // listed because none of them is ever drawn on it.
-  ["syn-structure", "surface"],
-  ["syn-env", "surface"],
-  ["syn-math", "surface"],
-  ["syn-preamble", "surface"],
-  ["syn-cite", "surface"],
   // A filled --pen button writes its label in --on-pen.  White on the light
   // violet, near-black on the pale dark one; the token exists so the button
   // asks the palette in force rather than the root's theme, which is the
@@ -121,6 +113,40 @@ const BODY_TEXT: [string, string][] = [
 /** The five command families, which have to be told apart from one another
  *  as well as read against the page. */
 const SYNTAX = ["syn-structure", "syn-env", "syn-math", "syn-preamble", "syn-cite"];
+
+/** The one pairing in this file that is deliberately held to 4:1 rather than
+ *  4.5:1, and the reasoning has to survive being read by somebody who did not
+ *  agree to it.
+ *
+ *  On a light page, pop and contrast pull against each other, and not as a
+ *  matter of taste: sRGB holds the most chroma at a lightness well above the
+ *  one that maximises contrast, so every step toward a colour whose hue you
+ *  can actually see is a step down in ratio.  Two palettes were shipped that
+ *  kept 4.5:1 comfortably -- 5.7:1, then 7.0:1 -- and the writer's verdict on
+ *  both was that the colours melted into the prose.  They were right, and the
+ *  ratio is why: raising contrast on a light page means going darker, and
+ *  darker means closer to the near-black the prose is set in.
+ *
+ *  So the families were chosen by looking at five candidates rendered as real
+ *  source on all four light pages, and the one chosen measures 4.1 to 4.9:1
+ *  on the proofing grey and 4.8 to 6.1:1 on the three papers.  Three things
+ *  make that a trade worth taking here and nowhere else in this file:
+ *
+ *  - Colouring is off by default and stays off until somebody asks for it.
+ *    Nobody is given this without choosing it.
+ *  - It is never the only carrier.  A control sequence is set 200 weights
+ *    above the prose whatever this setting says, so with the colour removed
+ *    entirely -- by the setting, by a display, by a person who cannot see
+ *    the hue -- the structure of the file is still legible.  That is the
+ *    condition WCAG actually asks for, and it is met.
+ *  - It applies to control sequences, which are five to fifteen characters
+ *    of fixed vocabulary, not to running prose.  --ink on --surface is
+ *    still 14.4:1 and nothing here touches it.
+ *
+ *  4:1 rather than no floor at all, because the point is to keep the next
+ *  change honest: this is a stated, measured departure, not permission to
+ *  drift. */
+const SYNTAX_ON_PAGE = 4.0;
 
 /** Every selector in styles.css that is handed a set of surfaces.
  *
@@ -222,6 +248,16 @@ describe.each(PALETTES)("%s theme", (_name, tokens) => {
       Number(ratio.toFixed(2)),
       `--${ink} on --${ground} is ${ratio.toFixed(2)}:1`,
     ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test.each(SYNTAX)("%s on the page clears the syntax floor", (name) => {
+    // 4:1 rather than 4.5:1, deliberately.  The whole argument is on
+    // SYNTAX_ON_PAGE above; it is not a rounding of the rule beside it.
+    const ratio = contrast(tokens[name], tokens["surface"]);
+    expect(
+      Number(ratio.toFixed(2)),
+      `--${name} on --surface is ${ratio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(SYNTAX_ON_PAGE);
   });
 });
 
@@ -329,26 +365,51 @@ describe.each(PALETTES)("%s theme syntax families", (_name, tokens) => {
     }
   });
 
-  test("no family is fainter than the faintest ink", () => {
-    // The bug this was written for, and the one thing a contrast floor of
-    // 4.5:1 cannot see.  The light families used to sit at OKLab lightness
-    // 0.45, which is --ink-3's, so every coloured control sequence measured
-    // 5.7 to 6.3:1 against a page where --ink-3 itself measured 6.3:1 and
-    // the prose measured 14.4:1.  Colouring a token made it *quieter* than
-    // the words around it and no louder than a comment, which is why the
-    // setting read as washed out on a white page and looked right on a dark
-    // one, where the families had always been well clear of --ink-3.
+  test("no family is too dark for anyone to see what colour it is", () => {
+    // Two palettes went out with muddy light-theme colours, and neither the
+    // 4.5:1 floor nor the chroma floor below could see it.  Both passed.
     //
-    // Stated against --ink-3 rather than as a number because that is the
-    // actual rule: the faintest thing the editor draws is a comment, and a
-    // family that has something to say is never fainter than that.
-    const faintest = contrast(tokens["ink-3"], tokens["surface"]);
+    // Chroma is the reason.  OKLCh chroma is not colourfulness: what the eye
+    // reports is chroma weighted by how light the thing is, so a saturated
+    // near-black reads as black.  #18448C carries a chroma of 0.129, more
+    // than the dark theme's blue, and reads as navy-dark rather than as
+    // blue, because it sits at lightness 0.40 on a page whose prose is a
+    // near-black ink -- 22.6 L* away from the words it has to stand out
+    // from, where even --ink-3 stands 27.3 away.
+    //
+    // So the quantity is chroma times lightness, and the threshold sits just
+    // under what the palette the writer actually chose measures.  The two
+    // rejected palettes score 0.021 and 0.028 at their weakest; this one
+    // scores 0.040 and the dark theme 0.079.  In every light palette the
+    // weakest is the teal, which sRGB starves at every lightness a light
+    // page can use -- it is the family that sets this number, and if it ever
+    // has to move, the hue is what should move rather than the floor.
     for (const name of SYNTAX) {
-      const ratio = contrast(tokens[name], tokens["surface"]);
+      const { chroma } = oklch(tokens[name]);
+      const seen = (chroma * lightness(tokens[name])) / 100;
       expect(
-        Number(ratio.toFixed(2)),
-        `--${name} is ${ratio.toFixed(2)}:1 on the page, under --ink-3's ${faintest.toFixed(2)}:1`,
-      ).toBeGreaterThanOrEqual(Number(faintest.toFixed(2)));
+        Number(seen.toFixed(3)),
+        `--${name} reads as ${seen.toFixed(3)} colourful (chroma ${chroma.toFixed(3)} at L* ${lightness(tokens[name]).toFixed(1)})`,
+      ).toBeGreaterThanOrEqual(0.038);
+    }
+  });
+
+  test("no family melts into the prose beside it", () => {
+    // The writer's own rule, and the one that decided this palette: "when
+    // the focus is on the text, the keywords should be differentiated
+    // enough from normal text and vice versa."  Distance from --ink, the
+    // prose, rather than from the page behind it -- a command that is the
+    // same darkness as the words around it is invisible however well it
+    // measures against the paper.
+    //
+    // 14 L* is the dark theme's own margin, which has never been complained
+    // about; the light palette now stands 34 to 39 clear.
+    for (const name of SYNTAX) {
+      const gap = Math.abs(lightness(tokens[name]) - lightness(tokens["ink"]));
+      expect(
+        Number(gap.toFixed(1)),
+        `--${name} is ${gap.toFixed(1)} L* from the prose`,
+      ).toBeGreaterThanOrEqual(14);
     }
   });
 
