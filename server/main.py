@@ -59,6 +59,7 @@ from nexttex.project import (
 )
 from nexttex.symbols import walk_project
 from nexttex import deps, updates
+from nexttex.install.ui import child_env
 from server.session import CLOSED, ProjectSession, spawn
 
 log = logging.getLogger("nexttex.server")
@@ -3580,6 +3581,11 @@ async def _run_update(report) -> None:
                 argv.append(f"--instance={instance_name()}")
         process = subprocess.Popen(
             argv,
+            # The third place a child that might be Windows PowerShell is
+            # started, and the one that would have been rediscovered later:
+            # the server inherits its environment from whatever launched it,
+            # which on a machine with PowerShell 7 is a pwsh lineage.
+            env=child_env(argv),
             cwd=INSTALL_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1,
         )

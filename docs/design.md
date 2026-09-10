@@ -2007,10 +2007,21 @@ attempt at the fix produced a convincing false negative. The comparison has
 to be case-insensitive, and the test uses an upper-case key for that reason
 alone.
 
-**Two spawn sites, not one.** The installer's `Console.run` is the one place
-the install starts a child, which is the whole design of that module, but
-the settings sheet starts the Claude CLI installer on its own. A correction
-applied at one of them would have been half a fix.
+**Three spawn sites, not one.** The installer's `Console.run` is the one
+place the *install* starts a child, which is the whole design of that
+module, and it is easy to read that as the only place anything is started.
+It is not. The settings sheet starts the Claude CLI installer on its own,
+and the in-app update button starts the updater from the server, which
+inherits its environment from whatever launched the server. The first two
+were corrected together; the third was found by somebody reading the fix
+rather than the bug, which is the better time to find it. A list of the
+three is now a test, so a fourth has to be declared rather than discovered.
+
+The claim being made by that test is a rule, not an inventory: anything that
+starts a child which might be Windows PowerShell corrects the module path
+first. It is worth stating that way because the correction is invisible when
+it works, and the failure it prevents appears in a different program, on
+somebody else's machine, months later.
 
 ### An interactive test that was not one
 
