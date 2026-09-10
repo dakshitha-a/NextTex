@@ -3597,7 +3597,11 @@ It is deliberately not in the transcript. The transcript is the account of what 
 
 ### Thinking is shown as a fact and never as prose
 
-`ThinkingBlock` was imported and never handled, which looked like an oversight and was two. The `thinking` option on the SDK's own options object was also never set, so it is possible no thinking block had ever arrived.
+`ThinkingBlock` was imported and never handled, which looked like an oversight and was two: the `thinking` option on the SDK's own options object was never set either, so it was possible no thinking block had ever arrived.
+
+**That option is still not set, and the reason is the model list.** Its own documentation says `{"type": "adaptive"}` is the default for models that support it and names Opus 4.6 and later, and this app offers Haiku 4.5 in its picker. Setting it unconditionally would be choosing, on the writer's behalf, a configuration one of the three offered models predates, in exchange for nothing: leaving it unset already gets adaptive thinking on the models that have it. So the blocks are handled and the option is left alone, and that is a decision rather than an omission.
+
+Where the events come from matters more than it sounds. The start edge is taken from the stream, a `content_block_start` naming a thinking block or the first `thinking_delta`, and the completed `ThinkingBlock` is only the stop edge. A panel keyed on the completed block would light up at the one moment there was nothing left to wait for, because with partial messages on that block arrives when the reasoning is already over. One event per stretch of reasoning rather than one per delta: the panel says the same thing either way, and a per-delta event is traffic bought for nothing.
 
 What the panel shows is that the model is reasoning, not what the reasoning says. The panel is 380 px wide and sits beside a manuscript; a column of reasoning would bury the answer and the edits under text nobody reads twice, and several agent panels that do stream it are the reason this is worth stating as a decision rather than leaving as an omission.
 

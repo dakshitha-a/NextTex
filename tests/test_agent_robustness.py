@@ -525,3 +525,93 @@ def test_a_message_from_inside_a_subagent_ends_the_turn(tmp_path):
     assert events[-1]["subtype"] == "interrupted"
     assert client.interrupted
     assert not subject.busy
+
+
+def _stream_event(payload: dict):
+    """A real `StreamEvent`, because `_stream` dispatches on the type."""
+    from claude_agent_sdk import StreamEvent
+
+    return StreamEvent(uuid="u", session_id="s", event=payload)
+
+
+def test_thinking_is_reported_while_it_happens_and_not_after(tmp_path):
+    """The live edge, not the completed block.
+
+    With partial messages on, the finished `ThinkingBlock` arrives when the
+    reasoning is already over, so a panel keyed on it would light up at the
+    one moment there was nothing left to wait for. The start comes from the
+    stream and the block is only the stop edge.
+    """
+    subject = make_agent(tmp_path)
+    subject._client = StubClient(messages=[
+        _stream_event({"type": "content_block_start",
+                       "content_block": {"type": "thinking"}}),
+        _stream_event({"type": "content_block_delta",
+                       "delta": {"type": "thinking_delta", "thinking": "..."}}),
+        _stream_event({"type": "content_block_stop"}),
+        _stream_event({"type": "content_block_delta",
+                       "delta": {"type": "text_delta", "text": "Here."}}),
+        _stream_event({"type": "content_block_stop"}),
+    ])
+
+    async def run():
+        await subject.ask("think about it")
+        return await drain(subject)
+
+    kinds = [event["type"] for event in asyncio.run(run())]
+    # Once, not once per delta: the panel says "reasoning" either way, and a
+    # per-delta event would be traffic bought for nothing.
+    assert kinds.count("thinking") == 1, kinds
+    assert kinds.count("thinking_end") == 1, kinds
+    # And it stops before the prose starts, so the two never claim the line
+    # at the same time.
+    assert kinds.index("thinking_end") < kinds.index("text"), kinds
+
+
+def test_thinking_that_never_stops_is_closed_by_the_turn(tmp_path):
+    """A stream that ends mid-thought must not leave the panel reasoning."""
+    subject = make_agent(tmp_path)
+    subject._client = StubClient(messages=[
+        _stream_event({"type": "content_block_start",
+                       "content_block": {"type": "thinking"}}),
+    ])
+
+    async def run():
+        await subject.ask("think about it")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    kinds = [event["type"] for event in events]
+    assert "thinking" in kinds
+    # `done` always arrives, and the browser clears the activity on it, so
+    # the panel recovers even from a stream that stops mid-thought.
+    assert events[-1]["type"] == "done"
+
+
+def test_a_stream_event_from_inside_a_subagent_is_caught_too(tmp_path):
+    """The check is the first thing in the loop, not a branch further down.
+
+    A `StreamEvent` carries `parent_tool_use_id` like every other message,
+    and it used to reach the text path before anything looked: a subagent's
+    prose would have been streamed as the answer.
+    """
+    from claude_agent_sdk import StreamEvent
+
+    subject = make_agent(tmp_path)
+    subject._client = StubClient(messages=[
+        StreamEvent(
+            uuid="u", session_id="s", parent_tool_use_id="toolu_parent",
+            event={"type": "content_block_delta",
+                   "delta": {"type": "text_delta", "text": "from the subagent"}},
+        ),
+    ])
+
+    async def run():
+        await subject.ask("delegate it")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    kinds = [event["type"] for event in events]
+    assert "notice" in kinds, kinds
+    assert "text" not in kinds, kinds
+    assert events[-1]["subtype"] == "interrupted"

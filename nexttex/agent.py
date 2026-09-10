@@ -1861,36 +1861,35 @@ class ProjectAgent:
             # is used only to close the run -- emitting both would double
             # every sentence.
             streaming_text = False
+            # Reasoning, and only the fact of it.  Taken from the stream
+            # rather than from the completed `ThinkingBlock`, because that
+            # block arrives when the thinking is already over: a panel keyed
+            # on it would light up at the one moment there was nothing left
+            # to wait for.  One event per stretch of it rather than one per
+            # delta, since what the panel says is "reasoning" either way and
+            # a per-delta event would be traffic bought for nothing.
+            thinking_since: float | None = None
+
+            async def thinking_stopped() -> None:
+                nonlocal thinking_since
+                if thinking_since is None:
+                    return
+                elapsed = int((time.monotonic() - thinking_since) * 1000)
+                thinking_since = None
+                await self._emit({"type": "thinking_end", "ms": elapsed})
 
             async for message in client.receive_response():
-                if isinstance(message, StreamEvent):
-                    event = getattr(message, "event", {}) or {}
-                    if event.get("type") == "content_block_delta":
-                        delta = event.get("delta") or {}
-                        if delta.get("type") == "text_delta" and delta.get("text"):
-                            streaming_text = True
-                            await self._emit({"type": "text", "text": delta["text"]})
-                    elif event.get("type") == "content_block_stop" and streaming_text:
-                        streaming_text = False
-                        await self._emit({"type": "text_end"})
-                    continue
-
-                if isinstance(message, SystemMessage):
-                    session_id = (getattr(message, "data", {}) or {}).get("session_id")
-                    if session_id and session_id != self._session_id:
-                        self._session_id = session_id
-                        self._save_session(session_id)
-                    continue
-
                 # A message from inside a subagent, which after the two
-                # layers above should be unreachable, and that is exactly
-                # why this is here.  The SDK emits a subagent's `tool_use`
-                # and `tool_result` blocks as ordinary assistant and user
-                # messages carrying the id of the call that spawned them,
-                # so a non-null `parent_tool_use_id` means work is
-                # happening somewhere this panel cannot show it.  If it
-                # ever fires, the fence is being routed around and the
-                # writer is told, rather than nobody being told.
+                # layers in `_decide` and `_options` should be unreachable,
+                # and that is exactly why this is here.  The SDK emits a
+                # subagent's `tool_use` and `tool_result` blocks as
+                # ordinary assistant and user messages carrying the id of
+                # the call that spawned them, and a `StreamEvent` carries
+                # the same field, so this is the first thing in the loop
+                # rather than a branch further down: a check that only some
+                # message types reach is not a check.  If it ever fires,
+                # the fence is being routed around, and the writer is told
+                # rather than nobody being told.
                 if getattr(message, "parent_tool_use_id", None):
                     log.warning(
                         "a message arrived from inside a subagent (parent %s)",
@@ -1908,7 +1907,7 @@ class ProjectAgent:
                     # code is running inside, which works only by way of
                     # cancellation semantics subtle enough that the next
                     # reader would have to work them out.  The CLI is told
-                    # to stop, and then the turn ends down the path
+                    # to stop, and the turn then ends down the path
                     # `_run_turn` already has for an interrupted one, which
                     # emits `done` so the panel is not left thinking.
                     self._cancelled = True
@@ -1918,8 +1917,52 @@ class ProjectAgent:
                         log.warning("stopping the subagent's turn failed: %s", exc)
                     raise asyncio.CancelledError
 
+                if isinstance(message, StreamEvent):
+                    event = getattr(message, "event", {}) or {}
+                    kind = event.get("type")
+                    if kind == "content_block_start":
+                        block = event.get("content_block") or {}
+                        if block.get("type") == "thinking" and thinking_since is None:
+                            thinking_since = time.monotonic()
+                            await self._emit({"type": "thinking"})
+                    elif kind == "content_block_delta":
+                        delta = event.get("delta") or {}
+                        if delta.get("type") == "text_delta" and delta.get("text"):
+                            await thinking_stopped()
+                            streaming_text = True
+                            await self._emit({"type": "text", "text": delta["text"]})
+                        elif delta.get("type") == "thinking_delta" and thinking_since is None:
+                            # Some generations send deltas with no start
+                            # event, so the first delta opens it too.
+                            thinking_since = time.monotonic()
+                            await self._emit({"type": "thinking"})
+                    elif kind == "content_block_stop":
+                        await thinking_stopped()
+                        if streaming_text:
+                            streaming_text = False
+                            await self._emit({"type": "text_end"})
+                    continue
+
+                await thinking_stopped()
+
+                if isinstance(message, SystemMessage):
+                    session_id = (getattr(message, "data", {}) or {}).get("session_id")
+                    if session_id and session_id != self._session_id:
+                        self._session_id = session_id
+                        self._save_session(session_id)
+                    continue
+
                 if isinstance(message, AssistantMessage):
                     for block in message.content:
+                        if isinstance(block, ThinkingBlock):
+                            # The completed block, which arrives after the
+                            # reasoning is over.  It is the stop edge and
+                            # never the start one: a panel that lit up here
+                            # would light up at the one moment there was
+                            # nothing left to wait for.  Its text is not
+                            # emitted, deliberately -- see section 28.
+                            await thinking_stopped()
+                            continue
                         if isinstance(block, ToolUseBlock):
                             await self._emit({
                                 "type": "tool_use",
