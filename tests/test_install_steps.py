@@ -134,6 +134,51 @@ def test_a_tailnet_install_makes_one(sandbox):
     assert "gen_cert" in console.ran
 
 
+def test_a_fresh_install_gets_the_tools_a_first_build_needs(sandbox, monkeypatch):
+    """The survey ran before TinyTeX existed, so it reported no tlmgr and no
+    way to add anything with it.  Believing that afterwards left every new
+    install without latexmk, biber, synctex, chktex or texcount: a NextTex
+    that starts, opens a project, and fails on its first full build."""
+    seen = {"tlmgr": False}
+
+    def which(name):
+        # A bare machine, and then a machine with TinyTeX on it. TinyTeX
+        # brings pdflatex and tlmgr and nothing else: latexmk, biber and the
+        # rest are what tlmgr is then for.
+        if not seen["tlmgr"]:
+            return None
+        return (f"/home/ada/.TinyTeX/bin/{name}"
+                if name in ("tlmgr", "pdflatex") else None)
+
+    console = Recorder()
+    real_run = console.run
+
+    def run(label, argv, **kwargs):
+        result = real_run(label, argv, **kwargs)
+        if "install-tinytex" in " ".join(str(a) for a in argv):
+            seen["tlmgr"] = True
+        return result
+
+    console.run = run
+    monkeypatch.setattr(installer.shutil, "which", which)
+    run_install(console, sandbox, tex="tinytex", service="no")
+
+    tinytex = console.index_of("install-tinytex")
+    extras = console.index_of("tlmgr install")
+    assert tinytex >= 0, console.ran
+    assert extras > tinytex, f"tlmgr never ran after TinyTeX\n{console.ran}"
+    for tool in ("latexmk", "biber", "synctex", "chktex", "texcount"):
+        assert tool in console.ran, tool
+
+
+def test_a_machine_with_no_tlmgr_is_told_rather_than_left_guessing(sandbox, monkeypatch):
+    monkeypatch.setattr(installer.shutil, "which", lambda _n: None)
+    console = Recorder()
+    run_install(console, sandbox, tex="none", service="no")
+    assert "tlmgr install" not in console.ran
+    assert "latexmk" in console.stream.getvalue()
+
+
 # ---------------------------------------------------------------------------
 # A failure stops the install
 

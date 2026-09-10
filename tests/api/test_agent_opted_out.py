@@ -64,6 +64,41 @@ def test_the_installer_writes_the_agent_that_was_chosen(tmp_path, monkeypatch, c
         assert written["openai_key"] == ""
 
 
+def test_re_running_the_installer_does_not_take_away_an_openai_key(tmp_path, monkeypatch):
+    """The key is only forgotten when the provider actually moves away from
+    OpenAI. It used to be cleared on every run, so re-running the installer
+    to pick up a missing dependency cost somebody their key."""
+    import io
+
+    from nexttex.install import steps
+    from nexttex.install.ui import Console
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "state"))
+    monkeypatch.delenv("NEXTTEX_INSTANCE", raising=False)
+    console = Console(stream=io.StringIO(), plain=True)
+
+    def install(provider):
+        assert steps.write_config(
+            console, ROOT, "linux", bind="localhost", cert="", key="",
+            provider=provider, instance="", python=sys.executable,
+        ).ok, console.stream.getvalue()
+        return json.loads(
+            (tmp_path / "state" / "nexttex" / "config.json").read_text()
+        )
+
+    install("openai")
+    config_path = tmp_path / "state" / "nexttex" / "config.json"
+    config = json.loads(config_path.read_text())
+    config["openai_key"] = "sk-the-writers-own-key"
+    config_path.write_text(json.dumps(config))
+
+    # The plan defaults to whatever is already configured, so a second run
+    # writes "openai" again and the key survives it.
+    assert install("openai")["openai_key"] == "sk-the-writers-own-key"
+    # Deliberately switching away is still a reason to forget it.
+    assert install("none")["openai_key"] == ""
+
+
 def test_an_instance_gets_its_own_port_and_state(tmp_path, monkeypatch):
     from nexttex.install import steps
     from nexttex.install.ui import Console

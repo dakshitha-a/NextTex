@@ -381,9 +381,16 @@ settings.keyfile = key
 # Written for the first time here.  Neither installer used to set it at all,
 # so config kept its default of "claude" whatever was chosen -- an install
 # that had opted out still claimed an agent that was not on the machine.
+#
+# The key is only forgotten when the provider is actually moving away from
+# OpenAI.  Re-running the installer is the documented repair for a missing
+# dependency, and clearing it unconditionally meant somebody who had pasted
+# a key into the app lost it by running the installer again to pick up
+# pdftotext.
 if provider:
+    was = settings.provider
     settings.provider = provider
-    if provider != "openai":
+    if provider != "openai" and was == "openai":
         settings.openai_key = ""
 settings.save()
 print("listening: localhost" + (" and tailscale" if settings.tailscale else ""))
