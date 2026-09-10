@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import {
   EDITOR_SIZES,
   applyAppearance,
@@ -31,6 +31,12 @@ import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
 import { locateWord } from "./locate-word";
 import { noteTyping } from "../timing";
+
+/** Fetched when a writer first selects something rather than before
+ *  anything draws, the way every other surface behind a gesture in this app
+ *  is: `bundle.initial_kb` counts only what a first visit has to
+ *  download. */
+const SelectionActions = lazy(() => import("./SelectionActions"));
 
 
 /** How long the outline waits behind the keyboard.
@@ -73,8 +79,14 @@ export type EditorHandle = {
 
 export default function Editor({
   handleRef,
+  onAskAbout,
 }: {
   handleRef: (handle: EditorHandle) => void;
+  /** Hand a question about the selection to the agent panel.  The panel
+   *  seeds it into the composer rather than sending, for the reason the
+   *  `Fix` button on a diagnostic gives: the writer always presses Enter on
+   *  their own message. */
+  onAskAbout?: (prompt: string) => void;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
   const editorTheme = useEditorTheme();
@@ -96,6 +108,12 @@ export default function Editor({
   const remoteMarker = useRef<unknown>(null);
   const timer = useRef<number | null>(null);
   const focusTimer = useRef<number | null>(null);
+  /** Where to draw the verb row over a selection, and which lines it is
+   *  about.  Null whenever there is nothing selected, which is most of the
+   *  time. */
+  const [actions, setActions] = useState<
+    { left: number; top: number; from: number; to: number } | null
+  >(null);
   const openRef = useRef<
     | ((
         path: string,
@@ -294,6 +312,40 @@ export default function Editor({
       ) {
         set({ selected: next });
       }
+      // The verb row over a selection.  Placed from the document rather
+      // than from the pointer, so a selection made with the keyboard gets
+      // one too, and above the selection rather than below it, because
+      // below is where the rest of the paragraph is.
+      //
+      // A few characters is not a selection worth acting on: a
+      // double-click on one word happens constantly while reading, and a
+      // row of verbs appearing over it every time would be the diagnostics
+      // drawer's mistake in a third place.
+      const editor = view.current;
+      if (!editor || !span || selection.trim().length < 12 || viewing.current) {
+        setActions((open) => (open === null ? open : null));
+        return;
+      }
+      const range = editor.state.selection.main;
+      const box = editor.coordsAtPos(Math.min(range.from, range.to));
+      const frame = host.current?.getBoundingClientRect();
+      if (!box || !frame) {
+        setActions(null);
+        return;
+      }
+      const width = 300;
+      setActions({
+        left: Math.max(
+          8,
+          Math.min(box.left - frame.left, frame.width - width - 8),
+        ),
+        // 30px is the row's height plus its gap: above the first selected
+        // line, and pushed below it when the selection starts at the very
+        // top of the pane and there is nowhere above to go.
+        top: Math.max(4, box.top - frame.top - 30),
+        from: span.fromLine,
+        to: span.toLine,
+      });
       // Where this browser is, for the collaborator strip. Cheap, and not
       // debounced: awareness is designed to be written on every move, and
       // holding it back is what makes a remote caret look laggy.
@@ -749,6 +801,19 @@ export default function Editor({
       ref={host}
       className={`relative h-full min-h-0 overflow-hidden${skin}${colour}`}
     >
+      {actions ? (
+        <Suspense fallback={null}>
+          <SelectionActions
+            lines={{ from: actions.from, to: actions.to }}
+            at={{ left: actions.left, top: actions.top }}
+            onDismiss={() => setActions(null)}
+            onPick={(prompt) => {
+              setActions(null);
+              onAskAbout?.(prompt);
+            }}
+          />
+        </Suspense>
+      ) : null}
       {offer ? (
         <>
           {/* A click anywhere else puts it away, including a click that is

@@ -45,6 +45,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
 from .claude_auth import claude_binary
+from .lines import document_ends_at, first_changed_line
 from .modes import DEFAULT_MODE, MODES
 from .project import is_control_path
 from .writing import PROSE
@@ -174,26 +175,6 @@ NETWORK_COMMANDS = frozenset({
 NETWORK_GIT_VERBS = frozenset({"push", "pull", "fetch", "clone", "remote", "submodule"})
 
 
-def first_changed_line(before: str, after: str) -> int:
-    """The first line where two versions of a file diverge, 1-based.
-
-    A twin of `firstChangedLine` in `frontend/src/store.ts`, which exists
-    there for the same purpose and could not be reached from here.  It is
-    not a diff and is not trying to be one: it answers "where should the
-    reader be looking", and for an append that is the first new line rather
-    than the end of the old text.  The two have a test each over the same
-    cases so they cannot drift apart.
-    """
-    if before == after:
-        return 1
-    old = before.split("\n")
-    new = after.split("\n")
-    for index in range(min(len(old), len(new))):
-        if old[index] != new[index]:
-            return index + 1
-    return min(len(old), len(new)) + 1
-
-
 def landing_line(tool_name: str, data: dict, before: str) -> int | None:
     """Which line a write is about to land on, against the text as it is now.
 
@@ -305,6 +286,11 @@ How to work here:
 
 - Prefer a small, surgical edit over rewriting a section. The user is
   reading the diff of what you changed.
+- When the user has selected something and asked you to change it, use
+  replace_range on exactly those lines rather than Edit on a string you
+  reconstructed. Pass the selected text as `expected`, so the edit is
+  refused rather than silently overwriting anything they typed while you
+  were thinking.
 - When you write prose, write finished prose. Not an outline, not a
   placeholder, not a comment saying what should go here.
 - Match the document's existing conventions -- its macros, its citation
@@ -1430,6 +1416,26 @@ class ProjectAgent:
             return self._insert(body)
 
         @tool(
+            "replace_range",
+            "Replace an exact range of lines in a file with new text. Use "
+            "this when the user has selected something and asked you to "
+            "change, reword or expand it: the selection is a line range, and "
+            "this edits that range rather than matching on a string. "
+            "`expected` is the current text of those lines, which you must "
+            "pass so the edit is refused if the user has typed there since. "
+            "Give from_line and to_line inclusive and 1-based.",
+            {
+                "path": str,
+                "from_line": int,
+                "to_line": int,
+                "text": str,
+                "expected": str,
+            },
+        )
+        async def replace_range(args: dict) -> dict:
+            return await self.replace_range_tool(args)
+
+        @tool(
             "goto",
             "Scroll the user's editor to a line, so they can look at what you "
             "are describing. Does not change anything.",
@@ -1619,7 +1625,8 @@ class ProjectAgent:
             version="1.0.0",
             tools=[
                 editor_state, compile_diagnostics, compile_document,
-                insert_at_cursor, insert_figure, insert_table, goto,
+                insert_at_cursor, insert_figure, insert_table,
+                replace_range, goto,
                 search_library, find_papers, add_reference, check_references,
                 remember,
             ],
@@ -1646,6 +1653,95 @@ class ProjectAgent:
             return preferred
         found = sorted(self.root.rglob("*.bib"))
         return found[0] if found else None
+
+    async def replace_range_tool(self, args: dict) -> dict:
+        """Replace exactly the lines the writer selected.
+
+        Lifted out of the MCP closure like the other two write tools, so
+        the checks below can be exercised without a live agent, and for the
+        reason `insert_figure_tool` records: these tools are waved past the
+        fence precisely because each one is supposed to stay inside the
+        project, so the check that they do is the part worth testing.
+
+        Why this exists at all, when `Edit` is already there. "Reword this
+        paragraph" reaches the model as text and comes back as an `Edit`
+        with an `old_string` the model reconstructed from what it was shown,
+        which fails on a paragraph containing a stray `%` or an unusual
+        macro and, worse, can match the wrong occurrence in a chapter that
+        repeats a phrase. This project's own writing rule makes that more
+        likely rather than less, because one paragraph is one line however
+        long, so the string being matched is often hundreds of characters
+        the model has to reproduce exactly. A line range is what the writer
+        actually gestured at.
+        """
+        path = str(args.get("path", "")).strip()
+        if not path:
+            return self._text("Which file?")
+        if not self._inside_project(path):
+            return self._text(f"{path} is outside this project.")
+        target = (self.root / path).resolve()
+        if not target.is_file():
+            return self._text(f"There is no file at {path}.")
+        if self._is_control_file(path):
+            return self._text(
+                f"{path} is machinery the build runs rather than writing, so "
+                "this tool will not touch it."
+            )
+        try:
+            before = target.read_text(encoding="utf-8")
+        except OSError as error:
+            return self._text(f"Could not read {path}: {error}")
+
+        lines = before.split("\n")
+        try:
+            first = int(args.get("from_line") or 0)
+            last = int(args.get("to_line") or 0)
+        except (TypeError, ValueError):
+            return self._text("from_line and to_line have to be numbers.")
+        if first < 1 or last < first or last > len(lines):
+            return self._text(
+                f"{path} has {len(lines)} lines, so lines {first} to {last} "
+                "are not a range in it."
+            )
+
+        # Text after \end{document} is typeset by nothing, and an edit there
+        # looks like it worked, shows a diff and changes no page.  The same
+        # scan `_insert` does, and for the same reason.
+        ended = document_ends_at(lines)
+        if ended is not None and last > ended:
+            return self._text(
+                "That range runs past \\end{document}, where nothing is "
+                "typeset. Tell me what you meant to change instead."
+            )
+
+        current = "\n".join(lines[first - 1:last])
+        expected = args.get("expected")
+        if isinstance(expected, str) and expected.strip() and expected.strip() != current.strip():
+            # The important check, and the one thing this tool has that
+            # `Edit` does not need: a turn can spend half a minute thinking
+            # while the writer keeps typing, and an edit that silently
+            # overwrote what they typed in that window is the one failure
+            # this feature could introduce.
+            return self._text(
+                f"{path} lines {first} to {last} are not what you were shown "
+                "any more, so nothing was changed. Read the file again and "
+                "decide whether the change still applies."
+            )
+
+        replacement = str(args.get("text", ""))
+        after = "\n".join(lines[:first - 1] + replacement.split("\n") + lines[last:])
+        if after == before:
+            return self._text("That would not change anything.")
+        if self.apply_edit is None:
+            return self._text("The editor is not connected.")
+        self.apply_edit(target, after)
+        self._edits.append(
+            EditRecord("replace_range", self._display(target), before, after)
+        )
+        count = last - first + 1
+        return self._text(
+            f"Replaced {count} line{'s' if count != 1 else ''} in {path}."
+        )
 
     async def insert_figure_tool(self, args: dict) -> dict:
         """Insert a figure environment referencing an image in the project.
@@ -1771,14 +1867,8 @@ class ProjectAgent:
         # there -- which happens constantly, since it is the last line of a
         # new project -- would otherwise produce an edit that appears to
         # work, shows a diff, and changes no page.
-        ended = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line.lstrip().startswith("\\end{document}")
-            ),
-            None,
-        )
+        found = document_ends_at(lines)
+        ended = None if found is None else found - 1
         moved = False
         if ended is not None and at > ended:
             at = ended

@@ -29,26 +29,8 @@ import time
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
+from .lines import first_changed_line
 from .modes import MODES
-
-
-def first_changed_line(before: str, after: str) -> int:
-    """Where two versions of a file diverge, 1-based.
-
-    A third copy of this, and the reason is the one `writing.py` gives:
-    importing `agent.py` for it would pull in the Claude SDK, and the whole
-    point of this module is that it runs where that agent does not. The
-    other two are in `nexttex/agent.py` and `frontend/src/store.ts`, and all
-    three are held to the same cases by tests that name each other.
-    """
-    if before == after:
-        return 1
-    old = before.split("\n")
-    new = after.split("\n")
-    for index in range(min(len(old), len(new))):
-        if old[index] != new[index]:
-            return index + 1
-    return min(len(old), len(new)) + 1
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "tests" / "scripts"
 
