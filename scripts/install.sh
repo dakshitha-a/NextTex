@@ -132,6 +132,20 @@ ROOT="$(pwd)"
 
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
+
+# Long steps say what they are doing and how long it took.  Silence is
+# indistinguishable from a hang, and resolving the Python dependencies is a
+# minute or more of it on a first install.
+STEP_AT=""
+step()  { STEP_AT=$(date +%s); printf '  %s ...\n' "$*"; }
+done_step() {
+  if [ -n "$STEP_AT" ]; then
+    printf '  %s (%ss)\n' "$*" "$(( $(date +%s) - STEP_AT ))"
+  else
+    printf '  %s\n' "$*"
+  fi
+  STEP_AT=""
+}
 die()  { printf '\n\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 
 ASSUME_YES=0
@@ -220,8 +234,13 @@ install_iroh() {
 if [ -n "$UV" ]; then
   note "$($UV --version)"
   "$UV" venv --python 3.13 .venv >/dev/null 2>&1 || "$UV" venv .venv >/dev/null
-  VIRTUAL_ENV="$PWD/.venv" "$UV" pip install --quiet -r requirements.txt
-  note "dependencies installed into .venv"
+  # Not --quiet.  This is the longest silent stretch of the install, and the
+  # tool's own output is the only honest progress there is: it names each
+  # package as it goes, and when something stalls on a slow mirror that line
+  # is exactly what you want to see.
+  step "Installing the Python dependencies (a minute or two)"
+  VIRTUAL_ENV="$PWD/.venv" "$UV" pip install -r requirements.txt
+  done_step "dependencies installed into .venv"
   install_iroh "VIRTUAL_ENV=$PWD/.venv $UV pip install --quiet"
 else
   PYTHON=""
@@ -248,8 +267,10 @@ else
     fi
   fi
   .venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
-  .venv/bin/python -m pip install --quiet -r requirements.txt
-  note "dependencies installed into .venv"
+  # See the note on the uv branch above: not --quiet, deliberately.
+  step "Installing the Python dependencies (a minute or two)"
+  .venv/bin/python -m pip install -r requirements.txt
+  done_step "dependencies installed into .venv"
   install_iroh ".venv/bin/python -m pip install --quiet"
 fi
 
@@ -297,20 +318,40 @@ for tool in pdflatex latexmk synctex; do
 done
 
 # ---------------------------------------------------------------------------
-say "The Claude CLI"
+say "The writing agent"
 
+# Asked rather than assumed, and nothing is installed unless the answer says
+# so.  This used to offer "Install it now? [Y/n]", which is a yes-by-default
+# question about a download for a feature the README calls optional in its
+# first sentence -- and no agent at all is a real choice here, not a
+# degraded one.  So the question is which agent, the default is none, and
+# only the first answer fetches anything.
+#
+# Whatever is chosen, the app asks again on its first screen and that answer
+# is the one that counts; this decides only what gets installed now.
 if have claude; then
   note "claude $(claude --version 2>/dev/null | head -1)"
+  note "you sign in from the browser, not here — nothing to do yet"
 else
-  note "not installed"
-  reply="$(ask "  Install it now? [Y/n] " y)"
-  case "${reply:-y}" in
-    [Nn]*) note "skipping; the agent panel will be inert until it is installed" ;;
-    *) curl -fsSL https://claude.ai/install.sh | bash || \
-         note "the installer did not finish; see https://claude.ai/download" ;;
+  note "NextTex works fully without an agent, and you can change this later."
+  echo "    1) Claude  — installs the Claude CLI now"
+  echo "    2) OpenAI  — nothing to install; paste an API key in the app"
+  echo "    3) None    — nothing to install"
+  choice="$(ask "  Choose [3]: " 3)"
+  case "${choice:-3}" in
+    1) step "Installing the Claude CLI"
+       if curl -fsSL https://claude.ai/install.sh | bash; then
+         done_step "Claude CLI installed"
+         note "you sign in from the browser, not here — nothing to do yet"
+       else
+         done_step "the installer did not finish"
+         note "install it from https://claude.ai/download, or choose OpenAI in the app"
+       fi ;;
+    2) note "nothing to install — paste your API key on the first screen" ;;
+    *) note "no agent installed — everything else works exactly the same"
+       note "you can add one later from the settings sheet" ;;
   esac
 fi
-note "you sign in from the browser, not here — nothing to do yet"
 
 # ---------------------------------------------------------------------------
 say "The interface"

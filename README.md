@@ -109,8 +109,10 @@ environment, then installs the Python dependencies into it, and tries iroh separ
 has no build for loses sharing rather than the install. Looks for a TeX
 installation where TinyTeX, MacTeX, MiKTeX and TeX Live put one, and offers to
 install TinyTeX (Linux and macOS) or MiKTeX (Windows) if there is none. Uses `tlmgr` to add `latexmk`,
-`biber`, `synctex`, `chktex` and `texcount` if they are missing. Offers to
-install the Claude CLI. Downloads the interface built for this commit
+`biber`, `synctex`, `chktex` and `texcount` if they are missing. Asks which
+agent you want, if any, and installs nothing unless you say Claude — the
+default is none, and the app asks again on its first screen. Downloads the
+interface built for this commit
 (building it locally with Node 20+ only if that download fails). Asks whether the
 server should answer on localhost only or also on your tailnet. Writes a
 `systemd --user` unit on Linux, a launchd agent on macOS, or a scheduled task
@@ -151,6 +153,13 @@ tail -f ~/.local/share/nexttex/server.log
 Start-ScheduledTask -TaskName NextTex
 Stop-ScheduledTask  -TaskName NextTex
 ```
+
+Registering that task wants administrator, so on an ordinary account the
+installer falls back to a shortcut in your Startup folder and says which it
+used. If it is the shortcut, there is no task to start or stop: run
+`.venv\Scripts\pythonw.exe server\run.py` to start it, and end the
+`pythonw` process to stop it. `shell:startup` in the Run box opens the folder
+the shortcut is in.
 
 **Any platform.** To print the URL and token again, which is the way back in
 if you have forgotten the password:
@@ -220,7 +229,8 @@ rm -rf ~/apps/NextTex ~/.local/share/nexttex
 **Windows**, in PowerShell:
 
 ```powershell
-Unregister-ScheduledTask -TaskName NextTex -Confirm:$false
+Unregister-ScheduledTask -TaskName NextTex -Confirm:$false -ErrorAction SilentlyContinue
+Remove-Item "$([Environment]::GetFolderPath('Startup'))\NextTex.lnk" -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$env:LOCALAPPDATA\nexttex"
 ```
 
@@ -544,16 +554,20 @@ share card says sharing is unavailable and everything else works exactly as
 it does anywhere. The installer treats iroh as optional for the same reason —
 a missing build costs you the one feature, not the install.
 
-**Windows support is written but unverified.** `scripts/install.ps1` exists
-and the server no longer imports POSIX-only modules at startup, but no install
-has yet been carried all the way through to a running server. The `irm ... |
-iex` line above went straight to *"Cannot bind argument to parameter 'Path'
-because it is an empty string"* until recently: the script had no clone step,
-so `$PSScriptRoot` was empty and it fell over on its first statement. That is
-fixed, and it is a fair example of what may still be waiting further in.
-Signing in to Claude from the browser needs a pseudo-terminal, which Windows
-does not have, so run `claude auth login` in a terminal once or use an OpenAI
-key. Reports welcome.
+**Windows support is written and only partly verified.** An install has now
+been run on Windows and reached the end, which found four things and fixed
+them: the `irm ... | iex` line went straight to *"Cannot bind argument to
+parameter 'Path'"* because the script had no clone step and `$PSScriptRoot`
+was empty; the TinyTeX and Claude CLI installers were both fetched with
+`(Invoke-WebRequest).Content` and handed to `Invoke-Expression`, which is a
+byte array in PowerShell 7 rather than a string, and the TinyTeX one is a
+`.bat` that `Invoke-Expression` could never have run in any case; and
+registering the login task failed with *Access is denied* on an account
+without administrator. What has still not been proved is a running server
+serving a project, so treat Windows as unverified until somebody reports
+one. Signing in to Claude from the browser needs a
+pseudo-terminal, which Windows does not have, so run `claude auth login` in a
+terminal once or use an OpenAI key. Reports welcome.
 
 ## Requirements
 

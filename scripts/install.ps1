@@ -204,6 +204,48 @@ function Note { param($m) Write-Host "  $m" }
 function Die  { param($m) Write-Host ''; Write-Host $m -ForegroundColor Red; exit 1 }
 function Have { param($n) [bool](Get-Command $n -ErrorAction SilentlyContinue) }
 
+# Long steps say what they are doing and how long it took.
+#
+# Silence is indistinguishable from a hang, and the two slowest things here
+# -- resolving the Python dependencies and fetching a TeX installation --
+# were both completely silent: `pip --quiet` prints nothing at all for a
+# minute or more on a first install, and somebody watching a still cursor
+# reasonably concludes it has died.
+$script:stepAt = $null
+function Start-Step {
+  param([string]$m)
+  $script:stepAt = Get-Date
+  Write-Host "  $m ..."
+}
+function Complete-Step {
+  param([string]$m)
+  $seconds = 0
+  if ($script:stepAt) { $seconds = [int]((Get-Date) - $script:stepAt).TotalSeconds }
+  $script:stepAt = $null
+  Write-Host "  $m ($($seconds)s)"
+}
+
+# The text of something on the web, as text.
+#
+# `(Invoke-WebRequest ...).Content` is a *byte array* in PowerShell 7
+# whenever the response's content type is not one it recognises as text, and
+# both of the installers fetched below are served as octet-stream.  Passing
+# that to Invoke-Expression fails with
+#
+#   Cannot convert 'System.Byte[]' to the type 'System.String' required by
+#   parameter 'Command'.
+#
+# which is exactly what a Windows install reported, twice.  Windows
+# PowerShell 5.1 hands back a string for the same request, so this went
+# unnoticed by anyone reading the code.
+function Get-WebText {
+  param([Parameter(Mandatory)][string]$Url)
+  $response = Invoke-WebRequest -UseBasicParsing $Url
+  $body = $response.Content
+  if ($body -is [byte[]]) { return [System.Text.Encoding]::UTF8.GetString($body) }
+  return [string]$body
+}
+
 function Confirm-Step {
   param([string]$Question, [string]$Default = 'y')
   # Test-Interactive already covers -Yes, and also covers the case -Yes was
@@ -260,19 +302,25 @@ $Venv = Join-Path $Root '.venv\Scripts\python.exe'
 # and is the same tool the Unix installer prefers; it is not fetched on
 # Windows, because `py` is reliable here in a way `python3 -m venv` is not
 # on Debian, which is the problem uv was brought in to solve.
+# Not --quiet.  This is the longest silent stretch of the whole install --
+# a minute or two of resolving and downloading wheels -- and pip's own
+# output is the only honest progress there is: it names each package as it
+# goes, and when something stalls on a slow mirror that line is exactly what
+# you want to see rather than a spinner drawn over the top of it.
+Start-Step 'Installing the Python dependencies (a minute or two)'
 if (Have 'uv') {
   $env:VIRTUAL_ENV = Join-Path $Root '.venv'
-  & uv pip install --quiet -r requirements.txt
+  & uv pip install -r requirements.txt
   # Sharing a project needs iroh, which ships wheels and no source
   # distribution. Allowed to fail so a platform without a build keeps
   # everything else.
   & uv pip install --quiet iroh 2>$null
 } else {
   & $Venv -m pip install --quiet --upgrade pip
-  & $Venv -m pip install --quiet -r requirements.txt
+  & $Venv -m pip install -r requirements.txt
   & $Venv -m pip install --quiet iroh 2>$null
 }
-Note 'dependencies installed into .venv'
+Complete-Step 'dependencies installed into .venv'
 
 # ---------------------------------------------------------------------------
 Say 'LaTeX'
@@ -297,19 +345,30 @@ if (-not (Have 'pdflatex')) {
   # means one set of packages, one tlmgr, and one code path to reason about
   # -- and it is what nexttex/config.py looks for first.
   if (Confirm-Step 'Install TinyTeX now (about 200 MB)?') {
+    Start-Step 'Fetching TinyTeX (about 200 MB, several minutes)'
     try {
-      Invoke-Expression (Invoke-WebRequest -UseBasicParsing `
-        'https://yihui.org/tinytex/install-bin-windows.bat').Content
+      # A .bat, not a PowerShell script.  It was being handed to
+      # Invoke-Expression, which could never have run it even once the byte
+      # array above was decoded: batch is not PowerShell.  Saved and run by
+      # cmd, which is the only thing that can read it.
+      $bat = Join-Path $env:TEMP 'nexttex-install-tinytex.bat'
+      Invoke-WebRequest -UseBasicParsing `
+        'https://yihui.org/tinytex/install-bin-windows.bat' -OutFile $bat
+      & cmd.exe /c $bat
+      Remove-Item $bat -Force -ErrorAction SilentlyContinue
     } catch {
       Note "TinyTeX did not install: $_"
     }
+    Complete-Step 'TeX step finished'
     foreach ($hint in $texHints) {
       if (Test-Path $hint) { $env:PATH = "$hint;$env:PATH" }
     }
   }
   if (-not (Have 'pdflatex') -and (Have 'winget')) {
     if (Confirm-Step 'Install MiKTeX instead?') {
+      Start-Step 'Fetching MiKTeX (about 140 MB, several minutes)'
       winget install --id MiKTeX.MiKTeX --silent --accept-package-agreements --accept-source-agreements
+      Complete-Step 'MiKTeX step finished'
       foreach ($hint in $texHints) {
         if (Test-Path $hint) { $env:PATH = "$hint;$env:PATH" }
       }
@@ -341,25 +400,47 @@ if (Have 'pdflatex') {
 # ---------------------------------------------------------------------------
 Say 'The writing agent'
 
+# Asked rather than assumed, and nothing is installed unless the answer says
+# so.  This used to offer "Install the Claude CLI now? [Y/n]", which is a
+# yes-by-default question about a 100 MB download for a feature the README
+# calls optional in its first sentence -- and no agent at all is a real
+# choice here, not a degraded one.  So the question is which agent, the
+# default is none, and only the first answer installs anything.
+#
+# Whatever is chosen, the app asks again on its first screen and that answer
+# is the one that counts; this decides only what gets fetched now.
 if (Have 'claude') {
   Note "claude $((claude --version 2>$null) -split "`n" | Select-Object -First 1)"
   Note 'sign in from the browser once NextTex is running'
 } else {
-  Note 'the Claude CLI is not installed'
-  # Installed rather than described.  The agent is the reason most people
-  # are here, and it was the one thing this script told Windows users to go
-  # and do themselves.
-  if (Confirm-Step 'Install the Claude CLI now?') {
-    try {
-      Invoke-Expression (Invoke-WebRequest -UseBasicParsing `
-        'https://claude.ai/install.ps1').Content
-    } catch {
-      Note "the installer did not finish: $_"
-      Note 'install it from https://claude.ai/download, or choose OpenAI (an API key)'
+  Note 'NextTex works fully without an agent, and you can change this later.'
+  Write-Host '    1) Claude  -- installs the Claude CLI now (about 100 MB)'
+  Write-Host '    2) OpenAI  -- nothing to install; paste an API key in the app'
+  Write-Host '    3) None    -- nothing to install'
+  $agent = '3'
+  if (Test-Interactive) {
+    $answer = Read-Host '  Choose [3]'
+    if (-not [string]::IsNullOrWhiteSpace($answer)) { $agent = $answer.Trim() }
+  }
+  switch ($agent) {
+    '1' {
+      Start-Step 'Installing the Claude CLI'
+      try {
+        # Get-WebText rather than .Content: see the note on that function.
+        Invoke-Expression (Get-WebText 'https://claude.ai/install.ps1')
+        Complete-Step 'Claude CLI step finished'
+      } catch {
+        Note "the installer did not finish: $_"
+        Note 'install it from https://claude.ai/download, or choose OpenAI in the app'
+      }
     }
-  } else {
-    Note 'install it from https://claude.ai/download, or choose OpenAI (an API key)'
-    Note 'or no agent at all on the first screen -- everything else works either way'
+    '2' {
+      Note 'nothing to install -- paste your API key on the first screen'
+    }
+    default {
+      Note 'no agent installed -- everything else works exactly the same'
+      Note 'you can add one later from the settings sheet'
+    }
   }
 }
 
@@ -419,17 +500,62 @@ $configure | & $Venv -
 Say 'Starting when you log in'
 
 if (Confirm-Step 'Start NextTex when you log in?' 'n') {
+  # A scheduled task first, because it is the tidier of the two: it survives
+  # a missing console, it can be listed and stopped by name, and the README
+  # documents it.  But registering one in the root task folder wants
+  # elevation, and this installer is deliberately not run as administrator,
+  # so on an ordinary account it fails with "Access is denied" -- which is
+  # what the first Windows install of this actually hit, at the very last
+  # step, after everything else had gone right.
+  #
+  # The fallback is the Startup folder, which is how a per-user program has
+  # always been started at login on Windows and needs no privileges at all.
   $task = 'NextTex'
-  $action = New-ScheduledTaskAction -Execute $Venv `
-    -Argument (Join-Path $Root 'server\run.py') -WorkingDirectory $Root
-  $trigger = New-ScheduledTaskTrigger -AtLogOn
-  $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
-    -DontStopIfGoingOnBatteries -StartWhenAvailable
-  Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
-  Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger `
-    -Settings $settings -Description 'NextTex LaTeX editor' | Out-Null
-  Start-ScheduledTask -TaskName $task
-  Note "scheduled task '$task' registered and started"
+  $registered = $false
+  try {
+    $action = New-ScheduledTaskAction -Execute $Venv `
+      -Argument (Join-Path $Root 'server\run.py') -WorkingDirectory $Root
+    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
+      -DontStopIfGoingOnBatteries -StartWhenAvailable
+    Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+    Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger `
+      -Settings $settings -Description 'NextTex LaTeX editor' `
+      -ErrorAction Stop | Out-Null
+    Start-ScheduledTask -TaskName $task
+    $registered = $true
+    Note "scheduled task '$task' registered and started"
+  } catch {
+    Note "a scheduled task needs administrator here, so using the Startup folder instead"
+  }
+
+  if (-not $registered) {
+    try {
+      # pythonw.exe rather than python.exe: the same interpreter without a
+      # console window, so logging in does not leave a black rectangle on
+      # the desktop for the rest of the day.
+      $runner = Join-Path $Root '.venv\Scripts\pythonw.exe'
+      if (-not (Test-Path $runner)) { $runner = $Venv }
+      $startup = [Environment]::GetFolderPath('Startup')
+      $link = Join-Path $startup 'NextTex.lnk'
+      $shell = New-Object -ComObject WScript.Shell
+      $shortcut = $shell.CreateShortcut($link)
+      $shortcut.TargetPath = $runner
+      $shortcut.Arguments = '"' + (Join-Path $Root 'server\run.py') + '"'
+      $shortcut.WorkingDirectory = $Root
+      $shortcut.WindowStyle = 7
+      $shortcut.Description = 'NextTex LaTeX editor'
+      $shortcut.Save()
+      Note "shortcut written to $link"
+      Start-Process -FilePath $runner `
+        -ArgumentList (Join-Path $Root 'server\run.py') `
+        -WorkingDirectory $Root -WindowStyle Hidden
+      Note 'started'
+    } catch {
+      Note "could not arrange a login start: $_"
+      Note "start it yourself with: .venv\Scripts\python.exe server\run.py"
+    }
+  }
 } else {
   Note "start it yourself with: .venv\Scripts\python.exe server\run.py"
 }

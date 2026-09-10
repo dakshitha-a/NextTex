@@ -300,8 +300,11 @@ def test_the_docs_link_to_each_other_correctly():
 
 
 def test_the_readme_does_not_claim_windows_is_tested():
-    """It is written carefully and has never been run on Windows.  Saying
-    otherwise is the kind of claim that costs somebody an evening."""
+    """An install has now been run on Windows and reached its last step,
+    which found four real bugs.  What has still not happened is a server
+    serving a project, so the README has to keep hedging: "it installs" and
+    "it works" are different claims, and the second one is the kind that
+    costs somebody an evening."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "unverified" in readme or "untested" in readme
 
