@@ -1,0 +1,11 @@
+[
+  {"kind": "text", "text": "That file is not in this project.", "pieces": 1},
+  {"kind": "permission", "tool": "Write", "rule": "write:/tmp/nexttex-note.txt",
+   "holds": "outside",
+   "headline": "Write outside the project: /tmp/nexttex-note.txt",
+   "detail": "/tmp/nexttex-note.txt",
+   "consequence": "This file is not part of this writing project.",
+   "reason": "Asked at this setting: this is the one action that leaves the project the agent was pointed at.",
+   "stop_if_denied": false},
+  {"kind": "text", "text": "Done.", "pieces": 1}
+]

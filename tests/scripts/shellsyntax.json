@@ -1,11 +1,11 @@
 [
   {"kind": "text", "text": "That needs a shell.", "pieces": 1},
   {"kind": "permission", "tool": "Bash", "rule": "Bash!git status; echo done",
-   "uncovered": true,
+   "holds": "shell",
    "headline": "Run a shell command",
    "detail": "git status; echo done",
    "consequence": "This runs more than one command.",
-   "reason": "Asked even with auto mode on: this command runs a second command after this one ( ; ), so a rule scoped to its first word would not mean what it says.",
+   "reason": "Asked at this setting: this command runs a second command after this one ( ; ), so a rule scoped to its first word would not mean what it says.",
    "stop_if_denied": false},
   {"kind": "text", "text": "Finished.", "pieces": 1}
 ]

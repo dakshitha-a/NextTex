@@ -1,0 +1,11 @@
+[
+  {"kind": "text", "text": "I will look that up.", "pieces": 1},
+  {"kind": "permission", "tool": "WebFetch", "rule": "WebFetch",
+   "holds": "network",
+   "headline": "Fetch a page from the internet",
+   "detail": "https://example.invalid/paper",
+   "consequence": "This is the first thing in a turn that leaves this machine, and what it sends is chosen from what the project's files say.",
+   "reason": "Asked at this setting, because what is sent and where it goes are chosen from files that may not be yours.",
+   "stop_if_denied": false},
+  {"kind": "text", "text": "Left it alone, then.", "pieces": 1}
+]

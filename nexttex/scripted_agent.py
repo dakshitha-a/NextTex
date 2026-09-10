@@ -9,7 +9,7 @@ drive.
 
 So this stands in.  It has the members the rest of the app actually uses -- `ask`, `events`,
 `busy`, `idle_seconds`, `disconnect`, `reset`, `current_why`,
-`resolve_permission`, `set_auto`, `set_model`, `model`, `usage` -- and
+`resolve_permission`, `set_mode`, `set_model`, `model`, `usage` -- and
 replays a list of steps through the same event queue the real agent writes
 to.  An `edit` step
 performs a *real* write through the same `apply_edit` callback, so the
@@ -28,6 +28,8 @@ import os
 import time
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
+
+from .modes import MODES
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "tests" / "scripts"
 
@@ -83,7 +85,7 @@ class ScriptedAgent:
         self.remember_note = remember or (
             lambda _note: (False, "This project has nowhere to keep a memory.")
         )
-        self.auto = False
+        self.mode = "ask"
         self.compile_now = compile_now
         self.apply_edit = apply_edit
         self.on_edit = on_edit
@@ -137,8 +139,14 @@ class ScriptedAgent:
             raise RuntimeError("a turn is still running")
         self.asked.clear()
 
-    def set_auto(self, on: bool) -> None:
-        self.auto = bool(on)
+    def set_mode(self, mode: str) -> None:
+        if mode not in MODES:
+            raise ValueError(f"no such permission mode: {mode!r}")
+        self.mode = mode
+
+    @property
+    def auto(self) -> bool:
+        return self.mode != "ask"
 
     async def disconnect(self) -> None:
         return None
@@ -279,12 +287,24 @@ class ScriptedAgent:
             raise Vanish
 
     async def _tool(self, name: str, args: dict, ms: int, ok: bool) -> None:
-        """One tool call, started and finished, the way a real one is."""
+        """One tool call, started and finished, the way a real one is.
+
+        With the gap in the middle, which is the part that matters. A real
+        call takes time between its two events, and that gap is the whole
+        window in which the panel says what is being done; emitting the
+        pair back to back made the stand-in report every call as having
+        started and finished before anything could draw, so the activity
+        line went straight back to "Thinking" and a browser spec asserting
+        on it could not see the case a writer sees. The scripted duration
+        is the wait, so a spec that wants a visible call asks for a longer
+        one and the rest stay fast.
+        """
         self._counter += 1
         identifier = f"scripted-tool-{self._counter}"
         await self._emit({
             "type": "tool_use", "id": identifier, "name": name, "input": args,
         })
+        await asyncio.sleep(min(ms, 3000) / 1000)
         await self._emit({
             "type": "tool_done", "id": identifier, "name": name,
             "ms": ms, "ok": ok,
@@ -320,17 +340,19 @@ class ScriptedAgent:
     async def _permission(self, step: dict) -> str:
         self._counter += 1
         request_id = f"scripted-perm-{self._counter}"
-        # Auto mode does not cover every step, and this stand-in used to
-        # behave as though it did: it approved whatever the script said,
-        # which meant no browser test could see the case a writer actually
-        # runs into.  The real fence asks whenever it could not write a rule
-        # for the call, so a step with no rule asks here too.
+        # Three positions, and this stand-in has to model all of them or a
+        # browser spec cannot see the case a writer actually runs into.  It
+        # used to approve whatever the script said whenever the switch was
+        # on, which is a stand-in kinder than the thing it stands in for.
         #
-        # A step may also say plainly that it is not covered, which is what
-        # a network call is: the fence holds those back whatever the switch
-        # says, and the step carries the sentence explaining that.
-        covered = bool(step.get("rule", "Bash:echo")) and not step.get("uncovered")
-        if self.auto and covered:
+        # A step says what holds it back with `holds`, in the vocabulary the
+        # real fence uses: "outside", "control" or "network".  The middle
+        # position asks about those three and runs everything else,
+        # including the compound commands it used to card; the last position
+        # asks about nothing.
+        holds = step.get("holds") or ("network" if step.get("uncovered") else "")
+        silent = self.mode == "all" or (self.mode == "project" and not holds)
+        if silent:
             # The same pre-decided card the real fence emits, so the browser
             # specs exercise what a writer would actually see.
             await self._emit({

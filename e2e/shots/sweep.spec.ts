@@ -195,6 +195,7 @@ test("the agent column, mid-turn and at rest", async ({ tab }) => {
 
     // Auto mode: the chip, and a card that arrives already answered.
     await tab.getByTestId("auto-toggle").click();
+    await tab.getByTestId("mode-project").click();
     await tab.waitForTimeout(200);
     await shot(tab, "17-auto-on", theme, 1600);
     await ask(tab, "permission", "Run it again.");

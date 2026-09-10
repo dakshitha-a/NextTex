@@ -297,6 +297,16 @@ class OpenAIAgent:
         keeping a card that would never appear."""
         return False
 
+    #: This agent never puts a card up, and that is a fact about its tool
+    #: list rather than a limitation: there is no shell on it and every path
+    #: is resolved against the project root, so there is nothing a fence
+    #: could hold back.  Readable so a route asking every agent where its
+    #: control is gets an answer; there is deliberately no `set_mode`, which
+    #: is what stops the interface offering a control that would change
+    #: nothing.
+    mode = "ask"
+    auto = False
+
     async def set_model(self, model: str | None) -> None:
         self.model = model or DEFAULT_MODEL
         self.usage["model"] = self.model
