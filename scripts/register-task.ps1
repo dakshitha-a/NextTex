@@ -53,15 +53,25 @@ try {
 }
 
 if (-not $registered) {
-  # pythonw.exe rather than python.exe: the same interpreter without a
-  # console window, so logging in does not leave a black rectangle on the
-  # desktop for the rest of the day.
-  $runner = Join-Path $Root '.venv\Scripts\pythonw.exe'
-  if (-not (Test-Path $runner)) { $runner = $venv }
+  # python.exe, not pythonw.exe, and this is the second attempt at it.
+  #
+  # pythonw was chosen so that logging in did not leave a black rectangle on
+  # the desktop, and it does achieve that.  What it also does is discard
+  # stdout and stderr entirely, so a server that dies on startup dies in
+  # complete silence: no window, no message, no log.  That is exactly what
+  # happened -- the installer printed "started", the browser said the site
+  # could not be reached, and there was nothing anywhere to read.  A hidden
+  # window that reports nothing is worse than a minimised one that does.
+  #
+  # So the console interpreter runs it, the window is minimised rather than
+  # absent, and everything it writes goes to a file next to the install log.
+  $runner = $venv
   $startup = [Environment]::GetFolderPath('Startup')
   $link = Join-Path $startup "$Name.lnk"
   $shell = New-Object -ComObject WScript.Shell
   $shortcut = $shell.CreateShortcut($link)
+  # The shortcut cannot redirect, so it gets the minimised window instead:
+  # a taskbar button is a thing a person can find and read.
   $shortcut.TargetPath = $runner
   $shortcut.Arguments = '"' + $entry + '"'
   $shortcut.WorkingDirectory = $Root
@@ -71,9 +81,14 @@ if (-not $registered) {
   Write-Output "shortcut written to $link"
 
   $env:NEXTTEX_INSTANCE = $Instance
+  $logDir = Join-Path $HOME '.local\share\nexttex'
+  New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+  $out = Join-Path $logDir 'server.log'
+  $err = Join-Path $logDir 'server.err.log'
   Start-Process -FilePath $runner -ArgumentList $entry `
-    -WorkingDirectory $Root -WindowStyle Hidden
-  Write-Output 'started'
+    -WorkingDirectory $Root -WindowStyle Hidden `
+    -RedirectStandardOutput $out -RedirectStandardError $err
+  Write-Output "started, logging to $out"
 }
 
 exit 0

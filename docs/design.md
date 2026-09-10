@@ -2149,6 +2149,34 @@ The check lives in `loginRefusal` rather than inline, so it can be tested
 without rendering a React tree, and so that the rule has a name. A caller
 that only catches exceptions is not reading the whole answer.
 
+### A hidden window that reported nothing
+
+The last of the Windows run, and the one that took longest to see because
+there was nothing to see. The installer started the server with
+`pythonw.exe`, chosen so that logging in did not leave a black rectangle on
+the desktop. It does achieve that. It also discards stdout and stderr
+entirely, so a server that died on startup died in silence: no window, no
+message, no file. The installer printed "started", then "Ready", then a link,
+and the browser said the site could not be reached.
+
+`python.exe` runs it now, the window is minimised rather than absent, and
+everything it writes goes to `server.log` and `server.err.log` beside the
+install log. A minimised window that reports is worth more than a hidden one
+that cannot.
+
+**And the installer now checks the address before it prints it.** Printing a
+link is not the same as there being something at the end of it, and that step
+had never looked. So on an install that undertook to start the server, the
+port is polled until it answers or twenty seconds pass, and a silence becomes
+a note naming the log rather than a link that fails in the browser a moment
+later. Only where the install said it would start something: somebody who
+declined that has nothing running on purpose.
+
+That check is the general form of most of this chapter. Every bug here was a
+success reported without being verified: an install that skipped tlmgr and
+said Ready, a sign-in refusal read as a start, a launch that printed
+"started" into the dark.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the
