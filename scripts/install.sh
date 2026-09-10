@@ -13,6 +13,64 @@ case "$(uname -s)" in
      exit 1 ;;
 esac
 
+# Asking a question when the script itself arrived on stdin.
+#
+# The documented way to run this is `curl ... | sh`, and in that shape stdin
+# *is* the installer.  A bare `read` therefore eats the rest of the script,
+# and once it has been eaten `read` fails, which under `set -e` takes the
+# whole install down at the first question.  /dev/tty is the person sitting
+# there whatever stdin happens to be, so every question goes to it.
+#
+# No tty at all -- a Dockerfile, CI, a provisioning script -- means there is
+# nobody to ask, so the assumed answer is taken silently.  That is the same
+# path `--yes` takes, and it is why `ask` returns the assumed answer rather
+# than an empty string: a caller cannot tell "they pressed return" from
+# "there was nobody there", and those two want different answers often
+# enough that the difference is the caller's to make.  An empty reply comes
+# back empty and each caller applies its own `${reply:-...}`.
+# Opening it, not stat-ing it.  `[ -r /dev/tty ]` answers a question about
+# the device node's permissions and says yes on a machine where the node
+# exists but this process has no controlling terminal -- a systemd unit, a
+# container build, a CI step.  The open is what actually fails there, with
+# ENXIO, and it failed *inside* the prompt, so the install died at the first
+# question on exactly the unattended machines this fallback exists for.
+tty_available() { { : < /dev/tty; } 2>/dev/null; }
+
+ask() {  # ask "the prompt" "what to assume when nobody can be asked"
+  if [ "${ASSUME_YES:-0}" = 1 ] || ! tty_available; then
+    printf '%s' "$2"
+    return 0
+  fi
+  printf '%s' "$1" > /dev/tty
+  IFS= read -r _reply < /dev/tty || _reply=""
+  printf '%s' "$_reply"
+}
+
+# ~ is only expanded by the shell when the user types it unquoted, and a
+# path read with `read` never is, so "~/code/NextTex" would otherwise become
+# a directory called "~".
+expand_path() {
+  case "$1" in
+    "~")   printf '%s' "$HOME" ;;
+    "~/"*) printf '%s' "$HOME/${1#\~/}" ;;
+    /*)    printf '%s' "$1" ;;
+    *)     printf '%s' "$PWD/$1" ;;
+  esac
+}
+
+# The full option parser lives below, after the clone, and these two are
+# wanted before it: where to clone is the first thing this script decides.
+# They are read here and read again down there, which is cheap and keeps one
+# list of options rather than two that can disagree.
+ASSUME_YES=0
+DIR_CHOICE="${NEXTTEX_DIR:-}"
+for argument in "$@"; do
+  case "$argument" in
+    --yes|-y) ASSUME_YES=1 ;;
+    --dir=*)  DIR_CHOICE="${argument#--dir=}" ;;
+  esac
+done
+
 # Two modes, one script.  Run from inside a checkout it installs that
 # checkout; piped from curl there is no checkout yet, so it makes one and
 # re-runs itself from inside it.  A separate bootstrap file would be a
@@ -26,7 +84,39 @@ else
     printf '  Debian: sudo apt install git\n' >&2
     exit 1
   }
-  TARGET="${NEXTTEX_DIR:-$HOME/apps/NextTex}"
+  # Where it goes.  NEXTTEX_DIR and --dir are the answers given in advance;
+  # anything else means ask, because somebody running this from a curl pipe
+  # has no other moment to say, and the directory is the one decision here
+  # that cannot be changed afterwards without moving the install by hand.
+  DEFAULT_TARGET="$HOME/apps/NextTex"
+  TARGET="$DIR_CHOICE"
+  if [ -z "$TARGET" ]; then
+    if [ "$ASSUME_YES" = 1 ] || ! tty_available; then
+      TARGET="$DEFAULT_TARGET"
+    else
+      printf '\n\033[1mWhere should NextTex be installed?\033[0m\n' > /dev/tty
+      printf '  Everything it needs lives in this one directory, including its\n' > /dev/tty
+      printf '  Python environment. Your projects live outside it and are not\n' > /dev/tty
+      printf '  touched by an install, an update or an uninstall.\n' > /dev/tty
+      while :; do
+        TARGET="$(ask "  Directory [$DEFAULT_TARGET]: " "$DEFAULT_TARGET")"
+        TARGET="$(expand_path "${TARGET:-$DEFAULT_TARGET}")"
+        # An existing checkout is fine -- that is the update path below.  So
+        # is a directory that does not exist yet, and so is an empty one.
+        # Anything else would have git refuse with a message about the
+        # working tree rather than about the answer just given.
+        if [ -d "$TARGET/.git" ] || [ ! -e "$TARGET" ]; then break; fi
+        if [ -d "$TARGET" ] && [ -z "$(ls -A "$TARGET" 2>/dev/null)" ]; then break; fi
+        if [ -d "$TARGET" ]; then
+          printf '  \033[31m%s already has something in it.\033[0m\n' "$TARGET" > /dev/tty
+          printf '  Choose an empty directory, or an existing NextTex checkout to update.\n' > /dev/tty
+        else
+          printf '  \033[31m%s is a file.\033[0m\n' "$TARGET" > /dev/tty
+        fi
+      done
+    fi
+  fi
+  TARGET="$(expand_path "$TARGET")"
   REPO="${NEXTTEX_REPO:-https://github.com/dakshitha-a/NextTex.git}"
   if [ -d "$TARGET/.git" ]; then
     printf '\n\033[1mUpdating the checkout at %s\033[0m\n' "$TARGET"
@@ -50,13 +140,22 @@ INSTANCE=""
 for argument in "$@"; do
   case "$argument" in
     --yes|-y) ASSUME_YES=1 ;;
+    # Read before the clone, by the loop near the top of this file: by the
+    # time we are here we are already inside the directory it chose.  It is
+    # accepted again so that passing it is not an error.
+    --dir=*) ;;
     --bind=*) BIND="${argument#--bind=}" ;;
     --instance=*) INSTANCE="${argument#--instance=}" ;;
     --help|-h)
       cat <<'USAGE'
-usage: install.sh [--yes] [--bind=localhost|tailscale|both] [--instance=NAME]
+usage: install.sh [--yes] [--dir=PATH] [--bind=localhost|tailscale|both]
+                  [--instance=NAME]
 
   --yes       take the defaults; ask nothing
+  --dir       where to install, when you would rather not be asked.  The
+              default is ~/apps/NextTex, and NEXTTEX_DIR does the same job.
+              Only meaningful on a first install: run from inside a checkout
+              this is already decided.
   --bind      where the server listens.  localhost is this machine only;
               tailscale also serves your tailnet address over TLS.
   --instance  install a second, separate NextTex on this machine -- its own
@@ -165,9 +264,7 @@ export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$H
 
 if ! have pdflatex; then
   note "no TeX installation found"
-  if [ "$ASSUME_YES" = 1 ]; then reply=y; else
-    read -r -p "  Install TinyTeX (about 200 MB, into ~/.TinyTeX)? [Y/n] " reply
-  fi
+  reply="$(ask "  Install TinyTeX (about 200 MB, into ~/.TinyTeX)? [Y/n] " y)"
   case "${reply:-y}" in
     [Nn]*) note "skipping; NextTex will start but cannot typeset until TeX is installed" ;;
     *) curl -fsSL https://yihui.org/tinytex/install-bin-unix.sh | sh
@@ -206,9 +303,7 @@ if have claude; then
   note "claude $(claude --version 2>/dev/null | head -1)"
 else
   note "not installed"
-  if [ "$ASSUME_YES" = 1 ]; then reply=y; else
-    read -r -p "  Install it now? [Y/n] " reply
-  fi
+  reply="$(ask "  Install it now? [Y/n] " y)"
   case "${reply:-y}" in
     [Nn]*) note "skipping; the agent panel will be inert until it is installed" ;;
     *) curl -fsSL https://claude.ai/install.sh | bash || \
@@ -263,7 +358,7 @@ if [ -z "$BIND" ]; then
   else
     echo "  1) localhost only — this machine, over plain HTTP"
     echo "  2) localhost and Tailscale — also reachable from your other devices, over TLS"
-    read -r -p "  Choose [1]: " choice
+    choice="$(ask "  Choose [1]: " 1)"
     case "${choice:-1}" in 2) BIND=both ;; *) BIND=localhost ;; esac
   fi
 fi
@@ -336,9 +431,7 @@ if [ "$PLATFORM" = macos ]; then
 </plist>
 PLIST_EOF
   note "launch agent written to $PLIST"
-  if [ "$ASSUME_YES" = 1 ]; then reply=n; else
-    read -r -p "  Start NextTex now and on every login? [Y/n] " reply
-  fi
+  reply="$(ask "  Start NextTex now and on every login? [Y/n] " n)"
   case "${reply:-y}" in
     [Nn]*) note "start it yourself with: launchctl load $PLIST" ;;
     *) launchctl unload "$PLIST" >/dev/null 2>&1 || true
@@ -372,9 +465,7 @@ WantedBy=default.target
 UNIT_EOF
   systemctl --user daemon-reload
   note "unit written to $UNIT"
-  if [ "$ASSUME_YES" = 1 ]; then reply=n; else
-    read -r -p "  Start NextTex now and on every login? [Y/n] " reply
-  fi
+  reply="$(ask "  Start NextTex now and on every login? [Y/n] " n)"
   case "${reply:-y}" in
     [Nn]*) note "start it yourself with: systemctl --user start $UNIT_NAME" ;;
     *) systemctl --user enable --now "$UNIT_NAME"
