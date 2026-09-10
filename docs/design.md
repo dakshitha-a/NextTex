@@ -863,9 +863,12 @@ what the writer is doing.
 
 **Editor syntax highlighting is near-monochrome, and colour is opt-in.** The
 specification does not cover token colours. By default — and this default is
-unchanged — commands take `--ink` at 600, comments `--ink-3` italic, arguments
-and literals `--ink-2`, and no hue is introduced: the rendered page sits two
-panes away and must stay the loudest object on screen.
+unchanged — commands take `--ink` a step above the prose, comments `--ink-3`
+italic, arguments and literals `--ink-2`, and no hue is introduced: the
+rendered page sits two panes away and must stay the loudest object on screen.
+"A step above" was a flat 600 until the prose weight became a setting; it is
+`--nx-weight-strong` now, and in this mode weight is the only thing saying
+which of two words is a command.
 
 A per-machine setting (Settings → Highlighting → Colour) gives five families of
 control sequence a hue each: sectioning, environments, mathematics, citations
@@ -888,6 +891,23 @@ was protecting:
   both `.nx-theme-light` and `.nx-theme-dark` — the editor's own theme carries
   them, so a white page in a dark shell gets the light palette's colours.
   `contrast.test.ts` certifies every one against `--surface` in both.
+- **A coloured token is never fainter than a comment**, which is the rule a
+  4.5:1 floor cannot see and the light palette broke for a year. Its five
+  families sat at OKLab lightness 0.45 — `--ink-3`'s lightness — so a
+  coloured control sequence measured 5.7–6.3:1 on a page where `--ink-3`
+  itself measured 6.3:1 and the prose measured 14.4:1. Colouring a token
+  made it *quieter* than the words around it and no louder than a comment,
+  which is exactly why the setting read as washed out on a white page and
+  looked right on a dark one, where the families had always been well clear
+  of `--ink-3`. They now sit at 0.40, between `--ink-2` and `--ink-3`:
+  7.0–7.9:1 on the proofing grey and 8.7–9.9:1 on the three papers, which is
+  the dark palette's own number on the ground the setting is most often
+  looked at. The chroma ceiling went with it, 0.115 to 0.13, where dark
+  already was. Three of the five reach it; teal and the preamble brown are
+  stopped by the sRGB gamut well below it at any lightness dark enough to
+  read, which is why weight rather than more colour is the other half of
+  this. The test states the rule against `--ink-3` rather than as a number,
+  because that is what it actually is.
 - None of them is violet. `--pen` means the agent touched this line and is the
   one accent that appears near the text itself; the test asserts 35° of hue
   clearance from it, so a heading can never be mistaken for an edit. The other
@@ -1704,6 +1724,41 @@ Editor text is the opposite case and gets the opposite mechanism: one CSS
 variable on `.cm-scroller`, with a **unitless** line height so it tracks the
 size. A fixed `22px` under 21px text is unreadable. The gutter follows at the
 ratio it had at the default.
+
+**Weight is a second variable, and the page it is drawn on gets a vote.**
+Dark type on a bright ground looks thinner than light type on a dark one at
+the same weight — the ground bleeds into the strokes rather than the strokes
+into the ground — so a monospace face set at 400 that is right in the dark is
+spindly on white. `--nx-editor-weight-lift` is that compensation, and it is a
+**palette** token (100 in `.nx-theme-light`, 0 in `.nx-theme-dark`) rather
+than a rule keyed on the theme, for the same reason `--on-pen` is one: the
+editor can be handed one palette while the app is in the other, and a rule
+that asks the *root* what theme it is gets the wrong answer inside that. The
+three papers inherit it by being applied together with `.nx-theme-light`. It
+is the same move, in the same direction and for the same reason, as the
+`--ink-3` lift the papers already make: a thing that is measurably identical
+can still be perceptually lighter, and the palette is where that is
+corrected.
+
+Settings → Editor weight is the writer saying the compensation went too far
+or not far enough. Three stops, and three is all there is room for: the face
+is five static weights rather than a variable one, so the steps are 100 apart
+or they are nothing; a light page spends one of them before the writer sees
+it; and a control sequence is set 200 above the prose. So the top stop is
+already 600 prose and a command at the 700 ceiling on a white page, and a
+fourth at 600 would put 700 prose there — a face with its counters filling
+in, under a command that can no longer outweigh it. 300/400/500 reaches
+300–600 for prose and 500–700 for a command, and that is the whole of the
+usable range.
+
+Two consequences worth stating. The stops are **named** — Lighter, Normal,
+Bolder — rather than numbered, like the preview quality's and unlike the two
+size rows above them: "Regular" would be a lie on four of the six editor
+grounds, where the palette has already added a step. And the command weight
+had to stop being a hard-coded 600, in the `.nx-syn-*` rules and in
+`latexHighlight` alike, because the prose can now reach 600 itself: on a white
+page at the heaviest setting the source would have gone flat, and the subtle
+mode has nothing but weight to tell a command from a word.
 
 **`zoom` leaves the app straddling two coordinate spaces, and the two halves
 are not symmetrical.** Measured in Chrome at 150% rather than assumed:

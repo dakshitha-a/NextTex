@@ -1,7 +1,7 @@
 import { test, expect } from "../fixtures";
 
-/** The settings card: theme, interface size, editor text size, and the
- *  three per-project switches.
+/** The settings card: theme, interface size, editor text size and weight,
+ *  and the three per-project switches.
  *
  *  The interface size is a `zoom` on the shell, which leaves the app
  *  straddling two coordinate spaces: reads come back in viewport pixels,
@@ -32,6 +32,37 @@ test("the editor text can be made bigger and stays that way", async ({ tab }) =>
 
   await tab.reload();
   await expect(tab.locator(".cm-scroller")).toHaveCSS("font-size", "15px");
+});
+
+test("the editor weight is a setting, and a light page adds a step", async ({
+  tab,
+}) => {
+  const scroller = tab.locator(".cm-scroller");
+  // The dark ground is what the face was chosen at, so the setting arrives
+  // unmodified there.
+  await expect(scroller).toHaveCSS("font-weight", "400");
+
+  await open(tab);
+  await tab.getByRole("button", { name: "Heavier editor weight" }).click();
+  await expect(scroller).toHaveCSS("font-weight", "500");
+
+  // Dark type on a bright page looks thinner than light type on a dark one
+  // at the same weight, so every light ground adds a step to whatever the
+  // writer asked for.  This is the assertion that the compensation follows
+  // the *editor's* palette rather than the app's: the shell is still dark.
+  await tab.getByTestId("editor-theme-white").click();
+  await expect(scroller).toHaveCSS("font-weight", "600");
+
+  // And a control sequence stays a step above the prose whatever the prose
+  // is set to, which a hard-coded 600 stopped doing the moment the prose
+  // could reach 600 itself.  Capped at 700: past that the face loses its
+  // counters rather than gaining emphasis.
+  await tab.getByTestId("syntax-colour").click();
+  const command = tab.locator(".cm-editor .nx-syn-preamble").first();
+  await expect(command).toHaveCSS("font-weight", "700");
+
+  await tab.reload();
+  await expect(tab.locator(".cm-scroller")).toHaveCSS("font-weight", "600");
 });
 
 test("the interface scales, and the projects screen scales with it", async ({

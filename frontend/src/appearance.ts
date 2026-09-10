@@ -59,6 +59,16 @@ export type Appearance = {
   scale: number;
   /** Editor text size in CSS pixels. */
   editor: number;
+  /** Editor text weight, as a CSS font weight.
+   *
+   *  What the writer asked for, not what is drawn: a light page adds a step
+   *  to it, because dark type on a bright ground looks thinner than light
+   *  type on a dark one at the same weight.  That compensation lives in the
+   *  palette -- `--nx-editor-weight-lift` in styles.css -- so it follows the
+   *  page the editor is actually lit on rather than the theme the app is in,
+   *  and it is why this control is named for its steps rather than
+   *  numbered: the number would be true on one ground and wrong on four. */
+  weight: number;
   /** Whether the editor is lit on its own terms. */
   editorTheme: EditorTheme;
   /** Whether control sequences are coloured by family. */
@@ -78,10 +88,32 @@ export type Appearance = {
  *  and a stepper is a control you can hit without aiming. */
 export const SCALES = [90, 100, 110, 125, 150];
 export const EDITOR_SIZES = [12, 13.5, 15, 17, 19, 21];
+/** Three weights, and three is the whole range there is room for.
+ *
+ *  The monospace face is five static weights rather than a variable one, so
+ *  the steps are 100 apart or they are nothing; a light page spends one of
+ *  them before the writer sees it; and a control sequence is set 200 above
+ *  the prose.  So the top stop here is already 600 prose and a command at
+ *  the 700 ceiling on a white page, and a fourth at 600 would put 700 prose
+ *  there -- a face with its counters filling in, under a command that can no
+ *  longer outweigh it.  These three reach 300 to 600 for the prose and 500
+ *  to 700 for a command, which is the whole of the usable range. */
+export const EDITOR_WEIGHTS = [300, 400, 500];
+
+/** What each weight is called in the settings sheet.  Relative names, like
+ *  the preview quality's, rather than the absolute ones the two size rows
+ *  use: "Regular" would be a lie on four of the six editor grounds, where
+ *  the palette has already added a step to it.  Lighter and heavier than
+ *  the default is all a writer needs to be told, and all that is true. */
+export const WEIGHT_NAMES: Record<number, string> = {
+  300: "Lighter",
+  400: "Normal",
+  500: "Bolder",
+};
 
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
-  syntax: "subtle", preview: "balanced", spelling: false,
+  weight: 400, syntax: "subtle", preview: "balanced", spelling: false,
 };
 
 const KEYS = {
@@ -89,6 +121,7 @@ const KEYS = {
   scale: "nexttex.ui.scale",
   editor: "nexttex.editor.size",
   editorTheme: "nexttex.editor.theme",
+  weight: "nexttex.editor.weight",
   syntax: "nexttex.editor.syntax",
   preview: "nexttex.preview.quality",
   spelling: "nexttex.editor.spelling",
@@ -131,6 +164,7 @@ export function storedAppearance(): Appearance {
   const scale = Number(read(KEYS.scale));
   const editor = Number(read(KEYS.editor));
   const editorTheme = read(KEYS.editorTheme);
+  const weight = Number(read(KEYS.weight));
   const syntax = read(KEYS.syntax);
   const preview = read(KEYS.preview);
   const spelling = read(KEYS.spelling);
@@ -143,6 +177,7 @@ export function storedAppearance(): Appearance {
     editorTheme: EDITOR_GROUNDS.includes(editorTheme as EditorTheme)
       ? (editorTheme as EditorTheme)
       : DEFAULTS.editorTheme,
+    weight: weight ? nearest(weight, EDITOR_WEIGHTS) : DEFAULTS.weight,
     syntax: syntax === "colour" || syntax === "subtle" ? syntax : DEFAULTS.syntax,
     preview:
       preview === "faster" || preview === "sharper" || preview === "balanced"
@@ -167,6 +202,11 @@ export function applyAppearance(appearance: Appearance): void {
   // see `viewport.ts`.
   root.style.setProperty("--nx-ui-scale", String(factor));
   root.style.setProperty("--nx-editor-size", `${appearance.editor}px`);
+  // The weight the writer chose.  What the editor sets its text in is this
+  // plus the page's own lift, added in CSS rather than here, because the
+  // editor can be lit on a different palette from the app around it and
+  // only the stylesheet knows which one is in force inside that pane.
+  root.style.setProperty("--nx-editor-weight", String(appearance.weight));
   // Published on the root so the editor pane can read it without a prop
   // reaching four components deep, and so it is in place before the first
   // paint rather than one frame after it.
@@ -184,6 +224,7 @@ export function applyAppearance(appearance: Appearance): void {
   write(KEYS.scale, String(appearance.scale));
   write(KEYS.editor, String(appearance.editor));
   write(KEYS.editorTheme, appearance.editorTheme);
+  write(KEYS.weight, String(appearance.weight));
   write(KEYS.syntax, appearance.syntax);
   write(KEYS.preview, appearance.preview);
   write(KEYS.spelling, appearance.spelling ? "on" : "off");
@@ -204,6 +245,7 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.scale === DEFAULTS.scale &&
     appearance.editor === DEFAULTS.editor &&
     appearance.editorTheme === DEFAULTS.editorTheme &&
+    appearance.weight === DEFAULTS.weight &&
     appearance.syntax === DEFAULTS.syntax &&
     appearance.preview === DEFAULTS.preview &&
     appearance.spelling === DEFAULTS.spelling
