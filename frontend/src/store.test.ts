@@ -4,6 +4,7 @@ import {
   firstChangedLine,
   get,
   markStale,
+  replayTranscript,
   set,
   __receive,
 } from "./store";
@@ -164,5 +165,44 @@ describe("what the interface is told about collaboration", () => {
     expect(person.name).toBe("Priya");
     expect(person.path).toBe("chapters/04_results.tex");
     expect(person.active).toBe(true);
+  });
+});
+
+/** A notice is news; an error is a failure.
+ *
+ *  The agent emits a `notice` when a permission card has gone ten minutes
+ *  without an answer and it has denied on the writer's behalf. Neither the
+ *  transcript nor this reducer had a case for the type, so the one moment
+ *  the app decides something on the writer's behalf was the one moment it
+ *  told them nothing.
+ */
+describe("a notice reaches the panel and keeps its tone", () => {
+  test("a notice event becomes a plain item", () => {
+    set({ chat: [] });
+    __receive({ type: "notice", message: "NextTex waited 10 minutes and said no." });
+    const [only] = get().chat;
+    expect(only.kind).toBe("notice");
+    expect(only).toMatchObject({ tone: "plain" });
+  });
+
+  test("an error event is still red", () => {
+    set({ chat: [] });
+    __receive({ type: "error", message: "The connection ended." });
+    expect(get().chat[0]).toMatchObject({ kind: "notice", tone: "error" });
+  });
+
+  test("a replayed notice keeps the tone it was recorded with", () => {
+    replayTranscript([
+      { kind: "notice", text: "said no", tone: "plain" },
+      { kind: "notice", text: "broke", tone: "error" },
+    ]);
+    expect(get().chat.map((item: any) => item.tone)).toEqual(["plain", "error"]);
+  });
+
+  test("a notice recorded before tones existed reads as an error", () => {
+    // Every notice in an existing transcript came from an `error` event,
+    // so an absent tone is red rather than plain.
+    replayTranscript([{ kind: "notice", text: "old" }]);
+    expect(get().chat[0]).toMatchObject({ tone: "error" });
   });
 });

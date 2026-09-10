@@ -343,7 +343,12 @@ export function replayTranscript(items: any[]) {
         decision: item.decision,
       });
     } else if (item.kind === "notice") {
-      chat.push({ kind: "notice", id: nextId(), text: item.text ?? "", tone: "error" });
+      // The tone travels now.  Every notice written before the transcript
+      // recorded one came from an `error` event, so an absent tone is red.
+      chat.push({
+        kind: "notice", id: nextId(), text: item.text ?? "",
+        tone: item.tone === "plain" ? "plain" : "error",
+      });
     }
   }
   // A permission still unanswered when the window closed can never be
@@ -887,6 +892,20 @@ function receive(event: any) {
         id: nextId(),
         text: event.message ?? "Something went wrong.",
         tone: "error",
+      });
+      break;
+    // News rather than a failure, and it reached nothing at all before
+    // this.  The agent emits one when a permission card has gone ten
+    // minutes without an answer and it has said no on the writer's behalf,
+    // which is precisely the moment they need telling: the card is gone,
+    // the turn moved on, and nothing said why.
+    case "notice":
+      endText();
+      pushChat({
+        kind: "notice",
+        id: nextId(),
+        text: event.message ?? "",
+        tone: "plain",
       });
       break;
     case "done":
