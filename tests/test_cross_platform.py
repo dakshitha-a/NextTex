@@ -808,3 +808,45 @@ def test_the_launcher_names_the_log_that_carries_errors():
     assert started, "the launcher no longer says it started anything"
     for line in started:
         assert "$err" in line, line.strip()
+
+
+def test_the_claude_cli_is_found_where_its_own_installer_puts_it(tmp_path, monkeypatch):
+    """A successful install that NextTex reported as a failure.
+
+    The official Windows installer writes `~/.local/bin/claude.exe`, prints
+    "Claude Code successfully installed", and then warns that the directory
+    is not on PATH and asks the person to add it by hand through System
+    Properties. So the ordinary outcome of a success is a CLI that
+    `shutil.which` cannot see. The fallback looked for `~/.local/bin/claude`
+    with no extension and missed it, and the setup screen said "The Claude
+    CLI did not install" with the installer's success message still on the
+    screen above it.
+    """
+    import shutil as shutil_module
+
+    from nexttex import claude_auth
+
+    home = tmp_path / "home"
+    (home / ".local" / "bin").mkdir(parents=True)
+    installed = home / ".local" / "bin" / "claude.exe"
+    installed.write_text("", encoding="utf-8")
+
+    monkeypatch.delenv("NEXTTEX_CLAUDE_BINARY", raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(shutil_module, "which", lambda _name: None)
+
+    assert claude_auth.claude_binary() == str(installed)
+
+
+def test_no_claude_anywhere_is_still_no_claude(tmp_path, monkeypatch):
+    import shutil as shutil_module
+
+    from nexttex import claude_auth
+
+    monkeypatch.delenv("NEXTTEX_CLAUDE_BINARY", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "empty"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "empty"))
+    monkeypatch.setattr(shutil_module, "which", lambda _name: None)
+
+    assert claude_auth.claude_binary() is None

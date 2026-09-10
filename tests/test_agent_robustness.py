@@ -436,3 +436,14 @@ def test_a_call_that_died_with_its_turn_is_not_still_running(tmp_path):
 
     asyncio.run(run())
     assert subject._running_tools == {}
+
+
+def test_the_agent_is_told_which_claude_to_run(tmp_path, monkeypatch):
+    """Finding the CLI and then not saying where it is would leave the agent
+    unable to start on the very machine where the setup screen had just
+    reported success: the SDK searches PATH on its own, and PATH is exactly
+    what does not contain it after a Windows install."""
+    subject = make_agent(tmp_path)
+    monkeypatch.setattr(agent_module, "claude_binary",
+                        lambda: "C:\\Users\\ada\\.local\\bin\\claude.exe")
+    assert subject._options().cli_path == "C:\\Users\\ada\\.local\\bin\\claude.exe"
