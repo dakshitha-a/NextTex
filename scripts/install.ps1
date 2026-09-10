@@ -60,11 +60,22 @@
 param(
   [switch]$Yes,
   [string]$Dir = '',
-  [ValidateSet('tinytex', 'miktex', 'none')]
+  # The empty string is in each set below because it is the default, and a
+  # default outside its own set breaks the documented install.  `iex` has
+  # no script file to bind parameters against, so it runs this block in the
+  # caller's scope, where each entry becomes a variable with an attribute
+  # attached rather than a parameter with a default.  Applying a
+  # ValidateSet to a value the set forbids fails on the spot, and the
+  # install stopped on the first one -- "the attribute cannot be added
+  # because variable Tex with value would no longer be valid" -- before it
+  # had done anything at all.  -Bind used to default to 'localhost', which
+  # is a member, so this held by accident until three parameters were given
+  # an empty default at once.
+  [ValidateSet('tinytex', 'miktex', 'none', '')]
   [string]$Tex = '',
-  [ValidateSet('claude', 'openai', 'none')]
+  [ValidateSet('claude', 'openai', 'none', '')]
   [string]$Agent = '',
-  [ValidateSet('localhost')]
+  [ValidateSet('localhost', '')]
   [string]$Bind = '',
   [string]$Instance = '',
   [switch]$NoService,

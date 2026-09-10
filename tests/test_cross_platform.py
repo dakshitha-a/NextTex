@@ -506,3 +506,37 @@ def test_an_instance_name_cannot_escape_its_directory(monkeypatch):
         assert project.state_home().name == "nexttex", hostile
     monkeypatch.delenv("NEXTTEX_INSTANCE", raising=False)
     importlib.reload(project)
+
+
+# A `[ValidateSet(...)]` parameter and the default underneath it, as they are
+# written in the PowerShell installer's `param` block.
+VALIDATE_SET = re.compile(
+    r"\[ValidateSet\(([^)]*)\)\]\s*\[string\]\$(\w+)\s*=\s*'([^']*)'"
+)
+
+
+def test_every_windows_default_is_allowed_by_its_own_validate_set():
+    """The documented Windows install is `irm ... | iex`, and `iex` has no
+    script file to bind parameters against: the `param` block runs in the
+    caller's scope, where each entry becomes a variable with an attribute
+    attached rather than a parameter with a default.  A default outside its
+    own set is then a value the attribute cannot be applied to, and the
+    install stops on the first one with "the attribute cannot be added
+    because variable Tex with value would no longer be valid" before it has
+    done anything at all.
+
+    `-Bind` used to default to `localhost`, which is in its set, so this
+    held by accident until three parameters were given an empty default at
+    once.  It is checked here rather than in the `pwsh` tests because those
+    skip on the machine this is written on, and this is a Windows-only
+    failure that nobody here would otherwise see.
+    """
+    text = (ROOT / "scripts" / "install.ps1").read_text(encoding="utf-8")
+    found = VALIDATE_SET.findall(text)
+    assert found, "no validated parameters found; has the param block moved?"
+    for allowed, name, default in found:
+        members = re.findall(r"'([^']*)'", allowed)
+        assert default in members, (
+            f"-{name} defaults to '{default}', which its ValidateSet "
+            f"({', '.join(members)}) forbids, so `irm | iex` cannot run"
+        )
