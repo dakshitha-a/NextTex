@@ -60,11 +60,16 @@ import {
  *  Colouring control sequences by family is offered as a setting on top of
  *  this rather than instead of it -- see `commandFamilies` below and the
  *  `--syn-*` tokens in styles.css.  These tags cover what is left: the
- *  comments, the braces and the literals, which have no family. */
+ *  comments, the braces and the literals, which have no family.
+ *
+ *  The weights are the editor's own `--nx-weight-strong` rather than a flat
+ *  600, because the prose is a setting now and a light page sets it a step
+ *  heavier again.  A command has to stay a step above whatever the prose
+ *  around it is, and in this mode weight is the only thing saying so. */
 const latexHighlight = HighlightStyle.define([
   { tag: tags.comment, color: "var(--ink-3)", fontStyle: "italic" },
-  { tag: tags.keyword, color: "var(--ink)", fontWeight: "600" },
-  { tag: tags.tagName, color: "var(--ink)", fontWeight: "600" },
+  { tag: tags.keyword, color: "var(--ink)", fontWeight: "var(--nx-weight-strong, 600)" },
+  { tag: tags.tagName, color: "var(--ink)", fontWeight: "var(--nx-weight-strong, 600)" },
   { tag: tags.atom, color: "var(--ink-2)" },
   { tag: tags.string, color: "var(--ink-2)" },
   { tag: tags.bracket, color: "var(--ink-3)" },
@@ -72,7 +77,7 @@ const latexHighlight = HighlightStyle.define([
   { tag: tags.variableName, color: "var(--ink-2)" },
   { tag: tags.typeName, color: "var(--ink-2)" },
   { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.strong, fontWeight: "600" },
+  { tag: tags.strong, fontWeight: "var(--nx-weight-strong, 600)" },
 ]);
 
 /** Colour by family, over the lines actually on screen.

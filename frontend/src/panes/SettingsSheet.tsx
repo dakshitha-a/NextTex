@@ -6,7 +6,9 @@ import { useDismiss } from "../useDismiss";
 import {
   DEFAULTS,
   EDITOR_SIZES,
+  EDITOR_WEIGHTS,
   SCALES,
+  WEIGHT_NAMES,
   applyAppearance,
   isDefault,
   step,
@@ -137,6 +139,23 @@ export default function SettingsSheet({
                 steps={EDITOR_SIZES}
                 display={`${look.editor}px`}
                 onChange={(editor) => change({ editor })}
+              />
+              {/* Dark type on a bright page looks thinner than light type on
+                  a dark one at the same weight, so the editor already sets
+                  its text a step heavier on any of the light grounds -- see
+                  --nx-editor-weight-lift in styles.css.  This is the writer
+                  saying that the compensation went too far or not far
+                  enough, on a face that has three usable steps and no more.
+                  Named rather than numbered for the same reason: the number
+                  would be true on one ground and wrong on the other five. */}
+              <SizeRow
+                label="Editor weight"
+                what="editor weight"
+                verbs={["Lighter", "Heavier"]}
+                value={look.weight}
+                steps={EDITOR_WEIGHTS}
+                display={WEIGHT_NAMES[look.weight] ?? "Normal"}
+                onChange={(weight) => change({ weight })}
               />
             </Group>
 
@@ -537,12 +556,17 @@ function Switch({
   );
 }
 
-/** The stepper, twice.  Deliberately the same shape as the PDF pane's zoom
- *  control, which is the answer this app already gives to "make this
- *  bigger". */
+/** The stepper, three times.  Deliberately the same shape as the PDF pane's
+ *  zoom control, which is the answer this app already gives to "make this
+ *  bigger".
+ *
+ *  The readout is wide enough for a word because one of the three shows one:
+ *  a weight is named rather than measured here, and the slot is fixed across
+ *  all three so the plus and minus stay in a column. */
 function SizeRow({
   label,
   what,
+  verbs = ["Smaller", "Larger"],
   value,
   steps,
   display,
@@ -550,6 +574,11 @@ function SizeRow({
 }: {
   label: string;
   what: string;
+  /** What stepping down and up is called, for the accessibility tree.  Two
+   *  of these rows make a thing bigger and the third makes it heavier, and
+   *  "Larger editor weight" is a button that describes nothing a screen
+   *  reader could act on. */
+  verbs?: readonly [string, string];
   value: number;
   steps: number[];
   display: string;
@@ -564,16 +593,16 @@ function SizeRow({
         <button
           className="nx-hover t-ui px-[6px] text-ink-2 hover:text-ink disabled:text-ink-3 disabled:opacity-40"
           disabled={first}
-          aria-label={`Smaller ${what}`}
+          aria-label={`${verbs[0]} ${what}`}
           onClick={() => onChange(step(value, steps, -1))}
         >
           −
         </button>
-        <span className="t-micro tnum w-[46px] text-center text-ink-3">{display}</span>
+        <span className="t-micro tnum w-[54px] text-center text-ink-3">{display}</span>
         <button
           className="nx-hover t-ui px-[6px] text-ink-2 hover:text-ink disabled:text-ink-3 disabled:opacity-40"
           disabled={last}
-          aria-label={`Larger ${what}`}
+          aria-label={`${verbs[1]} ${what}`}
           onClick={() => onChange(step(value, steps, 1))}
         >
           +

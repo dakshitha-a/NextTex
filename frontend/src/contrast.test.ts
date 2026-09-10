@@ -175,15 +175,19 @@ test("every palette in styles.css is one this file measures", () => {
 });
 
 test("no palette shadows the sizes appearance.ts sets on the root", () => {
-  // --nx-ui-scale and --nx-editor-size live in a `:root` block of their own,
-  // deliberately: every palette here is also handed to a subtree, and
-  // redeclaring them inside one would shadow what appearance.ts writes on
-  // the root, so the editor would quietly stop answering the text-size
-  // control for anyone who had chosen a ground.
+  // --nx-ui-scale, --nx-editor-size and --nx-editor-weight live in a `:root`
+  // block of their own, deliberately: every palette here is also handed to a
+  // subtree, and redeclaring them inside one would shadow what appearance.ts
+  // writes on the root, so the editor would quietly stop answering the
+  // text-size control for anyone who had chosen a ground.
+  //
+  // --nx-editor-weight-*lift* is the opposite and belongs in the palettes:
+  // it is what this palette adds to the writer's choice, not the choice.
+  // The `\s*:` is what keeps the two apart here.
   for (const [, prelude, body] of BARE.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
     if (!/--surface:\s*#/.test(body)) continue;
     expect(body, `a palette (${prelude.trim().slice(-40)}) redeclares a size`)
-      .not.toMatch(/--nx-(ui-scale|editor-size)\s*:/);
+      .not.toMatch(/--nx-(ui-scale|editor-size|editor-weight)\s*:/);
   }
 });
 
@@ -325,6 +329,29 @@ describe.each(PALETTES)("%s theme syntax families", (_name, tokens) => {
     }
   });
 
+  test("no family is fainter than the faintest ink", () => {
+    // The bug this was written for, and the one thing a contrast floor of
+    // 4.5:1 cannot see.  The light families used to sit at OKLab lightness
+    // 0.45, which is --ink-3's, so every coloured control sequence measured
+    // 5.7 to 6.3:1 against a page where --ink-3 itself measured 6.3:1 and
+    // the prose measured 14.4:1.  Colouring a token made it *quieter* than
+    // the words around it and no louder than a comment, which is why the
+    // setting read as washed out on a white page and looked right on a dark
+    // one, where the families had always been well clear of --ink-3.
+    //
+    // Stated against --ink-3 rather than as a number because that is the
+    // actual rule: the faintest thing the editor draws is a comment, and a
+    // family that has something to say is never fainter than that.
+    const faintest = contrast(tokens["ink-3"], tokens["surface"]);
+    for (const name of SYNTAX) {
+      const ratio = contrast(tokens[name], tokens["surface"]);
+      expect(
+        Number(ratio.toFixed(2)),
+        `--${name} is ${ratio.toFixed(2)}:1 on the page, under --ink-3's ${faintest.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(Number(faintest.toFixed(2)));
+    }
+  });
+
   test("no family is so grey that its hue cannot be read", () => {
     for (const name of SYNTAX) {
       const { chroma } = oklch(tokens[name]);
@@ -345,6 +372,42 @@ describe.each(PALETTES)("%s theme syntax families", (_name, tokens) => {
       ).toBeGreaterThanOrEqual(35);
     }
   });
+});
+
+test("a light page sets the editor heavier and a dark one does not", () => {
+  // The other half of the same bug.  Dark type on a bright ground looks
+  // thinner than light type on a dark one at the same weight, so the light
+  // palette adds a step and the dark palette adds nothing.  It is a palette
+  // token rather than a rule keyed on the theme because the editor can be
+  // handed one palette while the app is in the other, and the three papers
+  // inherit it by being applied together with `.nx-theme-light` -- so a
+  // paper that declared its own would be a silent override, and there is
+  // deliberately no place here for one to.
+  const lift = (block: string) => {
+    const start = CSS.indexOf(block);
+    if (start < 0) throw new Error(`no such block in styles.css: ${block}`);
+    const body = CSS.slice(start, CSS.indexOf("}", start));
+    const found = body.match(/--nx-editor-weight-lift:\s*(\d+)/);
+    return found ? Number(found[1]) : null;
+  };
+  expect(lift(".nx-theme-light {"), "the light palette lifts the editor weight")
+    .toBe(100);
+  expect(lift(".nx-theme-dark {"), "the dark palette lifts nothing").toBe(0);
+  for (const paper of [".nx-theme-white {", ".nx-theme-warm {", ".nx-theme-cool {"]) {
+    expect(lift(paper), `${paper} should inherit the light palette's lift`).toBe(null);
+  }
+});
+
+test("every weight the editor can reach has a font file behind it", () => {
+  // The ladder is 300/400/500, a light page adds 100, and a control
+  // sequence is set 200 above the prose with a ceiling of 700.  So the
+  // reachable set is 300 through 700, and a weight that is not imported is
+  // not downloaded -- it is synthesised from the nearest one, which in a
+  // monospace face is a smeared outline rather than a heavier letter.
+  for (const weight of [300, 400, 500, 600, 700]) {
+    expect(CSS, `source-code-pro ${weight} is reachable but not imported`)
+      .toContain(`@fontsource/source-code-pro/${weight}.css`);
+  }
 });
 
 test("the frame and the panes are one ramp, not a cliff", () => {

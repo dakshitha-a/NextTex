@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import {
   DEFAULTS,
   EDITOR_SIZES,
+  EDITOR_WEIGHTS,
   SCALES,
   applyAppearance,
   isDefault,
@@ -22,6 +23,16 @@ describe("the size ladders", () => {
     expect(step(100, SCALES, -1)).toBe(90);
     expect(step(90, SCALES, -1)).toBe(90);
     expect(step(150, SCALES, 1)).toBe(150);
+  });
+
+  it("steps the weight ladder and stops at both ends", () => {
+    expect(step(400, EDITOR_WEIGHTS, 1)).toBe(500);
+    expect(step(400, EDITOR_WEIGHTS, -1)).toBe(300);
+    expect(step(500, EDITOR_WEIGHTS, 1)).toBe(500);
+    expect(step(300, EDITOR_WEIGHTS, -1)).toBe(300);
+    // A weight the light grounds add their step to would land here if it
+    // were ever written back to storage, and it must not stick.
+    expect(nearest(600, EDITOR_WEIGHTS)).toBe(500);
   });
 
   it("lands a value that is not on the ladder at the nearest rung", () => {
@@ -45,11 +56,11 @@ describe("what is remembered", () => {
   it("reads back what was applied", () => {
     applyAppearance({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
-      syntax: "colour", preview: "sharper", spelling: true,
+      weight: 500, syntax: "colour", preview: "sharper", spelling: true,
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
-      syntax: "colour", preview: "sharper", spelling: true,
+      weight: 500, syntax: "colour", preview: "sharper", spelling: true,
     });
   });
 
@@ -62,12 +73,13 @@ describe("what is remembered", () => {
   it("stamps the document so CSS can use it", () => {
     applyAppearance({
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
-      syntax: "colour", preview: "sharper", spelling: true,
+      weight: 300, syntax: "colour", preview: "sharper", spelling: true,
     });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");
     expect(root.style.getPropertyValue("--nx-ui-scale")).toBe("1.5");
     expect(root.style.getPropertyValue("--nx-editor-size")).toBe("21px");
+    expect(root.style.getPropertyValue("--nx-editor-weight")).toBe("300");
     expect(root.dataset.syntax).toBe("colour");
     expect(root.dataset.spelling).toBe("on");
   });

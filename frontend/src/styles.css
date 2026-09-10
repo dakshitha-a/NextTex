@@ -13,8 +13,19 @@
 @import "@fontsource/source-serif-4/400.css";
 @import "@fontsource/source-serif-4/400-italic.css";
 @import "@fontsource/source-serif-4/600.css";
+/* Five monospace weights rather than two.  The editor's weight is a
+   setting now, and a light ground adds a step to whatever it is set to
+   -- see --nx-editor-weight-lift below -- so the reachable body weights
+   are 300 through 600 and the reachable command weight is 500 through
+   700.  A weight that is not declared here is not downloaded, it is
+   synthesised by the browser from the nearest one, which in a monospace
+   face is a smeared outline rather than a heavier one.  The cost is the
+   @font-face rules alone: a face nobody renders at is never fetched. */
+@import "@fontsource/source-code-pro/300.css";
 @import "@fontsource/source-code-pro/400.css";
+@import "@fontsource/source-code-pro/500.css";
 @import "@fontsource/source-code-pro/600.css";
+@import "@fontsource/source-code-pro/700.css";
 
 /* --------------------------------------------------------------------------
    Palette.  Two authored themes, chosen explicitly rather than inherited
@@ -80,15 +91,54 @@
      than as five unrelated colours, and every one clears 4.5:1 on --surface
      in both palettes -- certified in contrast.test.ts.
 
+     They used to sit at OKLab lightness 0.45, which is --ink-3's lightness,
+     and that is the whole reason they read as washed out on a light page:
+     a coloured control sequence was fainter than the prose around it and
+     no darker than a comment, so the colour arrived as a loss of contrast
+     rather than as information.  The dark palette never had the problem --
+     its families reach 9.4:1 against the page where its body text reaches
+     14.7:1, about two thirds -- while these reached 5.8:1 against 14.4:1,
+     about two fifths.  Dropping them to 0.40 puts them between --ink-2 and
+     --ink-3 instead of below both: 7.0 to 7.9:1 on the proofing grey, and
+     8.7 to 9.9:1 on the three papers, which is the dark palette's number
+     on the ground this setting is most often looked at.
+
+     The chroma ceiling went with it, 0.115 to 0.13, which is where the
+     dark palette already was.  Three of the five sit on it; teal and the
+     preamble brown are stopped by the sRGB gamut well below it and always
+     will be at any lightness dark enough to read, which is why weight and
+     not more colour is the other half of this.
+
      Held apart from the five interface accents deliberately, and violet most
      of all: inside the editor those appear only as gutter bars, dotted
      underlines and line washes, never as the colour of the text, and --pen
      means the agent touched this line. */
-  --syn-structure: #2D5394;
-  --syn-env: #066166;
-  --syn-math: #226529;
-  --syn-preamble: #744C00;
-  --syn-cite: #893540;
+  --syn-structure: #18448C;
+  --syn-env: #005257;
+  --syn-math: #005812;
+  --syn-preamble: #633F00;
+  --syn-cite: #7F1E30;
+
+  /* How much heavier the editor sets its text on this palette than the
+     weight the writer chose.  Dark type on a light ground looks thinner
+     than light type on a dark one at the same weight -- the ground bleeds
+     into the strokes rather than the strokes into the ground -- so a
+     monospace face set at 400 that is right in the dark is spindly here.
+
+     A palette token rather than a rule keyed on the theme, for the reason
+     --on-pen is one: the editor can be given this palette on its own while
+     the app stays dark, and a rule that asks the *root* what theme it is
+     gets the wrong answer inside that.  The three papers inherit it,
+     because each is applied together with .nx-theme-light rather than
+     instead of it.
+
+     It is 100 rather than something finer because the face is five static
+     weights, not a variable one, and a browser asked for 450 either rounds
+     it or smears it.  This is the same compensation, in the same
+     direction and for the same reason, as the --ink-3 lift the papers
+     make below: a thing that is measurably identical can still be
+     perceptually lighter, and the palette is where that gets corrected. */
+  --nx-editor-weight-lift: 100;
 
   --paper: #ffffff;
   --line: color-mix(in oklab, var(--ink-3) 55%, transparent);
@@ -111,6 +161,7 @@
 :root {
   --nx-ui-scale: 1;
   --nx-editor-size: 13.5px;
+  --nx-editor-weight: 400;
 }
 
 /* The dark palette is declared once.  There used to be a second copy under
@@ -177,6 +228,9 @@
   --syn-math: #85D088;
   --syn-preamble: #E9AE57;
   --syn-cite: #FF99A1;
+  /* Nothing to compensate: this is the weight the face was chosen at, and
+     the ground is doing the opposite of thinning the strokes. */
+  --nx-editor-weight-lift: 0;
   --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
   --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
   --float: 0 4px 16px rgba(0, 0, 0, 0.55);
@@ -589,15 +643,15 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    decide.  Without `*` here only the headings took a colour, because they
    are the one span that carries no token of its own. */
 .nx-syntax-colour .cm-editor .cm-line .nx-syn-structure,
-.nx-syntax-colour .cm-editor .cm-line .nx-syn-structure * { color: var(--syn-structure); font-weight: 600; }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-structure * { color: var(--syn-structure); font-weight: var(--nx-weight-strong, 600); }
 .nx-syntax-colour .cm-editor .cm-line .nx-syn-env,
-.nx-syntax-colour .cm-editor .cm-line .nx-syn-env *       { color: var(--syn-env);       font-weight: 600; }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-env *       { color: var(--syn-env);       font-weight: var(--nx-weight-strong, 600); }
 .nx-syntax-colour .cm-editor .cm-line .nx-syn-math,
-.nx-syntax-colour .cm-editor .cm-line .nx-syn-math *      { color: var(--syn-math);      font-weight: 600; }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-math *      { color: var(--syn-math);      font-weight: var(--nx-weight-strong, 600); }
 .nx-syntax-colour .cm-editor .cm-line .nx-syn-preamble,
-.nx-syntax-colour .cm-editor .cm-line .nx-syn-preamble *  { color: var(--syn-preamble);  font-weight: 600; }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-preamble *  { color: var(--syn-preamble);  font-weight: var(--nx-weight-strong, 600); }
 .nx-syntax-colour .cm-editor .cm-line .nx-syn-cite,
-.nx-syntax-colour .cm-editor .cm-line .nx-syn-cite *      { color: var(--syn-cite);      font-weight: 600; }
+.nx-syntax-colour .cm-editor .cm-line .nx-syn-cite *      { color: var(--syn-cite);      font-weight: var(--nx-weight-strong, 600); }
 /* The argument -- a heading, or the name of an environment.  It follows its
    command's colour and only its colour: the weight belongs to the command,
    so the two are still told apart when both are lit. */
@@ -707,12 +761,29 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    the accent markers in the gutter all follow.  The rail, the tabs and the
    status strip stay in the interface's theme: what is lit differently is
    the page, not the app around it. */
-.cm-editor { height: 100%; background: var(--surface); color: var(--ink); }
+.cm-editor { height: 100%; background: var(--surface); color: var(--ink);
+  /* The weight the writer chose, plus whatever this palette says a page of
+     its brightness needs adding to it.  Derived once here rather than in
+     every rule that needs one, and derived *on the editor* rather than on
+     the root: the lift is a palette token, and the palette in force inside
+     this pane is not always the one the app is in.
+
+     --nx-weight-strong is what a control sequence is set in.  It has to be
+     a step above the prose whatever the prose is set to, which a hard 600
+     stopped being the moment the prose could reach 600 itself -- on a white
+     page at the heaviest setting the source would have gone flat, and the
+     subtle mode has nothing but weight to tell a command from a word.  The
+     ceiling is 700 rather than the arithmetic 800: past 700 a monospace
+     face stops gaining emphasis and starts losing its counters. */
+  --nx-weight: calc(var(--nx-editor-weight, 400) + var(--nx-editor-weight-lift, 0));
+  --nx-weight-strong: min(calc(var(--nx-weight) + 200), 700);
+}
 /* The one size the writer sets directly.  Line height is unitless so it
    tracks the size -- a fixed 22px under 21px text is unreadable -- and the
    gutter follows at the same ratio it had at the default size. */
 .cm-editor .cm-scroller { font-family: var(--font-mono);
-  font-size: var(--nx-editor-size, 13.5px); line-height: 1.63; }
+  font-size: var(--nx-editor-size, 13.5px); line-height: 1.63;
+  font-weight: var(--nx-weight, 400); }
 .cm-editor .cm-gutters { background: var(--surface); color: var(--ink-3);
   border-right: none; font-size: calc(var(--nx-editor-size, 13.5px) * 0.82); }
 .cm-editor .cm-activeLineGutter { background: transparent; color: var(--ink-2); }
