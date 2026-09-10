@@ -196,10 +196,28 @@ class Transcript:
                 "headline": event.get("headline", ""),
                 "detail": event.get("detail", ""),
                 "consequence": event.get("consequence", ""),
+                # Kept, and it was not.  This is the sentence saying which
+                # rule put the card up, and the panel reads it back on
+                # every reload, so a card was right until the writer
+                # refreshed and silently reasonless afterwards.  It is the
+                # one line on the card that distinguishes a gate the writer
+                # chose from one they did not.
+                "reason": event.get("reason", ""),
             })
-        elif kind == "error":
+        elif kind in {"error", "notice"}:
             self._flush_text()
-            self._append({"kind": "notice", "text": event.get("message", "")})
+            # Two events, one item, and the tone is what tells them apart.
+            # A `notice` is news and an `error` is a failure: the ten
+            # minute permission timeout emits the first, saying NextTex
+            # said no on the writer's behalf, and it used to reach neither
+            # the transcript nor the panel, so a silent deny left no trace
+            # anywhere.  Absent tone reads as "error", because every notice
+            # written before this line existed came from an error.
+            self._append({
+                "kind": "notice",
+                "text": event.get("message", ""),
+                "tone": "error" if kind == "error" else "plain",
+            })
         return event
 
     def note_decision(self, request_id: str, decision: str) -> None:
