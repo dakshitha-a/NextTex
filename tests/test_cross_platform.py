@@ -670,40 +670,105 @@ def test_the_installer_asks_nobody_when_input_is_redirected():
     assert "IsInputRedirected" in body, body
 
 
-# Every place that starts a child which might be Windows PowerShell. The
-# correction has to be applied at each of them, and there is no single choke
-# point: the installer has one, the settings sheet starts the Claude CLI
-# installer on its own, and the server starts the updater. Two of the three
-# were found only after somebody went looking a second time.
-POWERSHELL_SPAWN_SITES = (
-    "nexttex/install/ui.py",
-    "nexttex/claude_auth.py",
-    "server/main.py",
+# Where a child that might be Windows PowerShell is started, as a call site
+# rather than a file. A file-level check gets this backwards: naming the
+# three files and then exempting them from the sweep makes the three most
+# likely to grow a fourth spawn the three least protected, and a substring
+# check passes on an import line while the new call inherits the polluted
+# environment.
+POWERSHELL_SPAWNS = (
+    ("nexttex/install/ui.py", "run"),
+    ("nexttex/claude_auth.py", "_run_install"),
+    ("server/main.py", "pump"),
 )
 
+# Names that start a process. Deliberately wider than what is used today,
+# because the rule is about what anyone might reach for next.
+_SPAWN_ATTRS = {
+    "subprocess": {"Popen", "run", "call", "check_call", "check_output"},
+    "asyncio": {"create_subprocess_exec", "create_subprocess_shell"},
+    "os": {"system", "spawnv", "spawnve", "popen"},
+}
+_SPAWN_NAMES = {
+    "Popen", "check_call", "check_output",
+    "create_subprocess_exec", "create_subprocess_shell",
+}
 
-def test_every_place_that_starts_powershell_corrects_the_module_path():
-    for name in POWERSHELL_SPAWN_SITES:
-        text = (ROOT / name).read_text(encoding="utf-8")
-        assert "child_env" in text, (
-            f"{name} starts a child process without passing its argv through "
-            "child_env, so Windows PowerShell there inherits PowerShell 7's "
-            "module path"
-        )
+
+def _is_spawn(node) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        return func.attr in _SPAWN_ATTRS.get(func.value.id, ())
+    return isinstance(func, ast.Name) and func.id in _SPAWN_NAMES
 
 
-def test_no_unlisted_file_starts_powershell():
-    """The list above is only worth having if adding a fourth spawn site
-    fails here rather than being found by a user."""
-    spawners = ("subprocess.Popen", "create_subprocess_exec", "subprocess.run")
-    for path in python_sources():
-        relative = str(path.relative_to(ROOT)).replace("\\", "/")
-        if relative in POWERSHELL_SPAWN_SITES:
+def _corrects_the_module_path(call) -> bool:
+    """Whether this call passes `env=child_env(...)`, not merely `env=`."""
+    for keyword in call.keywords:
+        if keyword.arg != "env":
             continue
+        value = keyword.value
+        if isinstance(value, ast.Call):
+            func = value.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if name == "child_env":
+                return True
+    return False
+
+
+def _functions(tree, text):
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            yield node, ast.get_source_segment(text, node) or ""
+
+
+def test_every_named_powershell_spawn_corrects_the_module_path():
+    """The three known sites, asserted on the call and not on the file.
+
+    Windows PowerShell inherits PowerShell 7's `PSModulePath` through any
+    process that is not itself PowerShell, and then loads PowerShell 7's
+    `Microsoft.PowerShell.Utility` instead of its own. There is no single
+    choke point to fix it at: the installer starts children, the settings
+    sheet starts the Claude CLI installer, and the server starts the
+    updater.
+    """
+    for name, function in POWERSHELL_SPAWNS:
+        text = (ROOT / name).read_text(encoding="utf-8")
+        tree = ast.parse(text)
+        found = [
+            call
+            for node, _ in _functions(tree, text)
+            if node.name == function
+            for call in ast.walk(node)
+            if _is_spawn(call)
+        ]
+        assert found, f"no process is started in {name}::{function} any more"
+        for call in found:
+            assert _corrects_the_module_path(call), (
+                f"{name}::{function} line {call.lineno} starts a process "
+                "without env=child_env(...)"
+            )
+
+
+def test_no_unguarded_spawn_sits_next_to_the_word_powershell():
+    """The sweep that has to hold for files nobody has listed, including
+    the listed ones: a fourth spawn added inside `run`, `_run_install` or
+    `main.py` must fail here rather than reach a user's machine."""
+    for path in python_sources():
         text = path.read_text(encoding="utf-8")
         if "powershell" not in text.lower():
             continue
-        assert not any(word in text for word in spawners), (
-            f"{relative} names PowerShell and starts a process; add it to "
-            "POWERSHELL_SPAWN_SITES and pass its argv through child_env"
-        )
+        tree = ast.parse(text)
+        relative = path.relative_to(ROOT)
+        for node, source in _functions(tree, text):
+            if "powershell" not in source.lower():
+                continue
+            for call in ast.walk(node):
+                if _is_spawn(call) and not _corrects_the_module_path(call):
+                    raise AssertionError(
+                        f"{relative}::{node.name} line {call.lineno} starts a "
+                        "process in a function that names PowerShell, without "
+                        "env=child_env(...)"
+                    )
