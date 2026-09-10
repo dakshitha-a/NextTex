@@ -416,3 +416,23 @@ def test_the_stdout_guard_clears_an_image_sized_message(tmp_path):
     options = make_agent(tmp_path)._options()
     assert options.max_buffer_size is not None
     assert options.max_buffer_size >= 32 * 1024 * 1024
+
+
+def test_a_call_that_died_with_its_turn_is_not_still_running(tmp_path):
+    """A tool is recorded when its PreToolUse hook fires and forgotten
+    when PostToolUse fires, so a turn stopped mid-command, or one whose
+    transport died under it, leaves a call that runs for ever.  Nothing
+    notices at the time: the table is read by the watchdog that ends
+    silent turns, and it reads it on the next turn.  The phantom would
+    hold a stuck turn open and then end a healthy one, minutes in, over a
+    tool nobody had called."""
+    subject = make_agent(tmp_path)
+    subject._running_tools["ghost"] = ("Read", time.monotonic() - 100_000)
+    subject._client = StubClient(messages=[])
+
+    async def run():
+        await subject.ask("a fresh question")
+        return await drain(subject)
+
+    asyncio.run(run())
+    assert subject._running_tools == {}
