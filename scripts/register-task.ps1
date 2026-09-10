@@ -71,9 +71,10 @@ if (-not $registered) {
   $shell = New-Object -ComObject WScript.Shell
   $shortcut = $shell.CreateShortcut($link)
   # The shortcut cannot redirect, so it gets the minimised window instead:
-  # a taskbar button is a thing a person can find and read.
+  # a taskbar button is a thing a person can find and read.  `-u` for the
+  # same reason as below.
   $shortcut.TargetPath = $runner
-  $shortcut.Arguments = '"' + $entry + '"'
+  $shortcut.Arguments = '-u "' + $entry + '"'
   $shortcut.WorkingDirectory = $Root
   $shortcut.WindowStyle = 7
   $shortcut.Description = 'NextTex LaTeX editor'
@@ -85,10 +86,18 @@ if (-not $registered) {
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
   $out = Join-Path $logDir 'server.log'
   $err = Join-Path $logDir 'server.err.log'
-  Start-Process -FilePath $runner -ArgumentList $entry `
+  # `-u` is what makes server.log worth naming.  Python block-buffers stdout
+  # when it is a file rather than a console, so a server that stays up for a
+  # week writes nothing into it however much it prints: the buffer never
+  # fills and the process never exits to flush it.  Measured on the machine
+  # this was found on -- stderr arrived within seconds, stdout was still
+  # empty after five.  Unbuffered, the startup banner lands at once, which
+  # is what makes the file's emptiness mean something: empty now means it
+  # never got that far.
+  Start-Process -FilePath $runner -ArgumentList '-u', $entry `
     -WorkingDirectory $Root -WindowStyle Hidden `
     -RedirectStandardOutput $out -RedirectStandardError $err
-  Write-Output "started, logging to $out"
+  Write-Output "started; output in $out, errors in $err"
 }
 
 exit 0

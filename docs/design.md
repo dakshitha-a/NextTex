@@ -2164,6 +2164,23 @@ everything it writes goes to `server.log` and `server.err.log` beside the
 install log. A minimised window that reports is worth more than a hidden one
 that cannot.
 
+That was checked on the machine it was written for, and the check found the
+next thing. The server was up, the port was serving, the shortcut had been
+rewritten, and both log files were nought bytes after an hour. Not a
+redirect failure: Python block-buffers stdout when it is a file rather than
+a console, so a process that stays up writes nothing into it however much it
+prints, because the buffer never fills and it never exits to flush. Measured
+both ways rather than argued: after three seconds a live child's stdout file
+was empty and its stderr file was not, and with `-u` the banner was there at
+once. So the launcher passes `-u`, on the shortcut as well as the immediate
+start.
+
+The reason it matters is that emptiness is what a person reads that file
+for. Unbuffered, empty means it never got there. Buffered, empty means
+nothing at all, and the success message was naming that file by name while
+the installer's failure note named the other one. The reassuring message
+pointed at the file that could not contain anything.
+
 **And the installer now checks the address before it prints it.** Printing a
 link is not the same as there being something at the end of it, and that step
 had never looked. So on an install that undertook to start the server, the
