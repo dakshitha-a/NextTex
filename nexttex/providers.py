@@ -24,6 +24,18 @@ from typing import Any, AsyncIterator
 PROVIDERS = ("claude", "openai", "none")
 
 
+def _installer() -> str:
+    """The installer for the platform this is actually running on.
+
+    This message used to name `scripts/install.sh` unconditionally, which is
+    not a file a Windows user can run and not the one that would have fixed
+    the problem being described.
+    """
+    import os
+
+    return r"scripts\install.ps1" if os.name == "nt" else "scripts/install.sh"
+
+
 class NoAgent:
     """The agent that says there isn't one.
 
@@ -132,7 +144,7 @@ def agent_for(provider: str, project_root: Path, state_dir: Path, **kwargs: Any)
     except ImportError:
         return Unavailable(
             "The Claude agent needs the claude-agent-sdk package, which is "
-            "not installed. Run scripts/install.sh again, or choose OpenAI "
+            f"not installed. Run {_installer()} again, or choose OpenAI "
             "or no agent in the sign-in screen."
         )
 

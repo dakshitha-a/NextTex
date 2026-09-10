@@ -7,7 +7,11 @@ These are the ones that can be checked without the other machine.
 
 import ast
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -91,16 +95,78 @@ def test_the_unix_installer_refuses_windows_rather_than_half_running():
     assert "Darwin" in text and "Linux" in text
 
 
-def test_the_unix_installer_looks_for_tex_where_macos_puts_it():
-    text = (ROOT / "scripts" / "install.sh").read_text(encoding="utf-8")
-    assert "universal-darwin" in text
-    assert "/Library/TeX/texbin" in text
+def test_the_installer_looks_for_tex_where_macos_puts_it():
+    """This used to grep install.sh for the path.
+
+    The knowledge lives in `nexttex/tools.py` now, in one place rather than
+    three -- it was in the two shell scripts and in config.py, and the three
+    had already drifted apart.  Asserting on the real list is also an
+    assertion a bug could fail: the grep version would have passed for every
+    single defect this rework fixed.
+    """
+    from nexttex.tools import TEX_HINTS
+
+    joined = " ".join(str(hint) for hint in TEX_HINTS)
+    assert "universal-darwin" in joined
+    assert "TeX/texbin" in joined
+    assert "TinyTeX/bin/windows" in joined
 
 
-def test_the_unix_installer_can_start_on_login_on_both_platforms():
+def test_the_installer_can_start_on_login_on_every_platform():
+    from nexttex.install import service
+
+    root, home, state = Path("/opt/nexttex"), Path("/home/ada"), Path("/state")
+    assert "WantedBy=default.target" in service.systemd_unit(root, home, state, "")
+    assert "<key>RunAtLoad</key>" in service.launchd_plist(root, home, state, "")
+    assert "register-task.ps1" in " ".join(service.register_task_argv(root, ""))
+    assert (ROOT / "scripts" / "register-task.ps1").is_file()
+
+
+def test_the_words_the_update_footer_matches_on_survive():
+    """`_STEPS` in server/main.py reads the update script's output line by
+    line and matches substrings in it to name the step being watched.  Both
+    update scripts carry a comment saying so; this is the assertion.
+
+    Every phase the footer names is checked on both platforms except
+    "Done" -- only update.sh prints it, and both it and "Restarting" map to
+    the same label, so the Windows footer says "Finishing" either way.
+    """
+    from server.main import _STEPS
+
+    for script in ("update.sh", "update.ps1"):
+        text = (ROOT / "scripts" / script).read_text(encoding="utf-8")
+        for needle, _label in _STEPS:
+            if needle == "Done" and script.endswith(".ps1"):
+                continue
+            assert needle in text, f"{script} no longer prints {needle!r}"
+
+
+def test_the_installer_still_says_the_word_the_footer_watches_for():
+    """The interface step is the one the footer names by that word, and the
+    installer downloads the interface too, through the same wrapper."""
+    from nexttex.install import steps
+    import inspect
+
+    assert "interface" in inspect.getsource(steps.fetch_interface)
+
+
+def test_the_installer_is_posix_shell_because_the_readme_pipes_it_into_sh():
+    """`curl ... | sh` never reads the shebang: whatever `sh` is executes the
+    text, and on Debian and Ubuntu that is dash.  `set -o pipefail` on line
+    seven meant the documented install command died before printing a word,
+    on the most common Linux there is."""
     text = (ROOT / "scripts" / "install.sh").read_text(encoding="utf-8")
-    assert "LaunchAgents" in text, "no launchd unit for macOS"
-    assert "systemd/user" in text, "no systemd unit for Linux"
+    # Comments stripped: the file explains at length why pipefail is not
+    # here, and the explanation must not trip the check it explains.
+    code = "\n".join(line for line in text.splitlines()
+                     if not line.lstrip().startswith("#"))
+    assert "pipefail" not in code
+    assert "[[" not in code, "a bash conditional in a script run by dash"
+    shell = shutil.which("dash") or shutil.which("sh")
+    if shell is None:                                    # pragma: no cover
+        pytest.skip("no POSIX shell to check against")
+    assert subprocess.run([shell, "-n", str(ROOT / "scripts" / "install.sh")],
+                          capture_output=True).returncode == 0
 
 
 def test_nothing_shipped_hardcodes_a_path_from_the_machine_it_was_written_on():
@@ -192,6 +258,15 @@ OUTBOUND = {
     "dx.doi.org",
     "claude.ai",                # the sign-in screen links to the download page
     "github.com",               # the prebuilt interface, and the update check
+    # The installer, and only what the plan it printed said it would fetch.
+    "yihui.org",                # TinyTeX
+    "astral.sh",                # uv, when this Python cannot make a venv
+    "codeload.github.com",      # reachability probe before anything is asked
+    # Named in what the installer prints, never contacted: these appear in
+    # the survey's "you will have to install this yourself" lines.
+    "nodejs.org",
+    "tailscale.com",
+    "www.apple.com",            # the DOCTYPE of a launchd plist
 }
 
 # Hosts NextTex reaches through a library rather than by naming them, so the

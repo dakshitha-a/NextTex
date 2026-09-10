@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import socket
 import sys
 from pathlib import Path
@@ -93,7 +94,9 @@ async def serve(settings: Settings) -> None:
         if not (settings.certfile and Path(settings.certfile).is_file()):
             print(
                 "  no certificate, so the tailnet address is not being served.\n"
-                "  Run scripts/gen_cert.sh, or scripts/install.sh again.",
+                "  Run scripts/gen_cert.sh, or the installer again:\n"
+                "    " + (r"scripts\install.ps1" if os.name == "nt"
+                          else "scripts/install.sh"),
                 file=sys.stderr,
             )
         else:

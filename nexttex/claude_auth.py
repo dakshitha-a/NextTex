@@ -272,6 +272,145 @@ async def cancel_login() -> None:
     login.finished = True
 
 
+# ---------------------------------------------------------------------------
+# Installing the CLI from inside the app
+#
+# Choosing "no agent" at install time must not be a one-way door.  Everything
+# else needed to change your mind already existed -- the settings sheet
+# returns to the chooser, `POST /api/agent/provider` switches provider, and
+# the sign-in above drives the CLI from the browser -- and the one missing
+# piece was that a machine with no `claude` on it had nowhere to go but a
+# download page.
+#
+# It runs the vendor's installer, which is exactly what the terminal
+# installer does, and it is the same code: the URL and the command come from
+# `nexttex.install.steps`, so there is one answer to "how does the Claude CLI
+# get installed" rather than one per caller.  It is an explicit, signed-in
+# action behind the ordinary session gate, and never automatic.
+
+
+class _Install:
+    """One CLI install in flight."""
+
+    def __init__(self) -> None:
+        self.buffer: list[str] = []
+        self.subscribers: set[asyncio.Queue] = set()
+        self.finished = False
+        self.ok: bool | None = None
+
+    def publish(self, payload: dict) -> None:
+        text = json.dumps(payload)
+        for queue in list(self.subscribers):
+            try:
+                queue.put_nowait(text)
+            except asyncio.QueueFull:
+                self.subscribers.discard(queue)
+
+    def emit(self, text: str) -> None:
+        self.buffer.append(text)
+        self.publish({"type": "output", "text": text})
+
+
+_installing: _Install | None = None
+
+
+async def start_install() -> dict:
+    """Fetch and run the Claude CLI installer, streaming what it says."""
+    global _installing
+
+    if _claude():
+        return {"ok": True, "installed": True, "status": status()}
+    if _installing is not None and not _installing.finished:
+        return {"ok": True, "running": True}
+    install = _Install()
+    _installing = install
+    asyncio.get_running_loop().create_task(_run_install(install))
+    return {"ok": True, "running": True}
+
+
+async def _run_install(install: _Install) -> None:
+    import tempfile
+    from pathlib import Path
+
+    from .install.steps import (
+        claude_install_command,
+        claude_install_url,
+        claude_script_name,
+        fetch,
+    )
+
+    platform = "windows" if os.name == "nt" else "posix"
+    try:
+        with tempfile.TemporaryDirectory() as work:
+            script = Path(work) / claude_script_name(platform)
+            install.emit("Downloading the installer...\n")
+            error = await asyncio.to_thread(
+                fetch, claude_install_url(platform), script
+            )
+            if error:
+                install.emit(error + "\n")
+                _finish_install(install, ok=False)
+                return
+            argv = claude_install_command(platform, script)
+            install.emit("Running it...\n")
+            process = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            assert process.stdout is not None
+            while True:
+                chunk = await process.stdout.readline()
+                if not chunk:
+                    break
+                install.emit(chunk.decode("utf-8", "replace"))
+            code = await process.wait()
+    except (OSError, asyncio.CancelledError) as exc:
+        install.emit(f"{exc}\n")
+        _finish_install(install, ok=False)
+        return
+    _finish_install(install, ok=code == 0 and bool(_claude()))
+
+
+def _finish_install(install: _Install, *, ok: bool) -> None:
+    install.finished = True
+    install.ok = ok
+    if ok:
+        install.publish({"type": "done", "ok": True, "status": status()})
+    else:
+        # Never a 500.  A vendor installer that refuses is an ordinary
+        # outcome the screen has to render, and the next screen still offers
+        # OpenAI and no agent.
+        install.publish({
+            "type": "done",
+            "ok": False,
+            "error": "The Claude CLI did not install. You can install it "
+                     "yourself from https://claude.ai/download, or choose "
+                     "OpenAI or no agent.",
+        })
+
+
+async def install_stream() -> AsyncIterator[str]:
+    """The installer's output, from the beginning, as it happens."""
+    install = _installing
+    if install is None:
+        yield json.dumps({"type": "idle"})
+        return
+    queue: asyncio.Queue = asyncio.Queue(maxsize=256)
+    install.subscribers.add(queue)
+    try:
+        if install.buffer:
+            yield json.dumps({"type": "output", "text": "".join(install.buffer)})
+        if install.finished:
+            yield json.dumps({"type": "done", "ok": bool(install.ok),
+                              "status": status() if install.ok else None})
+            return
+        while True:
+            yield await queue.get()
+    finally:
+        install.subscribers.discard(queue)
+
+
 def logout() -> dict:
     if os.environ.get("NEXTTEX_FAKE_CLAUDE_AUTH") == "1":
         # The same flag `status` honours, and for the same reason.  It says

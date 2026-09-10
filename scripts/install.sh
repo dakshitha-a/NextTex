@@ -1,10 +1,33 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Install NextTex on Linux or macOS.  Windows has scripts/install.ps1.
 #
-# Everything here is idempotent: run it again after a change of mind about
-# how the server should listen, or after installing a missing dependency,
-# and it will pick up where it left off without touching your projects.
-set -euo pipefail
+# POSIX shell, not bash, and this is not a preference.  The command the
+# README gives is `curl ... | sh`, and in that shape the shebang is never
+# read: whatever `sh` is on the machine executes the text.  On Debian and
+# Ubuntu `sh` is dash, which does not have `set -o pipefail` -- so the
+# documented install command died on its seventh line, before printing
+# anything, on the most common Linux there is.  Nothing below uses arrays,
+# `local`, `[[`, or any other bashism, and the test suite runs this file
+# under dash to keep it that way.
+#
+# This file is a bootstrap and nothing more.  It does the four things that
+# cannot be done in Python, because they all happen before any Python is
+# known to exist:
+#
+#   1. refuse to run on a platform this is not for
+#   2. check for git, and ask where the checkout should go
+#   3. clone, and re-run itself from inside the clone
+#   4. find an interpreter, fetching one only if the machine has none
+#
+# Then it hands over to `python -m nexttex.install`, which surveys the
+# machine, prices the whole job, asks once, and does the work.  That half is
+# the same code on all three platforms and is covered by the test suite; the
+# reason this half is not is that it is what has to run first.
+#
+# Everything is idempotent: run it again after a change of mind, or after
+# installing something it said was missing, and it picks up where it left
+# off without touching your projects.
+set -eu
 
 case "$(uname -s)" in
   Darwin) PLATFORM=macos ;;
@@ -21,20 +44,21 @@ esac
 # whole install down at the first question.  /dev/tty is the person sitting
 # there whatever stdin happens to be, so every question goes to it.
 #
-# No tty at all -- a Dockerfile, CI, a provisioning script -- means there is
-# nobody to ask, so the assumed answer is taken silently.  That is the same
-# path `--yes` takes, and it is why `ask` returns the assumed answer rather
-# than an empty string: a caller cannot tell "they pressed return" from
-# "there was nobody there", and those two want different answers often
-# enough that the difference is the caller's to make.  An empty reply comes
-# back empty and each caller applies its own `${reply:-...}`.
 # Opening it, not stat-ing it.  `[ -r /dev/tty ]` answers a question about
 # the device node's permissions and says yes on a machine where the node
 # exists but this process has no controlling terminal -- a systemd unit, a
 # container build, a CI step.  The open is what actually fails there, with
 # ENXIO, and it failed *inside* the prompt, so the install died at the first
 # question on exactly the unattended machines this fallback exists for.
-tty_available() { { : < /dev/tty; } 2>/dev/null; }
+#
+# And the open happens in a subshell, which is the second half of the same
+# lesson.  `{ : < /dev/tty; }` looks like it tests the open and returns a
+# status, and in bash it does.  But `:` is a POSIX *special built-in*, and a
+# redirection error on one of those is defined to end the shell -- so under
+# dash, which is `sh` on Debian and Ubuntu, that line did not report "no
+# terminal", it killed the installer outright, before it had printed a
+# single word.  A subshell contains the death and hands back a status.
+tty_available() { ( exec 3< /dev/tty ) 2>/dev/null; }
 
 ask() {  # ask "the prompt" "what to assume when nobody can be asked"
   if [ "${ASSUME_YES:-0}" = 1 ] || ! tty_available; then
@@ -58,32 +82,54 @@ expand_path() {
   esac
 }
 
-# The full option parser lives below, after the clone, and these two are
-# wanted before it: where to clone is the first thing this script decides.
-# They are read here and read again down there, which is cheap and keeps one
-# list of options rather than two that can disagree.
+die() { printf '\n\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
+
+# Only the two options this half of the install needs.  Everything else is
+# parsed by `python -m nexttex.install`, which owns the option list; passing
+# an unknown option here is not an error, because it is not this script's to
+# know about.
 ASSUME_YES=0
 DIR_CHOICE="${NEXTTEX_DIR:-}"
 for argument in "$@"; do
   case "$argument" in
     --yes|-y) ASSUME_YES=1 ;;
     --dir=*)  DIR_CHOICE="${argument#--dir=}" ;;
+    --help|-h)
+      cat <<'USAGE'
+usage: install.sh [--yes] [--dir=PATH] [--tex=tinytex|none]
+                  [--agent=claude|openai|none] [--bind=localhost|both]
+                  [--service|--no-service] [--instance=NAME] [--plain]
+
+  --yes       take the defaults and ask nothing.  The plan is still printed,
+              so an unattended install still says what it did and did not do.
+  --dir       where to install.  The default is ~/apps/NextTex, and
+              NEXTTEX_DIR does the same job.  Only meaningful on a first
+              install: run from inside a checkout this is already decided.
+  --tex       install TinyTeX, or skip it.  Interactively the default is to
+              install one; unattended the default is to skip, because 200 MB
+              should not be spent without somebody saying so.
+  --agent     which writing agent to install now.  The default is none, and
+              the app asks again on its first screen either way.
+  --bind      where the server listens.  localhost is this machine only;
+              both also serves your tailnet address over TLS.
+  --instance  install a second, separate NextTex on this machine -- its own
+              state, its own port, its own service.
+  --plain     no animation; one line per step.  What CI gets anyway.
+USAGE
+      exit 0 ;;
   esac
 done
 
 # Two modes, one script.  Run from inside a checkout it installs that
 # checkout; piped from curl there is no checkout yet, so it makes one and
-# re-runs itself from inside it.  A separate bootstrap file would be a
-# second thing to keep in step with this one.
+# re-runs itself from inside it.
 if [ -f "$(dirname "$0")/../requirements.txt" ] 2>/dev/null; then
   cd "$(dirname "$0")/.."
 else
-  command -v git >/dev/null 2>&1 || {
-    printf '\033[31mNextTex needs git.\033[0m\n' >&2
-    printf '  macOS:  xcode-select --install\n' >&2
-    printf '  Debian: sudo apt install git\n' >&2
-    exit 1
-  }
+  command -v git >/dev/null 2>&1 || die "NextTex needs git.
+  macOS:  xcode-select --install
+  Debian: sudo apt install git"
+
   # Where it goes.  NEXTTEX_DIR and --dir are the answers given in advance;
   # anything else means ask, because somebody running this from a curl pipe
   # has no other moment to say, and the directory is the one decision here
@@ -94,12 +140,12 @@ else
     if [ "$ASSUME_YES" = 1 ] || ! tty_available; then
       TARGET="$DEFAULT_TARGET"
     else
-      printf '\n\033[1mWhere should NextTex be installed?\033[0m\n' > /dev/tty
-      printf '  Everything it needs lives in this one directory, including its\n' > /dev/tty
-      printf '  Python environment. Your projects live outside it and are not\n' > /dev/tty
-      printf '  touched by an install, an update or an uninstall.\n' > /dev/tty
+      printf '\n\033[1m  Where should NextTex be installed?\033[0m\n' > /dev/tty
+      printf '    Everything it needs lives in this one directory, including its\n' > /dev/tty
+      printf '    Python environment. Your projects live outside it and are not\n' > /dev/tty
+      printf '    touched by an install, an update or an uninstall.\n\n' > /dev/tty
       while :; do
-        TARGET="$(ask "  Directory [$DEFAULT_TARGET]: " "$DEFAULT_TARGET")"
+        TARGET="$(ask "    Directory [$DEFAULT_TARGET]: " "$DEFAULT_TARGET")"
         TARGET="$(expand_path "${TARGET:-$DEFAULT_TARGET}")"
         # An existing checkout is fine -- that is the update path below.  So
         # is a directory that does not exist yet, and so is an empty one.
@@ -108,10 +154,10 @@ else
         if [ -d "$TARGET/.git" ] || [ ! -e "$TARGET" ]; then break; fi
         if [ -d "$TARGET" ] && [ -z "$(ls -A "$TARGET" 2>/dev/null)" ]; then break; fi
         if [ -d "$TARGET" ]; then
-          printf '  \033[31m%s already has something in it.\033[0m\n' "$TARGET" > /dev/tty
-          printf '  Choose an empty directory, or an existing NextTex checkout to update.\n' > /dev/tty
+          printf '    \033[31m%s already has something in it.\033[0m\n' "$TARGET" > /dev/tty
+          printf '    Choose an empty directory, or an existing NextTex checkout to update.\n' > /dev/tty
         else
-          printf '  \033[31m%s is a file.\033[0m\n' "$TARGET" > /dev/tty
+          printf '    \033[31m%s is a file.\033[0m\n' "$TARGET" > /dev/tty
         fi
       done
     fi
@@ -119,408 +165,59 @@ else
   TARGET="$(expand_path "$TARGET")"
   REPO="${NEXTTEX_REPO:-https://github.com/dakshitha-a/NextTex.git}"
   if [ -d "$TARGET/.git" ]; then
-    printf '\n\033[1mUpdating the checkout at %s\033[0m\n' "$TARGET"
+    printf '\n\033[1m  Updating the checkout at %s\033[0m\n' "$TARGET"
     git -C "$TARGET" pull --ff-only
   else
-    printf '\n\033[1mCloning into %s\033[0m\n' "$TARGET"
+    printf '\n\033[1m  Cloning into %s\033[0m\n' "$TARGET"
     mkdir -p "$(dirname "$TARGET")"
-    git clone --quiet "$REPO" "$TARGET"
+    # Not --quiet.  This is the one download that happens before any of the
+    # installer's own machinery exists, and git's own progress is tty-aware
+    # and honest about it.
+    git clone "$REPO" "$TARGET"
   fi
   exec "$TARGET/scripts/install.sh" "$@"
 fi
-ROOT="$(pwd)"
 
-say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
-note() { printf '  %s\n' "$*"; }
-
-# Long steps say what they are doing and how long it took.  Silence is
-# indistinguishable from a hang, and resolving the Python dependencies is a
-# minute or more of it on a first install.
-STEP_AT=""
-step()  { STEP_AT=$(date +%s); printf '  %s ...\n' "$*"; }
-done_step() {
-  if [ -n "$STEP_AT" ]; then
-    printf '  %s (%ss)\n' "$*" "$(( $(date +%s) - STEP_AT ))"
-  else
-    printf '  %s\n' "$*"
+# An interpreter to run the installer with.  Any Python 3.10 or newer will
+# do: the installer is standard library only and makes its own virtual
+# environment, so this does not have to be the Python NextTex ends up
+# running on, and it does not have to be able to make a venv either.  A
+# Debian python3 without ensurepip is a perfectly good interpreter for this,
+# and the installer says so on its survey and fetches uv instead.
+PYTHON=""
+for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    version=$("$candidate" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || true)
+    major=${version%%.*}; minor=${version##*.}
+    if [ -n "$version" ] && [ "$major" -ge 3 ] && [ "$minor" -ge 10 ]; then
+      PYTHON="$candidate"; break
+    fi
   fi
-  STEP_AT=""
-}
-die()  { printf '\n\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
-
-ASSUME_YES=0
-BIND=""
-INSTANCE=""
-for argument in "$@"; do
-  case "$argument" in
-    --yes|-y) ASSUME_YES=1 ;;
-    # Read before the clone, by the loop near the top of this file: by the
-    # time we are here we are already inside the directory it chose.  It is
-    # accepted again so that passing it is not an error.
-    --dir=*) ;;
-    --bind=*) BIND="${argument#--bind=}" ;;
-    --instance=*) INSTANCE="${argument#--instance=}" ;;
-    --help|-h)
-      cat <<'USAGE'
-usage: install.sh [--yes] [--dir=PATH] [--bind=localhost|tailscale|both]
-                  [--instance=NAME]
-
-  --yes       take the defaults; ask nothing
-  --dir       where to install, when you would rather not be asked.  The
-              default is ~/apps/NextTex, and NEXTTEX_DIR does the same job.
-              Only meaningful on a first install: run from inside a checkout
-              this is already decided.
-  --bind      where the server listens.  localhost is this machine only;
-              tailscale also serves your tailnet address over TLS.
-  --instance  install a second, separate NextTex on this machine -- its own
-              state, its own port, its own service.  Without this you get
-              the ordinary one, which is what almost everybody wants.
-USAGE
-      exit 0 ;;
-    *) die "unknown option: $argument" ;;
-  esac
 done
 
-case "$INSTANCE" in
-  "" ) ;;
-  *[!A-Za-z0-9_-]* ) die "an instance name may only contain letters, digits, - and _" ;;
-esac
-
-# Everything an instance has of its own.  Unset, these are the names the
-# ordinary install has always used, so an existing one is untouched.
-SUFFIX="${INSTANCE:+-$INSTANCE}"
-STATE="${XDG_DATA_HOME:-$HOME/.local/share}/nexttex$SUFFIX"
-UNIT_NAME="nexttex$SUFFIX"
-PLIST_LABEL="com.nexttex.server$SUFFIX"
-mkdir -p "$STATE"
-
-# ---------------------------------------------------------------------------
-say "Python"
-
-# uv, when it can be had.  It brings its own CPython, so the version this
-# runs on stops depending on what the distribution shipped -- and it steps
-# straight over the single most common way this used to fail: Debian and
-# Ubuntu ship python3 without ensurepip, so `python3 -m venv` fails on a
-# fresh machine and the error names a package nobody would guess.
-#
-# It is installed into the project rather than onto the system.  An
-# installer that quietly puts a new tool on your PATH is not one you can
-# uninstall by deleting a folder.
-UV=""
-if command -v uv >/dev/null 2>&1; then
-  UV="uv"
-elif [ -x .uv/uv ]; then
-  UV="$PWD/.uv/uv"
-elif command -v curl >/dev/null 2>&1; then
+# No Python at all is the one case that forces a download before anything
+# can be surveyed, so it says so rather than appearing to hang.
+if [ -z "$PYTHON" ] && command -v curl >/dev/null 2>&1; then
+  printf '\n  There is no Python 3.10 or newer here, so NextTex will fetch one.\n'
+  printf '  uv, about 15 MB, into this directory. Nothing is added to your PATH.\n\n'
   if UV_INSTALL_DIR="$PWD/.uv" UV_NO_MODIFY_PATH=1 \
        curl -fsSL https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 \
      && [ -x .uv/uv ]; then
-    UV="$PWD/.uv/uv"
+    ./.uv/uv python install 3.13 >/dev/null 2>&1 || true
+    PYTHON="$(./.uv/uv python find 3.13 2>/dev/null || true)"
   fi
 fi
 
-# Sharing a project needs iroh, which publishes wheels for Linux, Windows and
-# Apple-silicon Macs and no source distribution at all.  So it is installed on
-# its own and allowed to fail: everything else in NextTex works without it,
-# and the share card says so rather than offering a button that cannot work.
-install_iroh() {
-  if eval "$1 iroh" >/dev/null 2>&1; then
-    note "iroh installed, so projects can be shared with other people"
-  else
-    note "no iroh build for this platform; everything except sharing a project works"
-  fi
-}
+[ -n "$PYTHON" ] || die "NextTex needs Python 3.10 or newer, and none was found.
+  Install one from https://www.python.org/downloads/, or with your
+  package manager, then run this script again."
 
-if [ -n "$UV" ]; then
-  note "$($UV --version)"
-  "$UV" venv --python 3.13 .venv >/dev/null 2>&1 || "$UV" venv .venv >/dev/null
-  # Not --quiet.  This is the longest silent stretch of the install, and the
-  # tool's own output is the only honest progress there is: it names each
-  # package as it goes, and when something stalls on a slow mirror that line
-  # is exactly what you want to see.
-  step "Installing the Python dependencies (a minute or two)"
-  VIRTUAL_ENV="$PWD/.venv" "$UV" pip install -r requirements.txt
-  done_step "dependencies installed into .venv"
-  install_iroh "VIRTUAL_ENV=$PWD/.venv $UV pip install --quiet"
+# The handover.  stdin is pointed at the terminal, because under `curl | sh`
+# stdin is this script and is exhausted by now, so the installer's first
+# question would see EOF.  With no terminal at all there is nobody to ask,
+# and --plain is both the honest output mode and the unattended one.
+if tty_available; then
+  exec "$PYTHON" -m nexttex.install "$@" < /dev/tty
 else
-  PYTHON=""
-  for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
-    if command -v "$candidate" >/dev/null 2>&1; then
-      version=$("$candidate" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
-      major=${version%%.*}; minor=${version##*.}
-      if [ "$major" -ge 3 ] && [ "$minor" -ge 10 ]; then PYTHON="$candidate"; break; fi
-    fi
-  done
-  [ -n "$PYTHON" ] || die "NextTex needs Python 3.10 or newer, and none was found."
-  note "$($PYTHON -V) at $(command -v "$PYTHON")"
-
-  if [ ! -x .venv/bin/python ]; then
-    if ! "$PYTHON" -m venv .venv 2>/dev/null; then
-      if command -v virtualenv >/dev/null 2>&1; then
-        note "python3-venv is unavailable; using virtualenv instead"
-        virtualenv -p "$PYTHON" .venv >/dev/null
-      else
-        die "Could not create the virtual environment. On Debian or Ubuntu:
-    sudo apt install python3-venv
-  then run this script again."
-      fi
-    fi
-  fi
-  .venv/bin/python -m pip install --quiet --upgrade pip >/dev/null
-  # See the note on the uv branch above: not --quiet, deliberately.
-  step "Installing the Python dependencies (a minute or two)"
-  .venv/bin/python -m pip install -r requirements.txt
-  done_step "dependencies installed into .venv"
-  install_iroh ".venv/bin/python -m pip install --quiet"
+  exec "$PYTHON" -m nexttex.install --plain "$@"
 fi
-
-# ---------------------------------------------------------------------------
-say "LaTeX"
-
-have() { command -v "$1" >/dev/null 2>&1; }
-# TinyTeX puts its binaries somewhere different on each platform, and MacTeX
-# somewhere different again.  All of them go on: a directory that does not
-# exist costs nothing.
-export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/Library/TinyTeX/bin/universal-darwin:$HOME/Library/TinyTeX/bin/x86_64-darwin:/Library/TeX/texbin:$HOME/bin:$PATH"
-
-if ! have pdflatex; then
-  note "no TeX installation found"
-  reply="$(ask "  Install TinyTeX (about 200 MB, into ~/.TinyTeX)? [Y/n] " y)"
-  case "${reply:-y}" in
-    [Nn]*) note "skipping; NextTex will start but cannot typeset until TeX is installed" ;;
-    *) curl -fsSL https://yihui.org/tinytex/install-bin-unix.sh | sh
-       export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/Library/TinyTeX/bin/universal-darwin:$PATH" ;;
-  esac
-fi
-
-if have tlmgr; then
-  missing=()
-  for tool in latexmk biber synctex chktex texcount; do
-    have "$tool" || missing+=("$tool")
-  done
-  if [ ${#missing[@]} -gt 0 ]; then
-    note "installing: ${missing[*]}"
-    tlmgr install "${missing[@]}" >/dev/null 2>&1 || \
-      note "tlmgr could not install some of them; NextTex will say which at startup"
-  fi
-fi
-if ! have pdftotext; then
-  note "pdftotext is not installed; reading a folder of papers into a .bib"
-  note "  needs it.  It comes with poppler-utils:"
-  case "$PLATFORM" in
-    macos) note "    brew install poppler" ;;
-    *)     note "    sudo apt install poppler-utils   (or your distribution's)" ;;
-  esac
-fi
-
-for tool in pdflatex latexmk synctex; do
-  have "$tool" && note "$tool $(command -v "$tool")" || note "MISSING: $tool"
-done
-
-# ---------------------------------------------------------------------------
-say "The writing agent"
-
-# Asked rather than assumed, and nothing is installed unless the answer says
-# so.  This used to offer "Install it now? [Y/n]", which is a yes-by-default
-# question about a download for a feature the README calls optional in its
-# first sentence -- and no agent at all is a real choice here, not a
-# degraded one.  So the question is which agent, the default is none, and
-# only the first answer fetches anything.
-#
-# Whatever is chosen, the app asks again on its first screen and that answer
-# is the one that counts; this decides only what gets installed now.
-if have claude; then
-  note "claude $(claude --version 2>/dev/null | head -1)"
-  note "you sign in from the browser, not here — nothing to do yet"
-else
-  note "NextTex works fully without an agent, and you can change this later."
-  echo "    1) Claude  — installs the Claude CLI now"
-  echo "    2) OpenAI  — nothing to install; paste an API key in the app"
-  echo "    3) None    — nothing to install"
-  choice="$(ask "  Choose [3]: " 3)"
-  case "${choice:-3}" in
-    1) step "Installing the Claude CLI"
-       if curl -fsSL https://claude.ai/install.sh | bash; then
-         done_step "Claude CLI installed"
-         note "you sign in from the browser, not here — nothing to do yet"
-       else
-         done_step "the installer did not finish"
-         note "install it from https://claude.ai/download, or choose OpenAI in the app"
-       fi ;;
-    2) note "nothing to install — paste your API key on the first screen" ;;
-    *) note "no agent installed — everything else works exactly the same"
-       note "you can add one later from the settings sheet" ;;
-  esac
-fi
-
-# ---------------------------------------------------------------------------
-say "The interface"
-
-# Downloaded, not built.  Every machine used to need Node 20+ for the sole
-# purpose of producing an artefact that is identical for everyone -- there is
-# no `base`, no `define` and no VITE_ variable anywhere in the source, so the
-# build CI does is the build you would have done.
-#
-# Building locally is still the fallback, for a machine that cannot reach
-# GitHub or a commit CI has not published yet.
-if scripts/fetch-interface.sh 2>&1 | sed 's/^/  /'; then
-  :
-else
-  if [ -n "${NEXTTEX_NODE_BIN:-}" ] && [ -d "$NEXTTEX_NODE_BIN" ]; then
-    PATH="$NEXTTEX_NODE_BIN:$PATH"
-    export PATH
-  fi
-  NODE=""
-  for candidate in node nodejs; do
-    if command -v "$candidate" >/dev/null 2>&1; then
-      major=$("$candidate" -v | sed 's/^v//; s/\..*//')
-      if [ "$major" -ge 20 ]; then NODE="$candidate"; break; fi
-    fi
-  done
-  if [ -n "$NODE" ]; then
-    note "building it here instead ($($NODE -v))"
-    (cd frontend && npm ci --no-audit --no-fund --silent && npm run build >/dev/null)
-    note "built into frontend/dist"
-  elif [ -d frontend/dist ]; then
-    note "keeping the interface already built"
-  else
-    die "Could not download the interface, and there is no Node here to build
-  one.  Check your connection, or install Node 20+ from https://nodejs.org
-  and run this script again."
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-say "How it listens"
-
-if [ -z "$BIND" ]; then
-  if [ "$ASSUME_YES" = 1 ]; then
-    BIND=localhost
-  else
-    echo "  1) localhost only — this machine, over plain HTTP"
-    echo "  2) localhost and Tailscale — also reachable from your other devices, over TLS"
-    choice="$(ask "  Choose [1]: " 1)"
-    case "${choice:-1}" in 2) BIND=both ;; *) BIND=localhost ;; esac
-  fi
-fi
-
-CERT=""; KEY=""
-if [ "$BIND" != "localhost" ]; then
-  if ! command -v tailscale >/dev/null 2>&1; then
-    note "tailscale is not installed; falling back to localhost only"
-    BIND=localhost
-  else
-    NEXTTEX_INSTANCE="$INSTANCE" ./scripts/gen_cert.sh >/dev/null
-    CERT="$STATE/cert.pem"; KEY="$STATE/key.pem"
-    note "certificate at $CERT"
-  fi
-fi
-
-NEXTTEX_INSTANCE="$INSTANCE" .venv/bin/python - "$BIND" "$CERT" "$KEY" "$INSTANCE" <<'PY'
-import sys
-sys.path.insert(0, ".")
-from nexttex.config import Settings
-
-bind, cert, key = sys.argv[1], sys.argv[2], sys.argv[3]
-settings = Settings.load()
-# A second install cannot share the first's port.  Only chosen on a first
-# install: an existing config keeps whatever it was set to.
-if len(sys.argv) > 4 and sys.argv[4] and settings.port == 8450:
-    settings.port = 8451
-settings.localhost = True
-settings.tailscale = bind != "localhost"
-settings.certfile = cert
-settings.keyfile = key
-settings.save()
-print(f"  listening: localhost{' and tailscale' if settings.tailscale else ''}")
-PY
-
-# ---------------------------------------------------------------------------
-say "Starting on boot"
-
-if [ "$PLATFORM" = macos ]; then
-  # launchd rather than systemd.  RunAtLoad plus KeepAlive is the closest
-  # equivalent to `Restart=on-failure` with `enable --now`.
-  PLIST="$HOME/Library/LaunchAgents/$PLIST_LABEL.plist"
-  mkdir -p "$(dirname "$PLIST")"
-  cat > "$PLIST" <<PLIST_EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>$PLIST_LABEL</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>$ROOT/.venv/bin/python</string>
-    <string>$ROOT/server/run.py</string>
-  </array>
-  <key>WorkingDirectory</key><string>$ROOT</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>HOME</key><string>$HOME</string>
-    <key>PYTHONUNBUFFERED</key><string>1</string>
-    <key>NEXTTEX_INSTANCE</key><string>$INSTANCE</string>
-    <key>PATH</key><string>$HOME/.local/bin:$HOME/Library/TinyTeX/bin/universal-darwin:/Library/TeX/texbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-  </dict>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key>
-  <dict><key>SuccessfulExit</key><false/></dict>
-  <key>StandardOutPath</key><string>$STATE/server.log</string>
-  <key>StandardErrorPath</key><string>$STATE/server.log</string>
-</dict>
-</plist>
-PLIST_EOF
-  note "launch agent written to $PLIST"
-  reply="$(ask "  Start NextTex now and on every login? [Y/n] " n)"
-  case "${reply:-y}" in
-    [Nn]*) note "start it yourself with: launchctl load $PLIST" ;;
-    *) launchctl unload "$PLIST" >/dev/null 2>&1 || true
-       launchctl load "$PLIST"
-       note "running; logs in $STATE/server.log" ;;
-  esac
-elif command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
-  UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$UNIT_NAME.service"
-  mkdir -p "$(dirname "$UNIT")"
-  # The PATH is written out in full on purpose.  Under `systemd --user` it is
-  # minimal, and the SDK spawns `claude`, which must find the credentials the
-  # browser sign-in wrote -- so HOME has to be right as well.
-  cat > "$UNIT" <<UNIT_EOF
-[Unit]
-Description=NextTex
-After=network-online.target
-
-[Service]
-Type=simple
-WorkingDirectory=$ROOT
-Environment=HOME=$HOME
-Environment=PYTHONUNBUFFERED=1
-Environment=NEXTTEX_INSTANCE=$INSTANCE
-Environment=PATH=$HOME/.local/bin:$HOME/.TinyTeX/bin/x86_64-linux:$HOME/.TinyTeX/bin/aarch64-linux:$HOME/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=$ROOT/.venv/bin/python $ROOT/server/run.py
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=default.target
-UNIT_EOF
-  systemctl --user daemon-reload
-  note "unit written to $UNIT"
-  reply="$(ask "  Start NextTex now and on every login? [Y/n] " n)"
-  case "${reply:-y}" in
-    [Nn]*) note "start it yourself with: systemctl --user start $UNIT_NAME" ;;
-    *) systemctl --user enable --now "$UNIT_NAME"
-       loginctl enable-linger "$USER" >/dev/null 2>&1 || \
-         note "run 'sudo loginctl enable-linger $USER' to keep it running after you log out"
-       note "running" ;;
-  esac
-else
-  note "no systemd --user here; start it with: .venv/bin/python server/run.py"
-fi
-
-say "Ready"
-NEXTTEX_INSTANCE="$INSTANCE" .venv/bin/python server/run.py --print-url | sed 's/^/  /'
-echo
-echo "  That link contains your access token. Anyone with it can read and"
-echo "  edit your projects, so treat it like a password."
-echo
