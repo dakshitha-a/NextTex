@@ -427,7 +427,15 @@ export default function Projects({
                 ? "/path/to/your/writing/project"
                 : "An empty folder to put it in, e.g. ~/writing/their-paper"
             }
-            className="t-code-sm h-[28px] flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+            // `flex-1` only where the row is a row.  Joining stacks this
+            // under the invite box, and in a column `flex: 1 1 0%` is a
+            // rule about *height*: the basis of 0 beat `h-[28px]` and the
+            // field collapsed to the 17px of its own text, which is what
+            // made one box tall and the other a slot.  The cross axis
+            // stretches on its own, so the width needs nothing said.
+            className={`t-code-sm h-[28px] rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3 ${
+              mode === "join" ? "w-full" : "flex-1"
+            }`}
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && add()}
           />
