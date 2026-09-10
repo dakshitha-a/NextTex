@@ -154,27 +154,46 @@ def build_plan(
     items.append(tex)
 
     # 3 -- the writing agent ------------------------------------------------
+    # Whatever this machine already decided wins, the same way the listening
+    # item works and for the same reason.  Re-running the installer is the
+    # documented repair for a missing dependency, and somebody who chose
+    # ChatGPT in the app and re-runs it to pick up pdftotext must not find
+    # their agent switched off and their key gone.
+    agent_default = default_of("agent")
+    agent_current = False
+    if result.config.get("provider") in ("claude", "openai", "none"):
+        agent_default, agent_current = result.config["provider"], True
+    elif result.claude:
+        # Already on the machine, nothing to download, and the app asks
+        # again on its first screen anyway.
+        agent_default = "claude"
+    claude_label = (
+        "Claude -- already installed here"
+        if result.claude
+        else f"Claude -- installs the Claude CLI now  ({SIZES['claude'][0]})"
+    )
     agent = Item(
         "agent", "Writing agent",
-        "NextTex works fully without one. Whatever is chosen here, the app\n"
-        "asks again on its first screen and that answer is the one that\n"
+        "NextTex works fully without one. Whatever is chosen here, the app "
+        "asks again on its first screen and that answer is the one that "
         "counts; this only decides what gets installed now.",
         [
             Option("none", "none -- nothing to install"),
-            Option("claude", f"Claude -- installs the Claude CLI now  ({SIZES['claude'][0]})"),
+            Option("claude", claude_label),
             Option("openai", "OpenAI -- nothing to install; paste an API key in the app"),
         ],
-        default_of("agent"),
+        agent_default, current=agent_current,
     )
-    if result.claude:
-        agent.fixed = "the Claude CLI is already here; sign in from the browser"
     items.append(agent)
 
     # 4 -- the interface ----------------------------------------------------
     items.append(Item(
         "interface", "Interface", "", [], "do",
         fixed="download the build for this commit",
-        size_mb=SIZES["interface"][1],
+        # Fetched every time, because the one already here belongs to
+        # whatever commit was checked out last; but it is a megabyte, and a
+        # megabyte is not worth putting on a total.
+        size_mb=0 if result.interface_present else SIZES["interface"][1],
     ))
 
     # 5 -- how it listens ---------------------------------------------------
@@ -250,8 +269,6 @@ class Plan:
             # "not possible" both mean the step is skipped.
             if key == "tex":
                 return "present" if self.survey.has_tex else "none"
-            if key == "agent":
-                return "present" if self.survey.claude else "none"
             if key == "bind":
                 return "localhost"
             if key == "service":
@@ -260,10 +277,17 @@ class Plan:
 
     @property
     def megabytes(self) -> int:
+        """What this will actually download, not what these steps can cost.
+
+        Only things that are not already here.  Telling a machine that has
+        the Claude CLI on it that the install is about to fetch a hundred
+        megabytes is the same species of untruth as the rest of this rework
+        exists to remove.
+        """
         total = sum(item.size_mb for item in self.items)
-        if self.choice("tex") in ("tinytex", "miktex"):
+        if self.choice("tex") in ("tinytex", "miktex") and not self.survey.has_tex:
             total += SIZES["tex"][1]
-        if self.choice("agent") == "claude":
+        if self.choice("agent") == "claude" and not self.survey.claude:
             total += SIZES["claude"][1]
         return total
 

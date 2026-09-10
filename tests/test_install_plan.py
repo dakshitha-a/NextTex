@@ -133,6 +133,36 @@ def test_windows_gets_the_instance_and_listen_items_the_others_get(tmp_path):
                                                     interactive=True).items]
 
 
+def test_re_running_the_installer_keeps_the_agent_you_chose_in_the_app(tmp_path):
+    """Re-running it is the documented repair for a missing dependency.
+
+    Somebody who chose ChatGPT in the app and re-runs the installer to pick
+    up pdftotext must not find their agent switched off, and their key gone
+    with it, because a default they never saw won.
+    """
+    for provider in ("openai", "claude", "none"):
+        result = bare("linux", tmp_path)
+        result.config = {"provider": provider}
+        plan = build_plan(result, interactive=True)
+        assert plan.choice("agent") == provider
+        assert plan.item("agent").current is True
+        assert "(current)" in plan.item("agent").summary
+
+
+def test_a_claude_already_on_the_machine_is_the_default_but_not_a_verdict(tmp_path):
+    """Nothing to download, so it is the sensible default; and --agent=none
+    still has to be obeyed, which it was not while the item was fixed."""
+    result = bare("linux", tmp_path)
+    result.claude = "/usr/bin/claude"
+    assert build_plan(result, interactive=True).choice("agent") == "claude"
+
+    result = bare("linux", tmp_path)
+    result.claude = "/usr/bin/claude"
+    plan = build_plan(result, interactive=True, answers={"agent": "none"})
+    assert plan.choice("agent") == "none"
+    assert "already installed" in plan.item("agent").option("claude").label
+
+
 def test_a_flag_beats_the_default_and_an_unknown_value_does_not(tmp_path):
     plan = build_plan(bare("linux", tmp_path), interactive=True,
                       answers={"agent": "openai", "service": "no"})
@@ -147,6 +177,11 @@ def test_a_machine_with_nothing_to_do_says_so(tmp_path):
     result.tex_dir = "/usr/bin"
     result.claude = "/usr/bin/claude"
     result.venv_ready = True
+    result.interface_present = True
     plan = build_plan(result, interactive=True, answers={"service": "no"})
     assert plan.item("python").fixed.startswith(".venv is here")
-    assert plan.item("agent").fixed
+    assert plan.item("tex").fixed
+    # The agent is a choice rather than a verdict even when the CLI is here,
+    # so that --agent=none is still obeyed on such a machine.
+    assert plan.choice("agent") == "claude"
+    assert plan.megabytes == 0

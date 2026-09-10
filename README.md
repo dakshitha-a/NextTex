@@ -6,11 +6,15 @@ A LaTeX editor you run yourself, with an **optional** AI agent beside the docume
 The agent can write, manage project files, references and much more.
 **Caution:** Use AI writing for publications and academic work at your own risk.
 
+If you have used a Jupyter notebook, you already know how NextTex works. You
+start it on your own machine, it opens in a browser tab, and your files stay
+where they are on disk. Nothing is uploaded anywhere.
+
 Source on the left, the real typeset PDF in the middle, and, if you want one,
-an agent on the right that can read and edit the project you are writing. One
-Python process and a folder of files that stay ordinary LaTeX the whole time,
-so the project still compiles from a terminal, or on Overleaf, after you close
-the tab. No database, no Docker, no nginx.
+an agent on the right that can read and edit the project you are writing. It
+is one Python process and a folder of files that stay ordinary LaTeX the whole
+time, so the project still compiles from a terminal, or on Overleaf, after you
+close the tab. No database, no Docker, no nginx.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
@@ -40,9 +44,9 @@ the tab. No database, no Docker, no nginx.
   a wrong DOI is refused rather than added.
 - **Reading and writing modes**: double-click a pane header to give it the
   window, and again to get your layout back.
-- **The editor is lit on its own terms.** Six pages to choose from —
+- **The editor is lit on its own terms.** Six pages to choose from,
   matching the interface, the proofing grey, white, warm white, cool white,
-  or dark — so a dark shell can hold a white page. The syntax colours, the
+  or dark, so a dark shell can hold a white page. The syntax colours, the
   gutter and the text's weight all follow the page rather than the frame.
 - **Colour the commands, if you want them coloured.** Off by default, because
   the typeset page two panes away has to stay the loudest thing on screen.
@@ -79,59 +83,70 @@ advance rather than being asked, build the script block instead:
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.ps1))) -Dir 'D:\NextTex'
 ```
 
-**It asks two things, and it shows you everything before it asks either.**
+**It asks you two things, and it shows you everything before it asks either
+one.**
 
-First, where to put itself, offering `~/apps/NextTex`. That one has to come
-first: before the clone there is no checkout and nothing to look at. Press
-return to take the default, or give it any empty directory — `--dir=PATH`,
-or `NEXTTEX_DIR`, answers in advance, and an install with no terminal to ask
-at takes the default silently. Your projects live outside whichever
-directory you choose and are not touched by an install, an update or an
-uninstall.
+The first is where to put itself. It offers `~/apps/NextTex`; press return to
+take that, or type any empty directory you like. This one has to come first,
+because until it has cloned there is nothing to look at yet. If you would
+rather not be asked, `--dir=PATH` or the `NEXTTEX_DIR` variable answers in
+advance, and an install running somewhere with no terminal just takes the
+default. Your own projects live outside this directory and are never touched
+by an install, an update or an uninstall.
 
-Then it looks at the machine — all of it, at once, before another word — and
-prints what it found in four groups: what is already here, what it is going
-to download and how large each one is, **what you will have to install
-yourself, with the command for your platform**, and what is missing but does
-not matter. Then the plan: the numbered list of what it will do, what the
-whole thing costs in megabytes and roughly how many minutes, and where
-anything gets written outside this directory.
+Then it looks at your machine, all of it, before another word, and tells you
+what it found in four groups:
 
-The second question is that plan. Return accepts it, a number opens that one
-item to change it, `q` stops. Nothing is asked again once the work starts.
+- what is already here,
+- what it is going to download, and how big each one is,
+- **what you will have to install yourself**, with the command to do it on
+  your platform,
+- and what is missing but does not matter.
 
-`git` is the only thing you need beforehand — Python, TeX and the Claude CLI
-are all fetched if they are missing and you asked for them. If you would
-rather see what you are running first, clone it yourself and run
-`scripts/install.sh` from inside; the script does the same thing either way,
-except that it then installs into the checkout you are standing in rather
-than asking.
+After that comes the plan: a numbered list of what it will do, what the whole
+thing will download, roughly how long that takes, and anything it writes
+outside this one directory.
 
-Every long step shows a spinner, how long it has been going and the last
-line the thing itself printed, so a slow mirror looks like a slow mirror
-rather than a hang. If a step fails you get what it actually said, the path
-of the full log, and an installer that stopped rather than one that carried
-on to tell you it was ready. Running it again picks up where it left off.
+That plan is the second question. Press return to accept it, type a number to
+change that one item, or `q` to stop. Once it starts working, nothing
+interrupts you again.
 
-The installer prints a URL with an access token in it. That is how you get
-in the first time; NextTex then asks you to set a password, and any browser
-after that signs in with the password instead. Skip that step and the URL
-stays the only way in, which is fine on a machine only you can reach.
+`git` is the only thing you need beforehand. Python, TeX and the Claude CLI
+are all fetched for you if they are missing and you asked for them. If you
+would rather read the script before you run it, clone the repository yourself
+and run `scripts/install.sh` from inside it. It does the same thing either
+way, except that it then installs into the checkout you are standing in
+instead of asking where to go.
+
+The first install takes a while, mostly because TeX is a large download. This
+is the same bargain as the first time you set up a scientific Python stack:
+one slow afternoon, and then it is just there. Every long step shows you how
+long it has been running and the last line the tool itself printed, so a slow
+mirror looks like a slow mirror rather than a hang. If something does fail,
+you get the actual error, the path to the full log, and an installer that
+stopped rather than one that carried on and told you it was ready. Run it
+again afterwards and it picks up where it left off.
+
+At the end it prints a URL with an access token in it, exactly like the link
+`jupyter notebook` gives you. That is how you get in the first time. NextTex
+then offers to set a password, and after that any browser signs in with the
+password instead. You can skip that, and the URL stays the only way in, which
+is fine on a machine only you can reach.
 
 > [!WARNING]
-> Anyone with that URL can read and edit your projects, password or not — it
-> is the way back in if you forget one. Treat it like a password itself, and
-> do not put NextTex on the open internet.
+> Anyone who has that URL can read and edit your projects, password or not,
+> because it is also the way back in if you forget the password. Treat it like
+> a password itself, and do not put NextTex on the open internet.
 
 <details><summary>What the installer actually does</summary>
 
-`scripts/install.sh` and `scripts/install.ps1` are bootstraps, and they are
-short. They do only what has to happen before any Python is known to exist:
-refuse a platform they are not for, check for `git`, ask where the checkout
-goes, clone it, and find an interpreter — any Python 3.10 or newer will do,
-and if the machine has none at all they say so and fetch `uv`, which brings
-its own. Then they hand over to `python -m nexttex.install`, which is the
-same code on Linux, macOS and Windows.
+`scripts/install.sh` and `scripts/install.ps1` are short bootstraps. They do
+only what has to happen before any Python is known to exist: refuse a platform
+they are not for, check for `git`, ask where the checkout goes, clone it, and
+find an interpreter. Any Python 3.10 or newer will do, and if the machine has
+none at all they say so and fetch `uv`, which brings its own. Then they hand
+over to `python -m nexttex.install`, which is the same code on Linux, macOS
+and Windows.
 
 **The survey.** `git`, the Python that is running this and whether it can
 make a virtual environment at all (Debian and Ubuntu ship one that cannot,
@@ -147,8 +162,8 @@ than something you wait three minutes to discover.
 **The plan.** A virtual environment and the Python dependencies, with `iroh`
 tried separately so a platform it has no build for loses sharing rather than
 the install. TinyTeX if you want one, or MiKTeX on Windows, and `tlmgr` to
-add whichever of the five tools are missing. A writing agent, if any —
-nothing is installed unless you say Claude, the default is none, and the app
+add whichever of the five tools are missing. A writing agent, if any.
+Nothing is installed unless you say Claude, the default is none, and the app
 asks again on its first screen. The interface built for this commit,
 downloaded rather than built, with Node 20+ used only if that download
 fails. Whether the server answers on localhost only or also on your tailnet.
@@ -192,7 +207,7 @@ Stop-ScheduledTask  -TaskName NextTex
 ```
 
 Registering that task wants administrator, so on an ordinary account
-`scripts\register-task.ps1` — which is what the installer calls for this —
+`scripts\register-task.ps1`, which is what the installer calls for this,
 falls back to a shortcut in your Startup folder and says which it used. If it is the shortcut, there is no task to start or stop: run
 `.venv\Scripts\pythonw.exe server\run.py` to start it, and end the
 `pythonw` process to stop it. `shell:startup` in the Run box opens the folder
@@ -268,19 +283,20 @@ rm -rf ~/apps/NextTex ~/.local/share/nexttex
 ```powershell
 Unregister-ScheduledTask -TaskName NextTex -Confirm:$false -ErrorAction SilentlyContinue
 Remove-Item "$([Environment]::GetFolderPath('Startup'))\NextTex.lnk" -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$env:LOCALAPPDATA\nexttex"
+Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$HOME\.local\share\nexttex"
 ```
 
 If you installed somewhere else with `NEXTTEX_DIR`, that is the directory to
 remove instead. If you installed a second copy with `--instance NAME`, every
-name above gains the same suffix — `nexttex-NAME`, `com.nexttex.server-NAME`,
-`~/.local/share/nexttex-NAME` — and the copies are independent, so removing
+name above gains the same suffix (`nexttex-NAME`, `com.nexttex.server-NAME`,
+`~/.local/share/nexttex-NAME`) and the copies are independent, so removing
 one leaves the others alone.
 
 Everything NextTex fetched for itself is inside the install directory,
 including the `uv` it may have downloaded and the Python environment, so
 deleting the folder really does remove them. The state directory holds
-`config.json` — your token, your password and your list of projects — so it
+`config.json`, which holds your token, your password and your list of
+projects, so it
 goes too.
 
 **What this does not remove**, deliberately:
@@ -299,7 +315,7 @@ One thing worth knowing before you do it on a shared project: the state
 directory holds this install's identity as a peer. Remove it and reinstall
 and you are a *new* peer to your collaborators, with a different public key,
 and somebody will have to invite you back. Your files and their history are
-untouched either way — it is the collaborative link that is lost, which is
+untouched either way. It is the collaborative link that is lost, which is
 the same thing that happens when somebody removes you.
 
 ## Your first session
@@ -356,8 +372,8 @@ in typing. If that comes back, the cached lookup goes from about one
 millisecond to about twenty.
 
 Two of those are worth a footnote. *Opening a project* is what you wait for
-after clicking one in the list — the tree walk, the transcript and the scan
-that decides what else could be previewed — and all of it used to happen on
+after clicking one in the list: the tree walk, the transcript and the scan
+that decides what else could be previewed. All of it used to happen on
 the event loop, so for an eighth of a second nobody else's autosave or
 collaborator got a turn. And a kilobyte in the last row is 1024 bytes; vite's
 own console figure counts it as 1000, so a number read off the build output is
@@ -491,7 +507,7 @@ than instruction, because the text came out of files you downloaded.
 ### Writing it with somebody else
 
 Share a project and you get an invite to send. Whoever opens it gets the
-whole project — every file, and what those files used to say — into an empty
+whole project, every file and what those files used to say, into an empty
 folder of their own, and from then on the two copies stay in step.
 
 <picture>
@@ -508,12 +524,12 @@ of a second, and it needs nothing switched on.
 
 The thing keeping in touch is the NextTex on each machine, not the browser
 tab. So a collaborator's work arrives while your tab is closed, and a shared
-project picks its peers back up when the server starts — you do not have to
+project picks its peers back up when the server starts, so you do not have to
 open it first for their afternoon's writing to land.
 
 **You can see where they are.** Their caret sits in your margin in their own
 colour and says their name for a moment whenever it moves, and a strip at the
-end of the tabs shows who else is in the project — filled in while they are
+end of the tabs shows who else is in the project, filled in while they are
 typing, outlined while they are only there. Their name is on the versions
 they wrote, so a month later the history says who changed the paragraph.
 
@@ -521,7 +537,7 @@ they wrote, so a month later the history says who changed the paragraph.
 middle, and nothing to sign up for: two NextTex installs find each other and
 talk directly, encrypted end to end, over a connection made to the other
 side's key rather than to an address. An invite is single-use and expires,
-and it is a credential — send it the way you would send a password.
+and it is a credential, so send it the way you would send a password.
 
 **Nobody owns a shared project**, which has one honest consequence worth
 knowing before you rely on it: anyone in it can invite somebody, anyone can
@@ -530,7 +546,7 @@ already have. It stops the two of you syncing. It cannot unsend a paper. The
 button says so, next to itself.
 
 Two more things that are true and might not be obvious. Each of you keeps
-your own `.git`, so committing and pushing are yours alone — pull between
+your own `.git`, so committing and pushing are yours alone. Pull between
 sessions rather than during one, because a pull replaces a whole file and
 will win against a collaborator's untouched paragraphs. And your conversation
 with the agent is yours: the writing is shared, the chat is not.
@@ -541,8 +557,8 @@ The editor is lit on its own terms, because the shell and the page are
 answering different questions. The frame is chrome and plenty of people want
 it out of the way in the dark; the page is the thing being typeset, and a
 writer who thinks in paper wants that white whatever the frame is doing. Six
-grounds — matching the interface, the proofing grey, white, warm white, cool
-white, dark — and the syntax colours, the gutter and the text's weight all
+grounds: the interface, the proofing grey, white, warm white, cool
+white and dark. The syntax colours, the gutter and the text's weight all
 follow the page rather than the frame. Dark type on a bright ground looks
 thinner than light type on a dark one, so a light page sets the text a step
 heavier on its own; the weight is a control of its own if that lands wrong.
@@ -577,7 +593,7 @@ left pointing at a name that no longer exists.
 **Collaborative between installs, not in a browser.** Everyone who works on a
 shared project runs their own NextTex and holds the whole thing: the files,
 their history, their own git repository. There are no accounts and no guest
-links — a collaborator is a public key — so there is nobody to sign up with
+links, and a collaborator is a public key, so there is nobody to sign up with
 and nothing in the middle to go down. What there is not: comments,
 suggestions, tracked changes, or any notion of who is allowed to do what.
 Everybody in a shared project can do everything, including inviting somebody
@@ -588,7 +604,7 @@ else and disconnecting somebody else.
 **Sharing needs a platform iroh builds for**: Linux, Windows, and Macs with
 Apple silicon. There is no build for an Intel Mac, so on one of those the
 share card says sharing is unavailable and everything else works exactly as
-it does anywhere. The installer treats iroh as optional for the same reason —
+it does anywhere. The installer treats iroh as optional for the same reason:
 a missing build costs you the one feature, not the install.
 
 **Windows support is written and only partly verified.** An install has now
@@ -604,7 +620,7 @@ without administrator.
 
 Since then the whole install after the clone has become the same Python that
 Linux and macOS run, so the parts that used to be Windows-only code are now
-Windows-only *branches* of code the test suite exercises on every platform —
+Windows-only *branches* of code the test suite exercises on every platform,
 including the console-encoding fallback that a legacy code page needs. What
 that leaves genuinely unproven is smaller than it was and is still real: no
 download here has ever been fetched by a Windows PowerShell, the logon task
@@ -625,14 +641,14 @@ platform you are on, so you can install it and run the installer again.
 | What | Why | Supplied by the installer? |
 |---|---|---|
 | `git` | NextTex is a checkout, and stays one so it can update itself | **named** |
-| Python 3.10+ | The server | yes — `uv` brings one if this machine has none |
+| Python 3.10+ | The server | yes, and `uv` brings one if this machine has none |
 | Node 20+ | Only to build the interface locally, if the prebuilt one cannot be downloaded | **named** |
-| `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | yes — TinyTeX, or MiKTeX on Windows, if you let it |
+| `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | yes: TinyTeX, or MiKTeX on Windows, if you let it |
 | `biber` | biblatex bibliographies | yes, via `tlmgr` |
 | `chktex`, `texcount` | Linting and word counts | yes, via `tlmgr` |
-| `pdftotext` | Only for reading a folder of papers into your `.bib` | **named** — it comes with poppler-utils |
-| The [Claude CLI](https://claude.ai/download) | Only for the Claude agent | yes, if you choose it — at install time or later, from the settings sheet |
-| An OpenAI API key | Only for the OpenAI agent | no — you paste it into the app |
+| `pdftotext` | Only for reading a folder of papers into your `.bib` | **named**, and it comes with poppler-utils |
+| The [Claude CLI](https://claude.ai/download) | Only for the Claude agent | yes, if you choose it, at install time or later from the settings sheet |
+| An OpenAI API key | Only for the OpenAI agent | no, you paste it into the app |
 | `gh`, signed in | Only for *Back this up to GitHub* | no |
 | `tailscale` | Only to reach this install from another machine | **named** |
 | iroh | Only to share a project with another writer | yes, with the Python dependencies |
@@ -644,7 +660,7 @@ Nothing in the bottom half of that table is needed to write and typeset.
 NextTex is meant to be left switched on, so what it uses while nothing is
 happening matters more than what it uses at its peak. Measured on Linux, on
 an install configured for Claude, with the thesis-shaped project the
-benchmarks use — forty source files and two megabytes of LaTeX:
+benchmarks use, which is forty source files and two megabytes of LaTeX:
 
 | | |
 |---|---|
@@ -654,7 +670,7 @@ benchmarks use — forty source files and two megabytes of LaTeX:
 | The state directory | tens of kilobytes |
 
 The number that surprises people is the third one: an idle NextTex is
-genuinely idle. There is no polling loop and no scheduled work — the file
+genuinely idle. There is no polling loop and no scheduled work. The file
 watcher waits on the operating system, and a build only happens because you
 typed something. Choosing no agent, or OpenAI, takes the idle figure to about
 60 MB, because the Claude SDK is the larger part of it.
@@ -664,8 +680,8 @@ starts when a build does and exits when it finishes. A big build is the one
 time NextTex will use a whole core, and that is TeX rather than NextTex.
 
 On disk, an install is about 300 MB, nearly all of it the Python virtual
-environment. TeX is much larger than everything else here — TinyTeX is about
-460 MB — and it is installed outside NextTex and shared with anything else on
+environment. TeX is much larger than everything else here, since TinyTeX is about
+460 MB installed, and it goes outside NextTex and shared with anything else on
 the machine that typesets.
 
 Your projects are the rest, and they are yours: the version history is
@@ -701,7 +717,7 @@ Five things go out, all of them things you asked for:
    key*. A relay forwards ciphertext: it can see that two endpoint ids are
    talking and roughly how much, and it cannot see a document, a file name,
    or who either of you is. Where the two of you can reach each other
-   directly — the same office, the same tailnet — nothing goes through a
+   directly, in the same office or on the same tailnet, nothing goes through a
    relay at all. A project you have not shared contacts none of it.
 
 That is the whole list, and a test fails if a new host appears in the source
@@ -715,7 +731,7 @@ gets in. That browser is then asked to set a password, the way JupyterLab
 does, and once there is one every browser after it gets a sign-in page.
 Signing in issues *that browser* its own session rather than handing it the
 install's token, so no browser is holding the master credential, and the
-settings sheet can sign the others out — useful when the one you left signed
+settings sheet can sign the others out, which is useful when the one you left signed
 in is a laptop you no longer have. The token stays as the way back in, as a query parameter or an
 `x-nexttex-token` header, so scripts are unaffected and a forgotten password
 is recoverable from the machine itself.
@@ -786,7 +802,7 @@ your-paper/
 ```
 
 Delete `.nexttex/` and you have exactly the LaTeX project you started with.
-On a shared project that also leaves the share — the files are all still
+On a shared project that also leaves the share. The files are all still
 there, and somebody would have to invite you back.
 
 ## Keyboard

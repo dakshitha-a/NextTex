@@ -20,7 +20,6 @@ are stand-ins on PATH that record what they were asked to do.
 from __future__ import annotations
 
 import os
-import pty
 import select
 import shutil
 import subprocess
@@ -29,6 +28,11 @@ import time
 from pathlib import Path
 
 import pytest
+
+# This whole file is about a shell script for Linux and macOS, and `pty` is
+# not importable on Windows, so collecting it there is an error before a
+# single test runs.
+pty = pytest.importorskip("pty")
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "scripts" / "install.sh"

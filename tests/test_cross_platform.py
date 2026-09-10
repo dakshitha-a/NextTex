@@ -374,6 +374,30 @@ def test_the_docs_link_to_each_other_correctly():
     assert not broken, broken
 
 
+def test_the_readme_contains_no_em_dash():
+    """`nexttex/writing.py` states the rule as an absolute, with no
+    exceptions, for every agent.
+
+    I read it narrowly for a while, as governing only prose written into
+    somebody's LaTeX project, on the evidence that the repository's own
+    markdown was full of em dashes. That was backwards: those were the thing
+    to fix rather than a licence to add more, and the user said so. A double
+    hyphen in a code comment is a different character and is fine; this is
+    about the em dash itself.
+
+    The README is held to it here. Everything under `docs/` still carries a
+    backlog of them, `design.md` most of all, and clearing that is a pass of
+    its own: each one wants a comma, a colon, a bracket or two sentences
+    depending on the sentence, and swapping them mechanically would leave
+    worse prose than it found.
+    """
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "—" not in text, (
+        "em dash on line "
+        + str(text[: text.index("—")].count("\n") + 1)
+    )
+
+
 def test_the_readme_does_not_claim_windows_is_tested():
     """An install has now been run on Windows and reached its last step,
     which found four real bugs.  What has still not happened is a server

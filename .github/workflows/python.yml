@@ -100,5 +100,11 @@ jobs:
       - name: The installer runs on a bare interpreter here too
         run: python -I -S -c "import sys; sys.path.insert(0, '.'); import nexttex.install.__main__"
 
+      # The installer tests, and not the whole suite.  The rest of it has
+      # never been run on anything but Linux -- it drives bash update
+      # scripts, opens /dev/tty and forks -- so turning it on here would be
+      # a separate piece of work and a red job that says nothing about this
+      # one.  These are the tests whose Windows and macOS branches only a
+      # real Windows and a real macOS can answer.
       - name: Test
-        run: python -m pytest tests/ -q
+        run: python -m pytest tests/test_install_survey.py tests/test_install_plan.py tests/test_install_steps.py tests/test_install_service_files.py tests/test_install_stdlib_only.py tests/test_install_ui.py tests/test_cross_platform.py -q

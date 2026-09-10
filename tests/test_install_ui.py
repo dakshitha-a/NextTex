@@ -10,11 +10,16 @@ from __future__ import annotations
 
 import io
 import os
-import pty
 import sys
 from pathlib import Path
 
 import pytest
+
+# The rest of this file runs anywhere; the two cases that need a real
+# terminal do not exist on Windows, where `pty` is not importable at all.
+# Skipping at collection is the difference between "two tests did not run"
+# and a red suite on a platform this installer is meant to support.
+pty = pytest.importorskip("pty")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

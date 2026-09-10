@@ -319,20 +319,30 @@ def execute(console: Console, plan, root: Path, platform: str,
             notes.append("TeX did not install, so builds will fail")
         else:
             _add_tex_to_path()
-    if result.missing_tex_extras and result.tlmgr:
-        extras = steps.install_tex_extras(console, root, result.missing_tex_extras)
+
+    # Asked again, not read off the survey.  The survey ran before TinyTeX
+    # existed, so on a fresh machine it said there was no tlmgr and no way
+    # to add anything with it, which was true then and false now.  Trusting
+    # that stale answer left every new install without latexmk, biber,
+    # synctex, chktex or texcount: a NextTex that starts, opens a project,
+    # and fails on its first full build.
+    missing = _missing_tex_extras()
+    if missing and shutil.which("tlmgr"):
+        extras = steps.install_tex_extras(console, root, missing)
         if not extras.ok:
-            notes.append("tlmgr could not add " + ", ".join(result.missing_tex_extras)
+            notes.append("tlmgr could not add " + ", ".join(missing)
                          + "; NextTex says which at startup")
+    elif missing:
+        notes.append("no tlmgr, so " + ", ".join(missing) + " are still "
+                     "missing; a project that uses them will not build")
 
     # 3 -- the writing agent -------------------------------------------------
     console.write("")
     console.note(console.bold(f"{counter(3)} Writing agent"))
     agent = plan.choice("agent")
-    if agent == "present":
+    if agent == "claude" and result.claude:
         console.skipped("the Claude CLI is already here",
                         "you sign in from the browser, not here")
-        agent = "claude"
     elif agent == "claude":
         installed = steps.install_claude_cli(console, platform)
         if not installed.ok:
@@ -499,6 +509,18 @@ def _start_yourself(root: Path, platform: str) -> str:
     if platform == "windows":
         return r".venv\Scripts\python.exe server\run.py"
     return ".venv/bin/python server/run.py"
+
+
+TEX_EXTRAS = ("latexmk", "biber", "synctex", "chktex", "texcount")
+
+
+def _missing_tex_extras() -> list:
+    """Which of the five a project needs are still not on PATH, asked now.
+
+    A project that uses biber or chktex must not fail on its first build,
+    and the answer changes the moment TinyTeX finishes installing.
+    """
+    return [name for name in TEX_EXTRAS if not shutil.which(name)]
 
 
 def _add_tex_to_path() -> None:
