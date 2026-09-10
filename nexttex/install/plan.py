@@ -95,6 +95,7 @@ DEFAULTS = {
     "agent": ("none", "none"),
     "bind": ("localhost", "localhost"),
     "service": ("yes", "no"),
+    "shortcut": ("yes", "yes"),
 }
 
 
@@ -234,6 +235,26 @@ def build_plan(
     if not result.service:
         service.fixed = "no service manager here; start it yourself"
     items.append(service)
+
+    # 7 -- a shortcut on the desktop -----------------------------------------
+    # On the plan rather than done quietly, because it is the one thing an
+    # install writes outside its own directory that is not TeX, and the
+    # screen above promises exactly that.
+    shortcut = Item(
+        "shortcut", "Desktop",
+        "",
+        [Option("yes", "put a NextTex shortcut on the desktop"),
+         Option("no", "do not; open it from its address instead")],
+        default_of("shortcut"),
+    )
+    if not result.desktop:
+        shortcut.fixed = "no desktop on this machine, so there is nowhere to put one"
+        # The default moves too, not only the text.  A fixed item still
+        # reports its default to everything downstream, so leaving it at
+        # "yes" would have had the plan promise a shortcut on a headless
+        # machine that was never going to get one.
+        shortcut.default = "no"
+    items.append(shortcut)
 
     plan = Plan(items=items, survey=result, interactive=interactive)
     for key, value in answers.items():

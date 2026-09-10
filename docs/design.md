@@ -2219,6 +2219,46 @@ rather than two opinions.
 This is the same shape as the rest of the Windows run: two ways of asking
 where something is, and the code taking the one that is easier to reach.
 
+### Something to double-click
+
+Asked for directly: a shortcut on the desktop after a successful install, on
+every platform, and on Linux only where there is a desktop to put one on.
+
+**It launches rather than bookmarks.** The obvious shortcut is the URL the
+installer prints, and it is the wrong one. That URL carries the access token,
+so a file on the desktop becomes a second copy of it; it goes stale the
+moment the port or the token changes; and it does nothing at all when the
+server is not running, which is exactly the state somebody double-clicks in.
+So all three platforms run `server/run.py --open`, which reads the
+configuration, opens the browser if the port already answers, and otherwise
+starts NextTex and opens the browser once it does. One source of truth, and
+it works from both states.
+
+Waiting for the port rather than sleeping first: opening the browser
+immediately shows a connection error on a cold start, and a fixed delay is a
+guess about how long an interpreter takes on somebody else's machine.
+
+**Three files, because three platforms disagree.** A `.desktop` entry with
+`Terminal=false` on Linux, a `.command` on macOS, and a `.lnk` on Windows
+written from PowerShell, because a `.lnk` is a COM object and because
+`GetFolderPath('Desktop')` is the only thing that knows where the desktop
+really is once OneDrive has moved it. `XDG_DESKTOP_DIR` is consulted first on
+Linux: a desktop called `Skrivebord` with an empty `~/Desktop` beside it
+would otherwise get the shortcut in the one nobody looks at.
+
+**It is on the plan, and that is the point.** The plan screen ends with
+"Nothing outside this directory is written", and that sentence is most of why
+anybody trusts the screen above it. A file appearing on the desktop under it
+would make it false, so the shortcut is a seventh item somebody can decline,
+and the promise names it when it is going ahead.
+
+The subtle half of that was a fixed item still reporting its default. On a
+headless machine the item reads "no desktop on this machine, so there is
+nowhere to put one" while `choice()` went on answering "yes", so the plan
+promised a shortcut that was never going to be written. Fixing the text
+without moving the default would have left the screen lying in a quieter way
+than before.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the

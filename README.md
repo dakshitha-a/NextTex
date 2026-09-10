@@ -176,7 +176,16 @@ missing and it picks up where it left off without touching your projects.
 
 ## Running it
 
-The installer sets NextTex to start at login. To control it by hand:
+The installer sets NextTex to start at login, and puts a shortcut on your
+desktop. The shortcut opens NextTex in your browser, and starts it first if
+nothing is running, so it works whether or not you kept the start-at-login
+step. It runs the app rather than storing the address, so it does not go
+stale and it holds no copy of your access token. On a machine with no
+desktop, which is the usual shape of a Linux box you reach from somewhere
+else, the installer says so and skips it. Say no on the plan screen, or pass
+`--no-shortcut`, if you would rather not have one.
+
+To control the server by hand:
 
 **Linux**
 

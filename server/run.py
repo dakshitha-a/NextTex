@@ -19,6 +19,8 @@ import logging
 import os
 import socket
 import sys
+import threading
+import webbrowser
 from pathlib import Path
 
 import uvicorn
@@ -191,11 +193,32 @@ def _set_password(settings: Settings) -> None:
     print("Restart NextTex for it to take effect.")
 
 
+def _open_when_up(port: int, url: str, timeout: float = 30.0) -> None:
+    """Open the browser once the server answers, or not at all.
+
+    Opening it immediately shows a connection error on a cold start, and
+    opening it on a fixed delay is a guess about how long an interpreter and
+    a configuration take on somebody else's machine.  Waiting for the port
+    is neither.
+    """
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if in_use("127.0.0.1", port):
+            webbrowser.open(url)
+            return
+        time.sleep(0.25)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run NextTex.")
     parser.add_argument("--port", type=int, help="override the configured port")
     parser.add_argument("--print-url", action="store_true",
                         help="print the sign-in URL and exit")
+    parser.add_argument("--open", action="store_true",
+                        help="open NextTex in a browser, starting it first "
+                             "if it is not already running")
     parser.add_argument("--version", action="store_true",
                         help="print the commit this install is on and exit")
     parser.add_argument("--set-password", action="store_true",
@@ -224,6 +247,21 @@ def main() -> None:
         if remote:
             print(f"https://{remote}:{settings.port}/?token={settings.token}")
         return
+
+    if arguments.open:
+        # What the desktop shortcut runs, and it has to work from both
+        # states: the server already up because it starts at login, or
+        # nothing running at all because that was declined or has died.
+        # Already up means open the browser and get out of the way, since
+        # binding the port again would only fail.  Otherwise the browser is
+        # opened once the port answers and this process goes on to be the
+        # server, which is why the shortcut's window is worth keeping.
+        url = f"http://127.0.0.1:{settings.port}/?token={settings.token}"
+        if in_use("127.0.0.1", settings.port):
+            webbrowser.open(url)
+            return
+        threading.Thread(target=_open_when_up, args=(settings.port, url),
+                         daemon=True).start()
 
     ensure_tex_on_path()
     for item in required_missing():

@@ -540,3 +540,51 @@ def test_nothing_is_checked_when_nothing_was_started(sandbox, monkeypatch):
     console = Recorder()
     run_install(console, sandbox, tex="none", service="no")
     assert called == [], called
+
+
+def test_the_desktop_shortcut_is_made_on_windows(sandbox, monkeypatch):
+    console = Recorder()
+    plan = build_plan(a_survey(sandbox, "windows"), interactive=True,
+                      answers={"tex": "none", "service": "no", "shortcut": "yes"})
+    installer.execute(console, plan, sandbox, "windows", "")
+    assert "desktop-shortcut.ps1" in console.ran, console.ran
+
+
+def test_declining_the_shortcut_writes_nothing(sandbox):
+    console = Recorder()
+    run_install(console, sandbox, tex="none", service="no", shortcut="no")
+    assert "desktop-shortcut" not in console.ran
+
+
+def test_the_promise_names_the_shortcut_it_is_about_to_write(sandbox):
+    """The plan says nothing outside this directory is written, and that
+    sentence is most of why anybody trusts the screen above it. A file
+    appearing on the desktop under it would make it false."""
+    console = Recorder()
+    plan = build_plan(a_survey(sandbox, desktop=True), interactive=True,
+                      answers={"tex": "none", "service": "no", "shortcut": "yes"})
+    installer.show_plan(console, plan)
+    # Whitespace normalised: the paragraph wraps to the terminal width, so
+    # the sentence is split across lines wherever it happens to land.
+    printed = " ".join(console.stream.getvalue().split())
+    assert "a shortcut on your desktop" in printed, printed
+
+    quiet = Recorder()
+    installer.show_plan(quiet, build_plan(
+        a_survey(sandbox, desktop=True), interactive=True,
+        answers={"tex": "none", "service": "no", "shortcut": "no"}))
+    assert "Nothing outside this directory is written." in " ".join(
+        quiet.stream.getvalue().split())
+
+
+def test_a_headless_machine_is_not_promised_a_shortcut(sandbox):
+    """A fixed item still reports its default, so "there is nowhere to put
+    one" and "a shortcut will be written to your desktop" were both true at
+    once on a machine with no desktop."""
+    console = Recorder()
+    plan = build_plan(a_survey(sandbox, desktop=False), interactive=True,
+                      answers={"tex": "none", "service": "no"})
+    assert plan.choice("shortcut") == "no"
+    installer.show_plan(console, plan)
+    printed = " ".join(console.stream.getvalue().split())
+    assert "Nothing outside this directory is written." in printed, printed
