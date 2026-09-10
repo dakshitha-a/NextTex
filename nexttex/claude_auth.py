@@ -103,7 +103,11 @@ def claude_binary() -> str | None:
     found = shutil.which("claude")
     if found:
         return found
-    base = os.path.expanduser("~/.local/bin/claude")
+    # Joined rather than spelled with slashes: `expanduser` leaves a
+    # "~/.local/bin" exactly as written, so on Windows the answer came back
+    # as C:\Users\name/.local/bin/claude.exe.  That resolves, and it is
+    # still wrong to hand to a subprocess and worse to show to a person.
+    base = os.path.join(os.path.expanduser("~"), ".local", "bin", "claude")
     for suffix in _SUFFIXES:
         if os.path.exists(base + suffix):
             return base + suffix
