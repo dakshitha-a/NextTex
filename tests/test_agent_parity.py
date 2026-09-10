@@ -216,3 +216,32 @@ def test_every_agent_can_say_where_its_permission_control_is(kind, tmp_path):
     else:
         # Nothing to move, so it stays where it is rather than pretending.
         assert agent.mode == "ask"
+
+
+def test_the_three_copies_of_first_changed_line_agree():
+    """One answer, three implementations, and nothing in any language that
+    would notice them drifting.
+
+    `nexttex/agent.py` has one because the fence needs it, the scripted
+    stand-in has one because importing that file would pull in the Claude
+    SDK, and `frontend/src/store.ts` has one because the browser needs it
+    without a round trip. The third is held to these cases by
+    `frontend/src/store.test.ts`, and the comment there says so.
+    """
+    from nexttex.scripted_agent import first_changed_line as scripted
+
+    if ProjectAgent is None:
+        pytest.skip("no SDK on this machine")
+    from nexttex.agent import first_changed_line as real
+
+    cases = [
+        ("a\nb\nc", "a\nb\nc", 1),
+        ("a\nb", "A\nb", 1),
+        ("a\nb\nc", "a\nB\nc", 2),
+        ("a\nb", "a\nb\nc", 3),
+        ("a\nb\nc", "a\nc", 2),
+        ("", "the first sentence", 1),
+    ]
+    for before, after, line in cases:
+        assert real(before, after) == line, (before, after)
+        assert scripted(before, after) == line, (before, after)

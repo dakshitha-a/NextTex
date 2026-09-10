@@ -30,6 +30,7 @@ import {
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
 import { locateWord } from "./locate-word";
+import { noteTyping } from "../timing";
 
 
 /** How long the outline waits behind the keyboard.
@@ -49,7 +50,13 @@ type Buffer = {
 };
 
 export type EditorHandle = {
-  open(path: string, line?: number): Promise<void>;
+  open(
+    path: string,
+    line?: number,
+    word?: string,
+    /** False when the agent is saying where it is about to write. */
+    steal?: boolean,
+  ): Promise<void>;
   /** Show an old version of a file, read-only. */
   view(path: string, sha: string): Promise<void>;
   /** Put the live buffer back, with its undo history and cursor. */
@@ -90,7 +97,13 @@ export default function Editor({
   const timer = useRef<number | null>(null);
   const focusTimer = useRef<number | null>(null);
   const openRef = useRef<
-    ((path: string, line?: number, word?: string) => Promise<void>) | null
+    | ((
+        path: string,
+        line?: number,
+        word?: string,
+        steal?: boolean,
+      ) => Promise<void>)
+    | null
   >(null);
   // The parent hands us a new callback on every render.  Holding it in a ref
   // keeps the setup effect at zero dependencies, which matters more than it
@@ -217,6 +230,13 @@ export default function Editor({
         refreshOutline();
       }, OUTLINE_DELAY);
 
+      // Recorded for whoever is about to move the view: the agent now
+      // says where it is about to write and the editor goes to look, which
+      // is welcome when the writer is reading and not when they are
+      // mid-sentence.  Only a local change counts, so a collaborator
+      // typing does not pin this person's view in place.
+      if (local) noteTyping();
+
       // A change that came from the shared document is not this person's
       // keystroke. Two of them arrive routinely and neither should mark the
       // page behind: the first sync when a file opens, which changes
@@ -298,7 +318,24 @@ export default function Editor({
     const readOnlyExt = viewExtensions(() => symbols.current);
     view.current = new EditorView({ parent: host.current, state: freshState("", ext) });
 
-    const jump = (line: number, endLine?: number, word?: string) => {
+    /** Go and look at a line.
+     *
+     *  `steal` is what separates the two callers, and it is the whole of
+     *  the difference between them. A double-click on the typeset page or a
+     *  `Show` on an edit chip is the writer asking to be taken somewhere,
+     *  so the caret goes with them. The agent announcing where it is about
+     *  to write is not: the pane scrolls, the range flashes, and the
+     *  selection is left exactly where the writer put it. Everything else
+     *  here, the clamping, the word lookup, the scroll and the two teardown
+     *  timers, is the same either way and is deliberately not duplicated.
+     */
+    const jump = (
+      line: number,
+      endLine?: number,
+      word?: string,
+      steal = true,
+      hold = 700,
+    ) => {
       const editor = view.current;
       if (!editor) return;
       const total = editor.state.doc.lines;
@@ -324,21 +361,24 @@ export default function Editor({
         ? editor.state.doc.line(Math.min(Math.max(endLine, 1), total))
         : target;
       editor.dispatch({
-        selection: { anchor: at },
+        ...(steal ? { selection: { anchor: at } } : {}),
         effects: [
           EditorView.scrollIntoView(at, { y: "center" }),
           flashRange.of({ from: target.from, to: end.to }),
         ],
       });
-      editor.focus();
+      if (steal) editor.focus();
       // 700ms, matching the SyncTeX highlight in the spec: long enough to
-      // find with the eye after a jump, short enough not to linger.
+      // find with the eye after a jump, short enough not to linger.  The
+      // agent's own announcement holds longer, because the write it points
+      // at has not happened yet and a highlight that has faded before the
+      // text changes has pointed at nothing.
       window.setTimeout(() => {
         view.current?.dispatch({ effects: flashRange.of(null) });
-      }, 700);
+      }, hold);
       window.setTimeout(() => {
         view.current?.dispatch({ effects: clearFlash.of(null) });
-      }, 1200);
+      }, hold + 500);
     };
 
     const backToNow = () => {
@@ -356,7 +396,14 @@ export default function Editor({
       view.current.focus();
     };
 
-    const openBuffer = async (path: string, line?: number, word?: string) => {
+    const openBuffer = async (
+      path: string,
+      line?: number,
+      word?: string,
+      /** False when the agent is saying where it is about to write. The
+       *  pane scrolls and the range flashes; the caret is left alone. */
+      steal = true,
+    ) => {
       const projectId = get().projectId;
       if (!projectId || !view.current) return;
       if (projectForBuffers.current !== projectId) {
@@ -369,7 +416,12 @@ export default function Editor({
       }
       if (viewing.current) backToNow();
       if (current.current === path) {
-        if (line !== undefined) jump(line, undefined, word);
+        // The agent's announcement holds its highlight longer than a jump
+      // does, because the write it points at has not happened yet and a
+      // flash that has faded before the text changes pointed at nothing.
+      if (line !== undefined) {
+        jump(line, undefined, word, steal, steal ? 700 : 3000);
+      }
         refreshOutline();
         return;
       }
@@ -553,7 +605,10 @@ export default function Editor({
   useEffect(() => {
     if (!pendingOpen) return;
     openRef.current?.(
-      pendingOpen.path, pendingOpen.line, pendingOpen.word,
+      pendingOpen.path,
+      pendingOpen.line,
+      pendingOpen.word,
+      pendingOpen.steal !== false,
     ).catch((error) => {
       set({ error: `Could not open ${pendingOpen.path}: ${error.message}` });
     });
