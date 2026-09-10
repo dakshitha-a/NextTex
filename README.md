@@ -698,9 +698,9 @@ Five things go out, all of them things you asked for:
 2. Reference lookups, to Crossref, OpenAlex, Semantic Scholar, arXiv and
    `doi.org`.
 3. What the installer downloads, and only what the plan it printed said it
-   would: TinyTeX from `yihui.org`, the Claude CLI from `claude.ai` if you
-   chose it, and `uv` from `astral.sh` when this machine's Python cannot
-   make a virtual environment on its own. It also opens a two-second
+   would: TinyTeX from `yihui.org` and `tinytex.yihui.org`, the Claude CLI
+   from `claude.ai` if you chose it, and `uv` from `astral.sh` when this
+   machine's Python cannot make a virtual environment on its own. It also opens a two-second
    connection to each of those before it asks you anything, so that being
    offline is something you are told rather than something you wait for.
 4. GitHub, to check whether this install is behind and to download the

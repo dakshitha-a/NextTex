@@ -35,7 +35,14 @@ from .ui import Console, Result
 
 UV_INSTALLER = "https://astral.sh/uv/install.sh"
 TINYTEX_UNIX = "https://yihui.org/tinytex/install-bin-unix.sh"
-TINYTEX_WINDOWS = "https://yihui.org/tinytex/install-bin-windows.bat"
+# The PowerShell installer, not the .bat beside it.  That batch file is a
+# four line wrapper whose whole job is to fetch this script and run it,
+# and it fetches it with `curl.exe -fsSLO 'https://...'`.  cmd.exe does
+# not strip single quotes, so curl is handed a URL that begins with one,
+# answers "URL using bad/illegal format", and the next line then runs a
+# .ps1 that was never downloaded.  Going straight to the script skips a
+# wrapper that cannot work.
+TINYTEX_WINDOWS = "https://tinytex.yihui.org/install-bin-windows.ps1"
 CLAUDE_UNIX = "https://claude.ai/install.sh"
 CLAUDE_WINDOWS = "https://claude.ai/install.ps1"
 
@@ -248,16 +255,17 @@ def install_tex(console: Console, root: Path, platform: str, choice: str,
         )
     with tempfile.TemporaryDirectory() as work:
         if platform == "windows":
-            script = Path(work) / "install-tinytex.bat"
+            script = Path(work) / "install-tinytex.ps1"
             got = download(console, "Downloading TinyTeX", TINYTEX_WINDOWS,
                            script, counter)
             if not got.ok:
                 return got
-            # cmd.exe explicitly, never shell=True: this is a batch file, and
-            # nothing else on the machine can read one.
-            return console.run("Installing TinyTeX",
-                               ["cmd.exe", "/c", str(script)], cwd=root,
-                               counter=counter)
+            return console.run(
+                "Installing TinyTeX",
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-File", str(script)],
+                cwd=root, counter=counter,
+            )
         script = Path(work) / "install-tinytex.sh"
         got = download(console, "Downloading TinyTeX", TINYTEX_UNIX, script,
                        counter)
