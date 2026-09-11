@@ -1052,6 +1052,79 @@ upload and then compares it against the 8 MB limit at `:3327`, inside a
 request the body gate allows to be 512 MB. `file.size` is populated by the
 multipart parser before the read and would refuse it for nothing.
 
+### Collaboration
+
+### R-057 · Collaboration · security · blocker · confirmed
+
+Found by: reading, then reproduced against the real `CollabStore`. Where:
+`server/collab/store.py:845` with `:836`.
+
+**What happens: anyone you share a project with can move any file your user
+can read into the project, and delete it from where it was.**
+
+The fence is on the wrong end of the rename. `_rename_locally` puts the target
+through `resolve_for_write`, and takes the **source** straight from the
+manifest with no fence at all:
+
+```python
+def _rename_locally(self, file_id, was, now_called):
+    source = self.project.root / was              # no fence
+    target = self.project.resolve_for_write(now_called)   # fenced
+    ...
+    source.rename(target)
+```
+
+`was` is `self._named[file_id]`, which `settle_paths` filled from
+`record["path"]` on an earlier pass. That earlier pass writes nothing, so
+nothing checks it: the first sight of a file is recorded as "the baseline the
+next change is measured against" and the path is trusted because it has not
+been used yet.
+
+So the attack is two manifest edits and no writes:
+
+1. Add a record whose `path` is `../../../home/you/.ssh/id_rsa`. Nothing
+   happens; the path is remembered.
+2. Change that record's `path` to `notes.tex`. `settle_paths` sees a rename,
+   and renames the key into the project.
+
+Reproduced against the real class, in a throwaway tree:
+
+```
+baseline the manifest left behind: ../outside/id_rsa
+
+still outside the project: False
+now inside the project:    True
+project/notes.tex holds:   'PRIVATE KEY, not in any project\n'
+```
+
+The file is then adopted by the watcher like any other, becomes a shared
+document, and syncs back to the peer who asked for it. So this is a read of
+anything the server's user can read, **and** a destructive move of it, from a
+collaborator, with no code execution and nothing on screen but a new file
+appearing in the tree.
+
+The manifest is peer-writable by design: `server/collab/peers.py:361` applies
+a peer's sync message to it and then asks the store to settle, which is what
+makes a rename travel at all.
+
+`docs/architecture.md` states the guarantee this breaks: "What a peer may
+write is fenced. A peer-supplied path goes through `resolve_for_write`, which
+refuses control files. Staying inside the project was never the whole
+question." That is true of every write and of the rename's destination. It is
+not true of the rename's source, which is the one peer-supplied path that
+never meets it.
+
+`tests/collab/test_hostile_peers.py` covers the write path thoroughly, at
+`:108` through `:190`. Nothing tests a rename's source.
+
+The same mechanism moves directories, because `Path.rename` does, so
+`.nexttex/history` and `.git` are reachable the same way.
+
+Expected: `was` goes through `resolve_for_write` too, or better,
+`self._named` is only ever filled with a path that has already passed it, so
+that an escaping path can never become a baseline.
+
+
 ### The documents
 
 ### R-007 · Documents · docs · low · confirmed
