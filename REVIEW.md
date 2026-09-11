@@ -1945,6 +1945,90 @@ listening, `Get-Process pythonw` returns nothing, because the process is
 path, route and `NEXTTEX_*` name a document mentions is real, and both of
 these are real names used for the wrong thing.
 
+### R-118 · Install · bug · medium · confirmed
+
+Found by: running the documented installer on this machine, into a sandbox.
+Where: `scripts/install.sh:134`, against its own `--help` at `:111`.
+
+What happens: `--dir` is accepted, documented, and silently ignored whenever
+the script is run from inside a checkout. So is `NEXTTEX_DIR`. The install
+goes to the checkout the script is standing in, and says so only in a line of
+its own banner that reads as a statement rather than as a correction:
+
+```
+  NextTex
+    installing the checkout at /data/dakshitha/NextTex
+```
+
+`--help` says "--dir where to install. The default is ~/apps/NextTex", with
+no caveat.
+
+Reproduce:
+
+1. From inside a checkout, run
+   `sh scripts/install.sh --yes --plain --dir=/somewhere/else --no-service --no-shortcut`
+2. Nothing is created at `/somewhere/else`. The checkout you are standing in
+   is reinstalled: its `.venv` is brought up to date and `frontend/dist` is
+   replaced with the downloaded build for its commit.
+
+Mechanism: the script has two modes and only one of them reads the answer.
+
+```sh
+if [ -f "$(dirname "$0")/../requirements.txt" ] 2>/dev/null; then
+  cd "$(dirname "$0")/.."
+else
+  ...
+  TARGET="$DIR_CHOICE"
+```
+
+`DIR_CHOICE` is set from `--dir` before the branch and is read only inside the
+`else`. The comment above the branch is exactly right about the design, "Run
+from inside a checkout it installs that checkout", and the flag parsing does
+not know about it.
+
+Expected: either the flag moves the install, or the script says that it cannot
+here and why. The comment beside `TARGET` already knows the stakes: "the
+directory is the one decision here that cannot be changed afterwards without
+moving the install by hand."
+
+Severity is medium rather than low because of who meets it. A person who has
+already cloned, which is the state the README's own "Installing from a
+checkout" section describes, is the one likely to pass `--dir`, and the
+outcome is that their existing checkout is rebuilt instead. Nothing is lost,
+since the venv is updated rather than replaced and `frontend/dist` is
+gitignored and rebuildable, but it is not what was asked for.
+
+Anything reviewing or testing an install has the same problem, which is how
+this was found: the sandboxing the review protocol specified could not work,
+and the install landed in the working repository.
+
+### R-119 · Install · docs · low · confirmed
+
+Found by: the same run. Where: `README.md`, "Installing".
+
+What happens: the README describes the install as partly verified on Linux.
+It is not, any more. The documented path ran end to end on this machine, in
+one command, with exit 0, against a real TeX, a real `claude` and a real
+`tailscale`. It priced the job, printed a seven-step plan, did the seven
+steps, and ended with a working URL and a token:
+
+```
+    [6/7] At login
+  · not set up -- .venv/bin/python server/run.py
+    [7/7] Desktop
+  · not made -- open NextTex from the address below
+  Ready
+      http://127.0.0.1:8459/?token=...
+```
+
+`--instance` did its whole job: the state directory, the `config.json` and
+the `install.log` all went to `nexttex-review` under the redirected
+`XDG_DATA_HOME`, the port came out as 8459 rather than 8450, and nothing in
+the writer's own `~/.local/share/nexttex/` was written. The build it
+downloaded carries a `BUILD_SHA` equal to `HEAD`.
+
+The one thing wrong with it is R-118.
+
 ### The documents
 
 ### R-007 · Documents · docs · low · confirmed
@@ -3116,7 +3200,7 @@ call turn is eighty rows.
 
 ## What the findings have in common
 
-A hundred and seventeen records is a list, not a picture. Grouped by what is
+A hundred and nineteen records is a list, not a picture. Grouped by what is
 actually wrong rather than by which screen it appeared on, they are about nine
 things, and several of the nine are one thing wearing different clothes. This
 section is written the way `d11da03` wrote its own: the point of it is that
