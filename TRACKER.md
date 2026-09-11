@@ -24,8 +24,12 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-- [ ] Delete the superseded Artifact trackers from the gallery, and the two
-      files outside the repository they leave behind.
+- [ ] Delete the superseded Artifact trackers from the gallery at
+      claude.ai/code/artifacts. Ten NextTex pages, from Reworking the Agent
+      Panel back to the Release Tracker. Nothing here can do it: publishing an
+      Artifact is a tool call and deleting one is not, so it has to be done by
+      hand. The working files they left outside the repository are gone, and
+      what was worth keeping from them is in this file.
 
 ## Backlog
 
