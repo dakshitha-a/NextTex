@@ -157,6 +157,9 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
       await api.startUpdate();
       setLog([]);
       setStep("");
+      // A failure opens the log, so a retry after one would otherwise start
+      // with it already expanded: a different card from the first attempt's.
+      setShowLog(false);
       watch();
     } catch (problem: any) {
       setPhase({ kind: "error", message: problem.message });
@@ -253,7 +256,11 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             The install may be part-way through. Read the log below, then finish
             it in a terminal with <code className="t-code-sm">scripts/update.sh</code>.
           </p>
-          <Log lines={log} shown onToggle={() => undefined} />
+          {/* The real toggle. This card used to hard-code `shown` and pass a
+              function with no body, so it drew a button reading "Hide the
+              log" that did nothing when pressed, with two hundred lines of
+              install output wedged open above Try again. */}
+          <Log lines={log} shown={showLog} onToggle={() => setShowLog(!showLog)} />
           <div className="mt-3 flex items-center gap-2">
             <button className="ghost-button h-[28px] px-3 t-ui" onClick={start}>
               Try again
