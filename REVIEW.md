@@ -111,7 +111,605 @@ measured column beside the budgets and the transcription is worth checking.
 
 ## Findings
 
-*Pending.*
+Numbered across the whole run, in the order they were found. Grouped by
+mechanism at the end rather than here, because a list grouped as it is written
+is a list that decides too early what a thing has in common.
+
+### Compile, diagnostics and the preview
+### R-001 · Compile · bug · medium · likely
+
+Found by: reading. Where: `frontend/src/store.ts:794` and `:809`, with
+`frontend/src/panes/Status.tsx:33`.
+
+What happens: `compiling` is raised by a `compile_start` event and there is
+exactly one thing that lowers it, a `compile_done` for the same document. The
+job has a fourth ending that sends neither: the server going away while a
+build is in flight. `reconcile()` at `store.ts:683` exists for exactly this
+class of problem and restores only the agent's `thinking` and its permission
+cards, and `source.onopen` calls it only `if (state.thinking)`, so a stream
+that reconnects after a lost `compile_done` restores nothing. The strip then
+reads `Compiling` with a breathing dot for as long as the tab is open.
+
+Reproduce: open a project, cause a build, stop the server while it runs, let
+the browser's event stream reconnect.
+
+Expected: the strip says what is true. `docs/design.md` section 10 argues the
+dot exists to answer *does the picture match the text*, and a dot that
+breathes for ever answers nothing.
+
+Mechanism: a busy flag with fewer ways down than the job has endings, which
+is the family `d11da03` named.
+
+### R-002 · Preview · bug · medium · likely
+
+Found by: reading. Where: `frontend/src/panes/Pdf.tsx:546` and `:564`.
+
+What happens: the effect that fetches the PDF checks its `cancelled` flag on
+the success path, twice, and on neither failure path. A superseded fetch that
+404s or throws therefore calls `setAbsence` after its replacement has already
+drawn, and the pane covers a rendered document with *Nothing has been typeset
+yet* or *The preview could not be fetched*. The effect re-runs on `stamp`,
+which changes on every build, and on `showing`, which changes when the writer
+picks another previewed document, so two in flight at once is ordinary rather
+than exotic.
+
+Reproduce: switch between two previewed documents quickly while builds are
+landing, with one of them not yet built.
+
+Expected: an answer about a document that is no longer on screen changes
+nothing.
+
+Mechanism: an asymmetric cancellation check. The success path was hardened and
+the failure paths beside it were not.
+
+### R-003 · Compile · accessibility · low · confirmed
+
+Found by: reading. Where: `frontend/src/panes/Status.tsx:80`.
+
+What happens: the status dot and its label are a `<button>` whose handler is
+`clickable && onToggleDrawer()`. In four of the seven states `clickable` is
+false, and the control is then a focusable button that does nothing when
+pressed or activated from the keyboard, with no `disabled` and no
+`aria-disabled`. Somebody tabbing through the editor stops on it and gets no
+answer.
+
+Expected: a control that cannot be used says so, or is not a tab stop.
+
+### R-004 · Compile · bug · high · confirmed
+
+Found by: reading, then reproduced against the real function. Where:
+`nexttex/explain.py:246`.
+
+What happens: `summarise` picks the error to start from with
+`min(errors, key=where)`, and `where` is `(str(file or ""), line)`. That is
+**alphabetical order by filename**, not document order. Its own docstring says
+"this names the first error in document order, which is nearly always the
+cause", and the README's highlight says "Errors explained in English, with the
+one to start from named". Neither is what the code does.
+
+Three cases, each run against the real function:
+
+```
+main.tex:12   File `nonexistent.sty' not found     <- the cause
+chapters/01_introduction.tex:40  Undefined control sequence
+  named as the one to start from: chapters/01_introduction.tex:40
+```
+
+```
+chapters/01_introduction.tex:5   Undefined control sequence
+appendices/permissions.tex:900   Missing $ inserted
+  named as the one to start from: appendices/permissions.tex
+```
+
+```
+main.tex:3    Emergency stop
+(no file):     Something with no file
+  named as the one to start from: (no file)
+```
+
+The first is the ordinary case and the worst of the three. A missing package
+in the preamble produces a cascade in every chapter after it, and `chapters/`
+sorts before `main.tex`, so the app points the writer at the consequence and
+calls it the cause. The third says that any error the parser could not
+attribute to a file wins over every error that has one, because `""` sorts
+first.
+
+Expected: the first error in document order. It is already available:
+`nexttex/latexlog.py:207` appends diagnostics as it feeds the log line by
+line, and TeX writes its log in document order, so `errors[0]` is the answer
+and the sort is not only wrong but unnecessary.
+
+Mechanism: a comparison written for a tuple that looks ordered and is not.
+Nothing tests it, because every test project has one file.
+
+There is a test, and it is part of the finding.
+`tests/test_explain.py:89`, `test_the_summary_orders_by_file_then_line`, asserts
+that `chapters/01.tex` is named ahead of `chapters/02.tex`. It passes for the
+wrong reason: those two filenames sort the same way alphabetically and in the
+document, so the case cannot tell the two orders apart. The test is named
+after the implementation rather than after the intent, which is how the
+behaviour came to be certified rather than caught.
+
+### R-005 · Compile · bug · medium · confirmed
+
+Found by: reading, then reproduced against the real pattern. Where:
+`nexttex/deps.py:34`, the `SCAN` pattern.
+
+What happens: the pattern strips comments with `^[^%\n]*` before the command,
+which says "no percent sign earlier on this line". An **escaped** percent
+sign, `\%`, is a literal percent in the writer's prose and is one of the most
+ordinary things in a scientific document, and it hides every `\input`,
+`\include`, `\subfile`, `\bibliography` and `\includegraphics` that follows it
+on the same line.
+
+```
+HIT   \input{chapters/one}
+MISS  We recovered 95\% of it. \input{chapters/one}
+HIT   \includegraphics[width=0.5\linewidth]{figures/a.png}
+MISS  Yield was 80\% \includegraphics{figures/a.png}
+```
+
+Expected: `\%` is not a comment. The scan should treat a percent preceded by a
+backslash as ordinary text.
+
+Consequence: a file hidden this way is not attributed to the document that
+includes it, so it falls to the module's own fallback, which sends an
+unrecognised `.tex` to the first document only. On a project with two
+previewed documents, editing that chapter then rebuilds the wrong one and the
+right one silently stops updating. `docs/design.md` section 19 names that
+exact failure as the thing the asymmetric fallbacks exist to prevent.
+
+The same `^[^%\n]*` guard is written six times: `nexttex/deps.py:36`, `:48`,
+`:50`, `:51` and `nexttex/compile.py:89`, `:91`. So this is one mistake in six
+places rather than six mistakes. `INCLUDE_RE` in the compiler is the second
+one that matters: a chapter hidden this way drops out of `included_targets`,
+so `chapter_for` cannot place a file in it and every edit to that chapter
+takes the full build path instead of the scoped one.
+
+The browser answered the same question correctly. `frontend/src/outline.ts:133`
+carries the comment "a commented-out heading is not a heading. `\%` is a
+percent sign" and handles the escape. The two sides of the app disagree about
+what a comment is.
+
+### R-006 · Compile · bug · medium · confirmed
+
+Found by: reading, then reproduced against the real function. Where:
+`nexttex/compile.py:196`, `chapter_for`.
+
+What happens: when a file is not itself an `\include` target, the function
+attributes it to a target that shares its directory, longest directory first.
+When the chapters are flat files in one folder, which is the ordinary layout
+and the one this repository's own sweep spec seeds, every target has the same
+directory, so the tie is broken by whichever `\include` appears first in the
+main file.
+
+```
+chapters/01_introduction.tex  ->  chapters/01_introduction
+chapters/03_results.tex       ->  chapters/03_results
+chapters/figures/spectrum.tex ->  chapters/01_introduction
+chapters/macros.tex           ->  chapters/01_introduction
+appendices/a.tex              ->  None
+```
+
+The last row is the correct answer for a file nothing claims: no scope, so a
+full build. Rows three and four get a confident wrong answer instead.
+
+Reproduce: a thesis whose chapters are `chapters/01_*.tex` through
+`chapters/07_*.tex`, with a figure or a macro file beside them that chapter
+five uses. Edit that file. The build is scoped to chapter one and the preview
+shows chapter one's pages, without the change.
+
+Expected: a file that could belong to several targets belongs to none of them,
+which is what the appendix row already gets and what the module's own
+asymmetric fallback rule argues for in `docs/design.md` section 19.
+
+Mechanism: the comment beside the loop explains the case it does handle, a
+chapter with a subdirectory of its own, and the code reads as though that is
+the only case there is.
+
+### R-008 · Compile · bug · medium · confirmed
+
+Found by: reading. Where: `frontend/src/panes/Diagnostics.tsx:36`, `:37`,
+`:148`, `:165`.
+
+What happens: the drawer keeps `expanded` and `selected` as **indices into
+`rows`**, and `rows` is a `useMemo` recomputed from `compile` and `lint`. A
+build lands, the list is rebuilt with different contents in different
+positions, and the two indices are not cleared. The row drawn as expanded and
+the row carrying the selection bar are then whichever diagnostics happen to
+sit at those positions now, which is a row the writer never opened and never
+chose.
+
+Reproduce: open the drawer on a document with several errors, expand the third
+row, then type something that changes the error list and wait for the build. A
+different row is expanded, showing an explanation for an error the writer was
+not reading.
+
+Expected: a selection survives a rebuild by naming its diagnostic, or it does
+not survive at all. Keeping it by position is the one answer that is wrong
+without looking wrong.
+
+Mechanism: identity by position in a list that is replaced on a timer. The
+same file already has the right key available: file, line and message
+together are what `nexttex/latexlog.py`'s own `Diagnostic.key()` uses to
+deduplicate.
+
+### R-009 · Compile · bug · medium · confirmed
+
+Found by: reading. Where: `frontend/src/panes/Diagnostics.tsx:44`.
+
+What happens: the drawer sorts its rows `(a.file ?? "").localeCompare(b.file)`
+then by line, with the comment "errors first, then by file and line: the first
+row is always the one most worth reading". That is the same alphabetical sort
+as R-004 and it is wrong for the same reason: alphabetical order by filename
+is not document order, so the row at the top of the drawer is not the error to
+start from.
+
+This makes R-004 a mistake in two places rather than one, on both sides of the
+wire, which matters for the fix: correcting only the server would leave the
+drawer disagreeing with the headline above it.
+
+### R-010 · Compile · accessibility · medium · likely
+
+Found by: reading. Where: `frontend/src/panes/Diagnostics.tsx:151` and `:197`.
+
+What happens: each diagnostic row is a `div` with `role="button"` and
+`tabIndex={0}`, and the `Fix` control is a real `<button>` **inside** it. A
+button inside a button is a nested interactive control: assistive technology
+is told the outer element is a single button, and the inner one is either
+unreachable or reported as part of its name. This is the axe rule
+`nested-interactive`, whose impact is serious, and `e2e/specs/a11y.spec.ts`
+never opens this drawer, so its sweep has never looked at it.
+
+### R-028 · Accessibility · accessibility · medium · confirmed
+
+Found by: axe, on the real screens, in both themes. Where: five surfaces, one
+mechanism.
+
+What happens: `nested-interactive`, impact serious, fires on the diagnostics
+drawer, the download menu, the history panel, a file row's menu and the agent
+panel, in the light theme and again in the dark. The shape is the same
+everywhere: an element carrying `role="button"` with `tabIndex={0}` that has a
+real `<button>` inside it. Assistive technology is told the outer element is
+one button, and the inner control is either unreachable or folded into its
+name.
+
+```
+AXE  diagnostics drawer light: nested-interactive (serious)
+AXE  download menu light:      nested-interactive (serious)
+AXE  history panel light:      nested-interactive (serious)
+AXE  file row menu light:      nested-interactive (serious)
+AXE  agent panel light:        nested-interactive (serious)
+```
+
+The reason none of this has been caught is in `e2e/specs/a11y.spec.ts`: it
+sweeps the project list, the editor, the permission card, the upload chooser,
+the folder list and the tutorial. It has never opened a drawer, a menu or a
+rail panel. Four surfaces that this review's sweep did visit came back clean,
+the sections panel, the folded file list, the settings sheet and the share
+panel, which says the app is mostly in good order here and that the gap is in
+where the sweep looks rather than in how it looks.
+
+The allowlist in that spec is the right pattern and the argument for extending
+its reach rather than its exceptions.
+
+### The files rail: tree, history, trash and git
+
+### R-011 · Files rail · bug · high · confirmed
+
+Found by: reading. Where: `frontend/src/panes/GitPanel.tsx:235`.
+
+What happens: **Commit and push** commits, then reads `if (get().error) return;`
+and skips the push. The intent is plainly "the commit just failed, do not
+push", but `error` is a single field on the whole store, written by about
+thirty call sites: a refused upload, a rename collision, a failed version
+restore, a trash entry that came back under another name. `act` at
+`GitPanel.tsx:36` sets it on failure and clears it on nothing, so it is also
+not cleared by the commit succeeding.
+
+So: anything anywhere in the session has errored, the writer presses **Commit
+and push**, the commit lands, the push is skipped, and nothing is said. The
+button then reads `Push 1`, because the tree is clean and the branch is ahead,
+and pressing it calls `act("push")` with no gate at all and works. The
+symptom a writer would describe is that it needs two goes.
+
+Expected: the push is skipped when this commit failed, which is what the
+commit's own result says.
+
+This also settles a `TRACKER.md` backlog item against itself. That item leaves
+`dismissNotice`'s stale `state.error` alone on the reasoning that it "is
+harmless because nothing in the app reads `s.error` directly". One thing does,
+and this is it: `GitPanel.tsx:235` is the only direct read of `error` in the
+interface, and the gate it guards is exactly what the stale value breaks.
+
+### R-012 · Files rail · bug · high · confirmed
+
+Found by: reading. Where: `frontend/src/panes/History.tsx:353` with
+`frontend/src/App.tsx:1651`.
+
+What happens: the banner over a version being viewed asks *Replace the file
+with this?* and holds the answer in its own `confirming` flag. `<ViewingBanner>`
+is rendered without a `key`, so React keeps the same instance when
+`viewing.version` changes, and `confirming` survives. `onRestore` is
+`restoreVersion`, which restores whatever `viewing` is **now**.
+
+Reproduce: view version A, press *Restore this*, do not answer, click version B
+in the history panel, press *Restore*. The file is replaced with B. The writer
+confirmed a question about A.
+
+Expected: a confirmation belongs to the thing it was asked about. A `key` on
+the version's sha is the whole of the fix.
+
+Severity: this is a destructive action taken on a target nobody confirmed. The
+work is recoverable, because the replaced text is itself recorded as a
+version first, which is the only reason this is not a blocker.
+
+### R-013 · Files rail · bug · high · confirmed
+
+Found by: reading. Where: `nexttex/trash.py:392` and `:407`.
+
+What happens: `_destroy` carries a docstring that says "deliberately not
+`ignore_errors`: the ledger is about to record that this happened, and a purge
+that quietly did nothing is how *delete for good* becomes a lie". The code
+below it catches `OSError`, writes a line to the log, and returns. `purge`
+then calls `_forget`, appends the tombstone and returns `True` whatever
+happened, and the route answers `{"ok": true}`.
+
+So the entry leaves the trash panel, the writer is told it is gone for good,
+and the payload is still on disk under an id that nothing now lists, which
+means it can never be found again through the interface either. `ignore_errors`
+and this differ only by a log line nobody reads.
+
+Expected: **Delete for good** either deletes or says it could not.
+
+### R-014 · Files rail · bug · medium · confirmed
+
+Found by: reading. Where: `nexttex/trash.py:422`.
+
+What happens: `empty()` reads the ledger, destroys every payload, and then
+rewrites the ledger empty. `purge`'s own comment eight lines above says
+compaction was taken out of it for exactly this reason: "it read the ledger
+and wrote the whole thing back, so a delete landing between the read and the
+rename was erased, its payload left on disk under an id nothing knew about."
+`empty` still does it, and holds the window open far longer, because it
+`rmtree`s a whole folder of figures between the read and the write.
+
+Expected: the fix already applied to `purge`, applied here.
+
+### R-015 · Files rail · performance · medium · confirmed
+
+Found by: reading. Where: `server/main.py:1840` and `:1851`.
+
+What happens: `purge_trash` and `empty_trash` call `session.trash.purge()`,
+`session.trash.empty()` and `session.history.collect()` **synchronously in the
+route**. Emptying the trash is an `rmtree` of every deleted payload and a
+sweep of every unreferenced history blob, both real filesystem work on a
+project with a year behind it.
+
+`docs/architecture.md` opens with the rule this breaks: one process and one
+event loop, so "anything synchronous in a request handler stops every other
+browser, every autosave and every collaborator". Emptying a large trash
+therefore freezes every open tab and every peer for as long as it takes, with
+nothing on screen to say so.
+
+### R-016 · Files rail · accessibility · medium · confirmed
+
+Found by: reading. Where: `frontend/src/panes/FileTree.tsx:114`, `:458`.
+
+What happens: the tree is one tab stop, and which row carries it is
+`(focusPath ?? activePath ?? first child) === node.path ? 0 : -1`. `focusPath`
+is written in four places and cleared in none, so once it names a path that no
+longer exists, deleted, or renamed, since `commitRename` refreshes the tree
+without touching it, the expression matches no row and **the file tree has no
+tab stop at all**. It cannot be reached with Tab again until the writer clicks
+a row with the mouse, which is the one thing the person this affects cannot do.
+
+`frontend/src/panes/SectionsPanel.tsx:45` has the same shape with an index
+into `headings` that is not reset when the open file changes, so a heading
+number from a long chapter leaves a three-heading file with no tab stop.
+
+### R-017 · Files rail · bug · medium · confirmed
+
+Found by: reading. Where: `frontend/src/panes/GitPanel.tsx:21`, `:71`.
+
+What happens: **Not now** on the *Back this up to GitHub* card sets
+`dismissed` and writes `nexttex.backup.dismissed.<project>` to localStorage.
+Nothing anywhere removes that key, and at `:53` the card is the only thing
+that renders for a project with no repository, so once it is dismissed the
+setup wizard has no entry point left in the app. A writer who says *not now*
+has said *never*, per project, with no way back.
+
+`docs/design.md` section 5 describes this card as "dismissible, and once
+dismissed or configured it never returns", so the interface is doing what was
+asked. The finding is that what was asked has no *later*, which is the same
+shape as the update card that `0ec4c0d` fixed a week ago by adding one.
+
+### R-018 · Files rail · bug · medium · confirmed
+
+Found by: reading. Where: `frontend/src/store.ts:1151`, `:1158`, `:1165`.
+
+What happens: `refreshHistory`, `refreshTrash` and `refreshGit` each turn a
+failed request into an empty value. The three panels then make confident
+false statements. The history panel prints "Nothing yet for chapter.tex.
+Versions are kept from the moment you first change it", about a file with
+four hundred versions. The trash panel and the git section disappear from the
+rail entirely.
+
+Expected: a panel that could not ask says it could not ask. "There is nothing
+here" and "I could not find out" are different answers, and this is the same
+argument `nexttex/compile.py`'s `_read_log` makes for the opposite case.
+
+### R-019 · Files rail · bug · medium · confirmed
+
+Found by: reading. Where: `frontend/src/panes/FileTree.tsx:671` and
+`frontend/src/panes/History.tsx:312`.
+
+What happens: two awaited calls with no `try`, in a file where every other
+call has one. Clearing a file's history closes the menu, awaits
+`api.purgeHistory`, and on failure the promise rejects unhandled: the
+confirmation line never appears, no notice is raised, and the writer sees an
+action that did nothing and said nothing. Naming a version is the same shape,
+and has a second way to fail quietly: `set_label` in `nexttex/history.py`
+returns `False` when the sha is not in that file's log, and the route's answer
+is not read either way, so the row refreshes without the name that was typed.
+
+### R-020 · Files rail · bug · medium · confirmed
+
+Found by: reading. Where: `nexttex/gitrepo.py:38`.
+
+What happens: `_run` builds git's environment from scratch, keeping only
+`GIT_TERMINAL_PROMPT`, `GIT_ASKPASS`, `PATH` and `HOME`. `SSH_AUTH_SOCK` is
+not among them, so a push to an `ssh://` or `git@` remote cannot use a key
+held by an agent or protected by a passphrase. It works only for a bare,
+unencrypted key file in `~/.ssh`. The same push from the writer's own terminal
+works, which makes this look like NextTex being broken rather than like a
+missing variable.
+
+The fixed environment is right about the rest, and usefully forces the C
+locale, which is what keeps the English substring matches at `:124` honest.
+
+### R-021 · Files rail · bug · medium · confirmed
+
+Found by: reading. Where: `nexttex/gitrepo.py:145`.
+
+What happens: `initialise` returns early when `.git` already exists, before
+writing the `.gitignore`, and `commit` runs `git add -A`. A writer who points
+NextTex at a repository they already had therefore commits `build/` on every
+commit: every `.pdf`, `.aux`, `.log` and `.synctex.gz`. `.nexttex/` is safe,
+because `nexttex/project.py` drops a `*` ignore file inside it, and `build/`
+has no such protection.
+
+### R-022 · Files rail · bug · low · confirmed
+
+Found by: reading. Where: `nexttex/gitrepo.py:105`.
+
+What happens: the changed-files list is parsed from `git status --porcelain=v1`
+as `line[3:]`, with no `-z` and no `-c core.quotePath=false`. A rename arrives
+as `old -> new` and any non-ASCII filename arrives C-quoted with escapes. Each
+becomes a clickable row in `GitPanel.tsx:207` that calls `onOpen(change.path)`,
+so clicking a renamed file, or any file with an accent in its name, opens
+nothing.
+
+### R-023 · Files rail · bug · low · confirmed
+
+Found by: reading. Where: `frontend/src/panes/FolderChooser.tsx:125`.
+
+What happens: the new-folder input sets `problem` in its catch and clears it
+only on Escape or on success. There is no `onChange`, so the red underline and
+*There is already a figures folder here* stay on screen while the writer types
+a different name, and reopening the chooser shows the input still carrying the
+old failure. `NewName` in `FileTree.tsx:1274` clears on every keystroke, which
+is the behaviour this one should have.
+
+### R-024 · Files rail · bug · low · confirmed
+
+Found by: reading. Where: `frontend/src/panes/GitPanel.tsx:18`.
+
+What happens: `message`, `url`, `token`, `wizard` and `open` are reset by
+nothing when the project changes; only `dismissed` re-reads. A half-written
+commit message follows the writer into the next project, and so does a pasted
+personal access token, which sits in a password field belonging to a project
+it was not issued for.
+
+### Sign-in and the front door
+
+### R-025 · Sign-in · accessibility · medium · confirmed
+
+Found by: axe, on the real screen, in both themes. Where: `server/main.py:753`.
+
+What happens: the sign-in page is server-rendered, because it has to draw
+before the bundle is authorised, and it is written as a string starting
+`<!doctype html><meta charset=utf-8>`. There is no `<html>` element, so the
+browser synthesises one with **no `lang` attribute**. A screen reader
+announces the front door in whatever language the reader's machine defaults
+to. `frontend/index.html` carries `lang="en"` and the app proper is fine; it
+is the one page a new writer meets first that is not.
+
+```
+AXE  sign-in light: html-has-lang (serious) <html> element must have a lang attribute
+AXE  sign-in dark:  html-has-lang (serious) <html> element must have a lang attribute
+```
+
+### R-026 · Sign-in · accessibility · medium · confirmed
+
+Found by: axe, on the real screen. Where: `server/main.py:788`, the `pre` and
+`code` rules.
+
+What happens: the recovery command is `--ink-3` on `--surround` at 12px, which
+measures **4.16:1** against the 4.5 that small text needs.
+
+```
+AXE  sign-in light: color-contrast (serious)
+       pre > code
+       insufficient color contrast of 4.16 (foreground #4e534d, background
+       #b9beb8, font size 9.0pt (12px), font weight: normal)
+```
+
+This is the same pairing, to the second decimal place, that `docs/testing.md`
+already records being found on the projects screen: "`--ink-3` measures
+**4.17:1** there, under the 4.5 that small text needs." That one was fixed by
+preventing the pairing rather than certifying it, with `.nx-on-surround`
+stepping the dimmest ink up to `--ink-2`.
+
+The fix could not reach here, and the reason is in this function's own
+docstring: "the palette, the scale and the radii here are the app's, written
+out rather than imported... It is a copy, kept small on purpose." So is the
+bug. `frontend/src/contrast.test.ts` parses `styles.css` and this page's
+stylesheet is a Python string, so neither the test nor the fix has ever seen
+it.
+
+The text this affects is the one line on the page that matters most: the
+command that gets a locked-out writer back in.
+
+### R-027 · Sign-in · docs · medium · confirmed
+
+Found by: reading, after axe sent me to the file. Where: `server/main.py:748`.
+
+What happens: the sign-in page's own prose contains an em dash, written
+`&mdash;`, in the sentence a writer with no password reads: "the only way in
+is the address the server printed &mdash; the one ending `?token=...`".
+
+The repository bans the em dash without exception, and `7d56ed0` removed about
+three hundred of them. `tests/test_cross_platform.py:441` guards the rule and
+looks at this very file. It cannot see this one, because it tests for the
+character and this is an HTML entity.
+
+`frontend/src/panes/Status.tsx:180` evades the same guard the other way, with
+a dash written as `\u2014` standing in for an unknown word count. That one is a
+judgement rather than a slip, since a dash standing for *no value* in a
+tabular field is not punctuation between clauses, but it is the app's own text
+and the rule as stated has no exceptions, so it belongs in front of the
+writer rather than in a reviewer's head.
+
+`frontend/src/outline.ts:77` is a third hit and is not a finding: it turns the
+writer's own `---` into an em dash for display in the section list, which is
+their text and their punctuation.
+
+### The documents
+
+### R-007 · Documents · docs · low · confirmed
+
+Found by: the baseline run. Where: `scripts/check.sh:4` and
+`docs/testing.md:7`.
+
+What happens: both files quote a time for the test tiers and both are out of
+date by an order of magnitude. `scripts/check.sh`'s header says "the browser
+tier takes a minute and the Python tier takes seven seconds". `docs/testing.md`
+says the fast tier is "about twenty seconds" and `--all` "about two minutes".
+
+Measured on this machine at `5942653`:
+
+| tier | quoted | measured |
+|---|---|---|
+| Python | 7 s | 136 s |
+| fast tier, all three | 20 s | 167 s |
+| `--all` | 2 min | see the baseline table |
+
+The Python suite has grown to 1279 tests. The number in the header is the
+reason the ordering argument in that comment is given at all, so it is worth
+correcting rather than deleting: the argument still holds, and the ratio it
+rests on has changed.
+
 
 ## Unverifiable here
 
