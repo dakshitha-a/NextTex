@@ -132,15 +132,26 @@ Google Fonts only. One superfamily, three roles.
   rather than decoration, and the chat reads as marginalia on a manuscript rather than a
   messaging app. Source Serif is Fournier-derived, so it will never be mistaken for the
   PDF's Times sitting two panes away.
-- **Editor and literal machine strings, Source Code Pro** (400/600). Chosen over JetBrains
-  Mono because it shares the Source skeleton, and because **it ships no ligatures**. That is
-  non-negotiable for LaTeX: `--` and `---` must never fuse on screen when they are en- and
-  em-dash *source*.
+- **Editor and literal machine strings, Source Code Pro** (300 to 700, upright and italic).
+  Chosen over JetBrains Mono because it shares the Source skeleton, and because **it ships
+  no ligatures**. That is non-negotiable for LaTeX: `--` and `---` must never fuse on screen
+  when they are en- and em-dash *source*.
 
-**The mono rule:** monospace means "this is a literal string the machine produced or
-consumes": a git SHA, `file:line`, a shell command, a log excerpt, a filename in a chip.
-Merely numeric metadata (word counts, build times, diff counts) stays in Source Sans 3 with
-`font-variant-numeric: tabular-nums`. No monospace as decoration.
+**Every face this app asks for is a face it has loaded.** That sounds like a truism and was
+not one. The editor sets a LaTeX comment in italic, and anything the grammar calls emphasis,
+and for as long as that highlighting has existed no italic Source Code Pro was imported. A
+browser answers a request it cannot meet by making an oblique: the upright outline put
+through a shear matrix, which loses the hinting, throws the stems off the pixel grid and
+skips the corrections a drawn italic carries in its round shapes. Nothing fails when this
+happens. The text is simply a little worse, for years, and the place it shows first is a
+comment, which is `--ink-3` on the brightest page the app offers.
+
+The italics are imported now at all five weights, so the ladder is the same shape upright
+and slanted and there is no weight where the two disagree about whether a face exists. The
+second half is `font-synthesis: none` on `.cm-editor`: with the faces present it changes
+nothing, and if one is ever dropped again the text stops rather than quietly degrades.
+`frontend/src/fonts.test.ts` asserts the pairing, because the failure this is guarding
+against is one nobody can see.
 
 | Role | Family | Size / line-height | Weight / tracking |
 |---|---|---|---|
@@ -149,7 +160,7 @@ Merely numeric metadata (word counts, build times, diff counts) stays in Source 
 | `ui`, the default: tree rows, buttons, permission headline | Source Sans 3 | 13 / 20 | 400 (500 buttons) |
 | `ui-lg`: pane headings, project name | Source Serif 4 / Sans 3 | 15 / 22 | 600 |
 | `prose`: agent messages | Source Serif 4 | 14.5 / 23.5 (1.62) | 400, max 68ch |
-| `code`: CodeMirror | Source Code Pro | 13.5 / 22 | 400 |
+| `code`: CodeMirror | Source Code Pro | 13.5 / 1.63 | 400 plus the page's lift |
 | `code-sm`: log excerpts, diffs, chip filenames | Source Code Pro | 12 / 18 | 400 |
 | `display`: empty states, first-run setup only | Source Serif 4 | 22 / 28 | 600, `-0.01em` |
 
