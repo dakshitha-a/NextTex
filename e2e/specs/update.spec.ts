@@ -214,13 +214,25 @@ test("a tab that joins a running update reloads when the server comes back", asy
   try {
     await page.addInitScript(() => {
       const real = window.fetch;
-      const started = Date.now();
       // sessionStorage, not a window property: `window` is a fresh
       // object after a reload, so a counter on it can never exceed one.
       sessionStorage.setItem(
         "loads",
         String(Number(sessionStorage.getItem("loads") ?? "0") + 1),
       );
+      // And the clock the stub answers from goes in there too, for exactly
+      // the same reason.  This script re-runs on every navigation, so a
+      // `Date.now()` local to it restarted on the reloaded page: the second
+      // page was told "before" for two seconds all over again, reloaded
+      // itself, and so on for ever.  The assertion below usually caught the
+      // counter at two and passed, but a `page.evaluate` that landed on one
+      // of those reloads died with "Execution context was destroyed" --
+      // which is the flake this test has been carrying rather than anything
+      // about the page.  Kept across the reload, the second page is told
+      // "after" from its first tick, adopts it as the process it is watching
+      // and stays put, so there is exactly one reload and nothing to race.
+      const started = Number(sessionStorage.getItem("clock") ?? "0") || Date.now();
+      sessionStorage.setItem("clock", String(started));
       window.fetch = async (input: any, init?: any) => {
         const url = String(input);
         if (url.includes("/api/instance")) {
