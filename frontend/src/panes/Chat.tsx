@@ -148,7 +148,7 @@ export default function Chat({
   // follow-up goes out after the current turn ends, by which time the
   // writer has usually selected something else or nothing at all.
   const queued = useRef<
-    { text: string; selection: State["selected"] }[]
+    { text: string; selection: State["selected"]; attached: string[] }[]
   >([]);
   // A ref does not re-render, so the "yours will go next" line read a count
   // that only changed when something else happened to redraw the panel.
@@ -197,6 +197,15 @@ export default function Chat({
   // happen.
   const [asks, setAsks] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
+  /** Images waiting to go with the next question. Local state rather than
+   *  the store, because nothing outside this panel needs them and they are
+   *  gone the moment Send is pressed. `url` is an object URL for the
+   *  thumbnail, revoked when the chip goes. */
+  const [attached, setAttached] = useState<
+    { path: string; name: string; url: string }[]
+  >([]);
+  const [attaching, setAttaching] = useState(0);
+  const picker = useRef<HTMLInputElement | null>(null);
   // The position that asks about nothing is reached through a sentence, not
   // through a click. Held here rather than inside the popover because the
   // confirmation opens above the composer, in the same idiom as the
@@ -313,6 +322,51 @@ export default function Chat({
     if (element && pinned.current) element.scrollTop = element.scrollHeight;
   }, [chat]);
 
+  /** Take images somebody pasted, dropped or picked.
+   *
+   *  Only images, and quietly: a paste is usually text, and a drop on the
+   *  panel is usually an accident, so anything else is left alone rather
+   *  than refused with a message about a thing the writer was not trying to
+   *  do. A file the agent cannot look at is refused by the route, which is
+   *  where the list of what it can look at lives.
+   */
+  const take = useCallback(
+    async (files: File[]) => {
+      const projectId = get().projectId;
+      if (!projectId) return;
+      const images = files.filter((file) => file.type.startsWith("image/"));
+      if (!images.length) return;
+      setAttaching((count) => count + images.length);
+      for (const file of images) {
+        try {
+          const kept = await api.attach(projectId, file);
+          setAttached((held) =>
+            held.some((one) => one.path === kept.path)
+              ? held
+              : [...held, {
+                  path: kept.path,
+                  name: file.name || kept.name,
+                  url: URL.createObjectURL(file),
+                }],
+          );
+        } catch (error: any) {
+          set({ error: error.message });
+        } finally {
+          setAttaching((count) => Math.max(0, count - 1));
+        }
+      }
+    },
+    [],
+  );
+
+  const drop = useCallback((path: string) => {
+    setAttached((held) => {
+      const going = held.find((one) => one.path === path);
+      if (going) URL.revokeObjectURL(going.url);
+      return held.filter((one) => one.path !== path);
+    });
+  }, []);
+
   const send = async () => {
     const text = draft.trim();
     const projectId = get().projectId;
@@ -321,7 +375,10 @@ export default function Chat({
     // question goes later, and by then the writer has usually clicked
     // somewhere else and the selection they meant is gone.
     const held = get().selected;
+    const images = attached.map((one) => one.path);
     setDraft("");
+    for (const one of attached) URL.revokeObjectURL(one.url);
+    setAttached([]);
     pushChat({ kind: "user", id: nextId(), text, at: Date.now() });
     pinned.current = true;
     // Read from the store, not from this render's closure.  Pressing Enter
@@ -333,12 +390,12 @@ export default function Chat({
       // A follow-up thought arrives while Claude is still answering the
       // last one.  Hold it and send it when the turn ends, rather than
       // refusing it and making the writer remember to ask again.
-      queued.current.push({ text, selection: held });
+      queued.current.push({ text, selection: held, attached: images });
       setQueuedCount(queued.current.length);
       return;
     }
     try {
-      await api.ask(projectId, text, held);
+      await api.ask(projectId, text, held, images);
     } catch (error: any) {
       // Put it back in the box rather than losing what they typed.
       setDraft(text);
@@ -352,7 +409,7 @@ export default function Chat({
     const next = queued.current.shift();
     setQueuedCount(queued.current.length);
     if (next) {
-      api.ask(projectId, next.text, next.selection).catch((error: any) => {
+      api.ask(projectId, next.text, next.selection, next.attached).catch((error: any) => {
         set({ error: error.message });
       });
     }
@@ -544,6 +601,52 @@ export default function Chat({
             ))}
           </div>
         ) : null}
+        {/* What is going with the question. Above the composer beside the
+            selection chip, with a thumbnail, because an image attached by
+            accident to a question about something else is worse than no
+            attachment and the only way to notice is to see it. */}
+        {attached.length || attaching ? (
+          <div
+            className="mb-[6px] flex flex-wrap items-center gap-[6px]"
+            data-testid="attachments"
+          >
+            {attached.map((one) => (
+              <span
+                key={one.path}
+                className="flex h-[26px] items-center gap-[6px] rounded-[3px] bg-surface-2 pl-[3px] pr-1"
+              >
+                <img
+                  src={one.url}
+                  alt=""
+                  className="h-[20px] w-[20px] rounded-[2px] object-cover"
+                />
+                <span className="t-micro max-w-[14ch] truncate text-ink-2">
+                  {one.name}
+                </span>
+                <button
+                  className="quiet flex h-[16px] w-[16px] items-center justify-center rounded-[2px] hover:bg-surface-3"
+                  aria-label={`Take ${one.name} off this question`}
+                  data-testid="attachment-remove"
+                  onClick={() => drop(one.path)}
+                >
+                  <svg width="8" height="8" viewBox="0 0 9 9" aria-hidden="true">
+                    <path
+                      d="M1 1 L8 8 M8 1 L1 8"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                      fill="none"
+                    />
+                  </svg>
+                </button>
+              </span>
+            ))}
+            {attaching ? (
+              <span className="t-micro text-ink-3">
+                {attaching === 1 ? "Adding an image" : `Adding ${attaching} images`}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {/* Turning the fence off entirely is answered in place above the
             composer, in the same idiom as the new-conversation question and
             for the same reason: the sentence needs room, and this app has
@@ -684,6 +787,30 @@ export default function Chat({
           // The card's own keys stay bound to the card and not to the
           // window, which is what makes a live composer safe: typing `a`
           // into a textarea cannot answer a gate.
+          // A screenshot arrives as a file on the clipboard on all three
+          // platforms, so this is the whole of "paste an image": no
+          // permission, no dialog. A paste that is text falls through to
+          // the browser's own handling, which is what `take` returning
+          // early does.
+          onPaste={(event) => {
+            const files = Array.from(event.clipboardData?.files ?? []);
+            if (files.some((file) => file.type.startsWith("image/"))) {
+              event.preventDefault();
+              void take(files);
+            }
+          }}
+          onDragOver={(event) => {
+            if (Array.from(event.dataTransfer.types).includes("Files")) {
+              event.preventDefault();
+            }
+          }}
+          onDrop={(event) => {
+            const files = Array.from(event.dataTransfer.files ?? []);
+            if (files.some((file) => file.type.startsWith("image/"))) {
+              event.preventDefault();
+              void take(files);
+            }
+          }}
           placeholder={blocked ? `Ask ${name}, or answer above` : `Ask ${name}`}
           className={`t-ui w-full resize-none rounded-[3px] border bg-surface-2 px-2 py-[6px] outline-none transition-colors duration-[90ms] placeholder:text-ink-3 ${
             blocked ? "border-warn" : "border-line"
@@ -851,6 +978,31 @@ export default function Chat({
                 ) : null}
               </div>
             ) : null}
+            {/* The third route in. Pasting is how most images will arrive
+                and dropping is how the rest will, but neither is how
+                everybody works, and a control is also the only thing that
+                says the feature exists. */}
+            <input
+              ref={picker}
+              type="file"
+              id="nx-attach"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+              hidden
+              onChange={(event) => {
+                void take(Array.from(event.target.files ?? []));
+                event.target.value = "";
+              }}
+            />
+            <button
+              className={ICON}
+              aria-label="Attach an image"
+              title="Attach an image. You can also paste or drop one."
+              data-testid="attach"
+              onClick={() => picker.current?.click()}
+            >
+              <Picture />
+            </button>
             {/* The two things that most improve the help, kept reachable.
                 They used to live only in the welcome message, which
                 disappears the moment anything is asked -- so after the
@@ -1062,6 +1214,31 @@ const HIDDEN_TOOLS = new Set(["ToolSearch"]);
 
 function verb(name: string): string {
   return VERBS[name] ?? name.replace(/^mcp__[a-z]+__/, "").replace(/_/g, " ");
+}
+
+/** A picture, at the weight of the other four icons under the composer.
+ *
+ *  Hand drawn like the rest of them, for the reason section 19 gives: an
+ *  icon set would have been faster and would have cost tens of kilobytes on
+ *  a bundle with very little headroom. */
+function Picture() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2" y="3.5" width="12" height="9" rx="1.2" />
+      <path d="M2.6 11 L6 7.8 L8.4 10" />
+      <circle cx="10.4" cy="6.6" r="1.05" />
+    </svg>
+  );
 }
 
 function compact(value: number): string {

@@ -142,6 +142,8 @@ One Claude session per project, driven from the browser, optional and off unless
 
 **The permission fence is a `PreToolUse` hook, not `can_use_tool`.** This was established by testing rather than reading: with `can_use_tool` supplied and no `allowed_tools` entry covering it, a Bash call still ran without the callback firing, in every permission mode. The SDK's own documentation names the reliable mechanism.
 
+**An image the writer hands the agent goes on disk, and the question carries the path.** Not for speed: it is the same arithmetic as the paragraph below. The agent already reads images from disk with its own `Read`, which is the path that was hardened, so there is no second image path to keep working; the transcript records a filename rather than a megabyte of base64; and a conversation that resumes by session id does not depend on the bytes being replayable, because they are still where they were. They land in `.nexttex/attachments/`, content addressed like everything else kept here, and the list of paths a question carries is checked against that directory rather than trusted, since it arrives as strings in an HTTP body and the one thing it must not become is a way to make the agent read an arbitrary path.
+
 **A figure the agent reads costs more on the wire than the file does.** The SDK frames the CLI's stdout as one JSON line per message and refuses a line over a megabyte. An image tool result is base64, a third larger than the file, and the `PostToolUse` hook means the CLI ships it twice: once as a control request carrying the result to the hook, and once in the user message. A 290 KB figure measured 1.15 MB and killed the reader mid-turn, so `max_buffer_size` is raised well clear of any image the model would accept. Nothing is preallocated, so a ceiling that high only costs memory when a line really is that long.
 
 **A client whose transport has died is thrown away rather than reused.** It is still an object, and its `receive_response` still returns, immediately and with nothing, so keeping it turns one lost answer into a conversation that replies to every later question in under two milliseconds with the news that the connection ended. Dropping it lets the next question build a fresh client, which resumes by session id, so the thread on screen survives what broke it.
@@ -176,6 +178,7 @@ Inside the project, in `.nexttex/`:
 | `trash/` | deleted entries, with a directory deleted as one entry |
 | `collab/` | `share.json`, the document logs, cursors |
 | `context/` | templates and style guides the agent is given |
+| `attachments/` | images handed to the agent by pasting, dropping or picking one |
 | `library/` | the scanned bibliography folder |
 | `transcript.jsonl` | the agent's audit trail, plus archived conversations |
 | `session.json`, `agent-settings.json`, `usage.json` | per-project preferences |

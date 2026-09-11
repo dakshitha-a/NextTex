@@ -548,6 +548,19 @@ micrograph or a heatmap with a million cells.
 If a plot needs a package this install does not have, it says which one and
 asks. Installing it is your press.
 
+### You can show it something
+
+Paste a screenshot into the box, drop an image on the panel, or pick one.
+A referee's marked-up page, a table that has come out wrong, a figure from
+somebody else's paper: hand it over rather than describing it. The chip
+above the box shows a thumbnail of what is going with the question, so an
+image attached to the wrong question is something you notice rather than
+something you find out about.
+
+The image is kept inside the project, in `.nexttex/attachments/`, and the
+agent reads it from there. Nothing about it goes anywhere your question was
+not already going.
+
 ### It cannot invent a citation
 
 The agent searches Crossref, OpenAlex or Semantic Scholar and gets back real

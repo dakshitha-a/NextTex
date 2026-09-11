@@ -3756,3 +3756,17 @@ The outer control also said `Back`, and so did the button inside each provider's
 The second half is that the way *in* was a text link under the strapline, shown only when the provider was `none`. So somebody using one provider who wanted the other had to know it was inside the settings sheet. It is a control in the projects header now, in the cog's own chrome so the three read as a set, present whatever the provider is, and it names the agent rather than only saying there is one, because that is the question somebody opening it has.
 
 The glyph is a nib, and deliberately not the current provider's mark. The floating agent button wears that mark and opens the panel of the agent you have; this control changes which agent you have, and one wearing Claude's mark that takes you to a screen offering ChatGPT and nothing is wearing the wrong thing.
+
+### An image handed over rather than described
+
+A writer looking at a referee's marked-up page, a screenshot of a table that has come out wrong, or a figure from somebody else's paper wants to hand it over. Describing a visual problem in prose is the tax this removes, and it is a large one.
+
+Three ways in, in the order people will use them. Pasting, because a screenshot arrives on the clipboard as a file on all three platforms, so that is the whole of it: no dialog and no permission. Dropping on the panel. And a control under the composer, because neither of those is how everybody works and because a control is also the only thing that says the feature exists at all.
+
+A paste that is text and a drop that is a `.bib` file fall through to the browser's own handling rather than being refused with a message about a thing the writer was not trying to do. What the agent cannot look at is refused by the route, which is where the short list of what it can look at lives, and an image too large for the model is refused with the number rather than attempted: the upload path allows 256 MB, which is right for a dataset and wrong here, because the model has its own limit and a 20 MB screenshot is a failed turn rather than a slow one.
+
+**The chips have a thumbnail, and that is the part worth arguing for.** A filename is not enough: an image attached by accident to a question about something else is worse than no attachment, and seeing it is the only way to notice. They sit above the composer beside the selection chip, which is the same idea in the same place, and they go when the question goes.
+
+The question itself reads as what was typed. The paths are named to the model in the same preamble the selection uses, and `turn_start` does not carry that preamble, so the conversation on screen is not a sentence with a list of file paths stapled to it. The chips are what say an image went with it, which is what a person looking at the transcript afterwards actually wants to know.
+
+Where the bytes live is decided by section 27 rather than by preference, and it is recorded in `docs/architecture.md` with the rest of the mechanics.
