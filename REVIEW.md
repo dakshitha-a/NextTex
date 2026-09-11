@@ -1273,6 +1273,27 @@ So the agent's core loop is in good order, and the findings above are about
 its edges: what happens when a card is not answered, when the tab reloads
 mid-turn, and what the record says afterwards.
 
+**The numbers a writer actually feels are good.** The benchmark measures the
+server. These were measured in a real browser, and none of them is a finding:
+
+| | |
+|---|---|
+| Keystroke to the character on screen, in a 71 kB chapter | median 3.9 ms, p90 4.7 ms, worst 13.1 ms |
+| A file's text on screen, from opening a project | 321 ms, editor mounted at 189 ms |
+| The same on a forty-file thesis | 288 ms, editor mounted at 156 ms |
+| Touch tier, tablet at 1180 by 820 | 3 passed |
+
+The keystroke number is the one worth keeping. It was taken with spelling and
+syntax colouring both on, in a chapter long enough that CodeMirror is
+virtualising it, measured inside the page from `keydown` to the first mutation
+of the editor's own DOM so that it is the app's work and not two frames of the
+harness waiting. Four milliseconds is a quarter of a frame. The thesis opens
+faster than the small project does, which is what the symbol cache exists for.
+
+The driver is `e2e/review/a12-typing.spec.ts`, and the fix plan should watch
+that number rather than trust it, because every one of the comfort items that
+adds a decoration to the editor is a charge against it.
+
 ### The server
 
 ### R-030 · Server · security · medium · confirmed
@@ -1636,7 +1657,13 @@ Four statements say otherwise.
   connection open, and answers with the manifest."
 
 Discarding does `rmtree` the folder, so the end state is still "nothing left
-behind", which is why this has never been noticed. What is real is the window:
+behind", which is why this has never been noticed. The Windows laptop later
+staged this across two real machines and the timestamps make it worse than a
+window. With the offer card still on screen, its folder held `main.tex`
+complete and readable from preamble to `\end{document}`, and `nexttex.toml`
+and `references.bib` carried an mtime a full minute earlier than the card. So
+pressing Discard would have had to delete real files rather than decline to
+create them, which is the opposite of what the text on the card promises. What is real is the window:
 a server killed between join and accept leaves a folder full of somebody
 else's project, unregistered and untracked, and the writer's next attempt to
 join into it is refused with "That folder already has something in it".
@@ -2597,6 +2624,152 @@ suggestions and tracked changes are refused in the README's "What it is not".
 Branching and merging in the git panel are refused in the README, and the
 terminal is better at both.
 
+### Collaboration across two real machines
+
+Everything in this section was found by the user's Windows laptop, driving the
+real interface in Chrome over the DevTools protocol against a share from this
+machine. It is the only part of the review that had a second computer, a second
+operating system and a real network in it, and it produced four findings that
+nothing on one machine could have reached. The join itself worked: 2.30 seconds
+from pressing Join to the file list, on the first attempt, with no retry.
+
+### R-103 · Collaboration · bug · high · confirmed
+
+Found by: the Windows laptop, joining a share over the real network. Where:
+whichever side builds the offer, `server/main.py:946` and the manifest walk
+behind it.
+
+What happens: the offer card counted four files and three of them arrived. The
+one that did not is `figures/.gitkeep`, and the `figures` directory does not
+exist on the joiner's disk either. A file was named on the card, the writer
+accepted it, and it is not there.
+
+```
+card:            4 files, 3 kB
+                 figures/.gitkeep   0 B
+                 main.tex           3 kB
+                 nexttex.toml       211 B
+                 references.bib     210 B
+on disk after accept:
+                 main.tex           1076 bytes
+                 nexttex.toml        217 bytes
+                 references.bib      218 bytes
+                 figures/.gitkeep    MISSING, and figures/ does not exist
+```
+
+Expected: what the card lists is what arrives, or the card says which of them
+will not.
+
+Mechanism, as the laptop read it and as the evidence supports: an empty
+directory is carried only by the file inside it, so a zero-length file whose
+only job is to exist is exactly the case that goes missing if directories are
+implied by file paths somewhere in the transfer. A path with nothing behind it
+has nothing to imply the directory from.
+
+This is adjacent to the known binary gap and is not the same thing. The binary
+gap is a name with nothing behind it. This is no name at all, and the count on
+the card is the number offered rather than the number that will exist. That
+project had no real binaries in it, so the binary gap itself is still
+untested across two machines.
+
+### R-104 · Collaboration · bug · medium · confirmed
+
+Found by: the Windows laptop, comparing the offer card against the disk.
+Where: the offer the join builds, against `frontend/src/panes/Projects.tsx`.
+
+What happens: none of the three sizes on the offer card is the size of the
+file that lands.
+
+| file | card | on disk |
+|---|---|---|
+| `nexttex.toml` | 211 B | 217 B |
+| `references.bib` | 210 B | 218 B |
+| `main.tex` | 3 kB | 957 B |
+
+The first two are line endings. Every line on the laptop's disk ends CRLF, the
+deltas are exactly plus six and plus eight, and the card is showing the Linux
+side's LF byte count. So the number a Windows writer is shown before they
+accept is a number they can never have.
+
+`main.tex` is a different mistake and a larger one. 3679 bytes is the size of
+the CRDT document `f67098301b6788c1.y` in the joiner's own `.nexttex/collab`
+directory, and 957 is the file. The card is measuring the document rather than
+the text, on the one file in the project big enough for the two to differ
+visibly.
+
+Expected: a size on an offer card is the size of the thing being offered.
+"3 kB" for a one kilobyte file is wrong by a factor of three on the only row a
+person is likely to read.
+
+### R-105 · Collaboration · bug · high · confirmed
+
+Found by: the Windows laptop, typing in a shared file while somebody else was
+in it. Where: `frontend/src/panes/Collaborators.tsx`.
+
+What happens: the joiner was never shown that anybody else was there. No
+cursor, no name, no avatar, and `[data-testid="collaborators"]` absent from
+the DOM entirely, through a session in which both sides were editing the same
+file and the edits were propagating in both directions.
+
+`Collaborators` returns null when there are no people **and** the connection is
+not offline. So the only positive evidence the laptop had that its socket was
+up was the absence of the offline badge, which is the weakest possible signal:
+"connected, and nobody is here" and "connected, a peer is here and is not
+being drawn" are the same empty space on screen.
+
+Expected: the share panel answers the one question a person joining a share
+actually has, which is whether the other person is there. `docs/design.md` §22
+describes presence as part of what the panel is for.
+
+Evidence, in the laptop's words: "I could not tell you from this interface
+whether you were there." The edits were arriving the whole time.
+
+Mechanism: a component that renders nothing for the empty case, in a panel
+whose entire subject is who else is present, makes absence and failure
+identical. It is the same shape as the several latches this review found
+elsewhere, one state standing in for two.
+
+### R-106 · Appearance · bug · medium · likely
+
+Found by: the Windows laptop, reporting its own display. Where: the text
+clarity work in `docs/design.md` and `e2e/shots/text-clarity.spec.ts`.
+
+What happens: the laptop renders at a device pixel ratio of 1.25, because the
+Windows display is at 125 percent scaling, which is the ordinary default on a
+laptop of that class. Every screen in this repository has been photographed
+and tuned at a ratio of 1 or 2. `e2e/shots/text-clarity.spec.ts` carries
+variants named `-1x` and nothing else.
+
+Why it matters here rather than in general: the clarity work in this
+repository is specifically about whole-pixel alignment, gutters and hairlines,
+and a fractional ratio is where whole-pixel reasoning stops holding. A rule
+that lands on a pixel boundary at 1 and at 2 lands between pixels at 1.25.
+
+Recorded as `likely` rather than `confirmed` because nothing here has
+photographed it. The finding is that the class of surface has never been
+looked at, which is certain; what it looks like is not.
+
+Cheap to settle: the sweep and clarity specs take a `deviceScaleFactor`, and
+adding 1.25 to them is a line.
+
+### R-107 · Preview · bug · high · confirmed
+
+Found by: the Windows laptop, on the first screen a joining writer sees. This
+is R-044 on a second machine and a second platform, so it is recorded as
+corroboration rather than as a new finding, and the number is kept here so the
+fix plan sees both.
+
+What happens: the preview said "Nothing has been typeset yet. An empty
+document produces no pages." while `build/main.log` and the rest of the
+latexmk output were already on disk and the document plainly was not empty.
+The status strip beside it said "3 errors" at the same moment.
+
+So the same screen carried two statements that cannot both be true, and the
+one a person reads first is the wrong one. On this machine the same thing
+happens for the whole of a project's first build. On the laptop it is the
+first thing a joining writer sees, which is worse, because they have nothing
+else to compare it with.
+
 ## Unverifiable here
 
 - **The OpenAI provider against OpenAI.** There is no key on this machine.
@@ -2615,4 +2788,43 @@ terminal is better at both.
 
 ## Cost and time
 
-*Written last.*
+The review ran on 11 September 2026, from about a quarter to three in the
+afternoon, in one Opus session with Fable as the advisor at the checkpoints
+the protocol names. The baseline came first and the report was committed after
+every area, which is why the times below can be read off the log rather than
+remembered.
+
+| | |
+|---|---|
+| Baseline, `scripts/check.sh --all` | 12 m 12 s |
+| Benchmarks, first run | after the browser tier, on a busy machine |
+| Benchmarks, second run | on an idle machine, for the README comparison |
+| First finding committed | 15:26 |
+| Areas, first commit to last | about an hour and a half |
+| Live agent spend, in the app | $0.068, 2 turns, `claude-sonnet-5` |
+| Live agent spend, in the suites | not separately recorded, of the order of a few tens of cents |
+| Live iroh test | 2 passed in 5.3 s |
+
+The spend is small because the live areas were driven with deliberate
+questions rather than with a conversation. Two turns in the app produced R-073
+and R-074 between them, and the panel-after-reload comparison that the plan
+asked for. The agent findings that cost nothing at all, R-046 through R-056,
+came from reading `nexttex/agent.py` and `nexttex/tools.py` against the
+permission fence.
+
+What the time actually went on is worth saying, because the next review can
+skip most of it. Roughly a third went on the browser drivers, and most of that
+third went on two mistakes: a compile driver that typed its broken LaTeX after
+`\end{document}`, where the engine ignores everything, so the error never
+appeared; and two specs that waited five minutes each for a server that was
+already gone. Both are fixed in `e2e/review/` and neither can cost that again.
+Another third went on reading, which is where most of the findings came from
+and is the cheapest thing here per finding. The last third went on the report
+itself, which is the deliverable, and on the two live servers.
+
+The subagents earned their keep twice: once reading the eighty-two sweep
+images against the design document, which is a task that is expensive in a
+main context and cheap in a fresh one, and once assembling the comfort list,
+which needed the whole interface read at once. Both were checked before
+anything they said was recorded, and in both cases a claim of theirs was
+wrong and was dropped rather than written down.
