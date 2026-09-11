@@ -1889,6 +1889,19 @@ what would make the case above visible instead of invisible.
 The `boot` nonce in the same answer already exists to tell a browser that the
 process changed. Nothing ties it to `head`.
 
+The cleanest evidence came later, from the laptop, in one response taken
+immediately after an update and before any restart:
+
+```
+{"instance":"","head":"f2296b4","boot":"eab23450b4ca4d07","supervised":false}
+```
+
+`head` is the commit `update.ps1` had just pulled onto the disk. `boot` is the
+same nonce the process had carried since 15:56, hours earlier. One answer, two
+fields, contradicting each other, and the only reason anybody can tell is that
+`boot` happens to be beside it. After a manual restart `boot` changed and
+`head` stayed, which is what agreement looks like.
+
 ### R-042 · Update · bug · high · confirmed
 
 Found by: a real Windows machine, then confirmed against the code. Where:
@@ -2879,6 +2892,15 @@ whose entire subject is who else is present, makes absence and failure
 identical. It is the same shape as the several latches this review found
 elsewhere, one state standing in for two.
 
+Sharpened by a second run on the laptop. After a page reload it did see a
+remote caret, labelled `d-laptop`, belonging to its own previous client which
+had not yet expired. So the caret and the label machinery work and render
+correctly. What never appeared was the real remote peer. Presence is built; it
+is a live peer across the network that does not produce one. R-121, which
+found that the interface's idea of "connected" describes the browser's own
+socket and not the peer link, is very likely the same fault seen from the
+other side.
+
 ### R-106 · Appearance · bug · medium · likely
 
 Found by: the Windows laptop, reporting its own display. Where: the text
@@ -2919,6 +2941,198 @@ one a person reads first is the wrong one. On this machine the same thing
 happens for the whole of a project's first build. On the laptop it is the
 first thing a joining writer sees, which is worse, because they have nothing
 else to compare it with.
+
+### R-120 · Update · bug · high · confirmed
+
+Found by: the Windows laptop, then verified in the source here. Where:
+`nexttex/updates.py:219` with `frontend/src/panes/UpdateFooter.tsx:345`.
+
+What happens: an update check that never reached the network is drawn as
+**Up to date.**
+
+On the laptop, `/api/update` answers:
+
+```
+"can_update": false,
+"reason":     "Could not reach the repository.",
+"error":      "fatal: unable to access 'https://github.com/...': Could not resolve host: github.com",
+"behind":     0,
+"restart":    "manual"
+```
+
+`check(root)` sets `error` and `reason` and returns early, before
+`report.behind` is ever assigned, so `behind` keeps the dataclass default of
+zero. The footer then does this and nothing else:
+
+```tsx
+if (!report.checkout) return null;
+if (report.behind === 0) {
+  return <Line><span>Up to date.</span> ... </Line>;
+}
+```
+
+Nothing between those two lines reads `report.error` or `report.reason`. There
+is a "Could not reach the repository." card at `UpdateFooter.tsx:265`, and it
+belongs to `phase.kind === "error"`, which is the request itself failing. A
+report that arrives successfully carrying an error is not that phase, so the
+card never shows.
+
+At 16:52:58 the laptop's forced check failed, reported `behind: 0`, and the
+footer said "Up to date." while `git ls-remote` from a shell on the same
+machine showed master at `5d366f6` and the install was on `94bf8c0`. Genuinely
+behind, told it was current, by a check that never reached the network.
+
+The second half is worse. `server/main.py:3633` refuses the update when
+`can_update` is false, with 400 "There is nothing to update", so the update
+cannot be started from the page at all on that machine. The documented
+recovery, the page, is the one path closed.
+
+Mechanism: one number carrying two meanings. Zero commits behind and no answer
+about how many commits behind are the same value, and the field that would
+distinguish them is in the same object and is not read. This is mechanism 2 in
+the grouping below, with the largest consequence of any instance of it.
+
+Why the server cannot resolve a host a shell on the same machine can is not
+established and is not this finding. The laptop's reading, unproven, is that
+the server re-execs into the Store Python, an MSIX package, and the git
+subprocess inherits that sandbox. What is established is that when the check
+fails for any reason, the footer says the install is current.
+
+### R-121 · Collaboration · bug · high · confirmed
+
+Found by: the Windows laptop, reasoning about what it could not test. Where:
+`frontend/src/collab.ts:157` with `:318`.
+
+What happens: the word the interface uses for whether collaboration is working
+describes the wrong connection. `connection` is derived from
+`new WebSocket(\`${scheme}://${location.host}${this.url}\`)`, which is this
+browser to its own server. The peer link, the iroh leg that actually carries a
+collaborator's edits, is not in it.
+
+So a laptop that loses its internet while its browser keeps reaching localhost
+shows nothing. No badge, no warning, an entirely live-looking interface, and
+the other person's edits silently stop arriving. Both sides keep typing into
+what each believes is a shared document.
+
+Expected: a share panel says whether the share is working. `docs/design.md`
+§22 describes the panel as reporting the connection, and the connection a
+writer means is the one to the other writer.
+
+This is the honest answer to the question this review set out to ask, which
+was what "not connected" looks like on a real network. It looks like nothing.
+The experiment would have shown an unchanged screen, which is why the laptop's
+reasoning is better evidence than the test would have been.
+
+### R-122 · Update · bug · medium · confirmed
+
+Found by: the Windows laptop, running `scripts\update.ps1` for real. Where:
+`scripts/update.ps1:62`, with `scripts/register-task.ps1`.
+
+What happens: the update reports success when the last thing it promised did
+not happen. R-042 said the restart branch is skipped on a Startup-folder
+install. This is that run, and the part R-042 could not know is the exit code:
+
+```
+Restarting
+  not running as a scheduled task; restart it yourself
+
+exit code 0, 52 seconds
+```
+
+The pull and the interface fetch both worked, `94bf8c0..f2296b4`. The process
+serving port 8450 afterwards was the same one from an hour before. The
+script's own synopsis says it will "pull, reinstall dependencies, rebuild,
+restart", and it exits zero having done three of the four.
+
+There is a second, smaller mistake beside it. The check is
+`Get-ScheduledTask -TaskName 'NextTex'`, and the installer registers its
+Startup entry under `nexttex`, lowercase. On this machine there is no task
+under either spelling so the else branch is the whole story, but an install
+that did register one could miss on the name.
+
+Expected: a step that did not happen does not exit zero, and the one word a
+script uses for a thing it created is the word it uses to look for it.
+
+### R-123 · Interface · bug · high · confirmed
+
+Found by: the Windows laptop, which is R-040 on a second platform, and adds
+the part that makes it worse. Where:
+`frontend/src/panes/Collaborators.tsx` with `frontend/src/Boundary.tsx:36`.
+
+What happens: the app promises to keep what you type, and then throws away the
+page that was keeping it.
+
+With the server stopped at 17:05:35, the badge appeared. Its visible text is
+one word:
+
+```
+visible text : offline
+tooltip only : "Not connected. What you type is kept here until it is."
+```
+
+The sentence that says what happens to a writer's typing is a `title`
+attribute. It is not on the screen, it is not reachable by touch, and a
+screen reader reaches it only as the badge's own name.
+
+By 17:09:25, about four minutes later, the tab had navigated itself away:
+
+```
+url   : chrome-error://chromewebdata/
+title : 127.0.0.1
+text  : This site can't be reached / ERR_CONNECTION_REFUSED / Reload
+```
+
+`.cm-content` was null. The editor and everything in it were gone. Whatever
+had not reached the server went with them.
+
+So the sequence a writer meets is: the app says your typing is kept here until
+it reconnects, and then the error boundary reloads the tab onto the browser's
+own error page, which is the one place it cannot be kept. R-040 is the reload.
+This record is the promise it breaks.
+
+The laptop could not finish its type-while-offline test because the reload
+took the editor before the typing was done, which is itself the answer: typing
+keeps working until the page stops existing.
+
+Nothing was lost in this run, because nothing had been typed into the gap.
+`main.tex` was intact at 1181 bytes afterwards and the other two files were
+byte-identical to what had arrived.
+
+### R-124 · Update · docs · low · confirmed
+
+Found by: the Windows laptop, looking for a log that does not exist. Where:
+`scripts/update.ps1`.
+
+What happens: an update run from a shell records nothing to disk. The script
+writes to the console only, and a grep across `server/`, `scripts/` and
+`nexttex/` finds no update log anywhere. Run from the page the output goes to
+the update job's in-memory log and out through the stream endpoint, so it
+lives as long as the tab is watching.
+
+The install has `install.log` and it is the thing that makes an install
+diagnosable after the fact. The update, which is the operation most likely to
+leave a machine in a state its owner cannot explain, has nothing.
+
+### R-125 · Update · bug · low · confirmed
+
+Found by: the Windows laptop. Where: the dependencies step of
+`scripts/update.ps1`.
+
+What happens: updating dependencies underneath a running server leaves a
+broken directory behind on Windows, every time, and nothing ever removes it.
+
+```
+WARNING: Failed to remove contents in a temporary directory
+'C:\Users\daksh\apps\NextTex\.venv\Lib\site-packages\~ycrdt'.
+```
+
+`~ycrdt` is still there. pip could not clean up because the running server had
+the old compiled extension loaded and Windows will not delete a mapped file.
+Nothing is broken, `pycrdt` 0.14.5 imports, and the litter accumulates one
+directory per update for as long as the install lives.
+
+This is the same root cause as R-122 from the other end: the script updates
+the dependencies of a server it has decided not to stop.
 
 ### The visual sweep, eighty-eight images against the design document
 
@@ -3190,6 +3404,16 @@ call turn is eighty rows.
   reach it either. Aborting `/api/projects/*/events` with `page.route` after
   `compile_start` would stage it, and was not worth the time against a reading
   this clear.
+- **A real network cut, rather than a stopped server.** The laptop declined,
+  correctly: disabling its adapter would have cut the channel carrying the
+  instruction to put it back, and the surgical version, a firewall rule scoped
+  to the server process, needs administrator, which that account does not
+  have. Chrome's own offline emulation is a dead end and is worth writing
+  down: `Network.emulateNetworkConditions` with offline true does not sever an
+  already-established WebSocket, the badge never appeared, and an edit typed
+  under it still reached disk. Stopping the server was the honest substitute
+  and cuts only the browser-to-its-own-server leg. R-121 is the reason the
+  experiment would have shown nothing anyway.
 - **A fractional device pixel ratio.** R-106. The Windows laptop reports 1.25,
   which is the ordinary default, and nothing in this repository has been
   photographed at anything but 1 and 2.
@@ -3202,7 +3426,7 @@ call turn is eighty rows.
 
 ## What the findings have in common
 
-A hundred and nineteen records is a list, not a picture. Grouped by what is
+A hundred and twenty-five records is a list, not a picture. Grouped by what is
 actually wrong rather than by which screen it appeared on, they are about nine
 things, and several of the nine are one thing wearing different clothes. This
 section is written the way `d11da03` wrote its own: the point of it is that
@@ -3244,7 +3468,11 @@ tab, so a stopped server becomes a reload loop. R-102, a 404 from Semantic
 Scholar rendered as the claim that the paper is unknown. R-086, `??` on the
 page with nothing on screen saying that references have not settled. R-108,
 the panel saying "Ran" above the card that is still asking whether it may run,
-and keeping that word if the answer is no.
+and keeping that word if the answer is no. R-120, the largest instance of it
+in the report: zero commits behind and no answer about how many commits behind
+are the same number, so an update check that never reached the network is
+drawn as "Up to date." R-121, a badge that reports the browser's socket to its
+own server and is read by everybody as reporting the share.
 
 The question that finds these is: what else produces this signal, and does it
 mean the same thing.
