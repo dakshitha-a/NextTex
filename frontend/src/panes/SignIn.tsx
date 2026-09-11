@@ -265,20 +265,47 @@ function ClaudeLogin({
     };
   }, []);
 
+  /** Fetch and run the Claude CLI installer, following what it says.
+   *
+   *  While this is running both of the panel's other branches are hidden, so
+   *  the whole screen is one `<pre>` with no Back and no Cancel on it.  That
+   *  makes every way of failing to reach the end a screen with no way off
+   *  it, and there were three: the server answering that the CLI is already
+   *  there and therefore starting no install at all, the stream dropping,
+   *  and the stream ending without the frame this was waiting for.  All
+   *  three now land somewhere.
+   */
   const install = async () => {
     setError(null);
     setOutput("");
     setInstalling(true);
+    let answer: any;
     try {
-      await api.installClaude();
+      answer = await api.installClaude();
     } catch (problem: any) {
       setError(problem.message);
       setInstalling(false);
       return;
     }
+    // The reply was being discarded, and it is not always "I have started".
+    // If the CLI turned up in the meantime -- installed from a terminal, or
+    // the server restarted after one -- nothing is started, and the stream
+    // then answers `idle` for ever while EventSource politely reconnects to
+    // be told the same thing again.
+    if (answer?.installed) {
+      setInstalling(false);
+      setInstalled(true);
+      setOutput("");
+      return;
+    }
     source.current?.close();
     const stream = new EventSource("/api/claude/install/stream");
     source.current = stream;
+    const stop = () => {
+      stream.close();
+      if (source.current === stream) source.current = null;
+      setInstalling(false);
+    };
     stream.onmessage = (event) => {
       let payload: any;
       try {
@@ -288,9 +315,16 @@ function ClaudeLogin({
       }
       if (payload.type === "output")
         setOutput((current) => current + payload.text);
+      // Nothing is running after all. Said by the server, matched by nothing
+      // here until now, so it fell on the floor and the panel sat on
+      // "Installing…".
+      if (payload.type === "idle") {
+        stop();
+        setInstalled(true);
+        setOutput("");
+      }
       if (payload.type === "done") {
-        stream.close();
-        setInstalling(false);
+        stop();
         if (payload.ok) {
           setInstalled(true);
           setOutput("");
@@ -298,6 +332,22 @@ function ClaudeLogin({
           setError(payload.error ?? "The Claude CLI did not install.");
         }
       }
+    };
+    // The deliberate one in UpdateFooter.watch has been here all along and
+    // this did not have it, so a dropped stream left the panel waiting on a
+    // message that was never coming.
+    //
+    // Only when the stream is actually shut, though. EventSource reports an
+    // error and then reconnects on its own, and an install that takes a
+    // minute over a flaky link must not be abandoned for a blip it was going
+    // to recover from by itself.
+    stream.onerror = () => {
+      if (stream.readyState !== EventSource.CLOSED) return;
+      stop();
+      setError(
+        "Lost touch with the installer. It may have finished; try again, or "
+        + "install the Claude CLI yourself from https://claude.ai/download.",
+      );
     };
   };
 
@@ -399,9 +449,29 @@ function ClaudeLogin({
       ) : null}
 
       {installing ? (
-        <pre className="t-code-sm mt-4 max-h-[220px] overflow-auto whitespace-pre-wrap rounded-[3px] bg-surface-2 p-3 text-ink-2">
-          {output || "Installing…"}
-        </pre>
+        <>
+          <pre className="t-code-sm mt-4 max-h-[220px] overflow-auto whitespace-pre-wrap rounded-[3px] bg-surface-2 p-3 text-ink-2">
+            {output || "Installing…"}
+          </pre>
+          {/* A way off this screen, which it did not have.  The login flow
+              below has carried one from the start; this branch hides both of
+              the others, so without it the only exit was Escape, which
+              nothing on screen mentions. */}
+          <div className="mt-3 flex gap-2">
+            <button
+              className="quiet h-[28px] px-2 t-ui"
+              data-testid="cancel-install"
+              onClick={() => {
+                source.current?.close();
+                source.current = null;
+                setInstalling(false);
+                setOutput("");
+              }}
+            >
+              Stop watching
+            </button>
+          </div>
+        </>
       ) : null}
 
       {links.length ? (
