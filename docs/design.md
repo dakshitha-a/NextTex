@@ -377,10 +377,17 @@ extension survives: `04_o-nitro…mics.tex`.
 Tabs are separated by 1 px `--line` rules, not pills. The **active** tab takes `--surface`
 (identical to the editor body, so it merges into the canvas), carries a 2 px `--pen` bar
 along its *top* edge, and has no bottom border. Inactive tabs sit on `--surface-2` with a
-1 px bottom line. Dirty state replaces the close × with a 5 px hollow `--ink-2` ring, solid
-× on hover. A file with errors turns its extension `--error` and adds a 3 px `--error` dot
-after the label. Middle-click closes. Overflow scrolls horizontally with a hidden scrollbar
-plus a 24 px chevron at the right carrying the hidden count.
+1 px bottom line. A file with errors turns its extension `--error` and puts the count after
+the label, as a number rather than a coloured dot, because the number says the same thing
+without depending on being able to see the colour. Middle-click closes. Overflow scrolls
+horizontally with a hidden scrollbar plus a 24 px chevron at the right carrying the hidden
+count.
+
+**There is no dirty state on a tab**, and this section described one for two rewrites after
+it stopped being true. It said the close × was replaced by a hollow `--ink-2` ring while a
+file was unsaved. A keystroke goes into the shared document as it is made and the server
+writes it out a moment later, so "typed but not written" is false at every moment anybody
+could look at it, and the ring it specified could never have appeared.
 
 Tab switching is instantaneous: content swaps in the same frame, no crossfade.
 
