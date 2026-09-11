@@ -25,6 +25,7 @@ node_modules/.bin/playwright test -c review/review.config.ts review/a3-undo.spec
 | `a1-gone.spec.ts` | the tab reloads itself into a browser error page when the server goes away mid-build | R-040 |
 | `a1-offline.spec.ts` | a build that finishes while the tab cannot hear it, without killing the server | R-001 |
 | `a1-errors.spec.ts` | the error pane and the drawer, and whether fixing an error clears them | the background to R-002 and R-008 |
+| `a12-typing.spec.ts` | keystroke to the character on screen, in a 71 kB chapter of a thesis | no finding: it is the number the fix plan has to not make worse |
 
 `a7-live.spec.ts` and `a7-live2.spec.ts` are different and are kept apart by
 `live.config.ts`. They point at a long-lived server on port 8462 that is
