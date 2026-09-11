@@ -99,7 +99,7 @@ export default function Status({
       <span className="hidden min-w-0 flex-1 items-center gap-3 @[760px]:flex">
         <Rule />
         <span className="nx-mono-11 min-w-0 flex-1 truncate text-ink-3">
-          {activePath ?? "—"}
+          {activePath ?? "–"}
         </span>
       </span>
       <span className="flex-1 @[760px]:hidden" />

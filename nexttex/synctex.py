@@ -126,7 +126,7 @@ def pdf_to_source(
 
     `x` and `y` are in PDF points, measured from the top-left of the page.
 
-    Returns None when the click lands on something with no editable source —
+    Returns None when the click lands on something with no editable source,
     a generated table of contents, or a page whose content came from the
     engine rather than from a file the user wrote.
 

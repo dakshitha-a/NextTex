@@ -88,7 +88,7 @@ export function statusFor(input: StatusInput): StatusDot {
       clickable: findings,
       hint: input.autocompile
         ? "The preview is older than the source"
-        : "The preview is older than the source — ⌘S to compile",
+        : "The preview is older than the source. ⌘S to compile",
     };
   }
 

@@ -327,9 +327,9 @@ class ProjectContext:
             for document in documents:
                 path = f".nexttex/context/extracted/{document.id}.txt"
                 pages = f", {document.pages} pages" if document.pages else ""
-                note = f" — {document.note}" if document.note else ""
+                note = f": {document.note}" if document.note else ""
                 lines.append(
-                    f"- `{path}` — {document.filename} "
+                    f"- `{path}`, {document.filename} "
                     f"({KIND_LABEL[document.kind]}{pages}){note}"
                 )
             parts.append("\n".join(lines))

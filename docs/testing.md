@@ -14,7 +14,7 @@ newer one rather than changing the system's.
 
 
 `tests/` is Python: the retention rules, the path fence, the log parser, the
-compile paths, and — under `tests/api/` — every HTTP route, its documented
+compile paths, and, under `tests/api/`, every HTTP route, its documented
 failures, and a path-escape assertion on everything that takes a path. The
 fixtures redirect `XDG_DATA_HOME` and `XDG_CONFIG_HOME` **before** importing
 anything under `server/`, because `server/main.py` builds its settings and
@@ -29,7 +29,7 @@ really does block until somebody answers. The real agent needs an account,
 costs money and answers differently every time, which is why none of that
 had ever been tested.
 
-`e2e/` is the browser. Each spec starts a NextTex of its own — own port, own
+`e2e/` is the browser. Each spec starts a NextTex of its own: own port, own
 state directories, own projects, and a config written before the server so
 the token is known rather than scraped out of a log line. Waits are on
 observables (a response, a DOM state), never on a clock. It exists mainly
@@ -50,27 +50,27 @@ side of it would have removed the thing worth testing.
 For anything the page never displays, `e2e/events.ts` subscribes to the
 server's event stream from the test process and counts what arrives. A build
 of a short document takes about 130 milliseconds, which is less time than
-the status dot can be reliably polled for — so a spec that has to prove a
+the status dot can be reliably polled for, so a spec that has to prove a
 build did *not* happen counts `compile_start` instead of watching pixels.
 
 `frontend/src/tree.ts` is read by the upload chooser rather than the
 server: which folders exist, what is already in one, and what "keep both"
 will call the new file are all answerable from the tree the rail is already
 drawing, so the chooser opens in the same frame the file picker closes in.
-The last of those has to agree with `unique_name` on the server exactly —
-the chooser quotes the name back before anything is written — which is why
+The last of those has to agree with `unique_name` on the server exactly,
+the chooser quotes the name back before anything is written, which is why
 both are tested against the same cases.
 
-`frontend/src/**/*.test.ts` is vitest over the frontend's pure logic —
+`frontend/src/**/*.test.ts` is vitest over the frontend's pure logic,
 finding the maths under the pointer, where a diff begins, which completion
-list belongs at the cursor — plus a contrast check that parses the palette
+list belongs at the cursor, plus a contrast check that parses the palette
 out of `styles.css` and measures every text-on-surface pairing the app uses,
 in both themes. It found the readability problem that had already been
 caught by eye twice.
 
-`bench/` is not part of any tier. It builds a project shaped like a thesis —
+`bench/` is not part of any tier. It builds a project shaped like a thesis,
 forty source files, two megabytes of LaTeX, a populated build directory, a
-`.git` with a working tree — and measures what the slow paths cost against
+`.git` with a working tree, and measures what the slow paths cost against
 the budgets in `bench/thresholds.json`. Those are budgets rather than
 records: the point is to notice a change that makes typing slower, on the
 day it happens.
@@ -84,7 +84,7 @@ The cost is that none of it can tell you whether the model providers still
 emit the message shapes the stand-ins replay.
 
 `tests/test_live_agent.py` is that check. It drives the real agent against
-a real account and asserts the *vocabulary* rather than the answer — that a
+a real account and asserts the *vocabulary* rather than the answer, that a
 turn still produces `turn_start`, `text`, `text_end` and `done`, and that
 `usage` still carries the fields the footer reads. It is skipped unless you
 ask for it:
@@ -97,7 +97,7 @@ Run it before a release, and after any agent SDK upgrade.
 
 The OpenAI provider has the same limit and no way to close it here: there
 is no account to test against, so `tests/test_openai_agent.py` stubs the
-transport and runs everything above it for real — the streaming parser, the
+transport and runs everything above it for real: the streaming parser, the
 tool loop, the path fence, the edits, the usage accounting and the event
 vocabulary. Whether OpenAI still returns those shapes is unproven.
 
@@ -116,7 +116,7 @@ argument rather than detecting it**. So `tests/test_install_survey.py` and
 `tests/test_install_plan.py` assert exactly what a Windows machine with
 nothing installed would be told, from Linux, with no Windows anywhere.
 `tests/test_install_steps.py` runs a whole install with a recording console
-in place of the real one and asserts the sequence of argv — uv before the
+in place of the real one and asserts the sequence of argv: uv before the
 venv before pip, no certificate for a localhost install, the service last,
 and, most importantly, that a step which fails **stops** rather than
 reaching "Ready". `tests/test_install_service_files.py` snapshots the
@@ -132,7 +132,7 @@ which is what a Windows console on a legacy code page reports, where the
 braille spinner raises `UnicodeEncodeError` inside the draw loop.
 
 **`tests/test_install_bootstrap_sh.py` runs the real script**, under `sh`,
-which here and on Debian and Ubuntu is dash — because `curl ... | sh` is the
+which here and on Debian and Ubuntu is dash, because `curl ... | sh` is the
 documented command and in that shape the shebang is never read. The
 interactive cases use `pty.fork`, not `pty.openpty` with an inherited
 descriptor: only the fork makes the pty a *controlling* terminal, and
@@ -143,7 +143,7 @@ every reported bug has been in.
 Writing that file found two bugs that had already shipped. `set -o pipefail`
 on line seven, which dash rejects outright, so the documented install
 command died before printing a word on the most common Linux there is. And a
-`/dev/tty` probe written as `{ : < /dev/tty; }` — `:` is a POSIX *special
+`/dev/tty` probe written as `{: < /dev/tty; }`: `:` is a POSIX *special
 built-in*, and a redirection error on one of those is defined to end the
 shell, so on a machine with no controlling terminal that line did not report
 "nobody there", it killed the installer. Neither was visible by reading.
@@ -163,7 +163,7 @@ a served project. The README says so and should go on saying so.
 **A drag is the real gesture, and the shortcut nearly cost a feature.**
 Headless Chromium ends an HTML5 drag with `dragend` and no `drop` when the
 page has refused it, which looks exactly like the harness being unable to
-drag — so the first version of the file-tree spec dispatched the events by
+drag, so the first version of the file-tree spec dispatched the events by
 hand with a shared `DataTransfer` and passed. A minimal control page proved
 the browser could drop perfectly well, and the fault was ours: a row set
 `dropEffect` to "move", the event bubbled to the tree body, which asked the
@@ -176,7 +176,7 @@ work under test, write the smallest page that uses it before concluding the
 harness is at fault. `dragRow` now uses `page.dragAndDrop`.
 
 **The scripted agent calls the memory tool because the script says to.**
-`remember.json` proves the plumbing end to end — the tool writes, the panel
+`remember.json` proves the plumbing end to end: the tool writes, the panel
 shows it, a cleared conversation still carries it into the prompt. What it
 cannot prove is that a real model reaches for the tool when a writer says
 *remember this*, since the stand-in has no judgement to exercise. That
@@ -186,9 +186,9 @@ clear the conversation, and see whether the next one knows it.
 ## Where the line is
 
 Worth its maintenance: anything that asserts a contract, anything that
-guards a safety property — path escape, atomic write, undo refusal, the
+guards a safety property, path escape, atomic write, undo refusal, the
 permission fence, history permanence, an automatic approval still reaching
-the record — anything that encodes a bug already paid for, and the handful of
+the record: anything that encodes a bug already paid for, and the handful of
 browser specs that prove the core loop still works end to end.
 
 Not worth it: snapshot tests of rendered React, which fail on every
@@ -250,14 +250,14 @@ is meant to fail.
 
 Collaboration is the first thing in NextTex that needs *two installs* to test
 at all, and the obvious way to arrange that does not work. `NEXTTEX_INSTANCE`
-gives a second install its own state directory, port and token — but
+gives a second install its own state directory, port and token, but
 `server/main.py` builds `SETTINGS` and `REGISTRY` at import time, which is
 why `tests/api/conftest.py` redirects the environment before importing it, so
 two of them inside one pytest process is not something that can be arranged.
 
 The seam is lower down instead. Everything above `server/collab/transport.py`
-is bytes in and bytes out, so `LoopbackTransport` — two queues and a
-module-level hub — is a complete second implementation of "the network", and
+is bytes in and bytes out, so `LoopbackTransport`, two queues and a
+module-level hub: is a complete second implementation of "the network", and
 `NEXTTEX_COLLAB_TRANSPORT=loopback` selects it in the same way
 `NEXTTEX_SCRIPTED_AGENT` selects a stand-in for the model. Both the route
 tests and the browser tier set it, so **no test opens a real endpoint or
@@ -266,8 +266,8 @@ contacts iroh's discovery and relay hosts**.
 It is not only cheaper than the real thing; it can do something the real
 thing cannot do on request. `HUB.sever()` and `HUB.heal()` are a network
 partition with the messages written during it held and delivered afterwards,
-which is exactly the case collaboration exists for — somebody shutting their
-laptop on a train — and exactly the case that is impossible to stage against
+which is exactly the case collaboration exists for, somebody shutting their
+laptop on a train, and exactly the case that is impossible to stage against
 a real network in a test that has to finish in a second.
 
 What the loopback cannot prove is that iroh works. That has its own test,
@@ -284,14 +284,14 @@ reader that is still going.
 
 ## The bench caught a thirty-four second freeze
 
-`collab.ingest_ms` measures folding an outside change — a `git pull`, an
-agent's write, an editor in another terminal — into the shared document. It
+`collab.ingest_ms` measures folding an outside change, a `git pull`, an
+agent's write, an editor in another terminal, into the shared document. It
 was added with a budget of 40 ms and immediately measured **34,000**.
 
 `difflib.SequenceMatcher` is quadratic in the worst case and was being handed
 two whole files. Appending one line to a fifty-kilobyte chapter is the most
 ordinary thing that can happen to a project, and it would have frozen the
-server for over half a minute — on a path with no user-facing progress
+server for over half a minute: on a path with no user-facing progress
 indicator, so it would have looked like a hang rather than like slowness.
 Trimming the common prefix and suffix first is linear and leaves almost
 nothing to compare; it is 3 ms now.

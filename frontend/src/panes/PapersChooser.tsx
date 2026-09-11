@@ -7,8 +7,8 @@ import { useDismiss } from "../useDismiss";
 
 /** Which folder of papers to read into the bibliography.
  *
- *  The folder is almost always *outside* the project — a Zotero library, a
- *  Downloads folder — so the project's own folder chooser cannot serve and
+ *  The folder is almost always *outside* the project, a Zotero library or a
+ *  Downloads folder, so the project's own folder chooser cannot serve and
  *  the path fence is not involved. What guards this instead is that the
  *  route behind it is read-only, returns folder names and PDF counts and
  *  never file contents, and does not follow symlinks.

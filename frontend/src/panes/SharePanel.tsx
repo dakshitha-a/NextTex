@@ -165,7 +165,7 @@ export default function SharePanel({ projectId, onClose }: {
                 dimmer than the one describing the mechanism. */}
             <p className="t-meta text-ink-2">
               Nobody owns a shared project. Anyone in it can invite somebody
-              else, and anyone can remove anybody — including you.
+              else, and anyone can remove anybody, including you.
             </p>
             <p className="t-meta mt-[8px] text-ink-2">
               Everyone you invite gets a whole copy: the files, the history,
@@ -294,7 +294,7 @@ export default function SharePanel({ projectId, onClose }: {
                     <div className="mt-[4px] rounded-[3px] border border-warn/60 px-[8px] py-[6px]">
                       <p className="t-micro text-ink-2">
                         This disconnects them. It does not take back the copy
-                        they already have — they keep the files, the history
+                        they already have: they keep the files, the history
                         and any backup they have made.
                       </p>
                       <div className="mt-[6px] flex gap-2">

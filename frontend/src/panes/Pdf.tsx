@@ -947,7 +947,7 @@ export default function Pdf({
               <p className="t-display text-ink-3">Nothing has been typeset yet.</p>
               <p className="t-meta mt-2 text-ink-2">
                 An empty document produces no pages. Write a line and it will
-                appear here about a second later — or start from something
+                appear here about a second later, or start from something
                 that already works.
               </p>
               {onLoadTemplate ? (
@@ -1016,7 +1016,7 @@ export default function Pdf({
               ‹
             </button>
             <span className="t-micro tnum w-[92px] text-center text-ink-2">
-              {pageCount ? `Page ${current} of ${pageCount}` : "—"}
+              {pageCount ? `Page ${current} of ${pageCount}` : "–"}
             </span>
             <button
               className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
@@ -1029,7 +1029,7 @@ export default function Pdf({
           </span>
         ) : (
           <span className="t-micro tnum shrink-0 text-ink-2">
-            {pageCount ? `Page ${current} of ${pageCount}` : "—"}
+            {pageCount ? `Page ${current} of ${pageCount}` : "–"}
           </span>
         )}
         <Rule />

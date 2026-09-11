@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 
 /** Pointing at a folder of papers.
  *
- *  The pipeline itself is covered in Python — this is about the parts that
+ *  The pipeline itself is covered in Python; this is about the parts that
  *  only exist in a browser: that the item is on the .bib file's menu and
  *  nowhere else, that the chooser browses the *server's* filesystem, and
  *  that a folder with nothing in it cannot be read by accident.

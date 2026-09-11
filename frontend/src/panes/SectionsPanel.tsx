@@ -149,7 +149,7 @@ export default function SectionsPanel({
                       ? gone
                         ? `${heading.path} is not in this project yet`
                         : `Open ${heading.path}`
-                      : `${heading.title} — line ${heading.line}`
+                      : `${heading.title}, line ${heading.line}`
                   }
                   onFocus={() => setFocused(index)}
                   onClick={() => onJump(heading)}

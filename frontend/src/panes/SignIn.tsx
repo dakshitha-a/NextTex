@@ -7,9 +7,9 @@ import { loginRefusal } from "../signin";
  *
  *  This is the first screen a new install shows, and it has one job: get
  *  the writer to their document. So the third option is as prominent as
- *  the other two. NextTex is a LaTeX editor before it is an AI tool —
+ *  the other two. NextTex is a LaTeX editor before it is an AI tool:
  *  the editor, the preview, the version history, the trash, the reference
- *  tools and the git panel all work with no model behind them — and
+ *  tools and the git panel all work with no model behind them, and
  *  somebody who does not want an AI in their thesis should get a complete
  *  application rather than a nag screen.
  *
@@ -150,7 +150,8 @@ function Option({
 
 /** An API key, and nothing pretending to be a sign-in.
  *
- *  There is no OAuth flow for the OpenAI API — it is a key — so this says
+ *  There is no OAuth flow for the OpenAI API, which is a key rather than
+ *  an account, so this says
  *  so rather than dressing it up as a login. */
 function OpenAIKey({
   onDone,
@@ -194,7 +195,7 @@ function OpenAIKey({
         </a>
         . It is stored in this machine's own config file, readable only by
         you, and sent to nobody but OpenAI. This is an API key rather than a
-        ChatGPT subscription — usage is billed to your OpenAI account.
+        ChatGPT subscription: usage is billed to your OpenAI account.
       </p>
       <input
         autoFocus
@@ -208,7 +209,7 @@ function OpenAIKey({
       />
       <input
         value={model}
-        placeholder="Model — leave blank for the default"
+        placeholder="Model, or leave blank for the default"
         className="t-code-sm mt-2 h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
         onChange={(event) => setModel(event.target.value)}
         onKeyDown={(event) => event.key === "Enter" && void save()}
@@ -352,13 +353,13 @@ function ClaudeLogin({
       <p className="t-meta mt-1 text-ink-2">
         The agent runs as a Claude session scoped to your project. Sign in
         once; the credentials stay on this machine, in the Claude CLI's own
-        store — NextTex never sees them.
+        store, and NextTex never sees them.
       </p>
 
       {installed === false && !installing ? (
         <>
           <p className="t-meta mt-4 text-ink-2">
-            The Claude CLI is not on this machine yet — you chose no agent
+            The Claude CLI is not on this machine yet, because you chose no agent
             when NextTex was installed. It can be installed now, which is the
             same thing the installer would have done.
           </p>

@@ -272,7 +272,7 @@ export default function Chat({
         pushChat({
           kind: "notice",
           id: `model-${Date.now()}`,
-          text: "The model changes for your next question — this answer finishes on the one it started with.",
+          text: "The model changes for your next question: this answer finishes on the one it started with.",
           tone: "plain",
         });
       }
@@ -1591,7 +1591,7 @@ function EditChip({
               Undo
             </button>
           ) : (
-            <span className="t-micro text-ink-3">Can’t undo — you edited this</span>
+            <span className="t-micro text-ink-3">Can’t undo, you edited this</span>
           )}
         </span>
       </div>
@@ -1638,7 +1638,7 @@ function Reverted({
 
   return (
     <div className="flex h-[20px] items-center gap-3 stream-indent">
-      <span className="t-micro text-ink-3 line-through">Reverted — {name}</span>
+      <span className="t-micro text-ink-3 line-through">Reverted: {name}</span>
       {canRedo ? (
         <button
           className="t-micro text-ink-2 hover:text-ink"

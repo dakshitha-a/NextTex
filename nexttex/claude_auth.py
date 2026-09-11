@@ -164,7 +164,7 @@ async def start_login(console: bool = False) -> dict:
             "error": (
                 "Signing in from the browser needs a pseudo-terminal, which "
                 "Windows does not have. Run `claude auth login` in a terminal "
-                "once, then reload this page — or use an OpenAI key instead."
+                "once, then reload this page, or use an OpenAI key instead."
             ),
         }
     binary = _claude()

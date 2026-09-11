@@ -126,7 +126,7 @@ export default function Tutorial({
           <P>
             There is no save button. What you type is written about a quarter
             of a second after you stop, and the page rebuilds about a second
-            after that — only the section you are in, which is why it is
+            after that, and only the section you are in, which is why it is
             quick. The strip along the bottom says how long the last build
             took and whether the page is behind the source.
           </P>
@@ -190,7 +190,7 @@ export default function Tutorial({
           </Lead>
           <P>
             A double-click on the preview header gives the page the whole
-            window — reading mode. A second double-click puts your layout back
+            window, which is reading mode. A second double-click puts your layout back
             exactly as it was, including anything you had already folded.
           </P>
           <P>
@@ -222,7 +222,7 @@ export default function Tutorial({
           <Lead>
             A bar appears in the margin next to the line LaTeX complained
             about, and the status strip counts the errors. The list itself
-            stays shut until you ask for it — a drawer that opens itself
+            stays shut until you ask for it, because a drawer that opens itself
             while you are typing takes the page you were reading away.
           </Lead>
           <P>
@@ -333,10 +333,10 @@ export default function Tutorial({
 
         <Section id="context" n={8} title="Teaching it your template and your voice">
           <Lead>
-            The last button under the box takes a document you have to follow
-            — a department handbook, a journal's author instructions, a class
-            file — and a piece of writing that sounds like you, usually a
-            paper you have already published.
+            The last button under the box takes a document you have to
+            follow, such as a department handbook, a journal's author
+            instructions or a class file, and a piece of writing that sounds
+            like you, usually a paper you have already published.
           </Lead>
           <P>
             It reads each one once and keeps a distilled summary rather than
@@ -360,7 +360,7 @@ export default function Tutorial({
           </Lead>
           <P>
             It can also check a bibliography you already have, entry by entry
-            against those records, and fill one from a folder of PDFs — each
+            against those records, and fill one from a folder of PDFs, each
             checked against the paper it came from, so a wrong DOI is refused
             rather than added.
           </P>
@@ -369,8 +369,8 @@ export default function Tutorial({
         <Section id="sharing" n={10} title="Writing it with somebody else">
           <Lead>
             <strong>Share</strong>, beside the project's name, gives you an invite to
-            send. Whoever opens it gets the whole project — every file, and
-            what those files used to say — into an empty folder of their own,
+            send. Whoever opens it gets the whole project, every file and
+            what those files used to say, into an empty folder of their own,
             and from then on the two copies stay in step.
           </Lead>
           <P>
@@ -383,7 +383,7 @@ export default function Tutorial({
           <P>
             Their caret sits in your margin in their own colour and says
             their name for a moment whenever it moves, and a strip at the end
-            of the tabs shows who else is here — filled in while they are
+            of the tabs shows who else is here: filled in while they are
             typing, outlined while they are only there. Their name is on the
             versions they wrote, so a month later the history says who
             changed the paragraph.
@@ -391,13 +391,13 @@ export default function Tutorial({
           <P>
             An invite is a credential: whoever opens it joins. It works once
             and expires after a week, so send it the way you would send a
-            password. There are no accounts and nothing in the middle — a
+            password. There are no accounts and nothing in the middle: a
             collaborator is a public key, and the two installs talk directly,
             encrypted end to end.
           </P>
           <P>
             Nobody owns a shared project. Anyone in it can invite somebody
-            else, and anyone can disconnect anybody — but disconnecting
+            else, and anyone can disconnect anybody, but disconnecting
             somebody does not take back the copy they already have. It stops
             the two of you syncing. It cannot unsend a paper.
           </P>
@@ -406,7 +406,7 @@ export default function Tutorial({
             keeps your own <C>.git</C>, so pull between sessions rather than
             during one: a pull replaces a whole file and will win against a
             collaborator's untouched paragraphs. And your conversation with
-            the agent is yours — the writing is shared, the chat is not.
+            the agent is yours: the writing is shared, the chat is not.
           </P>
         </Section>
 

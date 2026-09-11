@@ -119,7 +119,7 @@ function Initial({ person }: { person: Collaborator }) {
   const where = person.path ? ` in ${person.path}` : "";
   return (
     <span
-      title={`${person.name}${where}${person.active ? " — writing" : ""}`}
+      title={`${person.name}${where}${person.active ? ", writing" : ""}`}
       className="grid h-[18px] w-[18px] place-items-center rounded-full text-[10px] leading-none font-medium"
       style={{
         // Filled while they are typing, outlined while they are only here.
