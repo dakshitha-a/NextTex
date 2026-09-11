@@ -57,6 +57,18 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   const [showLog, setShowLog] = useState(false);
   const [showCommits, setShowCommits] = useState(false);
   const startedFrom = useRef("");
+  /** True once we have given up on learning which process we started from.
+   *
+   *  Then the question changes: not "has the nonce moved" -- there is
+   *  nothing to compare against -- but "has the server been away and come
+   *  back", which a failed tick followed by a successful one answers. */
+  const blind = useRef(false);
+  /** The live stream and the poll, so both can be shut down when this leaves
+   *  the screen, and so the poll is only ever started once. */
+  const source = useRef<EventSource | null>(null);
+  const polling = useRef(false);
+  const timer = useRef<number | null>(null);
+  const wentAway = useRef(false);
 
   const check = async (asked: boolean) => {
     if (asked) setPhase({ kind: "checking" });
@@ -69,6 +81,15 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
         // Without this it waits out the full minute and then tells the
         // reader to restart a server that already came back.
         startedFrom.current = (await api.instance().catch(() => ({ boot: "" }))).boot;
+        // Asking which process this is fails exactly when the server is
+        // mid-restart, which is the reason a tab is joining in the first
+        // place.  Left as an empty baseline, the first answer to arrive --
+        // from the *new* process -- was adopted as the thing to wait for a
+        // change from, so the comparison could never fire and the reader was
+        // told a minute later to restart a server that had come back.  That
+        // is the failure this whole path exists to prevent, through its own
+        // error case.
+        blind.current = !startedFrom.current;
         watch();
         // And start watching for the restart straight away, rather than
         // waiting for the stream to end.  The stream replays the output it
@@ -89,6 +110,17 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
 
   useEffect(() => {
     check(false);
+    // Neither the stream nor the poll used to be shut down when this left
+    // the screen: both were started from plain functions with nothing
+    // holding them. In practice the projects screen locks itself while an
+    // update runs, so there was no way to navigate away and this was a leak
+    // rather than a fault; it is one line either way.
+    return () => {
+      source.current?.close();
+      source.current = null;
+      if (timer.current) window.clearTimeout(timer.current);
+      polling.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -99,27 +131,35 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   /** Follow an update that is already running, from any tab. */
   const watch = () => {
     setPhase({ kind: "updating" });
-    const source = new EventSource("/api/update/stream");
-    source.onmessage = (message) => {
+    source.current?.close();
+    const stream = new EventSource("/api/update/stream");
+    source.current = stream;
+    /** Drop the stream, and only clear the ref if it is still ours: a later
+     *  `watch` may already have replaced it. */
+    const drop = () => {
+      stream.close();
+      if (source.current === stream) source.current = null;
+    };
+    stream.onmessage = (message) => {
       const event = JSON.parse(message.data);
       if (event.type === "output") setLog((lines) => [...lines, event.text]);
       if (event.type === "step") setStep(event.label);
       if (event.type === "failed") {
-        source.close();
+        drop();
         setShowLog(true);
         setPhase({ kind: "failed", message: event.message });
       }
       if (event.type === "done") {
         // Close it here rather than letting it drop: an EventSource whose
         // server has just exited reconnects against the new one for ever.
-        source.close();
+        drop();
         setPhase(event.restart === "auto" ? { kind: "restarting" } : { kind: "manual" });
         waitForRestart();
       }
     };
-    source.onerror = () => {
+    stream.onerror = () => {
       // The server going away mid-stream is the expected ending, not a fault.
-      source.close();
+      drop();
       setPhase((current) =>
         current.kind === "updating" ? { kind: "restarting" } : current,
       );
@@ -133,22 +173,46 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
    *  restarts, and waiting for a sha that never moves would time out for no
    *  reason. */
   const waitForRestart = () => {
+    // Once. `check` starts this directly when it finds a job already
+    // running, and `watch` starts it again when the stream ends, so two
+    // loops could share one deadline and race each other to reload.
+    if (polling.current) return;
+    polling.current = true;
     const deadline = Date.now() + 60_000;
     const tick = async () => {
       try {
         const now = await api.instance();
-        if (!startedFrom.current) startedFrom.current = now.boot;
-        else if (now.boot !== startedFrom.current) {
+        if (blind.current) {
+          // No baseline, because asking which process this was failed. If
+          // the server has been unreachable since, this answer is a new
+          // process and that is the news we were waiting for. If it has
+          // not, the failed ask was a blip rather than a restart, and this
+          // answer is still the old process: take it as the baseline after
+          // all and carry on the ordinary way.
+          if (wentAway.current) {
+            window.location.reload();
+            return;
+          }
+          blind.current = false;
+          startedFrom.current = now.boot;
+        } else if (!startedFrom.current) {
+          startedFrom.current = now.boot;
+        } else if (now.boot !== startedFrom.current) {
           window.location.reload();
           return;
         }
       } catch {
         /* still down; that is what we are waiting for */
+        wentAway.current = true;
       }
-      if (Date.now() < deadline) window.setTimeout(tick, 1000);
-      else setPhase({ kind: "manual" });
+      if (Date.now() < deadline) {
+        timer.current = window.setTimeout(tick, 1000);
+      } else {
+        polling.current = false;
+        setPhase({ kind: "manual" });
+      }
     };
-    window.setTimeout(tick, 1000);
+    timer.current = window.setTimeout(tick, 1000);
   };
 
   const start = async () => {
@@ -157,6 +221,11 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
       await api.startUpdate();
       setLog([]);
       setStep("");
+      // A fresh run gets fresh guards, or a retry after a failed update
+      // would find the poll already marked as started and never reload.
+      polling.current = false;
+      blind.current = false;
+      wentAway.current = false;
       // A failure opens the log, so a retry after one would otherwise start
       // with it already expanded: a different card from the first attempt's.
       setShowLog(false);
