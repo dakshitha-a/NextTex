@@ -1,8 +1,8 @@
 # Project context: templates, style guides, and writing voice
 
 A writing project carries more than its source. It has a template or a
-formatting handbook it must obey, and — if the writing is to sound like the
-person writing it — samples of how that person actually writes. NextTex lets
+formatting handbook it must obey, and, if the writing is to sound like the
+person writing it, samples of how that person actually writes. NextTex lets
 both be uploaded, and makes the agent use them.
 
 This generalises something scientific writers already do by hand: a journal's
@@ -41,7 +41,7 @@ attends to the topic far more reliably than to the manner.
 
 So each uploaded document is read **once**, on upload, and distilled:
 
-- `style.md` records rules as checkable statements — margins, heading
+- `style.md` records rules as checkable statements: margins, heading
   conventions, citation format, what the title may not contain.
 - `voice.md` records *observable* characteristics, not adjectives. Sentence
   length and variation; whether paragraphs open with their topic sentence; the
@@ -68,8 +68,8 @@ The summaries above are distilled from documents. Memory is different: it is wha
 writer said, in a conversation, and asked to have kept.
 
 A conversation is not permanent. It can be cleared, and the model's own recollection of it
-goes when it is. Anything that should outlast one — that a chapter is finished and must not
-be touched, which measurements came from a collaborator, who the supervisor is — belongs
+goes when it is. Anything that should outlast one, that a chapter is finished and must not
+be touched, which measurements came from a collaborator, who the supervisor is, belongs
 somewhere the next conversation will also read. So the agent has a `remember` tool, and is
 told to reach for it both when the writer says *remember this* and when it works out a
 durable fact about the project on its own.
@@ -80,14 +80,14 @@ a sentence the agent can repeat to the writer, rather than failing quietly. Note
 deduplicated, and folded onto one line each.
 
 It is a plain file and it is meant to be edited. The panel listing what the agent reads
-shows it and offers a text box, which is the only way to reach it — the folder it lives in
+shows it and offers a text box, which is the only way to reach it, the folder it lives in
 is hidden from the file list. Correcting a note by hand is the fastest way to fix behaviour
 that follows from it.
 
 One implementation note worth keeping. A Claude system prompt is assembled once per client,
 and that client outlives many turns, so a note written in the middle of a conversation
 would not reach the prompt until the idle reaper tore the client down half an hour later.
-The client is rebuilt on the way into the *next* turn instead — never under a running one,
-which would close the transport an answer is still arriving on — and the conversation
+The client is rebuilt on the way into the *next* turn instead, never under a running one,
+which would close the transport an answer is still arriving on, and the conversation
 survives because the new client resumes the same session id. The OpenAI path needs none of
 this: it rebuilds its instructions on every request.

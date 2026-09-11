@@ -399,17 +399,49 @@ def test_the_readme_contains_no_em_dash():
     hyphen in a code comment is a different character and is fine; this is
     about the em dash itself.
 
-    The README is held to it here. Everything under `docs/` still carries a
-    backlog of them, `design.md` most of all, and clearing that is a pass of
-    its own: each one wants a comma, a colon, a bracket or two sentences
-    depending on the sentence, and swapping them mechanically would leave
-    worse prose than it found.
+    The README was the only thing held to it here for a while, because
+    everything under `docs/` carried a backlog, `design.md` most of all, and
+    clearing that was a pass of its own: each one wants a comma, a colon, a
+    bracket or two sentences depending on the sentence, and swapping them
+    mechanically leaves worse prose than it found.
+
+    That pass has happened, so this now holds the whole repository: the
+    README, every document under `docs/`, and every string and comment in
+    the Python and the interface, which is the text the app says to people.
+    Three files are exempt and each one is exempt for the same reason, that
+    the character is the subject rather than the punctuation: this file, the
+    test that asserts the rule about the agent's prompt, and the test whose
+    fixture is a TeX error message *about* a stray em dash.
     """
-    text = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "—" not in text, (
-        "em dash on line "
-        + str(text[: text.index("—")].count("\n") + 1)
-    )
+    exempt = {
+        "tests/test_cross_platform.py",
+        "tests/test_agent_prompt.py",
+        "tests/test_explain.py",
+    }
+    looked = [
+        path
+        for path in (
+            list((ROOT / "docs").glob("*.md"))
+            + [ROOT / "README.md"]
+            + list((ROOT / "nexttex").rglob("*.py"))
+            + list((ROOT / "server").rglob("*.py"))
+            + list((ROOT / "tests").rglob("*.py"))
+            + list((ROOT / "frontend" / "src").rglob("*.ts"))
+            + list((ROOT / "frontend" / "src").rglob("*.tsx"))
+            + list((ROOT / "e2e").glob("*.ts"))
+            + list((ROOT / "e2e" / "specs").glob("*.ts"))
+            + list((ROOT / "e2e" / "shots").glob("*.ts"))
+        )
+        if str(path.relative_to(ROOT)).replace("\\", "/") not in exempt
+    ]
+    assert looked, "nothing was looked at, which means the globs are wrong"
+    found = []
+    for path in looked:
+        text = path.read_text(encoding="utf-8")
+        if "—" in text:
+            line = text[: text.index("—")].count("\n") + 1
+            found.append(f"{path.relative_to(ROOT)}:{line}")
+    assert not found, "em dash in: " + ", ".join(sorted(found))
 
 
 def test_the_readme_does_not_claim_windows_is_tested():

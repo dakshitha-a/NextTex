@@ -114,7 +114,7 @@ def missing_tools() -> list[str]:
     missing = []
     for name, (tier, why) in TOOLS.items():
         if not shutil.which(name):
-            missing.append(f"{name} ({tier}) — {why}")
+            missing.append(f"{name} ({tier}): {why}")
     return missing
 
 

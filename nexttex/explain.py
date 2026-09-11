@@ -44,8 +44,8 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
     (
         re.compile(r"Missing \$ inserted", re.I),
         "Maths outside maths mode",
-        "Something that only means anything in maths — usually _ or ^, "
-        "sometimes \\alpha or \\times — was used in ordinary prose.",
+        "Something that only means anything in maths, usually _ or ^ and "
+        "sometimes \\alpha or \\times, was used in ordinary prose.",
         "Put the expression between dollar signs, or write \\_ if you meant a "
         "literal underscore in text.",
     ),
@@ -75,8 +75,8 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
         re.compile(r"File [`'\"]?([^'\"]+\.sty)", re.I),
         "A package that is not installed",
         "The preamble asks for a package this TeX installation does not have.",
-        "Install it with your TeX package manager — for TinyTeX that is "
-        "`tlmgr install <name>` — then build again.",
+        "Install it with your TeX package manager. For TinyTeX that is "
+        "`tlmgr install <name>`. Then build again.",
     ),
     (
         re.compile(r"File [`'\"]?([^'\"]+)['\"]? not found", re.I),
@@ -118,7 +118,7 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
     (
         re.compile(r"Citation [`'\"]?([^'\"]+)['\"]? .*undefined", re.I),
         "A citation with nothing behind it",
-        "The key in \\cite is not in the bibliography — either it is not in "
+        "The key in \\cite is not in the bibliography: either it is not in "
         "the .bib file, or the bibliography has not been rebuilt since it "
         "was added.",
         "Check the key against the .bib file. If it is there, press Rebuild: "
@@ -129,7 +129,7 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
         "A cross-reference with no label",
         "\\ref points at a \\label that does not exist, or that was added "
         "since the last full build.",
-        "Check the label name. If it exists, press Rebuild — cross-references "
+        "Check the label name. If it exists, press Rebuild, because cross-references "
         "need two passes to settle.",
     ),
     (
@@ -148,7 +148,7 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
     (
         re.compile(r"Missing number, treated as zero", re.I),
         "A length or count that is not a number",
-        "A command that wanted a number got something else — often a missing "
+        "A command that wanted a number got something else, often a missing "
         "value, or a unit written without its number.",
         "Check the command below for an empty or malformed argument.",
     ),
@@ -169,8 +169,8 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
     (
         re.compile(r"Unicode character", re.I),
         "A character this font cannot set",
-        "A character in the source — often a dash, a curly quote or an "
-        "accented letter pasted from a word processor — has no definition in "
+        "A character in the source, often a dash, a curly quote or an "
+        "accented letter pasted from a word processor, has no definition in "
         "the current encoding.",
         "Retype it, or load \\usepackage[utf8]{inputenc} with a font that "
         "covers it. Text pasted from Word is the usual source.",
@@ -186,7 +186,7 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
         re.compile(r"Missing \\begin\{document\}", re.I),
         "Text before the document starts",
         "Something that typesets appears in the preamble, above "
-        "\\begin{document} — often a stray character or an unclosed comment.",
+        "\\begin{document}, often a stray character or an unclosed comment.",
         "Look just above \\begin{document} for text that is not a "
         "\\usepackage or a setting.",
     ),
@@ -200,7 +200,7 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
     (
         re.compile(r"Overfull \\hbox", re.I),
         "A line that runs into the margin",
-        "A line could not be broken within the text width. It is cosmetic — "
+        "A line could not be broken within the text width. It is cosmetic, "
         "the document still typesets.",
         "Usually a long word, URL or inline equation. \\sloppy, a manual "
         "hyphenation, or rewording the sentence all fix it.",

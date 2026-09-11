@@ -1406,7 +1406,7 @@ class ProjectAgent:
                 return {"content": [{"type": "text",
                                      "text": "The last build produced no errors or warnings."}]}
             lines = [
-                f"{d.get('severity')}: {d.get('file')}:{d.get('line')} — {d.get('message')}"
+                f"{d.get('severity')}: {d.get('file')}:{d.get('line')}, {d.get('message')}"
                 for d in items
             ]
             return {"content": [{"type": "text", "text": "\n".join(lines)}]}
@@ -1426,7 +1426,7 @@ class ProjectAgent:
             errors = payload.get("errorCount", 0)
             if errors:
                 detail = "\n".join(
-                    f"{d['file']}:{d['line']} — {d['message']}"
+                    f"{d['file']}:{d['line']}, {d['message']}"
                     for d in payload.get("diagnostics", []) if d["severity"] == "error"
                 )
                 return {"content": [{"type": "text",
@@ -1591,7 +1591,7 @@ class ProjectAgent:
                     lines.append(f"- \\cite{{{hit['key']}}}")
                 else:
                     lines.append(
-                        f"- (not in the .bib — add_reference {hit['doi']} to cite it)"
+                        f"- (not in the .bib; add_reference {hit['doi']} to cite it)"
                     )
                 lines.append(f"  {hit['title']}")
                 meta = " · ".join(
@@ -2037,7 +2037,7 @@ class ProjectAgent:
         )
         return self._text(
             f"Added to {self._display(bib)} as \\cite{{{result['key']}}} "
-            f"— {result.get('title', '')}"
+            f"{result.get('title', '')}"
         )
 
     @staticmethod

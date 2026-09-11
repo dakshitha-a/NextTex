@@ -22,7 +22,7 @@ const KINDS: {
   {
     key: "source",
     label: "Background reading",
-    hint: () => "Sources to draw on. Never copied — read and cited.",
+    hint: () => "Sources to draw on. Never copied: read and cited.",
   },
 ];
 

@@ -114,7 +114,7 @@ export default function Diagnostics({
           data-testid="build-summary"
         >
           <p className="t-ui text-ink">
-            <span className="text-error">Start here — </span>
+            <span className="text-error">Start here. </span>
             {summary.headline}
             {summary.file ? (
               <button
@@ -133,7 +133,7 @@ export default function Diagnostics({
               list the room it needed to show the row. */}
           {summary.fix ? (
             <p className="t-meta mt-1 text-ink-2">
-              <span className="text-ink-3">What to do — </span>
+              <span className="text-ink-3">What to do: </span>
               {summary.fix}
             </p>
           ) : null}
@@ -211,7 +211,7 @@ export default function Diagnostics({
                   <p className="t-ui text-ink">{item.explain.title}</p>
                   <p className="t-meta mt-1 text-ink-2">{item.explain.detail}</p>
                   <p className="t-meta mt-2 text-ink-2">
-                    <span className="text-ink-3">What to do — </span>
+                    <span className="text-ink-3">What to do: </span>
                     {item.explain.fix}
                   </p>
                 </div>

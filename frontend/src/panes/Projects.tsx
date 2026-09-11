@@ -62,8 +62,8 @@ export default function Projects({
       : `Write LaTeX with ${agentName(provider)} beside the typeset page.`;
   const agentCopy =
     provider === "none"
-      ? "A new project starts blank — one empty document, ready to write in."
-      : `A new project starts blank — one empty document. Give ${agentName(provider)} your template or handbook afterwards and it will shape the project around it.`;
+      ? "A new project starts blank: one empty document, ready to write in."
+      : `A new project starts blank: one empty document. Give ${agentName(provider)} your template or handbook afterwards and it will shape the project around it.`;
 
   const refresh = async () => {
     try {
@@ -433,7 +433,7 @@ export default function Projects({
             ? agentCopy
             : mode === "add"
             ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
-            : "Paste an invite somebody sent you. The whole project arrives here — the files and their history — and stays in step with everyone else's copy, including anything written while you were offline."}
+            : "Paste an invite somebody sent you. The whole project arrives here, the files and their history both, and stays in step with everyone else's copy, including anything written while you were offline."}
         </p>
         {mode === "create" ? (
           <input

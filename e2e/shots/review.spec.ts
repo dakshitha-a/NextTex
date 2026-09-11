@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures";
 
-/** Not a check — a look. Renders the states I have only asserted on. */
+/** Not a check, a look. Renders the states I have only asserted on. */
 
 test("sign-in choices", async ({ app, page }) => {
   // Nobody signed in, so the first screen is the one a new install shows.

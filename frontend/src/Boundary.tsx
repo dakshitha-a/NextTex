@@ -78,7 +78,7 @@ export default class Boundary extends Component<Props, State> {
           <p className="t-meta mb-4 text-ink-2">
             This almost always means NextTex updated while this tab was open,
             so the page is asking for files the server has replaced. Nothing
-            you have written is affected — your work is on disk, and the
+            you have written is affected: your work is on disk, and the
             server is still running.
           </p>
           <button

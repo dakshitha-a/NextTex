@@ -130,7 +130,7 @@ export default function Tabs({
               aria-current={active ? "true" : undefined}
               title={
                 errors
-                  ? `${tab.path} — ${errors} ${errors === 1 ? "error" : "errors"}`
+                  ? `${tab.path}, ${errors} ${errors === 1 ? "error" : "errors"}`
                   : tab.path
               }
               className="t-meta flex min-w-0 flex-1 cursor-pointer items-center truncate pl-[10px] text-left"

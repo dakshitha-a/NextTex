@@ -127,7 +127,7 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
                     <div className="flex h-[22px] items-center gap-2">
                       <span
                         className="t-code-sm min-w-0 flex-1 truncate text-ink-2"
-                        title={`${failure.path} — ${failure.reason}`}
+                        title={`${failure.path}: ${failure.reason}`}
                       >
                         {failure.name}
                       </span>
@@ -200,12 +200,12 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
 
 function label(progress: LibraryProgress | null, count: number): string {
   if (!progress) return `Papers (${count})`;
-  if (progress.phase === "walking") return "Reading papers — finding PDFs";
+  if (progress.phase === "walking") return "Reading papers: finding PDFs";
   if (progress.phase === "reading") {
-    return `Reading papers — ${progress.done} of ${progress.total}`;
+    return `Reading papers: ${progress.done} of ${progress.total}`;
   }
   if (progress.phase === "stopped" || progress.phase === "failed") {
-    return "Reading papers — stopped";
+    return "Reading papers: stopped";
   }
   return `Papers (${count})`;
 }

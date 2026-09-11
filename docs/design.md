@@ -1,8 +1,8 @@
-# NextTex — Design Specification
+# NextTex, Design Specification
 
 > This document is the reference for all front-end work. It was produced before
 > implementation and the built UI is reviewed against it. When the implementation
-> and this document disagree, that is a bug in one of them — decide which, and
+> and this document disagree, that is a bug in one of them: decide which, and
 > fix that one. Do not let them drift silently.
 
 ## 1. Design direction
@@ -13,17 +13,17 @@ in the entire chrome is the pen the agent writes with.
 
 > Revised. This sentence used to read "the only white object on screen", flatly, and §23
 > records why it could not stay that way: a writer may now set the editor page to paper
-> white, and three of them will. The rule the sentence was protecting is still the rule —
+> white, and three of them will. The rule the sentence was protecting is still the rule,
 > the app is drawn on proofing grey and defaults to it, and nothing in the chrome is ever
-> white — but the editor page is the one surface the writer may overrule, because the object
+> white, but the editor page is the one surface the writer may overrule, because the object
 > it holds is the thing they are *making* rather than the thing they are *judging*. The
 > claim is now about what the app picks, not about what can be on screen.
 
 §23 also records the other half of the light theme, which is that it is no longer light all
 the way through. The rail, the agent column, the status strip and everything that floats are
-furniture, and they take the dark palette even while the theme is light — so the light theme
+furniture, and they take the dark palette even while the theme is light, so the light theme
 is a lit editor and a lit page set into dark furniture, rather than a cloud. This comes from the practice of judging
-printed matter — you set proofs against a neutral mid-grey, never against white, because
+printed matter: you set proofs against a neutral mid-grey, never against white, because
 white chrome around a white page makes the page stop reading as an object. It gives NextTex
 a light theme no other code editor has, keeps the UI permanently subordinate to the typeset
 page, and leaves violet free to mean exactly one thing: *Claude touched this*.
@@ -39,7 +39,7 @@ Relationship to NexusQC, the sibling app, is deliberate:
 
 ## 2. Palette
 
-Twelve tokens per theme. `--paper` is a constant `#FFFFFF` in both themes — it is painted by
+Twelve tokens per theme. `--paper` is a constant `#FFFFFF` in both themes, it is painted by
 PDF.js and is never themed. `--line` and the washes are derived, not authored:
 `--line: color-mix(in oklab, var(--ink-3) 55%, transparent)`,
 `--pen-wash: color-mix(in oklab, var(--pen) 12%, transparent)`,
@@ -65,7 +65,7 @@ both asserted in `frontend/src/contrast.test.ts`.
 
 **The light accents cannot be separated by lightness.** Every one of them has to
 clear 4.5:1 on `--surface-2`, which caps all five at a relative luminance of about
-0.11 — so they sit within seven L\* of one another and always will, in any light
+0.11, so they sit within seven L\* of one another and always will, in any light
 theme that rule governs. The separation is carried by hue and chroma instead:
 violet 278°, red 3°, amber 40°, green 140°, teal 186°, each at or near the chroma
 ceiling its hue allows at that lightness. Anyone reading the palette and wondering
@@ -74,8 +74,8 @@ brighter value; the value is not available.
 
 **The ink hierarchy can only be opened from the middle.** `--ink-3` sits a quarter
 of a point under its own ceiling on `--surface-3` in light, and on its floor in
-dark. When the three inks need more separation — and light's `--ink-2` and
-`--ink-3` were once 3.5 L\* apart, two steps pretending to be three — it is
+dark. When the three inks need more separation, and light's `--ink-2` and
+`--ink-3` were once 3.5 L\* apart, two steps pretending to be three, it is
 `--ink-2` that moves.
 
 **Both themes are authored and chosen, not inherited.** A toggle in the rail
@@ -84,8 +84,8 @@ default. `prefers-color-scheme` covers only the first frame before the app
 stamps its own choice.
 
 **Both are pitched darker than the original specification.** The light theme is
-a proofing grey rather than a white UI — a page cannot be the brightest object
-on screen if the chrome around it is also white — and the dark theme's surround
+a proofing grey rather than a white UI, a page cannot be the brightest object
+on screen if the chrome around it is also white, and the dark theme's surround
 is nearly black so the sheet reads as lit.
 
 All text tokens clear 4.5:1 on their own surface (light `--ink-3` 4.6:1, dark `--ink-3`
@@ -94,64 +94,64 @@ All text tokens clear 4.5:1 on their own surface (light `--ink-3` 4.6:1, dark `-
 **Neutral hue bias: green, at near-zero chroma** (2–4 points of G above R and B). Two
 reasons. First, simultaneous contrast: a warm surround pushes the paper white toward cold
 blue, a blue surround pushes it toward yellow; a chromatically near-dead grey leaves
-`#FFFFFF` reading as paper. Second, identity — every code editor and NexusQC itself sit on
+`#FFFFFF` reading as paper. Second, identity, every code editor and NexusQC itself sit on
 blue-grey. The bias is faint enough that nobody will call it green; they will call it grey,
 and the paper will look whiter than it does in VS Code.
 
-**Pen hue.** `#74408E` / `#C48EDA` sit at ~280–285°; NexusQC's `#6e8cff` is ~226°. Roughly
-55° of separation — never confusable side by side. The colour is methyl-violet: the ink of
+**Pen hue.** `#6F2998` / `#C988E7` sit at ~280–285°; NexusQC's `#6e8cff` is ~226°. Roughly
+55° of separation, never confusable side by side. The colour is methyl-violet: the ink of
 hectograph duplicators, which is what mid-century thesis copies were printed in. It is
 explicitly *not* `#6366F1`, the indigo every AI-built app reaches for.
 
-**The dark surround is deliberately near-black (`#141715`).** In dark mode the PDF is the
-only light source — a lightbox. To make that read as a lit sheet rather than a hole punched
+**The dark surround is deliberately near-black (`#0A0C0B`).** In dark mode the PDF is the
+only light source, a lightbox. To make that read as a lit sheet rather than a hole punched
 in the UI, the page gets a 1 px `--line` border plus `0 8px 24px rgba(0,0,0,0.55)`. In light
 mode the same page gets a hairline border only, no shadow.
 
-*The build gives it a shadow anyway* — `0 1px 4px rgba(0,0,0,0.12)`, a 4 px
-ramp — and a design review flagged the disagreement. The build wins here: the
+*The build gives it a shadow anyway*, `0 1px 4px rgba(0,0,0,0.12)`, a 4 px
+ramp, and a design review flagged the disagreement. The build wins here: the
 light theme is a proofing grey, and a page with a border and no shadow reads
 as pasted onto the pane rather than lying on it. The rule this paragraph was
-protecting — that the page is the brightest, most physical object on screen —
+protecting, that the page is the brightest, most physical object on screen,
 is better served by the shadow than by its absence.
 
 Dark is **not** an inversion: inter-surface contrast steps are compressed
-(`#141715 → #1A1E1B → #222623`, ~6–8 L* apart, versus ~10–12 in light), and `--ink` is
-`#DDE2DD`, never `#FFFFFF` — pure white text beside a pure white PDF page is the fastest way
+(`#0A0C0B → #121614 → #1E2320`, ~6–8 L* apart, versus ~10–12 in light), and `--ink` is
+`#E3E8E2`, never `#FFFFFF`, pure white text beside a pure white PDF page is the fastest way
 to make the page stop looking like paper.
 
 ## 3. Typography
 
 Google Fonts only. One superfamily, three roles.
 
-- **UI chrome — Source Sans 3** (400/500/600). Humanist, Adobe's publishing programme,
+- **UI chrome, Source Sans 3** (400/500/600). Humanist, Adobe's publishing programme,
   drawn for small sizes, with genuine tabular figures. Not Inter.
-- **Authored prose — Source Serif 4** (400/400 italic/600). Used for exactly one thing: the
+- **Authored prose, Source Serif 4** (400/400 italic/600). Used for exactly one thing: the
   agent's replies, plus the project name in the switcher. Everything the *machine* says is
   sans; everything that is *prose about a document* is serif. Typeface becomes structure
   rather than decoration, and the chat reads as marginalia on a manuscript rather than a
   messaging app. Source Serif is Fournier-derived, so it will never be mistaken for the
   PDF's Times sitting two panes away.
-- **Editor and literal machine strings — Source Code Pro** (400/600). Chosen over JetBrains
+- **Editor and literal machine strings, Source Code Pro** (400/600). Chosen over JetBrains
   Mono because it shares the Source skeleton, and because **it ships no ligatures**. That is
   non-negotiable for LaTeX: `--` and `---` must never fuse on screen when they are en- and
   em-dash *source*.
 
 **The mono rule:** monospace means "this is a literal string the machine produced or
-consumes" — a git SHA, `file:line`, a shell command, a log excerpt, a filename in a chip.
+consumes": a git SHA, `file:line`, a shell command, a log excerpt, a filename in a chip.
 Merely numeric metadata (word counts, build times, diff counts) stays in Source Sans 3 with
 `font-variant-numeric: tabular-nums`. No monospace as decoration.
 
 | Role | Family | Size / line-height | Weight / tracking |
 |---|---|---|---|
-| `micro` — gutter numbers, counts, badges, timestamps | Source Sans 3 | 11 / 16 | 500, `+0.004em`, tnum |
-| `meta` — secondary labels, tab titles, diagnostic messages | Source Sans 3 | 12 / 18 | 400 |
-| `ui` — default: tree rows, buttons, permission headline | Source Sans 3 | 13 / 20 | 400 (500 buttons) |
-| `ui-lg` — pane headings, project name | Source Serif 4 / Sans 3 | 15 / 22 | 600 |
-| `prose` — agent messages | Source Serif 4 | 14.5 / 23.5 (1.62) | 400, max 68ch |
-| `code` — CodeMirror | Source Code Pro | 13.5 / 22 | 400 |
-| `code-sm` — log excerpts, diffs, chip filenames | Source Code Pro | 12 / 18 | 400 |
-| `display` — empty states, first-run setup only | Source Serif 4 | 22 / 28 | 600, `-0.01em` |
+| `micro`: gutter numbers, counts, badges, timestamps | Source Sans 3 | 11 / 16 | 500, `+0.004em`, tnum |
+| `meta`: secondary labels, tab titles, diagnostic messages | Source Sans 3 | 12 / 18 | 400 |
+| `ui`, the default: tree rows, buttons, permission headline | Source Sans 3 | 13 / 20 | 400 (500 buttons) |
+| `ui-lg`: pane headings, project name | Source Serif 4 / Sans 3 | 15 / 22 | 600 |
+| `prose`: agent messages | Source Serif 4 | 14.5 / 23.5 (1.62) | 400, max 68ch |
+| `code`: CodeMirror | Source Code Pro | 13.5 / 22 | 400 |
+| `code-sm`: log excerpts, diffs, chip filenames | Source Code Pro | 12 / 18 | 400 |
+| `display`: empty states, first-run setup only | Source Serif 4 | 22 / 28 | 600, `-0.01em` |
 
 No all-caps tracked labels anywhere. Sentence case throughout, including buttons.
 
@@ -164,7 +164,7 @@ to default; widths persist to `localStorage` per project.
 | Pane | Default | Min | Max |
 |---|---|---|---|
 | Rail | 240 px | 180 px | 400 px |
-| Editor | flex | 420 px | — |
+| Editor | flex | 420 px |, |
 | PDF | flex (splits remaining 50/50 with editor) | 320 px | 60% of the pair |
 | Claude | 380 px | 320 px | 560 px |
 
@@ -174,11 +174,11 @@ exact moment the user is checking the agent's work.
 
 Breakpoints:
 
-- **≥ 1400 px** — all four docked: 240 + 380 leaves 780 px for the editor/PDF pair.
-- **1100–1399 px** — Claude becomes a slide-over from the right at 380 px, over the PDF,
+- **≥ 1400 px**: all four docked, and 240 + 380 leaves 780 px for the editor/PDF pair.
+- **1100–1399 px**: Claude becomes a slide-over from the right at 380 px, over the PDF,
   with an 8 px shadow and no scrim. Rail still docked.
-- **< 1100 px** — rail auto-collapses.
-- **< 900 px** — editor and PDF become a two-item segmented toggle, in the *tab
+- **< 1100 px**: rail auto-collapses.
+- **< 900 px**: editor and PDF become a two-item segmented toggle, in the *tab
   bar* rather than the status strip: the strip is 26 px and already drops
   segments at that width, and a control that appears only when it has room is
   not a control. Only
@@ -187,7 +187,7 @@ Breakpoints:
 **Rail collapse is to a 26 px strip carrying one label, not to an icon bar.**
 This section originally said zero, and the build does not: collapsing to
 nothing leaves no way back except a keyboard shortcut, which is the same hole
-the agent button had. What is rejected is the *icon bar* — a 40 px activity
+the agent button had. What is rejected is the *icon bar*, a 40 px activity
 bar is VS Code's shape
 and a default. Cmd-B hides the rail entirely; the project name then moves to the left end of
 the tab bar as a non-closable chip with the switcher chevron, and the git dirty count moves
@@ -195,20 +195,20 @@ into the compile status strip as `main +4`. Nothing is lost and the editor gains
 
 **Spacing scale:** 2 / 4 / 6 / 8 / 12 / 16 / 24 / 32; everything quantises to 4. Interactive
 row heights: 26 (tree rows, resolved cards), 28 (diagnostic rows, buttons), 32 (tabs), 26
-(status strip). Pane padding 8 horizontal / 6 vertical — this is an instrument, not a
+(status strip). Pane padding 8 horizontal / 6 vertical: this is an instrument, not a
 document.
 
 **Radius is a hierarchy, not a constant:** 0 on panes and drawers, 3 px on rows, chips,
 buttons and inputs, 5 px on cards. No shadows anywhere except the dark-mode PDF page and the
 slide-over.
 
-**Diagnostics live in a drawer scoped to the editor pane**, docked below the status strip —
+**Diagnostics live in a drawer scoped to the editor pane**, docked below the status strip:
 not full-width, not inside the Claude panel. Height 0 when clean; 168 px (six rows) when
 open; drag to 320 px.
 
 **It never opens itself.** This section specified an auto-open on the first build that
 produced errors, and the implementation deliberately did not do it. The build fires 1.6
-seconds after you stop typing, which is very often mid-thought — and a list of errors
+seconds after you stop typing, which is very often mid-thought, and a list of errors
 jumping up over the document at that moment, about a sentence you already know is
 unfinished, is the most irritating thing this app could do. The strip says `2 errors` and
 the gutter marks the lines; opening the drawer is the reader's decision. When it does
@@ -222,12 +222,12 @@ the writer already is, and let them come to the detail.
 
 ### File tree row
 
-26 px tall. `padding-left: 10px + depth × 13px` — 13 px is the width of a Source Sans
+26 px tall. `padding-left: 10px + depth × 13px`: 13 px is the width of a Source Sans
 lowercase *n* at 13 px, so indentation reads as a typographic quad rather than an arbitrary
 gap. A 16 px left slot holds an 8 px chevron on folders, nothing on files.
 
 **No file-type icons.** The filename carries its own kind typographically: stem in `--ink`,
-extension in `--ink-3` — `02_theory` `.tex`. That reads as a name rather than a path and
+extension in `--ink-3`, `02_theory` `.tex`. That reads as a name rather than a path and
 scans faster than a colour-coded icon set.
 
 States: rest transparent; hover `--surface-2` with no transition; **active file**
@@ -242,18 +242,18 @@ download, upload here, new file here, new folder here, move to trash. (This para
 described a menu of *rename / duplicate / download / delete / new file here* for some time
 after the built menu had stopped matching it, which is the sort of drift this document
 exists to avoid. Duplicate was specified and never built; it is dropped rather than left
-described.) **Rename is inline** — the label becomes an input in place, same font, same
+described.) **Rename is inline**: the label becomes an input in place, same font, same
 position, 1 px `--pen` underline, Enter commits, Escape reverts. Never a modal.
 
 Drag-drop upload highlights the target folder row only, never the whole panel. The project
-root has no row, so a drop aimed at it — on the empty area below the tree, or on the Files
-bar — highlights the **Upload button** instead, which stands in as the root's row.
+root has no row, so a drop aimed at it, on the empty area below the tree, or on the Files
+bar: highlights the **Upload button** instead, which stands in as the root's row.
 
 **Dragging.** A row is draggable onto any folder, and onto the Files bar for the project
 root. The row being dragged drops to 50 % opacity so the gesture has a visible subject; the
 folder under the pointer takes the same `--pen-wash` fill and `--pen` underline a file drop
 from the desktop gets, because to the writer they are the same act. A destination that
-cannot take it — the folder itself, its own descendant, or the folder it already sits in —
+cannot take it, the folder itself, its own descendant, or the folder it already sits in,
 shows no highlight at all and the cursor says *no*: refused while it is being dragged
 rather than attempted and reported.
 
@@ -266,11 +266,11 @@ The preview's header and the source's tab strip both do this; the agent's does n
 a column of conversation with nothing to converse about is not a mode anybody wants.
 
 The two modes are not symmetric. **Reading folds everything but the page.** **Writing folds
-everything but the source and the file list** — somebody writing is still moving between
+everything but the source and the file list**: somebody writing is still moving between
 chapters, and a mode that hides the way to the next one is a mode they leave immediately;
 somebody reading the typeset page has nothing to navigate to. Writing mode brings the file
 list back even at a width where the window had folded it away on its own, because asking
-for the mode is an explicit request for it — and leaving the mode gives the window its
+for the mode is an explicit request for it, and leaving the mode gives the window its
 own behaviour back.
 
 It is deliberately **not persisted**. What reaches `localStorage` is the arrangement the
@@ -286,7 +286,7 @@ agent's header, which has no second gesture, folds immediately.
 
 **On the source pane the target is the empty run of the tab strip**, never a tab. It is the
 only part of that row that is not already something, and it shrinks as tabs fill the strip
-— which is the right behaviour rather than a limitation: a writer with a dozen files open
+, which is the right behaviour rather than a limitation: a writer with a dozen files open
 has not left themselves a place to click, and a fold they did not ask for is worse than a
 gesture they have to reach the chevron for. Below 900 px, where the two panes share one
 view, neither gesture exists: there is nothing to fold them into.
@@ -310,13 +310,13 @@ created as one empty document, and its first folder could only be made by openin
 on `main.tex` and knowing that "New folder here" resolves to the folder containing it. The
 cost is one tree row of a rail that is usually 800–1000 px tall.
 
-The bar does not grow. No collapse-all — ArrowLeft already collapses a folder.
+The bar does not grow. No collapse-all, ArrowLeft already collapses a folder.
 
 **The filter row.** One 26 px row under the bar, shown only when the magnifier is pressed:
 a full-width borderless input on `--surface-2` reading *Find a file*, with a match count in
 `t-micro` at the right. Typing filters the tree to the matching rows and the folders on the
 way down to them, drawing every folder open without touching what the writer had collapsed
-— so clearing the box gives back the tree they had rather than one unfolded on their
+, so clearing the box gives back the tree they had rather than one unfolded on their
 behalf. Escape clears the query, and Escape again closes the row and returns focus to the
 tree. Rows keep their ordinary indent and typography; there is no match highlight, because
 `--pen` means *the agent touched this* and a second accent would be a new colour. A query
@@ -330,12 +330,12 @@ A popover (`fixed`, 264 px, radius 5, `shadow-float`) rather than a modal.
 inert; focus is not trapped, and Escape, Cancel or a click away all discard the picked
 files and return focus to whatever started the upload.
 
-This section used to say "never a modal — this app has none", and other sections cited
+This section used to say "never a modal: this app has none", and other sections cited
 it. It was already untrue when it was written: access and sharing are both `aria-modal`
 sheets over an `.nx-scrim`, and settings joined them when it outgrew its popover. So the
 rule is narrower and it is the useful one. **A surface is modal when the thing it is
-about is the whole of what you are doing** — setting a password, sharing a project,
-changing how the application looks — and not otherwise. The upload chooser is not: it is
+about is the whole of what you are doing**, setting a password, sharing a project,
+changing how the application looks, and not otherwise. The upload chooser is not: it is
 a step in an action that started in the file tree and ends there, and the tree behind it
 is what the writer is choosing a destination in. A modal is also a promise that one
 outside click will not both dismiss the surface and press what is under it, which is why
@@ -382,14 +382,14 @@ along its *top* edge, and has no bottom border. Inactive tabs sit on `--surface-
 after the label. Middle-click closes. Overflow scrolls horizontally with a hidden scrollbar
 plus a 24 px chevron at the right carrying the hidden count.
 
-Tab switching is instantaneous — content swaps in the same frame, no crossfade.
+Tab switching is instantaneous: content swaps in the same frame, no crossfade.
 
 ### Diagnostic row
 
 28 px collapsed. Grid:
 `[3px severity bar] [40px line no.] [8px] [message, flex] [file, auto] [Fix, on hover]`.
 
-Severity bar is a 3 px full-height rule in `--error` or `--warn` — no icons, no badges. Line
+Severity bar is a 3 px full-height rule in `--error` or `--warn`: no icons, no badges. Line
 number is Source Code Pro 11 px, tabular, right-aligned, `--ink-3`. Message is `meta` 12 px
 `--ink`, single-line truncated. If the diagnostic is in a file other than the active one,
 the filename appears at the right in `micro` `--ink-3`.
@@ -401,23 +401,23 @@ behind a 1 px `--line` left rule; expansion is instant, no height animation.
 
 A `Fix` button (22 px, 3 px radius, 1 px `--line` border, `micro` label) appears on hover at
 the right. It **seeds the Claude composer** with
-`Fix: Undefined control sequence \citep (chapters/02_theory.tex:118)` and focuses it — it
+`Fix: Undefined control sequence \citep (chapters/02_theory.tex:118)` and focuses it, it
 does not send. The user always presses Enter on their own message.
 
 **Editor gutter marker:** a 3 px severity-coloured bar filling that line's gutter cell,
 aligned with the line-number column. No icon, no glyph. Squiggle is a 1.5 px dotted
-underline in `--error` / `--warn` at 60% opacity — dotted, not wavy, because wavy underlines
+underline in `--error` / `--warn` at 60% opacity: dotted, not wavy, because wavy underlines
 at 13.5 px on a dense LaTeX line become visual mush.
 
 ### Agent message
 
-Not a bubble, not an avatar. Margin-note layout: a 3 px full-height rule at the far left —
-`--pen` for Claude, `--line` for the user — then a 12 px gutter, then content. Speaker is
+Not a bubble, not an avatar. Margin-note layout: a 3 px full-height rule at the far left,
+`--pen` for Claude, `--line` for the user: then a 12 px gutter, then content. Speaker is
 named once at the top in `micro` sentence case (`Claude` in `--pen`), never in caps.
 Timestamp appears only on row hover, `micro` `--ink-3` tabular, right-aligned.
 
 Claude's prose is `prose` (Source Serif 4, 14.5/23.5, max 68ch). The user's message is `ui`
-13 px `--ink-2` on a `--surface-2` block, 3 px radius, 8 px padding — the visual weight is
+13 px `--ink-2` on a `--surface-2` block, 3 px radius, 8 px padding: the visual weight is
 deliberately reversed from every chat app, because here the agent's output is the artefact
 and the user's prompt is the annotation.
 
@@ -448,9 +448,9 @@ to the range, without stealing focus from the composer.
 
 **Undo is a reverse patch, and the spec says what happens when it cannot apply.** While the
 patch applies cleanly, `Undo` is live. If the user has typed inside that range since, the
-chip drops `Undo`, keeps `Show`, and the hover hint reads `Changed since — can't undo
-cleanly`. On undo, the chip collapses to a 20 px struck-through line — `Reverted —
-methods.tex`, `--ink-3` — with a `Redo` link live for 10 s. The reverted chip then **stays
+chip drops `Undo`, keeps `Show`, and the hover hint reads `Changed since, can't undo
+cleanly`. On undo, the chip collapses to a 20 px struck-through line, `Reverted,
+methods.tex`, `--ink-3`, with a `Redo` link live for 10 s. The reverted chip then **stays
 in the transcript permanently**. The chat is a record of what was done to the manuscript;
 nothing in it ever disappears.
 
@@ -458,14 +458,14 @@ nothing in it ever disappears.
 
 One 26 px row, `stream-indent`, a 6 px dot and a `t-micro` line in `--ink-3`. Three states,
 not two: `--ok` for what a person allowed, `--ink-3` for what they refused, and `--warn` for
-what was allowed without anybody being asked — a rule set earlier, or automatic approval.
+what was allowed without anybody being asked: a rule set earlier, or automatic approval.
 An action nobody was asked about is not the same as one the writer allowed, and the record
 must not read as though it were. The command itself stays in `t-code-sm`, as it is
 everywhere else.
 
 ### Permission card
 
-Inline in the stream, not a modal — but it blocks: the composer disables and reads `Waiting
+Inline in the stream, not a modal, but it blocks: the composer disables and reads `Waiting
 on your approval` in `--ink-3`. Card is `--surface-2`, 1 px `--line` border, 5 px radius,
 12 px padding, with a 3 px **`--warn`** left bar. Warn, not pen: this is a gate, not the
 agent talking.
@@ -482,21 +482,21 @@ agent talking.
    `D` appear in `micro` `--ink-3` inside the buttons when the card holds focus.
 
 `Allow always` shows its scope on hover in `micro` `--ink-3`: `Remembers: shell commands
-starting with latexmk`. Scoped by command prefix — never a blanket grant.
+starting with latexmk`. Scoped by command prefix, never a blanket grant.
 
 **350 ms input shield.** For 350 ms after mount the buttons ignore clicks and keys, at full
 opacity, with no visible change. It is the one place in this app that accepts added latency:
 a card appearing under a cursor already travelling toward the composer must not be able to
 approve `rm -rf` on the way past.
 
-Resolved, the card collapses to a 26 px line — `Allowed — ran latexmk -C`, `--ink-3`, with
-an `--ok` dot for allowed and an `--ink-3` dot for denied — and stays there forever.
+Resolved, the card collapses to a 26 px line, `Allowed, ran latexmk -C`, `--ink-3`, with
+an `--ok` dot for allowed and an `--ink-3` dot for denied, and stays there forever.
 
 ### Compile status strip
 
 26 px, full width of the editor pane, docked at its bottom above the diagnostics drawer.
 `--surface-2`, 1 px `--line` top border, `micro` tabular `--ink-2`, 10 px horizontal padding.
-Segments are separated by 12 px of space and a 1 px × 10 px `--line` vertical rule — **never
+Segments are separated by 12 px of space and a 1 px × 10 px `--line` vertical rule, **never
 a middle dot**.
 
 Left, a 6 px dot plus one word:
@@ -510,12 +510,12 @@ Left, a 6 px dot plus one word:
 | errors | solid `--error` | `3 errors` (click opens drawer) |
 
 **A clean build renders in no colour at all.** Green for success is the reflex, and it means
-the strip lights up on every keystroke-triggered rebuild — dozens of times an hour —
+the strip lights up on every keystroke-triggered rebuild, dozens of times an hour,
 training the user to ignore it. `--ok` is spent on git and permissions, where it fires
 rarely and means something. Success here is the *absence* of colour, which makes `--warn`
 and `--error` the only things that ever catch the eye.
 
-A 2 px indeterminate `--pen` hairline is pinned to the strip's top edge during compiles —
+A 2 px indeterminate `--pen` hairline is pinned to the strip's top edge during compiles,
 **but only if the compile passes 400 ms.** A 1 s task with an instant spinner reads as slow;
 a 1 s task where the indicator never appears reads as instant. On completion the hairline is
 removed with no exit animation.
@@ -533,8 +533,8 @@ app feel loose.
 Docked to the rail bottom, 1 px `--line` top border, max three rows: branch in Source Code
 Pro 12 px with `↑2 ↓0` in `micro`; `4 files changed` in `--ink-2`, click expanding an inline
 list of dirty paths; a 26 px `Commit and push` button. Clean state shows `main` with an
-`--ok` dot and no button. First run replaces all of it with one 5 px-radius card — `Back
-this up to GitHub` / `Set up` — dismissible, and once dismissed or configured it never
+`--ok` dot and no button. First run replaces all of it with one 5 px-radius card, `Back
+this up to GitHub` / `Set up`: dismissible, and once dismissed or configured it never
 returns.
 
 ## 6. Motion
@@ -542,7 +542,7 @@ returns.
 Durations: **0 / 90 / 120 / 180 ms**. Nothing exceeds 180 ms. Easing is
 `cubic-bezier(0.22, 0.61, 0.36, 1)` everywhere; there is no second curve.
 
-**Does not animate — 0 ms, deliberately:** pane resize while dragging (the pane must be
+**Does not animate, 0 ms, deliberately:** pane resize while dragging (the pane must be
 welded to the cursor); tab switching and editor content swaps; file tree expand/collapse (a
 150 ms accordion on a chapter folder is the single most sluggish-feeling thing an editor can
 do); diagnostic row expansion; edit-chip diff expansion; PDF re-render and page paint; every
@@ -553,7 +553,7 @@ feedback that lags); streaming text.
 
 | What | Duration | Why |
 |---|---|---|
-| Permission card entry — opacity 0→1, `translateY(2px)` | 90 ms | It interrupts; it should be seen arriving, not blink into place |
+| Permission card entry: opacity 0→1, `translateY(2px)` | 90 ms | It interrupts; it should be seen arriving, not blink into place |
 | Slide-over Claude panel, `translateX` | 180 ms | Shows where it came from and where it goes back to |
 | Edit-chip collapse on undo (height) | 120 ms | Shows the reversal actually happened |
 | SyncTeX highlight rectangle, fade out | 700 ms | Long enough for the eye to find it after a jump |
@@ -569,14 +569,14 @@ keeps opacity changes at 90 ms.
 **Anti-jump rule for the PDF**, which is a motion decision even though nothing animates:
 scroll position is anchored to *page index + normalised offset within that page*, not to a
 pixel `scrollTop`, so a rebuild that changes the page count does not slide the view. The new
-document renders into an offscreen canvas layer and swaps in a single frame — the pane is
+document renders into an offscreen canvas layer and swaps in a single frame: the pane is
 never blanked, never shows a loading state, and never returns to page 1.
 
 ## 7. Three things deliberately not done
 
 **1. No loading indicators for compiles.** The default is a spinner or skeleton the instant
 a build starts, plus a green checkmark when it lands. Neither is here. Compiles take ~1 s,
-and a spinner shown at 0 ms on a 1 s task is what *tells* the user the task is slow — it
+and a spinner shown at 0 ms on a 1 s task is what *tells* the user the task is slow, it
 converts an imperceptible wait into a watched one. Instead the dot changes colour in the
 same frame, the PDF keeps showing the last good render, and a 2 px hairline appears only if
 the build crosses 400 ms. Success is monochrome, because a green checkmark firing on every
@@ -590,16 +590,16 @@ The diagnostics drawer is scoped to the editor pane, so error → line number �
 is one vertical eye path in one column.
 
 **3. No chat bubbles, avatars, or a warm-cream-plus-terracotta document aesthetic.** The
-agent panel is the highest-risk surface for looking generic — rounded bubbles, a circular
+agent panel is the highest-risk surface for looking generic: rounded bubbles, a circular
 avatar, alternating alignment, a gradient send button. Instead the agent is set in a serif
 at 68 characters behind a 3 px violet rule, with the *user's* message given the lesser
 visual weight. Likewise the app is not cream-and-terracotta and not graphite-and-neon: it is
 a proofing grey that exists to make the white page look white, with the accent borrowed from
-hectograph violet — the ink theses were actually duplicated in.
+hectograph violet, the ink theses were actually duplicated in.
 
 Also cut, quietly: all-caps tracked eyebrow labels, `A · B · C` middle-dot meta strings, `→`
 glyphs on buttons, monospace as decoration for small labels, and a single global
-border-radius (0 for panes, 3 for rows, 5 for cards — the radius encodes what kind of object
+border-radius (0 for panes, 3 for rows, 5 for cards, the radius encodes what kind of object
 you are looking at).
 
 ## 8. Deviations recorded during implementation
@@ -612,8 +612,8 @@ decision from a drift.
 compile dot is the only one. The agent's activity dot is the second, and for the same
 reason: a turn can spend twenty seconds inside a tool with nothing arriving in the panel,
 and a still indicator beside a still transcript is indistinguishable from a turn that has
-stopped. It pulses at 1400 ms — slower than the compile dot, because it sits beside the
-agent's name for the whole of a turn rather than for a second — and it stops entirely under
+stopped. It pulses at 1400 ms, slower than the compile dot, because it sits beside the
+agent's name for the whole of a turn rather than for a second, and it stops entirely under
 `prefers-reduced-motion`.
 
 **The 350 ms input shield is visible.** §5 says the buttons ignore clicks "at full opacity,
@@ -635,7 +635,7 @@ not the button that is present.
 
 **The agent's `⋯` opens a drawer, not a popover.** The file row's menu overlays the tree;
 this one pushes the transcript down. They differ because the transcript is pinned to its
-bottom and a popover over it would cover the newest turn — the thing most likely to be
+bottom and a popover over it would cover the newest turn, the thing most likely to be
 being read. It matches the Usage panel directly above it, which is the surface it sits
 next to, and both are dismissed the same way.
 
@@ -654,8 +654,8 @@ keyboard path.
 
 **The permission fence has a switch.** §5's permission card is written as though a card is
 unconditional, and for the actions that matter it still is. But a card for every action is
-how a card stops being read — the same argument this document already makes for waving
-read-only tools through — and a writer who has approved the same build command forty times
+how a card stops being read, the same argument this document already makes for waving
+read-only tools through, and a writer who has approved the same build command forty times
 is being trained to click *Allow* without looking. Auto mode is therefore offered, and the fence stays up in four
 places: a write outside the project root, because that is the one action that leaves the
 thing the writer pointed the agent at; a file inside the project that the build executes,
@@ -680,7 +680,7 @@ which rule put it up, from the same facts the fence used, and says so in the wri
 The reason line is empty when the switch is off, because then the answer is that this app
 asks before it acts, and printing that on every card is how people learn to stop reading
 them. The same
-change made the rules from *Allow always* visible too — those were previously allowed in
+change made the rules from *Allow always* visible too: those were previously allowed in
 silence, which was the same hole, unnoticed.
 
 **Fonts are self-hosted, not loaded from Google Fonts.** §3 says "Google Fonts
@@ -843,7 +843,7 @@ The one dialog this does not reach is the tutorial overlay, which does not use
 the hook.
 
 **There is a stack of transient messages, at the bottom of the shell.** §6 says
-"no toasts". It carries save and download failures only — the cases where an
+"no toasts". It carries save and download failures only, the cases where an
 action the user took did not happen and nothing else on screen would say so. It
 has no timer: a message stays until dismissed, because a failed save that fades
 out is worse than no message at all.
@@ -862,8 +862,8 @@ not happen. `polite` rather than `assertive`, because none of them interrupts
 what the writer is doing.
 
 **Editor syntax highlighting is near-monochrome, and colour is opt-in.** The
-specification does not cover token colours. By default — and this default is
-unchanged — commands take `--ink` a step above the prose, comments `--ink-3`
+specification does not cover token colours. By default, and this default is
+unchanged: commands take `--ink` a step above the prose, comments `--ink-3`
 italic, arguments and literals `--ink-2`, and no hue is introduced: the
 rendered page sits two panes away and must stay the loudest object on screen.
 "A step above" was a flat 600 until the prose weight became a setting; it is
@@ -881,14 +881,14 @@ was protecting:
   a single class, so with the setting unset the decoration classes match no
   CSS whatsoever and the editor renders byte-identically to one built before
   the feature existed. The first version instead set each family to an ink,
-  which requires knowing exactly what the LaTeX mode does to every token —
+  which requires knowing exactly what the LaTeX mode does to every token,
   and it does not do one thing. `\begin`, `\cite` and `\label` are `stex`
   plugins whose braced argument is an `atom` at `--ink-2`; `\section` is not
   a plugin, so its heading is plain text at `--ink`. One rule for "the
   argument" dimmed every heading in the untouched mode.
 - The five hues sit at one lightness and one chroma ceiling per palette, so
   they read as one family rather than as a rainbow, and each is defined in
-  both `.nx-theme-light` and `.nx-theme-dark` — the editor's own theme carries
+  both `.nx-theme-light` and `.nx-theme-dark`: the editor's own theme carries
   them, so a white page in a dark shell gets the light palette's colours.
   `contrast.test.ts` certifies every one against `--surface` in both.
 - **A keyword must never melt into the prose**, which is the writer's own
@@ -899,13 +899,13 @@ was protecting:
   here. On a light page the prose is a near-black ink, so raising contrast
   against the page means going darker, which moves a colour **toward** the
   words it has to stand out from. The families sat at OKLab lightness 0.45,
-  then briefly at 0.40, and both were rejected as melting in — at 0.40 a
+  then briefly at 0.40, and both were rejected as melting in, at 0.40 a
   coloured command stood 22.6 L\* clear of the prose where even `--ink-3`
   stands 27.3 clear, while measuring a comfortable 7.0:1 against the paper.
   Contrast was never the axis.
 - **Colourfulness is chroma weighted by lightness, and that is what the
-  tests measure now.** `#18448C` carries a chroma of 0.129 — more than the
-  dark theme's blue — and still reads as navy-dark rather than as blue,
+  tests measure now.** `#18448C` carries a chroma of 0.129, more than the
+  dark theme's blue, and still reads as navy-dark rather than as blue,
   because a saturated near-black is not a colour whose hue anyone can see.
   So the palette went to lightness 0.52 with the chroma ceiling removed
   entirely, each hue taking the most sRGB will give it there: 0.213 for the
@@ -921,7 +921,7 @@ was protecting:
   trade defensible here and nowhere else: colouring is off by default, so
   nobody is given it without asking; it is never the only carrier, because a
   control sequence is set 200 weights above the prose whatever this setting
-  says, so removing the colour entirely leaves the file legible — which is
+  says, so removing the colour entirely leaves the file legible, which is
   the condition WCAG actually asks for; and it applies to control sequences,
   a fixed vocabulary five to fifteen characters long, not to running prose,
   which is still 14.4:1 and untouched. The floor is 4:1 rather than absent
@@ -934,7 +934,7 @@ was protecting:
   one accent that appears near the text itself; the test asserts 35° of hue
   clearance from it, so a heading can never be mistaken for an edit. The other
   four accents appear inside the editor only as gutter bars, dotted underlines
-  and washes — never as the colour of text — so the syntax hues share a
+  and washes, never as the colour of text, so the syntax hues share a
   channel with none of them.
 
 The families are decided by command name in `latex-families.ts` and applied as
@@ -958,8 +958,8 @@ themselves; inline and displayed mathematics; optional arguments, which are
 always keys, lengths or placements; the braced argument of every command
 whose argument is a name rather than a sentence; `\verb` and whatever
 delimiter it chose; and everything inside an environment that is not prose
-at all — the maths environments, `verbatim`, `lstlisting`, `minted`,
-`tikzpicture` — which is tracked across lines, because an `\end{align}` may
+at all, the maths environments, `verbatim`, `lstlisting`, `minted`,
+`tikzpicture`, which is tracked across lines, because an `\end{align}` may
 be a long way below its `\begin` and a per-line scan cannot see that. What
 is left is checked. Words shorter than three letters and words in full
 capitals are passed over as well: an acronym is spelled by its initials and
@@ -975,11 +975,11 @@ Three constraints shaped the rest:
   nor its word list is in the interface bundle. The list is 98 kB brotli'd
   and is fetched once, on first use. `bundle.initial_kb` still rose about
   four kilobytes for the switch and the editor's side of it, and the budget
-  was raised deliberately rather than quietly — see `bench/thresholds.json`,
+  was raised deliberately rather than quietly, see `bench/thresholds.json`,
   which now says why.
 - **The writer's own words are the feature.** A dissertation is full of
   terms no list holds, so a right-click on an underlined word accepts it
-  permanently, into `.nexttex/dictionary.txt` — machine-local and
+  permanently, into `.nexttex/dictionary.txt`: machine-local and
   uncommitted, like every other piece of per-project state here, and plain
   text so two hundred species names are a paste rather than two hundred
   clicks.
@@ -994,8 +994,8 @@ algorithm and a real interface, and neither is what was asked for.
 **The status strip adapts to its own width by dropping segments.** §5 requires
 that the strip never reflow. The editor pane is resizable down to 420 px, where
 all six segments cannot fit on one line. Rather than wrap, segments drop out in
-reverse order of value — the file path first, since the tab above already names
-it, then the preview scope — through container queries on the strip itself.
+reverse order of value, the file path first, since the tab above already names
+it, then the preview scope, through container queries on the strip itself.
 Every remaining segment keeps its reserved width, so nothing shifts as digits
 change.
 
@@ -1026,7 +1026,7 @@ from the pen, so the two never read as the same signal.
 120/180 ms budget: `.nx-hover` (90 ms colour on interactive rows), `.nx-press`
 (a 1 px depress on click, so a button feels answered), `.nx-pane` (180 ms width
 change when a panel folds, so it is clear where it went), and `.nx-arrive`
-(120 ms, 3 px rise, for something that appeared because you asked for it —
+(120 ms, 3 px rise, for something that appeared because you asked for it:
 the usage panel, the welcome message). `prefers-reduced-motion` reduces all of
 them to an opacity change.
 
@@ -1034,7 +1034,7 @@ them to an opacity change.
 preview and the Claude column each have a fold control; a folded panel leaves a
 26 px strip carrying its name vertically, which is both the evidence that it is
 folded and the control that brings it back. Source and preview are mutually
-exclusive — folding one gives the other the whole middle, and folding both
+exclusive: folding one gives the other the whole middle, and folding both
 would leave nothing to work in. Fold state is remembered per project.
 
 **The preview reads two ways.** A `Scroll` / `Page` toggle in the PDF bar. The
@@ -1047,8 +1047,8 @@ the pane never blanks. Page mode keeps a single page in the flow and answers
 the arrow keys.
 
 **The agent column carries its own instruments.** A model selector (default,
-Opus, Sonnet, Haiku) that takes effect on the next question — the conversation
-resumes by session id, so changing model does not lose the transcript — and a
+Opus, Sonnet, Haiku) that takes effect on the next question, the conversation
+resumes by session id, so changing model does not lose the transcript, and a
 usage readout: turns, estimated cost, tokens sent, written and read from cache,
 and model time, counted per project and kept across restarts. Cost is labelled
 as an estimate, because on a subscription it is not a bill.
@@ -1059,7 +1059,7 @@ on nothing, so NextTex does not guess: the way to shape a project is to upload
 the real template and let the agent read it.
 
 **The agent speaks first.** A project with no conversation shows a message from
-Claude — written into the app, not generated — covering the three panes, what
+Claude, written into the app, not generated, covering the three panes, what
 the agent can and cannot do without asking, how to tailor the project with a
 template, and how to teach it the writer's voice. It is the app's only
 onboarding, and it is set as the agent's own prose because the agent is what
@@ -1068,8 +1068,8 @@ does all of it.
 
 ## 10. What the second audit changed
 
-The built interface was audited as a whole — visual design, information
-design, interaction, wording, accessibility — against §§1–9 and against real
+The built interface was audited as a whole, visual design, information
+design, interaction, wording, accessibility, against §§1–9 and against real
 renders in both themes. The audit's own summary is that four things carried
 most of the damage; all four are fixed, along with most of the smaller
 findings.
@@ -1078,8 +1078,8 @@ findings.
 model resumes its own memory of a conversation from disk, so a panel that
 started empty meant the agent could refer to work the writer could not see.
 More importantly, §5 promises that the chat is a record of what was done to
-the document — every diff, every reverted edit, every command allowed or
-refused — and a record that survives one session is not a record. Events are
+the document, every diff, every reverted edit, every command allowed or
+refused, and a record that survives one session is not a record. Events are
 now written to `.nexttex/transcript.jsonl` as they are broadcast, with
 streamed text coalesced into whole messages, and replayed when the project is
 reopened. A permission still unanswered when the window closed replays as
@@ -1087,7 +1087,7 @@ denied, because the turn that was waiting on it is gone.
 
 **Folding the file list no longer strands anything.** The project name, the
 switcher, the theme toggle and the downloads move into whichever header is
-still on screen — the tab bar, or the preview header when the source is
+still on screen: the tab bar, or the preview header when the source is
 folded too.
 
 **The surfaces have their specified separation.** The steps had been built at
@@ -1095,14 +1095,14 @@ roughly half the distance the palette called for, and `--line` sat at 1.5:1,
 so panes had no visible edges, drag handles were invisible, and a selected
 segment was indistinguishable from an unselected one. The steps are now 5–7
 L\* apart in both themes and `--line` clears 3:1. `--ink-3` was below 4.5:1 on
-`--surface-2` — the surface most of the app's metadata actually sits on — and
+`--surface-2`, the surface most of the app's metadata actually sits on, and
 is now 5.2:1 in both.
 
 **Green means the preview is current.** §5 says a clean build renders in no
 colour at all, and §7 argues that a green tick firing on every debounced
 rebuild becomes noise within an hour. That argument is about a *success
 flash*; the dot is a *resting state*, and the two are different objects.
-Green here does not fire — it sits, for hours, and says the picture beside
+Green here does not fire: it sits, for hours, and says the picture beside
 the text is the text. What fires is the departure from it: the dot goes
 `--warn` on the first keystroke after a build and stays there until the next
 one lands. Colour now answers one question, does the preview match the
@@ -1125,8 +1125,8 @@ with one exception written down here: a build that has already run for 400 ms
 is the one case where the strip has to say *still working* rather than *this
 is the state*, and the 2 px hairline that used to say it swept the full width
 of the strip, in the corner of the eye, for as long as the build took. The
-dot breathes instead — opacity 1 → 0.32 over 700 ms, alternating, on the
-app's single curve — on the same 400 ms threshold the hairline used, so a
+dot breathes instead, opacity 1 → 0.32 over 700 ms, alternating, on the
+app's single curve: on the same 400 ms threshold the hairline used, so a
 130 ms build still shows nothing at all. Under `prefers-reduced-motion` it
 becomes a hollow `--warn` ring, the same disc-versus-ring distinction the
 idle dot already uses, for the same reason the hairline became a static bar.
@@ -1138,8 +1138,8 @@ says the gutter carries the news and the writer comes to the detail. A dotted
 rule under a whole line of LaTeX was not pointing at anything the gutter bar
 had not already said, and it was drawn through text somebody was trying to
 read. It now covers the token at the column the tool reported, and where
-there is no usable column — every compile error, since the LaTeX log has none
-— the gutter bar is the whole in-text signal.
+there is no usable column, every compile error, since the LaTeX log has none
+, the gutter bar is the whole in-text signal.
 
 **Two drifts, recorded rather than fixed.** `--line` composites to about
 2.4:1 in light and 2.6:1 in dark against the surfaces it sits on; the note
@@ -1153,7 +1153,7 @@ revision, which is why the contrast test now parses the palette out of
 **`--pen` is back to meaning one thing.** It had spread to eight filled
 buttons, of which five had nothing to do with the agent; the loudest object in
 the light theme was a GitHub setup button. Filled violet is now `Allow` and
-`Send` only — answering the agent, or addressing it. Everything else is a
+`Send` only: answering the agent, or addressing it. Everything else is a
 ghost button that takes `--hint` on hover, which is also now on the drag
 handles, the segmented controls, the chip actions and the fold controls: the
 jobs the second accent was invented for.
@@ -1165,7 +1165,7 @@ units; the edit chip shows `Show` and `Undo` without waiting for a hover, and
 no longer sits under a tool row saying the same thing; the permission card has
 a `--warn` focus ring, because a card that answers bare keypresses must show
 that it has focus, and both that ring and the ordinary `--pen` one are 2 px
-rather than 1 — WCAG 2.2's focus appearance asks for it, and it is the one
+rather than 1, WCAG 2.2's focus appearance asks for it, and it is the one
 place this interface's taste for hairlines was working against the person
 using it, since a 1 px ring at 1 px offset is a hairline in a design full of
 hairlines; the file tree is one tab stop with arrow-key navigation
@@ -1185,17 +1185,17 @@ The **system prompt** carries a long section on writing that does not read as
 machine-written: lead with the claim, prefer the specific number to the
 careful phrase, vary sentence length and opening, put a real subject early,
 and stop rather than restating the paragraph's first sentence in different
-words. It also names the tells outright — *delve*, *underscore*, *robust*,
+words. It also names the tells outright, *delve*, *underscore*, *robust*,
 *It is important to note*, *plays a crucial role in*, stacked
-*Moreover/Furthermore*, paired near-synonyms — because a general instruction
+*Moreover/Furthermore*, paired near-synonyms, because a general instruction
 to write naturally does not survive contact with a first draft. It is
 explicit that swapping a banned word for a synonym fixes nothing.
 
 The **voice description**, when the writer has uploaded samples of their own
-work, outranks all of that. It is distilled once into eight headed sections —
+work, outranks all of that. It is distilled once into eight headed sections,
 sentence length ranges, paragraph shape, person, the exact hedging words,
 connectives, characteristic vocabulary, how terms and citations are
-introduced, and what the author never does — and the prompt says plainly that
+introduced, and what the author never does, and the prompt says plainly that
 where the two disagree the author wins, including where the author does
 something the general guidance discourages. A document is supposed to sound
 like its author, not like a house style. The precedence note is added to the
@@ -1209,7 +1209,7 @@ Added at the writer's request, after the second audit. Three of these are
 new surfaces; the rest are corrections to old ones.
 
 **History is browsed inside the editor.** A 264 px panel overlays the right
-edge of the editor pane — an overlay rather than a fourth column, so opening
+edge of the editor pane: an overlay rather than a fourth column, so opening
 history does not reflow the preview and lose the reader's place in the PDF.
 Versions are grouped by day, because "some time on Tuesday" is how people
 remember losing a paragraph, and each row carries the time, who made it, the
@@ -1231,16 +1231,16 @@ than a neutral wash on purpose: what you deleted is what you came looking
 for.
 
 **The trash is a section under the file tree**, appearing only when it holds
-something. Deleting asks nothing — the file moves to the trash with its
-history and the count goes up — because a confirmation before an action that
+something. Deleting asks nothing, the file moves to the trash with its
+history and the count goes up, because a confirmation before an action that
 is one click from being undone is friction for nothing. Deleting *from* the
 trash asks, in the app's own type, because that one is final.
 
 **Autocomplete belongs to the project, not to LaTeX.** Citation keys carry
 their author and year; labels carry the file they are defined in; the
 writer's own `\newcommand` macros are offered before the built-in list and
-marked `yours`. The popup is themed to the app — `--surface` on `--line`,
-the selected row on `--hint-wash` — so it does not read as a stock editor
+marked `yours`. The popup is themed to the app, `--surface` on `--line`,
+the selected row on `--hint-wash`, so it does not read as a stock editor
 widget dropped into a designed application.
 
 **Equation previews** render with KaTeX on hover, lazily imported so nobody
@@ -1249,7 +1249,7 @@ passed through as KaTeX macros. `\npistar` renders as the notation it stands
 for rather than as an error.
 
 **The mark.** A sheet of paper with its corner turned, notched on the left so
-the negative space reads as a chevron — next. Hectograph violet on the tile,
+the negative space reads as a chevron, next. Hectograph violet on the tile,
 paper white inside, drawn on a 32-unit grid and checked at 16 px. It is
 inlined into the HTML as a `data:` favicon rather than served as a file,
 because the server routes every unknown path to the app shell and a
@@ -1264,32 +1264,32 @@ themes. What it found, and what was done:
 **The history panel now docks rather than overlays**, whenever the editor is
 wider than 700 px. As an overlay it covered the right third of every wrapped
 LaTeX line, so the file could not be read while the panel comparing it to its
-past was open — which defeats the panel. Below that width it still overlays,
+past was open, which defeats the panel. Below that width it still overlays,
 now on `--surface-2` so the plane change is legible without depending on a
 hairline. It also keeps your place: entering a version anchors to the line
 you were on rather than resetting to the top, because the old version is a
 different length and a pixel offset would land somewhere else entirely.
 
-**The banner is unmistakably not the tab bar.** It had been `--surface-2` —
-the tab bar's own fill, directly above it — announcing the most consequential
+**The banner is unmistakably not the tab bar.** It had been `--surface-2`,
+the tab bar's own fill, directly above it, announcing the most consequential
 state in the editor in the same colour as more toolbar. It now takes a
 `--hint` top rule and a tinted fill, `--pen-wash` when the version is
 Claude's. Escape leaves. Every path that closes the panel also leaves viewing
-mode, which the status strip's toggle did not, and `Restore this` — the only
-mutating action available in a read-only mode — confirms in place like every
+mode, which the status strip's toggle did not, and `Restore this`, the only
+mutating action available in a read-only mode, confirms in place like every
 other destructive action in the app.
 
 **"Show what's gone" is a real diff.** It had been set membership: does this
 line appear anywhere in the new text. LaTeX is full of repeated lines, so
 deleting a figure block left `\centering` and `\end{figure}` unshaded and the
 eye got a comb where it needed a block. It is now an LCS diff, and the label
-says what it actually shows — the old version's deletions, since additions
+says what it actually shows: the old version's deletions, since additions
 since are invisible by construction. The 2 px error-coloured gutter bar is
 gone: it was the same shape, colour and position as a diagnostic marker.
 
 **One stray `$` no longer breaks every equation preview after it.** Dollar
-pairing ran over the whole document, so a single unclosed delimiter — the
-commonest LaTeX typo there is — inverted the pairing for everything below it:
+pairing ran over the whole document, so a single unclosed delimiter, the
+commonest LaTeX typo there is: inverted the pairing for everything below it:
 hovering prose rendered maths, hovering maths rendered nothing. The scan is
 now scoped to the paragraph under the pointer and says nothing when that
 block is unbalanced, which is also what makes it cheap enough to run on every
@@ -1297,8 +1297,8 @@ pointer move.
 
 **`.quiet` was silently repainting other elements' colours.** It is unlayered
 and outweighs Tailwind's utilities, so `quiet … hover:text-error` on the
-trash's Delete hovered to `--hint` — the colour that means *safe and
-interactive* — and the preview's selected Fit width state was identical to
+trash's Delete hovered to `--hint`, the colour that means *safe and
+interactive*, and the preview's selected Fit width state was identical to
 the unselected one. Tone is now carried by a `data-tone` attribute the class
 respects.
 
@@ -1313,7 +1313,7 @@ capped so it stops crossing into the preview, and is painted in `--surface-2`
 like every other floating surface in the editor rather than in the page's own
 `--surface`, which on a white ground left it held apart from what it floated
 over by a hairline and a shadow alone; and the logo was redrawn with
-one chevron instead of two two units apart, on an outlined tile — the old
+one chevron instead of two two units apart, on an outlined tile: the old
 mark fused into a violet smudge at 18 px, and a brand mark should not spend
 the fill that means *answer the agent*.
 
@@ -1327,7 +1327,7 @@ tested, no frontend code was tested at all, and every browser check had been
 a throwaway script in `/tmp`.**
 
 Writing the plan proved the cost. Reading the app against a coverage map
-turned up three bugs that broke a feature outright — changing the model
+turned up three bugs that broke a feature outright: changing the model
 raised a 500, the sign-in screen never advanced after a successful login,
 and the Console/SSO button was wired to a parameter the server does not
 read. None would have survived a suite. Adversarial reading of the same code
@@ -1337,8 +1337,8 @@ found a dozen more, and the suite itself found several the reading missed.
 
 **A scripted agent.** `ProjectAgent` spawns the real `claude` CLI: slow,
 costly, non-deterministic, and it needs an account. So a large part of the
-app — streamed prose, edit chips with their diffs and undo, permission cards
-and their shield, the follow-up queue, usage, model switching — was
+app, streamed prose, edit chips with their diffs and undo, permission cards
+and their shield, the follow-up queue, usage, model switching, was
 untestable. `nexttex/scripted_agent.py` replays a list of steps from
 `tests/scripts/*.json` through the same event queue the real one writes to.
 An `edit` step performs a real write, so the version, the rebuild, the chip
@@ -1359,9 +1359,9 @@ environment is redirected at conftest module scope, before anything under
 `server` is imported. Otherwise running the tests hands a different token to
 whatever tab is open.
 
-**A browser tier.** Each spec starts a NextTex of its own — own port, own
+**A browser tier.** Each spec starts a NextTex of its own, own port, own
 XDG directories, own projects, a config written before the server so the
-token is known rather than scraped from a log line — and drives it against
+token is known rather than scraped from a log line, and drives it against
 the Chromium actually cached on the machine rather than the build number the
 library expects. Every wait is on an observable: a response, a DOM state,
 never a clock. The exception is written down: one spec has to prove a build
@@ -1417,14 +1417,14 @@ with a working tree. The thresholds are budgets, not records.
 **Two windows on one project destroyed each other's work.** `PUT /file` was
 whole-file last-writer-wins with nothing watching, and the watcher's own
 "this was us" suppression meant the second tab was never even told a save
-had happened — so its autosave wrote a stale buffer over everything the
+had happened, so its autosave wrote a stale buffer over everything the
 first had written, silently, with the tab still showing clean. A save now
 carries a tag for what the browser last agreed the file said, is refused
 rather than believed when the file has moved on, and is broadcast to every
 other tab. The refusal is a banner offering both copies.
 
 That tag was got wrong twice before it was right. A float second was far too
-coarse — saves land a quarter of a second apart, and any slack wide enough
+coarse: saves land a quarter of a second apart, and any slack wide enough
 to absorb filesystem differences was wide enough to wave the clobber
 through. `st_mtime_ns` was better and still wrong: it is only as fine as the
 filesystem chooses to record, and two writes a millisecond apart share one
@@ -1438,7 +1438,7 @@ from the history as well as from the file. A burst now only collapses within
 the window that made it.
 
 **A server restart killed every open tab, silently.** Forty-two routes
-required a project to be open, including the event stream — so after a
+required a project to be open, including the event stream, so after a
 restart the browser retried a 404 every two seconds forever with nothing on
 screen saying so. "Open" is what a user does to a window, not a
 precondition the server keeps: `session_for` opens a registered project on
@@ -1450,7 +1450,7 @@ with `ctrlKey` set. Two things make it more than ten lines. The listener has
 to be a native, non-passive one: React registers `wheel` passively on its
 root, so `preventDefault` inside `onWheel` is ignored and the browser zooms
 the whole application instead of the document. And a gesture must not
-relayout the document sixty times a second — each page is a canvas sized by
+relayout the document sixty times a second: each page is a canvas sized by
 its container, so the handler resizes the containers, which rescales what is
 already drawn at the right scroll extents, and the crisp redraw runs once,
 140 ms after the gesture stops. The point under the pointer stays under the
@@ -1469,7 +1469,7 @@ which is the argument for the tier.
 comes back to the document with the same files open and the same one in
 front, and leaving for the project list is remembered just as deliberately.
 
-**Ctrl-F did nothing** — on the first press. `searchKeymap` was bound
+**Ctrl-F did nothing**, on the first press. `searchKeymap` was bound
 without the `search()` extension that provides the panel, and CodeMirror
 installs the missing field in the same transaction that asks to show it, so
 the field never sees the effect. The second press worked. A LaTeX editor
@@ -1482,8 +1482,8 @@ good. A command carrying shell syntax now gets no rule at all, is asked
 about every time, and the card does not offer to remember it.
 
 **The compile was doing work three times over.** Every build fired
-`/symbols`, `/words` and `/git` — a full project rescan, a `texcount`
-subprocess and a `git status` — inline on the single event loop, every 1.6
+`/symbols`, `/words` and `/git`, a full project rescan, a `texcount`
+subprocess and a `git status`: inline on the single event loop, every 1.6
 seconds while somebody typed. During those, the server answered nothing at
 all: no autosave, no streamed token, no PDF. The symbol cache was worse than
 slow: its stamp walk counted `.pdf` files and skipped only `.git` and
@@ -1492,7 +1492,7 @@ whole project was rescanned every time. The benchmark keeps a guard on
 exactly that: if it comes back, `symbols.after_build_ms` goes from about one
 millisecond to about twenty.
 
-**Secondary text on the third surface was unreadable** — 4.22:1 in the light
+**Secondary text on the third surface was unreadable**, 4.22:1 in the light
 theme and 4.33:1 in the dark, against a 4.5:1 requirement. This has now been
 got wrong twice and caught by eye both times, which is not a method. The
 palette is parsed out of `styles.css` and every pairing the app uses is
@@ -1508,7 +1508,7 @@ that holds the writing was announced as an unlabelled input. It has a name
 now.
 
 The file tabs claimed `role="tab"` without a `tablist` around them, and each
-tab contained its own close button — a control inside a control, announced
+tab contained its own close button: a control inside a control, announced
 as one thing and reached as two. The fix was not to add the missing role: an
 ARIA tablist promises arrow-key navigation between tabs and a panel
 associated with each one, and this strip has neither, so claiming it would
@@ -1524,14 +1524,14 @@ stop that goes nowhere.
 
 Beyond axe there are four checks it cannot make: that Escape closes what it
 opens, that the composer is reachable by tabbing out of the editor, and that
-the permission card's three answers are real buttons with real names — the
+the permission card's three answers are real buttons with real names, the
 one control in this app where a mistaken click runs a command.
 
 ### Where the line is
 
 Worth its maintenance: anything that asserts a contract, anything that
-guards a safety property — path escape, atomic write, undo refusal, the
-permission fence, history permanence — anything that encodes a bug already
+guards a safety property, path escape, atomic write, undo refusal, the
+permission fence, history permanence: anything that encodes a bug already
 paid for, and the handful of browser specs that prove the core loop still
 works end to end.
 
@@ -1546,8 +1546,8 @@ below it.
 
 ## 15. Making files, and putting files in
 
-Everything above assumed files arrive somehow. They did — by drag-and-drop onto a row, or
-through a menu hanging off one — and the assumption held right up until somebody needed a
+Everything above assumed files arrive somehow. They did, by drag-and-drop onto a row, or
+through a menu hanging off one, and the assumption held right up until somebody needed a
 folder in a project that had one file in it.
 
 The work in this section came from a design consult, and two of its decisions are worth
@@ -1557,7 +1557,7 @@ keeping the reasoning for.
 the files should go and then open the picker. It is wrong: it costs two deliberate steps
 before a file has even been chosen, every single time, including the overwhelmingly common
 case where the answer is the same folder as last time. Opening the picker first means the
-chooser appears *already knowing the filenames* — so "where do these go" and "one of these
+chooser appears *already knowing the filenames*, so "where do these go" and "one of these
 is already there" become one question on one surface, instead of a two-page wizard. It also
 means the chooser can decline to appear at all, which is what it does for a drop onto a
 folder with no collisions: the gesture named the destination, so there is nothing to ask.
@@ -1565,7 +1565,7 @@ folder with no collisions: the gesture named the destination, so there is nothin
 **A replacement is `op="replace"`, not an edit.** This looks like bookkeeping and is the
 thing that keeps the feature honest. History collapses same-author edits inside ninety
 seconds, which is right for typing and catastrophic here: export a plot, notice the axes are
-wrong, export again inside a minute, and the coalescer merges the two replacements — keeping
+wrong, export again inside a minute, and the coalescer merges the two replacements: keeping
 the intermediate and dropping the version that held the *original* figure, which is the one
 version the whole feature exists for. The coalescing test requires `previous.op == "edit" ==
 op`, so a distinct op closes it by construction rather than by a special case. It is
@@ -1575,16 +1575,16 @@ version somebody names is already permanent by its label.
 Underneath both: replacing a figure used to destroy it. The route recorded a version by
 reading the file as UTF-8 inside a `try` that swallowed the `UnicodeDecodeError`, so it
 worked for a chapter and silently did nothing for a PNG. The blob store had never had
-trouble with arbitrary bytes — `content()`'s `errors="replace"` decode had, which is right
+trouble with arbitrary bytes, `content()`'s `errors="replace"` decode had, which is right
 for showing an old draft in an editor and turns every invalid byte of an image into U+FFFD.
 There is a `bytes_of` beside it now, a `raw=1` form of the blob route that serves a version
-with its own media type, and a read-only pane for files the editor cannot hold — without
+with its own media type, and a read-only pane for files the editor cannot hold, without
 which a figure's history is unreachable, since the only route to any file's history is to
 make it the active document.
 
 **And an old version opens in that pane, not in the panel.** For a while it opened as a
 180 px thumbnail inside a 264 px column, and a PDF figure did not open at all, because the
-panel drew its preview from an `img` — so the one format figures are kept in precisely
+panel drew its preview from an `img`, so the one format figures are kept in precisely
 because it scales was the one that could not be looked at. The pane takes the bytes it is
 to show rather than deriving them from the path; the path still decides which viewer to
 reach for and what to call the file, because a version of a PNG is a PNG. Which of the two
@@ -1595,7 +1595,7 @@ draw, where the honest offer is the download.
 
 Two bugs turned up while building it, both in code that predated it. Creating anything at
 the project root put a naming input under *every* file in the project, each one stealing
-focus from the last, and the blur that follows cancelled it — the row hosting the input
+focus from the last, and the blur that follows cancelled it, the row hosting the input
 compared a file's parent to `""` instead of only ever hanging off a folder. And the folder
 list's arrow keys collapsed the list, because selecting an option and confirming the choice
 were the same callback; selection has to follow focus with the list still open, or the
@@ -1624,7 +1624,7 @@ So there are three providers, and the third is `none`.
 
 **The seam already existed.** `ScriptedAgent` had been standing in for the
 whole agent since the test suite was built, which is a stronger claim than
-it looks: it proved the rest of the app depends on exactly eleven members —
+it looks: it proved the rest of the app depends on exactly eleven members:
 `ask`, `events`, `busy`, `idle_seconds`, `disconnect`, `interrupt`,
 `current_why`, `resolve_permission`, `set_model`, `model`, `usage`. Adding a
 second real provider was writing a fourth implementation of a contract that
@@ -1635,7 +1635,7 @@ code.
 The Claude SDK offers Bash, so that agent has to fence it: a permission
 card, a rule scoped to the command's first word, a refusal to remember
 anything for a compound command. Here the tool list is ours to write, so
-there is no shell on it — a writing agent has never needed one except to
+there is no shell on it: a writing agent has never needed one except to
 run the build, which is a tool of its own. And every path a tool takes is
 resolved against the project root, so there is no out-of-project write to
 ask permission about. `resolve_permission` returns `False` and says why,
@@ -1654,7 +1654,7 @@ writer already made. The editor and the preview take the width.
 
 Switching the agent off exposed how much of the app's helpfulness was
 routed through it. The error drawer showed what TeX said, and `Fix` wrote
-that into the composer — which is no help at all to somebody with no
+that into the composer, which is no help at all to somebody with no
 composer.
 
 `nexttex/explain.py` is twenty-three rules over the errors that actually
@@ -1666,7 +1666,7 @@ The part worth defending is the summary strip. TeX cascades: one unclosed
 brace produces a complaint from every paragraph after it, and the list in
 the drawer is sorted with errors first, so a reader who works down it
 spends the evening fixing consequences. The strip names the *first* error
-in document order — nearly always the cause — and says plainly that the
+in document order, nearly always the cause, and says plainly that the
 rest usually follow from it. That is a sentence, not a feature, and it is
 the most useful thing in the pane.
 
@@ -1683,7 +1683,7 @@ PDFs, ninety of them carrying a printed DOI, and a title search would
 "probably" get the rest. It does not, and the refusals are written into the
 design rather than left to the implementation: no DOI is guessed from a
 title, no filename that looks close is trusted, and there is no *add all
-suggestions* button — twelve individual clicks is the correct cost of
+suggestions* button, twelve individual clicks is the correct cost of
 twelve papers that had no DOI printed in them.
 
 **The safeguard that is not obvious.** A DOI printed on page one is
@@ -1697,7 +1697,7 @@ right.
 
 **Duplicates, at three scopes.** A DOI already in the file. The same file
 content under two collections, caught by hashing the bytes before anything
-is extracted — which is also what makes re-running the same folder cost
+is extracted, which is also what makes re-running the same folder cost
 seconds. And, the one that would have been silently wrong, **citation keys
 colliding inside a single run**: two papers by the same author in the same
 year both become `Marcus1993`, and the second shadows the first in every
@@ -1714,8 +1714,8 @@ had to be extracted anyway and contributes a fixed four lines to the
 prompt, whatever its size.
 
 **The path fence is not involved, extended, or excepted.** `Project.resolve`
-answers one question — can this client-supplied relative path escape the
-project it names — and it keeps answering only that. A Zotero folder is not
+answers one question, can this client-supplied relative path escape the
+project it names, and it keeps answering only that. A Zotero folder is not
 in the project and never will be. What guards the browse route instead:
 it is read-only, it returns folder names and PDF counts and never file
 contents, it does not follow symlinks, and **no tool the agent can call
@@ -1734,7 +1734,7 @@ than reasoned about.
 
 ### Why the interface size is a `zoom`
 
-The type scale is fixed pixels and so is the geometry around it — `h-[28px]`
+The type scale is fixed pixels and so is the geometry around it: `h-[28px]`
 controls, `h-[26px]` rows, `w-[264px]` cards. Scaling only the type would put
 21px text in a 28px control. So the interface size scales the whole
 composition: `zoom` on `#root`, which is the parent of *every* view, including
@@ -1749,8 +1749,8 @@ ratio it had at the default.
 
 **Weight is a second variable, and the page it is drawn on gets a vote.**
 Dark type on a bright ground looks thinner than light type on a dark one at
-the same weight — the ground bleeds into the strokes rather than the strokes
-into the ground — so a monospace face set at 400 that is right in the dark is
+the same weight, the ground bleeds into the strokes rather than the strokes
+into the ground, so a monospace face set at 400 that is right in the dark is
 spindly on white. `--nx-editor-weight-lift` is that compensation, and it is a
 **palette** token (100 in `.nx-theme-light`, 0 in `.nx-theme-dark`) rather
 than a rule keyed on the theme, for the same reason `--on-pen` is one: the
@@ -1768,13 +1768,13 @@ is five static weights rather than a variable one, so the steps are 100 apart
 or they are nothing; a light page spends one of them before the writer sees
 it; and a control sequence is set 200 above the prose. So the top stop is
 already 600 prose and a command at the 700 ceiling on a white page, and a
-fourth at 600 would put 700 prose there — a face with its counters filling
+fourth at 600 would put 700 prose there: a face with its counters filling
 in, under a command that can no longer outweigh it. 300/400/500 reaches
 300–600 for prose and 500–700 for a command, and that is the whole of the
 usable range.
 
-Two consequences worth stating. The stops are **named** — Lighter, Normal,
-Bolder — rather than numbered, like the preview quality's and unlike the two
+Two consequences worth stating. The stops are **named**, Lighter, Normal,
+Bolder: rather than numbered, like the preview quality's and unlike the two
 size rows above them: "Regular" would be a lie on four of the six editor
 grounds, where the palette has already added a step. And the command weight
 had to stop being a hard-coded 600, in the `.nx-syn-*` rules and in
@@ -1794,7 +1794,7 @@ are not symmetrical.** Measured in Chrome at 150% rather than assumed:
 
 So the bug is never in the reading. It is in taking something read and either
 writing it back as a style, or comparing it against a literal from the
-stylesheet — both of which live in zoomed space. `viewport.ts` holds the
+stylesheet, both of which live in zoomed space. `viewport.ts` holds the
 conversion; eight sites use it. The rule for new code: **convert once, at
 capture**, so anything stored in state is already in the space a style is read
 in. Converting again at the point of use double-counts, which is exactly the
@@ -1804,7 +1804,7 @@ Two consequences that are easy to miss:
 
 - The preview would have gone soft. Its canvas is sized from
   `devicePixelRatio`, which `zoom` does not change, and *nothing invalidated
-  it* — a scale change is not a relayout. The resolution is read per render
+  it*, a scale change is not a relayout. The resolution is read per render
   and an appearance event marks the pages stale.
 - Container queries need no help. `Status.tsx` and the `@[208px]:` rules in
   `Chat.tsx` measure their container in its own scaled space, so a larger
@@ -1812,7 +1812,7 @@ Two consequences that are easy to miss:
   leave less room.
 
 Ctrl-wheel over the editor steps the text size, mirroring the preview's own
-gesture — and, like it, the listener must be native, because React registers
+gesture, and, like it, the listener must be native, because React registers
 `wheel` passively and `preventDefault` inside `onWheel` is ignored. There are
 deliberately **no** Ctrl-plus/minus bindings: the browser owns those, they are
 what a reader reaches for first, and browser zoom already scales this app
@@ -1830,8 +1830,8 @@ making it open a menu instead would break a meaning the app had taught.
 
 What it opens is a sheet rather than a popover. Thirteen rows in a 248 px column
 is a preferences window pretending to be a menu, and the length was the smaller
-half of the problem: rows answering to entirely different things — how this
-machine looks, how this project builds, who may open this install — sat in one
+half of the problem: rows answering to entirely different things, how this
+machine looks, how this project builds, who may open this install: sat in one
 undifferentiated stack, and nothing said which of those travelled with the
 project. It is two columns of named groups now, each with the subtitle it
 needed, and "Kept in the project, not on this computer" is the sentence that
@@ -1839,7 +1839,7 @@ had nowhere to live.
 
 ### Which commits count as an update
 
-NextTex is always a git checkout — no package, no version string — so "is
+NextTex is always a git checkout, no package, no version string, so "is
 there an update" is a question about `git`. The interesting half is the second
 question. Most commits to a project like this one change documentation or
 tests, and telling somebody every session that three commits exist when none
@@ -1855,7 +1855,7 @@ direction: a wrong "nothing to see here" costs more than a wrong alarm.
 The label and the rebuild question are **separate fields**, which was learned
 the hard way. Reading "does the bundle need rebuilding" off the single label
 meant a commit touching a Python module *and* a React component came back
-"app" with `rebuild` false — new server code installed behind the interface
+"app" with `rebuild` false: new server code installed behind the interface
 that was already built, which is the exact failure the check exists to
 prevent.
 
@@ -1882,14 +1882,14 @@ answer", not "did the code change": an update that pulls nothing still
 restarts, and waiting for a sha that never moves would time out for no reason.
 A tab that *joins* a running update starts that poll immediately rather than
 waiting for the stream to end, because the stream replays the output collected
-so far but not the `done` event — a tab arriving after the job finished would
+so far but not the `done` event, a tab arriving after the job finished would
 otherwise wait for a message that has already been and gone.
 
 **An inherent property worth knowing: the code that performs an update is the
 old code.** A bug in the updater is therefore only fixed one update later.
 That is not a design choice and cannot be avoided; it is a reason to keep this
 path small and to test it against a real service, which the browser tier
-cannot do — it spawns the server itself, with no supervisor, so a non-zero
+cannot do: it spawns the server itself, with no supervisor, so a non-zero
 exit simply kills it.
 
 ### Two installs on one machine
@@ -1897,14 +1897,14 @@ exit simply kills it.
 One environment variable, `NEXTTEX_INSTANCE`. Unset is the ordinary install
 and nothing changes. Set, it moves the state directory aside
 (`~/.local/share/nexttex-dev`), names the service `nexttex-dev`, and derives a
-default port from the name — because two NextTex both defaulting to 8450 means
+default port from the name, because two NextTex both defaulting to 8450 means
 the second refuses to start with a message about a port rather than about what
 the person was doing. The name is validated as a single path segment: it is a
 label, never a way out of the directory.
 
 A named instance carries a badge in the rail, on the project list and in the
 tab title, in `--warn` rather than the accent, because it is a caution rather
-than a feature. The ordinary install shows nothing — almost every install is
+than a feature. The ordinary install shows nothing: almost every install is
 the only one on its machine, and a badge reading "the normal one" is noise.
 
 ### The install line that stopped on its own options
@@ -2267,7 +2267,7 @@ five things in it, and a panel that had to be folded by hand.
 
 ### The rail is a stack of panels, and Files is one of them
 
-The rail held one thing that could not fold — the file tree — and four that
+The rail held one thing that could not fold, the file tree, and four that
 could: the trash, the papers, what the agent reads, and git. That was right
 when a project was a handful of files. It stops being right the moment a
 document is long enough that finding a section matters more than finding a
@@ -2281,7 +2281,7 @@ Sections.
 
 The tree is **unmounted when folded rather than hidden**. It owns a 700ms
 type-ahead and a roving tab stop, and both would still answer the keyboard
-from behind a closed panel — a key press that jumps a list you cannot see is
+from behind a closed panel, a key press that jumps a list you cannot see is
 worse than one that does nothing. The cost is that the tree's expanded
 folders reset when it comes back; that state was never persisted across a
 reload either, so this loses nothing that survived a refresh.
@@ -2292,7 +2292,7 @@ LaTeX already writes a table of contents, into `main.toc`. Using it was the
 obvious first thought and the wrong one: a `.toc` exists only after a
 successful build and describes the document as it was when that build
 started. A writer adding a section wants it in the outline while they are
-still typing the title, not one compile later — and a document that does not
+still typing the title, not one compile later, and a document that does not
 currently compile would have no outline at all, which is exactly when
 navigating it is hardest.
 
@@ -2352,7 +2352,7 @@ faster to write and would have cost tens of kilobytes on a bundle with about
 24kB of headroom.
 
 The model popover opens upward from its button and dismisses through the
-anchor-aware `useDismiss` — the same hook, with the same trigger ref, that
+anchor-aware `useDismiss`: the same hook, with the same trigger ref, that
 the usage panel needed. Any new toggle popover in this app must pass its
 anchor or it will close on `pointerdown` and reopen on `click`.
 
@@ -2368,7 +2368,7 @@ stand-in (now named after its document and written beside it, which is what
 the compiler's module docstring always said it needed), the scope marker
 recording whether a PDF is whole or an `\includeonly` slice, and the
 scheduler with its own idea of whether the next build must be a full one.
-Jobname collisions are refused with a 409 rather than worked around — two
+Jobname collisions are refused with a 409 rather than worked around: two
 documents whose stems match would each serve the other's page, and a build
 directory per document would move `main.pdf` and break every Makefile
 pointed at it.
@@ -2386,13 +2386,13 @@ with the visible tab first. Each scheduler already serialises itself, but two
 `latexmk` runs in one build directory would write over each other's
 `.fdb_latexmk` and biber temporaries. There is no preemption: a running build
 is never abandoned for a newer one of a *different* document, and superseding
-a build of the *same* document happens before the queue is joined — a request
+a build of the *same* document happens before the queue is joined, a request
 that queued first would otherwise wait for a slot held by the build it means
 to replace.
 
 Below 900px the preview has no header of its own, so the strip shares the
 row that carries the source/preview toggle. Without that there was no way to
-change document with a mouse at that width — the same hole the agent button
+change document with a mouse at that width: the same hole the agent button
 had, in the same place, for the same reason: a control that lives in a pane
 disappears with the pane.
 
@@ -2401,13 +2401,13 @@ disappears with the pane.
 The preview was a canvas, so the page was a picture: it could not be
 selected, searched or copied out of, which for a document somebody is quoting
 from is most of what a PDF is for. Each page now carries a `pdf.js` text
-layer — transparent spans positioned over the glyphs — built only for pages
+layer, transparent spans positioned over the glyphs, built only for pages
 on screen and only once per page per build.
 
 Held to the pinch benchmark, which is the thing that could have made this a
 bad trade. Over sixty wheel events in twenty frames: layouts stay at 40, the
 number that mattered, and the whole gesture costs about 3.8 ms more in style
-and script — under 0.2 ms a frame. During a zoom the layer is transformed
+and script, under 0.2 ms a frame. During a zoom the layer is transformed
 rather than rebuilt, because rebuilding several hundred spans per frame is
 precisely the cost the coalescing handler exists to avoid; without it a
 selection made mid-gesture would land a word out.
@@ -2420,21 +2420,21 @@ double-click that jumps to the source still reaches `.nx-page` beneath it.
 The agent panel is two different things depending on width: below 1400px an
 overlay that slides over the preview, above it a column that folds. One
 shortcut has to do whichever is on screen, and opening it puts the caret in
-the box — a shortcut that opens a panel you then have to click into has saved
+the box, a shortcut that opens a panel you then have to click into has saved
 nobody anything.
 
 Super-A was asked for and is not available. On Linux the window manager takes
 Super before the browser sees it; `Cmd/Ctrl-A` alone is Select All, which an
 editor cannot give up; `Cmd/Ctrl-Shift-A` is Chrome's own tab search; and
 `Cmd/Ctrl-/` is CodeMirror's toggle-comment, bound by `defaultKeymap`. **The
-binding is `Cmd/Ctrl-Alt-A`**, which keeps the A — the part worth keeping —
+binding is `Cmd/Ctrl-Alt-A`**, which keeps the A, the part worth keeping,
 and is free in both keymaps and both browsers. It is read from `event.code`
 rather than `event.key`, because with Alt held macOS reports the character
 the combination would type.
 
 **Escape closes it from inside it, and never opens it.** Scoped rather than
 global, and the first attempt was global: Escape is also how a keyboard gets
-out of CodeMirror — where Tab indents rather than moving on — so a binding
+out of CodeMirror, where Tab indents rather than moving on, so a binding
 that listened everywhere shut the panel every time somebody pressed Escape
 to tab away from the editor, and the accessibility spec that tabs from the
 editor to the composer caught it. Escape dismisses the thing you are in,
@@ -2443,7 +2443,7 @@ holds, because that shortcut leaves the caret in the composer.
 
 Two things still have to be true. The tutorial, the history panel and the
 context sheet own Escape while they are open, and close themselves. And a
-popover *inside* the panel claims it by preventing the default — a claim not
+popover *inside* the panel claims it by preventing the default: a claim not
 visible synchronously, since window listeners run in the order they were
 added and those components mount long after the shell, so the decision waits
 a turn and then reads `defaultPrevented`.
@@ -2454,7 +2454,7 @@ The agent used to be reached by two controls that were never both present: a
 vertical strip at the right edge above 1400px, and a button in the editor's
 tab row below it. That button lives inside the editor pane, which is hidden
 when the source is folded away and when the preview has the window below
-900px — **so in two ordinary layouts there was no way to reach the agent with
+900px: **so in two ordinary layouts there was no way to reach the agent with
 a mouse at all**, only `Cmd/Ctrl-Alt-A`. Both e2e cases now exist.
 
 One control instead, in the shell rather than in any pane, in the same corner
@@ -2464,12 +2464,12 @@ centred toasts. It travels left by the panel's width when the panel is
 docked, so the panel never covers the thing that closes it.
 
 It carries the provider's mark rather than its name alone, drawn as geometry
-rather than traced — a trademark reproduced badly from memory looks worse
+rather than traced: a trademark reproduced badly from memory looks worse
 than no logo, and the name is beside it either way. On the mark sits a state
 dot fed by `thinking` and `awaitingPermission`. That dot earns its place:
 *the agent is waiting for you to allow something* was invisible whenever the
 panel was closed, which is precisely when it needed saying. It breathes
-rather than spins — a turn can run for a minute, and something spinning for a
+rather than spins: a turn can run for a minute, and something spinning for a
 minute reads as an error long before it reads as progress.
 
 ### The rail scrolls rather than pushing its panels out
@@ -2477,7 +2477,7 @@ minute reads as an error long before it reads as progress.
 Every expanded panel in the rail is `shrink-0`, which is right: a list
 squeezed to two rows is worse than one you scroll to. But the column had no
 answer for their natural heights adding up to more than the rail is tall, and
-the lower ones were simply pushed out of the pane — on a fourteen-chapter
+the lower ones were simply pushed out of the pane: on a fourteen-chapter
 project at 700px, "What Claude reads" sat 184px below the bottom with no way
 to scroll to it. The stack is now its own scroll container. `min-h-0` matters
 as much as the overflow: a flex child will not scroll until it is allowed to
@@ -2487,7 +2487,7 @@ be shorter than its content.
 
 Below 1400px the panel lies over the preview, and the click that means "let me
 read this" was leaving it covered. A `pointerdown` on the preview pane now
-closes the overlay — `pointerdown` rather than `click` so it lands before the
+closes the overlay, `pointerdown` rather than `click` so it lands before the
 preview header's own single/double-click timer and never turns a fold into a
 mode change, and nothing is prevented, so the click still reaches the page.
 
@@ -2498,7 +2498,7 @@ into the document would be unusable.
 While the specs for this were being written, the same double click that
 enters reading mode was found to leave the project. The preview header shows
 the project controls in place of its own label once the rail has folded away,
-which in reading mode it always has — so the second half of the gesture landed
+which in reading mode it always has, so the second half of the gesture landed
 on "switch project". The controls moved to the right of the bar, beside the
 fold chevron. The left of a header a writer double clicks has to stay inert.
 
@@ -2571,9 +2571,9 @@ there.
 
 ## 20. A tutorial that can be read while you use the thing it describes
 
-The app explains itself well in places — the status strip names the first
+The app explains itself well in places, the status strip names the first
 error in English, the git panel offers a repository before you ask, the
-welcome message says what the agent is for — but none of that adds up to an
+welcome message says what the agent is for, but none of that adds up to an
 answer to "what is this and how do I use it". `docs/first-session.md` is
 that answer and it is not reachable from the app, which over Tailscale may
 be running on a machine the reader does not have the repository on.
@@ -2608,14 +2608,14 @@ It covers the preview because the preview is the one pane no section asks
 you to touch: the rail's panel headers, the tab strip's empty run, the
 gutter, the status strip, the composer's icon row and the git footer all
 stay visible behind it. Below 1400 px the agent is itself an overlay over
-the preview, so opening the tutorial puts it away — the same handoff, for
+the preview, so opening the tutorial puts it away, the same handoff, for
 the same reason, that the preview pane already performs on a pointer press.
 Closing the tutorial does not bring the agent back; `⌘⌥A` does, and the
 tutorial's own shortcut table names that key two sections away.
 
 Rejected, each for a reason particular to this app: a **centred modal**,
 because §5 reserves modals for surfaces that are the whole of what you are
-doing, and a tutorial about the layout is the opposite — it would cover the tab
+doing, and a tutorial about the layout is the opposite: it would cover the tab
 strip, gutter and status strip that half the content points at; a **new
 `view`**, because it would unmount the editor and throw away the layout the
 reader is being taught about; a **rail panel**, because the rail auto-collapses
@@ -2633,8 +2633,8 @@ arrangement set its own tripwire and then walked past it twice.** The
 paragraph here said: "Nine rows at 26 px is what makes the block fixed
 rather than scrolling, and a tenth section is the practical signal to cut
 one instead." There are eleven sections. Nobody cut anything and nobody
-re-read this, so 290 px of a 380 px sheet — a third of the surface, above
-the fold, permanently — was an index of places a first-time reader has not
+re-read this, so 290 px of a 380 px sheet, a third of the surface, above
+the fold, permanently, was an index of places a first-time reader has not
 been yet.
 
 It is one 30 px row now, and it does two jobs at once. Closed, it names the
@@ -2653,7 +2653,7 @@ recorded here before.
 
 The row you are in is marked with a 2 px leading bar in `--pen`, which is
 what the file tree, the history panel, the diagnostics list and the folder
-chooser all use to say "this one" — §19's argument against a fill still
+chooser all use to say "this one", §19's argument against a fill still
 holds and the bar was always the app's answer to it. One tab stop with arrow
 keys, not eleven, for the reason §10 and §19 both give; opening the index
 puts the caret on the section you are in, so the first arrow moves from where
@@ -2671,7 +2671,7 @@ one**, set in `--ink` where the rest of the prose is `--ink-2`. Eleven
 sections of three or four undifferentiated paragraphs in a 380 px column is a
 wall; eleven leads is a page a reader can skim for the answer they came for.
 It is the first paragraph promoted rather than a summary written on top of
-one — a section whose opening sentence cannot carry it wants rewriting rather
+one, a section whose opening sentence cannot carry it wants rewriting rather
 than labelling.
 
 ### Figures
@@ -2681,7 +2681,7 @@ screenshot earns its place only if it shows an unlabelled target you cannot
 otherwise point at, or a state that is not currently on screen.** The reader
 is inside the app, so a picture of something visible and already labelled is
 the least informative figure there is. That rule cuts the obvious first idea
-— there is no overview shot of the four panes, because the reader is looking
+: there is no overview shot of the four panes, because the reader is looking
 at them.
 
 What survives: the tab strip's empty run (invisible by definition), the
@@ -2698,7 +2698,7 @@ them in the same frame as everything else.
 
 Every figure carries `width` and `height` so nothing reflows as images
 arrive, its caption says what to look for, and its alt text says what the
-picture is — they are not the same sentence.
+picture is, they are not the same sentence.
 
 **The figures are generated, not cropped by hand**, by `e2e/shots/tutorial.spec.ts`
 and regenerated with one command:
@@ -2715,14 +2715,14 @@ describe the build.
 ### Cost
 
 Both surfaces are `React.lazy`, as `Pdf` already is. The initial chunk grew
-**1.6 kB** — two `lazy()` calls, two buttons and two booleans — against a
+**1.6 kB**, two `lazy()` calls, two buttons and two booleans, against a
 760 kB budget; the tutorial itself is a 25 kB chunk and the guide a 2 kB one,
 neither fetched until opened.
 
 One deviation from the plan, recorded rather than hidden: four of the
 figures are under Vite's 4 kB inlining threshold and are therefore base64 in
 the tutorial chunk rather than separate files. The intent of the rule was to
-keep images out of what a first visit downloads, and that is satisfied —
+keep images out of what a first visit downloads, and that is satisfied,
 they are inside a chunk nobody fetches unless they open the tutorial. Raising
 `assetsInlineLimit` to zero would have changed asset handling for the whole
 app to tidy 12 kB inside a lazy chunk.
@@ -2735,7 +2735,7 @@ read as a pair, opening a 320 px popover in the `PapersChooser` idiom. It
 card that follows you around the project list is what that hook exists to
 prevent.
 
-Eight labelled lines and no figures at all — every one of them describes
+Eight labelled lines and no figures at all: every one of them describes
 something visible behind the card, which is the figure rule applied
 honestly. The two surfaces therefore share their type scale and their
 `Section`/`Keys` primitives but not their component: they differ in width,
@@ -2747,7 +2747,7 @@ wearing one name.
 
 No stored progress, no scroll restoration, no auto-open on first run. §4
 already refused an auto-opening drawer in a passage written about exactly
-this temptation, and the app does first-run orientation where it belongs —
+this temptation, and the app does first-run orientation where it belongs,
 `welcome.ts` puts three paragraphs and two buttons in an agent panel with no
 conversation yet. A tutorial opening on top of that would be two welcomes
 competing for the same thirty seconds. Reopening lands at the top rather
@@ -2763,8 +2763,8 @@ the first two describe a problem they do not have.
 **Choosing the agent could not be documented, because it cannot be done.**
 `api.chooseProvider` is reachable only from `SignIn`, which mounts only when
 the agent is not yet configured or the session has expired. Once Claude,
-OpenAI or "on my own" has been chosen there is no control anywhere — not in
-the settings card, not on the projects screen — for changing it. Section 6
+OpenAI or "on my own" has been chosen there is no control anywhere, not in
+the settings card, not on the projects screen, for changing it. Section 6
 of the tutorial therefore explains how the agent *behaves* and points at the
 README for how it was chosen. This is a missing control rather than a
 documentation gap, and papering over it in a tutorial would have been the
@@ -2956,8 +2956,8 @@ documentation says to pull between sessions rather than during one.
 
 Retention is per peer. Two collaborators may hold different depths of the
 same file's history, because thinning is a decision about a local disk. It
-syncs by a mark that only moves forward — a set difference would re-offer
-every record that thinning had just dropped, for ever — and §26 says what
+syncs by a mark that only moves forward, a set difference would re-offer
+every record that thinning had just dropped, for ever, and §26 says what
 that mark is now, which is not what it was when this was written.
 
 Relaying inherits that. Where a third install receives somebody's history
@@ -2968,7 +2968,7 @@ on another without either of them being wrong.
 
 And a collaborator who never reconnects takes their intermediate states with
 them. A projection made from somebody else's typing no longer records a
-version of its own — see §26 — so the states between their last sync and
+version of its own, see §26, so the states between their last sync and
 their disappearance exist only on their machine. The window is the sync
 latency, which is seconds.
 
@@ -2987,8 +2987,8 @@ bugs in the first that no amount of looking would have.
 Four surfaces five L\* apart, all of them light, with the frame only five
 points below the panes. The result was one grey field divided by hairlines:
 the rail, the editor, the agent column and the surround read as the same
-object, and the typeset page — which §1 says is the point of the whole
-palette — was no brighter than the panes beside it. The writer's own words
+object, and the typeset page, which §1 says is the point of the whole
+palette, was no brighter than the panes beside it. The writer's own words
 for it were that it looked "completely light everywhere, like a cloud", and
 that there should be contrast between the panes and the things in front of
 them.
@@ -3008,8 +3008,8 @@ The mechanism is one selector added to the dark block:
 ```
 
 and nothing else. This works because `@theme inline` keeps the `var()`
-indirection inside every compiled Tailwind utility — `bg-surface` in the
-bundle is `background-color: var(--surface)` — so a container that
+indirection inside every compiled Tailwind utility, `bg-surface` in the
+bundle is `background-color: var(--surface)`, so a container that
 redeclares the palette repaints everything inside it with no component
 changes at all.
 
@@ -3018,8 +3018,8 @@ considered and both are worse for the same reason. A third palette is three
 dozen values that have to be authored, measured, and then kept in step; §2
 records twice what happens when two copies of a palette are free to drift.
 A `--chrome-*` layer doubles the token count, gives every component a second
-vocabulary to choose between, and creates a whole matrix of pairs — `--pen`
-on `--chrome-2`, `--error` on `--chrome` — that `contrast.test.ts` has no
+vocabulary to choose between, and creates a whole matrix of pairs, `--pen`
+on `--chrome-2`, `--error` on `--chrome`, that `contrast.test.ts` has no
 curated entries for. Reusing the dark palette creates **zero** new pairs:
 every pair already certified for dark holds verbatim.
 
@@ -3053,7 +3053,7 @@ the weight it was chosen for. This is the only ink they touch: `--ink` and
 `--ink-2` merely gain contrast, which is never a fault.
 
 **`--line` is the one thing that genuinely weakens**, and not because of the
-ink. It is `color-mix(in oklab, var(--ink-3) 55%, transparent)` — an alpha
+ink. It is `color-mix(in oklab, var(--ink-3) 55%, transparent)`: an alpha
 mix, so what shows is 55% of the ink over 45% of the ground. Brighten the
 ground *and* lighten the ink and the hairline moves two steps toward the
 page, taking the gutter rule and the search panel's borders with it. The
@@ -3062,7 +3062,7 @@ papers mix it at 68% to stand still.
 ### The three bugs the furniture found
 
 **`--on-pen`.** A filled `--pen` button decided its label colour with
-`:root[data-theme="dark"] .pen-button { color: var(--surround) }` — it asked
+`:root[data-theme="dark"] .pen-button { color: var(--surround) }`, it asked
 the *root* what theme it was. That is the wrong question inside a subtree,
 and it was already latently wrong for a `.nx-theme-dark` editor. The moment
 the agent column became furniture it went actively wrong: Send in the light
@@ -3077,7 +3077,7 @@ agent column's heading and several buttons went invisible the instant the
 furniture arrived. `color` inherits *resolved*: `body` computes its colour
 from the light `--ink` once, and every descendant inherits that dark grey
 even inside a subtree that has since redeclared `--ink` for a dark ground.
-One line — `.nx-furniture { color: var(--ink) }` — retires the whole class
+One line, `.nx-furniture { color: var(--ink) }`, retires the whole class
 of it. Anything else handed a palette by a class needs the same line.
 
 **`theme-color` was the wrong token.** The meta tag declared `#121614`, the
@@ -3094,7 +3094,7 @@ name in its accessibility label. Six grounds could not have survived that.
 
 They are swatches, and each is painted by putting the app's own palette class
 on the fill and filling with `var(--surface)`. There is no list of preview
-hexes here to go stale — the swatch *is* the token. `Match` is drawn as both
+hexes here to go stale, the swatch *is* the token. `Match` is drawn as both
 palettes at once, split down the middle, because that is what it means, and
 a caption names the current choice so the row reads as a sentence rather than
 as six grey rectangles to guess between.
@@ -3114,7 +3114,7 @@ unlinks a blob by name. It drops one log with `History.forget`, then lets
 `History.collect` sweep whatever no *remaining* log points at. The
 collector's one-hour grace exists to stop it racing a `record` that has
 written a blob and not yet its line, so a version made in the last hour
-survives the call and goes on the next one — which is why the interface says
+survives the call and goes on the next one, which is why the interface says
 disk comes back "within the hour" and must not promise sooner.
 
 The order is forget, re-seed, collect. Collecting first would unlink the blob
@@ -3171,15 +3171,15 @@ so the one file this app could not show was the one it was best equipped to.
 
 `frontend/src/panes/file-kinds.ts` is now the single answer, and it has **no
 imports and may never gain one**: `History.tsx` imports it statically, and a
-static import anywhere keeps the module in the entry chunk — which is what
+static import anywhere keeps the module in the entry chunk, which is what
 stopped `FileView` being split out of it before.
 
 The server's sets are deliberately not merged into it. Those decide what the
 editor may open, which is a question about bytes on disk and has to be
 answered on the server whatever the browser believes; this one decides how to
 draw a row and which viewer to reach for. A vitest asserts the containment
-that has to hold — every suffix the server will hand over as text is text
-here too — so the two can differ without drifting.
+that has to hold, every suffix the server will hand over as text is text
+here too, so the two can differ without drifting.
 
 ### The viewers
 
@@ -3189,7 +3189,7 @@ contradict the code. A figure is not an attachment; it is the object the
 writer is judging, and judging it means seeing it at a size they choose.
 
 PDFs go to the preview pane's own viewer, which now takes an optional
-`source` URL instead of the build output — the same rasteriser, the same
+`source` URL instead of the build output: the same rasteriser, the same
 zoom ladder, the same page controls. Double-click inverse search is inert
 when `source` is set: there is no source file behind somebody's figure, and
 asking synctex anyway would land the caret on an unrelated line of the main
@@ -3197,8 +3197,8 @@ document.
 
 Images get zoom, fit and their real pixel dimensions, and they are drawn **on
 paper**, with the page's own shadow, on the surround. The old viewer centred
-them on `--surface-2`, so a plot exported with a transparent background —
-which is most of them — was judged against near-black in the dark theme,
+them on `--surface-2`, so a plot exported with a transparent background,
+which is most of them: was judged against near-black in the dark theme,
 where a white axis label simply is not there. Paper is also the honest
 preview: white is what transparent will be once it is on the page.
 
@@ -3214,14 +3214,14 @@ The project list, the sign-in screen, the reconnect screen and the error
 boundary are chrome from edge to edge. There is no page being written on any
 of them and nothing on them is a document, so they take `.nx-furniture`
 whole rather than in parts. Leaving them out made the project list the one
-pale field in a light theme that had gone dark everywhere else — you set up
+pale field in a light theme that had gone dark everywhere else: you set up
 a project in a dark interface, pressed Back, and the room changed colour.
 
 The project list needed more than a palette, though. It was a masthead, a
 form and a status line centred in an empty field, with nothing under any of
 them: at 1000px tall, three hundred pixels of nothing above the first word.
 Every other surface in this application is drawn as an object lying on the
-proofing grey — the typeset page, the panes, the cards, the figures — and
+proofing grey, the typeset page, the panes, the cards, the figures, and
 this screen was the one place that idea had been dropped. It is a sheet now.
 The project list inside it steps down to `--surface-2` rather than carrying
 a border of its own, because a card inside a card is two objects claiming to
@@ -3243,7 +3243,7 @@ before it is an arrow, and it sat on the *left* edge, where a control
 meaning "back" would be. It was carrying the wrong half of the name at the
 cost of the silhouette.
 
-And it was a sheet with a folded corner — which is to say it was almost
+And it was a sheet with a folded corner, which is to say it was almost
 exactly the glyph this same pass drew beside every file in the tree. A logo
 that is also the file icon has stopped being a logo. Nothing in it said
 typesetting, and nothing in it said TeX.
@@ -3255,7 +3255,7 @@ stroke, so it survives 16px; and no other product's mark is a backslash.
 **The page is drawn in `--ink` and only the backslash is `--pen`.** That is
 the part to keep if it is ever redrawn again. Violet in this application
 means the agent touched something, and a mark washed in it spends a colour
-the interface has reserved — one stroke of it is a signature, a whole glyph
+the interface has reserved: one stroke of it is a signature, a whole glyph
 of it is a claim. It also means the mark takes the theme's own inks and is
 legible on both grounds without a second set of values, which a single fixed
 brand violet would not be: `#7B45A0` on the dark rail measures 2.8:1, under
@@ -3264,7 +3264,7 @@ preference is right for a dark-only app and wrong here.
 
 The favicon is a different drawing on purpose, and it now lives only in
 `index.html`. There used to be a `FAVICON_SVG` export beside the component
-with no consumer anywhere — a second copy of the mark, free to drift from
+with no consumer anywhere: a second copy of the mark, free to drift from
 the first, and already differing from it. A tab icon has to be right before
 any script runs, so `index.html` is its home; and at 16px the page outline
 closes up into a grey box with something in it, so the small cut keeps only
@@ -3290,7 +3290,7 @@ changed. What changed is everything that was built on top of it.
 
 **Who wrote a version is a fact about the version, not about the machine it
 is sitting on.** This was not true, and until it was, "this install's own
-records" named no particular set — which is the ground the first principle
+records" named no particular set, which is the ground the first principle
 needs in order to mean anything.
 
 ### Every install used to record the others' typing as its own
@@ -3298,7 +3298,7 @@ needs in order to mean anything.
 `CollabStore._write` projects the merged document to disk and then records a
 version, and `record_version` stamps whoever owns the machine doing the
 writing. So when Alice typed, Bob's install wrote the merged text to Bob's
-disk and recorded a version stamped **Bob** — then offered Alice's paragraph
+disk and recorded a version stamped **Bob**, then offered Alice's paragraph
 back to Alice as Bob's work. Nothing deduplicated it, because both the moment
 and the author differed, so a shared file's log grew by roughly one wrongly
 attributed entry per edit per collaborator. Whether it happened at all
@@ -3332,7 +3332,7 @@ Running off the end stopped that file's history for good. Thinning from the
 *middle* was quieter and worse: later records slid down into ground the peer
 had already passed and were skipped in silence, while the records on either
 side of them arrived normally, so nothing looked wrong from either machine.
-Coalescing did it a third way — `record` replaces the last line, so the peer
+Coalescing did it a third way: `record` replaces the last line, so the peer
 kept a burst's intermediate save whose contents the author's next sweep
 collects, and was never sent the finished one.
 
@@ -3344,7 +3344,7 @@ refers to.
 
 For that question to have an answer, an author's moments have to be
 distinct. `record` forces `at` strictly above the newest record **by the same
-author** in that file — by a whole millisecond, because absorbing rounds to
+author** in that file: by a whole millisecond, because absorbing rounds to
 the millisecond when it asks whether it already holds a record. Scoped to the
 author on purpose: taken over every record, a collaborator whose clock runs
 ten hours fast would drag this machine's timestamps ten hours forward and
@@ -3356,7 +3356,7 @@ Collaborators in different time zones are rarely at their desks at the same
 moment. A mark kept per *link* cannot express what a third machine holds, so
 two people who each only ever meet a third never exchange a single version,
 however long the project runs. A record's author travels with the record, so
-passing on somebody else's is exact — provided a relayed line keeps its own
+passing on somebody else's is exact: provided a relayed line keeps its own
 author and is not stamped with the relay's id, which is the one mistake that
 would key the whole scheme on the wrong peer.
 
@@ -3364,7 +3364,7 @@ Two rules keep relaying from becoming the retention argument this design
 exists to avoid. **Nobody offers a peer that peer's own records**, checked by
 the sender so that a marks file that was lost or never written cannot defeat
 it. And **`History.absorb` refuses any line claiming to be authored here**,
-which is the same rule from the other end — and is also what stops a member
+which is the same rule from the other end, and is also what stops a member
 signing their work with somebody else's name, inflating what every other
 machine thinks that person has written.
 
@@ -3397,7 +3397,7 @@ the first keystroke. But if its author has since thinned that record away and
 swept the contents, the line stays and clicking it will always fail.
 
 So the last day of a collaborator's versions, and anything anybody named, is
-fetched as the line arrives — across every link rather than the one that sent
+fetched as the line arrives: across every link rather than the one that sent
 it, because a relay can pass on a record for content it does not itself hold.
 The rest keeps the on-demand fetch, and the panel marks them *elsewhere*: no
 thumbnail is requested for one, and opening it gives a sentence rather than a
@@ -3415,9 +3415,9 @@ Measured rather than argued: sixteen threads writing twenty versions each to
 one file kept **7 of 320** without the lock, and 320 with it.
 
 `versions()` also sorts after parsing now. Everything downstream reads a log
-as a sequence — `record` takes the last entry as the previous version,
+as a sequence, `record` takes the last entry as the previous version,
 thinning keeps the last of each bucket, a collaborator asks for everything
-after a moment — and a rename onto a name that already had a past used to
+after a moment, and a rename onto a name that already had a past used to
 append one log's text onto the other's and leave the result out of order on
 disk. Sorting on read repairs a log already in that state.
 
@@ -3432,7 +3432,7 @@ Nothing is gossiped: a purge is a decision about one disk.
 everybody's editor pointed at the same document. What it never did was move
 the file on the other machine, so that machine kept the old name with the old
 contents, the new name appeared only when somebody happened to type into that
-document, and then it had both — with the history still filed under the old
+document, and then it had both: with the history still filed under the old
 name, because nothing in the collaboration layer ever called `note_move`. It
 follows both now, on the projection's own timer rather than inside the
 manifest transaction, which may not touch a disk.
@@ -3448,7 +3448,7 @@ the receiving machine's own trash, which is what gives that person a restore.
 *A restore whose old name has been taken* comes back beside it, and its past
 comes with it. Not by renaming the log: history is keyed by path, so the log
 at the old name holds the restored file's past **and** the past of whatever
-took the name after it went — which is exactly why `Trash._forget` checks
+took the name after it went, which is exactly why `Trash._forget` checks
 whether anything lives there before forgetting. Renaming would hand one
 file's history to another. It is cut at the last deletion instead, which is
 always there to cut at because a deletion is never thinned away.
@@ -3473,7 +3473,7 @@ properly.
 And a shared project never swept its own history. Collection ran when a
 session was evicted, and a shared project is deliberately never evicted, so
 unless the writer emptied the trash or cleared a file by hand it kept every
-thinned version's contents for ever — the exact failure eviction-time
+thinned version's contents for ever: the exact failure eviction-time
 collection was added to fix, reintroduced by the rule that keeps shared
 projects alive. An open project is swept hourly now.
 
@@ -3489,8 +3489,8 @@ entry for `figures/plot.png` and no file. That is real, and it is a
 file-sync gap rather than a history one; syncing a figure's *past* is done.
 
 **Rekeying history on the collaboration file id** rather than on the path
-slug. Three keyspaces meeting — the path slug, the file id, the trash entry
-id — is the root cause behind two of the findings above. Following the
+slug. Three keyspaces meeting, the path slug, the file id, the trash entry
+id, is the root cause behind two of the findings above. Following the
 manifest's path on the receiving side is the minimal correct fix; rekeying is
 a migration deserving its own run.
 
@@ -3780,3 +3780,21 @@ Where the bytes live is decided by section 27 rather than by preference, and it 
 **A figure whose filename has a space in it is flagged rather than refused.** `\includegraphics{a b.pdf}` sends TeX looking for `a` and then complaining that `b.pdf` has an unknown extension, which names neither the file nor the problem: it is a puzzle rather than a message, and it arrives a build later than the mistake. The write is not refused, because the file does exist and refusing would be worse than saying so, and the model is told so it can rename it.
 
 **The Sections panel did not get the selection verbs, and that is a decision.** The plan for this run said the verbs belonged on a section in the rail as well as on a selection in the editor, on the grounds that the outline already knows the range. It is convenience rather than capability: selecting the section in the editor already produces the verbs, so a second entry point buys a shorter route to something already reachable, and it costs a hover control on every row of a panel that can hold forty of them. Left out, and written down rather than quietly dropped.
+
+### The em dashes the app was shipping in its own voice
+
+`nexttex/writing.py` opens with two rules stated as absolutes, and the first is that there is never an em dash, in the document or in what the agent says to the user. The app was breaking it in its own voice in about three hundred and eighty places: forty-eight in the interface, twenty-five in the Python, and the rest in these documents, this one worst of all.
+
+That was not an oversight so much as a reading. The rule looked like it governed prose written *into* somebody's project, and the evidence for the narrow reading was that the repository's own markdown was full of them. The evidence was the thing to fix.
+
+The interface strings and the Python went by hand, because each one wants a different repair: a comma where the dash was parenthetical, a colon where what followed was an explanation, a full stop where it was joining two sentences that wanted to be two. Three hundred and forty-eight in the documents went through a rule and then a read: a parenthetical pair became a pair of commas, an elaboration with its own internal punctuation became a colon, everything else became a comma, and the two patterns that came out wrong, a label in a table cell and a label at the head of a list item, were put back as colons because a comma there reads as a list of two things where the original read as a definition.
+
+Two characters stayed and both are the same exception. `–` is now the "no value yet" glyph in the page counter and the file name in the status strip, where a word would reflow a strip that must not reflow; it is a different character and the rule bans the em dash itself. And the em dash inside `tests/test_explain.py` is a TeX error message *about* a stray em dash, where the character is the subject rather than the punctuation.
+
+The test that held the README to this now holds the whole repository, which it could not before, and three files are exempt for the reason above. That is the part worth keeping: the backlog is gone, and the thing that let it accumulate was that nothing looked.
+
+### The palette section disagreed with the stylesheet, and nothing could notice
+
+This document's own preamble says that when it and the implementation disagree, that is a bug in one of them and the thing to do is decide which. Its palette section disagreed with `frontend/src/styles.css` for weeks: a commit updated the table and missed the prose two paragraphs below, so the document said the pen was `#74408E` when the stylesheet said `#6F2998`, and said the dark surround was `#141715` when that is the light theme's ink.
+
+The prose is corrected, and there is a test now, because nothing could have noticed. Not a check that every colour named here is in the stylesheet, since this section legitimately names colours that are somebody else's: NexusQC's accent, and the indigo this app is explicitly not. The narrower rule is the one that actually broke, which is that a colour presented as *ours* has to be one the stylesheet sets.

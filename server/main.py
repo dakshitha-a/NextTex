@@ -100,7 +100,7 @@ FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     tex = ensure_tex_on_path()
-    print(f"  LaTeX      {tex or 'NOT FOUND — compiling will fail'}")
+    print(f"  LaTeX      {tex or 'NOT FOUND, so compiling will fail'}")
     for item in missing_tools():
         print(f"  missing    {item}")
     watcher = asyncio.create_task(_watch_projects())
@@ -2283,7 +2283,7 @@ async def library_scan(project_id: str, path: str = Body(..., embed=True)):
     if bib is None:
         raise HTTPException(
             400,
-            "There is no .bib file in this project. Make one first — "
+            "There is no .bib file in this project. Make one first, "
             "New file, references.bib.",
         )
 
