@@ -2760,15 +2760,26 @@ Installing, the token in the URL and the `.nexttex/` directory tree stay in
 the README and `first-session.md`: the reader is inside a running app, so
 the first two describe a problem they do not have.
 
-**Choosing the agent could not be documented, because it cannot be done.**
-`api.chooseProvider` is reachable only from `SignIn`, which mounts only when
-the agent is not yet configured or the session has expired. Once Claude,
-OpenAI or "on my own" has been chosen there is no control anywhere, not in
-the settings card, not on the projects screen, for changing it. Section 6
-of the tutorial therefore explains how the agent *behaves* and points at the
-README for how it was chosen. This is a missing control rather than a
-documentation gap, and papering over it in a tutorial would have been the
-wrong fix.
+**Choosing the agent could not be documented, because at the time it could
+not be done.** `api.chooseProvider` was reachable only from `SignIn`, which
+mounts only when the agent is not yet configured or the session has expired,
+so once Claude, OpenAI or "on my own" had been chosen there was no control
+anywhere, not in the settings card and not on the projects screen, for
+changing it. The tutorial therefore explained how the agent *behaves* and
+pointed at the README for how it was chosen. It was written down here as a
+missing control rather than a documentation gap, because papering over it in
+a tutorial would have been the wrong fix.
+
+**It was built afterwards, and this paragraph is kept for the reason it was
+written rather than deleted.** `c527b6e` gave the sign-in screen a way out
+that is not a choice, so the screen that chooses an agent can be left
+without choosing one. `c59b5e9` then put the route on both screens and named
+it after what it does rather than after the state it reports: the settings
+sheet carries a `Writing agent: <name>` row whose action is `Change`, or
+`Writing agent: not set up` with `Set up` where there is none, and the
+projects screen carries the same route in its own chrome beside the cog,
+showing which agent it is. The tutorial says you can change it later, and
+names the settings route.
 
 ## 21. The bundle is compressed once, not on every request
 

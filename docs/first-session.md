@@ -64,11 +64,12 @@ Three options, and the third is a real one:
   exactly the same. The chat column is not there at all rather than sitting
   greyed out.
 
-You can change this later, and nothing you write depends on the choice. If
-you installed with no agent and change your mind, *Settings → Change* comes
-back to this screen; choosing Claude on a machine that has no `claude` on it
-offers to install it there and then, running the same vendor installer the
-terminal installer runs, with its output on the page.
+You can change this later, and nothing you write depends on the choice. Two
+routes come back to this screen: the projects screen names the agent beside
+the cog, and *Settings → Change* goes to the same place. If you installed
+with no agent, both read *Set up* instead. Choosing Claude on a machine that
+has no `claude` on it offers to install it there and then, running the same
+vendor installer the terminal installer runs, with its output on the page.
 
 *Asserted by: a fresh install asks how you want to work, not who you are;
 choosing to work alone gets straight to the projects; signing in shows the
