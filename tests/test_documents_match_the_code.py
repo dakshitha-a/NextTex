@@ -142,24 +142,43 @@ def test_the_benchmark_table_quotes_the_budgets_that_are_set():
     thresholds = json.loads((ROOT / "bench" / "thresholds.json").read_text())
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    # The rows whose budget is quoted with a unit the table also uses.
-    checks = {
-        "Chapter build, as an edit triggers": ("compile.chapter_ms", "4 s"),
-        "Full build with `biber`": ("compile.full_ms", "30 s"),
-        "Full symbol scan": ("symbols.scan_ms", "400 ms"),
-        "Symbol lookup, cached": ("symbols.cached_ms", "6 ms"),
-        "Opening a project": ("project.open_ms", "400 ms"),
-        "Recording a version": ("history.record_ms", "8 ms"),
-        "Rebuilding a transcript": ("transcript.items_ms", "120 ms"),
-        "Project file tree": ("project.tree_ms", "250 ms"),
-        "A collaborator's edit, applied": ("collab.ingest_ms", "40 ms"),
-        "Whole project as a zip": ("download.zip_ms", "3 s"),
-        "Interface bundle": ("bundle.initial_kb", "800 kB"),
+    def cell(key: str) -> str:
+        """The budget as the table writes it.
+
+        The table is read by a person, so a budget of 4000 ms is written as
+        `4 s`. That is the only rule, and deriving the expected string rather
+        than listing it is the whole point: a hardcoded expectation would
+        just be a second transcription, green while the README and the
+        thresholds disagreed with each other.
+        """
+        value = thresholds[key]
+        if key.endswith("_kb"):
+            return f"{value:g} kB"
+        if value >= 1000 and value % 1000 == 0:
+            return f"{value // 1000:g} s"
+        return f"{value:g} ms"
+
+    rows = {
+        "Chapter build, as an edit triggers": "compile.chapter_ms",
+        "Full build with `biber`": "compile.full_ms",
+        "Full symbol scan": "symbols.scan_ms",
+        "Symbol lookup, cached": "symbols.cached_ms",
+        "Opening a project": "project.open_ms",
+        "Recording a version": "history.record_ms",
+        "Rebuilding a transcript": "transcript.items_ms",
+        "Project file tree": "project.tree_ms",
+        "A collaborator's edit, applied": "collab.ingest_ms",
+        "Whole project as a zip": "download.zip_ms",
+        "Interface bundle": "bundle.initial_kb",
     }
-    for label, (key, stated) in checks.items():
-        row = next((line for line in readme.splitlines() if line.startswith(f"| {label} |")), None)
-        assert row, f"the benchmark table no longer has a row for {label}"
-        assert row.rstrip().endswith(f"| {stated} |"), (
-            f"{label}: the table says {row.rstrip().rsplit('|', 2)[1].strip()}"
-        )
+    for label, key in rows.items():
         assert key in thresholds, f"{key} is no longer a budget"
+        row = next(
+            (line for line in readme.splitlines() if line.startswith(f"| {label} |")),
+            None,
+        )
+        assert row, f"the benchmark table no longer has a row for {label}"
+        stated = row.rstrip().rsplit("|", 2)[1].strip()
+        assert stated == cell(key), (
+            f"{label}: the table says {stated}, thresholds.json says {cell(key)}"
+        )
