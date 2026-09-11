@@ -309,6 +309,16 @@ because the bench builds a project the size of a real thesis. And the
 regression guard for it lives in `tests/collab/test_store.py` rather than in
 the bench, so an ordinary `scripts/check.sh` would catch it coming back.
 
+## The documents name things, and now something checks the things exist
+
+`tests/test_documents_match_the_code.py` reads every document in the repository and asserts that each file path, each `/api/` route and each `NEXTTEX_*` variable written as a name is real. It is not a test of the prose: a sentence can be wrong in ways no test can see, and catching that still means reading the passage next to the code. What it covers is the mechanical half, which is the half that rots silently when something is renamed.
+
+It exists because of what a documentation sweep turned up. The README's benchmark table quotes a budget column, transcribed from `bench/thresholds.json` by hand, and the interface bundle row said 782 kB when the file had held 800 since the agent panel rework. So a reader comparing the two numbers in that row was comparing a measurement from one run against a budget from an older one, and nothing anywhere could have noticed. The fourth test in that file checks the budget column against the file it was copied from, and it was watched to fail on exactly the number that was wrong.
+
+The sweep that prompted it found nothing else: every path, route and variable the documents named was real. That is worth knowing, because it says the drift is in the numbers and the narrative rather than in the names, and the numbers now have a test.
+
+Four paths are exempt and each says why, in the file rather than here. They are paths inside a writer's own project, which is gitignored precisely so that none of it is in this repository.
+
 ## The suite used to sign the developer out of Claude Code
 
 `nexttex/claude_auth.py` looks for the CLI at `NEXTTEX_CLAUDE_BINARY`, then on `PATH`, then at `~/.local/bin/claude`, because a self-hosted install genuinely does sign in with the machine's own `claude`. `tests/api/conftest.py` redirects `XDG_DATA_HOME` and `XDG_CONFIG_HOME` but not `HOME`, so for one day nothing stood between a test and the developer's own login.
