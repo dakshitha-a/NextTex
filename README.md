@@ -675,6 +675,12 @@ still moving between chapters. Double-click again and your layout comes back
 exactly as you left it, including what you had already folded away. A single
 click on either folds just that pane, as it does on the agent's header.
 
+Right-click the tab you are working in and you can close every other tab,
+close the lot, or duplicate the file. A duplicate arrives beside the original
+as `chapter (copy).tex` and the file list opens far enough to show you where
+it landed; nothing moves out from under you, so the file you were editing is
+still the one in front.
+
 The file list has a filter row behind a magnifier: type and the tree narrows
 to what matches, through folders you had collapsed, and clearing it gives back
 exactly the tree you had. Rows drag onto folders, and a folder takes
