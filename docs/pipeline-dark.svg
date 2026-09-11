@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="210" viewBox="0 0 1040 210" role="img" aria-label="From a keystroke to the typeset page: 250 ms holding the key, 1.6 s waiting for typing to settle, 339 ms typesetting the chapter.">
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="210" viewBox="0 0 1040 210" role="img" aria-label="From a keystroke to the typeset page: 250 ms holding the key, 1.6 s waiting for typing to settle, about 0.3 s typesetting the chapter.">
 <title>From a keystroke to the page</title>
 <rect width="1040" height="210" rx="10" fill="#121614"/>
 <text x="24" y="34" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" letter-spacing="1.6" fill="#909892">FROM A KEYSTROKE TO THE PAGE</text>
@@ -21,7 +21,7 @@
 <text x="578" y="116" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#909892">this section only</text>
 <line x1="758" y1="102.0" x2="814" y2="102.0" stroke="#3A403C" stroke-width="1.5"/>
 <path d="M813 98.0 l6 4 -6 4z" fill="#3A403C"/>
-<text x="789.0" y="91.0" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11" fill="#B0B5B0">339 ms</text>
+<text x="789.0" y="91.0" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11" fill="#B0B5B0">~0.3 s</text>
 <text x="789.0" y="123.0" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="10" fill="#909892">latexmk</text>
 <rect x="834" y="70" width="180" height="64" rx="5" fill="#1E2320" stroke="#C988E7" stroke-width="2"/>
 <text x="848" y="97" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#C988E7">Page redraws</text>

@@ -24,7 +24,7 @@ close the tab. No database, no Docker, no nginx.
 ## Highlights
 
 - **The page follows your typing.** An ordinary edit typesets only the section
-  you are in, measured at 339 ms on a forty-file project.
+  you are in, about a third of a second on a forty-file project.
 - **Nothing is ever unsaved.** A keystroke goes into the document as it is
   made and the file follows a moment later, so there is no save to lose, no
   dirty dot, and two windows on one project cannot overwrite each other.
@@ -343,7 +343,7 @@ history and a GitHub backup, is in
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/pipeline-dark.svg">
-  <img alt="From a keystroke to the page: 250 ms held, 1.6 s of quiet, 339 ms in latexmk." src="docs/pipeline-light.svg">
+  <img alt="From a keystroke to the page: 250 ms held, 1.6 s of quiet, about 0.3 s in latexmk." src="docs/pipeline-light.svg">
 </picture>
 
 When a document uses `\include`, an ordinary edit typesets only the section
@@ -370,17 +370,17 @@ makes typing slower on the day it happens.
 
 | | measured | budget |
 |---|---|---|
-| Chapter build, as an edit triggers | 339 ms | 4 s |
-| Full build with `biber` | 18.2 s | 30 s |
-| Full symbol scan | 18.9 ms | 400 ms |
-| Symbol lookup, cached | 0.92 ms | 6 ms |
-| Opening a project | 103 ms | 400 ms |
-| Recording a version | 2.5 ms | 8 ms |
-| Rebuilding a transcript | 13.0 ms | 120 ms |
-| Project file tree | 3.3 ms | 250 ms |
-| A collaborator's edit, applied | 3.4 ms | 40 ms |
-| Whole project as a zip | 65 ms | 3 s |
-| Interface bundle | 773.5 kB | 782 kB |
+| Chapter build, as an edit triggers | 330 ms | 4 s |
+| Full build with `biber` | 17.7 s | 30 s |
+| Full symbol scan | 17.6 ms | 400 ms |
+| Symbol lookup, cached | 0.85 ms | 6 ms |
+| Opening a project | 94 ms | 400 ms |
+| Recording a version | 2.3 ms | 8 ms |
+| Rebuilding a transcript | 11.5 ms | 120 ms |
+| Project file tree | 2.9 ms | 250 ms |
+| A collaborator's edit, applied | 3.1 ms | 40 ms |
+| Whole project as a zip | 61 ms | 3 s |
+| Interface bundle | 788.0 kB | 800 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore

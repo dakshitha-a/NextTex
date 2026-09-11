@@ -24,8 +24,8 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-- [ ] The README's measurements, re-run rather than edited by hand.
-- [ ] A sweep of every document for claims the code has since falsified.
+- [ ] Delete the superseded Artifact trackers from the gallery, and the two
+      files outside the repository they leave behind.
 
 ## Backlog
 
