@@ -1,6 +1,10 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
+} from "react";
 import { useStore } from "../store";
 import { onFrame } from "../timing";
+import { useDismiss } from "../useDismiss";
+import { toShell, viewportHeight, viewportWidth } from "../viewport";
 /** Fetched when somebody else turns up, which for most sessions is never.
  *  It draws nothing at all until then, so the parent decides whether to
  *  mount it and the chunk follows -- `bundle.initial_kb` is measured on the
@@ -17,10 +21,17 @@ function middleTruncate(stem: string, limit: number): string {
 export default function Tabs({
   onSelect,
   onClose,
+  onCloseTabs,
+  onDuplicate,
   onBlank,
 }: {
   onSelect: (path: string) => void;
   onClose: (path: string) => void;
+  /** Everything the right-click menu can do to the strip.  One prop rather
+   *  than one per item: it is the signature of `afterClosing`, which does
+   *  the thinking, so this component has nothing left to work out. */
+  onCloseTabs: (what: "others" | "all", path: string) => void;
+  onDuplicate: (path: string) => void;
   /** The empty run of the strip, past the last tab, acts as this pane's
    *  header the way the preview's title bar does. It is the only part of
    *  this row that is not already something -- and it shrinks to nothing
@@ -49,6 +60,23 @@ export default function Tabs({
 
   const strip = useRef<HTMLDivElement | null>(null);
   const [hidden, setHidden] = useState(0);
+
+  // The right-click menu, and which tab it belongs to.  Only ever the tab
+  // in front: its items are about the file being written, and a menu on a
+  // tab that is not in front would have to say which file it meant.
+  const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(
+    null,
+  );
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  useDismiss(menuRef, menu !== null, closeMenu);
+
+  // A menu can outlive the tab it was opened on: the file is renamed
+  // underneath it, or another window closes it.  Leaving it up would leave
+  // a column of items pointing at nothing.
+  useEffect(() => {
+    if (menu && !tabs.some((tab) => tab.path === menu.path)) setMenu(null);
+  }, [menu, tabs]);
 
   // How many tabs are scrolled out of sight, so the overflow says so
   // instead of swallowing them silently.
@@ -122,6 +150,22 @@ export default function Tabs({
                 onClose(tab.path);
               }
             }}
+            onContextMenu={(event) => {
+              // Only the tab in front.  A right-click on any other one is
+              // left entirely alone, browser menu and all: taking that away
+              // without putting something in its place would be a loss.
+              if (!active) return;
+              event.preventDefault();
+              // `clientX` is a viewport pixel and `style.left` is read in
+              // the zoomed shell's own, so everything here goes through
+              // `toShell` once.  The clamps keep a menu opened on the last
+              // tab, or near the foot of a short window, on screen.
+              setMenu({
+                path: tab.path,
+                x: Math.min(toShell(event.clientX), viewportWidth() - 192),
+                y: Math.min(toShell(event.clientY), viewportHeight() - 100),
+              });
+            }}
           >
             {active ? (
               <span className="absolute left-0 top-0 h-[2px] w-full bg-pen" />
@@ -184,6 +228,51 @@ export default function Tabs({
         >
           {hidden}
         </button>
+      ) : null}
+      {menu ? (
+        <div
+          ref={menuRef}
+          // Not `role="menu"`, for the reason the file tree's menu is not
+          // either: the role promises arrow-key navigation between items
+          // and this is a column of buttons.  See the note beside that one.
+          data-testid="tab-menu"
+          // Fixed, not absolute.  The strip is `overflow-x-auto`, so an
+          // absolute menu would be clipped by it -- the same bug the tree
+          // hit inside its own scroll box.
+          className="fixed z-40 w-[184px] rounded-[5px] border border-line bg-surface py-1 shadow-float"
+          style={{ left: menu.x, top: menu.y }}
+        >
+          {[
+            ["others", "Close the others"],
+            ["all", "Close all"],
+            ["rule:copy", ""],
+            ["duplicate", "Duplicate"],
+          ].map(([key, label]) =>
+            key.startsWith("rule:") ? (
+              // Closing tabs and copying a file are not the same subject,
+              // and an undivided column of three reads as three ways of
+              // doing one thing.
+              <div key={key} className="my-1 border-t border-line" />
+            ) : (
+              <button
+                key={key}
+                className="block w-full px-3 py-[3px] text-left t-ui hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
+                // "Close the others" with nothing else open is the one item
+                // here that can have nothing to do, and an item that
+                // explains itself by doing nothing is worse than one that
+                // says so first.
+                disabled={key === "others" && tabs.length < 2}
+                onClick={() => {
+                  setMenu(null);
+                  if (key === "duplicate") onDuplicate(menu.path);
+                  else onCloseTabs(key as "others" | "all", menu.path);
+                }}
+              >
+                {label}
+              </button>
+            ),
+          )}
+        </div>
       ) : null}
       {/* Who else is here, at the strip's end. A project with one writer
           looks exactly as it did, and does not download this. */}

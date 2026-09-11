@@ -100,6 +100,8 @@ Three paths move text.
 
 An edit reaching the disk measures at 3.1 ms on a thesis-shaped project, of which the edit arriving is 3.0.
 
+**Copying a file is a fourth path, and it has to start by closing the second one.** `POST /api/projects/{id}/file/duplicate` flushes every dirty shared document before it copies anything, because the file on disk trails the document by the 120 millisecond debounce and a copy taken without that would hold the chapter as it was rather than as it is, with nothing on screen to say which of the two the writer had got. The name is chosen on the server by `unique_name`, the same rule the trash restores through and the upload chooser quotes back, and the route answers with the name it picked rather than accepting one. It publishes its own `files_changed`; the watcher would find the new file eventually and in a batch, so this is what makes the copy appear in the same beat the menu item was clicked in, for every tab and every collaborator.
+
 ## Compiling
 
 A compile runs every time typing pauses, so the budget is about a second. Three decisions get it there.

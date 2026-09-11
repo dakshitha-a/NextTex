@@ -391,6 +391,28 @@ could look at it, and the ring it specified could never have appeared.
 
 Tab switching is instantaneous: content swaps in the same frame, no crossfade.
 
+**Right-clicking the tab in front opens a menu**: *Close the others*, *Close all*, a rule,
+then *Duplicate*. Only the tab in front, because the items are about the file being
+written and a menu on any other tab would have to say which file it meant; a right-click
+anywhere else in the strip is left entirely alone, browser menu and all, since taking that
+away without putting something in its place is a loss for nothing. *Close the others* is
+disabled rather than absent when it is the only tab open, and the panel is `position:
+fixed`, not absolute, because the strip is a horizontal scroll box and would clip it, which
+is the same bug the file tree's row menu hit inside its own.
+
+The menu does not claim `role="menu"`, and the reasoning is the file tree's: the role
+promises arrow-key navigation between items, this is a column of buttons, and saying
+otherwise tells a screen reader something untrue. Three other menus in the app do claim it
+without implementing it, which is a real inconsistency and is in `TRACKER.md` rather than
+fixed here, because the answer is roving focus in all of them.
+
+*Duplicate* copies the file beside itself as `name (copy).ext`, the same naming rule the
+trash and the upload chooser use, so there is one implementation of it and no second one
+free to drift. It does not open the copy and does not move the view: a duplicate that
+steals the pane is a surprise in the middle of editing the original. What it does do is
+open the tree's folders as far as the copy and flash its row, because the tree opens
+collapsed and a file nobody can see is a menu item that appeared to do nothing.
+
 ### Diagnostic row
 
 28 px collapsed. Grid:

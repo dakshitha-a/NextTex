@@ -403,6 +403,13 @@ const api = {
     request<any>(`/projects/${id}/file/new`, json({ path, directory })),
   renameFile: (id: string, path: string, to: string) =>
     request<any>(`/projects/${id}/file/rename`, json({ path, to })),
+  /** Copy a file beside itself.  The server picks the name and says what it
+   *  chose, because the rule for it lives there and a second implementation
+   *  here would be free to drift from it. */
+  duplicateFile: (id: string, path: string) =>
+    request<{ ok: true; path: string }>(
+      `/projects/${id}/file/duplicate`, json({ path }),
+    ),
   deleteFile: (id: string, path: string) =>
     request<any>(
       `/projects/${id}/file?path=${encodeURIComponent(path)}`,

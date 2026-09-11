@@ -1751,6 +1751,42 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
     return {"ok": True}
 
 
+@app.post("/api/projects/{project_id}/file/duplicate")
+async def duplicate_entry(project_id: str, path: str = Body(..., embed=True)):
+    """Copy a file beside itself.
+
+    The name is chosen here rather than by the caller, for the reason
+    `unique_name` exists at all: it is one rule in one place, and the
+    interface quotes the answer back rather than guessing at it.
+    """
+    session = session_for(project_id)
+    source, path = _safe_rel(session, path)
+    if not source.exists():
+        raise HTTPException(404, "no such file")
+    if source.is_dir():
+        raise HTTPException(400, "a folder cannot be duplicated")
+    # Every keystroke goes into the shared document and the file on disk
+    # trails it by the debounce, so a copy taken without this would be a copy
+    # of the chapter as it was a moment ago rather than as it is -- and the
+    # writer would have no way of telling which they had got.
+    session.collab.flush()
+    target = unique_name(source, "copy")
+    try:
+        # The bytes, not the text.  A figure that has been through a UTF-8
+        # decode is not that figure any more.
+        shutil.copy2(source, target)
+    except OSError as error:
+        raise HTTPException(400, f"could not duplicate: {error}")
+    to = session.project.relative(target)
+    # The watcher would find this on its own, eventually and in a batch.
+    # Saying so here is what makes the copy appear in the same beat the menu
+    # item was clicked in, for this tab and for everybody else's.
+    await session.events.publish(
+        {"type": "files_changed", "paths": [to], "structural": True}
+    )
+    return {"ok": True, "path": to}
+
+
 @app.delete("/api/projects/{project_id}/file")
 async def delete_file(project_id: str, path: str):
     """Move a file or folder to the trash. Nothing is destroyed here."""
