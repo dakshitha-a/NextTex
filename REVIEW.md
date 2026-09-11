@@ -2254,8 +2254,6 @@ their own DOIs in about a second.
 
 ### What a writer reaches for and does not find
 
-### The comfort list
-
 Found the fifth way the protocol names: by asking what a writer does twice,
 waits for, or reaches for and does not find, with the README's own standard in
 hand, that somebody who has used a Jupyter notebook already knows how this
