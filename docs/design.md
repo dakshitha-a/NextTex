@@ -153,6 +153,16 @@ nothing, and if one is ever dropped again the text stops rather than quietly deg
 `frontend/src/fonts.test.ts` asserts the pairing, because the failure this is guarding
 against is one nobody can see.
 
+**Grayscale antialiasing belongs to the dark palette, not to the body.**
+`-webkit-font-smoothing: antialiased` sat on `body` unconditionally. It throws away
+subpixel rendering, which is a third of the horizontal resolution of every stem, and dark
+type on a bright ground is exactly where that costs something: the strokes thin and the
+page reads washed out rather than crisp. It is declared with each palette now, the way
+`--nx-editor-weight-lift` is and for the same reason, so the editor's own ground decides
+for the editor while the app decides for itself. Honest about its reach: Blink and WebKit
+act on this property on macOS and nowhere else, so on Linux and Windows this changes
+nothing at all.
+
 | Role | Family | Size / line-height | Weight / tracking |
 |---|---|---|---|
 | `micro`: gutter numbers, counts, badges, timestamps | Source Sans 3 | 11 / 16 | 500, `+0.004em`, tnum |
