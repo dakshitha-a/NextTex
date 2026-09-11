@@ -3139,6 +3139,53 @@ directory per update for as long as the install lives.
 This is the same root cause as R-122 from the other end: the script updates
 the dependencies of a server it has decided not to stop.
 
+### R-126 · Collaboration · bug · high · confirmed
+
+Found by: the Windows laptop, watching its own screen while the share it was
+joined to was shut down from this end. Where: `frontend/src/panes/Collaborators.tsx`
+with `frontend/src/collab.ts:318`.
+
+What happens: a collaborator leaving for good produces no change on screen of
+any kind.
+
+The laptop sampled once a second from 17:15:24 to 17:17:04, across the window
+in which the sharing server here was stopped. Every sample was the same
+object:
+
+```
+{offline: null, collaborators: null, caretLabels: [], editor: true}
+```
+
+No badge appeared. No collaborator element came or went. No caret label went
+stale, greyed or was removed. The before and the after are identical.
+
+So the peer-gone state is not a state. A writer whose only collaborator has
+permanently gone, the server shut down, the project no longer shared, their
+own copy now an ordinary folder of files, sees exactly what they saw while the
+collaboration was live, and would go on typing into what they believe is a
+shared document indefinitely.
+
+Expected: the end of a share is the one moment a writer must be told about,
+because it is the moment their typing stops going anywhere.
+
+### The three collaboration findings are one thing
+
+R-105, R-121 and R-126 are the same fault seen at three points of one
+lifecycle, and the fix plan should take them together rather than one at a
+time.
+
+The interface has no representation of the peer link at all. It cannot show a
+peer arriving, which is R-105, where a live remote peer never produced a caret
+although a stale local one did. It cannot show a peer present, which is the
+same record from the other side: absence and unrendered presence are the same
+empty space. It cannot show a peer leaving, which is R-126. And the one badge
+that does exist watches the browser's socket to its own server rather than the
+peer link, which is R-121, and is why it stays silent through all three.
+
+One connection is modelled and the other is not. Everything above follows from
+that, and no amount of work on the three screens fixes it until the thing they
+are trying to draw exists in the state.
+
 ### The visual sweep, eighty-eight images against the design document
 
 `e2e/shots/sweep.spec.ts` renders every pane at four widths in both themes, and
@@ -3431,7 +3478,7 @@ call turn is eighty rows.
 
 ## What the findings have in common
 
-A hundred and twenty-five records is a list, not a picture. Grouped by what is
+A hundred and twenty-six records is a list, not a picture. Grouped by what is
 actually wrong rather than by which screen it appeared on, they are about nine
 things, and several of the nine are one thing wearing different clothes. This
 section is written the way `d11da03` wrote its own: the point of it is that
@@ -3477,7 +3524,10 @@ and keeping that word if the answer is no. R-120, the largest instance of it
 in the report: zero commits behind and no answer about how many commits behind
 are the same number, so an update check that never reached the network is
 drawn as "Up to date." R-121, a badge that reports the browser's socket to its
-own server and is read by everybody as reporting the share.
+own server and is read by everybody as reporting the share, with R-105 and
+R-126 beside it: one connection is modelled and the other is not, so a peer
+arriving, a peer present and a peer gone for good are all drawn as the same
+nothing.
 
 The question that finds these is: what else produces this signal, and does it
 mean the same thing.
