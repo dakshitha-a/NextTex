@@ -79,8 +79,13 @@ Categories are `bug`, `comfort`, `performance`, `accessibility`, `docs` and
 `security`. Severity is `blocker` (loses work or exposes the machine), `high`
 (a feature does not work in an ordinary case), `medium` (works, and is wrong in
 a case a writer will meet), or `low` (cosmetic or rare). Confidence is
-`confirmed` (reproduced), `likely` (read in the code and consistent with a
-screen) or `suspected` (a reading only). A confirmed blocker or security
+`confirmed` (reproduced in the running app, or read line by line in the source
+with the mechanism established), `likely` (read in the code and consistent
+with a screen, with a step not yet pinned down) or `suspected` (a reading
+only). The protocol as written reserved `confirmed` for reproduction; the
+definition is widened here rather than relabelling, because a bug read off the
+source with its mechanism named is not a guess, and every record's "Found by"
+line says which of the two it was. A confirmed blocker or security
 finding is also reported to the writer at once rather than waiting here.
 
 ## Baseline
@@ -1995,6 +2000,602 @@ in all seven", counting the two that deliberately decline the role.
 
 The item is right about the problem and wrong about its size, which matters
 because the number is the argument for it being "a piece of work of its own".
+
+### The live suites, and the papers path against the real services
+
+### R-078 · Testing · bug · high · confirmed
+
+Found by: running the two live suites the plan asked for. Where:
+`tests/conftest.py:20` against `tests/test_live_agent.py`.
+
+What happens: the one test written to drive the real Claude SDK cannot reach
+it. Its own docstring says so plainly:
+
+> The one test a stand-in cannot replace. [...] So this drives the real
+> `ProjectAgent` against a real account and asserts the vocabulary, not the
+> answer.
+
+`tests/conftest.py` sets `NEXTTEX_CLAUDE_BINARY` to `tests/fake_claude.py` at
+import time, unconditionally, for every test in the suite. `nexttex/agent.py`
+asks `claude_binary()` for the executable, `claude_binary()` returns the
+stand-in before it ever looks at PATH, and the live test therefore runs
+against the stand-in it exists to bypass.
+
+What makes this worth a record rather than a shrug is what the failure looks
+like. The stand-in does not refuse; it prints `unknown command:` to stderr and
+exits 2, the SDK turns that into a `ProcessError`, and the test reports:
+
+```
+AssertionError: the SDK no longer emits ['text', 'text_end']; saw ['done', 'error', 'turn_start']
+```
+
+That is the message written for the one thing this test is for, an upstream
+rename in the Agent SDK. Anybody running it before a release, which is what
+the docstring tells them to do, is told the SDK has changed under them when
+nothing has. The check that would catch a real upstream break has been
+converted into a check that always reports a break that is not there.
+
+Reproduce:
+
+1. `NEXTTEX_LIVE=1 .venv/bin/python -m pytest tests/test_live_agent.py -q`
+2. Both tests fail, with the message above.
+3. Run it again with the real CLI restored per test, after the conftest has
+   imported, and the same two tests pass against the real account.
+
+Mechanism: the guard was not there when the test was written.
+`tests/test_live_agent.py` arrived on 6 September in `5f3364c`. The conftest
+guard arrived on 8 September in `699ba8f`, "The test suite was signing the
+developer out of Claude Code", which is a real and serious fix: a same-origin
+case posted to `/api/claude/logout`, which ran `claude auth logout` against
+the developer's own installation, and every full run of the suite deleted
+their credentials. Pointing the whole suite at the stand-in shut that off for
+every test at once, deliberately, "including the ones nobody has written yet".
+It also shut off the one test that had been written to do the opposite, and
+nothing noticed, because that test is opt-in and nobody had run it since.
+
+The fix is not to weaken the guard. `tests/api/test_claude_auth.py:168` pins
+it and should keep pinning it. The narrow thing this file needs is the real
+binary back for its own two tests, taken from PATH in a fixture rather than
+from the environment the conftest wrote, which leaves the guard in force for
+all 1279 of the others.
+
+Evidence: with the real CLI restored and the session pinned to
+`claude-sonnet-5`, both tests pass, so the SDK vocabulary the interface reads
+is intact on Sonnet today. That is the answer the test was asked for and could
+not give.
+
+### R-079 · Testing · docs · low · confirmed
+
+Found by: the same run. Where: `tests/test_live_agent.py:39`, `live_session`.
+
+What happens: `live_session` builds `ProjectSession(Project.open(root))` with
+no model, so a real turn runs on whatever the signed-in account happens to
+default to. The test's purpose is to check the message shapes the interface
+reads, and those can differ by model, so the model the assertion ran against
+is worth knowing and is not recorded anywhere. Nothing in the test, its
+docstring or `docs/testing.md` says which model a live run charges.
+
+A parameter with a default would say it, cost nothing, and let a release check
+run the same assertion against whichever model the writer is actually using.
+
+### R-080 · Testing · bug · medium · confirmed
+
+Found by: restoring the real CLI and watching the events arrive one at a time.
+Where: `tests/test_live_agent.py:95`, `test_a_real_edit_arrives_as_an_edit_event`.
+
+What happens: with the real CLI back in place, the first live test passes and
+the second one hangs until its 180 second timeout, every time. It is not the
+SDK. The turn stops on a permission card that nothing in the test will ever
+answer:
+
+```
+  turn_start
+  thinking
+  thinking_end
+  tool_use
+  permission {'tool': 'Bash', 'rule': 'Bash:grep',
+              'detail': 'grep -n "A Working Title" .../main.tex'}
+  TIMED OUT with no done
+```
+
+The model reaches for `grep` to find the line before it edits it, which is
+reasonable and is what it does in the browser too. In the browser a card
+appears and the writer answers it. In the test there is no writer, `collect`
+waits for `done`, and `done` never comes.
+
+The first test passes only because its prompt says "Do not read or write any
+file", which is the one phrasing that keeps the model away from every fenced
+tool. The second asks for an edit, so a tool call is the whole point of it.
+
+Expected: the two tests that exist to be run before a release both reach an
+answer. `docs/testing.md` tells a reader to run this file after any Agent SDK
+upgrade; what they get is one pass, one three-minute hang, and a stack ending
+in `TimeoutError` with nothing saying a card is waiting.
+
+Mechanism: the session is built by `ProjectSession(Project.open(root))` with
+the default permission position, and the harness has no answer for a card. A
+test that drives a real model cannot also assume which tools the model will
+reach for. Either the session is built with the fence at the position that
+allows work inside the project, which is what a writer who has pressed the
+control once is actually running, or `collect` answers any card it sees and
+records that it did.
+
+Evidence: the probe above, run against `claude-sonnet-5` on a fresh copy of
+`nexttex/templates/basic`. The title was still "A Working Title" when it gave
+up, so nothing was edited.
+
+Note for the fix plan: R-078, R-079 and R-080 are one job. The file needs the
+real binary back for its own two tests, a model it names rather than inherits,
+and an answer for the card. It is thirty lines and it turns the only check of
+the real SDK back on.
+
+### R-102 · References · bug · low · confirmed
+
+Found by: driving the reference paths against the real Crossref and the real
+Semantic Scholar, which no test has done. Where: `nexttex/references.py:71`,
+`cited_by`.
+
+What happens: a 404 from Semantic Scholar is turned into a confident statement
+about the paper:
+
+> Semantic Scholar has no record of 10.1038/nature14539, so it cannot say what
+> cites it.
+
+That DOI is LeCun, Bengio and Hinton, "Deep learning", Nature 2015. Semantic
+Scholar does hold the paper; what it does not hold is that DOI as a lookup
+key, and it answers `{"error": "Paper with id DOI:... not found"}` with a 404.
+The same is true of `10.1126/science.1127647`. Two other well-known DOIs,
+`10.1145/3292500.3330701` and `10.1109/CVPR.2016.90`, resolve and return their
+citations in full, so this is patchy coverage by DOI rather than an outage.
+
+Expected: a writer building a literature review is told that this route could
+not find the paper, not that the paper is unknown. The two readings lead to
+different next actions, and the second one is wrong often enough to matter:
+Nature and Science DOIs are exactly the ones a thesis cites.
+
+Evidence:
+
+```
+cited_by 10.1038/nature14539      -> 404, "Paper with id DOI:... not found"
+cited_by 10.1145/3292500.3330701  -> 200, citations returned
+```
+
+Mechanism: the message was written for the case where the DOI is wrong, and
+the API returns the same status for a DOI it simply cannot resolve. A 404 here
+means "not found by this key", which is not the same claim.
+
+Recorded also because it is the first time this path has run against the real
+service. Everything else in that module came back correct in the same run: a
+real DOI resolved to a tidied entry in 86 ms, a DOI that does not exist raised
+rather than inventing an entry, and a Crossref search returned records with
+their own DOIs in about a second.
+
+### What a writer reaches for and does not find
+
+### The comfort list
+
+Found the fifth way the protocol names: by asking what a writer does twice,
+waits for, or reaches for and does not find, with the README's own standard in
+hand, that somebody who has used a Jupyter notebook already knows how this
+works. Each record says what a writer does now, what they would do instead,
+what it would cost, and which pieces are already built, because several of
+these are a control in front of a route that is already written.
+
+Two of the five leads this pass started with turned out to be wrong and are
+recorded as leads closed rather than as findings. **Find and replace exists**:
+`frontend/src/panes/editor-setup.ts:33` installs CodeMirror's `search` panel
+with `top: true` and the whole `searchKeymap`, so replace, replace all, regex,
+match case and select-all-matches are all there, and
+`e2e/specs/writing.spec.ts:96` asserts the panel opens on the first press. A
+comment at `editor-setup.ts:399` records the older bug, the keymap bound
+without the extension, as already fixed. **A full build exists** and the
+status strip does distinguish scope; what is missing about it is narrower and
+is R-086.
+
+### R-081 · Editor · comfort · high · confirmed
+
+Where: `frontend/src/panes/editor-setup.ts:33`, and the absence of any search
+route in `server/main.py`.
+
+What a writer does now: renaming a label like `eq:flux` across a twelve
+chapter thesis means opening twelve tabs and pressing the keys twelve times,
+with no way to know which file was missed. Search is per document because
+CodeMirror's panel is per document, and the server offers nothing else: there
+is no search route of any kind, for any scope.
+
+What they would do instead: one box that searches the project, results grouped
+by file, and replace across all of them.
+
+Cost: a route and a panel. `nexttex/symbols.py:47`'s `walk_project` already
+walks the project with its exclusion rules, so the server half starts from
+something that knows which files count. The tree's filter row is the visual
+idiom to copy.
+
+### R-082 · Files rail · comfort · high · confirmed
+
+Where: `frontend/src/panes/FileTree.tsx:927` and the global keymap at
+`frontend/src/App.tsx:1147`.
+
+What a writer does now: to open a file by name, they take a hand off the
+keyboard, find the rail, unfold Files if it is folded, press the magnifier,
+and type. The pieces of a quick-open are all there and none of them has a key:
+the filter row, `searchTree` at `FileTree.tsx:430`, and Enter opening the
+first match at `:927`.
+
+What they would do instead: one shortcut from anywhere in the app that puts
+the caret in that box.
+
+Cost: a line, if it focuses the filter row that exists. The app's global keys
+today are `Cmd-B`, `Cmd-S`, `Cmd-Enter`, `Cmd-Alt-A`, `Cmd-Alt-P` and Escape,
+so there is room.
+
+### R-083 · Editor · comfort · high · confirmed
+
+Where: `frontend/src/tabs.ts:16` and `frontend/src/App.tsx:534`.
+
+What a writer does now: every tab change is a trip to the strip with the
+mouse. There is no next or previous tab, no numbered tab, no close, and a tab
+closed by mistake cannot be brought back. `afterClosing` computes the new
+strip and hands back the path that was closed, and `App.tsx:534` throws that
+path away.
+
+What they would do instead: next, previous, close, and reopen the last closed
+tab, from the keyboard.
+
+Cost: a line each in the App keymap and one array for the closed stack. The
+arithmetic is already in `tabs.ts`, including the returned path.
+
+### R-084 · References · comfort · high · confirmed
+
+Where: `nexttex/references.py`, reachable from the interface only through
+`server/main.py:2402`.
+
+What a writer does now: the README calls working without an agent "a real
+option, not a degraded one", and then describes two things that are agent
+tools and nothing else. Adding an entry by DOI goes through `/library/resolve`,
+which needs an unidentified PDF from a folder scan to hang the DOI on, so a
+writer who simply has a DOI cannot use it. Re-checking a bibliography against
+the publisher's record is called from `nexttex/agent.py:1683` and from nowhere
+in the interface at all.
+
+What they would do instead: paste a DOI on the `.bib` row and get the entry.
+A "Check these against their records" control beside "Add papers from a
+folder".
+
+Cost: a route and a control each, where the route is the resolve route with
+its paper lookup removed. `entry_for`, `appended` and `verify` are written and
+tested, and `server/main.py:2402` already writes the entry, records a version
+and tells the collaboration layer.
+
+Confirmed against the network: `entry_for("10.1038/nature14539", "")` returned
+a tidied entry keyed `LeCun2015deep` in 86 ms, and a DOI that does not exist
+came back as a `LookupError` naming it rather than as an invented entry. The
+path works; nothing in the interface reaches it.
+
+### R-085 · Editor · comfort · high · confirmed
+
+Where: `frontend/src/api.ts:63` and `:64`, with
+`frontend/src/panes/math-hover.ts:215`.
+
+What a writer does now: to see what `fig:flux` is, they search for
+`\label{fig:flux}` by hand. Hovering a citation key says nothing. `\input` and
+`\include` are not a way to open the file they name.
+
+What they would do instead: Ctrl-click a `\ref` to jump to its label,
+Ctrl-click an `\input` to open that file, hover a `\cite` key to see title,
+author and year.
+
+Cost: a control for the jump, a branch in a tooltip that is already installed.
+Labels already arrive as `{name, file, line}` and citations as
+`{key, type, title, author, year}`, `openFile(path, line)` already exists, and
+`math-hover.ts:215` already registers a `hoverTooltip` over the same symbols
+object and returns null at `:222` for everything that is not maths.
+
+### R-086 · Preview · comfort · high · confirmed
+
+Where: `nexttex/project.py:170`, `frontend/src/panes/Status.tsx:129` and
+`:152`.
+
+What a writer does now: a fast build leaves `??` where a reference should be.
+`mark_warnings` is false by default, the diagnostics drawer never opens
+itself, so the only thing on screen is a warning count in the editor's strip,
+a pane away from the page showing `??`. The build that fixes it is a
+Shift-click on a button labelled "Rebuild", and the only place that is written
+down is a `title` attribute, in a segment that is dropped below a 420 pixel
+pane. `Status.tsx:129` reads `result.scope` on its own, so a fast pass over
+the whole document says "Whole document" with nothing saying that biber did
+not run.
+
+What they would do instead: the preview says that references have not settled
+yet, where the page is, with the rebuild-everything press beside it, and a
+real menu item rather than a modifier nobody can discover.
+
+Cost: a line for the label and a control for the menu item. `CompileResult`
+already carries `enginePass` and nothing renders it; `nexttex/explain.py:128`
+already holds the English for the per-reference warning and `:136` for the
+summary; `nexttex/compile.py:604`'s `pdf_is_complete()` already knows, and its
+only consumer is the download route.
+
+### R-087 · Diagnostics · comfort · high · confirmed
+
+Where: `server/main.py:3229` and `frontend/src/panes/Diagnostics.tsx:208`.
+
+What a writer does now: reads chktex in chktex's own words. "Delete this space
+to maintain correct pagereferences" is shown verbatim, and expanding the row
+shows nothing at all, because the drawer renders `explain` and `context` and a
+chktex row carries neither. This is every one of the roughly thirty-five
+enabled warnings, not some of them: `explain.py`'s twenty-four rules all match
+LaTeX log wording. The README promises "Errors explained in English" two
+sentences above.
+
+What they would do instead: the treatment the LaTeX log already gets, a title,
+what it means, what to do.
+
+Cost: a table of about thirty-five entries and one call. `explain.py:33` is
+the shape to copy, and the warning's own number is already parsed out of
+chktex's `-f` format at `server/main.py:3229` and then discarded, so the
+lookup can key on a number rather than on English prose that upstream may
+reword. Worth knowing while there: the rc file is read from the install
+directory at `main.py:3193`, so a project cannot carry its own and there is no
+way to silence one warning.
+
+### R-088 · Preview · comfort · medium · confirmed
+
+Where: `frontend/src/panes/Pdf.tsx:254` and `:237`.
+
+What a writer does now: a hundred typeset pages with selectable text on them,
+and no way to find a word. Ctrl-F reaches CodeMirror only.
+
+What they would do instead: a find box in the preview footer that steps
+through hits and scrolls to them.
+
+Cost: a control, and a pass that collects the text. pdf.js's own find
+controller ships with its viewer and is not worth pulling in for this.
+`Pdf.tsx:254` already builds a `pdfjs.TextLayer` per page and `:158` holds the
+document proxy. The catch is that layers are built only for visible pages, so
+a search has to walk the document once rather than read the DOM.
+
+### R-089 · History and git · comfort · medium · confirmed
+
+Where: `frontend/src/panes/GitPanel.tsx:200` and
+`frontend/src/panes/Editor.tsx:853`.
+
+What a writer does now: "See what changed" is one of the four git buttons the
+README names, and what it shows is a status letter and a path. Clicking a row
+opens the file. In the history, "Show what's gone" shades the lines the old
+version had and this one does not, never shows what arrived, and two versions
+cannot be compared with each other at all.
+
+What they would do instead: a real patch in both places.
+
+Cost: a control each. `diff` is already a dependency, `diffLines` is already
+used, and the agent's edit chip at `Chat.tsx:1598` already renders a unified
+diff with per-line colour. This is not a git client creeping in: branching and
+merging stay in the terminal, and seeing what changed is a promise the README
+has already made.
+
+### R-090 · Agent · comfort · medium · confirmed
+
+Where: `frontend/src/panes/prose.tsx:167`, `server/main.py:3399` and
+`frontend/src/panes/Chat.tsx:756`.
+
+What a writer does now: nothing in the agent's answer can be copied. A code
+block is a bare `<pre>`. There is no copy on a message, no search over the
+conversation and no export. "New conversation" files the old one away under a
+timestamp, the server returns the filename it used, and the browser discards
+it. No route lists the archives, so a past conversation is reachable only by
+opening `.nexttex/transcript-*.jsonl` by hand.
+
+What they would do instead: copy on a code block, and a list of past
+conversations that can be reopened and read.
+
+Cost: a line for the copy control; a route and a small panel for the archives.
+`server/transcript.py:95` already names and prunes them, the reset response
+already carries the filename, and `store.ts:375` already knows how to render a
+replayed transcript.
+
+This one is also a `docs` finding. `docs/design.md:508` specifies "copy
+affordance on hover only" for code blocks in messages. Section 8, which
+records what the audit changed, records no decision to drop it. It was
+specified and never built.
+
+### R-091 · Editor · comfort · medium · confirmed
+
+Where: `server/main.py:2563` and `frontend/src/api.ts:530`.
+
+What a writer does now: an underlined word offers exactly one thing, "Add to
+the dictionary". No suggestion, no ignore-once, and no way back. `DELETE
+/dictionary` exists, `api.forgetWord` exists, and nothing anywhere calls it,
+so a word added by mistake is added for good. The word list is `wamerican`
+only, so a thesis written in British English is underlined from end to end.
+
+What they would do instead: three or four suggestions in the same menu, the
+accepted list in Settings with a way to remove one, and a second locale.
+
+Cost: a control for the list, edit distance over the word list for the
+suggestions, a second `words.txt` for the locale. The route and its client
+wrapper are both already written.
+
+### R-092 · Editor · comfort · medium · confirmed
+
+Where: `frontend/src/panes/editor-setup.ts:398` and
+`frontend/src/panes/latex-complete.ts:299`.
+
+What a writer does now: types the two things a LaTeX writer types most, and
+neither closes itself. `closeBrackets()` is installed with its default set,
+which is `( [ { ' "`, so `$` does not pair and `$$` does not either. A
+`\begin{figure}` typed by hand never produces its `\end{figure}`; that happens
+only if the completion is accepted.
+
+What they would do instead: `$` pairs like a bracket, and Enter after a
+`\begin{x}` writes the `\end{x}`.
+
+Cost: a line for the bracket configuration, since `closeBrackets` takes a
+`brackets` option, and a small input handler for the environment. The
+completion already knows how to build the pair.
+
+### R-093 · Files rail · comfort · medium · confirmed
+
+Where: `server/main.py:1988`, `GET /history/timeline`.
+
+What a writer does now: to answer "what did I change this afternoon" they open
+every file in turn, because History is per file.
+
+What they would do instead: a project-wide stream of versions, newest first.
+
+Cost: a control. The route is written, takes a limit from 1 to 500 and returns
+every file's versions, and has no client wrapper and no caller. The History
+panel's row rendering is reusable as it stands.
+
+### R-094 · Diagnostics · comfort · medium · confirmed
+
+Where: `frontend/src/panes/Diagnostics.tsx`, `frontend/src/store.ts:577` and
+`nexttex/project.py:387`.
+
+What a writer does now: the drawer answers nothing but a click. There is no
+key that steps to the next error, a click expands the row and jumps at once
+with no way to do one without the other, and there is no filter, though
+`store.ts:577` merges every previewed document's diagnostics into one flat
+list. A message cannot be copied. The full latexmk log is unreachable: there
+is no route for it, and `build/` is excluded from the tree even though `.log`
+is a text kind the editor would open.
+
+What they would do instead: next and previous error from the keyboard, a
+one-document filter when more than one thing is previewed, copy on a row, and
+"Show the raw log" inside the expanded row.
+
+Cost: a line for the keys, a control for the filter, a route for the log. The
+drawer already renders `item.context`, a few lines of the log, in exactly the
+place a longer one would go. `docs/design.md` section 7 rejects a bottom
+console with Problems, Output and Terminal tabs, and keeping all of this
+inside the drawer is the version of it that respects that.
+
+### R-095 · Git · comfort · medium · confirmed
+
+Where: `server/main.py:2801` and `nexttex/gitrepo.py:143`.
+
+What a writer does now: a project with no git repository is shown the GitHub
+wizard, because the panel only ever sends commit, push and pull. So the local
+half of version control, which needs no account and no network, is reachable
+only by going to a terminal.
+
+What they would do instead: one button that makes the repository.
+
+Cost: one control. The route already takes four actions and
+`gitrepo.initialise` already writes the first commit and the `.gitignore` the
+README describes.
+
+### R-096 · Projects · comfort · medium · confirmed
+
+Where: `server/main.py:2877` and `frontend/src/api.ts:489`.
+
+What a writer does now: every new project is an article. `GET /api/templates`
+lists the directories under `nexttex/templates` and there is one of them, and
+both callers of `loadTemplate` pass no name, so the list is never fetched at
+all.
+
+What they would do instead: choose from article, report, beamer and letter
+when the project is made.
+
+Cost: a control, and four directories. The route, the list and the parameter
+are already there and already unused.
+
+### R-097 · History · comfort · low · confirmed
+
+Where: `frontend/src/api.ts:468`, with `/history/size`.
+
+What a writer does now: empties the version history and is told "Deleted N
+versions". The response also carries how many bytes that freed and the
+interface drops it, and `/history/size` has a client wrapper and no caller, so
+the one number a person emptying something wants is the one number withheld.
+
+What they would do instead: see what it freed, and see what it is holding
+before deciding.
+
+Cost: two lines.
+
+### R-098 · Preview · comfort · low · confirmed
+
+Where: the app header's download menu, against `frontend/src/panes/Pdf.tsx`.
+
+What a writer does now: to save the page they are looking at, they go to the
+header menu, whose PDF item forces a full server rebuild first. There is no
+download in the preview footer, beside the PDF that is already rendered and
+already on disk.
+
+What they would do instead: save this, from here, without rebuilding it.
+
+Cost: a control.
+
+### R-099 · Preview · comfort · low · confirmed
+
+Where: `frontend/src/panes/Pdf.tsx:939` and `:1008`.
+
+What a writer does now: in the scrolling mode there is no way to reach page
+74. Next page, previous page and the arrow keys are all gated on
+`mode === "page"`, and the page readout is never an input. Zoom is not
+remembered between sessions either, though the view mode is.
+
+What they would do instead: type a page number in either mode, and find the
+zoom where it was left.
+
+Cost: a line for the gate, a control for the readout, a line for the
+persistence beside the one that already saves the mode.
+
+### R-100 · Editor · comfort · low · confirmed
+
+Where: `frontend/src/App.tsx:199`.
+
+What a writer does now: reads a word count that is two numbers, forgets which
+of the two they chose the moment the app reloads, because the scope is plain
+`useState`, cannot count a selection, cannot count a section, and loses the
+segment entirely below a 640 pixel pane.
+
+What they would do instead: count what is selected, count the section, and
+find the choice where it was left.
+
+Cost: a line for the persistence, a control for the scope.
+
+### R-101 · Agent · bug · low · confirmed
+
+Found by: the live sessions on Sonnet, then read back in the code. Where:
+`frontend/src/panes/Chat.tsx:1742`, `:1308` and `:1800`.
+
+What happens: every shell command the agent runs is printed twice in the
+panel, and three times while its card is still open. Once in the tool row,
+where the verb is "Ran" and `frontend/src/store.ts:1114` makes the summary the
+command itself; once in the resolved row underneath, where `item.detail` is
+the command, set at `nexttex/agent.py:789`; and once in the open card while it
+waits for an answer.
+
+From a real turn here, verbatim:
+
+```
+Ran
+grep -n "Discussion" -i main.tex | head -20
+Allowed
+grep -n "Discussion" -i main.tex | head -20
+```
+
+Expected: the command once, with what happened to it. `docs/design.md` section
+28 puts the resolved permission under the tool row precisely so the pair reads
+as one event.
+
+Mechanism: `tidy()` at `Chat.tsx:41` already collapses a tool row into a tool
+row and a permission into a permission. It has no case for a permission
+against the tool row it belongs to, which is the one pair that always arrives
+together.
+
+### Proposed and rejected, on the record
+
+Four things a Jupyter user might expect were considered and are not proposed,
+because this repository has already decided them and the reasons still hold.
+Selection verbs on a Sections row are refused in `docs/design.md` section 28
+and in `TRACKER.md`. A bottom console with Problems, Output and Terminal tabs
+is refused in section 7, and so is a spinner or a tick on a build. Comments,
+suggestions and tracked changes are refused in the README's "What it is not".
+Branching and merging in the git panel are refused in the README, and the
+terminal is better at both.
 
 ## Unverifiable here
 
