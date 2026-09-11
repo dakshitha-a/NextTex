@@ -24,7 +24,6 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-- [ ] One mark on every surface, and the desktop icon that was never written.
 - [ ] The README's measurements, re-run rather than edited by hand.
 - [ ] A sweep of every document for claims the code has since falsified.
 
