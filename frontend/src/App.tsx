@@ -12,6 +12,7 @@ import {
   Handle,
 } from "./chrome";
 import { busyTyping, onFrame } from "./timing";
+import { afterClosing, viewingClosed } from "./tabs";
 import {
   BREAKPOINTS,
   breakpoints,
@@ -520,6 +521,44 @@ export default function App() {
     if (next) set({ pendingOpen: { path: next, nonce: Date.now() } });
   }, []);
 
+  /** Close every tab but one, or every tab.
+   *
+   *  Not `closeFile` in a loop.  That recomputes the tab in front,
+   *  dispatches a `pendingOpen` and re-reads the store after an await, so N
+   *  calls redraw the strip N times and write the session out N times; the
+   *  decision here is one calculation, in `afterClosing`, and one write.
+   */
+  const closeTabs = useCallback(
+    async (what: "others" | "all", target: string) => {
+      const state = get();
+      const next = afterClosing(state.tabs, state.activePath, what, target);
+      if (!next.closed.length) return;
+      // Gathered rather than awaited one at a time: releasing a buffer
+      // touches no disk and no network -- the keystrokes are in the shared
+      // document already -- so a strip of twelve is one turn of the loop
+      // rather than twelve.
+      await Promise.all(
+        next.closed.map((path) => editor.current?.close(path)),
+      );
+      // A figure's `viewing` is set here rather than by the editor, which
+      // has no buffer to park for one, so nothing else would clear it and
+      // the banner would go on offering the past of a file that is gone.
+      const stillViewing = !viewingClosed(state.viewing, next.closed);
+      set({
+        tabs: next.tabs,
+        activePath: next.activePath,
+        ...(stillViewing ? {} : { viewing: null }),
+      });
+      // Only when the file in front actually changed.  "Close the others"
+      // from the tab already in front must not scroll the pane or move the
+      // caret, which is what a `pendingOpen` does.
+      if (next.activePath && next.activePath !== state.activePath) {
+        set({ pendingOpen: { path: next.activePath, nonce: Date.now() } });
+      }
+    },
+    [],
+  );
+
   const viewVersion = useCallback(async (sha: string | null) => {
     const state = get();
     const path = state.activePath;
@@ -645,6 +684,21 @@ export default function App() {
     if (!id) return;
     set({ tree: await api.tree(id) });
   }, []);
+
+  /** Copy the file in front, beside itself, and show where it landed. */
+  const duplicateFile = useCallback(async (path: string) => {
+    const id = get().projectId;
+    if (!id) return;
+    try {
+      const made = await api.duplicateFile(id, path);
+      await refreshTree();
+      // The tree opens collapsed, so a copy in a folder that is shut has,
+      // from where the writer is sitting, not arrived.
+      set({ revealInTree: { path: made.path, nonce: Date.now() } });
+    } catch (problem: any) {
+      set({ error: `Could not duplicate that file: ${problem.message}` });
+    }
+  }, [refreshTree]);
 
   // ---- events from the server ------------------------------------------
   useEffect(() => {
@@ -1574,6 +1628,8 @@ export default function App() {
               <Tabs
                 onSelect={(path) => openFile(path)}
                 onClose={closeFile}
+                onCloseTabs={closeTabs}
+                onDuplicate={duplicateFile}
                 // Only the empty run of the strip, never a tab: this is the
                 // one header whose whole width is already a control.
                 onBlank={!tight ? () => headerClick("editor") : undefined}

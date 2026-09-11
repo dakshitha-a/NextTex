@@ -134,6 +134,16 @@ export type State = {
     steal?: boolean;
     nonce: number;
   } | null;
+  /** A file the tree should open its folders to, focus and flash.
+   *
+   *  Routed through state for the reason `pendingOpen` is: the tree is the
+   *  only thing that knows which of its folders are shut, and the gesture
+   *  that makes a file can come from somewhere else entirely -- duplicating
+   *  from the tab strip lands a copy that would otherwise be inside a
+   *  collapsed folder, which from where the writer is sitting is a menu
+   *  item that did nothing.  The nonce is what makes revealing the same
+   *  path twice running two events rather than one. */
+  revealInTree: { path: string; nonce: number } | null;
   /** What is highlighted in the editor right now. Read when a question is
    *  sent, so the agent is told what "this paragraph" means without having
    *  to ask -- and kept here rather than in the editor because the composer
@@ -257,6 +267,7 @@ const state: State = {
   tabs: [],
   activePath: null,
   pendingOpen: null,
+  revealInTree: null,
   selected: null,
   viewing: null,
   history: [],

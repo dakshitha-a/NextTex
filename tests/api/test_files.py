@@ -119,6 +119,66 @@ def test_renaming_onto_an_existing_name_is_refused(client, opened):
     assert response.status_code == 409
 
 
+def duplicate(client, project_id: str, path: str):
+    return client.post(
+        f"/api/projects/{project_id}/file/duplicate", json={"path": path}
+    )
+
+
+def test_a_file_can_be_duplicated_beside_itself(client, opened, project_dir):
+    answer = duplicate(client, opened["id"], "main.tex")
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["path"] == "main (copy).tex"
+    assert (project_dir / "main (copy).tex").exists()
+    # The original is a copy source and nothing else.
+    assert (project_dir / "main.tex").exists()
+    assert (project_dir / "main (copy).tex").read_text(encoding="utf-8") == (
+        project_dir / "main.tex"
+    ).read_text(encoding="utf-8")
+
+
+def test_duplicating_twice_numbers_the_second_one(client, opened, project_dir):
+    assert duplicate(client, opened["id"], "main.tex").json()["path"] == (
+        "main (copy).tex"
+    )
+    assert duplicate(client, opened["id"], "main.tex").json()["path"] == (
+        "main (copy 2).tex"
+    )
+    assert (project_dir / "main (copy 2).tex").exists()
+
+
+def test_a_duplicate_lands_in_the_same_folder(client, opened, project_dir):
+    (project_dir / "chapters").mkdir(exist_ok=True)
+    (project_dir / "chapters" / "two.tex").write_text("\\section{Two}", encoding="utf-8")
+    answer = duplicate(client, opened["id"], "chapters/two.tex")
+    assert answer.json()["path"] == "chapters/two (copy).tex"
+    assert (project_dir / "chapters" / "two (copy).tex").exists()
+
+
+def test_duplicating_a_figure_copies_its_bytes(client, opened, project_dir):
+    # Not text.  A version of a PNG that has been through a UTF-8 decode is
+    # not that PNG any more, which is the whole reason this is a byte copy.
+    raw = b"\x89PNG\r\n\x1a\n\x00\xff\xfe\x00"
+    (project_dir / "figures" / "plot.png").write_bytes(raw)
+    answer = duplicate(client, opened["id"], "figures/plot.png")
+    assert answer.json()["path"] == "figures/plot (copy).png"
+    assert (project_dir / "figures" / "plot (copy).png").read_bytes() == raw
+
+
+def test_duplicating_a_folder_is_refused(client, opened):
+    assert duplicate(client, opened["id"], "figures").status_code == 400
+
+
+def test_duplicating_something_that_is_not_there(client, opened):
+    assert duplicate(client, opened["id"], "nope.tex").status_code == 404
+
+
+@pytest.mark.parametrize("path", ESCAPES)
+def test_duplicating_outside_the_project_is_refused(client, opened, path):
+    response = duplicate(client, opened["id"], path)
+    assert response.status_code in (400, 403), f"{path} was not refused"
+
+
 def test_a_rename_carries_the_history_across(client, opened):
     client.put(f"/api/projects/{opened['id']}/file",
                json={"path": "main.tex", "text": "before the rename", "compile": False})

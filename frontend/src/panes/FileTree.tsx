@@ -1,4 +1,6 @@
-import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
+import {
+  Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
+} from "react";
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
@@ -175,6 +177,19 @@ export default function FileTree({
         ?.scrollIntoView({ block: "nearest" });
     });
   }, []);
+
+  /** Somewhere else made a file and wants it seen.
+   *
+   *  Duplicating from the tab strip is the case this exists for: the copy
+   *  lands beside its original, which can be inside a folder the tree has
+   *  shut, and a file nobody can see is a menu item that appeared to do
+   *  nothing.  Keyed on the nonce, so revealing the same path twice running
+   *  is two events rather than one. */
+  const asked = useStore((s) => s.revealInTree);
+  useEffect(() => {
+    if (!asked) return;
+    reveal([asked.path]);
+  }, [asked?.nonce]);
 
   /** Start an upload.  The chooser opens only when there is something to
    *  ask: which folder, or what to do about a name already taken. */

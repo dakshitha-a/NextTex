@@ -51,6 +51,17 @@ things go to be forgotten rather than a list anybody reads.
       second history on the same directory while the first is still writing to
       it. Closing it properly needs `session_for` to be able to wait, and it is
       called synchronously from most of the routes in `server/main.py`.
+- [ ] **Five menus claim `role="menu"` without implementing it.** The spelling
+      menu in `frontend/src/panes/Editor.tsx`, the document chooser in
+      `frontend/src/panes/PreviewTabs.tsx`, the downloads menu in
+      `frontend/src/chrome.tsx` and two in `frontend/src/panes/Chat.tsx` carry
+      the role, and none of them offers the arrow-key navigation it promises,
+      so assistive technology is told each is a menu widget when it is a column
+      of buttons. `frontend/src/panes/FileTree.tsx` and the tab strip's menu
+      deliberately do not claim it, which is the honest half of an
+      inconsistency rather than a resolution. The answer is roving focus in all
+      seven, which is a piece of work of its own and is why it was not done
+      alongside the tab menu.
 
 ### Never run against the real thing
 
