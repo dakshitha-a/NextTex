@@ -3818,3 +3818,15 @@ The suite was green, the browser tier was green, and then the interface was phot
 The verb row over a selection takes the editor's palette rather than the furniture's, so in the light theme it is a light card on a lit page. Section 23 says every floating card takes the dark palette while the theme is light, and by the letter of that this is a deviation.
 
 It is deliberate, and the precedent is already in the build: the spelling menu is the only other thing that floats *inside* the editor pane, and it is light there too. The rule in section 23 is about the furniture, and the argument under it is that the page must stay the brightest object on screen. A dark card dropped on a lit page does not serve that argument, it reads as a hole punched in the page, which is the same complaint section 23 makes about the dark theme's PDF needing a shadow. So the rule holds for everything floating over the chrome, and the two things that float over the page follow the page.
+
+### The worst thing in the run, found by reading the record rather than testing it
+
+The plan for this work said, under verification, that somebody should read `.nexttex/transcript.jsonl` by hand after a session at the quietest position, because that file is the audit trail, it is what the whole case for a position with no cards rests on, and nothing asserted that it read as a coherent account of anything.
+
+It did not. Every action the agent had taken without being asked came back, after a reload, reading `Denied`.
+
+The mechanism is small and the consequence is not. A decision normally arrives *after* the card, through `note_decision`, when the browser answers one. Nobody answers an automatic approval, or one covered by a rule they set earlier, so nothing ever wrote a decision down for those: the event carried one and the transcript's permission branch did not keep it. On replay the panel then found a card with no decision, and it marks those refused, on reasoning that is correct in the case it was written for, which is a card still open when the window closed and which can never be answered now.
+
+So the record of a fully automatic session said the writer had refused things that had actually happened to their document. Section 5 states the rule this broke in as many words: an action nobody was asked about is not the same as one the writer allowed, and the record must not read as though it were. This was worse than that, because it read as the opposite of both.
+
+Two things are worth keeping from it. The first is that the manual read was in the plan because no test could be written for "does this read as an account", and the thing it found was not subtle prose but a straightforward inversion of fact that four hundred green tests walked past, because both halves of it were behaving exactly as written. The second is that the check is a test now, and it prints the account as well as asserting it, so the next person changing the transcript can see what a reader would see rather than only whether the keys are present.

@@ -211,6 +211,25 @@ class Transcript:
                 # one line on the card that distinguishes a gate the writer
                 # chose from one they did not.
                 "reason": event.get("reason", ""),
+                # A card that arrives already answered carries its answer,
+                # and this dropped it, which was the worst thing in the
+                # record rather than the smallest.
+                #
+                # A decision normally arrives later, through
+                # `note_decision`, when the browser answers.  Nobody
+                # answers an automatic approval or a remembered rule, so
+                # nothing ever wrote one down: the replay then found a card
+                # with no decision, and it marks those as refused, on the
+                # correct reasoning that a card still open when the window
+                # closed can never be answered now.  So every action the
+                # agent had taken without being asked came back after a
+                # reload reading `Denied`.
+                #
+                # That is not a cosmetic bug. The whole case for the
+                # positions that put up no cards is that the transcript is
+                # the account of what was done, and the account was saying
+                # the writer refused things that had actually happened.
+                **({"decision": event["decision"]} if event.get("decision") else {}),
             })
         elif kind == "tool_done":
             # An amendment to the row already written, not a row of its

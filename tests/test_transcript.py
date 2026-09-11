@@ -252,3 +252,43 @@ def test_the_turn_s_plan_is_not_part_of_the_record(tmp_path):
     kinds = [item["kind"] for item in t.items()]
     assert kinds == ["user", "tool"]
     assert t.items()[1]["name"] == "Read"
+
+
+def test_a_card_that_arrives_answered_keeps_its_answer(tmp_path):
+    """The worst thing found in the whole agent rework, and the last.
+
+    A decision normally arrives later, through `note_decision`, when the
+    browser answers. Nobody answers an automatic approval or one covered by
+    a rule they set earlier, so nothing ever wrote one down. The replay then
+    found a card with no decision and marked it refused, on the correct
+    reasoning that a card still open when the window closed can never be
+    answered now. So every action the agent took without being asked came
+    back after a reload reading `Denied`.
+
+    Not cosmetic. The entire case for the permission positions that put up
+    no cards is that the transcript is the account of what was done, and the
+    account was saying the writer had refused things that had happened.
+    """
+    t = Transcript(tmp_path / "t.jsonl")
+    for decision in ("auto", "always", "conversation"):
+        t.record({
+            "type": "permission", "id": f"{decision}-1", "tool": "Bash",
+            "rule": "Bash:latexmk", "headline": "Run a shell command",
+            "detail": "latexmk -pdf main.tex", "consequence": "",
+            "decision": decision,
+        })
+    kept = [item["decision"] for item in t.items()]
+    assert kept == ["auto", "always", "conversation"]
+
+
+def test_a_card_nobody_answered_still_has_no_decision(tmp_path):
+    """The other half, which must not change: a card that was a real
+    question and was never answered has no answer, and the replay is right
+    to treat that as a refusal, because the turn waiting on it is gone."""
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({
+        "type": "permission", "id": "perm-1", "tool": "Bash", "rule": "",
+        "headline": "Run a shell command", "detail": "rm -rf ~",
+        "consequence": "",
+    })
+    assert "decision" not in t.items()[0]
