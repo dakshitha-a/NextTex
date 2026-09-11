@@ -56,7 +56,16 @@ test("a tab that is not in front keeps its browser menu", async ({
 }) => {
   await threeOpen(app, project, tab);
   await tab.locator('[data-tab][data-path="main.tex"]').click({ button: "right" });
+  // A count of nothing passes before anything could have been drawn, so the
+  // gesture that *does* open the menu is performed afterwards: it proves the
+  // selector is right and that a menu had time to appear, which is what
+  // makes the first assertion mean something.
   await expect(tab.getByTestId("tab-menu")).toHaveCount(0);
+  await tab.locator('[data-tab][data-path="notes.tex"]').click({ button: "right" });
+  await expect(tab.getByTestId("tab-menu")).toBeVisible();
+  await expect(
+    tab.locator('[data-tab][data-path="main.tex"]'),
+  ).toBeVisible();
 });
 
 test("close all empties the strip", async ({ app, project, tab }) => {
