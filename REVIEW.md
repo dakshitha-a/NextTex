@@ -223,20 +223,6 @@ and the sort is not only wrong but unnecessary.
 Mechanism: a comparison written for a tuple that looks ordered and is not.
 Nothing tests it, because every test project has one file.
 
-**Reproduced on the real screen as well.** A document whose body carries an
-undefined command on line 3 of `main.tex` and another on line 2 of
-`chapters/one.tex`, both recoverable so that both reach the log, builds and
-the strip says two errors. The drawer's headline reads:
-
-```
-Start here.  A command LaTeX does not know   one.tex:2
-```
-
-The error in `main.tex` comes first in the document and is not offered. The
-first attempt at this used a missing package, which aborts the run before the
-chapter is read, so only one file had errors and the sort could not be seen;
-that is worth recording because it is why an ordinary test would not find this.
-
 There is a test, and it is part of the finding.
 `tests/test_explain.py:89`, `test_the_summary_orders_by_file_then_line`, asserts
 that `chapters/01.tex` is named ahead of `chapters/02.tex`. It passes for the
@@ -447,6 +433,68 @@ request that does not connect at all. The app can tell those apart.
 
 This also masks R-001. The compiling latch is real in the code, and killing
 the server cannot be used to see it, because the tab reloads itself first.
+
+### R-044 · Preview · bug · high · confirmed
+
+Found by: driving a real browser and watching the disk beside the screen.
+Where: `frontend/src/panes/pdf-absence.ts:17` with
+`frontend/src/panes/Pdf.tsx:944`.
+
+What happens: for the whole of a project's first build, the preview asserts
+that the writer's document is empty.
+
+```
+ 2.5s  strip=ready "Ready"  pdf=194745B  pane="Nothing has been typeset yet.
+                                                An empty document produces no pages..."
+ 5.0s  strip=ready "Ready"  pdf=228767B  pane="Nothing has been typeset yet..."
+ 7.5s  strip=built "Built 6.39s"  pane="A Working Title  Your Name  Abstract..."
+```
+
+The document has a title, an abstract, three sections, an equation, a figure
+and a table. The build is running, and the PDF is being written on disk as the
+pane says there are no pages. Under the sentence is a button offering to
+**Load a basic document**, which the server would refuse with "this document
+already has something in it; the template would overwrite it".
+
+`absenceFrom` maps a 404 from the PDF route to `empty`, on the reasoning in
+its own docstring that "a 404 from this route means exactly one thing, and its
+own message says so: nothing has been built yet". A 404 does mean nothing has
+been built yet. It does not mean the document is empty, and those are the same
+answer only for a project whose first build has already finished.
+
+That docstring is worth quoting in full, because this is the mistake it was
+written to prevent, one case over: "The pane set one state for both, so a
+dropped connection told the writer *Nothing has been typeset yet. An empty
+document produces no pages.* That is a false statement about their work, made
+at the moment they are least able to check it, and it invites them to go
+looking for a fault in a document that is fine." Splitting `unreachable` out
+of `empty` fixed one half and left the other.
+
+This is what a new writer sees in their first minute. The README's own
+walkthrough is "add `examples/minimal-article` as a project. It typesets as it
+opens", and for the six seconds that takes, the app says their document is
+empty and offers to replace it.
+
+### R-045 · Compile · bug · medium · confirmed
+
+Found by: the same run. Where: `frontend/src/App.tsx:359` and `:419`, with
+`server/session.py`'s event fan-out.
+
+What happens: the status strip says **Ready** for the whole of the first
+build, when it should say Compiling. `openProject` calls `connect(id)`, which
+constructs an `EventSource`, and then calls `api.compile` a few lines later.
+The constructor returns before the connection is established, so the compile
+request regularly reaches the server before the browser is a subscriber, and
+`compile_start` is published to nobody. There is no backlog, so it is simply
+lost.
+
+`compile_done` arrives, because by then the stream is up, which is why the
+strip jumps straight from `Ready` to `Built 6.39s` with nothing in between.
+
+So the first thing a writer does, opening a project, is the one case where the
+strip cannot say what is happening. It is also the same family as R-001 seen
+from the other side: there, an event that never comes leaves a flag up; here,
+an event that arrives too early leaves it down.
 
 ### The files rail: tree, history, trash and git
 
@@ -808,6 +856,224 @@ writer rather than in a reviewer's head.
 writer's own `---` into an em dash for display in the section list, which is
 their text and their punctuation.
 
+### The agent
+
+### R-046 · Agent · security · high · confirmed
+
+Found by: reading, checked against three documents and the writer-facing copy.
+Where: `nexttex/agent.py:749` and `:1159`.
+
+What happens: the tool that runs a figure script is silently approved at the
+middle permission position. `_holds_back` returns a fifth answer, `"script"`,
+for `run_plot_script`, and `_by_mode`'s test is `held not in {"outside",
+"control", "network"}`, which `"script"` is not in. So it is auto-approved.
+
+That is a tool that runs arbitrary Python the model wrote. `docs/design.md`
+section 28 describes the middle position to the writer as: "Two things still
+ask: a write that leaves the writing... and anything that reaches the
+internet." The control's own note in the interface says the same, at
+`frontend/src/panes/Chat.tsx:1226`: "Still asked about: writing outside this
+project, and anything reaching the internet." A Python script can do both.
+
+The card this tool would have shown says so itself: its consequence text at
+`nexttex/agent.py:833` names the network among the things the script can
+reach.
+
+`docs/architecture.md` is the one document that agrees with the code, saying
+the figure tool is "asked at the first permission position with the script as
+the card's literal text, silent at the other two", and it was written in the
+same commit as the code. So this is a disagreement between documents rather
+than a clear slip, and which one is wrong is the author's call.
+
+One piece of evidence says the code is the side that moved. `_reason`'s
+`"script"` branch at `:903` is unreachable, because `_reason` speaks only when
+`mode == "project"`, which is the one position where this tool never puts up a
+card. A sentence written for a card that cannot appear is what a set that was
+meant to grow and did not looks like. `_holds_back`'s own docstring still says
+there are four answers.
+
+### R-047 · Agent · security · medium · confirmed
+
+Found by: reading. Where: `nexttex/agent.py:1057` with `:157`.
+
+What happens: `_decide` waves every tool whose name starts `mcp__nexttex__`
+straight through, at all three permission positions, except the two script
+tools. Three of those reach the internet:
+
+- `find_papers` sends a query to Crossref, OpenAlex or Semantic Scholar
+  (`:1639`, into `nexttex/references.py:42`), and the query is composed by the
+  model from the project's own files.
+- `add_reference` fetches the publisher's record for a DOI.
+- `check_references` re-fetches every entry in the bibliography.
+
+`NETWORK_TOOLS` contains `WebFetch` and `WebSearch` and nothing else. The
+first permission position promises "A card for every command, every fetch and
+every write that leaves this project", and these are fetches that leave the
+machine with text from the writer's project in them.
+
+The comment above the allow-list says these tools can "ask a public catalogue
+about a DOI", which is true of `add_reference` and not of `find_papers`. The
+same file already made this exact argument in the other direction: `WebFetch`
+was moved out of the always-allowed set because of what travels with it.
+
+### R-048 · Agent · bug · high · confirmed
+
+Found by: reading. Where: `frontend/src/store.ts:728` with
+`frontend/src/panes/Chat.tsx:208`.
+
+What happens: a browser that reloads while a turn is running gets a panel that
+cannot say a turn is running. The comment at `Chat.tsx:208` states the design:
+a browser reconnecting mid-turn "finds out from `reconcile`". `reconcile`
+raises `thinking` only when the server reports an **open permission card**;
+with a turn running and no card it reaches `if (report.busy || !state.thinking)
+return;` and returns having changed nothing, because `busy` is true.
+
+So the writer reloads during a long answer and sees text arriving into a panel
+with no working dot, no activity line, no elapsed count and no Stop button.
+Pressing Send is refused by the server with a 409, which is the guard doing
+its job and is the only thing that tells them a turn is in flight.
+
+`thinking` has two ways up, `turn_start` and `reconcile`-with-a-card, and the
+reload case is a third that nothing covers.
+
+### R-049 · Agent · bug · high · confirmed
+
+Found by: reading. Where: `nexttex/agent.py:1247` with
+`frontend/src/panes/Chat.tsx:1682` and `server/main.py:3436`.
+
+Two halves of one problem, at the two ends of a card that timed out.
+
+**The card is never taken off the screen.** When the wait expires the agent
+emits a notice, returns `deny`, and drops its own copy. Nothing tells the
+browser, so the card keeps its four buttons, `awaitingPermission` stays true,
+and the header's warn dot and the floating pill go on saying the agent is
+waiting for you until the turn ends.
+
+**Answering it is recorded as an approval that never happened.** The browser
+resolves the card optimistically and never reads the `{"resolved": false}`
+the route returns for a card the server has forgotten. `note_decision` is
+skipped, so nothing is written. The row reads **Allowed** for the rest of the
+session, and a reload replays it as **Denied**, because the replay marks an
+unanswered card denied.
+
+`docs/design.md` section 28 records an inversion of exactly this kind as the
+worst thing that run found. This is the same inversion reached from the other
+end.
+
+### R-050 · Agent · bug · medium · confirmed
+
+Found by: reading. Where: `nexttex/agent.py:2606` and `:2628`.
+
+What happens: changing the model mid-turn is deferred, and changing your mind
+back leaves the project on Default. `set_model` returns early when the new
+model equals the current one and clears `_model_pending` but not
+`_model_deferred`, which the previous call raised. `_apply_deferred_model` then
+runs at the end of the turn with `_model_pending` at `None` and sets the model
+to `None`.
+
+Reproduce: while an answer is streaming, pick Haiku, then change back to Opus
+before it finishes. When the turn ends the model chip reads Default and the
+client is torn down.
+
+Mechanism: one flag, two writers and one clearer, which is the family this
+review keeps finding.
+
+### R-051 · Agent · bug · medium · confirmed
+
+Found by: reading. Where: `nexttex/agent.py:870` with `:1184`.
+
+What happens: an action nobody was asked about is written into the audit trail
+with a sentence saying it was asked about. `_settled` records a silent
+approval with the full `describe()` payload, and `describe` includes `reason`,
+and `_reason` returns "Asked at this setting: ..." for every call whenever the
+position is the middle one. At that position every compound shell command is
+auto-approved, so each is recorded with `decision: "auto"` **and** a reason
+explaining why the writer was asked.
+
+The resolved row in the panel does not draw `reason`, so this lives only in
+`.nexttex/transcript.jsonl`. That file is the one `docs/design.md` section 28
+asks somebody to read by hand as the whole case for trusting the quiet
+positions, and it is the file that is wrong.
+
+### R-052 · Agent · bug · medium · confirmed
+
+Found by: reading. Where: `nexttex/agent.py:1364`.
+
+What happens: the call that folds an agent edit into the shared document is
+wrapped in `except Exception: pass`. The fold's own failure is logged, with a
+comment at `server/session.py:812` saying why silence there is unacceptable,
+but anything raised *before* the fold, recording the version on a full disk
+for instance, is caught by this outer handler and written nowhere.
+
+The writer then sees the agent report an edit their editor does not show,
+which that same comment calls indistinguishable from a turn that did nothing.
+
+### R-053 · Agent · bug · medium · confirmed
+
+Found by: reading. Where: `frontend/src/store.ts:917` and
+`frontend/src/panes/Chat.tsx:386`.
+
+What happens: the writer's own question is pushed into the panel by the tab
+that sent it, and `turn_start` draws nothing. The transcript does record it, so
+a reload is right. A **second tab** open on the same project never sees the
+question at all, and its panel reads as the agent answering nobody.
+
+The same line has a second ending. A question that failed to send leaves its
+bubble on screen while the draft is restored to the box, so the writer sees it
+twice, and a reload makes it vanish, because the server never had it.
+
+### R-054 · Agent · bug · medium · confirmed
+
+Found by: reading. Where: `server/transcript.py:164` with
+`frontend/src/store.ts:445`.
+
+What happens: nothing records that a turn ended, so the replay has to guess
+from the last item's kind, and only `user`, `tool` and `edit` count as
+interrupted. A turn that died after its prose, which is the ordinary shape of
+a turn killed by a restart, replays as a completed answer with no notice at
+all. Live, it was a turn still in flight.
+
+### R-055 · Agent · bug · medium · confirmed
+
+Found by: reading. Where: `tests/test_agent_parity.py:13` with
+`nexttex/openai_agent.py:413` and `nexttex/scripted_agent.py:200`.
+
+What happens: the parity test's own docstring names the promise it exists for,
+"above all that a question always produces a `done`", and the file asserts it
+in one place only, for `interrupt` with nothing running. `ProjectAgent` keeps
+the promise with a `finally`. `OpenAIAgent._run` and `ScriptedAgent._run` have
+none: they emit `done` on the fall-through, after two save calls that catch
+only `OSError`, and re-raise `CancelledError` above it. Both cover Stop,
+because their `interrupt` emits `done` itself, so the gap is a cancellation
+from anywhere else.
+
+`pending_cards` is the second half. It exists only on `ProjectAgent`;
+`server/main.py:3504` reads it through `getattr` with a default, so the route
+never breaks and always answers `[]` for the other two. `ScriptedAgent` does
+put cards up, so the browser tier cannot exercise the reload-restores-the-card
+path at all. Neither `CONTRACT` nor `ATTRIBUTES` lists it, and the parity
+test's own preamble describes this failure mode in the abstract.
+
+### R-056 · Agent · bug · low · likely
+
+Found by: reading. Where: `nexttex/agent.py:2116`.
+
+What happens: `strict_mcp_config` is not set and defaults to false, so the CLI
+loads MCP servers declared by the project alongside NextTex's own. A project
+folder arrives from a clone, a template or a co-author, which is this
+repository's stated threat model, and `.mcp.json` travels in it. A tool from
+such a server asks at the first position like anything else, which is fine. A
+server named literally `nexttex` would produce tool names beginning
+`mcp__nexttex__` and meet the wave-past at `:1057` at every position, with no
+card and no record.
+
+Marked likely rather than confirmed because how a name collision with the
+in-process server resolves could not be established from the SDK source.
+`setting_sources=["project"]` at `:2130` raises the neighbouring question of
+whether a project's `.claude/settings.json` can shadow the hook, which
+`docs/architecture.md` records was settled for `allowed_tools` by testing
+rather than by reading. It has not been settled for this.
+
 ### The server
 
 ### R-030 · Server · security · medium · confirmed
@@ -1052,7 +1318,7 @@ upload and then compares it against the 8 MB limit at `:3327`, inside a
 request the body gate allows to be 512 MB. `file.size` is populated by the
 multipart parser before the read and would refuse it for nothing.
 
-### Collaboration
+### Collaboration, context and papers
 
 ### R-057 · Collaboration · security · blocker · confirmed
 
@@ -1124,6 +1390,313 @@ Expected: `was` goes through `resolve_for_write` too, or better,
 `self._named` is only ever filled with a path that has already passed it, so
 that an escaping path can never become a baseline.
 
+### R-058 · Collaboration · bug · high · confirmed
+
+Found by: reading, then reproduced against the real `CollabStore`. Where:
+`server/collab/store.py:862`.
+
+What happens: when a peer renames one of their files onto a name this machine
+is already using, the writer's own file is moved aside and nobody is told.
+
+```
+after a peer renames one of their files onto a name this machine was using:
+     b (was here).tex      'MY OWN WORK, written on this machine\n'
+     b.tex                 "the peer's file\n"
+```
+
+Nothing goes to the trash, nothing reaches the event stream, and no notice is
+drawn. The writer finds a file called `chapter was here.tex` beside their
+chapter and has to work out what happened.
+
+The comment above it is honest about the mechanism and says nothing about the
+person: "The manifest is the authority on what this file is called, so
+whatever is in the way steps aside." Stepping aside is defensible. Doing it in
+silence is the finding, and the app already has a trash and an event stream
+for exactly this.
+
+### R-059 · Collaboration · bug · high · confirmed
+
+Found by: reading. Where: `server/main.py:946` with `:963`.
+
+What happens: joining writes the whole project to disk before the writer is
+asked, and closes the connection before the hold begins. `store.flush()` at
+`:946` is the call that writes every document, and the `finally` at `:947`
+closes the network and the store. Only then, at `:963`, is the pending join
+created and the offer card returned.
+
+Four statements say otherwise.
+
+- `frontend/src/panes/Projects.tsx:618`: "Nothing has been written yet. This
+  is what would arrive in..."
+- `frontend/src/api.ts:380`: "Accept an invite as far as *looking* at it.
+  Nothing is written to disk."
+- The comment at `server/main.py:958`, directly above the pending join: "Held
+  open rather than written and registered... the answer is offered before
+  anything is written."
+- `docs/architecture.md`: "The join syncs the project into memory, holds the
+  connection open, and answers with the manifest."
+
+Discarding does `rmtree` the folder, so the end state is still "nothing left
+behind", which is why this has never been noticed. What is real is the window:
+a server killed between join and accept leaves a folder full of somebody
+else's project, unregistered and untracked, and the writer's next attempt to
+join into it is refused with "That folder already has something in it".
+
+### R-060 · Context · performance · high · confirmed
+
+Found by: reading, then measured against a running server. Where:
+`server/main.py:2505` with `nexttex/context.py:242`.
+
+What happens: uploading a style document or a writing sample runs `pdftotext`
+and then `pdfinfo` **on the event loop**, with timeouts of 120 and 30 seconds.
+`session.context.add` is called directly in the route with no `to_thread`,
+which makes it the outlier: `texcount`, `chktex`, the download archive, the
+library walk, the paper scan, the DOI fetch and every git call in the same
+file are all threaded.
+
+Measured, uploading a 100 page, 500 kB PDF to the review server:
+
+| | time |
+|---|---|
+| trivial route, idle | 11 ms |
+| the upload itself | 1.24 s |
+| trivial route, during the upload | **1.00 s** |
+
+A journal's author instructions run to a few hundred pages, and the timeout
+permits a hundred and fifty seconds. For the whole of that, every tab, every
+editing socket, every event stream and every peer is stopped.
+
+### R-061 · Collaboration · performance · high · likely
+
+Found by: reading. Where: `server/collab/store.py:975` and `:997`, reached
+from the 120 millisecond flush timer.
+
+What happens: every settled edit records a version from inside the flush
+callback, which is a `loop.call_later`. That path does a sha256 over the whole
+file, a `zlib.compress` at level 6, and a full rewrite of the file's JSONL
+log. The branch for an edit this machine did not author pays the hash and the
+compression too.
+
+Since the CRDT became the only save path, this is the cost of every keystroke
+burst in every file rather than of an occasional save. `bench/thresholds.json`
+measures `collab.edit_to_disk_ms` at about five milliseconds on a
+thesis-shaped file and calls that settled, which it is; the finding is that
+the work is on the loop rather than that it is slow, and it grows with file
+size while the loop's other callers do not.
+
+`server/collab/persist.py:110` is the same shape: `should_compact` calls
+`doc.get_update()`, serialising the whole document, for every grown document
+on that same timer once its log passes 64 kB.
+
+### R-062 · Collaboration · bug · medium · likely
+
+Found by: reading. Where: `server/collab/store.py:923`.
+
+What happens: `_refused` is a set of file ids a write was refused for, added
+to once and removed from never. The comment argues correctly that a path which
+named `.git/config` will name it again next time and should not be retried.
+What is latched is the **file id**, not the path. A peer that names a file
+badly for one flush and corrects it has poisoned that document for the life of
+the session: the editor accepts keystrokes, everything looks normal, and
+nothing is ever written to disk again. Only a `log.warning` says anything.
+
+### R-063 · Collaboration · bug · medium · likely
+
+Found by: reading. Where: `server/main.py:1071` with
+`server/collab/peers.py:289`.
+
+What happens: a join is considered complete when the manifest names any text
+file, not when any body has arrived. `send_documents` pipelines every offer
+without awaiting a reply, so on a relayed link or a large project the manifest
+lands long before the contents. The wait then sleeps half a second and
+returns, the store is flushed, the link is closed, and the offer card lists
+every file in the manifest as arriving.
+
+The writer accepts forty files and finds some of them empty, with nothing
+anywhere saying so.
+
+### R-064 · Collaboration · security · medium · likely
+
+Found by: reading. Where: `server/collab/wire.py:67`,
+`server/collab/iroh_transport.py:78`, `server/collab/peers.py:1029`.
+
+Three things a member can do to the process, each from the wire and each on
+the event loop.
+
+**A 64 MB frame header is parsed with `json.loads` on the loop.** `MAX_FRAME`
+is checked after the bytes are assembled, and the real ceiling is
+`MAX_MESSAGE` at 64 MB. One oversized header stops everything for seconds.
+
+**A frame that declares a length it never sends holds its buffer open for
+ever.** The read loop has no timeout, the first frame is awaited with no
+timeout, nothing caps concurrent connections, and membership is checked only
+after that first frame arrives.
+
+**Unsolicited blobs are stored.** Any `BLOB_HAVE` whose payload hashes to its
+claimed sha is written, whether or not anything asked, and each costs a
+sha256 and a `zlib.compress` on the loop.
+
+### R-065 · Collaboration and context · bug · medium · likely
+
+A group, each read in the code and none reproduced here, recorded together
+because they are one shape: a flag or an error set on one path and cleared on
+fewer.
+
+- `SharePanel`'s `error` is set on four paths and cleared on two, never by a
+  success, so one blip in the four-second poll leaves "Could not read this
+  project's sharing" on screen for the life of the card
+  (`frontend/src/panes/SharePanel.tsx:43`).
+- `CollabState.error` is set by a `DENIED` frame, serialised to the browser,
+  and read by nobody (`server/collab/peers.py:421`, with the two consumers at
+  `SharePanel.tsx:43` and `Editor.tsx:181`). Somebody removed from a share
+  sees their collaborators listed as away for ever and is never told why.
+- `PeerLink.wanted` is cleared only when a blob actually arrives, and
+  `_send_blob` answers nothing when it does not hold the content, so a peer
+  that has thinned a blob away leaves that sha in `wanted` for ever and the
+  version fails to open every time (`peers.py:528`, `:521`).
+- The Join button has no busy state during a wait that can run thirty
+  seconds, and a second press starts a second join into the same folder
+  (`frontend/src/panes/Projects.tsx:505`).
+- `PapersChooser`'s `busy` is cleared only on the failure path; the success
+  path relies on a parent in another file unmounting it
+  (`frontend/src/panes/PapersChooser.tsx:89`). This is the Claude install
+  panel's shape from `d11da03`, standing today on an invariant somewhere
+  else.
+- `ContextPanel`'s memory is refetched on an effect keyed on the documents
+  rather than on the project, so switching projects shows the previous
+  project's notes (`frontend/src/panes/ContextPanel.tsx:64`).
+- `store.library` is never reset, so the papers panel goes on saying
+  "Reading papers: stopped" for the life of the tab, across project switches
+  (`frontend/src/store.ts:769`).
+
+### R-066 · Context and papers · bug · medium · likely
+
+A second group, about the papers pipeline, each read and none reproduced.
+
+- **A scan interrupted by the file changing marks papers added that were
+  never written.** `nexttex/library.py:491` returns early and discards the
+  accumulated text, but those entries already carry `state="added"` and a
+  citation key, and are persisted, so every later run skips them as settled.
+  The writer has `\cite` keys the bibliography does not contain, permanently.
+- **The bibliography writer touches loop-owned CRDT state from a worker
+  thread.** `server/main.py:2350` calls `session.collab.ingest` from inside
+  `asyncio.to_thread(scan.run, folder)`. The progress callback ten lines above
+  correctly hops back with `run_coroutine_threadsafe`, which is what makes
+  this look like an oversight. `docs/architecture.md` records that pycrdt
+  panics rather than raising when a document is used from another thread.
+- **A transport failure reads as a DOI that does not exist.**
+  `nexttex/library.py:517` catches everything per candidate and writes "No
+  record found for {doi}", so a rate limit and a bad DOI are the same
+  sentence.
+- **The DOI-against-PDF check does not run on the agent's path.**
+  `nexttex/agent.py:2000`'s `add_reference` has no containment check, so a
+  model reading a cited DOI off page one can add the wrong paper. README's
+  "It cannot invent a citation" is about composition rather than
+  misattribution, so this is a gap beside the claim rather than against it.
+- **A PDF with no extractable text leaves the panel offering a button that
+  does nothing.** The kind stays stale, "Read these now" reaches a
+  distillation that skips empty excerpts and returns a 400, and the click has
+  no `catch` (`frontend/src/panes/ContextPanel.tsx:232`).
+- **Nothing clears the stale marker after a successful distillation**, because
+  the agent writes under `.nexttex/`, which the watcher ignores by design.
+- **Hand-editing memory past the cap truncates it mid-line with no message**,
+  where the agent's own path refuses loudly (`nexttex/context.py:123` against
+  `:149`).
+
+### Install and update
+
+### R-041 · Update · bug · high · confirmed
+
+Found by: a real Windows machine, then confirmed against the code. Where:
+`server/main.py:3599`.
+
+What happens: `/api/instance` answers `head` by running `git rev-parse HEAD`
+**at request time**, which reads the working tree. That is the commit on
+disk, not the commit the running process loaded. Nothing anywhere compares the
+two, and the update check on the projects screen compares the same disk HEAD
+against the remote.
+
+So an install whose files have moved forward without a restart reports a
+commit it is not running, and the update footer says it is up to date.
+
+This is not hypothetical. The writer's Windows laptop, read this afternoon:
+
+```
+working tree HEAD          b16bf6d
+the process actually serving   664f237   (started 12:29:25, HEAD was
+                                          664f237 at 12:29:03, and the
+                                          tree fast-forwarded at 23:05:01)
+origin/master              b832d28
+```
+
+Three different commits, and the interface reports the middle one as though
+it were the answer. The laptop has been serving day-old code while being told
+otherwise.
+
+Expected: `head` is read once, at import, and reported as what is running.
+The disk commit is a different fact and can be reported beside it, which is
+what would make the case above visible instead of invisible.
+
+The `boot` nonce in the same answer already exists to tell a browser that the
+process changed. Nothing ties it to `head`.
+
+### R-042 · Update · bug · high · confirmed
+
+Found by: a real Windows machine, then confirmed against the code. Where:
+`scripts/update.ps1:61` with `scripts/register-task.ps1:52`.
+
+What happens: `update.ps1` restarts the server only if a scheduled task named
+NextTex exists. Registering that task needs administrator, and
+`register-task.ps1` falls back to a Startup-folder shortcut when it cannot,
+which is what an ordinary Windows account gets and what the writer's laptop
+has. On that install the update prints
+
+```
+not running as a scheduled task; restart it yourself
+```
+
+and exits, leaving the old process serving. The README says plainly:
+"`./scripts/update.sh` pulls, reinstalls, rebuilds and restarts, or
+`scripts\update.ps1` on Windows."
+
+The installer's own start attempt has the same ending from the other
+direction. The laptop's `server.err.log` holds exactly one line, written by
+last night's install:
+
+```
+Port 8450 is already in use on 127.0.0.1. Stop the other NextTex, or set a
+different port.
+```
+
+That is the installer losing the port to the process already running, which is
+correct behaviour and is reported into a file nobody reads, while the console
+said the install was ready.
+
+Taken with R-041, the two make a writer who has done everything right believe
+they are running code they are not.
+
+### R-043 · Documents · docs · medium · confirmed
+
+Found by: a real Windows machine. Where: `README.md:221`.
+
+What happens: the README tells a Windows writer whose install fell back to a
+Startup shortcut: "run `.venv\Scripts\pythonw.exe server\run.py` to start it,
+and end the `pythonw` process to stop it."
+
+Both halves are wrong, and `scripts/register-task.ps1:56` says why at length
+in a comment written after it was found the hard way. The shortcut runs
+`python.exe -u`, deliberately, because `pythonw` "discards stdout and stderr
+entirely, so a server that dies on startup dies in complete silence: no
+window, no message, no log. That is exactly what happened."
+
+So the README's start command reproduces the failure that comment removed,
+and its stop instruction finds nothing: on the laptop, with the server up and
+listening, `Get-Process pythonw` returns nothing, because the process is
+`python.exe`.
+
+`tests/test_documents_match_the_code.py` cannot see this. It checks that every
+path, route and `NEXTTEX_*` name a document mentions is real, and both of
+these are real names used for the wrong thing.
 
 ### The documents
 
