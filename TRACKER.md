@@ -63,6 +63,18 @@ things go to be forgotten rather than a list anybody reads.
       seven, which is a piece of work of its own and is why it was not done
       alongside the tab menu.
 
+- [ ] **Three small latches left standing on purpose, from the projects screen
+      sweep.** `dismissNotice` in `frontend/src/store.ts` leaves `state.error`
+      holding the text of the notice just dismissed, which is harmless because
+      nothing in the app reads `s.error` directly and the notice list is the
+      thing that gets rendered; fixing it means deciding what `error` means
+      once the list exists, which is a larger question than the symptom.
+      `frontend/src/panes/SignIn.tsx` keeps its top-level error across a move
+      from the provider chooser into a provider's own panel, which is cosmetic
+      and overwritten by the next attempt. And `PasswordNudge`'s persisted
+      dismissal has no interface to undo it, which is deliberate and argued in
+      that file's own header, with the action still reachable behind the cog.
+
 ### Never run against the real thing
 
 - [ ] **The OpenAI provider has never spoken to OpenAI.** Everything above the
