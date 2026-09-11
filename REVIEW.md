@@ -2770,6 +2770,254 @@ happens for the whole of a project's first build. On the laptop it is the
 first thing a joining writer sees, which is worse, because they have nothing
 else to compare it with.
 
+### The visual sweep, eighty-eight images against the design document
+
+`e2e/shots/sweep.spec.ts` renders every pane at four widths in both themes, and
+its own header anticipates "a reviewer with the design document open". That is
+how this section was produced: all eighty-eight images read against
+`docs/design.md` sections 3, 4, 5, 6, 10, 19, 23, 25 and 28, with `2cf7861`, a
+sweep of the same kind that found five things, read first as the method.
+
+Ten findings, and a list of surfaces that came back clean, which matters as
+much: the status strip at all four widths, the four breakpoints behaving as §4
+describes them, every row height measuring what §5 specifies, and all five of
+the round-two fixes from `d11da03` present and correct in the pixels.
+
+### R-108 · Agent · bug · high · confirmed
+
+Found by: reading the sweep images against the design document, then matched
+against this review's own live transcripts. Where:
+`frontend/src/panes/Chat.tsx:1177`, the `VERBS` table, with the tool row drawn
+on `tool_use`.
+
+What happens: the panel says a command has been run, in the past tense, above
+the card that is still asking whether it may run. Every verb in the table is
+past tense, `Bash` is "Ran", `Write` is "Wrote", `Edit` is "Edited", and the
+row is drawn the moment the tool call arrives rather than when it is
+permitted.
+
+If the answer is Deny, the transcript keeps both. From a real turn in this
+review, on Sonnet, verbatim:
+
+```
+Ran
+find .../paper -maxdepth 2 -type f -name "*.tex"
+Denied
+find .../paper -maxdepth 2 -type f -name "*.tex"
+```
+
+Nothing ran. The panel says it did, and the panel is the audit trail.
+
+Expected: a tool row drawn before an answer says what is being asked for, not
+what has happened. `docs/design.md` §28 gives its worst-finding subsection to
+the record inverting fact, which is exactly this.
+
+Evidence: `13-card--light--1600.png` and its dark twin, `14-card-hover-allow`,
+`15-card-hover-always`, `25-card-four-answers`, `26-card-conversation-scope`,
+in both themes, all show `Ran <command>` above a card headed "Run a shell
+command" carrying the same command.
+
+Mechanism: one verb table serving two moments. For `Read` the tense is
+harmless. For `Ran`, `Wrote` and `Edited` it is a false statement about
+something the writer is at that second being asked to authorise, and it
+survives into the record if they say no.
+
+This is the sharper half of R-101, which is about the same rows being printed
+twice. R-101 is tidiness; this one is the transcript saying a thing happened
+that did not.
+
+### R-109 · Appearance · accessibility · high · confirmed
+
+Found by: the sweep, measured off the pixels, then verified in the stylesheet
+and recomputed here. Where: `frontend/src/styles.css:191`, `:192` and `:193`,
+against the furniture block at `:243`.
+
+What happens: every border, separator and drag handle in the light theme's
+furniture is drawn at roughly half the contrast it is drawn at in the dark
+theme, on the identical background.
+
+| | light | dark |
+|---|---|---|
+| status strip's top border on `--surface-2` | 1.44:1 | 2.56:1 |
+| composer separator on `--surface` | 1.32:1 | 2.34:1 |
+
+`--line`, `--pen-wash` and `--hint-wash` are declared once, on bare `:root`,
+as `color-mix` over `--ink-3`. The block at `:243` that gives the furniture
+the dark palette in a light theme redeclares the surfaces, the inks, the
+accents and the syntax hues, and does not redeclare those three. A custom
+property is substituted where it is declared, so `--line` resolves against the
+light `--ink-3` and the `.nx-furniture` subtree inherits the already-resolved
+colour. `0.55 x 78 + 0.45 x 30 = 56`, which is the red channel the pixels
+show.
+
+Expected: `docs/design.md` §23 records this exact class of bug for `color` and
+says "anything else handed a palette by a class needs the same line". `--line`
+did not get it. §10 records the state after the second audit as "about 2.4:1
+in light", and that is no longer true of the rail, the agent column, the
+status strip, the diagnostics drawer, the folded spine, every floating card
+and `.nx-handle`.
+
+Why no test caught it: `frontend/src/contrast.test.ts` parses the tokens out
+of the stylesheet and computes what they are meant to be, so it arrives at
+2.58 and cannot see that the browser resolved something else.
+
+Mechanism: a derived token declared in one place and a palette overridden in
+another. §23's argument that reusing the dark palette creates no new pairs
+holds for every token it redeclares and fails for the three it does not.
+
+### R-110 · Agent · bug · medium · confirmed
+
+Found by: the sweep. Where: `frontend/src/panes/Chat.tsx:445` and `:488`.
+
+What happens: the one line that says what the agent is doing right now
+truncates to `Read chapte…` with about a hundred pixels of empty space beside
+it. The working span is `min-w-0 flex-1` and a bare `<span className="flex-1" />`
+sits after it, so two flexible siblings split the free space and the line that
+carries the text gets half the room that is there.
+
+Evidence: `11-working-tool--light--1600.png` and its dark twin,
+`23-turn-plan--*`.
+
+Expected: the activity line is the only thing on screen during a turn that
+says what is happening, and it has the room.
+
+### R-111 · Interface · bug · medium · likely
+
+Found by: the sweep, from two shots that should have differed and did not.
+Where: `frontend/src/chrome.tsx:287`, with `frontend/src/App.tsx:880`.
+
+What happens: dragging the rail's handle resizes nothing and selects text in
+the editor instead. `31-rail-dragged-wide` shows the rail at the same 240
+pixels as the shot before it, and the only difference between the two images
+is a text selection inside the editor, bounding box (253,43) to (653,996),
+identical in both themes.
+
+The press did not reach the handle at all. `App.tsx:880` adds
+`body.nx-dragging` on pointerdown precisely to stop this, and its comment
+names the older bug, which "left the status strip and the gutter highlighted
+afterwards". The chat handle in the shot before crossed six hundred pixels of
+selectable PDF text layer, resized correctly and left no selection, so the
+mechanism is not general.
+
+Likely cause, inferred rather than proven: the handle is drawn as a `w-px` div
+whose nine pixel hit zone is a child span at `-left-1`, so the right half of
+that zone overhangs into the CodeMirror pane and is painted over by it.
+`docs/design.md` §4 promises an eight pixel hit zone.
+
+Recorded as `likely` because the observation is certain and the cause is read
+rather than reproduced. It is a five minute check in a browser and the fix
+plan should start by making it fail.
+
+### R-112 · Agent · bug · medium · confirmed
+
+Found by: the sweep. Where: `frontend/src/panes/Chat.tsx:1100`, `shortRule`.
+
+What happens: the line explaining what a permanent grant will cover is written
+in protocol vocabulary. The card says `Remembers: Bash:echo`.
+
+`docs/design.md` §5 specifies plain English for exactly this line, and gives
+"shell commands starting with latexmk" as the example. `shortRule` rewrites
+path rules into English and returns everything else raw, so the rule shown for
+the most consequential answer on the card is the one nobody outside this
+repository can read.
+
+Evidence: `15-card-hover-always--light--1600.png` and its dark twin.
+
+### R-113 · Agent · bug · low · confirmed
+
+Found by: the sweep. Where: the network permission card.
+
+What happens: the card makes the same point twice, in two sentences, one under
+the other:
+
+> This is the first thing in a turn that leaves this machine, and what it
+> sends is chosen from what the project's files say.
+>
+> Asked at this setting, because what is sent and where it goes are chosen
+> from files that may not be yours.
+
+`docs/design.md` §5 allows one consequence line and only when the consequence
+is not obvious. Evidence: `25-card-four-answers--*`, `26-card-conversation-scope--*`.
+
+### R-114 · Interface · bug · medium · confirmed
+
+Found by: the sweep, across all eight widths and themes of one shot. Where:
+the two in-place confirmations.
+
+What happens: the emphasis is on the destructive answer. In the new
+conversation confirmation, `Start new` is a `ghost-button` at `--ink` and
+`Keep this one` is `quiet` at `--ink-3`, which is the ink `docs/design.md` §19
+uses for disabled `\include` rows. So the safe answer is drawn in the colour
+the app uses for things that cannot be chosen.
+
+§19 says focus goes to "Keep this one" because the default answer is no. No
+focus ring is visible in any of the eight images, so this is recorded as being
+about emphasis rather than about focus.
+
+Evidence: `06-clear-confirm` at 800, 1000, 1300 and 1600, both themes.
+
+The second confirmation, `22-all-confirm`, puts a `--warn` border on "Stop
+asking" and leaves "Keep asking about those two" plain. That one is defensible
+as a danger mark and is not part of this finding.
+
+### R-115 · Agent · bug · low · confirmed
+
+Found by: the sweep, by diffing two shots that differ by thirty-six pixels.
+Where: `frontend/src/panes/Chat.tsx:1884`.
+
+What happens: of the card's four answers, only "Allow always" sets a scope and
+only it explains itself on hover. "For this conversation" is keyed by exact
+command text, per `docs/design.md` §28, and nothing on screen says so. A
+writer choosing it cannot know whether a command that differs by one argument
+will ask again.
+
+### R-116 · Interface · bug · low · confirmed
+
+Found by: the sweep. Two small inconsistencies between neighbours.
+
+The permission popover marks the current position with a fill alone. The model
+popover, one icon along the same strip, marks its selection with a `--pen` dot
+as well as a fill. Evidence: `21-mode-menu--*` against `05-model-menu--*`.
+
+A folded Sections panel keeps its count of 3 on the spine. A folded Files
+panel shows nothing. Evidence: `07-sections-alone--*` against
+`08-sections-folded--*`.
+
+### R-117 · Documents · docs · low · confirmed
+
+Found by: the sweep, reading three design document passages against the
+pixels.
+
+`docs/design.md` §5's file row menu paragraph has drifted again, in the same
+place R-075 found it drifting about Duplicate. The built menu is Rename, Move
+to, History, Delete version history, Download, Upload here, New file here, New
+folder here, Move to trash. §5 lists "set as main document", which is
+correctly absent because `FileTree.tsx:713` shows it only on a non-main `.tex`
+file, and does not list "Delete version history", which is at
+`FileTree.tsx:730`.
+
+§10 says the welcome carries two instruction buttons and the build shows
+three. §28 quotes a composer line, "Waiting on your approval, or ask something
+else", which the build has since split between the placeholder and the state
+line.
+
+**What the sweep could not look at, because the spec does not photograph it.**
+The diagnostics drawer and its rows, the upload chooser, the edit chip and its
+diff, the tab right-click menu, the tab overflow chevron, the git section in
+any state after first run, and the reading and writing modes. Several of those
+carry findings elsewhere in this report, found by driving rather than by
+looking. Adding them to the sweep is the cheapest way to stop the next review
+from having to drive them. That is a finding about the tooling rather than
+about the app, so it is recorded here rather than as a numbered record.
+
+**Corroborated, not re-found.** Shot 21, 22 and 23 all show the preview
+telling a writer that their forty-five line document is empty, which is R-044,
+and the sweep reached it from a third direction after this review reached it by
+driving and the Windows laptop reached it by joining. Shots 16, 18 and 12 show
+every gated call costing two rows that say the same thing, which is R-101; the
+sweep adds the arithmetic, that at the quietest permission position a forty
+call turn is eighty rows.
+
 ## Unverifiable here
 
 - **The OpenAI provider against OpenAI.** There is no key on this machine.
@@ -2784,7 +3032,160 @@ else to compare it with.
 
 ## What the findings have in common
 
-*Written last.*
+A hundred and seventeen records is a list, not a picture. Grouped by what is
+actually wrong rather than by which screen it appeared on, they are about nine
+things, and several of the nine are one thing wearing different clothes. This
+section is written the way `d11da03` wrote its own: the point of it is that
+the fix plan should buy seven fixes with one piece of work wherever it can.
+
+**1. Something is written down once, at the moment it is first true, and there
+is no path back.** This is the repository's own taxonomy, from `2cf7861` and
+`d11da03`, and it is still the largest family here. A flag goes up and the way
+down is missing or is only on one of the paths out.
+
+R-001, the status strip stuck on Compiling because the flag is raised by an
+event and lowered by another that may never arrive. R-011, the git panel
+reading `if (get().error) return;` before push, so one failure stops every
+later one. R-017, "Not now" on the GitHub card written down and never read
+back. R-018, three refresh flags with more endings than lowerings. R-023 and
+R-024, inputs whose problem text and whose whole state survive the thing they
+described. R-050, one deferred model change with two writers and one clearer.
+R-062, a set of file ids a write was refused for that is added to and never
+emptied. R-068, spell checking that reaches one tab and never comes back.
+
+The shape to look for is always the same: count the ways the job can end, and
+check each one lowers what it raised. Success, failure, timeout, cancel, the
+server restarting underneath it, the tab reloading in the middle.
+
+**2. One state stands in for two, so absence and failure look identical.**
+This is the family that produces false statements on screen, and it is the one
+a writer actually meets.
+
+R-044 and R-107, the preview saying "Nothing has been typeset yet. An empty
+document produces no pages" for the whole of a project's first build, because
+a 404 for a PDF that does not exist yet and a PDF with no pages in it are
+mapped to the same word. R-045, the strip saying Ready through that same
+build, because the event that would have said Compiling was published before
+the browser was subscribed and there is no backlog. R-105, the share panel
+drawing nothing when nobody is there and nothing when somebody is there and is
+not being rendered, so a person joining cannot tell the two apart. R-040, an
+error boundary that treats every failed fetch as a stale chunk and reloads the
+tab, so a stopped server becomes a reload loop. R-102, a 404 from Semantic
+Scholar rendered as the claim that the paper is unknown. R-086, `??` on the
+page with nothing on screen saying that references have not settled. R-108,
+the panel saying "Ran" above the card that is still asking whether it may run,
+and keeping that word if the answer is no.
+
+The question that finds these is: what else produces this signal, and does it
+mean the same thing.
+
+**3. Identity by position, in a list that is rebuilt underneath it.**
+
+R-008, the diagnostics drawer keeping `expanded` and `selected` as indices
+into a list recomputed on every build, so the row drawn as open is whichever
+one has landed in that slot. R-004 and R-009, the error to start from chosen
+by `localeCompare` on the filename, twice, on both sides of the same screen,
+and called document order in a docstring and in the README. R-006, a file
+attributed to whichever `\include` target shares its directory, which on a flat
+chapters folder is always the first one.
+
+Each of these has the right key available a few lines away. File, line and
+message together already identify a diagnostic; `\include` order already exists
+in the document.
+
+**4. The screen and the disk disagree, and the screen is confident.**
+
+R-029, the blocker: six presses of Ctrl+Z empty a file on disk for everyone,
+because the buffer is built before the socket has synced and the whole file
+then arrives as an undoable transaction. R-059, the join writing the entire
+project to disk a full minute before the card that says nothing has been
+written yet, confirmed across two machines by the laptop's timestamps. R-058,
+a peer's rename stepping over a local file with no event and no trash. R-104,
+an offer card whose three sizes are all wrong, two by the number of newlines
+and one by a factor of three. R-107 again, a preview calling a document empty
+while its build log sits beside it. R-108 belongs here as much as it belongs
+above: the transcript is the record of what the machine did, and for a denied
+command it says the opposite.
+
+**5. Everything the writer never sees is unbounded, and the loop pays for it.**
+
+R-031, `write_file` taking a string with no ceiling, measured here at 1.61
+seconds of blocked loop for a 40 MB write against a 9 to 11 millisecond
+baseline. R-060, `pdftotext` run inline on a context upload, 1.00 second
+blocked. R-061, a version recorded from inside the flush on every settled
+collaborative edit. R-038, a synchronous `session_for` that walks the project.
+R-015, a trash purge that reads the whole ledger.
+
+Every one of these is on the path of something a person did not ask for and
+cannot see, which is why none of them has ever been reported.
+
+**6. A route exists and nothing in the interface reaches it.** The cheapest
+group in the report, and almost all of the comfort list's top half.
+
+R-093, `GET /history/timeline` written, limited, and with no client wrapper at
+all. R-096, `GET /api/templates` listing the templates while both callers pass
+no name. R-091, `DELETE /dictionary` and `api.forgetWord` both written and
+never called, so a word added by mistake is added for good. R-095, the git
+route already taking an initialise action while the panel only ever sends
+three. R-097, `/history/size` with a wrapper and no caller, and a purge
+response whose freed bytes are discarded. R-084, `entry_for` and `verify`,
+both tested, reachable only through the agent, in an app whose README calls
+working without an agent a real option.
+
+These are a control each. Several are a line.
+
+**7. A promise in prose that the code does not keep.** Seven `docs` records
+and several bugs.
+
+R-055, the parity test naming a promise in its own docstring that it does not
+assert. R-075, a paragraph written to warn about documentation drift that has
+itself drifted. R-076, a measured column nothing checks beside a budget column
+something does. R-007 and R-077, quoted numbers out by an order of magnitude
+and by one. R-027 and R-043, the sign-in page's own em dash and a README line
+that sends a Windows writer to the wrong recovery. R-087, "Errors explained in
+English" two sentences above a screen that shows chktex verbatim. R-090, a
+copy affordance specified in the design document, never built, and never
+recorded as dropped.
+
+**8. A fix that broke its neighbour, quietly.**
+
+R-078 is the clearest case in the report and is worth reading as a story. The
+suite was signing the developer out of Claude Code, which is as serious as it
+sounds. The fix pointed the whole suite at a stand-in, deliberately, "including
+the ones nobody has written yet". It also disabled the one test written to do
+the opposite, and the way it fails makes the test report the exact upstream
+change it exists to detect. Nothing caught it because the test is opt-in and
+nobody had run it for three days. R-002 is the same shape in miniature: a
+cancellation check hardened on the success path and left off the two failure
+paths beside it.
+
+**9. The keyboard reaches about half of this app.**
+
+R-028, `nested-interactive` at serious impact on five surfaces, one mechanism.
+R-070 and R-016, menus claiming `role="menu"` without roving focus, and a tree
+that is one tab stop. R-003 and R-010, a dot and a diagnostic row that answer
+a click and not a key. R-025 and R-026, the sign-in page's contrast and its
+recovery line. R-082, R-083 and R-094, three places a writer's hand has to
+leave the keyboard for something the code already computes: opening a file by
+name, changing tab, stepping to the next error. R-109 belongs here too, and is
+the largest of them: every separator, border and drag handle in the light
+theme is drawn at half the contrast the dark theme gives it, on the identical
+ground, and the test that exists to catch that computes the intended value
+from the stylesheet and never sees the resolved one.
+
+### What this means for the order of the fix plan
+
+The two blockers are unrelated to each other and to everything above. R-029
+loses work and R-057 lets a collaborator move any file the server's user can
+read into the project. Both go first, on their own.
+
+After that, mechanism 2 buys the most: six records, all of them things a
+writer reads and believes, and the fix in each case is to keep the two states
+apart rather than to add a message. Mechanism 1 is the largest but the records
+in it are individually small, and it is the one where a single careful pass
+with the counting question in hand will close most of them together. Mechanism
+6 is the cheapest thing in the report and the most visible to the person using
+it, which makes it the right thing to do while the harder work is in review.
 
 ## Cost and time
 
@@ -2822,7 +3223,7 @@ Another third went on reading, which is where most of the findings came from
 and is the cheapest thing here per finding. The last third went on the report
 itself, which is the deliverable, and on the two live servers.
 
-The subagents earned their keep twice: once reading the eighty-two sweep
+The subagents earned their keep twice: once reading all eighty-eight sweep
 images against the design document, which is a task that is expensive in a
 main context and cheap in a fresh one, and once assembling the comfort list,
 which needed the whole interface read at once. Both were checked before
