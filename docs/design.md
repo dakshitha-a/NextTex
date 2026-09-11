@@ -3273,14 +3273,51 @@ brand violet would not be: `#7B45A0` on the dark rail measures 2.8:1, under
 the 3:1 a graphic needs. NexusQC's rule that a logo should not follow a
 preference is right for a dark-only app and wrong here.
 
-The favicon is a different drawing on purpose, and it now lives only in
-`index.html`. There used to be a `FAVICON_SVG` export beside the component
-with no consumer anywhere: a second copy of the mark, free to drift from
-the first, and already differing from it. A tab icon has to be right before
-any script runs, so `index.html` is its home; and at 16px the page outline
-closes up into a grey box with something in it, so the small cut keeps only
-the stroke and puts it *on* the violet rather than in it, because a tab has
-no ground of its own to sit on.
+The favicon lives in `index.html`, because a tab icon has to be right before
+any script runs. There used to be a `FAVICON_SVG` export beside the component
+with no consumer anywhere: a second copy of the mark, free to drift from the
+first, and already differing from it.
+
+**It was a different drawing on purpose, and that was wrong.** The argument
+was that at 16px the page outline closes up into a grey box with something in
+it, so the small cut kept only the stroke and put it *on* a violet tile
+rather than in it, because a tab has no ground of its own to sit on. The
+second half of that is right and the first half was never measured. The page
+outline is 1.9 units against a 32 unit box, which is a hair under a whole
+pixel at 16px, and it antialiases to a legible hairline rather than closing
+up. What the argument bought was a mark with no page in it at all, on the one
+surface where most people see the application's name.
+
+So there is one mark now, in one geometry, and two renderings of it. Where
+the application's own stylesheet is present it is drawn live and transparent
+and takes the theme's inks, which is `Logo.tsx` unchanged. Where the ground
+belongs to somebody else, a tab strip, a desktop, a taskbar, GitHub in either
+of its themes, the same geometry sits on `--surround` with the dark theme's
+ink and pen, at nine tenths the size so the tile has a margin the live mark
+does not need. One number is a hair off that scaling: the backslash is 2.7
+where 2.88 would be exact, because a light stroke on a dark ground blooms and
+at the exact weight the page became a frame around a violet bar.
+
+`scripts/make-icons.py` draws all of it from one set of numbers, and writes
+the tab icon, the desktop icon, the Windows shortcut icon and the mark the
+README shows. That is the same `FAVICON_SVG` problem solved the other way:
+rather than forbidding a second copy, the copies are generated, so a change
+to the mark reaches every surface or reaches none.
+
+**Two of those surfaces had never had a mark at all.** `desktop_entry` writes
+an `Icon=` line only if the file it names is there, and `desktop-shortcut.ps1`
+sets `IconLocation` only under the same condition. Both name something under
+`frontend/public`, and `frontend/public` did not exist. So every Linux desktop
+entry NextTex has ever written went out with no icon line, and every Windows
+shortcut has shown Python's own icon, on the one file a person double-clicks
+to start the application. The guard is right, because an `Icon=` pointing at
+nothing shows as a broken image rather than as no image; what was missing was
+anything that noticed the guard was always false. The test for it uses the
+real checkout rather than a root built under `tmp_path`, which is why the
+tests that were already there could not have caught it.
+
+macOS gets no icon and that is not a fourth thing to fix. Its shortcut is a
+`.command` file, and Finder takes the icon for one from the file type.
 
 ## 26. What a history is when there are two of you
 

@@ -943,6 +943,42 @@ def test_the_linux_shortcut_launches_rather_than_bookmarks(tmp_path):
         assert made.stat().st_mode & 0o100
 
 
+def test_the_linux_shortcut_carries_the_mark(tmp_path):
+    """Against the real checkout, not a fabricated root.
+
+    `desktop_entry` writes `Icon=` only if the file it names is there, which
+    is right: an `Icon=` pointing at nothing shows as a broken image rather
+    than as no image. But it made the missing file invisible. `frontend/public`
+    did not exist for the life of this feature, so every desktop entry NextTex
+    ever wrote went out with no icon line and the guard never said so.
+
+    The other tests here build a root under `tmp_path`, where the file is
+    legitimately absent, so none of them could have caught it. This one uses
+    the checkout the test is running from.
+    """
+    from nexttex.install.desktop import desktop_entry
+
+    icon = ROOT / "frontend" / "public" / "icon.png"
+    assert icon.exists(), "the desktop entry has no mark to point at"
+
+    text = desktop_entry(ROOT, Path("/opt/py"), "")
+    assert f"Icon={icon}" in text
+
+
+def test_the_windows_shortcut_has_an_icon_to_point_at():
+    """The same bug, on the other platform, and unreachable from here.
+
+    `desktop-shortcut.ps1` sets `IconLocation` only if the file exists, so a
+    missing one is silent there too and the shortcut gets Python's own icon.
+    The path is read out of the script rather than repeated here, so moving
+    the file and forgetting the script fails this.
+    """
+    script = (ROOT / "scripts" / "desktop-shortcut.ps1").read_text(encoding="utf-8")
+    match = re.search(r"\$icon\s*=\s*Join-Path \$Root '([^']+)'", script)
+    assert match, "the script no longer builds an icon path from $Root"
+    assert (ROOT / match.group(1).replace("\\", "/")).exists()
+
+
 def test_the_macos_shortcut_is_runnable(tmp_path):
     from nexttex.install.desktop import write
 
