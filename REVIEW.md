@@ -116,6 +116,7 @@ mechanism at the end rather than here, because a list grouped as it is written
 is a list that decides too early what a thing has in common.
 
 ### Compile, diagnostics and the preview
+
 ### R-001 · Compile · bug · medium · likely
 
 Found by: reading. Where: `frontend/src/store.ts:794` and `:809`, with
@@ -221,6 +222,20 @@ and the sort is not only wrong but unnecessary.
 
 Mechanism: a comparison written for a tuple that looks ordered and is not.
 Nothing tests it, because every test project has one file.
+
+**Reproduced on the real screen as well.** A document whose body carries an
+undefined command on line 3 of `main.tex` and another on line 2 of
+`chapters/one.tex`, both recoverable so that both reach the log, builds and
+the strip says two errors. The drawer's headline reads:
+
+```
+Start here.  A command LaTeX does not know   one.tex:2
+```
+
+The error in `main.tex` comes first in the document and is not offered. The
+first attempt at this used a missing package, which aborts the run before the
+chapter is read, so only one file had errors and the sort could not be seen;
+that is worth recording because it is why an ordinary test would not find this.
 
 There is a test, and it is part of the finding.
 `tests/test_explain.py:89`, `test_the_summary_orders_by_file_then_line`, asserts
@@ -392,6 +407,46 @@ where the sweep looks rather than in how it looks.
 
 The allowlist in that spec is the right pattern and the argument for extending
 its reach rather than its exceptions.
+
+### R-040 · Interface · bug · high · confirmed
+
+Found by: driving a real browser and stopping the server underneath it.
+Where: `frontend/src/Boundary.tsx:36` and `:63`.
+
+What happens: the error boundary reloads the tab once, automatically, when it
+decides a failure "looks like a stale chunk". The test is a regular expression
+over the error's message, and one of its five alternatives is the bare
+`Failed to fetch`, which is what a browser says about **any** failed request,
+not only a module import.
+
+So when the server stops rather than updates, the boundary reloads into a
+server that is not there, and the writer is left on the browser's own error
+page:
+
+```
+AFTER 6s:  strip=(strip gone) editors=0
+  body: This site can't be reached | 127.0.0.1 refused to connect. |
+        ERR_CONNECTION_REFUSED | Reload | Details
+```
+
+Every open tab, the layout, the caret and the panel are gone from view, and
+nothing anywhere says what happened or what to do. The app's own message for
+this boundary is the opposite of what is true here: "Nothing you have written
+is affected: your work is on disk, and the server is still running."
+
+The comment above the pattern argues the trade honestly and gets one side of
+it wrong: "A false positive here costs one reload; a false negative costs the
+black window this exists to prevent." A false positive costs one reload when
+the server is up. When the server is the thing that has gone, it costs the
+writer their whole session view, and the once-per-tab guard cannot help,
+because after the reload the app never runs again to show anything.
+
+The fix is a narrower question rather than a narrower pattern: a stale chunk
+is a request that 404s while the server answers, and a stopped server is a
+request that does not connect at all. The app can tell those apart.
+
+This also masks R-001. The compiling latch is real in the code, and killing
+the server cannot be used to see it, because the tab reloads itself first.
 
 ### The files rail: tree, history, trash and git
 
@@ -679,7 +734,6 @@ Nothing in any tier presses Ctrl+Z. `e2e/specs/` has no undo spec, and the
 agent's own undo, which is a different mechanism entirely, is the only undo
 the suite exercises.
 
-
 ### Sign-in and the front door
 
 ### R-025 · Sign-in · accessibility · medium · confirmed
@@ -744,7 +798,7 @@ looks at this very file. It cannot see this one, because it tests for the
 character and this is an HTML entity.
 
 `frontend/src/panes/Status.tsx:180` evades the same guard the other way, with
-a dash written as `\u2014` standing in for an unknown word count. That one is a
+a dash written as an escape as the placeholder for an unknown word count. That one is a
 judgement rather than a slip, since a dash standing for *no value* in a
 tabular field is not punctuation between clauses, but it is the app's own text
 and the rule as stated has no exceptions, so it belongs in front of the
@@ -753,6 +807,250 @@ writer rather than in a reviewer's head.
 `frontend/src/outline.ts:77` is a third hit and is not a finding: it turns the
 writer's own `---` into an em dash for display in the section list, which is
 their text and their punctuation.
+
+### The server
+
+### R-030 · Server · security · medium · confirmed
+
+Found by: reading, then probed against a running server. Where:
+`server/main.py:508`.
+
+What happens: `_same_origin_request` returns `True` for every GET, HEAD and
+OPTIONS before it looks at anything. The session cookie is `samesite="lax"`
+and the comment twenty lines above it already records why that is not enough:
+"`SameSite=Lax` does not separate ports: a page on `http://127.0.0.1:5173` is
+same-site with NextTex and its cookie travels."
+
+Probed:
+
+```
+GET  with Origin: http://127.0.0.1:5173, Sec-Fetch-Site: same-site  ->  200
+POST with the same two headers                                      ->  403
+```
+
+So a page served on any other port of this machine can make authenticated GET
+requests. It cannot read the answers, since no CORS middleware is installed
+and the browser will not expose a cross-origin body to script. What it can do
+is cause the work:
+
+- `GET /api/projects/{id}/download` runs a full build, up to the 120 second
+  timeout, and works whether or not the project is open.
+- `GET /api/browse?path=/&count=true` walks an arbitrary directory tree.
+- every route calls `session_for`, which opens a project, starts its agent
+  pump and **reconnects its peer network**, so a shared project that was
+  closed goes back on the network.
+
+The reasoning the code gives for the exemption is that a browser "always sends
+`Origin` on a request that changes something", which is true and beside the
+point: these GETs change something.
+
+Expected: the same `Sec-Fetch-Site` test on safe methods as on unsafe ones.
+`same-origin` and `none` would still pass, so the app's own fetches, curl, the
+installer and the test client are all unaffected, and only the neighbouring
+port is refused.
+
+### R-031 · Server · performance · high · confirmed
+
+Found by: reading, then measured against a running server on the
+thesis-shaped bench project.
+
+What happens: `write_file` at `server/main.py:1621` takes `text: str` with no
+size cap and then, **on the event loop**, writes it atomically with two
+`fsync` calls, sha256s and zlib-compresses the whole of it to record a
+version, folds it into the CRDT document, and regex-scans it three times in
+`note_edit`. The request body limit is 512 MB and the upload limit is 256 MB
+per file, so a large text file is an ordinary thing to hand it.
+
+Measured. An unrelated trivial route, `GET /api/instance`, against an idle
+server and then against one handling a single 40 MB write:
+
+| | time |
+|---|---|
+| trivial route, idle | 9 ms |
+| the 40 MB write itself | 1.91 s |
+| trivial route, during that write | **1.61 s** |
+
+`docs/architecture.md` opens by saying that in one process and one event loop
+"anything synchronous in a request handler stops every other browser, every
+autosave and every collaborator". This is that, measured: for a second and a
+half nobody else's keystroke reaches disk, no collaborator's edit is applied,
+and no build result is published.
+
+The same shape, unmeasured but read, sits in four more places:
+`duplicate` at `:1773` flushes every dirty document and then `shutil.copy2`s a
+file that may be 256 MB; `upload` at `:2166` reads, hashes and compresses a
+replaced figure inline; the file watcher at `:248` reads and diffs every
+externally changed file inside its own callback, so a `git pull` touching
+forty chapters is forty synchronous reads; and `_bib_for` at `:3036` runs
+`rglob("*.bib")` over the whole project including `.git` and the build tree,
+where `walk_project` at `:2729` already has the pruning fix and says why.
+
+### R-032 · Server · bug · medium · confirmed
+
+Found by: probing a running server. Where: `server/main.py:4001`, the SPA
+catch-all, with `frontend/src/api.ts:309`.
+
+What happens: the catch-all `@app.get("/{path:path}")` is registered last, and
+Starlette stops at the first full match, so **any GET the API did not claim is
+answered with the application's HTML and a 200**.
+
+```
+GET /api/projects/nosuch/open   ->  200, content-type: text/html
+                                    <!doctype html><html lang="en">...
+```
+
+`request()` in the browser sees `response.ok`, reaches `response.json()`, and
+throws a `SyntaxError`. That is not an `ApiError`, carries no status, and so
+`redirectFor` cannot classify it as `signin` or `offline`. The writer gets an
+unparseable failure with no sensible message.
+
+This is precisely the skew `server/run.py:128` warns about: a bundle built from
+one commit calling a route that has since moved gets a success it cannot read.
+
+Expected: a request whose path starts `/api/` is a 404 in the shape the single
+error path reads, never the index page.
+
+### R-033 · Server · bug · medium · confirmed
+
+Found by: probing a running server, then checking the client. Where: no
+`RequestValidationError` handler exists anywhere in `server/`, with
+`frontend/src/api.ts:313`.
+
+What happens: FastAPI's default validation failure is
+`{"detail": [{"type": "missing", "loc": ["body", "path"], ...}]}`, an array.
+The client does `message = body.detail || body.error || message`, so `message`
+becomes that array, and `new ApiError(status, message)` coerces it through
+`Error`'s constructor.
+
+```
+POST /api/projects  with body {}
+  ->  422 {"detail":[{"type":"missing","loc":["body","path"],...}]}
+  ->  the writer is shown:  [object Object]
+```
+
+Reachable from every route that takes a `Body(...)`, which is most of the
+writing routes. The app's whole error story is one path with one shape, and
+this is the one answer that does not fit it.
+
+### R-034 · Server · bug · medium · confirmed
+
+Found by: reading. Where: `server/transcript.py:107` with
+`server/main.py:3395`.
+
+What happens: `Transcript.archive` clears the in-memory buffer and the
+counters **before** it renames the file, and returns `None` if the rename
+raises. `agent_reset` does not look at the answer: it publishes
+`conversation_reset` to every tab and returns `{"ok": True, "archived": None}`
+whatever happened.
+
+So on a read-only or full `.nexttex`, the writer is told the conversation was
+filed away and a new one started. It was not. The next append lands in the
+same file, and a reload shows the old conversation and the new one as a single
+thread. `docs/architecture.md` calls this file an audit trail, which is the
+reason it matters more than an ordinary swallowed error.
+
+`Transcript._append` at `:58` swallows `OSError` for the same file, so the
+audit trail can also simply stop recording, in silence, while the panel goes
+on showing the live conversation.
+
+### R-035 · Server · bug · medium · confirmed
+
+Found by: reading. Where: `server/main.py:266`.
+
+What happens: the file watcher's loop ends `except Exception: await
+asyncio.sleep(1.0)`, with no log line, inside `while True`. A failure that
+recurs, a permission error on a watched root, a watched directory that has
+gone, spins once a second for the life of the process and says nothing.
+
+What the writer loses is exactly what the watcher's own docstring says it
+exists to prevent: an external edit, a `git pull` or a checkout no longer
+reaches the open tab, so the tab saves over a change it never saw. The reaper
+twenty lines below logs its exceptions, so the house answer was available.
+
+### R-036 · Server · bug · medium · confirmed
+
+Found by: reading, then probed. Where: `server/main.py:1582`, `:1601`.
+
+What happens: the 10 MB ceiling on a file the editor will open is checked in
+`read_file` and nowhere else. `write_file` takes an unbounded `text`.
+
+```
+PUT  big.tex, 12 MB   ->  200, written to disk
+GET  big.tex          ->  413 "That file is 12 MB, and the editor opens
+                                files up to 10 MB."
+```
+
+So the app will write, through its own route, a file it will then refuse to
+open, for ever. The refusal is at least honest about why. The same missing cap
+is what makes R-031 reachable at 40 MB.
+
+### R-037 · Server · bug · medium · confirmed
+
+Found by: reading. Where: `server/main.py:326` and `:334`, with `:1460`,
+`:1509`.
+
+What happens: the reaper pops a session out of `SESSIONS` and then awaits
+`session.close()`, which can take seconds: it awaits the peer network closing,
+the agent disconnecting, and per document a `compiler.cancel()` that kills a
+process group and waits up to three seconds for it. Any request landing in
+that window calls `session_for`, misses the table, and builds a **second**
+`ProjectSession` on the same directory, which is the one thing that
+function's docstring promises cannot happen.
+
+At the reaper's own call site the damage is small, because eviction only
+happens when nothing is dirty. The sharp version is `forget_project` at
+`:1460` and `relocate_project` at `:1509`, which do the same pop-then-await on
+a session that may be actively dirty, because a person clicked the button
+while their own tab or a collaborator was typing. There `close()` does flush,
+and the flush ends in `_compact()`, which rewrites a document's log, so an
+update the second store appended in the window is rewritten away.
+
+`forget_project` has a third ending as well: the registry entry is removed
+after the close, so a request in the window leaves a live session for a
+project that is no longer registered. `GET /api/projects` then reports it as
+open, and the watcher keeps watching the folder, until the thirty-minute
+eviction.
+
+### R-038 · Server · performance · low · confirmed
+
+Found by: reading, then measured. Where: `server/main.py:1300` with
+`server/session.py:302`.
+
+What happens: `session_for` is synchronous, and building a session walks the
+whole project tree on the loop through `collab.adopt()`. `open_project` at
+`:1529` carries a comment saying the filesystem work was moved off the loop,
+and the block that was moved walks the tree a **second** time.
+
+Measured, on the 2602-file thesis: opening a cold session takes 326 ms, and a
+trivial route fired alongside it takes 27 ms against an idle baseline of 9 ms.
+So about 17 milliseconds of the open is held on the loop rather than the 125
+the comment is about, which says most of the fix landed. The second walk is
+still real work done twice, and `_rejoin_shared_projects` at `:157` pays the
+first walk once per shared project, in sequence, at boot.
+
+### R-039 · Server · security · low · confirmed
+
+Found by: reading. Where: `server/main.py:1223`, `:399`, `:3325`.
+
+Three narrower ones, each against a claim in `docs/architecture.md`'s
+"Security posture" list.
+
+**scrypt is off the loop on one path of two.** Verification at `:1216` is in
+`asyncio.to_thread`; setting a password at `:1223` calls `hash_password`
+directly. About 15 ms of held loop, so the cost is small and the claim is
+half true.
+
+**The rate limiter covers one credential of two.** `POST /api/login` and the
+change-password path count failures and delay. `_authorise` at `:399` compares
+the instance token on every request with no counting at all. The token is
+`token_urlsafe(32)`, so this is not practically guessable; the finding is that
+the list says "a rate limiter keyed on the socket address" without saying which
+credential it is keyed for.
+
+**An attachment is refused after it is in memory.** `:3325` reads the whole
+upload and then compares it against the 8 MB limit at `:3327`, inside a
+request the body gate allows to be 512 MB. `file.size` is populated by the
+multipart parser before the read and would refuse it for nothing.
 
 ### The documents
 
@@ -778,7 +1076,6 @@ The Python suite has grown to 1279 tests. The number in the header is the
 reason the ordering argument in that comment is given at all, so it is worth
 correcting rather than deleting: the argument still holds, and the ratio it
 rests on has changed.
-
 
 ## Unverifiable here
 
