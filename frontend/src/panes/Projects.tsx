@@ -189,20 +189,42 @@ export default function Projects({
                 time had nothing on this screen telling them it was a
                 decision they could revisit.  One line, under the strapline
                 that stops mentioning an agent at all in that case. */}
-            {provider === "none" && onChangeAgent ? (
-              <button
-                className="t-meta mt-[6px] text-pen hover:underline"
-                data-testid="set-up-agent"
-                onClick={onChangeAgent}
-              >
-                Set up a writing agent
-              </button>
-            ) : null}
+
           </div>
           <div className="relative flex shrink-0 items-center gap-3">
             {canClose ? (
               <button className="t-ui text-ink-2 hover:text-ink" onClick={onClose}>
                 Back
+              </button>
+            ) : null}
+            {/* Understand, adjust, then change what is writing with you:
+                three controls in the cog's own chrome so they read as a set.
+                The agent one used to be a text link under the strapline,
+                shown only when there was no agent at all, so somebody on
+                one provider who wanted the other had to find it inside the
+                settings sheet. It says which agent it is rather than only
+                that there is one, because that is the question somebody
+                opening it has. */}
+            {onChangeAgent ? (
+              <button
+                className="quiet flex h-[26px] items-center gap-[5px] rounded-[3px] px-[5px] hover:bg-surface-3"
+                aria-label={
+                  provider === "none"
+                    ? "Set up a writing agent"
+                    : `Writing agent: ${agentName(provider)}. Change it.`
+                }
+                title={
+                  provider === "none"
+                    ? "Set up a writing agent"
+                    : `Writing with ${agentName(provider)}. Change it.`
+                }
+                data-testid="set-up-agent"
+                onClick={onChangeAgent}
+              >
+                <Nib />
+                <span className="t-micro">
+                  {provider === "none" ? "No agent" : agentName(provider)}
+                </span>
               </button>
             ) : null}
             {/* Understand, then adjust: help sits left of the cog, and wears
@@ -485,6 +507,37 @@ export default function Projects({
  *  1.7px stroke at this size is what keeps the bowl open at 100% and the
  *  counter clear at 150%; the dot is filled rather than stroked, because a
  *  ring that small closes up into a blob. */
+/** A nib, at the cog's weight.
+ *
+ *  Deliberately not the current provider's mark, which the floating agent
+ *  button draws: that button opens the panel of the agent you have, and
+ *  this one changes which agent you have. A control that wears Claude's
+ *  mark and takes you to a screen offering ChatGPT and nothing is wearing
+ *  the wrong thing.
+ *
+ *  A nib rather than a robot or a spark, for the reason the logo section
+ *  gives about this app's own mark: what happens here is writing, and the
+ *  only saturated colour in the chrome is the pen the agent writes with.
+ */
+function Nib() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3.2 12.8 L6 12 L13 5 A1.6 1.6 0 0 0 11 3 L4 10 Z" />
+      <path d="M4 10 L6 12" />
+    </svg>
+  );
+}
+
 function QuestionMark() {
   return (
     <svg

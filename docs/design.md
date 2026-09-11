@@ -3742,3 +3742,17 @@ That is why `figure()` takes a width by name and defaults to the text width, and
 **All four of those were found by looking, not by reasoning.** The first render came out with the axis label larger than the caption, which the arithmetic above predicts and which no test would have caught. The second came out too small, and the cause turned out to be the ad-hoc test document rather than the figure: an `article` with no `geometry` has a 4.8 inch text block, and NextTex's own template loads `geometry` with one-inch margins and gives 6.52. Measuring `\showthe\textwidth` against the figure's media box settled it: 469.8 pt against 468, and the label measured at exactly 10 pt on the built page. The style sheet's own claim is now a measurement rather than an intention.
 
 Pointing at the dataset is a file-tree item, `Plot this`, offered on the extensions data actually arrives in and on nothing else, because an item that explains itself by failing is worse than no item. It seeds the composer rather than sending, like the selection verbs one pane over and for the same reason.
+
+### The agent screen had no way off it, and the control to reach it was hidden
+
+Reported by the writer during this run, and it is two bugs that look like one.
+
+The screen that chooses a provider did have a Back button, and it was withheld unless `projectId` or a non-empty project list was truthy. That test was standing in for the real question, which is whether the screen was *opened* or *shown*: it is shown at boot when no agent has been chosen, where there is genuinely nowhere to go, and opened from the settings sheet or the project list at any other time. An install that chose no agent at setup, opened its empty project list, and clicked to set one up satisfied neither half of that condition, so it got no way back and the only exit was choosing a provider. The two cases are told apart exactly now, by a flag the opener sets.
+
+Escape does the same thing, one level at a time: out of the provider you were part-way through setting up, then off the screen. That is what Escape means everywhere else here, and section 19 records the rail's own version of the same rule.
+
+The outer control also said `Back`, and so did the button inside each provider's panel, which goes up one level rather than out. Two controls with the same word meaning two different things is its own bug, so the outer one is `Close` and says on the screen that closing leaves things as they are, since somebody may be here only to look.
+
+The second half is that the way *in* was a text link under the strapline, shown only when the provider was `none`. So somebody using one provider who wanted the other had to know it was inside the settings sheet. It is a control in the projects header now, in the cog's own chrome so the three read as a set, present whatever the provider is, and it names the agent rather than only saying there is one, because that is the question somebody opening it has.
+
+The glyph is a nib, and deliberately not the current provider's mark. The floating agent button wears that mark and opens the panel of the agent you have; this control changes which agent you have, and one wearing Claude's mark that takes you to a screen offering ChatGPT and nothing is wearing the wrong thing.
