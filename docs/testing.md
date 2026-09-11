@@ -12,6 +12,13 @@ scripts/check.sh --bench  # what the slow parts cost, on a project shaped like a
 If the Node on your PATH is older than 20, point `NEXTTEX_NODE_BIN` at a
 newer one rather than changing the system's.
 
+A green run is not the whole of finishing. A change also owes the documents it
+made wrong, which is `docs/architecture.md` for the mechanics, `docs/design.md`
+for the interface, the README for anything a reader would act on, and
+`TRACKER.md` for the item it just finished and for whatever it turned up and
+left. Those go in the same commit as the code, because a documentation commit
+that trails the change is one nobody writes.
+
 
 `tests/` is Python: the retention rules, the path fence, the log parser, the
 compile paths, and, under `tests/api/`, every HTTP route, its documented
