@@ -154,6 +154,13 @@ export function nearest(value: number, steps: number[]): number {
   );
 }
 
+/** The size the gutter numbers its lines at: 0.82 of the text, to the
+ *  nearest whole pixel.  The ratio is the one the design has always
+ *  specified; the rounding is what stops it landing between pixels. */
+export function gutterSize(editor: number): number {
+  return Math.round(editor * 0.82);
+}
+
 export function step(value: number, steps: number[], by: 1 | -1): number {
   const index = steps.indexOf(nearest(value, steps));
   return steps[Math.min(Math.max(index + by, 0), steps.length - 1)];
@@ -202,6 +209,15 @@ export function applyAppearance(appearance: Appearance): void {
   // see `viewport.ts`.
   root.style.setProperty("--nx-ui-scale", String(factor));
   root.style.setProperty("--nx-editor-size", `${appearance.editor}px`);
+  // The gutter is a fixed ratio of the text it numbers, and the ratio used
+  // to be applied in CSS, which put its line numbers at 11.07px at the
+  // default size and at a fraction of a pixel at every other stop on the
+  // ladder as well.  A glyph set at a fractional size has its stems laid
+  // across pixel boundaries and comes out soft, which on a bright page is
+  // exactly the complaint this was found chasing.  Rounded here rather than
+  // with CSS `round()` so there is no feature to fall off, and because a
+  // whole number is easier to assert than a calc.
+  root.style.setProperty("--nx-editor-gutter", `${gutterSize(appearance.editor)}px`);
   // The weight the writer chose.  What the editor sets its text in is this
   // plus the page's own lift, added in CSS rather than here, because the
   // editor can be lit on a different palette from the app around it and

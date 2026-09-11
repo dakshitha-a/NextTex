@@ -163,14 +163,45 @@ for the editor while the app decides for itself. Honest about its reach: Blink a
 act on this property on macOS and nowhere else, so on Linux and Windows this changes
 nothing at all.
 
+**The gutter is set at a whole number of pixels.** Its size is 0.82 of the text it numbers,
+which the stylesheet used to work out itself, putting the line numbers at 11.07px at the
+default size and at a fraction of a pixel at every other stop on the ladder. A glyph set at
+a fractional size lays its stems across pixel boundaries, and at eleven pixels there is not
+enough glyph left to survive it. `applyAppearance` rounds and stamps `--nx-editor-gutter`,
+so there is no CSS feature to fall off and a whole number to assert.
+
+**Three things were measured and left alone**, and are recorded here so they are not
+measured again. `e2e/shots/text-clarity.spec.ts` renders the same comment-heavy source
+across all six grounds at one and two device pixels, which is how these were decided; the
+caveat in its header is that headless Chromium has no LCD subpixel antialiasing, so it
+compares weight, fit and letterform honestly and subpixel rendering not at all.
+
+- The **weight lift** of 100 on the light grounds was compared against 0 on pure white. At
+  400 the prose reads thin against a page that bright, which is the effect the lift exists
+  to answer, so it stands at 100 on all four light grounds.
+- The **active line wash** is 7% of `--ink-3`, which darkens a bright ground where it
+  lightens a dark one. On white that is `#F3F4F3`, taking the prose from 18.9:1 to 17.8:1
+  on the one line being typed. That is not a legible difference and it is the conventional
+  treatment; it stands.
+- **13.5px** is the only fractional stop on the size ladder. 14px is crisper, and it is
+  crisper because it is bigger, which is a different offer from a clearer one. The ladder is
+  unchanged; the gutter above was the part of this worth fixing, because its size is derived
+  rather than chosen and nobody sees the number.
+
+**The mono rule:** monospace means "this is a literal string the machine produced or
+consumes": a git SHA, `file:line`, a shell command, a log excerpt, a filename in a chip.
+Merely numeric metadata (word counts, build times, diff counts) stays in Source Sans 3 with
+`font-variant-numeric: tabular-nums`. No monospace as decoration.
+
 | Role | Family | Size / line-height | Weight / tracking |
 |---|---|---|---|
-| `micro`: gutter numbers, counts, badges, timestamps | Source Sans 3 | 11 / 16 | 500, `+0.004em`, tnum |
+| `micro`: counts, badges, timestamps | Source Sans 3 | 11 / 16 | 500, `+0.004em`, tnum |
 | `meta`: secondary labels, tab titles, diagnostic messages | Source Sans 3 | 12 / 18 | 400 |
 | `ui`, the default: tree rows, buttons, permission headline | Source Sans 3 | 13 / 20 | 400 (500 buttons) |
 | `ui-lg`: pane headings, project name | Source Serif 4 / Sans 3 | 15 / 22 | 600 |
 | `prose`: agent messages | Source Serif 4 | 14.5 / 23.5 (1.62) | 400, max 68ch |
 | `code`: CodeMirror | Source Code Pro | 13.5 / 1.63 | 400 plus the page's lift |
+| the editor's gutter | Source Code Pro | 0.82 of the text, rounded: 11 at the default | 400 |
 | `code-sm`: log excerpts, diffs, chip filenames | Source Code Pro | 12 / 18 | 400 |
 | `display`: empty states, first-run setup only | Source Serif 4 | 22 / 28 | 600, `-0.01em` |
 
