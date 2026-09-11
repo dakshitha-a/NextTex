@@ -97,7 +97,12 @@ killed from outside rather than one that failed. This review was clearing port
 conflicts between its own servers at about that time, and while each one was
 identified by reading `XDG_DATA_HOME` out of `/proc/<pid>/environ` first, that
 is not proof it never got one wrong. The service was started again at the end
-of the session and answers on 8450. Nothing in the writer's state directory
+of the session and answers on 8450. A second careless moment near the end of
+the run makes the first one more likely rather than less: a `pkill -f
+XDG_DATA_HOME` intended to find the review's own servers matched the shell
+running it and killed that instead. It touched nothing else, and every server
+stopped after it was identified by reading `/proc/<pid>/environ` and named by
+its number. Nothing in the writer's state directory
 was written to at any point, and their login to Claude Code is byte-identical
 to the fingerprint taken before the first live session.
 
