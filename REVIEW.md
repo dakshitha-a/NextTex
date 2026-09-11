@@ -1278,21 +1278,29 @@ server. These were measured in a real browser, and none of them is a finding:
 
 | | |
 |---|---|
-| Keystroke to the character on screen, in a 71 kB chapter | median 3.9 ms, p90 4.7 ms, worst 13.1 ms |
+| The editor's input path, in a 71 kB chapter | median 3.9 ms, p90 4.7 ms, worst 13.1 ms |
 | A file's text on screen, from opening a project | 321 ms, editor mounted at 189 ms |
 | The same on a forty-file thesis | 288 ms, editor mounted at 156 ms |
 | Touch tier, tablet at 1180 by 820 | 3 passed |
 
-The keystroke number is the one worth keeping. It was taken with spelling and
-syntax colouring both on, in a chapter long enough that CodeMirror is
-virtualising it, measured inside the page from `keydown` to the first mutation
-of the editor's own DOM so that it is the app's work and not two frames of the
-harness waiting. Four milliseconds is a quarter of a frame. The thesis opens
-faster than the small project does, which is what the symbol cache exists for.
+The keystroke number is the one worth keeping, and it is worth saying exactly
+what it measures. It is `keydown` to the first mutation of the editor's own
+DOM, measured inside the page, in a chapter long enough that CodeMirror is
+virtualising it and with the project's default settings. That is the editor's
+synchronous input path. It does not include paint, and it does not include the
+spelling and colouring passes, which run after the input transaction and so
+land outside the observer's window. Four milliseconds for the path a keystroke
+takes before anything else happens is a quarter of a frame, and there is room
+above it.
 
-The driver is `e2e/review/a12-typing.spec.ts`, and the fix plan should watch
-that number rather than trust it, because every one of the comfort items that
-adds a decoration to the editor is a charge against it.
+The other number, that a forty-file thesis opens faster than a four-file
+project does, is what the symbol cache exists for.
+
+The driver is `e2e/review/a12-typing.spec.ts`. The fix plan should watch that
+number rather than trust it, because several of the comfort items add a
+decoration to the editor and every one of those is a charge against this path.
+Anything that wants to measure what a writer feels, rather than what the input
+path costs, has to measure paint as well, and that is a different driver.
 
 ### The server
 
@@ -2067,7 +2075,41 @@ Reproduce:
 1. `NEXTTEX_LIVE=1 .venv/bin/python -m pytest tests/test_live_agent.py -q`
 2. Both tests fail, with the message above.
 3. Run it again with the real CLI restored per test, after the conftest has
-   imported, and the same two tests pass against the real account.
+   imported, and the first test passes against the real account.
+
+The whole of step 3 is this, saved as `pin_sonnet.py` on `PYTHONPATH` and
+passed as `-p pin_sonnet`. It is kept here rather than in a scratch directory
+because it is the entire proof:
+
+```python
+import os
+import shutil
+
+import pytest
+
+import server.session as session_module
+
+_original = session_module.ProjectSession.__init__
+
+
+def _with_sonnet(self, project, model=None, provider="claude", api_key=""):
+    _original(self, project, model or "claude-sonnet-5", provider, api_key)
+
+
+session_module.ProjectSession.__init__ = _with_sonnet
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item):
+    if "test_live_agent" in str(item.fspath):
+        real = shutil.which("claude")
+        assert real, "no claude on PATH"
+        os.environ["NEXTTEX_CLAUDE_BINARY"] = real
+```
+
+The hook is what matters: `tests/conftest.py` writes the environment variable
+at import time, so anything that wants the real binary back has to do it per
+test, after that import, and only for this file.
 
 Mechanism: the guard was not there when the test was written.
 `tests/test_live_agent.py` arrived on 6 September in `5f3364c`. The conftest
@@ -2207,6 +2249,17 @@ hand, that somebody who has used a Jupyter notebook already knows how this
 works. Each record says what a writer does now, what they would do instead,
 what it would cost, and which pieces are already built, because several of
 these are a control in front of a route that is already written.
+
+Found by: a subagent reading the whole interface at once, which is the only
+way a list like this can be assembled, since it is about what is absent rather
+than about what is wrong. Seven of its structural claims were re-verified here
+by grep before anything was recorded: that there is no search route of any
+kind in `server/main.py`, that the app has no tab shortcuts, that
+`/history/timeline` has no client caller, that `loadTemplate`'s callers all
+pass no name, that `api.forgetWord` is called from nowhere, that `explain` is
+not imported by `server/main.py`, and that Duplicate appears in `Tabs.tsx` and
+not in `FileTree.tsx`. The rest is read rather than reproduced, which for a
+missing feature is the only evidence there is.
 
 Two of the five leads this pass started with turned out to be wrong and are
 recorded as leads closed rather than as findings. **Find and replace exists**:
@@ -3221,7 +3274,7 @@ remembered.
 | Benchmarks, first run | after the browser tier, on a busy machine |
 | Benchmarks, second run | on an idle machine, for the README comparison |
 | First finding committed | 15:26 |
-| Areas, first commit to last | about an hour and a half |
+| Areas, first commit to last | about two hours |
 | Live agent spend, in the app | $0.068, 2 turns, `claude-sonnet-5` |
 | Live agent spend, in the suites | not separately recorded, of the order of a few tens of cents |
 | Live iroh test | 2 passed in 5.3 s |
@@ -3247,5 +3300,8 @@ The subagents earned their keep twice: once reading all eighty-eight sweep
 images against the design document, which is a task that is expensive in a
 main context and cheap in a fresh one, and once assembling the comfort list,
 which needed the whole interface read at once. Both were checked before
-anything they said was recorded, and in both cases a claim of theirs was
-wrong and was dropped rather than written down.
+anything they said was recorded. The sweep's three load-bearing claims were
+verified here, including recomputing its contrast ratios from the pixel values
+it reported, and all ten of its findings stood. The comfort agent's most
+useful work was the opposite: two of the five leads it was given were wrong,
+and it closed them rather than writing them up.
