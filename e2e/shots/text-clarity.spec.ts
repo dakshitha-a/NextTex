@@ -51,11 +51,12 @@ const CANDIDATES: Record<string, string> = {
   // white the one line whose text most needs to be crisp is the one line
   // sitting on a grey band.
   "no-active-wash": ".cm-editor .cm-activeLine { background: transparent; }",
-  // 13.5px is the only fractional stop on the size ladder, and the gutter
-  // is 0.82 of whatever it is, so its line numbers are set at 11.07px at
-  // every stop on the ladder rather than only at that one.
-  "whole-px": ".cm-editor .cm-scroller { font-size: 14px; } .cm-editor .cm-gutters { font-size: 11px; }",
-  "gutter-whole-px": ".cm-editor .cm-gutters { font-size: 11px; }",
+  // 13.5px is the only fractional stop on the size ladder.  The gutter used
+  // to be a fraction at every stop and is not any more, so there is no
+  // gutter candidate here: it would render the same shot twice.  This one
+  // is the text, and it is kept because the answer was to leave the ladder
+  // alone and the shot is what says why.
+  "whole-px": ".cm-editor .cm-scroller { font-size: 14px; }",
 };
 
 for (const ground of GROUNDS) {
