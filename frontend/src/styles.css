@@ -840,8 +840,14 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .cm-editor .cm-scroller { font-family: var(--font-mono);
   font-size: var(--nx-editor-size, 13.5px); line-height: 1.63;
   font-weight: var(--nx-weight, 400); }
+/* Stamped as a whole number of pixels by appearance.ts rather than derived
+   here.  It was `calc(var(--nx-editor-size) * 0.82)`, which is 11.07px at
+   the default and a fraction at every other stop on the ladder too, and a
+   glyph set at a fractional size lays its stems across pixel boundaries.
+   The fallback is the default size's answer, for the frame before the
+   stamp, which in practice never renders. */
 .cm-editor .cm-gutters { background: var(--surface); color: var(--ink-3);
-  border-right: none; font-size: calc(var(--nx-editor-size, 13.5px) * 0.82); }
+  border-right: none; font-size: var(--nx-editor-gutter, 11px); }
 .cm-editor .cm-activeLineGutter { background: transparent; color: var(--ink-2); }
 .cm-editor .cm-activeLine { background: color-mix(in oklab, var(--ink-3) 7%, transparent); }
 .cm-editor .cm-cursor { border-left-color: var(--ink); }

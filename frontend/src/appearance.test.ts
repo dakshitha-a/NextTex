@@ -5,6 +5,7 @@ import {
   EDITOR_WEIGHTS,
   SCALES,
   applyAppearance,
+  gutterSize,
   isDefault,
   nearest,
   step,
@@ -15,6 +16,31 @@ beforeEach(() => {
   window.localStorage.clear();
   document.documentElement.removeAttribute("style");
   document.documentElement.removeAttribute("data-theme");
+});
+
+describe("the gutter's size", () => {
+  it("is a whole number of pixels at every stop on the ladder", () => {
+    for (const size of EDITOR_SIZES) {
+      expect(Number.isInteger(gutterSize(size))).toBe(true);
+    }
+  });
+
+  it("stays close to the ratio the design specifies", () => {
+    // 0.82 of the text, which is what the CSS used to compute directly; the
+    // rounding is the only thing that moved, so nothing may drift further
+    // than half a pixel from it.
+    for (const size of EDITOR_SIZES) {
+      expect(Math.abs(gutterSize(size) - size * 0.82)).toBeLessThanOrEqual(0.5);
+    }
+  });
+
+  it("is published as a whole number of pixels on the root", () => {
+    applyAppearance({ ...DEFAULTS, editor: 13.5 });
+    // 13.5 * 0.82 is 11.07, which is what a glyph used to be set at.
+    expect(
+      document.documentElement.style.getPropertyValue("--nx-editor-gutter"),
+    ).toBe("11px");
+  });
 });
 
 describe("the size ladders", () => {
