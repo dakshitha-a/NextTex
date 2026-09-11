@@ -116,6 +116,10 @@ test("a commit that reaches the program is offered properly", async ({ page }) =
     await page.getByRole("button", { name: "Not now" }).click();
     await expect(page.getByText("An update is waiting.")).toBeVisible();
     await expect(page.getByTestId("update-now")).toHaveCount(0);
+    // Into the gitignored shots directory, beside the card above it, so the
+    // two states this screen has can be looked at together.
+    await page.screenshot({ path: "shots/out-update-waiting.png",
+                            clip: { x: 440, y: 648, width: 800, height: 44 } });
 
     // And it survives a reload, because the check that runs when this screen
     // opens is the one a dismissal is about.
