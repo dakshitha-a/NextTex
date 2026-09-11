@@ -618,6 +618,10 @@ export type EventHandlers = {
   onProjectChanged?: (main?: string) => void;
   onFilesChanged?: (paths: string[], structural?: boolean) => void;
   onCompileDone?: (result: CompileResult) => void;
+  /** A build has started. Read rather than acted on: the shell uses it to
+   *  decide, *before* the build's duration is known, whether this build was
+   *  caused by the writer's own typing. */
+  onCompileStart?: (document: string) => void;
   onPreviewsChanged?: (previews: string[]) => void;
   onAgentEdit?: (path: string, line: number) => void | Promise<void>;
   onAgentFocus?: (path: string, line: number) => void;
@@ -788,6 +792,7 @@ function receive(event: any) {
           [name]: { ...(state.builds[name] ?? NO_BUILD), compiling: true, stale: false },
         },
       });
+      handlers.onCompileStart?.(name);
       break;
     }
     case "compile_done": {

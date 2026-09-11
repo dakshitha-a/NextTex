@@ -352,6 +352,14 @@ citation key or a new label pays for the full run with `biber`, and nothing
 else does. A half-finished equation holds the build back for four seconds
 rather than reporting an error you already know about.
 
+**And the page goes where you are writing.** When a build you caused lands,
+the preview scrolls to the part of the page your caret is on and flashes it,
+in whichever view mode you are in. Only when that part is not already in
+front of you, so working down a page you are looking at moves nothing, and
+only for a build your own typing caused: a rebuild you asked for while
+reading, a collaborator's edit, and the agent's edits while you are
+mid-sentence all leave the page alone.
+
 <details><summary>The measured numbers</summary>
 
 `bench/thresholds.json` holds a budget for every slow path and `bench/bench.py`
