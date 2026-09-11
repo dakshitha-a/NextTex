@@ -205,6 +205,12 @@ export default function Chat({
     { path: string; name: string; url: string }[]
   >([]);
   const [attaching, setAttaching] = useState(0);
+  /** When the running turn started, or null. Set from `thinking` rather
+   *  than from an event, because `turn_start` is not the only way a browser
+   *  learns a turn is running: one that reconnects mid-turn finds out from
+   *  `reconcile`, and a turn whose age started at that moment is a better
+   *  answer than no age at all. */
+  const [turnSince, setTurnSince] = useState<number | null>(null);
   const picker = useRef<HTMLInputElement | null>(null);
   // The position that asks about nothing is reached through a sentence, not
   // through a click. Held here rather than inside the popover because the
@@ -403,6 +409,10 @@ export default function Chat({
     }
   };
 
+  useEffect(() => {
+    setTurnSince(thinking ? Date.now() : null);
+  }, [thinking]);
+
   // Whatever was said while Claude was talking goes now.
   useEffect(() => {
     if (thinking || !projectId || !queued.current.length) return;
@@ -445,6 +455,15 @@ export default function Chat({
               {activity}
             </span>
             <Elapsed since={blocked ? null : current?.since ?? null} />
+            {/* The turn's own age, as distinct from the age of whatever it
+                is doing this second. A writer wants to know a turn is two
+                minutes old rather than that its current tool call is four
+                seconds old, and the two are very different numbers on a
+                long turn. Parenthesised so the pair reads as one thing
+                rather than as two competing counters. */}
+            {turnSince && !blocked ? (
+              <Elapsed since={turnSince} parenthesised />
+            ) : null}
           </span>
         ) : null}
         {/* The state, always on screen, as distinct from the control,
@@ -471,6 +490,11 @@ export default function Chat({
         {thinking ? (
           <button
             className="nx-hover t-micro text-hint hover:text-ink"
+            data-testid="stop"
+            // The key is on the button rather than only in a shortcut
+            // table, because Stop is the one control somebody reaches for
+            // in a hurry and a shortcut nobody knows about is not one.
+            title="Stop this turn (Escape)"
             onClick={() => {
               const projectId = get().projectId;
               if (projectId) api.interrupt(projectId).catch(() => undefined);
@@ -1339,7 +1363,13 @@ const Item = memo(function Item({
  *  reflow applies to any number that changes under the eye, and this one
  *  sits beside a truncating label in a 32px bar.
  */
-function Elapsed({ since }: { since: number | null }) {
+function Elapsed({
+  since,
+  parenthesised = false,
+}: {
+  since: number | null;
+  parenthesised?: boolean;
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (since === null) return;
@@ -1355,9 +1385,11 @@ function Elapsed({ since }: { since: number | null }) {
       className="t-micro shrink-0 text-right tabular-nums text-ink-3"
       style={{ minWidth: "3ch" }}
     >
+      {parenthesised ? "(" : ""}
       {seconds < 60
         ? `${seconds}s`
         : `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, "0")}`}
+      {parenthesised ? ")" : ""}
     </span>
   );
 }

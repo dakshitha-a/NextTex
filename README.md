@@ -906,7 +906,8 @@ there, and somebody would have to invite you back.
 | `Ctrl-F` | Find and replace |
 | Typing, in the file tree | Jump to a file |
 | `F2`, `Delete`, in the file tree | Rename, move to trash |
-| `A`, `⇧A`, `D`, in a permission card | Allow, allow always, deny |
+| `Esc`, in the agent panel | Stop the turn if one is running, otherwise close the panel |
+| `A`, `⇧A`, `C`, `D`, in a permission card | Allow, allow always, allow for this conversation, deny |
 
 ## Documentation
 

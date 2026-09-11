@@ -1123,6 +1123,19 @@ export default function App() {
         // visible once the dispatch is over.  Hence the wait.
         window.setTimeout(() => {
           if (event.defaultPrevented) return;
+          // Stop first, close second, and the order is the whole point.
+          // Stop is the writer's one escape hatch from a turn that is
+          // doing the wrong thing, and it was a `t-micro` text button in a
+          // 32px header that can be folded away entirely. Escape is where
+          // a hand already goes when something should stop.
+          //
+          // Not both: pressing it once should not also shut the panel and
+          // hide the transcript of what the turn had got to before it was
+          // stopped, which is the thing the writer is about to read.
+          if (get().thinking && get().projectId) {
+            api.interrupt(get().projectId!).catch(() => undefined);
+            return;
+          }
           closeChat();
         }, 0);
       }

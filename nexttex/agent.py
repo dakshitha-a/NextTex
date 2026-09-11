@@ -1981,7 +1981,21 @@ class ProjectAgent:
             + (f"  \\label{{{label}}}\n" if label else "")
             + "\\end{figure}\n"
         )
-        return self._insert(body)
+        result = self._insert(body)
+        # A space in the path compiles to a puzzle rather than to a
+        # message: `\\includegraphics{a b.pdf}` sends TeX looking for `a`
+        # and then complaining that `b.pdf` has an unknown extension, which
+        # names neither the file nor the problem. Not refused, because the
+        # file does exist and refusing would be worse than saying so, and
+        # the model can rename it and try again.
+        if " " in relative and result.get("content"):
+            result["content"][0]["text"] += (
+                f"\n\nOne thing: {relative} has a space in its name. TeX "
+                "will look for the part before the space and then complain "
+                "about an unknown extension, which names neither the file "
+                "nor the problem. Rename it if the build fails."
+            )
+        return result
 
     async def add_reference_tool(self, args: dict) -> dict:
         """Add one reference from its DOI.

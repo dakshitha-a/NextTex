@@ -122,3 +122,24 @@ def test_an_absolute_path_inside_the_project_is_written_relative(tmp_path):
     asyncio.run(agent.insert_figure_tool({"path": str(inside)}))
     assert "{figures/plot.png}" in written["text"]
     assert str(tmp_path) not in written["text"]
+
+
+def test_a_figure_whose_name_has_a_space_is_inserted_and_flagged(tmp_path):
+    r"""A space compiles to a puzzle rather than to a message.
+
+    `\includegraphics{a b.pdf}` sends TeX looking for `a` and then
+    complaining that `b.pdf` has an unknown extension, which names neither
+    the file nor the problem. The write is not refused, because the file
+    does exist and refusing would be worse than saying so.
+    """
+    import asyncio
+
+    subject, written = agent(tmp_path, 3)
+    (subject.root / "figures").mkdir(exist_ok=True)
+    (subject.root / "figures" / "old scan.pdf").write_bytes(b"%PDF-1.4")
+    result = asyncio.run(
+        subject.insert_figure_tool({"path": "figures/old scan.pdf", "caption": "A scan"})
+    )
+    said = result["content"][0]["text"]
+    assert "space in its name" in said
+    assert "old scan.pdf" in written["text"]
