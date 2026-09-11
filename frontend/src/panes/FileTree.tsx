@@ -978,8 +978,13 @@ export default function FileTree({
       >
         {rows}
       </div>
+      {/* Named, because it is no longer the only file input in the app: the
+          agent panel has one for attaching an image, and a spec reaching
+          for "the file input" was relying on there being exactly one, which
+          was never a promise. */}
       <input
         ref={uploadInput}
+        id="nx-upload"
         type="file"
         multiple
         className="hidden"

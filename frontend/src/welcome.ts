@@ -8,10 +8,17 @@
  */
 /** The one sentence that differs by provider: the Claude agent has a shell
  *  and the OpenAI one deliberately does not, so promising to ask before
- *  running a command would be promising something that cannot happen. */
+ *  running a command would be promising something that cannot happen.
+ *
+ *  It also has to stay true of whichever of the three positions the
+ *  permission control is in, and it did not: it promised to ask before
+ *  running a command, which is true at the first position and false at the
+ *  other two. So it names the control rather than the behaviour, which is
+ *  both accurate and more useful, since the writer may not know the control
+ *  exists. */
 export const welcome = (name: string, shell = true) => {
   const beyond = shell
-    ? "A shell command or a file outside the project I ask about first."
+    ? "What I ask about first is set by the control under the box: by default, a shell command or a file outside the project."
     : "A file outside the project I ask about first.";
   return `I'm ${name}, working inside this project. You write LaTeX on the left; the middle is the real typeset page, rebuilt about a second after you stop typing. Double-click anything on it to jump to the source that made it.
 

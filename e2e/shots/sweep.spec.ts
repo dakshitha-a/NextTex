@@ -216,6 +216,76 @@ test("the agent column, mid-turn and at rest", async ({ tab }) => {
   }
 });
 
+/** The surfaces the agent rework added, which is what section 28 has to be
+ *  read against: a permission control with three positions and the sentence
+ *  in front of the quietest one, the turn's own plan, the four-button card,
+ *  the verbs over a selection, and an image attached to a question. */
+test("the agent panel's new surfaces", async ({ app, project, tab }) => {
+  await seed(tab, app.base, app.token, project.id);
+  for (const theme of THEMES) {
+    await dress(tab, theme, 1600);
+    // No click on the floating pill: at 1600 the panel is already docked,
+    // and that control toggles it, so pressing it here shut the thing being
+    // photographed.
+    // The control, open, with all three positions and what each one says.
+    // It is drawn only once the panel has heard back that this agent is the
+    // kind that ever asks, which is one round trip after the first paint.
+    await tab.getByTestId("auto-toggle").waitFor({ timeout: 20_000 });
+    await tab.getByTestId("auto-toggle").click();
+    await tab.waitForTimeout(250);
+    await shot(tab, "21-mode-menu", theme, 1600);
+
+    // The sentence in front of the position that asks about nothing.
+    await tab.getByTestId("mode-all").click();
+    await tab.waitForTimeout(300);
+    await shot(tab, "22-all-confirm", theme, 1600);
+    await tab.getByTestId("all-keep").click();
+    await tab.waitForTimeout(200);
+
+    // The turn's own plan, ticking itself off, and the activity line with
+    // its two counters.
+    await ask(tab, "plan", "Rewrite the theory chapter.");
+    await tab.waitForTimeout(1200);
+    await shot(tab, "23-turn-plan", theme, 1600);
+    await tab.waitForTimeout(4000);
+    await shot(tab, "24-plan-done", theme, 1600);
+
+    // Four buttons now, at the panel's minimum width as well as at 1600,
+    // because that row is the one section 5's wrapping note is about.
+    await ask(tab, "network", "Fetch that page.");
+    await expect(tab.getByTestId("allow")).toBeVisible({ timeout: 20_000 });
+    await tab.waitForTimeout(600);
+    await shot(tab, "25-card-four-answers", theme, 1600);
+    await tab.getByTestId("conversation").hover();
+    await tab.waitForTimeout(250);
+    await shot(tab, "26-card-conversation-scope", theme, 1600);
+    await tab.getByTestId("deny").click();
+    await tab.waitForTimeout(400);
+
+    // An image on a question.
+    await tab.setInputFiles("#nx-attach", {
+      name: "referee.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAKUlEQVR42u3NMQ0AMAwDsO7/o8skLyBBQ0c7tmwZAAAAAAAAAAAAAADgDwGBAAFRtYFuAAAAAElFTkSuQmCC",
+        "base64",
+      ),
+    });
+    await tab.waitForTimeout(700);
+    await shot(tab, "27-attached", theme, 1600);
+
+    // The verbs over a selection, in the editor rather than the panel.
+    const content = tab.locator(".cm-editor .cm-content");
+    await content.click();
+    await tab.keyboard.press("Control+Home");
+    for (let i = 0; i < 6; i += 1) await tab.keyboard.press("ArrowDown");
+    await tab.keyboard.press("Home");
+    await tab.keyboard.press("Shift+End");
+    await tab.waitForTimeout(400);
+    await shot(tab, "28-selection-verbs", theme, 1600);
+  }
+});
+
 test("panes folded, and dragged to their limits", async ({ tab }) => {
   for (const theme of THEMES) {
     await dress(tab, theme, 1600);

@@ -164,6 +164,14 @@ class Transcript:
         elif kind in {"text_end", "done"}:
             self._flush_text()
         elif kind == "tool_use":
+            # The turn's plan is not part of the record of what was done to
+            # the document, and recording it made that plain the hard way:
+            # the panel draws it live from the same event and the transcript
+            # replayed it as a tool row called `TodoWrite`, so a reload
+            # turned the one readable thing about a long turn into protocol
+            # noise. A rehearsal is not an action.
+            if event.get("name") == "TodoWrite":
+                return event
             self._flush_text()
             self._append({
                 "kind": "tool",

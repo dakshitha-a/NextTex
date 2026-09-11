@@ -308,6 +308,27 @@ describe("the plan for a turn", () => {
     expect((plans[0] as any).items).toHaveLength(2);
   });
 
+  test("and moves to the end, where the reader is looking", () => {
+    // In place, the plan stayed where it first appeared, so a turn with
+    // any output at all scrolled it away and the panel was carrying a list
+    // of what it intended to do somewhere nobody could see it.
+    __receive({ type: "turn_start", prompt: "go" });
+    write([{ content: "One", status: "in_progress" }]);
+    __receive({ type: "tool_use", id: "r1", name: "Read", input: { file_path: "a.tex" } });
+    __receive({ type: "tool_done", id: "r1", name: "Read", ms: 10, ok: true });
+    write([{ content: "One", status: "completed" }]);
+    const chat = get().chat;
+    expect(chat[chat.length - 1].kind).toBe("plan");
+  });
+
+  test("the id is kept, so the row is reused rather than replaced", () => {
+    __receive({ type: "turn_start", prompt: "go" });
+    write([{ content: "One", status: "pending" }]);
+    const first = get().chat.find((item: any) => item.kind === "plan")!.id;
+    write([{ content: "One", status: "completed" }]);
+    expect(get().chat.find((item: any) => item.kind === "plan")!.id).toBe(first);
+  });
+
   test("the plan belongs to its turn and does not outlive it", () => {
     __receive({ type: "turn_start", prompt: "go" });
     write([{ content: "One", status: "pending" }]);

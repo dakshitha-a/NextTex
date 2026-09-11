@@ -1076,12 +1076,23 @@ function setPlan(input: any): void {
     }))
     .filter((entry: { text: string }) => entry.text);
   if (!items.length) return;
+  // Moved to the end rather than revised in place, which is the one thing
+  // looking at it changed. In place, the plan stayed where it first
+  // appeared, so a turn with any output at all scrolled it away and the
+  // panel was carrying a list of what it intended to do somewhere the
+  // reader could not see, which is the opposite of the point.
+  //
+  // A revised plan is new information, and new information goes where all
+  // the other new information goes: at the bottom, which is also where the
+  // pin-to-bottom effect is already looking. The id is kept, so React
+  // reuses the row rather than replacing it.
   const existing = state.chat.find((item) => item.kind === "plan");
-  if (existing) {
-    updateChat(existing.id, { items } as any);
-    return;
-  }
-  pushChat({ kind: "plan", id: nextId(), items });
+  const id = existing ? existing.id : nextId();
+  const rest = existing
+    ? state.chat.filter((item) => item.kind !== "plan")
+    : state.chat;
+  state.chat = [...rest, { kind: "plan", id, items }];
+  commit();
 }
 
 function summariseTool(name: string, input: any): string {

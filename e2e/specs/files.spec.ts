@@ -81,7 +81,7 @@ test("uploading asks where, and remembers the answer next time", async ({ tab })
   const chooser = tab.getByTestId("upload-staging");
 
   await tab.getByTestId("upload").click();
-  const picked = tab.locator('input[type="file"]');
+  const picked = tab.locator("#nx-upload");
   await picked.setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
 
   await expect(chooser).toBeVisible({ timeout: 10_000 });
@@ -115,7 +115,7 @@ test("a name already there is asked about before anything is written", async ({
 
   await tab.getByTestId("upload").click();
   await tab
-    .locator('input[type="file"]')
+    .locator("#nx-upload")
     .setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
 
   const chooser = tab.getByTestId("upload-staging");
@@ -149,7 +149,7 @@ test("a name already there is asked about before anything is written", async ({
 test("cancelling the chooser writes nothing", async ({ tab }) => {
   await tab.getByTestId("upload").click();
   await tab
-    .locator('input[type="file"]')
+    .locator("#nx-upload")
     .setInputFiles({ name: "unwanted.png", mimeType: "image/png", buffer: PNG });
 
   const chooser = tab.getByTestId("upload-staging");
@@ -165,7 +165,7 @@ test("a replaced figure keeps the one it replaced, and gives it back", async ({
   // The bug this whole path exists for: dropping a corrected plot over an
   // old one used to destroy the old one outright.
   await tab.getByTestId("upload").click();
-  const picked = tab.locator('input[type="file"]');
+  const picked = tab.locator("#nx-upload");
   await picked.setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
   const chooser = tab.getByTestId("upload-staging");
   await expect(chooser).toBeVisible({ timeout: 10_000 });
