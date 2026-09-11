@@ -782,6 +782,117 @@ Nothing in any tier presses Ctrl+Z. `e2e/specs/` has no undo spec, and the
 agent's own undo, which is a different mechanism entirely, is the only undo
 the suite exercises.
 
+### R-067 · Editor · bug · high · likely
+
+Found by: reading. Where: `frontend/src/App.tsx:579` with
+`frontend/src/panes/Editor.tsx:526`.
+
+What happens: clicking a second version in the history panel, without going
+back to now first, destroys the live buffer and leaves a tab that looks live
+and is not. `App.tsx` calls `editor.current.view(path, sha)` without
+`backToNow()`. Inside `viewVersion`, `current.current` is null while a version
+is parked, so the branch that would reopen the buffer is skipped and
+`buffer.state = editor.state` overwrites the parked live state, its
+collaborative binding, its undo history and its caret, with the read-only
+historical one.
+
+`backToNow` then restores that as "now": the tab shows the previous version's
+text with the banner gone, `EditorState.readOnly` still in force, and typing
+reaching nothing.
+
+Clicking two versions in a row is the ordinary use of a history panel.
+
+### R-068 · Editor · bug · high · likely
+
+Found by: reading. Where: `frontend/src/panes/editor-setup.ts:419` with
+`frontend/src/panes/Editor.tsx:724`.
+
+What happens: spell checking reaches one tab and never comes back once turned
+off. Every fresh state gets `spellCompartment.of([])`, and the effect that
+would reconfigure it takes an early branch when the module is already loaded,
+dispatching an effect into a state that has no field to receive it. So a
+second tab is never checked, and turning the setting off and on again does not
+restore the underlines on any tab for the rest of the session.
+
+### R-069 · Editor · bug · medium · likely
+
+Found by: reading. Where: `frontend/src/panes/Editor.tsx:518`, and four
+consequences of one fact.
+
+`EditorView.setState` does not build a `ViewUpdate` and does not run update
+listeners, so swapping documents never fires the editor's own listener. Four
+things therefore carry over from the file the writer just left:
+
+- the status strip's `Ln, Col`, which is written only from that listener, so
+  it shows the previous file's position until the caret moves. Cmd-Enter in
+  that window sends the new file's path with the old file's line to forward
+  search, and the preview reveals the wrong place.
+- the selection verb row, cleared only inside the cursor handler, so it floats
+  over the new document still reading "Lines 12 to 40", and pressing Reword
+  seeds a prompt for a selection that was cleared.
+- a jump flash left in a parked buffer, because the two teardown timers
+  dispatch to whatever document is on screen when they fire, and the
+  highlight is a static background rather than an animation that ends. The
+  three-second hold on the agent's announcement makes this the ordinary case
+  rather than a race.
+- the spelling menu, cleared only by accepting a word or pressing the
+  backdrop, so it can be left offering to add a word to the dictionary over an
+  unrelated file.
+
+### R-070 · Editor · accessibility · medium · confirmed
+
+Found by: reading, and counted. Where: `frontend/src/panes/Editor.tsx:830`.
+
+What happens: the spelling menu claims `role="menu"` and a keyboard user meets
+nothing at all. Focus never enters it, so an arrow key moves the caret in the
+document behind the veil while the menu stays open over a page that is now
+scrolling underneath it. Escape does nothing, because the dismissal is a
+pointer-only backdrop. And it cannot be opened from the keyboard in the first
+place: Shift-F10 fires `contextmenu` on the content rather than on the word,
+so the test for a misspelled word fails. A screen reader is told "menu, one
+item" about something only a mouse can reach and only a mouse can close.
+
+`TRACKER.md` records five menus claiming the role. A literal grep finds four:
+`Editor.tsx:836`, `PreviewTabs.tsx:146`, `chrome.tsx:103` and `Chat.tsx:974`,
+with `Chat.tsx` carrying one rather than two, so the tracker's count is one
+high and its entry is worth correcting along with the code.
+
+### R-071 · Editor · bug · medium · likely
+
+Found by: reading. Where: `frontend/src/panes/math-hover.ts:17` and
+`frontend/src/panes/Editor.tsx:643`.
+
+Two caches that never recover.
+
+The maths renderer's loading promise is assigned once and not reset on
+rejection, so a single hover made while offline leaves a rejected promise
+cached and every later hover says "Could not load the maths renderer" with no
+retry. `spellcheck.ts:66` resets its equivalent on catch, which is the
+intended pattern in the same directory.
+
+`symbols.current` is never cleared when the project changes, and its fetch
+swallows failure. Between projects, and permanently if the new fetch fails,
+completion offers the previous project's citation keys, labels and figure
+paths, and maths hovers render with the previous project's macros.
+
+### R-072 · Editor · bug · medium · likely
+
+Found by: reading. Where: `frontend/src/collab.ts:452`, `:502`, `:341`.
+
+Three in the collaboration client, each small and each visible.
+
+Releasing the file whose socket dropped never calls `noteConnection`, so if the
+project was offline only because of that file, closing the tab leaves the app
+reporting offline for ever.
+
+`closeCollab` is exported and called by nothing, so leaving a project without
+opening a file, or signing out, leaves this browser in the old project's
+collaborator strip until the next project's first file is opened.
+
+A collaborator who stops typing stays marked as writing, because the
+forty-five second decay is computed only inside `collaborators()`, which runs
+only on a presence or manifest event, and nothing ticks.
+
 ### Sign-in and the front door
 
 ### R-025 · Sign-in · accessibility · medium · confirmed
@@ -1073,6 +1184,89 @@ in-process server resolves could not be established from the SDK source.
 whether a project's `.claude/settings.json` can shadow the hook, which
 `docs/architecture.md` records was settled for `allowed_tools` by testing
 rather than by reading. It has not been settled for this.
+
+### R-073 · Agent · bug · medium · confirmed
+
+Found by: a real turn against a real account, then reading the transcript on
+disk. Where: `server/transcript.py:155` with `nexttex/agent.py:1247`.
+
+What happens: a permission card nobody answered is written into the audit
+trail with **no `decision` field at all**, and the panel draws that as
+*Denied*.
+
+The two records a live turn left behind, with everything they carry:
+
+```json
+{"kind": "permission", "tool": "Bash", "rule": "Bash:find",
+ "headline": "Run a shell command", "detail": "find ... -name \"*.tex\"",
+ "consequence": "List LaTeX files in project", "reason": "", "at": ...}
+```
+
+There is no `decision`. `_settled` writes one for every action approved
+silently, and `note_decision` writes one when a person answers. Nothing writes
+one when the card expires, so the file cannot say whether the writer refused
+this or never saw it.
+
+`docs/architecture.md` describes this file as "the record of what was done to
+the document: every edit with its diff, every reverted edit, every command
+allowed or refused". A command that was neither allowed nor refused is the
+case it has no word for, and it is recorded as refused.
+
+Taken with R-049, the audit trail has the same gap from both directions: a
+card answered after the server gave up is recorded as allowed and replays as
+denied, and a card nobody answered is recorded as nothing and replays as
+denied. The one thing it cannot say is that nobody answered.
+
+### R-074 · Agent · bug · low · confirmed
+
+Found by: a real turn against a real account, watching the panel. Where:
+`frontend/src/panes/Chat.tsx:1190`.
+
+What happens: the panel labels every `replace_range` call **"Rewrote what you
+selected"**, and the model reaches for that tool whether or not anything was
+selected. In the live turn recorded below, nothing was selected at any point,
+and the panel said so anyway.
+
+The tool's own description tells the model to "use this when the user has
+selected something and asked you to change, reword or expand it", which is
+guidance rather than a constraint: the tool takes a line range, and replacing
+lines 33 to 33 is exactly what it is for. So the model is not misusing it; the
+label is asserting something the panel cannot know.
+
+This is the same class as the welcome message `2cf7861` corrected, where the
+panel made a promise in the agent's own voice that was true on one path and
+false on the others. A writer reading their own account of what was done to
+their document is told they did something they did not do.
+
+### What worked, recorded because a review that lists only faults is not a
+### picture of the app
+
+A clean live turn against a real account on Sonnet, on a project with a real
+paper in it:
+
+```
+CARD:       Run a shell command | grep -n "Discussion" -i main.tex | head -20
+            | Find Discussion section in main.tex
+            | Remembers: Bash!grep -n "Discussion" -i main.tex | head -20
+            | Allow A | For this conversation C | Allow always ⇧A | Deny D
+TURN TOOK:  19.5 s
+EDIT CHIPS: 1, and still 1 after a reload
+LENGTHS:    569 live vs 560 replayed
+```
+
+Everything the panel is for worked. The card named the command, said what it
+was for in a sentence, showed the rule it would remember and offered four
+answers. The edit landed, the chip carried `+1 −1` with Show and Undo, the
+page rebuilt in 0.92 seconds and the new sentence is on it, and the section
+list picked up the change. The replayed panel matched the live one to within
+the composer's own hint text.
+
+The first response arrived 87 milliseconds after the question in an earlier
+run, which is the streaming path doing its job.
+
+So the agent's core loop is in good order, and the findings above are about
+its edges: what happens when a card is not answered, when the tab reloads
+mid-turn, and what the record says afterwards.
 
 ### The server
 
