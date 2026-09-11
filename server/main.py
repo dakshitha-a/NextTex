@@ -36,7 +36,7 @@ from fastapi.responses import (
 )
 from fastapi.staticfiles import StaticFiles
 
-from nexttex import auth, claude_auth, gitrepo, synctex
+from nexttex import attachments, auth, claude_auth, gitrepo, synctex
 from server.collab import transport as collab_transport
 from server.collab.peers import PeerNetwork
 from server.collab.store import CollabStore
@@ -3269,11 +3269,46 @@ def _selected_context(selection: dict | None) -> str:
     )
 
 
+@app.post("/api/projects/{project_id}/agent/attachment")
+async def agent_attachment(project_id: str, file: UploadFile = File(...)):
+    """Take one image the writer pasted, dropped or picked.
+
+    The bytes go on disk and the question carries the path, for the reason
+    written at the top of `nexttex/attachments.py`: the agent already reads
+    images from disk, that path is the one section 27 hardened, and the
+    transcript ends up recording a filename rather than a megabyte of
+    base64.
+    """
+    session = session_for(project_id)
+    kind = (file.content_type or "").split(";")[0].strip().lower()
+    if kind not in attachments.KINDS:
+        raise HTTPException(
+            400,
+            "That is not an image the agent can look at. PNG, JPEG, WebP "
+            "and GIF are the ones it can.",
+        )
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "That file is empty.")
+    if len(data) > attachments.LIMIT:
+        raise HTTPException(
+            413,
+            f"That image is {len(data) // (1024 * 1024)} MB, and the agent "
+            f"takes up to {attachments.LIMIT // (1024 * 1024)}. A "
+            "screenshot at screen resolution is well under it.",
+        )
+    path, name = await asyncio.to_thread(
+        attachments.keep, session.project.state_dir, data, kind
+    )
+    return {"path": path, "name": name, "bytes": len(data)}
+
+
 @app.post("/api/projects/{project_id}/agent/ask")
 async def agent_ask(
     project_id: str,
     prompt: str = Body(..., embed=True),
     selection: dict | None = Body(None, embed=True),
+    attached: list[str] | None = Body(None, embed=True),
 ):
     session = session_for(project_id)
     session.start_agent_pump()
@@ -3282,11 +3317,29 @@ async def agent_ask(
     # cursor debounce had last managed to deliver.
     if selection and str(selection.get("text") or "").strip():
         session.note_selection(selection)
+    # The images the writer attached, named above the question in the same
+    # preamble the selection uses. `turn_start` does not carry it, so the
+    # conversation on screen shows what was typed rather than the question
+    # with a list of paths stapled to it; the chips under the composer are
+    # what says an image went with it.
+    #
+    # Checked against the directory rather than trusted: this is a list of
+    # strings out of an HTTP body, and the one thing it must not become is a
+    # way to make the agent read an arbitrary path.
+    held = attachments.directory(session.project.state_dir)
+    paths = [
+        name for name in (attached or [])
+        if isinstance(name, str) and (held / Path(name).name).is_file()
+    ][: attachments.MOST]
+    preamble = _selected_context(selection)
+    note = attachments.sentence(paths)
+    if note:
+        preamble = f"{note}\n\n{preamble}" if preamble else note
     try:
-        await session.agent.ask(prompt, context=_selected_context(selection))
+        await session.agent.ask(prompt, context=preamble)
     except RuntimeError as exc:
         raise HTTPException(409, str(exc))
-    return {"ok": True}
+    return {"ok": True, "attached": paths}
 
 
 @app.post("/api/projects/{project_id}/agent/reset")

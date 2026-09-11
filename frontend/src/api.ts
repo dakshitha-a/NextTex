@@ -540,6 +540,19 @@ const api = {
         `&line=${line}&document=${encodeURIComponent(document)}`,
     ),
 
+  /** One image the writer pasted, dropped or picked.
+   *
+   *  Not through `json()`: this is multipart, like the upload path, because
+   *  base64 in a JSON body would be a third larger for no reason. */
+  attach: (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ path: string; name: string; bytes: number }>(
+      `/projects/${id}/agent/attachment`,
+      { method: "POST", body: form },
+    );
+  },
+
   ask: (
     id: string,
     prompt: string,
@@ -552,6 +565,10 @@ const api = {
       fromLine: number;
       toLine: number;
     } | null,
+    /** Images already on disk, by the path `attach` handed back. Named
+     *  above the question for the model; the panel shows chips instead, so
+     *  the conversation reads as what was typed. */
+    attached?: string[],
   ) =>
     request<any>(
       `/projects/${id}/agent/ask`,
@@ -565,6 +582,7 @@ const api = {
               toLine: selection.toLine,
             }
           : null,
+        attached: attached ?? [],
       }),
     ),
   respond: (id: string, requestId: string, decision: string) =>

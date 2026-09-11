@@ -584,3 +584,52 @@ test("escape leaves the agent screen one level at a time", async ({
   await expect(page.getByText("How would you like to work?")).toHaveCount(0);
   await expect(page.getByTestId("set-up-agent")).toBeVisible();
 });
+
+test("an image can be attached to a question, and taken off again", async ({
+  tab,
+}) => {
+  // A writer looking at a referee's marked-up PDF or a screenshot of a
+  // broken table wants to hand it over rather than describe it, and
+  // describing a visual problem in prose is the tax this removes.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await tab.setInputFiles("#nx-attach", {
+    name: "table.png", mimeType: "image/png", buffer: png,
+  });
+
+  // The chip says what is going with the question, with a thumbnail,
+  // because an image attached by accident to a question about something
+  // else is worse than no attachment and seeing it is the only way to
+  // notice.
+  const chips = tab.getByTestId("attachments");
+  await expect(chips).toBeVisible({ timeout: 20_000 });
+  await expect(chips).toContainText("table.png");
+  await expect(chips.locator("img")).toBeVisible();
+
+  await tab.getByTestId("attachment-remove").click();
+  await expect(tab.getByTestId("attachments")).toHaveCount(0);
+});
+
+test("the question reads as what was typed, not as a list of paths", async ({
+  tab,
+}) => {
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await tab.setInputFiles("#nx-attach", {
+    name: "scan.png", mimeType: "image/png", buffer: png,
+  });
+  await expect(tab.getByTestId("attachments")).toBeVisible({ timeout: 20_000 });
+
+  await ask(tab, "reply", "What is wrong with this?");
+  // What was typed, and nothing about where the bytes went: the paths are
+  // named to the model in the same preamble the selection uses, which the
+  // panel deliberately does not show.
+  await expect(tab.getByText("What is wrong with this?")).toBeVisible();
+  await expect(tab.getByText(".nexttex/attachments")).toHaveCount(0);
+  // And the chips are gone, because they went with it.
+  await expect(tab.getByTestId("attachments")).toHaveCount(0);
+});
