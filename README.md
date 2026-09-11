@@ -935,6 +935,10 @@ screen you are looking at, which is usually faster than the files below.
   handbook and a sample of your own writing change what the agent produces.
 - [docs/testing.md](docs/testing.md): the four test tiers, why each exists,
   and the bugs they found.
+- [TRACKER.md](TRACKER.md): what is being worked on and what is waiting, each
+  waiting item with its reason. Working state rather than documentation, which
+  is why it sits outside `docs/`, and it is struck and added to in the same
+  commit as the code so it cannot drift out of date on its own.
 
 ## Licence
 
