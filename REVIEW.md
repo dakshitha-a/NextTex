@@ -3029,6 +3029,26 @@ call turn is eighty rows.
 - **`openin_any`.** `docs/architecture.md` records that a hostile source file
   can read what the server's user can read. No code here closes it, and it is
   written down rather than claimed. Recorded as known, not re-found.
+- **The binary gap across two machines.** The laptop joined a project with no
+  real binaries in it, so whether a figure added by one side arrives at the
+  other is still untested between two computers. It is known to be a gap in
+  one process.
+- **The compiling latch, staged rather than reproduced.** R-001 stays
+  `likely`. Killing the server makes the tab reload itself onto the browser's
+  error page, which is R-040 and is a different bug; and `setOffline` does not
+  cut an `EventSource` that is already open, so the offline driver could not
+  reach it either. Aborting `/api/projects/*/events` with `page.route` after
+  `compile_start` would stage it, and was not worth the time against a reading
+  this clear.
+- **A fractional device pixel ratio.** R-106. The Windows laptop reports 1.25,
+  which is the ordinary default, and nothing in this repository has been
+  photographed at anything but 1 and 2.
+- **Seven surfaces the sweep does not photograph.** The diagnostics drawer and
+  its rows, the upload chooser, the edit chip and its diff, the tab
+  right-click menu, the tab overflow chevron, the git section after first run,
+  and the reading and writing modes. Some of them carry findings here, found
+  by driving instead. None of them has been read against the design document
+  the way the other eighty-eight were.
 
 ## What the findings have in common
 
