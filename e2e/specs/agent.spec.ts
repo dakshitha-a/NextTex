@@ -633,3 +633,22 @@ test("the question reads as what was typed, not as a list of paths", async ({
   // And the chips are gone, because they went with it.
   await expect(tab.getByTestId("attachments")).toHaveCount(0);
 });
+
+test("escape stops a turn before it closes the panel", async ({ tab }) => {
+  // Stop is the writer's one escape hatch from a turn doing the wrong
+  // thing, and it was a `t-micro` text button in a 32px header that can be
+  // folded away entirely. Escape is where a hand already goes.
+  await ask(tab, "slow", "The long one.");
+  await expect(tab.getByTestId("stop")).toBeVisible({ timeout: 20_000 });
+
+  await tab.locator("textarea").press("Escape");
+  // Stopped, and the panel is still open, because the transcript of what
+  // the turn got to before it was stopped is the thing being read next.
+  await expect(tab.getByTestId("stop")).toBeHidden({ timeout: 20_000 });
+  await expect(tab.getByTestId("chat-panel")).toBeVisible();
+
+  // And with nothing running, the same key closes it, which is what it
+  // always did.
+  await tab.locator("textarea").press("Escape");
+  await expect(tab.getByTestId("chat-panel")).toBeHidden();
+});

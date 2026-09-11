@@ -3770,3 +3770,13 @@ A paste that is text and a drop that is a `.bib` file fall through to the browse
 The question itself reads as what was typed. The paths are named to the model in the same preamble the selection uses, and `turn_start` does not carry that preamble, so the conversation on screen is not a sentence with a list of file paths stapled to it. The chips are what say an image went with it, which is what a person looking at the transcript afterwards actually wants to know.
 
 Where the bytes live is decided by section 27 rather than by preference, and it is recorded in `docs/architecture.md` with the rest of the mechanics.
+
+### Three small things, and one deliberately left out
+
+**Escape stops a turn.** Stop is the writer's one escape hatch from a turn that is doing the wrong thing, and it was a `t-micro` text button in a 32 px header that can be folded away entirely. Escape is where a hand already goes when something should stop, and Escape in the agent panel already meant something: it closed the panel. So it stops first and closes second, and not both, because pressing it once should not also hide the transcript of what the turn had got to before it was stopped, which is the thing the writer is about to read. The key is named on the button's own tooltip rather than only in the README's table, because a shortcut nobody knows about is not one.
+
+**The turn has its own age, beside the age of what it is doing.** Those are very different numbers on a long turn: a writer wants to know a turn is two minutes old, not that its current tool call is four seconds old. Parenthesised, so the pair reads as one thing rather than as two counters competing, and on the interval that was already running.
+
+**A figure whose filename has a space in it is flagged rather than refused.** `\includegraphics{a b.pdf}` sends TeX looking for `a` and then complaining that `b.pdf` has an unknown extension, which names neither the file nor the problem: it is a puzzle rather than a message, and it arrives a build later than the mistake. The write is not refused, because the file does exist and refusing would be worse than saying so, and the model is told so it can rename it.
+
+**The Sections panel did not get the selection verbs, and that is a decision.** The plan for this run said the verbs belonged on a section in the rail as well as on a selection in the editor, on the grounds that the outline already knows the range. It is convenience rather than capability: selecting the section in the editor already produces the verbs, so a second entry point buys a shorter route to something already reachable, and it costs a hover control on every row of a panel that can hold forty of them. Left out, and written down rather than quietly dropped.
