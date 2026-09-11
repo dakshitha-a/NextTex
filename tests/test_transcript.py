@@ -228,3 +228,27 @@ def test_archived_conversations_stop_accumulating(tmp_path, monkeypatch):
     assert "transcript-20260105-000000.jsonl" in kept
     # And the live file is gone, which is what archiving means.
     assert not record.path.exists()
+
+
+def test_the_turn_s_plan_is_not_part_of_the_record(tmp_path):
+    """A rehearsal is not an action.
+
+    The panel draws the plan live from `TodoWrite`, and recording it made
+    that plain the hard way: a reload replayed it as a tool row called
+    `TodoWrite`, so the one readable thing about a long turn came back as
+    protocol noise. The transcript is the account of what was done to the
+    document, and intending to do something is not doing it.
+    """
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "turn_start", "prompt": "rewrite it"})
+    t.record({
+        "type": "tool_use", "id": "p1", "name": "TodoWrite",
+        "input": {"todos": [{"content": "Read it", "status": "pending"}]},
+    })
+    t.record({
+        "type": "tool_use", "id": "r1", "name": "Read",
+        "input": {"file_path": "main.tex"},
+    })
+    kinds = [item["kind"] for item in t.items()]
+    assert kinds == ["user", "tool"]
+    assert t.items()[1]["name"] == "Read"

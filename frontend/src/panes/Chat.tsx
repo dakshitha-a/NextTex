@@ -1066,7 +1066,7 @@ export default function Chat({
             {blocked
               ? queuedCount
                 ? "Waiting on your approval · yours will go next"
-                : "Waiting on your approval, or ask something else"
+                : "Waiting on your approval"
               : thinking
                 ? queuedCount
                   ? `${name} is working · yours will go next`
@@ -1745,12 +1745,18 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         data-testid={`decided-${item.decision}`}
       >
         <span className={`h-[6px] w-[6px] rounded-full ${dot}`} />
-        <span className="t-micro min-w-0 truncate text-ink-3">
+        {/* Separated by space rather than by punctuation, which is the
+            status strip's own rule. The separator here used to be a dash,
+            the sweep made it a comma, and a comma before a monospaced run
+            has visibly less air than the dash had: `Denied, latexmk -C`
+            read as one word. Space is the right answer and was all along. */}
+        <span className="t-micro shrink-0 text-ink-3">
           {label}
           {item.repeats && item.repeats > 1 ? (
             <span className="tabular-nums"> ×{item.repeats}</span>
           ) : null}
-          {", "}
+        </span>
+        <span className="t-micro min-w-0 truncate text-ink-3">
           {item.detail ? (
             <span className="t-code-sm">{item.detail}</span>
           ) : (

@@ -142,7 +142,7 @@ test("the upload chooser is announced, including its conflicts", async ({
 
   await tab.getByTestId("upload").click();
   await tab
-    .locator('input[type="file"]')
+    .locator("#nx-upload")
     .setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
   const chooser = tab.getByTestId("upload-staging");
   await expect(chooser).toBeVisible({ timeout: 10_000 });
@@ -157,7 +157,7 @@ test("the upload chooser is announced, including its conflicts", async ({
 test("the folder list can be worked without a mouse", async ({ tab }) => {
   await tab.getByTestId("upload").click();
   await tab
-    .locator('input[type="file"]')
+    .locator("#nx-upload")
     .setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
   const chooser = tab.getByTestId("upload-staging");
   await expect(chooser).toBeVisible({ timeout: 10_000 });
@@ -184,7 +184,7 @@ test("the folder list can be worked without a mouse", async ({ tab }) => {
 test("Escape closes the chooser and gives focus back", async ({ tab }) => {
   await tab.getByTestId("upload").click();
   await tab
-    .locator('input[type="file"]')
+    .locator("#nx-upload")
     .setInputFiles({ name: "plot.png", mimeType: "image/png", buffer: PNG });
   await expect(tab.getByTestId("upload-staging")).toBeVisible({ timeout: 10_000 });
   await tab.keyboard.press("Escape");

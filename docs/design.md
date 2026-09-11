@@ -3593,7 +3593,7 @@ So the activity line carries an integer of seconds, in tabular figures with a re
 
 It is drawn as the turn's plan, pinned in the stream and replaced in place as later calls revise it, so a turn that rewrites its list four times shows one list rather than four rows. Rows rather than a card, and the stripe vocabulary is the one the panel already uses: `--ok` for what is done, `--pen` for the item in hand, `--line` for what is still to come. No checkbox glyphs, because a checkbox invites a click that would do nothing.
 
-It is deliberately not in the transcript. The transcript is the account of what was done to the manuscript and a rehearsal is not, so the plan belongs to its turn and goes when the turn does. A reload losing a finished turn's plan costs nothing. `ToolSearch` stays hidden, because that genuinely is plumbing.
+It is deliberately not in the transcript. The transcript is the account of what was done to the manuscript and a rehearsal is not, and looking at it made that concrete: recording the call meant a reload replayed the plan as a tool row named `TodoWrite`, so the one readable thing about a long turn came back as protocol noise. It is not recorded at all now. It survives until the next question rather than vanishing on `done`, which is deliberate: a finished plan with every item struck through says what the turn set out to do and that it got there, and clearing it the instant the answer lands would make the panel flicker at the end of every turn. `ToolSearch` stays hidden, because that genuinely is plumbing.
 
 ### Thinking is shown as a fact and never as prose
 
@@ -3798,3 +3798,23 @@ The test that held the README to this now holds the whole repository, which it c
 This document's own preamble says that when it and the implementation disagree, that is a bug in one of them and the thing to do is decide which. Its palette section disagreed with `frontend/src/styles.css` for weeks: a commit updated the table and missed the prose two paragraphs below, so the document said the pen was `#74408E` when the stylesheet said `#6F2998`, and said the dark surround was `#141715` when that is the light theme's ink.
 
 The prose is corrected, and there is a test now, because nothing could have noticed. Not a check that every colour named here is in the stylesheet, since this section legitimately names colours that are somebody else's: NexusQC's accent, and the indigo this app is explicitly not. The narrower rule is the one that actually broke, which is that a colour presented as *ours* has to be one the stylesheet sets.
+
+### What round two found, which was five things and none of them in a test
+
+The suite was green, the browser tier was green, and then the interface was photographed at both themes and read against the sections above. Five things, written down before any of them were fixed, because a list fixed as it is found is a list that stops at the first hard item.
+
+**The welcome message described a fence that no longer exists.** It promised, in the agent's own voice, that a shell command or a file outside the project would be asked about first. That is true at the first position and false at the other two, and it is the first thing a new reader sees. It names the control now rather than the behaviour, which is both accurate and more useful, since somebody reading it for the first time may not know the control is there.
+
+**The turn's plan came back as protocol noise.** The panel draws it live and does not record it, but the *transcript* recorded the `TodoWrite` call like any other tool, so a reload replayed a row called `TodoWrite`, twice, collapsed with a count. The live path and the replayed path disagreed about what kind of thing this was. Nothing in a test could have caught that, because both halves were behaving exactly as written.
+
+**A comma before a monospaced run has less air than the dash it replaced.** The resolved-permission row read `Denied` and then a URL with almost nothing between them: the em dash sweep had turned a wide separator into a narrow one in a row that is mostly separator. It is a space now, which is the status strip's own rule for its segments, and the right answer all along.
+
+**The composer said the same thing twice while a card waited**, once in the placeholder and once in the line beneath, and the line was long enough to truncate at the panel's own width. The placeholder carries the invitation and the line carries the state, and neither repeats the other.
+
+**The plan scrolled out of view.** Revised in place, it stayed where it first appeared, so a turn with any output at all pushed it off the top and the panel was carrying a list of what it intended to do somewhere the reader could not see, which is the opposite of the point. A revised plan is new information and now goes where all the other new information goes, keeping its id so the row is reused rather than replaced.
+
+### One thing looking found and left alone
+
+The verb row over a selection takes the editor's palette rather than the furniture's, so in the light theme it is a light card on a lit page. Section 23 says every floating card takes the dark palette while the theme is light, and by the letter of that this is a deviation.
+
+It is deliberate, and the precedent is already in the build: the spelling menu is the only other thing that floats *inside* the editor pane, and it is light there too. The rule in section 23 is about the furniture, and the argument under it is that the page must stay the brightest object on screen. A dark card dropped on a lit page does not serve that argument, it reads as a hole punched in the page, which is the same complaint section 23 makes about the dark theme's PDF needing a shadow. So the rule holds for everything floating over the chrome, and the two things that float over the page follow the page.
