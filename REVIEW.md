@@ -611,6 +611,75 @@ commit message follows the writer into the next project, and so does a pasted
 personal access token, which sits in a password field belonging to a project
 it was not issued for.
 
+### The editor
+
+### R-029 · Editor · bug · blocker · confirmed
+
+Found by: reading, then reproduced in a real browser twice. Where:
+`frontend/src/panes/editor-setup.ts:390` and `:408`, with
+`frontend/src/collab.ts:406` and `frontend/src/panes/Editor.tsx:506`.
+
+**What happens: Ctrl+Z empties the file, on disk, for everyone.**
+
+```
+ON DISK BEFORE:                3563 characters
+IN EDITOR AFTER SIX UNDOS:        1 character
+ON DISK AFTER:                    0 characters
+```
+
+And past the writer's own typing:
+
+```
+ON DISK AFTER TYPING:          3581 characters
+ON DISK AFTER TWELVE UNDOS:       0 characters
+STILL HAS documentclass:       false
+```
+
+Both runs opened a freshly seeded project, waited for the document to appear,
+clicked in the editor and pressed Ctrl+Z. Nothing else. No collaborator, no
+agent, no version being viewed.
+
+Reproduce: open any project, click in the editor, press Ctrl+Z six times.
+
+The chain, each link checked against the installed source:
+
+1. `yCollab` does not install `yUndoManagerKeymap`. Its own
+   `node_modules/y-codemirror.next/src/index.js` exports that keymap
+   separately and installs only a `beforeinput` handler for the browser's
+   `historyUndo` input type. Nothing in `frontend/src` imports it.
+2. `editor-setup.ts` installs CodeMirror's own `history()` and
+   `historyKeymap`, so Mod-z is handled by CodeMirror. The carefully scoped
+   `Y.UndoManager` built at `collab.ts:422`, whose comment says undo must
+   never walk back through a collaborator's typing, is unreachable from the
+   keyboard.
+3. `collab.ts:414` returns the document without awaiting its first sync, so
+   `opened.text.toString()` at `Editor.tsx:506` is the empty string and the
+   buffer is created empty.
+4. The whole file then arrives as one remote transaction, dispatched by
+   `y-sync.js:121` carrying `ySyncAnnotation` and **not**
+   `addToHistory.of(false)`. CodeMirror's history records it as one undoable
+   event: *insert the entire document*.
+5. Undoing it is a local transaction, so the sync plugin pushes the deletion
+   into the `Y.Text`, the server writes the empty file to disk, and every
+   collaborator's copy follows.
+
+Severity: this is the only finding in this review that loses work. It is not
+permanent, because the text that was replaced is recorded as a version first
+and can be restored from the history panel, and that is the only reason it is
+not worse. But it is silent, it happens on the most reflexive keystroke in any
+editor, and the writer has no reason to connect an empty document with a key
+they press a hundred times a day.
+
+It also makes the app's own promise untrue. The README says "Nothing is ever
+unsaved. A keystroke goes into the document as it is made and the file follows
+a moment later, so there is no save to lose". The same mechanism that removes
+the save removes the protection that an unsaved buffer used to give.
+
+Nothing in any tier presses Ctrl+Z. `e2e/specs/` has no undo spec, and the
+agent's own undo, which is a different mechanism entirely, is the only undo
+the suite exercises.
+
+
 ### Sign-in and the front door
 
 ### R-025 · Sign-in · accessibility · medium · confirmed
