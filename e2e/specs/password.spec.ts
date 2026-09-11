@@ -59,3 +59,35 @@ test("setting a password says so and closes itself", async ({ page }) => {
   // And the thing that asked for a password stops asking.
   await expect(page.getByTestId("password-nudge")).toHaveCount(0);
 });
+
+test("a password set from the cog stops the nudge asking for one", async ({
+  page,
+}) => {
+  // Its own server, for the reason the file's header gives: a password is
+  // persisted, so the first test to save one changes what the next would
+  // see.
+  const own = await startServer();
+  try {
+    await page.goto(`${own.base}/?token=${own.token}`);
+    await expect(page.getByTestId("password-nudge")).toBeVisible();
+
+    // The other way in. There are two mount points for this card and the
+    // nudge only ever heard about the one it opened itself, so a password
+    // set from here left the line three inches below still saying the
+    // install had none, for the rest of the visit.
+    await page.getByTestId("appearance").first().click();
+    await page.getByTestId("open-access").click();
+    const card = page.getByTestId("access-card");
+    await expect(card).toBeVisible();
+
+    const boxes = card.locator('input[type="password"]');
+    await boxes.nth(0).fill("a-long-enough-one");
+    await boxes.nth(1).fill("a-long-enough-one");
+    await card.getByTestId("save-password").click();
+    await expect(page.getByTestId("access-done")).toBeVisible();
+
+    await expect(page.getByTestId("password-nudge")).toHaveCount(0);
+  } finally {
+    await own.stop();
+  }
+});
