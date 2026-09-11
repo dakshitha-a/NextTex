@@ -206,6 +206,10 @@ export default function App() {
   /** Where the agent last wrote, held until the build that edit scheduled
    *  has landed, because forward search reads the previous build's map. */
   const agentWrote = useRef<{ path: string; line: number } | null>(null);
+  /** Whether the build now running was caused by this person typing, which
+   *  is what decides whether the preview follows their caret when it
+   *  lands. */
+  const followCaret = useRef(false);
   const chat = useRef<ChatHandle | null>(null);
   const shell = useRef<HTMLDivElement | null>(null);
   const editorPane = useRef<HTMLDivElement | null>(null);
@@ -701,14 +705,42 @@ export default function App() {
     // deliberately does not move the preview: the build fires 1.6 seconds
     // after every pause, and a page that jumps then is the diagnostics
     // drawer's mistake in the other pane.
+    // Whether this build was caused by the writer's own typing, decided
+    // when it starts rather than when it lands.
+    //
+    // At the end it cannot be decided at all: the build fires 1.6 seconds
+    // after a pause and takes a third of a second on a chapter, so a
+    // keystroke is recent when that lands; but a full thesis takes
+    // seventeen seconds, by which time the same test says nobody has typed
+    // and the preview would follow a chapter build and not a thesis one.
+    // At the start the question has a stable answer whatever the build
+    // costs.
+    handlers.onCompileStart = () => {
+      followCaret.current = agentWrote.current === null && busyTyping();
+    };
     handlers.onCompileDone = () => {
       const wrote = agentWrote.current;
-      if (!wrote) return;
-      agentWrote.current = null;
-      if (busyTyping()) return;
-      // Gentle: it moves the view only if the reader is not already looking
-      // at that part of the page, and flashes the box either way.
-      void pdf.current?.reveal(wrote.path, wrote.line, true);
+      if (wrote) {
+        agentWrote.current = null;
+        followCaret.current = false;
+        if (busyTyping()) return;
+        // Gentle: it moves the view only if the reader is not already
+        // looking at that part of the page, and flashes the box either way.
+        void pdf.current?.reveal(wrote.path, wrote.line, true);
+        return;
+      }
+      // The writer's own build, so the page goes to where they are writing.
+      //
+      // The caret is read now rather than when the build started, because
+      // where they are is a better answer than where they were: if they
+      // have moved to a file this document does not include, forward search
+      // finds nothing and the preview stays where it is, which is the right
+      // outcome and needs no test of its own.
+      if (!followCaret.current) return;
+      followCaret.current = false;
+      const state = get();
+      if (!state.activePath || state.viewing) return;
+      void pdf.current?.reveal(state.activePath, state.cursor.line, true);
     };
     return () => {
       handlers.onFilesChanged = undefined;
@@ -718,6 +750,7 @@ export default function App() {
       handlers.onAgentFocus = undefined;
       handlers.onProjectChanged = undefined;
       handlers.onCompileDone = undefined;
+      handlers.onCompileStart = undefined;
     };
   }, [refreshTree, openFile, renameOpenFile]);
 

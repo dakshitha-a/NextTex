@@ -181,3 +181,39 @@ test("a document that typesets nothing offers something that works", async ({
   await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
   await expect(tab.getByText(/nothing has been typeset yet/i)).toHaveCount(0);
 });
+
+test("the page follows your typing to where you are writing", async ({ tab }) => {
+  // Asked for after the first pass deliberately left it out. The rule that
+  // makes it bearable is the gentle one: it moves only when the part of the
+  // page you are writing on is not already in front of you, so working down
+  // a page you are looking at moves nothing.
+  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+
+  // Down to the end of the document, where the page on screen is not, and
+  // type something so the build is one this person caused.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.press("ArrowUp");
+  await tab.keyboard.press("End");
+  await tab.keyboard.type(" A sentence near the end of the document.");
+
+  // The answer is a flash drawn over the page, for the reason the spec
+  // above gives: a page number proves nothing about whether the right part
+  // of the page was found.
+  await expect(tab.locator(".nx-flash").first()).toBeVisible({
+    timeout: 45_000,
+  });
+});
+
+test("a build nobody typed for leaves the page alone", async ({ tab }) => {
+  // The other half, and the one that keeps section 6's anti-jump rule: a
+  // rebuild the writer asked for explicitly, while they are reading rather
+  // than writing, must not move the page under them.
+  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  // Past the window in which a keystroke counts as recent.
+  await tab.waitForTimeout(3500);
+
+  await tab.keyboard.press("Control+s");
+  await tab.waitForTimeout(4000);
+  await expect(tab.locator(".nx-flash")).toHaveCount(0);
+});
