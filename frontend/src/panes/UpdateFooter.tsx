@@ -17,9 +17,17 @@ import api, { type UpdateReport } from "../api";
 const DISMISSED = "nexttex.update.dismissed";
 
 type Phase =
+  /** Before the first answer.  Distinct from `resting`, which means the
+   *  check has been and gone: this one draws nothing, so an install with no
+   *  repository does not flash a button it could never honour. */
+  | { kind: "opening" }
   | { kind: "resting" }
   | { kind: "checking" }
-  | { kind: "report"; report: UpdateReport }
+  /** `asked` is whether a human pressed something to get this, and it is
+   *  the whole of the difference between a check that may be silenced and
+   *  one that may not.  The same distinction already decides whether a
+   *  failed check is reported or swallowed, four lines into `check`. */
+  | { kind: "report"; report: UpdateReport; asked: boolean }
   | { kind: "updating" }
   | { kind: "restarting" }
   | { kind: "manual" }
@@ -43,7 +51,7 @@ function recall(key: string): string {
 }
 
 export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => void }) {
-  const [phase, setPhase] = useState<Phase>({ kind: "resting" });
+  const [phase, setPhase] = useState<Phase>({ kind: "opening" });
   const [log, setLog] = useState<string[]>([]);
   const [step, setStep] = useState("");
   const [showLog, setShowLog] = useState(false);
@@ -71,7 +79,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
         waitForRestart();
         return;
       }
-      setPhase({ kind: "report", report });
+      setPhase({ kind: "report", report, asked });
     } catch (problem: any) {
       // A check nobody asked for stays quiet.  An install on an offline
       // tailnet must not open onto a red line every morning.
@@ -165,6 +173,8 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   );
 
   function render() {
+    if (phase.kind === "opening") return null;
+
     if (phase.kind === "checking") {
       return (
         <Line>
@@ -268,8 +278,27 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
       );
     }
 
-    if (recall(DISMISSED) === report.head + ":" + report.behind) {
-      return <Resting onCheck={() => check(true)} />;
+    // Set aside earlier, and nobody has asked since.
+    //
+    // Two things about this.  It is gated on `asked`, because a dismissal is
+    // a statement about the check that runs when this screen opens and was
+    // never meant to gag one the writer pressed a button for; without that
+    // gate every later press of the button below was answered, and the
+    // answer thrown away here, so the update became unreachable until
+    // upstream moved.  And it says an update is waiting rather than offering
+    // a bare "Check for updates", which is indistinguishable from never
+    // having checked: an update you set aside for a quieter afternoon should
+    // leave something on screen to come back to.
+    if (!phase.asked && recall(DISMISSED) === report.head + ":" + report.behind) {
+      return (
+        <Line>
+          <span className="t-micro text-ink-3">An update is waiting.</span>
+          <span className="flex-1" />
+          <button className="quiet t-micro" onClick={() => check(true)}>
+            Show it
+          </button>
+        </Line>
+      );
     }
 
     // Commits exist but none of them reaches the running program.
@@ -352,7 +381,11 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             className="quiet t-micro h-[28px] px-2"
             onClick={() => {
               remember(DISMISSED, report.head + ":" + report.behind);
-              setPhase({ kind: "resting" });
+              // The report is kept rather than thrown away, and marked
+              // unasked: that lands on the dismissed branch above, which is
+              // also where a reload lands, so the two routes to "set aside"
+              // agree by construction rather than by coincidence.
+              setPhase({ kind: "report", report, asked: false });
             }}
           >
             Not now

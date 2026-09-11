@@ -265,6 +265,11 @@ reported as *"three new commits, none of which change NextTex"*, a grey line
 rather than an alert, and a check that cannot reach GitHub says nothing unless
 you asked for it.
 
+**Not now** puts the card away without losing it. The foot of the page then
+says *"An update is waiting"* with a **Show it** beside it, so you can come back
+and update on an afternoon that suits you rather than having to remember. The
+card stays away on its own until you ask.
+
 ## Uninstalling
 
 Three things to remove, in this order: the service, the install, and the

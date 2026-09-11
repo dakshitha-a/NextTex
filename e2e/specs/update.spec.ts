@@ -110,14 +110,30 @@ test("a commit that reaches the program is offered properly", async ({ page }) =
     await page.screenshot({ path: "shots/out-update.png",
                             clip: { x: 440, y: 300, width: 800, height: 420 } });
 
-    // Dismissing it leaves the resting line, and does not come back.
+    // Setting it aside leaves a line saying so, rather than a bare offer to
+    // check: an update put off until a quieter afternoon has to leave
+    // something on screen to come back to.
     await page.getByRole("button", { name: "Not now" }).click();
-    await expect(page.getByRole("button", { name: "Check for updates" })).toBeVisible();
+    await expect(page.getByText("An update is waiting.")).toBeVisible();
+    await expect(page.getByTestId("update-now")).toHaveCount(0);
+
+    // And it survives a reload, because the check that runs when this screen
+    // opens is the one a dismissal is about.
     await page.reload();
-    await expect(page.getByRole("button", { name: "Check for updates" })).toBeVisible({
+    await expect(page.getByText("An update is waiting.")).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByTestId("update-now")).toHaveCount(0);
+
+    // Asking is different from being told. This is the half that was
+    // missing, and the bug it now covers made the update unreachable: every
+    // press was answered by the server and the answer thrown away by the
+    // dismissal, so the button visibly did nothing for ever.
+    await page.getByRole("button", { name: "Show it" }).click();
+    await expect(page.getByTestId("update-headline")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("update-now")).toBeVisible();
   } finally {
     await app.stop();
   }

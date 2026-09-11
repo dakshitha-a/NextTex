@@ -1947,6 +1947,26 @@ screen the writer opens every session. A check nobody asked for is silent when
 it fails; an install on an offline tailnet must not open onto a red line every
 morning.
 
+**Asked and unasked are two different questions, and setting an update aside
+only answers one of them.** `Not now` writes `head:behind` into this browser's
+storage and the card stops appearing, which is right for the check that runs
+when the screen opens and was wrong for everything else. The test was applied to
+the render rather than to the check, so it also swallowed every result the
+writer had pressed a button for: the request went out, the server answered past
+its own cache, and the answer was discarded on the way to the screen. The button
+visibly did nothing, and since the key only moves when upstream gains a commit,
+it went on doing nothing. The dismissal is scoped to an unasked check now, which
+is the same distinction the failure path four lines above it already makes.
+
+**And the line it leaves says what it knows.** It used to read `Check for
+updates`, which is indistinguishable from never having checked. An update put
+off until a quieter afternoon has to leave something on screen to come back to,
+so the dismissed state reads *"An update is waiting."* with a `Show it` beside
+it: `--ink-3` at `micro`, the same grey line the docs-only case uses, which is a
+fact rather than an alarm. `Not now` keeps the report rather than discarding it,
+which is what lets that line exist, and marks it unasked, so a dismissal and a
+reload arrive at the same branch by construction rather than by coincidence.
+
 ### Restarting, and why it is a nonce
 
 `serve()` keeps its `uvicorn.Server` objects as locals and `main.py` holds no
