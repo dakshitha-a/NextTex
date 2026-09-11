@@ -198,6 +198,10 @@ export default function App() {
   const [wordScope, setWordScope] = useState<"file" | "document">("document");
   const [words, setWords] = useState<number | null>(null);
   const editor = useRef<EditorHandle | null>(null);
+  /** Whether the agent screen was opened by somebody, as opposed to being
+   *  shown at boot because no agent has been chosen yet. Only the second
+   *  has nowhere to go back to. */
+  const [signinReturnable, setSigninReturnable] = useState(false);
   const pdf = useRef<PdfHandle | null>(null);
   /** Where the agent last wrote, held until the build that edit scheduled
    *  has landed, because forward search reads the previous build's map. */
@@ -921,6 +925,13 @@ export default function App() {
    *  exists.  `onDone` puts the writer back where they were. */
   const changeAgent = useCallback(() => {
     setTutorialOpen(false);
+    // Opened by somebody, so there is somewhere to go back to. The screen
+    // is also shown at boot, when there is not, and the two cases have to
+    // be told apart exactly rather than guessed at from whether a project
+    // happens to exist: an install that chose no agent and has not made a
+    // project yet reached this screen from the project list and had no way
+    // back off it.
+    setSigninReturnable(true);
     setView("signin");
   }, []);
 
@@ -1297,14 +1308,19 @@ export default function App() {
   if (view === "signin") {
     return (
       <SignIn
-        // Only when there is something to go back to.  At boot there is
-        // not: no agent has been chosen and no project is open.
+        // Present when this screen was opened rather than shown. At boot no
+        // agent has been chosen and there is genuinely nowhere to go, and
+        // that is the only case without a way out.
         onCancel={
-          get().projectId || get().projects.length
-            ? () => void resumeOrList()
+          signinReturnable
+            ? () => {
+                setSigninReturnable(false);
+                void resumeOrList();
+              }
             : undefined
         }
         onDone={async () => {
+          setSigninReturnable(false);
           set({ agent: await api.agentStatus().catch(() => null) });
           // Back to whatever was being written, the same way a reload
           // gets there.  Signing in again after a session expires should

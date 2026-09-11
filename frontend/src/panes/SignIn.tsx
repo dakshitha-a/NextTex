@@ -34,6 +34,24 @@ export default function SignIn({
   const [choice, setChoice] = useState<Choice>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Escape, because somebody who opened this screen to look at the options
+  // and decided to keep what they had should not have to choose something
+  // to get out. One level at a time, which is what Escape means everywhere
+  // else in this app: out of the provider you were setting up first, then
+  // off the screen.
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (choice !== null) {
+        setChoice(null);
+        return;
+      }
+      onCancel?.();
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [choice, onCancel]);
+
   return (
     <div className="nx-furniture flex h-full items-center justify-center bg-surround px-6">
       <div className="w-full max-w-[560px] rounded-[5px] border border-line bg-surface p-6">
@@ -45,13 +63,18 @@ export default function SignIn({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            {/* "Close" rather than "Back", because the buttons inside each
+                provider's panel say Back and mean something else: they go
+                up one level, this leaves the screen. Two controls with the
+                same word meaning two different things is its own bug. */}
             {onCancel ? (
               <button
                 className="t-ui text-ink-2 hover:text-ink"
                 data-testid="signin-back"
+                title="Keep the agent you have (Escape)"
                 onClick={onCancel}
               >
-                Back
+                Close
               </button>
             ) : null}
             {/* One 26px control on a first-run screen is the right price for
@@ -66,6 +89,7 @@ export default function SignIn({
             <p className="t-meta mt-1 text-ink-2">
               You can change this later, and everything except the chat panel
               works the same either way.
+              {onCancel ? " Close leaves this as it is." : ""}
             </p>
             <div className="mt-4 flex flex-col gap-2">
               <Option

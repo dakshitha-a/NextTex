@@ -535,3 +535,52 @@ test("selecting one word does not put a row of verbs over it", async ({
   await tab.waitForTimeout(200);
   await expect(tab.getByTestId("selection-actions")).toHaveCount(0);
 });
+
+test("the agent screen can be looked at and left", async ({ app, page }) => {
+  // Reported by the user: there was no way off this screen except choosing
+  // something. The Back button existed and was withheld unless a project
+  // happened to exist, so an install that chose no agent and had not made a
+  // project yet reached it from the project list and was stuck.
+  //
+  // `page` rather than `tab`, because the control lives on the project list
+  // and `tab` has already opened a project.
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+
+  // In from the header, beside the help and the cog rather than as a text
+  // link shown only when there is no agent at all.
+  const setup = page.getByTestId("set-up-agent");
+  await expect(setup).toBeVisible({ timeout: 30_000 });
+  await setup.click();
+  await expect(page.getByText("How would you like to work?")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // Out again, having chosen nothing, and back where we came from.
+  await page.getByTestId("signin-back").click();
+  await expect(page.getByText("How would you like to work?")).toHaveCount(0);
+  await expect(page.getByTestId("set-up-agent")).toBeVisible();
+});
+
+test("escape leaves the agent screen one level at a time", async ({
+  app, page,
+}) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await page.getByTestId("set-up-agent").click({ timeout: 30_000 });
+  await expect(page.getByText("How would you like to work?")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // Into a provider, and Escape comes back up to the choices rather than
+  // straight off the screen, which is what Escape means everywhere else.
+  await page.getByText("With ChatGPT").click();
+  await expect(page.getByText("How would you like to work?")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("How would you like to work?")).toBeVisible();
+
+  // And then off it, without having chosen anything.
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("How would you like to work?")).toHaveCount(0);
+  await expect(page.getByTestId("set-up-agent")).toBeVisible();
+});
