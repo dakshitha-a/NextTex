@@ -88,6 +88,19 @@ source with its mechanism named is not a guess, and every record's "Found by"
 line says which of the two it was. A confirmed blocker or security
 finding is also reported to the writer at once rather than waiting here.
 
+**One thing this review got wrong, recorded because the rule above is the one
+it broke.** The writer's own NextTex, the `systemd --user` service on port
+8450, stopped at 15:42 during this session and did not come back. The journal
+shows it running from 13:32 and then nothing but a CPU accounting line at
+15:42:30, with no exit code and no restart, which is the shape of a process
+killed from outside rather than one that failed. This review was clearing port
+conflicts between its own servers at about that time, and while each one was
+identified by reading `XDG_DATA_HOME` out of `/proc/<pid>/environ` first, that
+is not proof it never got one wrong. The service was started again at the end
+of the session and answers on 8450. Nothing in the writer's state directory
+was written to at any point, and their login to Claude Code is byte-identical
+to the fingerprint taken before the first live session.
+
 ## Baseline
 
 Recorded at `5942653` on 11 September 2026, before anything was looked at, so
