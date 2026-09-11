@@ -1917,6 +1917,85 @@ reason the ordering argument in that comment is given at all, so it is worth
 correcting rather than deleting: the argument still holds, and the ratio it
 rests on has changed.
 
+### R-075 · Documents · docs · medium · confirmed
+
+Found by: reading the design document against the code. Where:
+`docs/design.md:296`.
+
+What happens: a paragraph whose entire purpose is to warn about drift has
+drifted. It reads:
+
+> (This paragraph described a menu of *rename / duplicate / download / delete
+> / new file here* for some time after the built menu had stopped matching it,
+> which is the sort of drift this document exists to avoid. Duplicate was
+> specified and never built; it is dropped rather than left described.)
+
+Duplicate is built. `frontend/src/panes/Tabs.tsx:249` puts it in the tab
+strip's menu, `server/main.py:1754` is the route, and
+`docs/architecture.md` describes it at length under "Copying a file is a
+fourth path, and it has to start by closing the second one", with its own
+argument about flushing dirty documents first.
+
+`TRACKER.md` has the accurate version, as a backlog item: "Duplicate is on the
+tab strip and not in the file tree." So the repository knows; this one
+document does not.
+
+The correction is the one this repository already uses elsewhere: keep the
+original reasoning in the past tense, and say what was built and where.
+
+### R-076 · Documents · docs · medium · confirmed
+
+Found by: the benchmark run. Where: `README.md`, the measured column of the
+table under "The measured numbers".
+
+What happens: the interface bundle row reads **788.0 kB** and measures
+**791.7 kB**. That number is machine-independent, since it is the size of
+`frontend/dist`, so this is drift rather than a difference between two
+computers.
+
+`tests/test_documents_match_the_code.py` has a test for this table, and it
+checks the **budget** column against `bench/thresholds.json`, deliberately and
+for a good reason recorded in `docs/testing.md`. Nothing checks the measured
+column, which is the other transcription in the same row, and the commit
+`1143527` that added the budget test is titled "The measurements in the README
+were from a run several changes ago".
+
+A second benchmark run was made on an idle machine to give the timing rows a
+fair comparison, because the first ran straight after a twelve-minute browser
+tier. On the quiet run every timing row in the table is within a few percent
+of what the README says:
+
+| row | README | quiet run |
+|---|---|---|
+| Chapter build | 330 ms | 334 ms |
+| Full build with `biber` | 17.7 s | 17.4 s |
+| Full symbol scan | 17.6 ms | 17.3 ms |
+| Symbol lookup, cached | 0.85 ms | 0.86 ms |
+| Opening a project | 94 ms | 94 ms |
+| Recording a version | 2.3 ms | 2.5 ms |
+| Rebuilding a transcript | 11.5 ms | 11.8 ms |
+| Project file tree | 2.9 ms | 3.1 ms |
+| A collaborator's edit, applied | 3.1 ms | 3.2 ms |
+| Whole project as a zip | 61 ms | 62 ms |
+| Interface bundle | 788.0 kB | 791.7 kB |
+
+So the timings are not drift, and the table is honest about the machine it was
+taken on. The bundle is the one row that has moved, and it is the one row that
+would read the same on any machine.
+
+### R-077 · Documents · docs · low · confirmed
+
+Found by: reading `TRACKER.md` against the code. Where: `TRACKER.md:54`.
+
+What happens: the backlog item says "Five menus claim `role="menu"` without
+implementing it" and names them. A literal grep finds four: two of the named
+files carry one each rather than the two the entry attributes to
+`frontend/src/panes/Chat.tsx`. The entry also says "the answer is roving focus
+in all seven", counting the two that deliberately decline the role.
+
+The item is right about the problem and wrong about its size, which matters
+because the number is the argument for it being "a piece of work of its own".
+
 ## Unverifiable here
 
 - **The OpenAI provider against OpenAI.** There is no key on this machine.
