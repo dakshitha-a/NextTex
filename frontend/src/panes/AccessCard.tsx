@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import api, { type AuthState } from "../api";
 import { useDismiss } from "../useDismiss";
 
@@ -15,24 +15,31 @@ import { useDismiss } from "../useDismiss";
  *  until collaboration is switched on, at which point it is the first thing
  *  anyone looks for.
  */
+/** Announced the moment a password is saved, rather than on the way out.
+ *
+ *  It was a callback prop, and a prop only reaches the one place that passes
+ *  it.  This card has two mount points -- the nudge at the foot of the
+ *  project list, and the settings row behind the cog -- and only the first
+ *  passed the callback, so setting a password from the cog left the nudge
+ *  three inches below still saying the install had no password, for the rest
+ *  of the visit.  An event reaches both, and a third mount point later cannot
+ *  forget to wire it.  The same shape as APPEARANCE_CHANGED in appearance.ts,
+ *  and for the same reason: the thing that needs to know is not the thing
+ *  that opened this. */
+export const ACCESS_CHANGED = "nexttex:access";
+
 export default function AccessCard({
   onClose,
-  onSaved,
   focus = "password",
 }: {
   onClose: () => void;
-  /** Said as soon as a password is saved, rather than on the way out.
-   *  Without it the nudge that opened this card goes on reading "this
-   *  install has no password" underneath a card saying one has just been
-   *  set -- for the second or so before the card leaves, the screen
-   *  contradicts itself. */
-  onSaved?: () => void;
   /** Which field takes the cursor.  The nudge on the projects screen opens
    *  this wanting the password; the settings row opens it wanting whatever
    *  the reader came for, which is usually the name. */
   focus?: "password" | "name";
 }) {
   const [state, setState] = useState<AuthState | null>(null);
+  const [reading, setReading] = useState(true);
   const [name, setName] = useState("");
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
@@ -44,6 +51,7 @@ export default function AccessCard({
   const sheet = useRef<HTMLDivElement | null>(null);
   const first = useRef<HTMLInputElement | null>(null);
   const leaving = useRef<number | null>(null);
+  const alive = useRef(true);
 
   useDismiss(sheet, true, onClose);
 
@@ -59,20 +67,37 @@ export default function AccessCard({
     };
   }, [done, onClose]);
 
-  useEffect(() => {
-    let live = true;
-    api
+  /** Read the install's settings.  Pulled out of its effect so the failure
+   *  path has something to offer: it used to be a bare one-shot, and a
+   *  failed read set `error` while leaving `state` null -- but the region
+   *  that draws `error` is inside the branch that requires `state`, so the
+   *  card sat on "Reading…" with no message, no retry and no way to find
+   *  out what had happened, and reopening it ran the same one shot again. */
+  const read = useCallback(() => {
+    setError("");
+    setReading(true);
+    return api
       .auth()
       .then((next) => {
-        if (!live) return;
+        if (!alive.current) return;
         setState(next);
         setName(next.displayName);
       })
-      .catch(() => live && setError("Could not read this install's settings."));
-    return () => {
-      live = false;
-    };
+      .catch(() => {
+        if (alive.current) setError("Could not read this install's settings.");
+      })
+      .finally(() => {
+        if (alive.current) setReading(false);
+      });
   }, []);
+
+  useEffect(() => {
+    alive.current = true;
+    read();
+    return () => {
+      alive.current = false;
+    };
+  }, [read]);
 
   useEffect(() => {
     if (state) first.current?.focus();
@@ -109,7 +134,7 @@ export default function AccessCard({
       // Not `said`, which clears itself after four seconds and would race
       // the close; and not a re-read of the state, which is what turned
       // this back into a form.
-      onSaved?.();
+      window.dispatchEvent(new CustomEvent(ACCESS_CHANGED));
       setDone(
         hasPassword
           ? "Password changed. Your other browsers were signed out."
@@ -127,6 +152,11 @@ export default function AccessCard({
   const saveName = async () => {
     const trimmed = name.trim();
     if (!state || trimmed === state.displayName) return;
+    // Cleared on the way in, as saving a password already did. An error
+    // wins the region below outright and has no timer, so one that is left
+    // standing does not merely linger: it hides the confirmation of every
+    // action that succeeds afterwards.
+    setError("");
     try {
       await api.setDisplayName(trimmed);
       setState({ ...state, displayName: trimmed });
@@ -137,6 +167,7 @@ export default function AccessCard({
   };
 
   const signOutOthers = async () => {
+    setError("");
     try {
       const { sessions } = await api.signOutOthers();
       setState(state ? { ...state, sessions } : state);
@@ -183,7 +214,26 @@ export default function AccessCard({
             {done}
           </p>
         ) : !state ? (
-          <div className="t-meta px-[12px] pb-[12px] text-ink-3">Reading…</div>
+          // Reading, or the read failed. The second case used to be
+          // indistinguishable from the first, for ever.
+          <div className="px-[12px] pb-[12px]">
+            {reading ? (
+              <div className="t-meta text-ink-3">Reading…</div>
+            ) : (
+              <>
+                <p className="t-meta text-error" data-testid="access-error">
+                  {error || "Could not read this install's settings."}
+                </p>
+                <button
+                  className="ghost-button mt-2 h-[26px] px-3 t-ui"
+                  data-testid="access-retry"
+                  onClick={() => read()}
+                >
+                  Try again
+                </button>
+              </>
+            )}
+          </div>
         ) : (
           <>
             {/* --- the name ------------------------------------------- */}

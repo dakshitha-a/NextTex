@@ -2,6 +2,10 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import api from "../api";
 
 const AccessCard = lazy(() => import("./AccessCard"));
+/** Named here rather than imported from the card, which is a lazy chunk:
+ *  importing the constant would pull the whole card into the entry bundle
+ *  and undo the reason it is lazy. */
+const ACCESS_CHANGED = "nexttex:access";
 
 /** A quiet line at the foot of the project list, when this install has no
  *  password.
@@ -17,7 +21,8 @@ const AccessCard = lazy(() => import("./AccessCard"));
  *  making a reasonable choice by ignoring it, and the interface should not
  *  imply otherwise.
  *
- *  It asks the server once, on mount, and never on a timer.
+ *  It asks the server on mount, and again whenever a password is saved
+ *  anywhere in the app, and never on a timer.
  */
 
 const DISMISSED = "nexttex.password.dismissed";
@@ -35,14 +40,24 @@ export default function PasswordNudge() {
 
   useEffect(() => {
     let live = true;
-    api
-      .auth()
-      .then((state) => live && setNeeded(!state.hasPassword))
-      // Silent on failure. A nudge that cannot check is not a thing to
-      // report; the writer came here to open a document.
-      .catch(() => undefined);
+    const ask = () =>
+      api
+        .auth()
+        .then((state) => live && setNeeded(!state.hasPassword))
+        // Silent on failure. A nudge that cannot check is not a thing to
+        // report; the writer came here to open a document.
+        .catch(() => undefined);
+    ask();
+    // The card this line opens is not the only one that can set a password.
+    // The cog opens the same card from the settings sheet, and a save there
+    // used to leave this line three inches below still saying the install
+    // had no password, for the rest of the visit: the answer was read once
+    // on mount and the only thing that revised it was this card's own
+    // callback. Whichever card saves, it says so, and this hears it.
+    window.addEventListener(ACCESS_CHANGED, ask);
     return () => {
       live = false;
+      window.removeEventListener(ACCESS_CHANGED, ask);
     };
   }, []);
 
@@ -107,7 +122,7 @@ export default function PasswordNudge() {
 
       {open ? (
         <Suspense fallback={null}>
-          <AccessCard onSaved={() => setNeeded(false)} onClose={recheck} />
+          <AccessCard onClose={recheck} />
         </Suspense>
       ) : null}
     </>
