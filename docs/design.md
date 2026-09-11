@@ -3983,3 +3983,49 @@ The mechanism is small and the consequence is not. A decision normally arrives *
 So the record of a fully automatic session said the writer had refused things that had actually happened to their document. Section 5 states the rule this broke in as many words: an action nobody was asked about is not the same as one the writer allowed, and the record must not read as though it were. This was worse than that, because it read as the opposite of both.
 
 Two things are worth keeping from it. The first is that the manual read was in the plan because no test could be written for "does this read as an account", and the thing it found was not subtle prose but a straightforward inversion of fact that four hundred green tests walked past, because both halves of it were behaving exactly as written. The second is that the check is a test now, and it prints the account as well as asserting it, so the next person changing the transcript can see what a reader would see rather than only whether the keys are present.
+
+## 29. A value set once and never set back
+
+Reported by the writer: the project list finds an update, you press Not now, and from then on Check for updates does nothing at all. Their second sentence is the one that made this a section rather than a fix. "Seems there may be more things like that broken on the projects screen."
+
+There were seven, and they are all the same bug wearing different clothes. Something is written down once, at the moment it is first true, and there is no path back. A dismissal that outlives the question it answered. An answer read on mount that nothing revises. An error with no one to clear it. A flag raised at the start of a job that only one of the job's four endings lowers. None of these is a mistake in the ordinary sense: every one is a correct line of code that was right about the case its author had in mind and silent about the others.
+
+`c527b6e` was the same family, a fortnight earlier, and that is the interesting part. The screen that chose an agent withheld its way out on a condition that was true in the case its author was thinking of and false in the one that mattered.
+
+### What the update footer had got wrong
+
+The dismissal was tested in the render rather than in the check. `check(asked)` carries a flag saying whether a human asked, which four lines in decides whether a failed check reports itself or stays quiet, and then throws the flag away. So by the time the answer reached the screen, a result the writer had pressed a button for and a result nobody asked for were indistinguishable, and the dismissal silenced both. The request went out, the server answered past its own cache, and the answer was discarded on the way to the page. The key is `head:behind`, which moves only when upstream gains a commit, so on a quiet upstream the update was unreachable from the interface for good.
+
+The fix is to read the dismissal the same way the failure path already reads it. But the more useful half is what the dismissed state now says. It used to leave a bare `Check for updates`, which is exactly what an install that has never checked shows: the screen knew an update was waiting and had no way to say so. An update put off until a quieter afternoon has to leave something to come back to, so it reads *"An update is waiting."* with `Show it` beside it, in the grey line the docs-only case already uses. `Not now` keeps the report rather than discarding it, which is what lets that line exist at all.
+
+### A callback prop is a promise the second caller does not make
+
+The access card told the thing that opened it when a password had been saved, through a prop. There are two places that open it, the nudge at the foot of the project list and the settings row behind the cog, and only the first passed the callback. So setting a password from the cog left the warn-barred line three inches below still reading "This install has no password", for the rest of the visit, because the nudge had read the answer once on mount and the only thing that revised it was a message it was no longer being sent.
+
+The comment beside that prop says, in as many words, that it exists to stop the screen contradicting itself. It did stop it, at one of the two places it could.
+
+It is an event now, the same shape as `APPEARANCE_CHANGED`, and for the same reason that one is an event: the thing which needs to know is not the thing that opened this. A prop reaches whoever passes it and a third mount point later cannot forget to.
+
+### An error is not a state, it is a message, and messages end
+
+Three of the seven were errors that outlived their cause, and the worst was not the lingering itself. The access card draws `error ? … : said ? … : null`, and only one of its three actions cleared `error`. So one failed name save meant every later action in that card succeeded in silence behind a red line saying something had failed, with a screen reader announcing the stale error and nothing else. A message that persists does not merely linger; it takes the channel with it.
+
+The project list has the same shape without the masking: one string, five writers, two clearers, so a PDF that would not typeset left its complaint under whichever tab the writer moved to next. `store.ts` has a notice list built for exactly this, and `notices.test.ts` opens by describing the regression in its own words, but the region that draws notices is mounted after the early return that shows the project list, so from that screen it does not exist. Moving it there would be worse: a floating toast over a list of projects is further from where somebody who just pressed something is looking than a line under the form. So this one stays a line, and the line is cleared when the thing that caused it succeeds.
+
+### A busy flag needs as many ways down as the job has endings
+
+The Claude install panel hides both of its other branches while installing, so the whole screen is one log with no Back and no Cancel. That is fine as long as the flag always comes back down, and it was lowered by one thing, a `done` frame, where the job had three other endings: the server answering that the CLI was already there and starting nothing, the stream dropping, and the stream ending without that frame. All three left a screen with no way off it but Escape, which nothing on it mentions.
+
+The rule this suggests is worth stating generally, because the same shape is in the update footer's restart poll: **count the ways a thing can end, not the way it is meant to end.** The login flow directly beneath this one has had a Cancel from the beginning, which is the same observation made by whoever wrote it.
+
+### Two that were reached through an error path
+
+The restart poll learns which process it is watching before waiting for a different one to answer. That ask fails exactly when the server is mid-restart, which is the reason a tab is joining a running update in the first place, and the fallback was an empty baseline that the first answer filled in. The first answer is from the new process, so the comparison could never fire and the reader was told a minute later to restart a server that had come back long ago, which is precisely the failure that code was written to prevent, reached through its own error case.
+
+And a button on the failed-update card read "Hide the log" and was wired to a function with no body. Not a latch, but the same lesson from the other side: it was written for the branch where the log is always shown, and the control it shares with the other branch went on drawing itself.
+
+### What the sweep is worth, and what it is not
+
+Seven found, three deliberately left, each with the reason in `TRACKER.md`. The three left are all cases where the symptom is real and the fix asks a larger question than the symptom is worth: what `state.error` means now that a notice list sits beside it, whether a sign-in error should survive a move between panels, and whether a warning somebody has put away for good should have a way back that is not the settings sheet.
+
+What is worth noticing about the whole list is that not one of them could have been found by a test. Every single one is a correct line of code doing exactly what it says, in a case its author did not have in front of them, and the tests that cover these paths were green throughout and are still green. They were found by asking one question of a screen, over and over: what sets this back.
