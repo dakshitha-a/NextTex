@@ -26,6 +26,23 @@
 @import "@fontsource/source-code-pro/500.css";
 @import "@fontsource/source-code-pro/600.css";
 @import "@fontsource/source-code-pro/700.css";
+/* And the italics, at the same five weights, because the editor sets two
+   things in italic and had no italic face to set them in.  Every LaTeX
+   comment is italic, and so is anything the grammar calls emphasis; with
+   only the uprights loaded the browser made an oblique by shearing them,
+   which is a matrix applied to an outline rather than a drawn face.  A
+   sheared glyph loses its hinting, its stems go off the pixel grid and its
+   round shapes lose the corrections a real italic is drawn with, and the
+   place that shows first is a comment: --ink-3, the faintest thing in the
+   editor, on a page bright enough to eat the strokes.  Five again rather
+   than the reachable four, so the ladder is the same shape as the uprights
+   and there is no weight where the two disagree about whether a face
+   exists. */
+@import "@fontsource/source-code-pro/300-italic.css";
+@import "@fontsource/source-code-pro/400-italic.css";
+@import "@fontsource/source-code-pro/500-italic.css";
+@import "@fontsource/source-code-pro/600-italic.css";
+@import "@fontsource/source-code-pro/700-italic.css";
 
 /* --------------------------------------------------------------------------
    Palette.  Two authored themes, chosen explicitly rather than inherited
@@ -785,6 +802,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
      face stops gaining emphasis and starts losing its counters. */
   --nx-weight: calc(var(--nx-editor-weight, 400) + var(--nx-editor-weight-lift, 0));
   --nx-weight-strong: min(calc(var(--nx-weight) + 200), 700);
+  /* Every face this pane can ask for is declared above, upright and
+     italic, at all five weights.  So a request the browser cannot satisfy
+     is a missing @import rather than a legitimate gap, and it should show
+     as one: faking it is how the editor spent this long setting its
+     comments in a sheared upright without anybody seeing a reason to
+     look. */
+  font-synthesis: none;
 }
 /* The one size the writer sets directly.  Line height is unitless so it
    tracks the size -- a fixed 22px under 21px text is unreadable -- and the
