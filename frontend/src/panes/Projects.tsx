@@ -69,6 +69,16 @@ export default function Projects({
     try {
       const result = await api.projects();
       setProjects(result.projects);
+      // Cleared on success rather than on the way in, so a message does not
+      // flicker off and straight back on. This screen holds its error as one
+      // string written from five places, and only two of them ever cleared
+      // it: a PDF that failed to typeset left its message sitting under the
+      // create form until the page was reloaded, and if the writer switched
+      // to the Join tab it sat under that instead, where it read as a join
+      // error. The notice list in store.ts exists for exactly this, but the
+      // region that draws it is mounted after the early return that shows
+      // this screen, so it cannot be reached from here.
+      setError(null);
     } catch (problem: any) {
       setError(problem.message);
     }
@@ -349,8 +359,18 @@ export default function Projects({
                       // one, and because a missing project's id was null it
                       // swallowed the only action left on a dead entry --
                       // the confirmation collapsed and nothing happened.
-                      await api.forgetProject(project.id);
-                      refresh();
+                      //
+                      // And the same symptom again from the other side: this
+                      // was the one file operation here with no catch, so a
+                      // refusal collapsed the confirmation, never reached
+                      // `refresh`, and said nothing at all.  Remove, Remove,
+                      // and apparently nothing happened.
+                      try {
+                        await api.forgetProject(project.id);
+                        await refresh();
+                      } catch (problem: any) {
+                        setError(`${project.name}: ${problem.message}`);
+                      }
                     }}
                   >
                     Remove
@@ -418,7 +438,13 @@ export default function Projects({
                   ? "border-hint text-ink"
                   : "border-transparent text-ink-3 hover:text-ink"
               }`}
-              onClick={() => setMode(option)}
+              // The message under this form belongs to whichever of the
+              // three the writer was last doing.  Carried across, it reads
+              // as an error about the tab they have just moved to.
+              onClick={() => {
+                setError(null);
+                setMode(option);
+              }}
             >
               {option === "create"
                 ? "Start something new"
