@@ -1684,10 +1684,12 @@ window. With the offer card still on screen, its folder held `main.tex`
 complete and readable from preamble to `\end{document}`, and `nexttex.toml`
 and `references.bib` carried an mtime a full minute earlier than the card. So
 pressing Discard would have had to delete real files rather than decline to
-create them, which is the opposite of what the text on the card promises. What is real is the window:
-a server killed between join and accept leaves a folder full of somebody
-else's project, unregistered and untracked, and the writer's next attempt to
-join into it is refused with "That folder already has something in it".
+create them, which is the opposite of what the text on the card promises.
+
+What is real beyond that is the window: a server killed between join and
+accept leaves a folder full of somebody else's project, unregistered and
+untracked, and the writer's next attempt to join into it is refused with
+"That folder already has something in it".
 
 ### R-060 · Context · performance · high · confirmed
 
