@@ -2444,7 +2444,10 @@ So the timings are not drift, and the table is honest about the machine it was
 taken on. The bundle is the one row that has moved, and it is the one row that
 would read the same on any machine.
 
-### R-077 · Documents · docs · low · confirmed
+### ~~R-077 · Documents · docs · low · confirmed~~
+
+**Fixed in pass 10, with R-070.** `f907b63`. The item now says three, names them, and records that the count went from five to four by the grep and from four to three by the spelling menu being fixed as it was written. It also names the two files that decline the role deliberately, since that is the honest half of the inconsistency rather than a resolution.
+
 
 Found by: reading `TRACKER.md` against the code. Where: `TRACKER.md:54`.
 
