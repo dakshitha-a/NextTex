@@ -61,7 +61,7 @@ from nexttex.project import (
     is_ours, kind_of,
 )
 from nexttex.symbols import walk_project
-from nexttex import deps, search, updates
+from nexttex import deps, lint_explain, search, updates
 from nexttex.install.ui import child_env
 from server.session import CLOSED, ProjectSession, spawn
 
@@ -3752,7 +3752,7 @@ async def lint(project_id: str, path: str):
         parts = row.split(":", 5)
         if len(parts) != 6:
             continue
-        found_in, line, column, kind, _number, message = parts
+        found_in, line, column, kind, number, message = parts
         if not line.isdigit():
             continue
         try:
@@ -3762,14 +3762,22 @@ async def lint(project_id: str, path: str):
             continue
         if where != target.resolve():
             continue
-        diagnostics.append({
+        found = {
             "severity": "warning" if kind.strip().lower() == "warning" else "info",
             "message": message.strip(),
             "file": path,
             "line": int(line),
             "column": int(column) if column.isdigit() else None,
             "source": "chktex",
-        })
+        }
+        # The number was parsed and thrown away, and it is the only thing
+        # that says which warning this is: chktex's own text is written for
+        # somebody who already knows TeX, and it sits in the same drawer as
+        # a LaTeX error that says what went wrong and what to type instead.
+        said = lint_explain.explain(number.strip())
+        if said:
+            found["explain"] = said
+        diagnostics.append(found)
     return {"diagnostics": diagnostics}
 
 

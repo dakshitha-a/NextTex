@@ -29,8 +29,8 @@ close the tab. No database, no Docker, no nginx.
   made and the file follows a moment later, so there is no save to lose, no
   dirty dot, and two windows on one project cannot overwrite each other.
 - **Double-click the page to reach the source**, and `⌘↵` to go the other way.
-- **Errors explained in English**, with the one to start from named. No model
-  involved.
+- **Errors explained in English**, with the one to start from named, and the
+  same for the style warnings chktex finds. No model involved.
 - **Every pause is a version**, kept until you say otherwise, with a trash that
   never empties itself.
 - **Four git buttons** for the four commands a paper actually needs.

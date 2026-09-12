@@ -83,6 +83,23 @@ def test_chktex_only_reports_the_file_that_was_asked_about(
 
 
 @chktex
+def test_a_lint_warning_arrives_with_its_english(client, project_dir, opened):
+    # The number chktex prints was parsed and discarded, so the drawer
+    # showed chktex's own wording and nothing else, while a LaTeX error in
+    # the same list came with a title, an explanation and a fix.
+    project_id = with_chapter(client, project_dir, opened)
+    chapter = client.get(
+        f"/api/projects/{project_id}/lint", params={"path": "chapters/one.tex"}
+    )
+    found = chapter.json()["diagnostics"]
+    explained = [item for item in found if item.get("explain")]
+    assert explained, f"no warning came with an explanation: {found}"
+    said = explained[0]["explain"]
+    assert set(said) == {"title", "detail", "fix"}
+    assert said["title"] and said["detail"] and said["fix"]
+
+
+@chktex
 def test_chktex_is_told_not_to_follow_inputs(client, project_dir, opened):
     """Belt and braces, and this is the belt.
 

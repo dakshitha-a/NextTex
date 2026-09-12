@@ -5345,3 +5345,28 @@ and `\reflectbox` is not a reference, and both of those match a prefix rule.
 `\cite[p. 3]{alpha,beta}` is read past its optional argument and answers for
 whichever of its two keys the pointer is on.
 
+### chktex was the one thing in the drawer still speaking TeX
+
+The error drawer's whole argument is that a writer should not have to read
+TeX's own diagnostics, and every LaTeX error in it comes with a title, a
+sentence saying what actually went wrong, and what to type instead. chktex's
+warnings sat in the same list saying things like "Interword spacing (`\ ')
+should perhaps be used", which is correct, and useless to somebody who has
+never heard of interword spacing. The route was already parsing the warning
+number chktex prints and throwing it away.
+
+Twenty-three warnings have English now, which is every one that could be made
+to fire under the settings this project uses. Each explanation says what the
+reader will see on the page, because that is the part a writer can judge: not
+"intersentence spacing should perhaps be used" but "a sentence ending in a
+capital runs into the next one, because TeX read the full stop as an
+abbreviation".
+
+The risk in a table keyed on another tool's numbers is that one number is
+wrong and the drawer then explains, confidently, a warning the writer is not
+looking at. So every rule carries the fragment of LaTeX that produces it, and
+the test runs chktex over all twenty-three and asserts each number comes back.
+A chktex that renumbers its warnings fails the suite. The same test reads the
+muted list out of `.chktexrc` and refuses an explanation for anything muted,
+and checks that nothing the triggers fire is left without one.
+
