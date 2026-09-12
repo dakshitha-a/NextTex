@@ -726,7 +726,8 @@ class ProjectAgent:
         inside the project and the rule that fired was the one about files
         the build executes. One predicate cannot disagree with itself.
 
-        The four answers are `outside`, `control`, `network` and `shell`,
+        The five answers are `outside`, `control`, `network`, `script` and
+        `shell`,
         and `shell` is only ever an answer at the first position, where a
         compound command is asked about because no rule can honestly
         describe it. At the middle position a compound command is the work,
@@ -741,6 +742,8 @@ class ProjectAgent:
         find it.
         """
         if tool_name in NETWORK_TOOLS:
+            return "network"
+        if tool_name in self._OWN_NETWORK_TOOLS:
             return "network"
         if tool_name == "mcp__nexttex__install_package":
             # pip fetches from PyPI and runs what it fetches, so this asks
@@ -771,7 +774,36 @@ class ProjectAgent:
         return self._holds_back(tool_name, data)
 
     def describe(self, tool_name: str, data: dict) -> dict:
-        """Plain-English headline and detail for a permission card."""
+        """Plain-English headline and detail for a permission card.
+
+        The card has two sentences under the detail and they are answering
+        two different questions: `consequence` says what will happen if this
+        is allowed, and `reason` says why this app is asking at a setting
+        where the writer asked not to be asked. On a network card at the
+        middle position they were saying the same thing twice, in almost the
+        same words: "what it sends is chosen from what the project's files
+        say" above "what is sent and where it goes are chosen from files
+        that may not be yours". Two sentences that agree read as a form
+        letter, and a card people stop reading is a card that gets allowed.
+        So on a network card the reason wins, because it is the one that
+        answers the question the writer is actually asking, which is why
+        this stopped when they had said not to stop.
+        """
+        card = self._card_for(tool_name, data)
+        # Narrowly: the tools whose whole consequence is that they reach the
+        # network. Installing a package answers "network" too and its
+        # consequence says something the reason does not, that this runs
+        # installation code from PyPI into the environment NextTex itself
+        # runs in, so blanking it there would drop the sentence that
+        # matters most on the most dangerous card of the set. Same for a
+        # shell command that happens to carry a network segment: the
+        # consequence there is about the command.
+        repeats = tool_name in NETWORK_TOOLS or tool_name in self._OWN_NETWORK_TOOLS
+        if repeats and card.get("reason"):
+            card["consequence"] = ""
+        return card
+
+    def _card_for(self, tool_name: str, data: dict) -> dict:
         why = self._why_asked(tool_name, data)
         if tool_name == "Bash":
             command = data.get("command", "")
@@ -964,6 +996,16 @@ class ProjectAgent:
     #: anywhere this user can write, so it has more reach than `Bash` and
     #: cannot be one of the tools that are safe by construction.
     #: `install_package` reaches PyPI and runs its installation code.
+    #: Our own tools that leave the machine. Waved past the fence with the
+    #: rest of ours until the review pointed out that a literature search
+    #: is a request to somebody else's server carrying words out of the
+    #: writer's document.
+    _OWN_NETWORK_TOOLS = frozenset({
+        "mcp__nexttex__find_papers",
+        "mcp__nexttex__add_reference",
+        "mcp__nexttex__check_references",
+    })
+
     _SCRIPT_TOOLS = frozenset({
         "mcp__nexttex__run_plot_script",
         "mcp__nexttex__install_package",
@@ -1052,6 +1094,16 @@ class ProjectAgent:
         # above `_ALWAYS_OK` names the exception rather than leaving the
         # next reader to find it.
         if tool_name in self._SCRIPT_TOOLS:
+            return await self._by_mode(tool_name, tool_input, tool_use_id)
+
+        # Ours, and still going somewhere. The prefix check below waves
+        # through everything this app implements, on the reasoning that our
+        # own tools only touch the writing. These three do not: they send a
+        # query or a DOI to Crossref, OpenAlex or Semantic Scholar, which
+        # is the one thing the first position exists to ask about, and the
+        # README's own account of what leaves this machine lists searching
+        # for papers among the things that do.
+        if tool_name in self._OWN_NETWORK_TOOLS:
             return await self._by_mode(tool_name, tool_input, tool_use_id)
 
         if tool_name in self._ALWAYS_OK or tool_name.startswith(self._OWN_TOOL_PREFIX):
@@ -1158,7 +1210,9 @@ class ProjectAgent:
         # which is the change that removes most of the cards; what still
         # asks is what this function can see leaving the writing or leaving
         # the machine.
-        if self.mode == "project" and held not in {"outside", "control", "network"}:
+        if self.mode == "project" and held not in {
+            "outside", "control", "network", "script",
+        }:
             await self._settled(
                 tool_name, tool_input,
                 self._rule_for(tool_name, tool_input), "auto", tool_use_id,
@@ -1196,6 +1250,13 @@ class ProjectAgent:
             # above a card that was still asking.
             "toolId": tool_use_id or "",
             **self.describe(tool_name, tool_input),
+            # After the spread, because `describe` sets this and the whole
+            # point is to override it. That field is the sentence saying
+            # why a card stopped, and nothing stopped: an automatic
+            # approval carrying "Asked at this setting, because what is
+            # sent and where it goes are chosen from files that may not be
+            # yours" is a record of a question nobody was asked.
+            "reason": "",
         })
 
     def already_answered(self, tool_name: str, tool_input: dict) -> str:
@@ -1260,6 +1321,21 @@ class ProjectAgent:
             # browser at all.  Denying is the safe reading of silence, and
             # saying so is what stops the turn from looking wedged.
             log.warning("permission request %s went unanswered", request_id)
+            # Recorded as what happened. Nobody answered, and the replay
+            # marks an undecided card as refused, on the reasoning that a
+            # card still open when the window closed can never be answered
+            # now. That reasoning is right and the word is wrong: "Denied"
+            # says the writer looked at this and said no.
+            await self._emit({
+                "type": "permission",
+                "id": request_id,
+                "tool": tool_name,
+                "rule": rule,
+                "toolId": tool_use_id or "",
+                "decision": "expired",
+                **self.describe(tool_name, tool_input),
+                "reason": "",
+            })
             await self._emit({
                 "type": "notice",
                 "message": (
@@ -1376,7 +1452,23 @@ class ProjectAgent:
             try:
                 self.on_edit(path, before, after)
             except Exception:
-                pass   # a bookkeeping failure must not break the edit
+                # Still must not break the edit, and must not be silent
+                # either. This is what records the version, folds the text
+                # into the shared document and tells the other tabs: the
+                # write happened, and everything downstream of it did not,
+                # so the file on disk and what every other browser has just
+                # diverged with nothing saying so.
+                log.warning(
+                    "could not record the agent's edit to %s", display, exc_info=True
+                )
+                await self._emit({
+                    "type": "notice",
+                    "tone": "error",
+                    "message": (
+                        f"The edit to {display} was made on disk but could not "
+                        "be recorded. Reload the file to see it."
+                    ),
+                })
         return {}
 
     def current_why(self) -> str:
@@ -2132,6 +2224,13 @@ class ProjectAgent:
             # where it is would have left the agent unable to start on a
             # machine where the setup screen had just reported success.
             cli_path=claude_binary(),
+            # A project is somebody else's folder as often as it is your
+            # own: a shared one, a repository you cloned, a supervisor's
+            # thesis. `.mcp.json` in it would otherwise be loaded and its
+            # servers started, which is arbitrary code from a file that
+            # travels with the writing, and the permission fence never sees
+            # a server it did not know about.
+            strict_mcp_config=True,
             # The project's own CLAUDE.md and settings load; NextTex's do not.
             setting_sources=["project"],
             include_partial_messages=True,

@@ -106,3 +106,18 @@ def test_a_voice_description_cannot_lift_them(tmp_path):
     would otherwise hand it these two as well."""
     options = agent(tmp_path, voice=True)._options()
     assert "no exceptions are the exception" in options.system_prompt
+
+
+def test_a_project_cannot_add_tool_servers_of_its_own(tmp_path):
+    """R-056. A project is somebody else's data.
+
+    The SDK reads a `.mcp.json` from the working directory unless told not
+    to, and the working directory is the project root. A file in a project
+    naming a program to run is the same class of thing as a `nexttex.toml`
+    naming a compiler, which this app validates rather than trusts, and the
+    tools it would add arrive inside the session with whatever the fence
+    happens to make of names it has never seen.
+    """
+    options = agent(tmp_path, voice=False)._options()
+
+    assert options.strict_mcp_config is True

@@ -615,3 +615,42 @@ def test_a_stream_event_from_inside_a_subagent_is_caught_too(tmp_path):
     assert "notice" in kinds, kinds
     assert "text" not in kinds, kinds
     assert events[-1]["subtype"] == "interrupted"
+
+
+def test_a_fold_that_fails_is_not_swallowed(tmp_path):
+    """R-052. `on_edit` records the version, folds the new text into the
+    shared document and tells the other tabs. All three are downstream of a
+    write that already happened, so when it raises the file on disk is
+    right and every open browser holds text the agent has already replaced.
+
+    What that looks like from the writing chair is the agent having done
+    nothing: the panel says the edit landed, the editor shows the old
+    paragraph, and there is no reason to suspect the two disagree. The
+    exception was caught and dropped on the floor.
+    """
+    (tmp_path / ".nexttex").mkdir(parents=True, exist_ok=True)
+    target = tmp_path / "main.tex"
+    target.write_text("Before.\n", encoding="utf-8")
+
+    def refuse(path, before, after):
+        raise RuntimeError("the document was closed")
+
+    fence = ProjectAgent(tmp_path, tmp_path / ".nexttex", on_edit=refuse)
+    call = {"tool_name": "Write", "tool_input": {"file_path": str(target)}}
+
+    async def scenario():
+        await fence._pre_tool(call, "call-1", None)
+        target.write_text("After.\n", encoding="utf-8")
+        await fence._post_tool(call, "call-1", None)
+        seen = []
+        while not fence._queue().empty():
+            seen.append(fence._queue().get_nowait())
+        return seen
+
+    seen = asyncio.run(scenario())
+    notices = [event for event in seen if event.get("type") == "notice"]
+    assert notices, f"the failed fold said nothing: {[e['type'] for e in seen]}"
+    assert "main.tex" in notices[0]["message"]
+    assert notices[0].get("tone") == "error"
+    # And the edit itself stands: the bytes are on disk either way.
+    assert target.read_text(encoding="utf-8") == "After.\n"
