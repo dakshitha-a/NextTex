@@ -102,6 +102,32 @@ NEXTTEX_LIVE=1 .venv/bin/python -m pytest tests/test_live_agent.py -q
 
 Run it before a release, and after any agent SDK upgrade.
 
+Three things about that file are load-bearing and none of them was there
+when it was written, because for three days it was not really running at
+all. The guard at the top of `tests/conftest.py` points
+`NEXTTEX_CLAUDE_BINARY` at `fake_claude.py` for every test in the suite, and
+that is right; it also silently disabled the one file whose whole purpose is
+the opposite. Nothing noticed, because the file is opt-in and nobody ran it,
+and when somebody did the stand-in printed `unknown command:` and exited 2,
+the SDK turned that into a `ProcessError`, and the assertion reported that
+the SDK had stopped emitting `text`. That is precisely the upstream change
+the file exists to catch, so the check that would have caught a real break
+was reporting one that had not happened.
+
+So: an **autouse fixture in that module** puts the real binary back, per
+test, after the conftest has imported, for those two tests only, and
+`tests/api/test_claude_auth.py` fails if that fixture stops being autouse.
+The session **names its model** rather than inheriting whichever one the
+account defaults to, because the shapes being asserted can differ by model
+and a run that does not say what it charged has not recorded the thing that
+makes its answer mean anything. And `collect` **answers permission cards**,
+with no. A test that drives a real model cannot also decide which tools it
+will reach for: the edit test asks for an edit and the model quite
+reasonably runs `grep` first, and a harness with no answer for a card waits
+out the full three-minute timeout and reports that as the SDK having gone
+quiet. Denying rather than allowing, because a live model on somebody's real
+account must never be handed a blanket yes by a test.
+
 The OpenAI provider has the same limit and no way to close it here: there
 is no account to test against, so `tests/test_openai_agent.py` stubs the
 transport and runs everything above it for real: the streaming parser, the
