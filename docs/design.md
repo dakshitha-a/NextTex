@@ -4706,6 +4706,19 @@ the command to run, names the log, and exits one. It sweeps up whatever earlier
 updates left behind while nothing has those files open, and it writes
 `update.log` beside `install.log` on both platforms.
 
+Which process to stop is not the question it looks like. The shortcut runs
+`.venv\Scripts\python.exe -u server\run.py`, and on an install whose
+interpreter came from the Microsoft Store that process immediately re-execs
+into the Store Python, so what holds the port is a child with a different
+image and a different process id from the one the shortcut started. Stopping
+by image name would stop the launcher, leave the child serving, and the start
+afterwards would fail on the port being in use, which is the single line that
+filled that laptop's `server.err.log` in September. Whoever owns the listening
+socket is the server, by definition, and the port comes from the install's own
+`config.json`, because a named instance derives its own from its name. The
+waits are on the port rather than on the process for the same reason: started
+is not serving.
+
 ### A flag that was accepted, documented, and ignored
 
 `install.sh` has two modes: run from inside a checkout it installs that

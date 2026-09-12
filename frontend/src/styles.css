@@ -284,6 +284,23 @@
   --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
   --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
   --float: 0 4px 16px rgba(0, 0, 0, 0.55);
+  /* The three derived tokens, redeclared here, and this is not tidiness.
+     A custom property whose value contains `var()` is substituted where it
+     is *declared*, not where it is used, so `--line` computed once on
+     `:root` against the light `--ink-3` and was then inherited into this
+     block already resolved. Every border, separator and drag handle in a
+     light theme's furniture was therefore drawn from the light ink on the
+     dark surfaces this block supplies: the status strip's top border
+     measured 1.44:1 here against 2.56:1 in a whole-dark theme, on the
+     identical background, and the composer's separator 1.32 against 2.34.
+     Half the contrast, in the theme most people use.
+
+     `.nx-theme-white` below already does exactly this, for exactly this
+     reason, and the note beside it explains the arithmetic. That it was
+     needed there and not done here is the whole finding. */
+  --line: color-mix(in oklab, var(--ink-3) 55%, transparent);
+  --pen-wash: color-mix(in oklab, var(--pen) 12%, transparent);
+  --hint-wash: color-mix(in oklab, var(--hint) 14%, transparent);
   color-scheme: dark;
 }
 

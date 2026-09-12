@@ -1102,3 +1102,41 @@ def test_both_update_scripts_write_a_log():
 def test_the_windows_update_clears_what_earlier_updates_left():
     text = _update_ps1()
     assert "'~*'" in text, "the pip litter is never collected"
+
+
+def test_the_windows_update_finds_the_server_by_the_port_it_holds():
+    """Reported from the machine, before it ran anything.
+
+    The Startup shortcut runs `.venv\\Scripts\\python.exe -u server\\run.py`,
+    and on an install whose interpreter came from the Microsoft Store that
+    process immediately re-execs into the Store Python. What ends up
+    holding the port is a child with a different image and a different pid
+    from the one the shortcut started, so a stop that matches on the image
+    name stops the launcher, leaves the child serving, and the start
+    afterwards fails on the port being in use. That last line is what
+    filled that laptop's server.err.log in September.
+
+    Whoever owns the listening socket is the server, by definition. The
+    port comes from the install's own config.json, because a named
+    instance derives its own and 8450 is only the default.
+    """
+    text = _update_ps1()
+
+    assert "Get-NetTCPConnection" in text, (
+        "the stop cannot see a server that re-execed into another interpreter"
+    )
+    assert "config.json" in text, "the port is assumed rather than read"
+    assert "Name = 'python.exe'" not in text, (
+        "still matching on an image name the re-exec changes"
+    )
+
+
+def test_the_windows_update_waits_for_the_port_rather_than_the_process():
+    """Two things finish at different times: the process going, which is
+    what pip needs, and the port being free, which is what the next start
+    needs."""
+    text = _update_ps1()
+
+    assert "Test-PortFree" in text
+    tail = text[text.index("function Start-Server"):]
+    assert "Test-PortFree" in tail, "starting it does not check that it started"
