@@ -125,6 +125,9 @@ export type TreeNode = {
   children?: TreeNode[];
 };
 
+/** What a word count is counting. */
+export type WordScope = "file" | "document" | "selection" | "section";
+
 export type Instance = {
   instance: string;
   /** The commit this process loaded, read once when it started. */
@@ -557,9 +560,20 @@ const api = {
       markWarnings: boolean;
     }>(`/projects/${id}/settings`, json(patch)),
 
-  words: (id: string, path: string, scope: "file" | "document") =>
+  /** `first` and `last` are 1-based inclusive lines, and they are how a
+   *  selection and a section are counted. The same counter answers all
+   *  four scopes, because two counters disagreeing by a few percent on
+   *  the same prose leave the writer with no way to tell which number is
+   *  the one their supervisor will get. */
+  words: (
+    id: string,
+    path: string,
+    scope: WordScope,
+    range?: { first: number; last: number },
+  ) =>
     request<{ words: number | null; scope: string }>(
-      `/projects/${id}/words?scope=${scope}&path=${encodeURIComponent(path)}`,
+      `/projects/${id}/words?scope=${scope}&path=${encodeURIComponent(path)}` +
+        (range ? `&first=${range.first}&last=${range.last}` : ""),
     ),
   // The writer's own spellings, per project: the vocabulary of one
   // document says nothing about the next.

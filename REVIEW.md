@@ -3081,7 +3081,11 @@ before deciding.
 
 Cost: two lines.
 
-### R-098 · Preview · comfort · low · confirmed
+### ~~R-098 · Preview · comfort · low · confirmed~~
+
+**Built.** A Save in the preview footer, pointed at the PDF that is already rendered, with no rebuild.
+Held by `e2e/specs/pdf-zoom.spec.ts`.
+
 
 Where: the app header's download menu, against `frontend/src/panes/Pdf.tsx`.
 
@@ -3094,7 +3098,11 @@ What they would do instead: save this, from here, without rebuilding it.
 
 Cost: a control.
 
-### R-099 · Preview · comfort · low · confirmed
+### ~~R-099 · Preview · comfort · low · confirmed~~
+
+**Built.** The steppers and a page box are in both modes, and the zoom is remembered beside the mode. Naming a page in scroll mode scrolls to it and lets the scroll handler say which page that is, so the two answers cannot disagree.
+Held by `e2e/specs/pdf-zoom.spec.ts`.
+
 
 Where: `frontend/src/panes/Pdf.tsx:939` and `:1008`.
 
@@ -3109,7 +3117,11 @@ zoom where it was left.
 Cost: a line for the gate, a control for the readout, a line for the
 persistence beside the one that already saves the mode.
 
-### R-100 · Editor · comfort · low · confirmed
+### ~~R-100 · Editor · comfort · low · confirmed~~
+
+**Built.** Four scopes, remembered, and the strip says which. Counted by texcount over a range of lines rather than by a second counter in the browser, because two counters disagreeing on the same prose is worse than two scopes.
+Held by `frontend/src/words.test.ts`, `tests/api/test_diagnostics_and_switches.py` and `e2e/specs/toolbar.spec.ts`.
+
 
 Where: `frontend/src/App.tsx:199`.
 

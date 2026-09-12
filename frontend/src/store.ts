@@ -285,6 +285,11 @@ export type State = {
     plan?: string;
   } | null;
   cursor: { line: number; column: number };
+  /** How many lines the file in the editor has. Only the word count reads
+   *  it, for a section that runs to the end of the file: the outline knows
+   *  where every section starts and nothing else knows where the last one
+   *  stops. */
+  lineCount: number;
   /** The section list of whatever the editor is showing, parsed from the
    *  buffer on the same debounce as the save.  Empty with no file open. */
   outline: Heading[];
@@ -355,6 +360,7 @@ const state: State = {
   agent: null,
   library: null,
   cursor: { line: 1, column: 1 },
+  lineCount: 1,
   outline: [],
   collaborators: [],
   connection: "connecting",

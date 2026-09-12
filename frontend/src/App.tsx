@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
-import api, { captureToken, landingAfter, startDownload } from "./api";
+import api, { captureToken, landingAfter, startDownload, type WordScope } from "./api";
 import { forget, keep, recall, recallText } from "./remember";
+import { rangeFor, scopesFor } from "./words";
 import {
   ShareIcon,
   DownloadMenu,
@@ -206,7 +207,19 @@ export default function App() {
   // purpose and so could not be chased. There is nothing to keep in step:
   // it was only ever set to `narrow`.
   const chatOver = narrow;
-  const [wordScope, setWordScope] = useState<"file" | "document">("document");
+  // Remembered, and four scopes rather than two. It was plain `useState`,
+  // so a writer who counts their chapter chose it again every session.
+  const outline = useStore((s) => s.outline);
+  const cursor = useStore((s) => s.cursor);
+  const selected = useStore((s) => s.selected);
+  // How long the file is, for a section that runs to the end of it. The
+  // store does not hold the text, and the count only has to be right when
+  // the caret is in the last section, so the outline's own last line plus
+  // a generous tail would be a guess: this is the editor's own number.
+  const lineCount = useStore((s) => s.lineCount);
+  const [wordScope, setWordScope] = useState<WordScope>(
+    () => (recallText("nexttex.words") as WordScope) || "document",
+  );
   const [words, setWords] = useState<number | null>(null);
   const editor = useRef<EditorHandle | null>(null);
   /** Whether the agent screen was opened by somebody, as opposed to being
@@ -861,14 +874,36 @@ export default function App() {
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
+    const span = rangeFor(
+      wordScope,
+      outline,
+      cursor.line,
+      lineCount,
+      selected && selected.path === activePath ? selected : null,
+    );
+    // A scope with no range to count is not an error and not a zero: the
+    // caret is above the first heading, or the selection has gone. The
+    // strip falls back to its dash, which is what it shows before the
+    // first count arrives too.
+    if ((wordScope === "selection" || wordScope === "section") && !span) {
+      setWords(null);
+      return;
+    }
     api
-      .words(projectId, activePath ?? "", wordScope)
+      .words(projectId, activePath ?? "", wordScope, span ?? undefined)
       .then((result) => !cancelled && setWords(result.words))
       .catch(() => !cancelled && setWords(null));
     return () => {
       cancelled = true;
     };
-  }, [projectId, activePath, wordScope, builtAt]);
+  }, [
+    projectId, activePath, wordScope, builtAt,
+    outline, cursor.line, lineCount, selected,
+  ]);
+
+  useEffect(() => {
+    keep("nexttex.words", wordScope);
+  }, [wordScope]);
 
   // ---- pane dragging ----------------------------------------------------
   // The arithmetic itself is in `layout.ts`, where it can be tested: it is
@@ -1861,8 +1896,15 @@ export default function App() {
             git={railFolded && git?.repository ? git : null}
             words={words}
             wordScope={wordScope}
+            wordScopes={scopesFor(Boolean(selected && selected.path === activePath))}
             onToggleWordScope={() =>
-              setWordScope((value) => (value === "file" ? "document" : "file"))
+              setWordScope((value) => {
+                const cycle = scopesFor(
+                  Boolean(selected && selected.path === activePath),
+                ) as WordScope[];
+                const at = cycle.indexOf(value);
+                return cycle[(at + 1) % cycle.length] ?? "document";
+              })
             }
             onToggleDrawer={() =>
               setDrawer((value) =>

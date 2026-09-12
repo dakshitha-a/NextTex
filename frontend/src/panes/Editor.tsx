@@ -325,6 +325,11 @@ export default function Editor({
       if (cursor.line !== line || cursor.column !== column) {
         set({ cursor: { line, column } });
       }
+      // Beside the cursor, because they change together and the word
+      // count needs both: the outline says where every section starts and
+      // only this says where the last one stops.
+      const lines = view.current?.state.doc.lines ?? 1;
+      if (get().lineCount !== lines) set({ lineCount: lines });
       // Straight into the store, undebounced, because the composer reads it
       // the instant Send is pressed. The 400 ms below is right for telling
       // the server where the cursor is and wrong for this: select a

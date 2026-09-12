@@ -166,7 +166,13 @@ export default function Pdf({
   );
   // 0 means "fit the width", -1 means "fit a whole page"; anything else is
   // a zoom the reader chose.
-  const [scale, setScale] = useState(0);
+  const [scale, setScale] = useState(() => {
+    // Beside the mode, which has been remembered all along. A reader who
+    // works at 140 percent because of their eyes or their screen was
+    // setting it again every session.
+    const saved = Number(window.localStorage.getItem("nexttex.pdf.zoom"));
+    return Number.isFinite(saved) && saved !== 0 ? saved : 0;
+  });
   const [fitScale, setFitScale] = useState(1);
   const [pageFitScale, setPageFitScale] = useState(1);
   // What the footer shows.  Written to the node rather than held in state:
@@ -596,6 +602,10 @@ export default function Pdf({
   }, [scale]);
 
   useEffect(() => {
+    window.localStorage.setItem("nexttex.pdf.zoom", String(scale));
+  }, [scale]);
+
+  useEffect(() => {
     window.localStorage.setItem("nexttex.pdf.mode", mode);
     applyMode(mode);
     if (mode === "page") {
@@ -938,9 +948,31 @@ export default function Pdf({
   }, [handleRef, renderPage, showing]);
 
   // ---- keyboard, in page mode ------------------------------------------
-  const step = useCallback(
-    (delta: number) => setCurrent((value) => Math.min(Math.max(value + delta, 1), pageCount || 1)),
+  /** Put page n on screen, in whichever mode is showing.
+   *
+   *  In page mode the effect on `current` draws it; in scroll mode there
+   *  is nothing to draw, only somewhere to be, so this scrolls the page's
+   *  own container to the top of the view. The scroll handler then sets
+   *  `current` from what it finds, which keeps one answer to "which page
+   *  is this" rather than two that can disagree.
+   */
+  const goTo = useCallback(
+    (page: number) => {
+      const want = Math.min(Math.max(page, 1), pageCount || 1);
+      if (modeRef.current === "page") {
+        setCurrent(want);
+        return;
+      }
+      const element = pages.current[want - 1]?.container;
+      const root = scroller.current;
+      if (element && root) root.scrollTop = element.offsetTop;
+    },
     [pageCount],
+  );
+
+  const step = useCallback(
+    (delta: number) => goTo((currentRef.current || 1) + delta),
+    [goTo],
   );
 
   return (
@@ -1043,33 +1075,50 @@ export default function Pdf({
           ))}
         </div>
         <Rule />
-        {mode === "page" ? (
-          <span className="flex shrink-0 items-center gap-1">
-            <button
-              className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
-              disabled={current <= 1}
-              onClick={() => step(-1)}
-              aria-label="Previous page"
-            >
-              ‹
-            </button>
-            <span className="t-micro tnum w-[92px] text-center text-ink-2">
-              {pageCount ? `Page ${current} of ${pageCount}` : "–"}
+        {/* Both modes. The steppers were gated on page mode, so a reader
+            in the scrolling one had no way to reach page 74 of a thesis
+            except by dragging, and the readout was never an input in
+            either. A page number is the one coordinate a long document
+            has, and which mode you are reading in has nothing to do with
+            whether you can name it. */}
+        <span className="flex shrink-0 items-center gap-1">
+          <button
+            className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
+            disabled={current <= 1}
+            onClick={() => step(-1)}
+            aria-label="Previous page"
+          >
+            ‹
+          </button>
+          {pageCount ? (
+            <span className="t-micro flex items-center gap-1 text-ink-2">
+              <input
+                type="number"
+                min={1}
+                max={pageCount}
+                value={current}
+                aria-label="Page"
+                data-testid="page-number"
+                className="t-micro tnum w-[42px] rounded-[3px] border border-line bg-surface px-1 text-center text-ink outline-none focus:border-pen"
+                onChange={(event) => {
+                  const want = Number(event.target.value);
+                  if (Number.isFinite(want) && want >= 1) goTo(want);
+                }}
+              />
+              <span className="tnum">of {pageCount}</span>
             </span>
-            <button
-              className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
-              disabled={current >= pageCount}
-              onClick={() => step(1)}
-              aria-label="Next page"
-            >
-              ›
-            </button>
-          </span>
-        ) : (
-          <span className="t-micro tnum shrink-0 text-ink-2">
-            {pageCount ? `Page ${current} of ${pageCount}` : "–"}
-          </span>
-        )}
+          ) : (
+            <span className="t-micro tnum w-[92px] text-center text-ink-2">–</span>
+          )}
+          <button
+            className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
+            disabled={current >= pageCount}
+            onClick={() => step(1)}
+            aria-label="Next page"
+          >
+            ›
+          </button>
+        </span>
         <Rule />
         <button
           className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
@@ -1117,6 +1166,21 @@ export default function Pdf({
         >
           Fit page
         </button>
+        {/* The page that is already rendered and already on disk. The
+            header's download menu is the only other way to save it and
+            its PDF item forces a full server rebuild first, which is a
+            wait for a file the reader is looking at. */}
+        {projectId && pageCount ? (
+          <a
+            className="quiet t-micro hidden shrink-0 whitespace-nowrap @[430px]:block"
+            href={api.pdfUrl(projectId, showing, stamp)}
+            download
+            data-testid="save-pdf"
+            title="Save this PDF as it stands, without rebuilding it"
+          >
+            Save
+          </a>
+        ) : null}
       </div>
     </div>
   );

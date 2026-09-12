@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 import zipfile
 from functools import partial
 from contextlib import asynccontextmanager
@@ -3497,29 +3498,65 @@ async def synctex_forward(
 
 
 @app.get("/api/projects/{project_id}/words")
-async def words(project_id: str, path: str = "", scope: str = "file"):
+async def words(
+    project_id: str,
+    path: str = "",
+    scope: str = "file",
+    first: int = 0,
+    last: int = 0,
+):
     """A word count that ignores markup, from texcount.
 
     Counting words in a .tex file with a regular expression counts control
     sequences and maths as prose, which is wrong by thousands on a thesis.
     texcount complains about a preamble it cannot parse and still counts
     correctly, so its warnings go to stderr and are ignored.
+
+    `first` and `last` are 1-based inclusive lines, and they are how a
+    selection and a section are counted. Counting those in the browser
+    would have been easy and wrong: a second counter that disagrees with
+    this one by a few percent on the same prose is worse than no second
+    scope, because the writer has no way to tell which of the two numbers
+    is the one their supervisor will get.
     """
     session = session_for(project_id)
     if not shutil.which("texcount"):
         return {"words": None, "scope": scope}
     argv = ["texcount", "-q", "-total", "-1", "-sum"]
-    if scope == "document":
+    slice_file: Path | None = None
+    if first and last and path:
+        source = _safe(session, path)
+        try:
+            lines = source.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            return {"words": None, "scope": scope}
+        chosen = lines[max(first - 1, 0):max(last, 0)]
+        if not chosen:
+            return {"words": 0, "scope": scope}
+        # texcount reads a file, so the range becomes one. In the build
+        # directory rather than the project: it is already excluded from
+        # the tree, the watcher and every walk, so a temporary file there
+        # cannot appear in front of the writer or in a share.
+        session.project.build_dir.mkdir(parents=True, exist_ok=True)
+        slice_file = session.project.build_dir / f".words-{uuid.uuid4().hex}.tex"
+        slice_file.write_text("\n".join(chosen) + "\n", encoding="utf-8")
+        argv.append(str(slice_file))
+    elif scope == "document":
         argv += ["-inc", str(session.paths.main)]
     else:
         if not path:
             return {"words": None, "scope": scope}
         argv.append(str(_safe(session, path)))
+
     def count() -> str:
-        return subprocess.run(
-            argv, capture_output=True, text=True, timeout=45,
-            cwd=session.project.root,
-        ).stdout
+        try:
+            return subprocess.run(
+                argv, capture_output=True, text=True, timeout=45,
+                cwd=session.project.root,
+            ).stdout
+        finally:
+            if slice_file is not None:
+                slice_file.unlink(missing_ok=True)
 
     try:
         # In a thread: texcount over a whole thesis takes seconds, and on
