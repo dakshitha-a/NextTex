@@ -96,6 +96,8 @@ Three paths move text.
 
 **Document to disk.** A change marks the document dirty and schedules a flush 120 milliseconds later. The flush materialises the text, compares it against what was last written, resolves the path, writes atomically, records a version, notes the edit and schedules a compile. A file that could not be written stays dirty and is retried; a file that was *refused* does not, because a record naming `.git/hooks/pre-commit` will name it just as much next time.
 
+**A path from the other end is fenced at both ends of every operation it names.** `resolve_for_write` is the fence, and a rename has two paths, not one. While only the target was resolved, a peer could name a file `../../.ssh/id_rsa`, let that become the baseline `settle_paths` measures the next change against, then rename it to `notes.tex`: the source was built as `root / was` with no fence, so the file was moved off the disk into the project, where the manifest handed it to everybody in the share. The baseline is fenced when it is recorded and the source is fenced when it is used. A local file the rename displaces goes to the trash rather than being renamed out of the way in silence.
+
 **Disk to document.** `ingest` folds an outside change back in: a `git pull`, the agent's own write, an editor in another terminal. It diffs against what was last projected and applies only the spans that moved, so a remote cursor is not thrown across the document by an append.
 
 An edit reaching the disk measures at 3.1 ms on a thesis-shaped project, of which the edit arriving is 3.0.

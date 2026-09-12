@@ -1571,7 +1571,12 @@ multipart parser before the read and would refuse it for nothing.
 
 ### Collaboration, context and papers
 
-### R-057 · Collaboration · security · blocker · confirmed
+### ~~R-057 · Collaboration · security · blocker · confirmed~~
+
+**Fixed.** `settle_paths` puts a path through `resolve_for_write` before it becomes a
+baseline, and `_rename_locally` fences its source as well as its target. Held by
+`tests/collab/test_hostile_peers.py`, two tests that move a key and a `.git/config`
+without the fix.
 
 Found by: reading, then reproduced against the real `CollabStore`. Where:
 `server/collab/store.py:845` with `:836`.
@@ -1641,7 +1646,11 @@ Expected: `was` goes through `resolve_for_write` too, or better,
 `self._named` is only ever filled with a path that has already passed it, so
 that an escaping path can never become a baseline.
 
-### R-058 · Collaboration · bug · high · confirmed
+### ~~R-058 · Collaboration · bug · high · confirmed~~
+
+**Fixed.** A local file a peer's rename displaces goes to the trash, which is
+restorable, on a screen, and announced by the watcher, rather than to
+`chapter (was here).tex` inside a suppressed OSError.
 
 Found by: reading, then reproduced against the real `CollabStore`. Where:
 `server/collab/store.py:862`.
@@ -1747,7 +1756,11 @@ size while the loop's other callers do not.
 `doc.get_update()`, serialising the whole document, for every grown document
 on that same timer once its log passes 64 kB.
 
-### R-062 · Collaboration · bug · medium · likely
+### ~~R-062 · Collaboration · bug · medium · likely~~
+
+**Fixed.** `_refused` maps a file id to the path its write was refused for, so a
+record pointed somewhere ordinary afterwards is written like any other. Refusing to
+retry the same path is unchanged, which was the part that was right.
 
 Found by: reading. Where: `server/collab/store.py:923`.
 

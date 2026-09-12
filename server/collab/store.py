@@ -67,7 +67,6 @@ editor in another terminal -- and records those as such.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import difflib
 import logging
 import re
@@ -77,7 +76,7 @@ from typing import Callable
 
 from pycrdt import Doc, Map, Text
 
-from nexttex.atomic import read_text, unique_name, write_atomically
+from nexttex.atomic import read_text, write_atomically
 from nexttex.history import slug_for
 from nexttex.project import TEXT_SUFFIXES, Project
 
@@ -280,7 +279,10 @@ class CollabStore:
         # refusal is decided once rather than on every flush, and so it is
         # never retried -- a record naming `.git/hooks/pre-commit` will name
         # the same thing in 120 ms.
-        self._refused: set[str] = set()
+        #: File id to the path its last write was refused for. Keyed by path
+        #: rather than held for ever, so a record pointed somewhere ordinary
+        #: after a refusal is written like any other.
+        self._refused: dict[str, str] = {}
         # Documents whose log has grown since it was last considered for
         # compaction.  Not compacted where it is noticed: that needs to read
         # the document, and it is noticed from inside a transaction.
@@ -832,7 +834,16 @@ class CollabStore:
             was = self._named.get(file_id)
             if was is None:
                 # First sight of this file. Nothing to follow yet; this is
-                # the baseline the next change is measured against.
+                # the baseline the next change is measured against, and it
+                # goes through the fence before it becomes one. A baseline
+                # is a *source* path later on, and `_rename_locally` moves
+                # whatever it names: an unfenced one let a peer name
+                # `../../.ssh/id_rsa`, rename it, and have the file carried
+                # off the disk into the project for everyone to read.
+                try:
+                    self.project.resolve_for_write(path)
+                except (PermissionError, OSError, ValueError):
+                    continue
                 self._named[file_id] = path
                 continue
             if record.get("trashed"):
@@ -842,13 +853,18 @@ class CollabStore:
                 self._rename_locally(file_id, was, path)
 
     def _rename_locally(self, file_id: str, was: str, now_called: str) -> None:
-        source = self.project.root / was
         try:
+            # Both ends, not one. The same fence the projection uses: a path
+            # proposed by whoever is on the other end of the connection does
+            # not get to name `.git/config` or a `latexmkrc`. It applies to
+            # the source as much as the target, because a rename is a move
+            # and the source is what gets moved. While only the target was
+            # fenced, the target being inside the project was exactly what
+            # made the escape useful: the file arrived where the manifest
+            # could hand it to everybody.
+            source = self.project.resolve_for_write(was)
             target = self.project.resolve_for_write(now_called)
         except (PermissionError, OSError, ValueError):
-            # The same fence the projection uses: a path proposed by whoever
-            # is on the other end of the connection does not get to name
-            # `.git/config` or a `latexmkrc`.
             return
         if not source.exists():
             self._named[file_id] = now_called
@@ -858,10 +874,18 @@ class CollabStore:
             # refused a rename onto a name that was taken *there*, which says
             # nothing about here.  The manifest is the authority on what this
             # file is called, so whatever is in the way steps aside.
-            with contextlib.suppress(OSError):
-                target.rename(unique_name(target, "was here"))
-            if target.exists():
+            #
+            # Into the trash, which is where this app puts a file that has to
+            # go.  It used to be renamed to `chapter (was here).tex` inside a
+            # suppressed OSError: the writer's work was still on disk and
+            # nothing anywhere said so, or said why a name they had chosen
+            # was now somebody else's.  The trash is restorable, it is on a
+            # screen, and removing the file is a change the watcher announces
+            # like any other.
+            if not self._trash_locally(now_called):
                 return   # left for the next flush rather than written over
+            if target.exists():
+                return
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             source.rename(target)
@@ -920,7 +944,8 @@ class CollabStore:
                 # time.  Putting it back was an endless loop, once every
                 # 120 ms, with the refusal swallowed by the timer callback
                 # so nothing anywhere said a word.
-                self._refused.add(file_id)
+                record = self.files.get(file_id)
+                self._refused[file_id] = (record or {}).get("path") or ""
                 log.warning("refused a shared file: %s", refusal)
             except Exception:
                 # A read-only directory, a disk that filled up, a path that
@@ -944,9 +969,16 @@ class CollabStore:
         text = self._body.get(file_id)
         if record is None or text is None or record.get("trashed"):
             return
-        if file_id in self._refused:
-            return
         relative = record["path"]
+        # The refusal is about the path, not about the file for ever. A
+        # record naming `.git/hooks/pre-commit` will name it just as much
+        # next time, which is why it is not retried; but `path` is a field
+        # the other end can change, and while this was a set of ids a file
+        # pointed somewhere ordinary afterwards stayed unwritable for the
+        # life of the session.
+        if self._refused.get(file_id) == relative:
+            return
+        self._refused.pop(file_id, None)
         content = str(text)
         if self.last_projected.get(file_id) == content:
             return
