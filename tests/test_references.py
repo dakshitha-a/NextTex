@@ -91,3 +91,33 @@ def test_the_bibliography_write_goes_through_the_editor(tmp_path, monkeypatch):
     assert "smith2024" in text
     # And it is an edit like any other, so the chip and its undo exist.
     assert [record.tool for record in agent.drain_edits()] == ["add_reference"]
+
+
+def test_the_importer_never_folds_the_bibliography_from_a_worker_thread():
+    """`scan.run` is handed to `asyncio.to_thread`, so everything its
+    callbacks do happens on a worker. One of them, `write_bib`, called
+    `collab.ingest`, which applies a transaction to a pycrdt document, and
+    the constraint recorded in `docs/architecture.md` is that a document
+    belongs to the thread that built it. Every reference the importer added
+    was folded in from the wrong thread.
+
+    `announce`, ten lines above it in the same function, already hopped
+    back with `run_coroutine_threadsafe`. This is a reading of the source
+    rather than a run, because staging a two-thread race reliably costs
+    more than the claim is worth: what matters is that this closure does
+    not touch the document directly, and that is visible.
+    """
+    import inspect
+
+    from server import main as server_main
+
+    source = inspect.getsource(server_main.library_scan)
+    body = source[source.index("def write_bib"):]
+    body = body[:body.index("\n    scan = Scan(")]
+
+    assert "run_coroutine_threadsafe" in body, (
+        "write_bib touches the shared document from the worker thread"
+    )
+    assert "session.collab.ingest(" not in body, (
+        "write_bib calls ingest directly, from inside to_thread(scan.run)"
+    )

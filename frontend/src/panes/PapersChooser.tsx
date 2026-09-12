@@ -97,6 +97,11 @@ export default function PapersChooser({
       onStarted();
     } catch (error: any) {
       set({ error: error.message });
+    } finally {
+      // In a `finally`, because it was only lowered on the failure path.
+      // A scan that started and whose panel then closed left this raised,
+      // and `start` returns early while it is, so the button did nothing
+      // for the rest of the session with no way to find out why.
       setBusy(false);
     }
   };

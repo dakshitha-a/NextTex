@@ -1990,7 +1990,15 @@ because they are the same work as R-031 and R-038: a ceiling and a timeout on
 something a person never sees. Neither is a rename and neither belongs with
 the fence fix, which is what the rest of this record was grouped with.
 
-### R-065 · Collaboration and context · bug · medium · likely
+### ~~R-065 · Collaboration and context · bug · medium · likely~~
+
+**Fixed.** The share panel clears its error on a good poll and shows the one the
+server sends; the Join button says Joining and refuses a second press while a whole
+project syncs; the papers chooser lowers its busy flag in a `finally`; the context
+panel's memory is keyed on the project; and opening a project clears the last one's
+import progress. The blob re-ask is the one part not done: `wanted` is a set with no
+time in it, and giving it one is a change to the wire's asking rules rather than a
+latch, so it is in the `TRACKER.md` backlog.
 
 A group, each read in the code and none reproduced here, recorded together
 because they are one shape: a flag or an error set on one path and cleared on
@@ -2023,7 +2031,15 @@ fewer.
   "Reading papers: stopped" for the life of the tab, across project switches
   (`frontend/src/store.ts:769`).
 
-### R-066 · Context and papers · bug · medium · likely
+### ~~R-066 · Context and papers · bug · medium · likely~~
+
+**Mostly fixed, and the crash first.** `write_bib` runs inside
+`to_thread(scan.run)` and called `collab.ingest`, which applies a transaction to a
+pycrdt document built on the loop: every reference the importer added was folded in
+from the wrong thread. It hops back now, the way `announce` ten lines above it
+already did. Memory over the cap is refused rather than silently truncated, and a
+publisher that could not be reached is no longer reported as a paper that does not
+exist. The remaining items are in the backlog.
 
 A second group, about the papers pipeline, each read and none reproduced.
 

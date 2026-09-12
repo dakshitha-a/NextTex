@@ -360,6 +360,10 @@ export default function App() {
         markErrors: project.markErrors !== false,
         markWarnings: project.markWarnings === true,
       },
+      // The last project's import progress, which belongs to the last
+      // project. It was left, so opening another one showed a papers
+      // panel reporting a scan of a folder that has nothing to do with it.
+      library: null,
     });
     replayTranscript(project.transcript ?? []);
     // A card the server is still waiting on outlives the page that showed

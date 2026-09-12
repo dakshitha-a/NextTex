@@ -40,9 +40,16 @@ export default function SharePanel({ projectId, onClose }: {
   useDismiss(sheet, true, onClose);
 
   const refresh = () =>
-    api.collab(projectId).then(setState).catch(() => setError(
-      "Could not read this project's sharing.",
-    ));
+    api.collab(projectId)
+      .then((answer) => {
+        setState(answer);
+        // Cleared on success. It was set and never unset, so one failed
+        // poll, on a four-second timer, left "Could not read this
+        // project's sharing" under a panel that had been reading it fine
+        // for the rest of the session.
+        setError(answer.error || "");
+      })
+      .catch(() => setError("Could not read this project's sharing."));
 
   useEffect(() => {
     api.auth().then((who) => setMe(who.displayName)).catch(() => undefined);

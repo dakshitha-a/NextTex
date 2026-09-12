@@ -1096,6 +1096,11 @@ PENDING_JOINS: dict[str, PendingJoin] = {}
 JOIN_DECISION_TIMEOUT = 10 * 60
 
 
+async def _ingest_on_loop(session, relative: str, text: str) -> None:
+    """Fold text into a shared document, from the loop it belongs to."""
+    session.collab.ingest(relative, text)
+
+
 def _offered_files(store, project: Project) -> list[dict]:
     """What the other end has sent, as a person would want to see it.
 
@@ -2539,7 +2544,16 @@ async def library_scan(project_id: str, path: str = Body(..., embed=True)):
     def write_bib(text: str) -> None:
         write_atomically(bib, text)
         session.mark_written(bib)
-        session.collab.ingest(session.project.relative(bib), text)
+        # Back onto the loop for the fold, the way `announce` above already
+        # goes. This whole function runs inside `to_thread(scan.run)`, and
+        # `ingest` applies a transaction to a pycrdt document: the
+        # constraint recorded in `docs/architecture.md` is that a document
+        # belongs to the thread that built it, and this one was built on
+        # the loop. Every reference the importer added was folded in from
+        # a worker thread.
+        asyncio.run_coroutine_threadsafe(
+            _ingest_on_loop(session, session.project.relative(bib), text), loop,
+        ).result()
 
     scan = Scan(
         _library(session), bib,
@@ -2732,6 +2746,18 @@ async def write_memory(project_id: str, text: str = Body(..., embed=True)):
     dictated in the first place.
     """
     session = session_for(project_id)
+    # Refused rather than cut. `set_memory` truncates at the cap and
+    # answers with what it kept, so a writer who pasted more than fits got
+    # a success, a panel that redrew with the end of their paragraph gone,
+    # and nothing saying which. The agent's own path already refuses and
+    # says the memory is full; this is the hand-edited one.
+    body = text.strip()
+    if len(body) > MEMORY_MAX_CHARS:
+        raise HTTPException(
+            400,
+            f"Memory is limited to {MEMORY_MAX_CHARS} characters and that is "
+            f"{len(body)}. Shorten it and it will be kept exactly.",
+        )
     saved = session.context.set_memory(text)
     notes = session.context.memory_notes()
     # The system prompt is fixed for a Claude client's lifetime, so the

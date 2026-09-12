@@ -418,3 +418,36 @@ class TestScanning:
         scan.run(tmp_path / "papers")
         assert ("reading", 0, 1) in seen
         assert seen[-1][0] == "done"
+
+
+def test_a_publisher_that_cannot_be_reached_is_not_a_paper_that_does_not_exist(
+    tmp_path, monkeypatch
+):
+    """Every DOI in a paper failing to fetch, because the network is down
+    or the publisher is refusing, ended as "No record found", which is a
+    statement about the paper. A writer tries again later for one and looks
+    at the PDF for the other."""
+    from nexttex.library import Library, Paper, Scan
+
+    def refuse(doi):
+        raise RuntimeError("Connection reset by peer")
+
+    scan = Scan(
+        Library(tmp_path / "library"), tmp_path / "refs.bib",
+        read_bib=lambda: "", write_bib=lambda text: None,
+        entry_for=lambda doi, existing: {"added": False},
+        appended=lambda existing, entry: existing,
+        fetch_metadata=refuse,
+        fold=lambda s: s,
+    )
+    source = tmp_path / "paper.pdf"
+    source.write_bytes(b"%PDF-1.4 fake")
+    monkeypatch.setattr(
+        "nexttex.library.text_of",
+        lambda path, timeout=120: "A paper with doi:10.1234/x printed in it.",
+    )
+
+    paper, _text, _added = scan._one(source, "a" * 64, "")
+
+    assert "Could not reach the publisher" in paper.reason, paper.reason
+    assert "No record found" not in paper.reason
