@@ -4438,3 +4438,54 @@ showed the previous project's collaborators beside the next one's.
 
 **And the verb row followed you to another file**, offering to rewrite a
 paragraph that is no longer selected or even open.
+
+### The join card says nothing has been written, and now that is true
+
+Four statements in this repository said that accepting an invite writes
+nothing until the writer says yes: the card itself, the comment above the
+pending join, the docstring on the client wrapper, and `docs/architecture.md`.
+None of them was true. The join called `store.flush()`, which writes every
+document, and then `store.close()`, which flushes again, so by the time the
+card was drawn the folder held the whole project.
+
+The Windows laptop proved it with timestamps rather than by reading the code.
+With the card still on screen its folder held `main.tex` complete and readable
+from preamble to `\end{document}`, and `nexttex.toml` and `references.bib`
+carrying an mtime a full minute older than the card. So Discard had to delete
+real files rather than decline to create them, which is the opposite of what
+the writer was promised, and a server killed in that window left a stranger's
+project in a folder nothing knew about.
+
+The store and its connection stay open until the answer now, and
+`PendingJoin.release` closes them either way. Nothing reaches the disk before
+Accept.
+
+**The manifest is not the project.** The wait that decides a join has arrived
+looked for any text record, and `send_documents` pipelines the bodies behind
+the manifest without waiting for a reply, so that was true well before the
+text was. It slept half a second for luck and wrote whatever had not landed as
+an empty file. It waits for the bodies now, and says so plainly when only part
+of a project arrives rather than writing the half that came.
+
+**A file was offered and never arrived.** `figures/.gitkeep` has no suffix, and
+the tree classified by suffix alone, so it was binary; blob transfer carries
+history blobs by content address and never file bodies, so nothing behind the
+manifest record ever travelled. The card counted four files and three landed,
+and the one that went missing was the one whose whole job is to carry an empty
+directory. The interface had always had the right rule, in `file-kinds.ts`, and
+this side said the opposite: `Path(".gitignore").suffix` is empty, so even the
+entry for `.gitignore` in the suffix list never matched. `kind_of` is one
+function now and an extensionless name is text.
+
+**And an empty document was never written even when it was carried.** `_dirty`
+is filled by the observer on a document that changed, and a document that
+arrives with nothing in it produces no change to observe, so accepting wrote
+every file except the empty ones. `project_everything` marks the lot.
+
+**None of the three sizes on the card matched what landed.** `size` is written
+once, when the sharer first adopts a file, and never refreshed as the document
+is edited, so the card was quoting a number from whenever the project was
+first shared: 3 kB for a file that arrived at 957 bytes. It is measured from
+the body that actually arrived. It is still the sender's line endings, which
+is a real difference on Windows and is said on the card rather than fixed,
+because the joiner's own newlines are the right thing to write.

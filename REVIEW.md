@@ -1781,7 +1781,11 @@ whatever is in the way steps aside." Stepping aside is defensible. Doing it in
 silence is the finding, and the app already has a trash and an event stream
 for exactly this.
 
-### R-059 · Collaboration · bug · high · confirmed
+### ~~R-059 · Collaboration · bug · high · confirmed~~
+
+**Fixed.** The join no longer flushes, and the store stays open until the answer.
+Held by `tests/api/test_join_offer.py`, which asserts that accepting projects every
+document and flushes, and that discarding does neither.
 
 Found by: reading. Where: `server/main.py:946` with `:963`.
 
@@ -1879,7 +1883,11 @@ badly for one flush and corrects it has poisoned that document for the life of
 the session: the editor accepts keystrokes, everything looks normal, and
 nothing is ever written to disk again. Only a `log.warning` says anything.
 
-### R-063 · Collaboration · bug · medium · likely
+### ~~R-063 · Collaboration · bug · medium · likely~~
+
+**Fixed.** The wait is for the bodies rather than for the manifest that lists them,
+and it says so when only part of a project arrives instead of writing the half that
+came.
 
 Found by: reading. Where: `server/main.py:1071` with
 `server/collab/peers.py:289`.
@@ -2960,7 +2968,12 @@ operating system and a real network in it, and it produced four findings that
 nothing on one machine could have reached. The join itself worked: 2.30 seconds
 from pressing Join to the file list, on the first attempt, with no retry.
 
-### R-103 · Collaboration · bug · high · confirmed
+### ~~R-103 · Collaboration · bug · high · confirmed~~
+
+**Fixed, and the record was right about the mechanism after all: this is the binary
+gap.** An extensionless name is text now, in one `kind_of`, matching the rule the
+interface always had. And accepting projects every record, because a document that
+arrived empty produces no change for the observer to see and so was never written.
 
 Found by: the Windows laptop, joining a share over the real network. Where:
 whichever side builds the offer, `server/main.py:946` and the manifest walk
@@ -2999,7 +3012,13 @@ the card is the number offered rather than the number that will exist. That
 project had no real binaries in it, so the binary gap itself is still
 untested across two machines.
 
-### R-104 · Collaboration · bug · medium · confirmed
+### ~~R-104 · Collaboration · bug · medium · confirmed~~
+
+**Fixed, with the record's mechanism corrected.** It is not the CRDT document's
+size: `size` is written once when the sharer first adopts a file and never
+refreshed, so the card quoted a number from whenever the project was first shared.
+It is measured from the body that arrived. The line endings are the sender's and the
+card says so.
 
 Found by: the Windows laptop, comparing the offer card against the disk.
 Where: the offer the join builds, against `frontend/src/panes/Projects.tsx`.
