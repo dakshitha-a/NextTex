@@ -2937,7 +2937,11 @@ Expected: a size on an offer card is the size of the thing being offered.
 "3 kB" for a one kilobyte file is wrong by a factor of three on the only row a
 person is likely to read.
 
-### R-105 · Collaboration · bug · high · confirmed
+### ~~R-105 · Collaboration · bug · high · confirmed~~
+
+**Fixed with R-121 and R-126.** The store keeps the share the editor was already
+fetching, and the tab strip has a third branch for a member who has joined and is
+not connected.
 
 Found by: the Windows laptop, typing in a shared file while somebody else was
 in it. Where: `frontend/src/panes/Collaborators.tsx`.
@@ -3078,7 +3082,11 @@ the server re-execs into the Store Python, an MSIX package, and the git
 subprocess inherits that sandbox. What is established is that when the check
 fails for any reason, the footer says the install is current.
 
-### R-121 · Collaboration · bug · high · confirmed
+### ~~R-121 · Collaboration · bug · high · confirmed~~
+
+**Fixed.** The peer link is drawn as its own badge, separately from the browser's
+socket to its own server, because both can be true at once. Held by
+`frontend/src/panes/peer-standing.test.ts`.
 
 Found by: the Windows laptop, reasoning about what it could not test. Where:
 `frontend/src/collab.ts:157` with `:318`.
@@ -3218,7 +3226,12 @@ directory per update for as long as the install lives.
 This is the same root cause as R-122 from the other end: the script updates
 the dependencies of a server it has decided not to stop.
 
-### R-126 · Collaboration · bug · high · confirmed
+### ~~R-126 · Collaboration · bug · high · confirmed~~
+
+**Fixed.** A link being adopted or dropped publishes `collab_peers`, so a peer
+arriving or going away is a transition rather than whatever the next four-second
+poll catches. Held by a two-peer test that closes one side and asserts the other is
+told.
 
 Found by: the Windows laptop, watching its own screen while the share it was
 joined to was shut down from this end. Where: `frontend/src/panes/Collaborators.tsx`

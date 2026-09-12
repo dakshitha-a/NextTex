@@ -8,6 +8,7 @@ import type { Heading } from "./outline";
 import api, {
   clientId,
   type CompileResult,
+  type Member,
   type ContextDocument,
   type Diagnostic,
   type ProjectSummary,
@@ -262,6 +263,12 @@ export type State = {
   /** This install's peer id, so a version can tell whose it is. Empty until
    *  a project has been shared, which is when it starts mattering. */
   peerId: string;
+  /** The share, as the server sees it: who is a member and whose link is
+   *  up. Polled on open and pushed by `collab_peers` when a link comes or
+   *  goes. Not the same question as `connection`, which is this browser's
+   *  socket to its own server, and the two must never be drawn as one
+   *  thing. */
+  share: { shared: boolean; me: string; members: Member[] } | null;
   error: string | null;
   notices: Notice[];
 };
@@ -309,6 +316,7 @@ const state: State = {
   collaborators: [],
   connection: "connecting",
   peerId: "",
+  share: null,
   words: null,
   error: null,
   notices: [],
@@ -802,6 +810,21 @@ function receive(event: any) {
         next[name] = { ...(next[name] ?? NO_BUILD), stale: true };
       }
       syncVisible({ builds: next });
+      break;
+    }
+    case "collab_peers": {
+      // A peer arriving or going away, as a transition rather than as the
+      // next four-second poll. The tab strip drew nothing for "nobody is
+      // here", nothing for "somebody is here and is not rendered", and
+      // nothing for "they have gone for good": three situations, one empty
+      // space. This is what tells it which.
+      set({
+        share: {
+          shared: Boolean(event.shared),
+          me: String(event.me ?? ""),
+          members: (event.members ?? []) as Member[],
+        },
+      });
       break;
     }
     case "compile_state": {

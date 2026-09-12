@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { type Collaborator, useStore } from "../store";
+import { awayWords, peerStanding } from "./peer-standing";
 import { useDismiss } from "../useDismiss";
 import { useRef } from "react";
 
@@ -25,6 +26,8 @@ import { useRef } from "react";
 export default function Collaborators() {
   const people = useStore((s) => s.collaborators);
   const connection = useStore((s) => s.connection);
+  const share = useStore((s) => s.share);
+  const standing = peerStanding(share);
   const [open, setOpen] = useState(false);
   const card = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
@@ -33,7 +36,15 @@ export default function Collaborators() {
   // Offline is worth saying even with nobody else here: it means this
   // browser's typing is not reaching the file, which is the one thing a
   // writer must never find out later.
-  if (!people.length && connection !== "offline") return null;
+  //
+  // And so is a share whose other end is not there, which is a different
+  // sentence about a different connection. `connection` is this browser's
+  // socket to its own server; `standing` is the peer link. Both can be
+  // true at once and they are drawn as two things, because folding them
+  // into one badge is how a writer comes to believe the wrong one.
+  if (!people.length && connection !== "offline" && standing !== "away") {
+    return null;
+  }
 
   return (
     <div className="relative flex shrink-0 items-center gap-[6px] pr-[8px] pl-[6px]">
@@ -52,6 +63,12 @@ export default function Collaborators() {
           <span className="text-ink-3">
             what you type is kept here until it reconnects
           </span>
+        </span>
+      ) : null}
+
+      {standing === "away" ? (
+        <span className="t-micro text-ink-3" data-testid="peer-away">
+          {awayWords(share)}
         </span>
       ) : null}
 

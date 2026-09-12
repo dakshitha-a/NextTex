@@ -860,6 +860,24 @@ class PeerNetwork:
             await link.send_documents()
             await asyncio.sleep(2)
 
+    def _announce_peers(self) -> None:
+        """Tell the browsers that a peer arrived or went away.
+
+        The interface polls `state()` every four seconds from one sheet and
+        keeps nothing anywhere else, so a peer arriving, a peer present and
+        a peer gone for good were the same empty space in the tab strip. A
+        poll is a sample; this makes the two ends of a link a transition,
+        which is what the writer actually needs to be told about, because
+        their typing stops reaching anybody the moment it happens.
+
+        Guarded, because a joining network has no session yet and the tests
+        pass a stand-in that is not one.
+        """
+        events = getattr(self.session, "events", None)
+        if events is None:
+            return
+        self._spawn(events.publish({"type": "collab_peers", **self.state()}))
+
     def adopt_link(self, link: PeerLink) -> None:
         """Take a new connection to a peer, closing any it replaces.
 
@@ -875,10 +893,12 @@ class PeerNetwork:
             existing.alive = False
             self._spawn(_quietly_close(existing.stream))
         self.links[link.peer_id] = link
+        self._announce_peers()
 
     def dropped(self, link: PeerLink) -> None:
         if self.links.get(link.peer_id) is link:
             self.links.pop(link.peer_id, None)
+            self._announce_peers()
 
     # --- documents --------------------------------------------------------
 

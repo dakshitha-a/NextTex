@@ -178,8 +178,20 @@ export default function Editor({
         const name = who?.displayName?.trim() || "Someone";
         // Which install this is, so the history panel can say "you" about a
         // version rather than printing your own name back at you.
+        // The whole answer, not only `me`. The array of members and
+        // whether each one's link is up was fetched here and thrown away,
+        // and one sheet polled the same route for it, so nothing in the
+        // tab strip could tell "nobody is here" from "somebody is here and
+        // is not being drawn" from "they have gone for good".
         api.collab(projectId)
-          .then((collabState) => set({ peerId: collabState.me }))
+          .then((collabState) => set({
+            peerId: collabState.me,
+            share: {
+              shared: collabState.shared,
+              me: collabState.me,
+              members: collabState.members,
+            },
+          }))
           .catch(() => undefined);
         collab.current = module.collabFor(projectId, {
           name,
