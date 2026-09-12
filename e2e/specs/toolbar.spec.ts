@@ -55,3 +55,36 @@ test("the icon buttons still say what they are", async ({ tab }) => {
   await expect(tab.getByRole("button", { name: "Download a copy" }))
     .toBeVisible();
 });
+
+test("the word count says what it counted, and remembers", async ({ tab }) => {
+  // R-100. The scope was plain `useState`, so a writer who counts their
+  // chapter chose it again every session, and there were two scopes where
+  // the two a writer asks about most are a selection and the section they
+  // are in.
+  // The status strip drops the count below a 640px pane, deliberately, and
+  // the editor half of a default window is narrower than that. The rail
+  // and the agent panel go away rather than the window growing, because a
+  // remembered pane width survives a resize and would not give the room
+  // back.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await tab.keyboard.press("Control+b");
+  await tab.keyboard.press("Control+Alt+a");
+  const count = tab.getByTestId("word-count");
+  await expect(count).toBeVisible({ timeout: 60_000 });
+
+  // Round the cycle to "in file" and leave it there.
+  for (let press = 0; press < 4; press += 1) {
+    if ((await count.innerText()).includes("in file")) break;
+    await count.click();
+    await tab.waitForTimeout(400);
+  }
+  await expect(count).toContainText("in file");
+
+  await tab.reload();
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await tab.keyboard.press("Control+b");
+  await tab.keyboard.press("Control+Alt+a");
+  await expect(tab.getByTestId("word-count")).toContainText("in file", {
+    timeout: 60_000,
+  });
+});

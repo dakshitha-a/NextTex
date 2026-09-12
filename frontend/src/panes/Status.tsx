@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { referencesPending, statusFor } from "./status-dot";
+import { labelFor } from "../words";
+import { type WordScope } from "../api";
 
 /** A spinner shown at 0ms on a one-second task is what tells the user the
  *  task is slow.  The dot only starts breathing once a build crosses this;
@@ -12,6 +14,7 @@ export default function Status({
   onRebuild,
   words,
   wordScope,
+  wordScopes,
   onToggleWordScope,
   onHistory,
   historyOpen,
@@ -20,7 +23,11 @@ export default function Status({
   onToggleDrawer: () => void;
   onRebuild: (full: boolean) => void;
   words: number | null;
-  wordScope: "file" | "document";
+  wordScope: WordScope;
+  /** The scopes the control cycles, which is three or four depending on
+   *  whether anything is selected: a scope that counts nothing is a stop
+   *  on the cycle that reads as the control being broken. */
+  wordScopes: string[];
   onToggleWordScope: () => void;
   onHistory: () => void;
   historyOpen: boolean;
@@ -205,7 +212,8 @@ export default function Status({
       <Rule />
       <button
         className="t-micro tnum w-[92px] shrink-0 text-right text-ink-2 hover:text-ink"
-        title="Click to count this file or the whole document"
+        data-testid="word-count"
+        title={`Counting ${wordScope}. Click for the next of ${wordScopes.join(", ")}.`}
         onClick={onToggleWordScope}
       >
         {/* An en dash, matching the one the file name falls back to a few
@@ -216,9 +224,7 @@ export default function Status({
             in a field of numbers is not punctuation between clauses, so
             the rule is met by using the narrower dash rather than by
             arguing the case. */}
-        {words === null
-          ? "\u2013 words"
-          : `${words.toLocaleString()} ${wordScope === "document" ? "words" : "in file"}`}
+        {words === null ? "\u2013 words" : labelFor(wordScope, words)}
       </button>
       </span>
     </div>

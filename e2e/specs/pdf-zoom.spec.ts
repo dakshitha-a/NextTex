@@ -127,3 +127,39 @@ test("the text layer does not swallow the jump to source", async ({ tab }) => {
   });
   expect(through).toBe("none");
 });
+
+test("a page can be named in either mode, and the zoom is where it was left", async ({
+  tab,
+}) => {
+  // R-099. Next page, previous page and the arrow keys were all gated on
+  // page mode, so a reader in the scrolling one had no way to reach page
+  // 74 of a thesis except by dragging, and the readout was never an input
+  // in either. The view mode was remembered between sessions and the zoom
+  // was not, though the zoom is the one a reader sets for their eyes.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  const box = tab.getByTestId("page-number");
+  await expect(box).toBeVisible({ timeout: 60_000 });
+  // The scrolling mode is the default, and this is the control that was
+  // absent from it entirely.
+  await expect(tab.getByRole("button", { name: "Next page" })).toBeVisible();
+
+  await tab.getByRole("button", { name: "Zoom in" }).click();
+  const zoomed = await tab.getByTestId("zoom").innerText();
+
+  await tab.reload();
+  await expect(tab.getByTestId("zoom")).toHaveText(zoomed, { timeout: 60_000 });
+});
+
+test("the rendered page can be saved without rebuilding it", async ({ tab }) => {
+  // R-098. The only way to save the page was the header's download menu,
+  // whose PDF item forces a full server rebuild first: a wait for a file
+  // the reader is already looking at.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  // A rendered page first: the link is offered only once there is one,
+  // because a Save that fetches nothing is worse than no Save.
+  await expect(tab.getByTestId("page-number")).toBeVisible({ timeout: 60_000 });
+  const save = tab.getByTestId("save-pdf");
+  await expect(save).toBeVisible({ timeout: 20_000 });
+  await expect(save).toHaveAttribute("href", /\/pdf\?/);
+  await expect(save).toHaveAttribute("download", "");
+});

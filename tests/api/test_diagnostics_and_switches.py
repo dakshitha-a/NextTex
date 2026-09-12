@@ -207,3 +207,36 @@ def test_a_log_that_is_not_there_is_not_an_error(client, opened):
 def test_a_document_nobody_has_is_refused(client, opened):
     answer = client.get(f"/api/projects/{opened['id']}/log?document=../../etc/passwd")
     assert answer.status_code in (400, 403, 404)
+
+
+@pytest.mark.skipif(not shutil.which("texcount"), reason="texcount is not installed")
+def test_a_range_of_lines_is_counted_by_the_same_counter(client, opened):
+    """R-100. A selection and a section are counted by texcount over the
+    lines they cover, not by a regular expression in the browser.
+
+    A second counter that disagrees with this one by a few percent on the
+    same prose is worse than no second scope: the writer has no way to tell
+    which of the two numbers is the one their supervisor will get.
+    """
+    session = server_main.SESSIONS[opened["id"]]
+    target = session.project.root / "counted.tex"
+    target.write_text(
+        "\\section{One}\nAlpha beta gamma delta.\n"
+        "\\section{Two}\nEpsilon zeta.\n",
+        encoding="utf-8",
+    )
+
+    whole = client.get(
+        f"/api/projects/{opened['id']}/words?path=counted.tex&scope=file"
+    ).json()
+    part = client.get(
+        f"/api/projects/{opened['id']}/words?path=counted.tex&scope=selection"
+        "&first=1&last=2"
+    ).json()
+    assert whole["words"] is not None and part["words"] is not None
+    assert 0 < part["words"] < whole["words"]
+
+    # And the temporary file it counts is not left behind, nor anywhere a
+    # writer or a collaborator could see it.
+    assert not list(session.project.build_dir.glob(".words-*"))
+    assert not list(session.project.root.glob(".words-*"))

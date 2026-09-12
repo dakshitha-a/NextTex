@@ -5182,3 +5182,48 @@ those happen constantly while somebody writes a nested list. Counting rather
 than parsing: an `\end` inside a comment or a verbatim block is miscounted, and
 the cost of that is one closing line the writer deletes, against parsing the
 buffer on every press of Enter.
+
+### A page number is the one coordinate a long document has
+
+Next page, previous page and the arrow keys were all gated on the page mode,
+so a reader in the scrolling one had no way to reach page 74 of a thesis
+except by dragging, and the readout was never an input in either. Which mode
+somebody is reading in has nothing to do with whether they can name a page.
+The steppers and a number box are in the footer in both modes now, and in
+scroll mode naming a page scrolls its container to the top of the view rather
+than setting a state of its own: the scroll handler then works out which page
+that is, so there is one answer to "which page is this" instead of two that
+can disagree.
+
+The zoom is remembered beside the mode, which has been remembered all along. A
+reader who works at 140 percent because of their eyes or their screen was
+setting it again every session.
+
+And the footer has a Save, for the page that is already rendered and already
+on disk. The only other way to it is the header's download menu, whose PDF
+item forces a full server rebuild first, which is a wait for a file the reader
+is looking at. It drops at narrow widths like everything else on that strip,
+because it is a 26px band and a second line of it is clipped by definition.
+
+### A word count that says what it counted
+
+Two scopes, and the two a writer asks about most are neither of them: how long
+is this selection, and how long is the section I am in. The scope was also
+plain `useState`, so somebody who counts their chapter chose it again every
+session.
+
+Four scopes now, cycled by the same click, remembered between sessions, and
+the strip says which one it is showing rather than leaving the number to be
+interpreted. Selection is offered only when there is one, because a scope that
+counts nothing is a stop on the cycle that reads as the control being broken.
+
+They are all counted by texcount, over a range of lines the server slices out,
+rather than by a regular expression in the browser. That was the tempting
+version and it is wrong: counting a `.tex` file with a regular expression
+counts control sequences and maths as prose, which is the reason texcount is
+here at all, and a second counter disagreeing with the first by a few percent
+on the same prose leaves the writer with no way to tell which number is the
+one their supervisor will get. The slice is written into the build directory,
+which is already out of the tree, the watcher and every walk, so a temporary
+file there cannot appear in front of anybody, and it is removed whether the
+count succeeded or not.
