@@ -2767,7 +2767,11 @@ tab, from the keyboard.
 Cost: a line each in the App keymap and one array for the closed stack. The
 arithmetic is already in `tabs.ts`, including the returned path.
 
-### R-084 · References · comfort · high · confirmed
+### ~~R-084 · References · comfort · high · confirmed~~
+
+**Built.** `POST /library/add` is the resolve route with the paper taken out, and `POST /library/verify` puts the agent's checker in front of a writer. Both are in the Papers section, which now appears for any project with a bibliography rather than only for one that has imported a folder.
+Held by `tests/api/test_library_routes.py` and `e2e/specs/papers.spec.ts`.
+
 
 Where: `nexttex/references.py`, reachable from the interface only through
 `server/main.py:2402`.

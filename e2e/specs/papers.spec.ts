@@ -83,5 +83,59 @@ test("Escape closes the chooser without reading anything", async ({ tab }) => {
   await expect(tab.getByTestId("papers-chooser")).toBeVisible();
   await tab.keyboard.press("Escape");
   await expect(tab.getByTestId("papers-chooser")).toHaveCount(0);
-  await expect(tab.getByTestId("papers-panel")).toHaveCount(0);
+  // The panel is present, because this project has a bibliography and
+  // there are two things to do to one whether or not a folder has ever
+  // been read. What must not have happened is a read: no papers, and no
+  // account of a run.
+  await expect(tab.getByTestId("papers-panel")).toContainText("Papers (0)");
+  await expect(tab.getByText(/not identified/)).toHaveCount(0);
+});
+
+test("a DOI on its own is enough, and the entries can be checked", async ({
+  tab,
+  page,
+}) => {
+  // R-084. The README calls working without an agent "a real option, not a
+  // degraded one" and then describes two things that were agent tools and
+  // nothing else. Both routes are answered here rather than let through:
+  // they reach a publisher, and a browser test must not.
+  await page.route("**/library/add", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        added: true,
+        key: "LeCun2015deep",
+        title: "Deep learning",
+        author: "LeCun, Bengio, Hinton",
+        year: "2015",
+      }),
+    }),
+  );
+  await page.route("**/library/verify", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        checked: 3,
+        problems: [{ key: "knuth1984", issues: ["year is 1986, not 1984"] }],
+        report: "",
+      }),
+    }),
+  );
+
+  const panel = tab.getByTestId("papers-panel");
+  await expect(panel).toBeVisible({ timeout: 20_000 });
+  await panel.getByRole("button", { name: /Papers/ }).click();
+
+  await tab.getByTestId("papers-doi").fill("10.1038/nature14539");
+  await tab.getByRole("button", { name: "Add", exact: true }).click();
+  // What was added, so it can be checked against the page rather than
+  // taken on trust.
+  await expect(tab.getByTestId("papers-added")).toContainText("Deep learning");
+  await expect(tab.getByTestId("papers-added")).toContainText("2015");
+
+  await tab.getByTestId("papers-verify").click();
+  await expect(tab.getByTestId("papers-report")).toContainText("knuth1984");
+  await expect(tab.getByTestId("papers-report")).toContainText("1986");
 });

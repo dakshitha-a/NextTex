@@ -510,6 +510,25 @@ const api = {
   /** What a blank project can be filled with. The route has always been
    *  here and nothing fetched it, so every new project was an article. */
   templates: () => request<{ templates: string[] }>("/templates"),
+  /** One reference from a DOI, with no paper behind it. The resolve route
+   *  needs an unidentified PDF from a folder scan to hang the DOI on. */
+  addByDoi: (id: string, doi: string) =>
+    request<{
+      added: boolean;
+      reason?: string;
+      key?: string;
+      title?: string;
+      author?: string;
+      year?: string;
+    }>(`/projects/${id}/library/add`, json({ doi })),
+  /** Every entry against the record it claims to come from. Reports; it
+   *  writes nothing. */
+  verifyLibrary: (id: string) =>
+    request<{
+      checked: number;
+      problems: { key: string; issues: string[] }[];
+      report: string;
+    }>(`/projects/${id}/library/verify`, json({})),
   loadTemplate: (id: string, name = "basic") =>
     request<{ ok: boolean; written: string[] }>(
       `/projects/${id}/template`,
