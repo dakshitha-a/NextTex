@@ -2339,7 +2339,11 @@ The one thing wrong with it is R-118.
 
 ### The documents
 
-### R-007 · Documents · docs · low · confirmed
+### ~~R-007 · Documents · docs · low · confirmed~~
+
+**Fixed.** Both files quote what the tiers measure now, and a test asserts the two agree with each other, which is the failure that let them drift in different directions.
+Held by `tests/test_documents_match_the_code.py`.
+
 
 Found by: the baseline run. Where: `scripts/check.sh:4` and
 `docs/testing.md:7`.
