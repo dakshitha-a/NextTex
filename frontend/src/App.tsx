@@ -1913,6 +1913,7 @@ export default function App() {
               <Editor
                 handleRef={(handle) => (editor.current = handle)}
                 onAskAbout={askAboutSelection}
+                onOpen={openFile}
               />
 
               {/* A figure is a file in this project like any other: it has

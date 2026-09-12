@@ -8,9 +8,10 @@
  *  \npistar renders as the notation it stands for rather than as an error.
  */
 
-import { hoverTooltip, type Tooltip } from "@codemirror/view";
+import { hoverTooltip, type EditorView, type Tooltip } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
+import { citationFor, inputTarget, labelTarget, linkAt } from "./latex-links";
 
 type Katex = typeof import("katex");
 let katex: Katex | null = null;
@@ -226,7 +227,7 @@ export function mathHover(symbols: () => Symbols | null): Extension {
     const to = Math.min(doc.length, pos + HOVER_WINDOW);
     const near = mathAt(doc.sliceString(from, to), pos - from);
     const span = near && { ...near, from: near.from + from, to: near.to + from };
-    if (!span || !span.body.trim()) return null;
+    if (!span || !span.body.trim()) return linkTooltip(view, pos, symbols);
 
     return {
       pos: span.from,
@@ -262,4 +263,67 @@ export function mathHover(symbols: () => Symbols | null): Extension {
       },
     };
   }, { hoverTime: 250 });
+}
+
+/** What a cross reference points at, and how to follow it.
+ *
+ *  In the same tooltip as the maths and after it, because the two never
+ *  overlap: a `\ref` is not inside an equation. It carries the Ctrl-click
+ *  line as well as the answer, since a modifier-click is not a gesture
+ *  anybody finds by looking at the screen, and the hover is the only place
+ *  it can be mentioned at the moment it would be used.
+ */
+function linkTooltip(
+  view: EditorView, pos: number, symbols: () => Symbols | null,
+): Tooltip | null {
+  const line = view.state.doc.lineAt(pos);
+  const link = linkAt(line.text, pos - line.from);
+  if (!link) return null;
+  const table = symbols();
+  let says: string;
+  let follow = true;
+  if (link.kind === "cite") {
+    const entry = citationFor(link.name, table);
+    says = entry
+      ? [entry.author, entry.year, entry.title].filter(Boolean).join(", ")
+      : `${link.name} is not in the bibliography.`;
+    // A citation is a fact, not a place: there is nothing in this project
+    // to open for it, so the gesture line would be a lie.
+    follow = false;
+  } else if (link.kind === "ref") {
+    const target = labelTarget(link.name, table);
+    says = target
+      ? `${target.file}, line ${target.line}`
+      : `No \\label{${link.name}} in this project.`;
+    follow = Boolean(target);
+  } else {
+    const target = inputTarget(link.name, table);
+    says = target ?? `${link.name} is not a file in this project.`;
+    follow = Boolean(target);
+  }
+  return {
+    pos: line.from + link.from,
+    end: line.from + link.to,
+    above: true,
+    create() {
+      const dom = document.createElement("div");
+      dom.className = "nx-math-tooltip nx-link-tooltip";
+      const what = document.createElement("div");
+      what.textContent = says;
+      dom.append(what);
+      if (follow) {
+        const how = document.createElement("div");
+        how.className = "nx-link-hint";
+        how.textContent = mac() ? "Cmd-click to go there" : "Ctrl-click to go there";
+        dom.append(how);
+      }
+      return { dom };
+    },
+  };
+}
+
+/** Which modifier this keyboard calls the one CodeMirror already reads for
+ *  a second cursor. */
+export function mac(): boolean {
+  return typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 }

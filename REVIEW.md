@@ -2810,7 +2810,11 @@ a tidied entry keyed `LeCun2015deep` in 86 ms, and a DOI that does not exist
 came back as a `LookupError` naming it rather than as an invented entry. The
 path works; nothing in the interface reaches it.
 
-### R-085 · Editor · comfort · high · confirmed
+### ~~R-085 · Editor · comfort · high · confirmed~~
+
+**Built.** Hover on a `\ref`, an `\input` or a `\cite` says where it goes or who wrote it, in the box the equation preview already draws in, and Ctrl-click follows the first two. A citation is hover-only, because it names a paper rather than a place in the project.
+Held by `frontend/src/panes/latex-links.test.ts` and `e2e/specs/latex-links.spec.ts`.
+
 
 Where: `frontend/src/api.ts:63` and `:64`, with
 `frontend/src/panes/math-hover.ts:215`.

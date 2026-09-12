@@ -1189,6 +1189,14 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 }
 /* KaTeX ships its own colours; make it take the theme's ink instead. */
 .nx-math-tooltip .katex { color: var(--ink); font-size: 1.18em; }
+/* The same box, holding a sentence rather than an equation: where a
+   cross reference goes, and the gesture that follows it. */
+.nx-link-tooltip {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.nx-link-hint { color: var(--ink-3); padding-top: 3px; }
 
 /* ---- autocomplete ------------------------------------------------------- */
 /* --surface-2, not --surface: this list floats over the page, and every
