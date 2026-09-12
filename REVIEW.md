@@ -2182,7 +2182,12 @@ because the number is the argument for it being "a piece of work of its own".
 
 ### The live suites, and the papers path against the real services
 
-### R-078 · Testing · bug · high · confirmed
+### ~~R-078 · Testing · bug · high · confirmed~~
+
+**Fixed.** An autouse fixture in `tests/test_live_agent.py` puts the real binary
+back per test, after the conftest has imported, for those two tests only. The
+suite-wide guard is unchanged. `tests/api/test_claude_auth.py` fails if that
+fixture stops being autouse, which is the half nothing was checking.
 
 Found by: running the two live suites the plan asked for. Where:
 `tests/conftest.py:20` against `tests/test_live_agent.py`.
@@ -2277,7 +2282,11 @@ Evidence: with the real CLI restored and the session pinned to
 is intact on Sonnet today. That is the answer the test was asked for and could
 not give.
 
-### R-079 · Testing · docs · low · confirmed
+### ~~R-079 · Testing · docs · low · confirmed~~
+
+**Fixed.** `live_session` takes a model, defaulting to `claude-sonnet-5`, and the
+vocabulary test asserts the turn was charged to it rather than to whatever the
+account defaults to.
 
 Found by: the same run. Where: `tests/test_live_agent.py:39`, `live_session`.
 
@@ -2291,7 +2300,12 @@ docstring or `docs/testing.md` says which model a live run charges.
 A parameter with a default would say it, cost nothing, and let a release check
 run the same assertion against whichever model the writer is actually using.
 
-### R-080 · Testing · bug · medium · confirmed
+### ~~R-080 · Testing · bug · medium · confirmed~~
+
+**Fixed.** `collect` answers a permission card with no and records it, so a turn
+that reaches for a fenced tool ends instead of waiting out its timeout. The
+prompt also asks for the editing tools rather than the shell. Both tests pass
+against a real account in thirteen seconds.
 
 Found by: restoring the real CLI and watching the events arrive one at a time.
 Where: `tests/test_live_agent.py:95`, `test_a_real_edit_arrives_as_an_edit_event`.

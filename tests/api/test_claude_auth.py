@@ -180,6 +180,40 @@ def test_the_suite_never_reaches_the_real_cli():
     assert Path(claude_auth._claude() or "") == FAKE_CLI
 
 
+def test_the_live_file_still_has_its_way_back_to_the_real_cli():
+    """The other half of the guard above, which nothing was checking.
+
+    Pointing the whole suite at the stand-in was the right fix and it also
+    disabled `tests/test_live_agent.py`, the one file written to drive the
+    real SDK. It stayed disabled for three days because it is opt-in and
+    nobody ran it, and when somebody did it reported that the SDK had
+    renamed its events, which is the exact thing it exists to catch.
+
+    So the escape hatch is a thing that can be broken, and this is what
+    breaks when it is: an autouse fixture in that module, which runs after
+    this conftest has imported and puts the real binary back for its own
+    two tests only.
+    """
+    import inspect
+
+    from tests import test_live_agent
+
+    fixture = getattr(test_live_agent, "the_real_cli", None)
+    assert fixture is not None, (
+        "tests/test_live_agent.py has no fixture undoing the conftest guard, "
+        "so it is testing the stand-in it exists to bypass"
+    )
+    marker = getattr(fixture, "_fixture_function_marker", None) or getattr(
+        fixture, "_pytestfixturefunction", None
+    )
+    assert marker is not None and marker.autouse, (
+        "the fixture is not autouse, so it runs only for tests that ask for it"
+    )
+    assert "NEXTTEX_CLAUDE_BINARY" in inspect.getsource(
+        getattr(fixture, "__wrapped__", fixture)
+    )
+
+
 def test_the_browser_tests_cannot_sign_the_machine_out(monkeypatch, client):
     """`e2e/server.ts` sets NEXTTEX_FAKE_CLAUDE_AUTH so the browser tests get
     past the sign-in screen without an account.  `status` honoured that flag
