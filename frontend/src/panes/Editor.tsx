@@ -489,15 +489,27 @@ export default function Editor({
      *  opened, and pressing it sent the agent at a selection that is not
      *  there any more. The spelling menu is the same shape.
      *
-     *  The caret readout is the third thing R-069 names and it is not
-     *  fixed here. Writing the caret from the parked state stopped later
-     *  keystrokes reaching the readout at all, which is worse than the
-     *  bug, and I could not account for it; it is in `TRACKER.md` with
-     *  that reason rather than shipped half understood.
+     *  The caret readout is the third. It is read from the state now on
+     *  screen, after `setState`, and written straight to the store rather
+     *  than through `onCursor`: that path also places the verb row, tells
+     *  the collaborators where this browser is and arms the focus timer,
+     *  none of which a swap should do. The fix run's attempt at this left
+     *  the readout stuck after the swap, and the test that covers it types
+     *  after opening the file for exactly that reason.
      */
     const afterSwap = () => {
       setActions((open) => (open === null ? open : null));
       setOffer((open) => (open === null ? open : null));
+      const state = view.current?.state;
+      if (!state) return;
+      const head = state.selection.main.head;
+      const line = state.doc.lineAt(head);
+      const cursor = { line: line.number, column: head - line.from + 1 };
+      const held = get().cursor;
+      if (held.line !== cursor.line || held.column !== cursor.column) {
+        set({ cursor });
+      }
+      if (get().lineCount !== state.doc.lines) set({ lineCount: state.doc.lines });
     };
 
     const backToNow = () => {
