@@ -916,6 +916,32 @@ class CollabStore:
             return False
         return True
 
+    def open_texts(self) -> dict[str, str]:
+        """The live text of every document that is already open, by path.
+
+        Only the open ones.  `body()` opens a document that is not, which
+        reads its update log off disk and replays it, and doing that for
+        every file in a thesis to answer a search is a great deal of work
+        for something the files themselves already say.  A document is open
+        because somebody has it in front of them, which is exactly the file
+        whose newest sentence has not reached disk yet: the flush is on a
+        debounce, so a search that read only disk would not find what was
+        typed a moment ago and would read as broken.
+
+        Called on the loop thread, because everything here touches a pycrdt
+        document.  What it returns is plain strings, which is what the
+        search itself works on and can take away with it.
+        """
+        out: dict[str, str] = {}
+        for file_id, text in self._body.items():
+            record = self.files.get(file_id)
+            if record is None or record.get("trashed"):
+                continue
+            path = record.get("path")
+            if isinstance(path, str):
+                out[path] = str(text)
+        return out
+
     def project_everything(self) -> None:
         """Mark every live record for writing, whatever the watcher saw.
 

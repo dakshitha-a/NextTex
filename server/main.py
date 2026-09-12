@@ -58,10 +58,10 @@ from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
-    is_ours,
+    is_ours, kind_of,
 )
 from nexttex.symbols import walk_project
-from nexttex import deps, updates
+from nexttex import deps, search, updates
 from nexttex.install.ui import child_env
 from server.session import CLOSED, ProjectSession, spawn
 
@@ -1816,6 +1816,45 @@ async def read_file(project_id: str, path: str):
     }
 
 
+
+async def _save_text(session: ProjectSession, target: Path, text: str, *,
+                     source: str = "") -> str | None:
+    """Write one file, record a version of it, and fold it into the share.
+
+    The five steps `write_file` has always taken, in the order it takes
+    them, pulled out because project-wide replace takes exactly the same
+    five per file and a second copy of them would drift.  What stays in
+    `write_file` is everything that is about *one* save: the size ceiling,
+    the refusal to bring a deleted file back, the rebuild and the
+    announcement, all of which a replace does once for the whole batch
+    rather than once per file.
+
+    Returns the text that was there before, or None if the file was new.
+    """
+    previous = await asyncio.to_thread(read_text, target)
+    try:
+        # Off the loop: two fsyncs, a sha256 and a zlib compression, none
+        # of which is anybody's keystroke. The constraint recorded in
+        # `docs/architecture.md` is about pycrdt documents and the thread
+        # that built them, and none of these three touches one; `_ingest`
+        # does, and stays where it is.
+        await asyncio.to_thread(write_atomically, target, text)
+    except NotAFile as error:
+        raise HTTPException(400, str(error))
+    except OSError as error:
+        raise HTTPException(500, f"could not save: {error}")
+    session.mark_written(target)
+    await asyncio.to_thread(
+        session.record_version, target, text,
+        by="you", previous=previous, source=source,
+    )
+    # And into the shared document, so anybody with this file open sees it
+    # arrive rather than finding out at their next reload.
+    _ingest(session, target, text)
+    await asyncio.to_thread(session.note_edit, target, text, previous)
+    return previous
+
+
 @app.put("/api/projects/{project_id}/file")
 async def write_file(
     project_id: str,
@@ -1863,29 +1902,8 @@ async def write_file(
         # mkdir-and-write then recreated it -- so the writer went on editing
         # an orphan nothing includes.
         raise HTTPException(404, "no such file")
-    previous = await asyncio.to_thread(read_text, target)
+    previous = await _save_text(session, target, text, source=origin)
     created = previous is None
-    try:
-        # Off the loop: two fsyncs, a sha256 and a zlib compression, none
-        # of which is anybody's keystroke. The constraint recorded in
-        # `docs/architecture.md` is about pycrdt documents and the thread
-        # that built them, and none of these three touches one; `_ingest`
-        # does, and stays where it is.
-        await asyncio.to_thread(write_atomically, target, text)
-    except NotAFile as error:
-        raise HTTPException(400, str(error))
-    except OSError as error:
-        raise HTTPException(500, f"could not save: {error}")
-    session.mark_written(target)
-    await asyncio.to_thread(
-        session.record_version, target, text,
-        by="you", previous=previous, source=origin,
-    )
-    # And into the shared document, so anybody with this file open sees it
-    # arrive rather than finding out at their next reload.
-    _ingest(session, target, text)
-
-    await asyncio.to_thread(session.note_edit, target, text, previous)
     if compile:
         session.schedule_compile()
     tag = _tag(text)
@@ -1901,6 +1919,122 @@ async def write_file(
             "structural": created,
         })
     return {"ok": True, "tag": tag, "mtime": target.stat().st_mtime}
+
+
+def _project_texts(session: ProjectSession) -> dict[str, str]:
+    """Every text file in the project, by relative path, newest first.
+
+    Two sources, and the order matters. Disk is the whole project and is
+    behind by the projection debounce; the open documents are only the
+    files somebody has in front of them and are exactly up to date. The
+    open ones win, so a search finds the sentence typed a moment ago
+    rather than reporting that it is not there.
+
+    The disk half is a walk and a read per file and belongs off the loop;
+    the document half touches pycrdt and cannot leave it. So the caller
+    gathers the documents first, on the loop, and hands them in.
+    """
+    texts: dict[str, str] = {}
+    project = session.project
+    for path in walk_project(project.root, build_dir=project.build_dir):
+        if kind_of(path.name) != "text" or is_ours(path.name):
+            continue
+        try:
+            if path.stat().st_size > MAX_TEXT_BYTES:
+                continue
+        except OSError:
+            continue
+        body = read_text(path)
+        if body is not None:
+            texts[project.relative(path)] = body
+    return texts
+
+
+@app.get("/api/projects/{project_id}/search")
+async def search_project(
+    project_id: str, q: str = "", regex: bool = False, case: bool = False
+):
+    """Every place a string appears in the project.
+
+    The editor has always had find and replace inside one file and nothing
+    at all across the project, so renaming a label meant opening every
+    chapter and pressing Ctrl-F in each of them.
+
+    The regular expression work happens in a thread. A pattern is written
+    by whoever is holding the keyboard and Python's `re` has no timeout,
+    so a pattern that backtracks exponentially would otherwise stop the
+    whole install; in a thread it costs a worker.
+    """
+    session = session_for(project_id)
+    try:
+        pattern = search.compile_pattern(q, regex=regex, case=case)
+    except search.SearchError as error:
+        raise HTTPException(400, str(error))
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({path: body for path, body in live.items() if path in texts})
+    hits, capped = await asyncio.to_thread(search.find, texts, pattern)
+    return {
+        "hits": [hit.as_dict() for hit in hits],
+        "capped": capped,
+        "files": len({hit.path for hit in hits}),
+        "searched": len(texts),
+    }
+
+
+@app.post("/api/projects/{project_id}/search/replace")
+async def replace_in_project(
+    project_id: str,
+    q: str = Body(...),
+    to: str = Body("", alias="with"),
+    regex: bool = Body(False),
+    case: bool = Body(False),
+    paths: list[str] | None = Body(None),
+    origin: str = Body(""),
+):
+    """Replace every match, through the ordinary save path.
+
+    Every file that changes gets a version in its history, because that is
+    the undo: a replace across a thesis is the one edit nobody can take
+    back by pressing Mod-Z, and the confirmation in front of it says so.
+
+    `with` is the field name on the wire, because that is what it is
+    called on screen, and it is a keyword in Python.
+    """
+    session = session_for(project_id)
+    try:
+        pattern = search.compile_pattern(q, regex=regex, case=case)
+    except search.SearchError as error:
+        raise HTTPException(400, str(error))
+    wanted = set(paths) if paths else None
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({path: body for path, body in live.items() if path in texts})
+
+    changed: list[str] = []
+    replaced = 0
+    for relative, before in texts.items():
+        if wanted is not None and relative not in wanted:
+            continue
+        try:
+            after, count = await asyncio.to_thread(
+                search.replace, before, pattern, to, regex=regex,
+            )
+        except search.SearchError as error:
+            raise HTTPException(400, str(error))
+        if not count or after == before:
+            continue
+        await _save_text(session, _safe(session, relative), after, source=origin)
+        changed.append(relative)
+        replaced += count
+
+    if changed:
+        session.schedule_compile()
+        await session.events.publish({
+            "type": "files_changed", "paths": changed, "origin": origin,
+            "structural": False,
+        })
+    return {"files": len(changed), "replaced": replaced, "paths": changed}
 
 
 @app.post("/api/projects/{project_id}/flush")

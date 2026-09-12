@@ -5263,3 +5263,48 @@ built, and a section count when the caret crosses a heading. A selection is
 written to the store as it is dragged, which is right for everything else in
 the strip and would be a subprocess per frame here, so that one scope waits
 400 ms for the drag to settle, the same pause the cursor sync uses.
+
+### Find in one file, and find in all of them
+
+The editor has had CodeMirror's find and replace since the first week, and it
+searches the file in front of you. There was nothing at all across the
+project, so renaming a label or swapping `\cite` for `\citep` meant opening
+every chapter and pressing Ctrl-F in each of them, and the writer's own memory
+of which chapters they had done was the only record of progress.
+
+`Cmd-Shift-F` is the same question asked of every file, which is the
+convention every editor with both has settled on, and it opens a panel in the
+rail under Files. Under Files rather than in a window of its own, because it
+answers the same question the filter row above it answers and answers it about
+the contents rather than the names, and because a modal find panel over the
+document hides the thing being searched.
+
+Results are grouped by file, not listed flat. The question a writer asks of a
+project search is "which files" at least as often as "which lines", and forty
+hits in one file listed flat answers neither. Each row carries the line
+number, the line, and the match marked in it with the same colour the editor's
+own find uses: two searches in one app that highlight differently read as two
+features.
+
+The search runs over what the editor has, not only over what is on disk. The
+projection to disk is on a debounce, so a search that read files alone would
+not find the sentence typed a moment ago, and a search that cannot find what
+is on screen reads as broken rather than as stale. The documents that are open
+are the ones somebody is typing in, so those are taken live and everything
+else comes off disk.
+
+Replacing everywhere is behind a confirmation, and the confirmation says where
+the work goes if it was a mistake: each file that changes keeps a version in
+its history. That is the whole undo. A replace across a thesis is the one edit
+Mod-Z cannot take back, because the change is in twelve files and eleven of
+them are not open, so the sentence has to be in front of the writer at the
+moment they decide rather than in a document they would have to go and find.
+
+Two things about the query are worth writing down. A plain query is taken
+literally, so `eq.flux` does not match `eq:flux`: a full stop is the commonest
+character in prose and a writer who has not asked for a pattern has not asked
+for one. And the replacement is inserted as it was typed rather than read for
+escapes, because a LaTeX writer's replacement is mostly backslashes, and
+`re.sub` handed `\citep` as a replacement string raises "bad escape". With
+the pattern switch on, `\1` means the first group again, which is what was
+asked for.

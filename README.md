@@ -963,7 +963,13 @@ there, and somebody would have to invite you back.
 | `⌘B` / `Ctrl-B` | Hide the file list |
 | `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
 | `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on |
-| `Ctrl-F` | Find and replace |
+| `⌘F` / `Ctrl-F` | Find and replace in the file you are in |
+| `⌘⇧F` / `Ctrl-⇧F` | Find and replace across every file in the project |
+| `⌘⌥O` / `Ctrl-Alt-O` | Open a file by typing its name |
+| `⌘⌥[` `⌘⌥]` / `Ctrl-Alt-[` `Ctrl-Alt-]` | Previous and next tab |
+| `⌘⌥W` / `Ctrl-Alt-W` | Close the tab in front |
+| `⌘⌥⇧T` / `Ctrl-Alt-⇧T` | Reopen the tab you just closed |
+| `F8`, `⇧F8` | Next and previous error |
 | Typing, in the file tree | Jump to a file |
 | `F2`, `Delete`, in the file tree | Rename, move to trash |
 | `Esc`, in the agent panel | Stop the turn if one is running, otherwise close the panel |

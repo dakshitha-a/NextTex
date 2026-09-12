@@ -943,6 +943,10 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   background: color-mix(in oklab, var(--warn) 30%, transparent); }
 .cm-editor .cm-searchMatch-selected {
   background: color-mix(in oklab, var(--hint) 45%, transparent); }
+/* The same mark the editor's own find puts on a match, on the lines the
+   project search lists: two searches in one app that highlight
+   differently read as two features. */
+.nx-found { background: color-mix(in oklab, var(--warn) 30%, transparent); }
 
 /* The window's own frame, and the one element in the app that must never
    scroll.  Every pane inside it scrolls for itself.
