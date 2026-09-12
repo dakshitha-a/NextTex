@@ -191,9 +191,29 @@ def test_an_unknown_api_route_is_a_404_and_not_the_whole_interface(client):
     typo in a path, or a route removed while a tab was open, answered 200
     with the interface as its body, and the browser's error path read that
     as success and tried to parse a page of HTML as JSON."""
-    answer = client.get("/api/projects/nosuch/open")
+    answer = client.get("/api/no-such-route-at-all")
 
     assert answer.status_code == 404
+    assert "text/html" not in answer.headers.get("content-type", "")
+
+
+def test_a_known_route_reached_the_wrong_way_is_not_the_interface_either(client):
+    """`/api/projects/{id}/open` is a POST, and this asks for it with GET.
+
+    It used to be what the test above asked for, which made it a test of
+    the router's method handling rather than of the catch-all, and the two
+    disagree across versions of the framework: one answers 405 before
+    anything else can look at the path, and one falls through to the next
+    route that matches, which is the catch-all. It passed here and failed
+    on a runner for that reason alone.
+
+    The claim worth holding is the one that does not depend on which of
+    those happens: a request under /api/ is never answered with a page of
+    HTML.
+    """
+    answer = client.get("/api/projects/nosuch/open")
+
+    assert answer.status_code in (404, 405), answer.status_code
     assert "text/html" not in answer.headers.get("content-type", "")
 
 
