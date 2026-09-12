@@ -1,4 +1,4 @@
-import { memo, useMemo, type ReactNode } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 
 /** Just enough Markdown for what an agent writes about a document.
  *
@@ -166,9 +166,12 @@ const Rendered = memo(function Rendered(
 ) {
   if (block.kind === "code") {
     return (
-      <pre className="t-code-sm overflow-x-auto rounded-[3px] bg-surface-2 p-2">
-        {block.text}
-      </pre>
+      <div className="group relative">
+        <pre className="t-code-sm overflow-x-auto rounded-[3px] bg-surface-2 p-2">
+          {block.text}
+        </pre>
+        <CopyButton text={block.text} />
+      </div>
     );
   }
   if (block.kind === "heading") {
@@ -199,6 +202,42 @@ const Rendered = memo(function Rendered(
   }
   return <p className="whitespace-pre-wrap">{inline(block.text, key)}</p>;
 }, same);
+
+/** Copy on a code block.
+ *
+ *  What an agent writes in a code block is usually meant to be taken
+ *  somewhere: a command to run, a preamble line to paste. Selecting the
+ *  text of a `<pre>` by hand works and is the wrong tool for a thing that
+ *  happens every conversation. Its own component because `Rendered` is
+ *  memoised on the block and the "Copied" moment is state that must not
+ *  break that.
+ *
+ *  Hidden until hover only where hover exists (`hoverable:`), the way the
+ *  error drawer's Copy is, so a finger sees it; and the same clipboard
+ *  call, so a browser that refuses is refused in one place. */
+function CopyButton({ text }: { text: string }) {
+  const [said, setSaid] = useState<"" | "Copied" | "Could not copy">("");
+  return (
+    <button
+      className="ghost-button absolute right-1 top-1 h-[22px] px-2 t-micro hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100"
+      data-testid="code-copy"
+      onClick={() => {
+        const clipboard = navigator.clipboard;
+        if (!clipboard) {
+          setSaid("Could not copy");
+          return;
+        }
+        clipboard
+          .writeText(text)
+          .then(() => setSaid("Copied"))
+          .catch(() => setSaid("Could not copy"));
+        window.setTimeout(() => setSaid(""), 1500);
+      }}
+    >
+      {said || "Copy"}
+    </button>
+  );
+}
 
 export default function Prose({ text }: { text: string }) {
   // Parsed once per distinct message rather than once per render: a chat

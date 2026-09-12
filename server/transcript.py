@@ -14,6 +14,7 @@ produces hundreds of fragments and one paragraph.
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import time
 from pathlib import Path
@@ -144,6 +145,71 @@ class Transcript:
         # The next append recreates the file, and `_tail` already copes with
         # it not being there in the meantime.
         return target.name
+
+    #: What an archive is called. The same shape `archive()` writes, so a
+    #: name that does not match is not one of ours and is never opened.
+    ARCHIVE_NAME = re.compile(r"^transcript-\d{8}-\d{6}(?:-\d+)?\.jsonl$")
+
+    def archives(self) -> list[dict]:
+        """The conversations filed away, newest first, each with a title.
+
+        "New conversation" filed the old one under a timestamp and the
+        server returned the name it used, and nothing listed them, so a
+        past conversation was reachable only by finding the file. Newest
+        first by name, because the name carries the time the archive was
+        made and the modification time does not survive copying a project
+        between machines. The title is the first thing the writer asked,
+        since fifty timestamps is not a list anybody can choose from.
+        """
+        found: list[dict] = []
+        try:
+            names = sorted(
+                (old for old in self.path.parent.glob("transcript-*.jsonl")
+                 if self.ARCHIVE_NAME.match(old.name)),
+                key=lambda old: old.name, reverse=True,
+            )
+        except OSError:
+            return found
+        for old in names:
+            try:
+                size = old.stat().st_size
+            except OSError:
+                continue
+            title = ""
+            try:
+                with old.open("r", encoding="utf-8", errors="replace") as handle:
+                    for line in handle:
+                        try:
+                            item = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if item.get("kind") == "user":
+                            title = str(item.get("text", ""))[:120]
+                            break
+            except OSError:
+                pass
+            found.append({"name": old.name, "title": title, "size": size,
+                          "stamp": self._stamp_of(old.name)})
+        return found
+
+    @staticmethod
+    def _stamp_of(name: str) -> str:
+        """The timestamp in an archive's name, as ISO-ish text the panel
+        can show without parsing it a second time."""
+        digits = name[len("transcript-"):len("transcript-") + 15]
+        return (f"{digits[0:4]}-{digits[4:6]}-{digits[6:8]} "
+                f"{digits[9:11]}:{digits[11:13]}:{digits[13:15]}")
+
+    def archived(self, name: str) -> list[dict] | None:
+        """One filed-away conversation's items, or None if there is no
+        such archive. Read through the same tail the live transcript uses,
+        so a very long past conversation shows its end."""
+        if not self.ARCHIVE_NAME.match(name):
+            return None
+        target = self.path.with_name(name)
+        if not target.is_file():
+            return None
+        return Transcript(target).items()
 
     def _prune_archives(self) -> None:
         """Keep the most recent archived conversations and no more.

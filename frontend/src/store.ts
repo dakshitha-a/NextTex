@@ -440,6 +440,16 @@ const nextId = () => `item-${Date.now().toString(36)}-${counter++}`;
  *  cannot see.  The chips and permission records are also the audit trail
  *  of what an assistant did to the document, which is not session state. */
 export function replayTranscript(items: any[]) {
+  set({ chat: chatFromTranscript(items), awaitingPermission: false });
+}
+
+/** A transcript's rows as the panel's own items, with nothing set.
+ *
+ *  The pure half of the replay, because a past conversation is drawn from
+ *  the same rows and must not touch the store: the live conversation is
+ *  what the store holds, and reading an old one has to leave it exactly
+ *  where it was. */
+export function chatFromTranscript(items: any[]): ChatItem[] {
   const chat: ChatItem[] = [];
   for (const item of items) {
     const at = item.at ?? Date.now();
@@ -503,7 +513,7 @@ export function replayTranscript(items: any[]) {
       tone: "error",
     });
   }
-  set({ chat, awaitingPermission: false });
+  return chat;
 }
 
 /** Whether a transcript stops in the middle of a turn.

@@ -1,5 +1,7 @@
 import {
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -11,6 +13,9 @@ import { verbFor, type CallState } from "./tool-verb";
 import { createTwoFilesPatch } from "diff";
 import Patch from "./Patch";
 import Prose from "./prose";
+// Fetched when somebody asks for it: most sessions never open a past
+// conversation, and the list and its renderers should not ship ahead of that.
+const PastConversation = lazy(() => import("./PastConversation"));
 import { shortRule } from "./short-rule";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
 import { agentName, usageNote } from "../agent-name";
@@ -203,6 +208,8 @@ export default function Chat({
   const usageButton = useRef<HTMLButtonElement | null>(null);
   const [modelOpen, setModelOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  /** Reading a filed-away conversation instead of the live one. */
+  const [past, setPast] = useState(false);
   const modelRef = useRef<HTMLDivElement | null>(null);
   const modelButton = useRef<HTMLButtonElement | null>(null);
   // The two blocks that open *above* the composer.  They come before the
@@ -577,6 +584,12 @@ export default function Chat({
         ) : null}
       </div>
 
+      {past ? (
+        <Suspense fallback={null}>
+          <PastConversation onBack={() => setPast(false)} />
+        </Suspense>
+      ) : (
+      <>
       {showUsage && usage ? (
         <div
           ref={usageRef}
@@ -945,6 +958,22 @@ export default function Chat({
             >
               <NewChat />
             </button>
+            {/* What "New conversation" files away. The server has kept
+                the last fifty and returned each one's name, and the
+                browser threw the name away; nothing listed them. */}
+            <button
+              className={ICON}
+              aria-label="Past conversations"
+              title="Read a conversation that was filed away"
+              data-testid="past-open"
+              onClick={() => {
+                setConfirmClear(false);
+                setSetupOpen(false);
+                setPast(true);
+              }}
+            >
+              <Clock />
+            </button>
             <div className="relative">
               <button
                 ref={modelButton}
@@ -1160,6 +1189,8 @@ export default function Chat({
           </button>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -1191,6 +1222,16 @@ function NewChat() {
     <svg {...stroke} aria-hidden="true">
       <path d="M11.5 8.2a1 1 0 0 1-1 1H5.2L2.8 11.2V9.2h-.3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1z" />
       <path d="M6.5 4.2v2.8M5.1 5.6h2.8" />
+    </svg>
+  );
+}
+
+/** A clock face: what was said before. */
+function Clock() {
+  return (
+    <svg {...stroke} aria-hidden="true">
+      <circle cx="6.5" cy="6.5" r="4.8" />
+      <path d="M6.5 3.9v2.8l1.8 1.2" />
     </svg>
   );
 }
