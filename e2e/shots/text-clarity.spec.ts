@@ -93,8 +93,17 @@ for (const ground of GROUNDS) {
       for (let i = 0; i < 10; i += 1) await page.keyboard.press("ArrowDown");
       await page.waitForTimeout(900);
       await editor.screenshot({
+        // Named by the ratio whenever it is not the 2 this was tuned at.
+        // 1.25 is the one that was missing and it is the ordinary default
+        // on a Windows laptop at 125 per cent scaling: the clarity work
+        // here is about whole-pixel alignment, gutters and hairlines, and
+        // a fractional ratio is exactly where whole-pixel reasoning stops
+        // holding. A rule that lands on a boundary at 1 and at 2 lands
+        // between pixels at 1.25.
         path: `shots/out-clarity-${ground}-${candidate}${
-          process.env.NEXTTEX_SHOT_DPR === "1" ? "-1x" : ""
+          process.env.NEXTTEX_SHOT_DPR && process.env.NEXTTEX_SHOT_DPR !== "2"
+            ? `-${process.env.NEXTTEX_SHOT_DPR}x`
+            : ""
         }.png`,
         clip: { x: 0, y: 0, width: 560, height: 300 },
       });

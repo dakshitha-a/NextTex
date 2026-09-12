@@ -3228,7 +3228,9 @@ found that the interface's idea of "connected" describes the browser's own
 socket and not the peer link, is very likely the same fault seen from the
 other side.
 
-### R-106 · Appearance · bug · medium · likely
+### ~~R-106 · Appearance · bug · medium · likely~~
+
+**Fixed.** Both shot suites take the ratio from `NEXTTEX_SHOT_DPR` and name the files by it. The laptop reports the ratio is not constant on that machine either: Chrome came back at 2 on the same display the next day, so 1.25 is one of at least two values and the fractional one is the untuned one.
 
 Found by: the Windows laptop, reporting its own display. Where: the text
 clarity work in `docs/design.md` and `e2e/shots/text-clarity.spec.ts`.
@@ -3660,7 +3662,10 @@ Evidence: `11-working-tool--light--1600.png` and its dark twin,
 Expected: the activity line is the only thing on screen during a turn that
 says what is happening, and it has the room.
 
-### R-111 · Interface · bug · medium · likely
+### ~~R-111 · Interface · bug · medium · likely~~
+
+**Confirmed and fixed.** The hit zone overhangs into the editor, which paints in a later stacking context, so the press never reached the handle.
+Held by `e2e/specs/layout.spec.ts`, which drags the handle and asserts the rail moved and nothing was selected.
 
 Found by: the sweep, from two shots that should have differed and did not.
 Where: `frontend/src/chrome.tsx:287`, with `frontend/src/App.tsx:880`.

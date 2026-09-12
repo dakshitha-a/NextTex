@@ -4905,3 +4905,30 @@ will still start a selection in whatever is under it unless told not to.
 Every screen in this repository had been photographed at a device pixel ratio
 of 1 or 2. A Windows laptop at 125 per cent scaling, which is the ordinary
 default on a laptop of that class, renders at 1.25. The clarity work here is
+specifically about whole-pixel alignment, gutters and hairlines, and a
+fractional ratio is exactly where whole-pixel reasoning stops holding: a rule
+that lands on a pixel boundary at 1 and at 2 lands between pixels at 1.25.
+
+Both shot suites take the ratio from `NEXTTEX_SHOT_DPR` now and name the files
+by it, so a sweep at 1.25 sits beside the sweep at 1 rather than overwriting
+it.
+
+### The front door, and the one line of it nobody could read
+
+The sign-in page is server-rendered, because it has to draw before the bundle
+is authorised, and it is written as a string. It had no `<html>` element at
+all, so the browser synthesised one with no `lang` and a screen reader
+announced the first page a new writer meets in whatever language their machine
+happens to default to. `frontend/index.html` has carried `lang="en"` all along.
+
+Its palette is a copy, written out by hand, because the built stylesheet's name
+is content-hashed and this page has no way to look it up. The copy had drifted
+in the way a copy does: the recovery command is `pre > code` on `--surround` at
+twelve pixels, and `--ink-3` measures 4.16:1 there against the 4.5 that small
+text needs. The app's own answer to that exact pairing is `.nx-on-surround`,
+which steps the dimmest ink up to `--ink-2`, and it cannot reach a page that
+cannot import the stylesheet. So the page carries `--ink-2` and uses it, and a
+test now reads both of its `:root` blocks and asserts every value against
+`styles.css`.
+
+### The only control on the restart line did nothing

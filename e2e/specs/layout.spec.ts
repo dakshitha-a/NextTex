@@ -605,3 +605,58 @@ test("the agent button never sits on top of the panel it opens", async ({
     "the pill overlaps the agent panel",
   ).toBeLessThanOrEqual(panel.x + 1);
 });
+
+test("the rail's handle resizes the rail rather than selecting the editor", async ({
+  tab,
+}) => {
+  // R-111. Two sweep shots that should have differed did not: the rail was
+  // at the same 240 pixels before and after a drag, and the only change
+  // between the two images was a text selection inside the editor, in both
+  // themes. So the press never reached the handle. The visible divider is
+  // one pixel and the thing that answers a press is a nine-pixel span that
+  // overhangs it, half into the pane on each side, and the half over the
+  // editor is the half that has to win.
+  const rail = tab.locator('[data-testid="chat"]').first();
+  const handle = tab.locator(".nx-handle").first();
+  await expect(handle).toBeVisible();
+
+  const before = await tab.evaluate(() =>
+    Math.round(
+      document.querySelector('[role="tree"]')?.closest(".nx-pane")
+        ?.getBoundingClientRect().width ?? 0,
+    ),
+  );
+  expect(before).toBeGreaterThan(0);
+
+  const box = (await handle.boundingBox())!;
+  const middle = box.y + box.height / 2;
+  // From the half of the hit zone that hangs over the editor, which is the
+  // side the record says loses.
+  await tab.mouse.move(box.x + box.width / 2 + 3, middle);
+  await tab.mouse.down();
+  // A move per frame, because the handler is throttled with
+  // `requestAnimationFrame`: ten steps dispatched in one tick are nine
+  // moves the app never sees, and the last one can land after the release.
+  for (const step of [25, 50, 75, 100]) {
+    await tab.mouse.move(box.x + step, middle);
+    await tab.waitForTimeout(40);
+  }
+  await tab.mouse.up();
+  await tab.waitForTimeout(100);
+
+  const after = await tab.evaluate(() =>
+    Math.round(
+      document.querySelector('[role="tree"]')?.closest(".nx-pane")
+        ?.getBoundingClientRect().width ?? 0,
+    ),
+  );
+  expect(after).toBeGreaterThan(before + 40);
+
+  // And nothing was selected on the way past, which is the other half of
+  // what those two shots showed.
+  const selected = await tab.evaluate(() =>
+    (window.getSelection()?.toString() ?? "").trim(),
+  );
+  expect(selected).toBe("");
+  expect(rail).toBeTruthy();
+});
