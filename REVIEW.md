@@ -2890,7 +2890,11 @@ reword. Worth knowing while there: the rc file is read from the install
 directory at `main.py:3193`, so a project cannot carry its own and there is no
 way to silence one warning.
 
-### R-088 · Preview · comfort · medium · confirmed
+### ~~R-088 · Preview · comfort · medium · confirmed~~
+
+**Built.** `Cmd-F` with the preview holding the keyboard opens a find bar above the page: the text is extracted once per build, matches are counted, Enter and Shift-Enter step, and the current one is marked in the text layer and scrolled to. The editor's own `Cmd-F` is untouched.
+Held by `frontend/src/panes/pdf-find.test.ts` and `e2e/specs/pdf-find.spec.ts`.
+
 
 Where: `frontend/src/panes/Pdf.tsx:254` and `:237`.
 

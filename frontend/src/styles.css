@@ -947,6 +947,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    project search lists: two searches in one app that highlight
    differently read as two features. */
 .nx-found { background: color-mix(in oklab, var(--warn) 30%, transparent); }
+/* And on the typeset page: the span in the text layer the current match
+   sits in, which is otherwise transparent text over the picture. The
+   selected-match colour, because there is only ever one at a time. */
+.nx-find-hit {
+  background: color-mix(in oklab, var(--hint) 45%, transparent);
+  border-radius: 2px;
+}
 
 /* The window's own frame, and the one element in the app that must never
    scroll.  Every pane inside it scrolls for itself.

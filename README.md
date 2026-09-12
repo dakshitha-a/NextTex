@@ -964,6 +964,7 @@ there, and somebody would have to invite you back.
 | `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
 | `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on |
 | `⌘F` / `Ctrl-F` | Find and replace in the file you are in |
+| `⌘F` / `Ctrl-F`, on the page | Find on the typeset page |
 | `⌘⇧F` / `Ctrl-Shift-F` | Find and replace across every file in the project |
 | `⌘⌥O` / `Ctrl-Alt-O` | Open a file by typing its name |
 | `⌘⌥[` `⌘⌥]` / `Ctrl-Alt-[` `Ctrl-Alt-]` | Previous and next tab |

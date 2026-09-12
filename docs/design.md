@@ -5355,8 +5355,9 @@ should perhaps be used", which is correct, and useless to somebody who has
 never heard of interword spacing. The route was already parsing the warning
 number chktex prints and throwing it away.
 
-Twenty-three warnings have English now, which is every one that could be made
-to fire under the settings this project uses. Each explanation says what the
+Twenty-three warnings have English now, which is every one the probe corpus
+could provoke under the settings this project uses; about a dozen numbers
+were never provoked and may be reachable with input nobody tried. Each explanation says what the
 reader will see on the page, because that is the part a writer can judge: not
 "intersentence spacing should perhaps be used" but "a sentence ending in a
 capital runs into the next one, because TeX read the full stop as an
@@ -5369,4 +5370,29 @@ the test runs chktex over all twenty-three and asserts each number comes back.
 A chktex that renumbers its warnings fails the suite. The same test reads the
 muted list out of `.chktexrc` and refuses an explanation for anything muted,
 and checks that nothing the triggers fire is left without one.
+
+### The page could be selected and never searched
+
+The text layer that makes a page selectable has carried every word on it since
+the preview was built, and there was no way to ask it anything: reading a
+two-hundred-page thesis for one sentence meant scrolling. `Cmd-F` with the
+preview holding the keyboard, which it does after a click on a page, opens a
+find bar above it. In the editor the same key is the editor's own find, which
+searches the source and stays exactly what it was.
+
+The bar is above the page rather than in the footer. The editor's own find sits
+at the top of its pane, so the two match, and the footer is a 26px strip that
+already drops controls at three widths and could not have held an input at any
+of them. It is unmounted when closed, so nothing is drawn for a reader who
+never uses it.
+
+The text is extracted once per build and kept. A walk of a three-hundred-page
+document's text content is a few hundred milliseconds once, and would be that
+per keystroke without the cache. Matching is plain and case-insensitive,
+because the project search and the editor's find both are by default, and
+three finds in one app that disagree about what a query means read as three
+features. The current match takes the editor's selected-match colour and the
+page scrolls to it; a match that straddles two of pdf.js's text items, where a
+line breaks mid-word or the font changes, is counted and scrolled to but has no
+single span to mark, which is accepted rather than worked around.
 
