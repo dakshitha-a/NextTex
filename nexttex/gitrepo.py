@@ -219,7 +219,30 @@ def initialise(root: Path, ignore: str = "") -> None:
     if not gitignore.exists():
         gitignore.write_text(contents, encoding="utf-8")
     _run(root, "add", "-A")
-    _run(root, "commit", "-m", "Start this writing project")
+    _run(root, *_who(root), "commit", "-m", "Start this writing project")
+
+
+def _who(root: Path) -> list[str]:
+    """A name to commit under, only when git cannot find one itself.
+
+    "Just keep versions here" is a button for somebody who does not use git
+    and has therefore never run `git config --global user.name`. On such a
+    machine the first commit fails outright with "empty ident name", and
+    what they see is a button that does nothing and an error about a tool
+    they were not using.
+
+    Asked of git rather than read out of the config, because git will build
+    an identity from the account's own details when the config is silent,
+    and a check on `user.name` alone would override a perfectly good name
+    it was about to invent. `-c` rather than the environment for the same
+    reason from the other side: this has to lose to whatever the writer has
+    set, and `GIT_AUTHOR_NAME` would win.
+    """
+    try:
+        _run(root, "var", "GIT_COMMITTER_IDENT")
+    except GitError:
+        return ["-c", "user.name=NextTex", "-c", "user.email=nexttex@localhost"]
+    return []
 
 
 def gh_available() -> tuple[bool, str]:
