@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Chevron } from "../chrome";
-import api, { type LibraryProgress } from "../api";
+import api, { type LibraryProgress, type TreeNode } from "../api";
 import { set, useStore } from "../store";
+import { isBib } from "./file-kinds";
 
 /** The papers this project has collected, and what could not be read.
  *
@@ -24,6 +25,28 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
   const [lastRun, setLastRun] = useState<any>({});
   const [naming, setNaming] = useState<string | null>(null);
   const [problem, setProblem] = useState("");
+  /** A DOI the writer has in front of them, with no paper behind it. The
+   *  only route that added an entry needed an unidentified PDF from a
+   *  folder scan to hang the DOI on, so somebody who simply had a DOI had
+   *  to acquire a paper first. */
+  const [doi, setDoi] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [report, setReport] = useState<
+    { checked: number; problems: { key: string; issues: string[] }[] } | null
+  >(null);
+  const tree = useStore((s) => s.tree);
+  /** Whether this project has a bibliography at all. Both controls below
+   *  write to one or read one, and offering either where there is none is
+   *  offering a button that can only fail. */
+  const hasBib = useMemo(() => {
+    const walk = (node: TreeNode): boolean =>
+      (node.children ?? []).some(
+        (child) => (child.type === "dir" ? walk(child) : isBib(child.name)),
+      );
+    return tree ? walk(tree) : false;
+  }, [tree]);
 
   const load = async () => {
     if (!projectId) return;
@@ -52,8 +75,46 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress?.phase]);
 
+  const addByDoi = async () => {
+    if (!projectId || !doi.trim()) return;
+    setAdding(true);
+    setAdded("");
+    try {
+      const answer = await api.addByDoi(projectId, doi.trim());
+      if (!answer.added) {
+        setAdded(answer.reason ?? "That did not work.");
+        return;
+      }
+      // What was added, so it can be checked against the page the writer
+      // is looking at rather than taken on trust.
+      const said = [answer.author, answer.year].filter(Boolean).join(", ");
+      setAdded(`Added ${answer.key}: ${answer.title}${said ? ` (${said})` : ""}`);
+      setDoi("");
+      onRefresh();
+    } catch (error: any) {
+      setAdded(error.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const check = async () => {
+    if (!projectId) return;
+    setChecking(true);
+    try {
+      setReport(await api.verifyLibrary(projectId));
+    } catch (error: any) {
+      set({ error: error.message });
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const running = progress && !["done", "stopped", "failed"].includes(progress.phase);
-  if (!count && !failures.length && !progress) return null;
+  // A project with a bibliography has something to do here even if no
+  // folder has ever been read: a DOI can be added and the entries can be
+  // checked, and both of those were reachable only from the agent.
+  if (!count && !failures.length && !progress && !hasBib) return null;
 
   return (
     <div className="shrink-0 border-t border-line" data-testid="papers-panel">
@@ -119,6 +180,74 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
 
           {progress?.message ? (
             <p className="t-meta mt-2 text-warn">{progress.message}</p>
+          ) : null}
+
+          {hasBib ? (
+            <div className="mt-3 border-t border-line pt-2">
+              {/* Two things the README promises to somebody working
+                  without an agent, both of which were agent tools and
+                  nothing else. The entry always comes from the
+                  publisher's own record; nothing here invents one. */}
+              <label className="t-micro block text-ink-2" htmlFor="papers-doi">
+                Add a paper by DOI
+              </label>
+              <div className="mt-1 flex gap-2">
+                <input
+                  id="papers-doi"
+                  value={doi}
+                  placeholder="10.1103/PhysRev.28.1049"
+                  data-testid="papers-doi"
+                  className="t-code-sm min-w-0 flex-1 border-b border-line bg-transparent outline-none placeholder:text-ink-3 focus:border-pen"
+                  onChange={(event) => setDoi(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void addByDoi();
+                  }}
+                />
+                <button
+                  className="quiet t-micro shrink-0"
+                  disabled={adding || !doi.trim()}
+                  onClick={() => void addByDoi()}
+                >
+                  {adding ? "Looking…" : "Add"}
+                </button>
+              </div>
+              {added ? (
+                <p className="t-micro mt-1 text-ink-2" data-testid="papers-added">
+                  {added}
+                </p>
+              ) : null}
+
+              <button
+                className="quiet t-micro mt-3"
+                data-testid="papers-verify"
+                disabled={checking}
+                onClick={() => void check()}
+              >
+                {checking ? "Checking…" : "Check these against their records"}
+              </button>
+              {report ? (
+                <div className="mt-1" data-testid="papers-report">
+                  {report.problems.length === 0 ? (
+                    <p className="t-micro text-ink-2">
+                      {report.checked} entries, all matching their records.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="t-micro text-warn">
+                        {report.problems.length} of {report.checked} disagree
+                        with the record they came from.
+                      </p>
+                      {report.problems.map((trouble) => (
+                        <p key={trouble.key} className="t-micro mt-1 text-ink-2">
+                          <span className="t-code-sm text-ink">{trouble.key}</span>{" "}
+                          {trouble.issues.join("; ")}
+                        </p>
+                      ))}
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           {failures.length ? (

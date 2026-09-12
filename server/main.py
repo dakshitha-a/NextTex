@@ -2686,6 +2686,64 @@ async def library_resolve(
     return {"added": True, "key": found["key"], "warning": warning}
 
 
+@app.post("/api/projects/{project_id}/library/add")
+async def library_add(project_id: str, doi: str = Body(..., embed=True)):
+    """One reference, from a DOI the writer has in front of them.
+
+    The resolve route above does this too, and cannot be used for it: it
+    needs an unidentified PDF from a folder scan to hang the DOI on, so a
+    writer who simply has a DOI has to acquire a paper first. This is that
+    route with the paper taken out, which is what the README already
+    promises when it calls working without an agent a real option.
+    """
+    session = session_for(project_id)
+    bib = _bib_for(session)
+    if bib is None:
+        raise HTTPException(400, "There is no .bib file in this project.")
+
+    existing = read_text(bib) or ""
+    try:
+        found = await asyncio.to_thread(references.entry_for, doi.strip(), existing)
+    except Exception as error:      # noqa: BLE001 -- any failure is a reason
+        # A DOI nobody has is an ordinary answer rather than a fault, and
+        # the one thing that must never happen here is an invented entry.
+        return {"added": False, "reason": str(error)}
+    if not found.get("added"):
+        return {"added": False, "reason": str(found.get("reason") or "not added")}
+
+    await asyncio.to_thread(
+        write_atomically, bib, references.appended(existing, found["entry"])
+    )
+    session.mark_written(bib)
+    text = read_text(bib)
+    session.collab.ingest(session.project.relative(bib), text)
+    session.record_version(bib, text, by="you", op="import",
+                           why=f"added {found['key']} by DOI")
+    await session.events.publish({"type": "files_changed",
+                                  "paths": [session.project.relative(bib)]})
+    return {
+        "added": True,
+        "key": found["key"],
+        "title": found.get("title", ""),
+        "author": found.get("author", ""),
+        "year": found.get("year", ""),
+    }
+
+
+@app.post("/api/projects/{project_id}/library/verify")
+async def library_verify(project_id: str):
+    """Check every entry against the record it claims to come from.
+
+    Written, tested, called from the agent's tool, and reachable from the
+    interface nowhere at all. Nothing is written: this reports.
+    """
+    session = session_for(project_id)
+    bib = _bib_for(session)
+    if bib is None:
+        raise HTTPException(400, "There is no .bib file in this project.")
+    return await asyncio.to_thread(references.verify, bib)
+
+
 @app.delete("/api/projects/{project_id}/library/unidentified")
 async def library_forget(project_id: str):
     """Dismiss the list of papers that could not be identified.

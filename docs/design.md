@@ -5084,3 +5084,25 @@ decides. `/history/size` had a client wrapper and no caller since it was
 written; the figure sits in the history panel's header. Both go through one
 formatter, moved out of the history panel where it was the only copy, because
 two formatters eventually round the same number two ways on one screen.
+
+### Two things the README promises without an agent, that only the agent could do
+
+The README calls working with no agent "a real option, not a degraded one",
+and then describes two things that were agent tools and nothing else. Adding
+an entry by DOI went through the resolve route, which needs an unidentified
+PDF from a folder scan to hang the DOI on, so a writer who simply had a DOI in
+front of them had to acquire a paper first. Re-checking a bibliography against
+the publishers was called from the agent's tool and from nowhere in the
+interface at all. Both of the functions underneath were written and tested.
+
+They are in the Papers section now, which is also why that section appears for
+a project with a bibliography rather than only for one where a folder has been
+read: a `.bib` file is a thing with two things to do to it, and the panel that
+is about bibliographies was absent from every project that had not imported
+one.
+
+The DOI box reports what arrived, with the title, author and year, rather than
+only that something did. The whole argument of this feature is that the entry
+comes from the publisher and not from a model, and a writer can only act on
+that if they can see what came back and compare it against the page in front
+of them.
