@@ -25,17 +25,52 @@ import re
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
-#: What may sit between the start of a line and a command, for the
-#: commands below to count as reachable. A percent starts a comment, so
-#: nothing after one is real; but `\%` is a *printed* percent sign and the
-#: line goes on. `^[^%\n]*` could not tell them apart, so a sentence like
-#: "we recovered 95\% of it" made every `\input` after it on that line
-#: invisible to the dependency scan and to the chapter scoping: a chapter
-#: silently stopped being rebuilt when its parent line gained a percent.
+#: A command is reachable only if no comment starts before it on its line.
+#: A percent starts a comment, so nothing after one is real; but `\%` is a
+#: *printed* percent sign and the line goes on. `^[^%\n]*` could not tell
+#: them apart, so a sentence like "we recovered 95\% of it" made every
+#: `\input` after it on that line invisible to the dependency scan and to
+#: the chapter scoping: a chapter silently stopped being rebuilt when its
+#: parent line gained a percent.
 #:
-#: Either an ordinary character that is neither a percent nor a backslash,
-#: or a backslash and whatever it escapes.
-LINE_START = r"^(?:[^%\\\n]|\\.)*"
+#: The first fix put the distinction into the patterns themselves, as a
+#: line-anchored head of "either an ordinary character or a backslash and
+#: whatever it escapes". That is correct and it is slow: the head is a
+#: general group repeated per character rather than one character-class
+#: run, and it backtracks through every line to find the command, so the
+#: dependency scan took two and a half times as long and opening a project
+#: went from 94 ms to 250 ms on the bench. It also found one command per
+#: line, the last, since the anchor cannot match twice on one line. The
+#: patterns are now plain scanners for the command, and `uncommented`
+#: checks the prefix of the line for each hit, which costs a short
+#: backwards scan per command found rather than a backtrack per character
+#: of the file, and finds every command on a line.
+
+
+def _live(text: str, line_start: int, at: int) -> bool:
+    """Whether `at` is reachable: no unescaped `%` between it and the start
+    of its line. A percent is escaped by an odd number of backslashes in
+    front of it, since `\\` is a line break and `\\%` is a comment."""
+    index = text.find("%", line_start, at)
+    while index != -1:
+        slashes = 0
+        back = index - 1
+        while back >= line_start and text[back] == "\\":
+            slashes += 1
+            back -= 1
+        if slashes % 2 == 0:
+            return False
+        index = text.find("%", index + 1, at)
+    return True
+
+
+def uncommented(pattern: re.Pattern, text: str):
+    """Every match of `pattern` that is not behind a comment on its line."""
+    for match in pattern.finditer(text):
+        start = match.start()
+        if _live(text, text.rfind("\n", 0, start) + 1, start):
+            yield match
+
 
 #: Everything that can pull one file into another.
 #:
@@ -45,24 +80,22 @@ LINE_START = r"^(?:[^%\\\n]|\\.)*"
 #: would be offered as a document to preview in its own right.
 SCAN = re.compile(
     r"""
-    ^(?:[^%\\\n]|\\.)*\\(?:
+    \\(?:
         (?P<inc>include|input|subfile|includestandalone)\s*\{(?P<incarg>[^}]*)\}
       | (?P<imp>import|subimport|subimportfrom)\s*\{(?P<dir>[^}]*)\}\s*\{(?P<file>[^}]*)\}
       | (?P<bib>bibliography|addbibresource)\s*\{(?P<bibarg>[^}]*)\}
       | (?P<gfx>includegraphics)\s*(?:\[[^\]]*\]\s*)?\{(?P<gfxarg>[^}]*)\}
     )
     """,
-    re.M | re.X,
+    re.X,
 )
 
 #: `\\input foo` without braces is legal and reasonably common in older
 #: preambles, and the braced pattern above cannot see it.
+BARE_INPUT = re.compile(r"\\input\s+([^\s{}\\%]+)")
 
-
-BARE_INPUT = re.compile(LINE_START + r"\\input\s+([^\s{}\\%]+)", re.M)
-
-DOCUMENTCLASS = re.compile(LINE_START + r"\\documentclass", re.M)
-BEGIN_DOCUMENT = re.compile(LINE_START + r"\\begin\s*\{document\}", re.M)
+DOCUMENTCLASS = re.compile(r"\\documentclass")
+BEGIN_DOCUMENT = re.compile(r"\\begin\s*\{document\}")
 
 #: Tried in order against a reference that names no suffix of its own.
 SUFFIXES = {
@@ -80,7 +113,10 @@ def is_standalone(text: str) -> bool:
     figure written for the standalone class, which is a document in the
     narrow sense and never one a writer wants a preview tab for.
     """
-    return bool(DOCUMENTCLASS.search(text)) and bool(BEGIN_DOCUMENT.search(text))
+    return (
+        next(uncommented(DOCUMENTCLASS, text), None) is not None
+        and next(uncommented(BEGIN_DOCUMENT, text), None) is not None
+    )
 
 
 def references(text: str) -> list[tuple[str, str]]:
@@ -90,7 +126,7 @@ def references(text: str) -> list[tuple[str, str]]:
     which file it was written in, which is `resolve`'s job.
     """
     found: list[tuple[str, str]] = []
-    for match in SCAN.finditer(text):
+    for match in uncommented(SCAN, text):
         if match.group("inc"):
             found.append(("inc", match.group("incarg")))
         elif match.group("imp"):
@@ -104,8 +140,8 @@ def references(text: str) -> list[tuple[str, str]]:
                     found.append(("bib", one.strip()))
         elif match.group("gfx"):
             found.append(("gfx", match.group("gfxarg")))
-    for reference in BARE_INPUT.findall(text):
-        found.append(("inc", reference))
+    for match in uncommented(BARE_INPUT, text):
+        found.append(("inc", match.group(1)))
     return found
 
 
