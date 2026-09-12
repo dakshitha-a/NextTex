@@ -281,12 +281,25 @@ test("the tab strip answers the keyboard, including the tab just closed", async 
     timeout: 10_000,
   });
 
+  // The brackets, not the arrows: `Ctrl-Alt-Left` and `Ctrl-Alt-Right`
+  // are GNOME's switch-to-workspace keys and a Mac browser's own previous
+  // and next tab, and neither of those exists in a headless browser, so
+  // the arrows passed here and did nothing on either desktop.
   await tab.locator(".cm-content").click();
-  await tab.keyboard.press("Control+Alt+ArrowLeft");
-  await expect(tab.getByTitle("main.tex").first()).toBeVisible();
+  await tab.keyboard.press("Control+Alt+BracketLeft");
+  // The tab in front, not merely a tab that is on the strip: main.tex is
+  // visible either way, and the first version of this asserted that.
+  await expect(tab.locator('[aria-current="true"]')).toHaveAttribute(
+    "title",
+    /main\.tex/,
+  );
 
   // Close it from the keyboard, and bring it back.
-  await tab.keyboard.press("Control+Alt+ArrowRight");
+  await tab.keyboard.press("Control+Alt+BracketRight");
+  await expect(tab.locator('[aria-current="true"]')).toHaveAttribute(
+    "title",
+    /references\.bib/,
+  );
   await tab.keyboard.press("Control+Alt+w");
   await expect(tab.getByTitle("references.bib")).toHaveCount(0, {
     timeout: 10_000,

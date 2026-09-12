@@ -5123,13 +5123,26 @@ being focused on a timer, because the shortcut also unfolds the rail and the
 tree is unmounted while the rail is folded, so the element to focus may not
 exist yet and the one that does may be thrown away a moment later.
 
-`Cmd-Alt-Left` and `Cmd-Alt-Right` walk the tab strip, wrapping at both ends,
+`Cmd-Alt-[` and `Cmd-Alt-]` walk the tab strip, wrapping at both ends,
 because the strip is a ring in the way a writer uses it: two or three files,
 gone round and round. Stopping at the end would make the second press of a
 repeated key do nothing, which reads as the key having failed. `Cmd-Alt-W`
 closes the tab in front and `Cmd-Alt-Shift-T` brings back the last one closed,
 capped at twenty, from a list `afterClosing` has always returned and both of
 its callers threw away.
+
+These two were the arrows first, and the arrows do not reach the browser on
+either desktop this app is used on: GNOME binds `Ctrl-Alt-Left` and
+`Ctrl-Alt-Right` to switching workspace and takes them before any window sees
+them, and a Mac browser uses `Cmd-Alt-Left` and `Cmd-Alt-Right` for its own
+previous and next tab. A headless browser has neither a window manager nor a
+menu bar, so the browser test passed while the keys did nothing on the machine
+the app runs on. The brackets are free on both, and `Cmd-[` and `Cmd-]` are
+already back and forward in a browser, so the direction reads the same way
+with Alt added. The lesson is the one the `Cmd-Alt-A` note above records and
+this pass did not apply: a global shortcut has to be tried on a real desktop,
+because the only thing a passing browser test proves about one is that the
+page would have handled it.
 
 `F8` and `Shift-F8` step through the errors, in the drawer's own order, and
 open the drawer if it is shut: stepping to an error the writer cannot see is a
