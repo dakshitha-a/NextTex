@@ -69,6 +69,10 @@ export type EditorHandle = {
   backToNow(): void;
   /** Paint the lines that differ from what is on screen now. */
   showChanges(on: boolean): void;
+  /** The two texts a viewed version is compared against: the version on
+   *  screen and the live file behind it. Null when nothing is being
+   *  viewed. */
+  viewed(): { old: string; live: string } | null;
   close(path: string): Promise<void>;
   /** Follow a file that has been renamed, keeping its buffer and history. */
   renamed(from: string, to: string): void;
@@ -638,6 +642,15 @@ export default function Editor({
       open: openBuffer,
       view: viewVersion,
       backToNow,
+      viewed: () => {
+        const parked = viewing.current;
+        const editor = view.current;
+        if (!parked || !editor) return null;
+        return {
+          old: editor.state.doc.toString(),
+          live: buffers.current.get(parked.path)?.state.doc.toString() ?? "",
+        };
+      },
       showChanges: (on: boolean) => {
         const parked = viewing.current;
         const editor = view.current;

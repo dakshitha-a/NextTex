@@ -321,3 +321,34 @@ test("emptying a history says what it freed, and the panel says what it holds", 
     timeout: 10_000,
   });
 });
+
+test("a version's patch can be read, and two versions can be compared",
+  async ({ tab, app, project }) => {
+    // R-089. The shading above marks what an old version had and the file
+    // no longer does, in place; it never showed what arrived, and two
+    // versions could not be compared with each other at all.
+    await typeAndSave(tab, "the second draft", app, project);
+    await openHistory(tab);
+
+    // The oldest version is the file as it stood before this test typed.
+    await tab.getByTestId("version").last().click();
+    await expect(tab.getByText(/viewing/i).first()).toBeVisible();
+    await tab.getByTestId("toggle-patch").click();
+    const patch = tab.getByTestId("history-patch");
+    await expect(patch).toBeVisible({ timeout: 10_000 });
+    // What arrived, which the shading could never say.
+    await expect(patch).toContainText("+the second draft");
+    await expect(patch).toContainText("From that version to the file as it stands");
+
+    // Compare, on another row, shows the patch between the two versions
+    // rather than against the live file.
+    const rows = tab.getByTestId("version");
+    if ((await rows.count()) > 1) {
+      await rows.first().hover();
+      await rows.first().getByTestId("version-compare").click();
+      await expect(patch).toContainText(/From the version/, { timeout: 10_000 });
+    }
+
+    await tab.getByTestId("toggle-patch").click();
+    await expect(patch).toHaveCount(0);
+  });

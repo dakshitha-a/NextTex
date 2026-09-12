@@ -3286,6 +3286,22 @@ async def git_status(project_id: str):
     return {**state.as_dict(), "gh": ready, "ghReason": reason}
 
 
+@app.get("/api/projects/{project_id}/git/diff")
+async def git_diff(project_id: str, path: str):
+    """The patch for one changed file, against the last commit.
+
+    "See what changed" is one of the four git buttons the README names,
+    and what it showed was a status letter and a path. The path goes
+    through the fence first, because a diff is a read of any file git can
+    be pointed at.
+    """
+    session = session_for(project_id)
+    target = _safe(session, path)
+    relative = session.project.relative(target)
+    patch = await asyncio.to_thread(gitrepo.diff, session.project.root, relative)
+    return {"path": relative, "patch": patch}
+
+
 @app.post("/api/projects/{project_id}/git/{action}")
 async def git_action(
     project_id: str,

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../api";
 import { refreshGit, set, useStore } from "../store";
+import { Chevron } from "../chrome";
+import Patch from "./Patch";
 
 
 
@@ -267,19 +269,14 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
             {dirty} {dirty === 1 ? "file changed" : "files changed"}
           </button>
           {open ? (
-            <div className="mt-1 max-h-[96px] overflow-auto">
+            <div className="mt-1 max-h-[260px] overflow-auto">
               {status.changes.map((change) => (
-                <button
+                <ChangeRow
                   key={change.path}
-                  className="flex w-full items-baseline gap-2 rounded-[3px] px-1 text-left hover:bg-surface-2"
-                  title={`Open ${change.path}`}
-                  onClick={() => onOpen?.(change.path)}
-                >
-                  <span className="t-code-sm w-[14px] shrink-0 text-ink-3">
-                    {change.state}
-                  </span>
-                  <span className="t-code-sm truncate text-ink-2">{change.path}</span>
-                </button>
+                  change={change}
+                  projectId={projectId}
+                  onOpen={onOpen}
+                />
               ))}
             </div>
           ) : null}
@@ -316,3 +313,71 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
     </div>
   );
 }
+
+/** One changed file: its state, its path, and its patch on request.
+ *
+ *  The row still opens the file, as it always has. The chevron beside it
+ *  is the agent's edit chip idiom, and it fetches the patch when it is
+ *  opened rather than for every row when the panel draws, because a
+ *  `git diff` per changed file after every build is not a cost the panel
+ *  should pay for a list most people only read. */
+function ChangeRow({
+  change,
+  projectId,
+  onOpen,
+}: {
+  change: { state: string; path: string };
+  projectId: string | null;
+  onOpen?: (path: string) => void;
+}) {
+  const [showing, setShowing] = useState(false);
+  const [patch, setPatch] = useState<string | null>(null);
+  useEffect(() => {
+    if (!showing || !projectId) return;
+    let cancelled = false;
+    api
+      .gitDiff(projectId, change.path)
+      .then((answer) => !cancelled && setPatch(answer.patch))
+      .catch(() => !cancelled && setPatch(""));
+    return () => {
+      cancelled = true;
+    };
+  }, [showing, projectId, change.path]);
+  return (
+    <div data-testid="git-change" data-path={change.path}>
+      <div className="flex w-full items-baseline gap-1 rounded-[3px] px-1 hover:bg-surface-2">
+        <button
+          className="shrink-0 text-ink-3 hover:text-ink"
+          aria-expanded={showing}
+          aria-label={showing ? `Hide what changed in ${change.path}` : `Show what changed in ${change.path}`}
+          data-testid="git-change-toggle"
+          onClick={() => setShowing(!showing)}
+        >
+          <span className={`inline-block ${showing ? "rotate-180" : ""}`}>
+            <Chevron direction="down" />
+          </span>
+        </button>
+        <button
+          className="flex min-w-0 flex-1 items-baseline gap-2 text-left"
+          title={`Open ${change.path}`}
+          onClick={() => onOpen?.(change.path)}
+        >
+          <span className="t-code-sm w-[14px] shrink-0 text-ink-3">
+            {change.state}
+          </span>
+          <span className="t-code-sm truncate text-ink-2">{change.path}</span>
+        </button>
+      </div>
+      {showing ? (
+        patch === null ? (
+          <p className="t-micro px-1 text-ink-3">Reading</p>
+        ) : patch ? (
+          <Patch text={patch} testId="git-patch" />
+        ) : (
+          <p className="t-micro px-1 text-ink-3">Nothing to show for this file.</p>
+        )
+      ) : null}
+    </div>
+  );
+}
+

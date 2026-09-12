@@ -5396,3 +5396,41 @@ page scrolls to it; a match that straddles two of pdf.js's text items, where a
 line breaks mid-word or the font changes, is counted and scrolled to but has no
 single span to mark, which is accepted rather than worked around.
 
+### "See what changed" showed the name of what changed
+
+"See what changed" has been one of the four git buttons since the README named
+them, and what it showed was a status letter and a path. In the history, "Show
+what's gone" shades, in place, the lines an old version had that the file no
+longer does, and that is a real diff and a deliberate design, recorded above:
+marked in the paragraph it happened to rather than shown in a pane. What it
+could never show was what arrived, and two versions could not be compared with
+each other at all.
+
+The patch is the other reading of the same comparison, and it is drawn the way
+the agent's edit chip has always drawn one: a monospace block, additions
+washed with the ok colour and removals with the error colour, capped and
+scrolling. That renderer is now one component rather than three, because
+three renderers of the same text would be three slightly different colours for
+"added". Its one piece of arithmetic, where the hunks start, had been a fixed
+count of header lines, which is right for what `jsdiff` writes and wrong for
+what git writes, so it looks for the first `@@` instead and keeps a patch with
+no hunk whole, since "Binary files differ" is one line and should be read.
+
+In the git panel the chevron beside a changed file opens its patch, and the
+row itself still opens the file; the patch is fetched when the chevron opens
+rather than for every row when the panel draws, because a `git diff` per file
+after every build is not a cost a list most people only read should pay. The
+diff is taken against the last commit rather than against the index, because
+the panel has no notion of the index and a writer who has never typed `git
+add` should not be shown an empty patch for a file the panel itself says is
+modified; a file git has never seen gets a patch built here, every line an
+addition, which is what it is.
+
+In the history, "Show what changed" sits beside "Show what's gone" on the
+banner and draws the patch from the version on screen to the file as it
+stands, under the banner. "Compare", on any other version of the same file
+while one is on screen, draws the patch between the two, older on the left
+whichever was clicked, so a patch always reads forwards in time. The shading
+stays: reading a change in place and reading a diff are different acts, and
+the banner now offers both.
+

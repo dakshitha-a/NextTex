@@ -804,6 +804,12 @@ const api = {
       json({ model }),
     ),
 
+  /** The patch for one changed file, against the last commit. Empty when
+   *  there is no repository or nothing changed. */
+  gitDiff: (id: string, path: string) =>
+    request<{ path: string; patch: string }>(
+      `/projects/${id}/git/diff?path=${encodeURIComponent(path)}`,
+    ),
   git: (id: string) =>
     request<{
       repository: boolean;

@@ -30,10 +30,16 @@ export function who(version: Version, me: string): string {
 export default function History({
   onView,
   onOpen,
+  onCompare,
   onClose,
   docked,
 }: {
   onView: (sha: string | null) => void;
+  /** Show the patch between the version being viewed and this one.
+   *  Offered on every other row of the same file while a version is on
+   *  screen, because a version on screen is the only thing there is to
+   *  compare against. */
+  onCompare?: (version: Version) => void;
   /** Bring a file to the front. Only the whole-project list needs it: a
    *  version belongs to a file, and reading one means being in that file. */
   onOpen: (path: string) => void | Promise<void>;
@@ -337,6 +343,23 @@ export default function History({
                   >
                     {elsewhere ? "elsewhere" : size(version.bytes)}
                   </span>
+                  {onCompare &&
+                  viewing?.version &&
+                  viewing.version.sha !== version.sha &&
+                  viewing.path === rowPath &&
+                  !rowBinary ? (
+                    <button
+                      className="quiet t-micro hidden group-hover:block"
+                      title="Show what changed between the version on screen and this one"
+                      data-testid="version-compare"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onCompare(version);
+                      }}
+                    >
+                      Compare
+                    </button>
+                  ) : null}
                   <button
                     className="quiet t-micro hidden group-hover:block"
                     title="Name this version so it is never thinned away"
@@ -473,6 +496,8 @@ export function ViewingBanner({
   onBack,
   onToggleChanges,
   showingChanges,
+  onTogglePatch,
+  showingPatch,
   onDownload,
 }: {
   version: Version;
@@ -480,6 +505,12 @@ export function ViewingBanner({
   onBack: () => void;
   onToggleChanges: () => void;
   showingChanges: boolean;
+  /** The other reading of the same comparison: a unified patch between
+   *  the version on screen and the file as it stands, drawn under the
+   *  banner. The shading above marks what is gone, in place; this shows
+   *  what arrived as well, which the shading never could. */
+  onTogglePatch?: () => void;
+  showingPatch?: boolean;
   /** Present when what is being viewed is a figure rather than text.
    *
    *  Two things follow from it, and they are the same fact twice: there is
@@ -530,9 +561,20 @@ export function ViewingBanner({
           Download
         </button>
       ) : (
-        <button className="quiet t-micro" onClick={onToggleChanges}>
-          {showingChanges ? "Hide what's gone" : "Show what's gone"}
-        </button>
+        <>
+          <button className="quiet t-micro" onClick={onToggleChanges}>
+            {showingChanges ? "Hide what's gone" : "Show what's gone"}
+          </button>
+          {onTogglePatch ? (
+            <button
+              className="quiet t-micro"
+              onClick={onTogglePatch}
+              data-testid="toggle-patch"
+            >
+              {showingPatch ? "Hide the patch" : "Show what changed"}
+            </button>
+          ) : null}
+        </>
       )}
       <Rule />
       {confirming ? (

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } fro
 import api, { captureToken, landingAfter, startDownload, type WordScope } from "./api";
 import { forget, keep, recall, recallText } from "./remember";
 import { rangeFor, scopesFor } from "./words";
+import { createTwoFilesPatch } from "diff";
+import Patch from "./panes/Patch";
 import {
   ShareIcon,
   DownloadMenu,
@@ -177,6 +179,10 @@ export default function App() {
   // covers the right third of a wrapped LaTeX line defeats it.
   const [editorWide, setEditorWide] = useState(true);
   const [showingChanges, setShowingChanges] = useState(false);
+  /** The patch drawn under the banner while a version is viewed: between
+   *  the version and the live file, or between it and a second version
+   *  chosen with Compare. Null when there is none. */
+  const [patchView, setPatchView] = useState<{ title: string; text: string } | null>(null);
   const [mainFile, setMainFile] = useState("main.tex");
   /** Which of the rail's two navigation panels are open.  Kept apart from
    *  `folded`, which is the pane layout the focus modes save and restore:
@@ -257,6 +263,13 @@ export default function App() {
   const activePath = useStore((s) => s.activePath);
   const notices = useStore((s) => s.notices);
   const viewing = useStore((s) => s.viewing);
+  // A patch belongs to the version it was built from. Viewing another one,
+  // or coming back to now, takes it down rather than leaving a patch about
+  // a version that is no longer on screen.
+  const viewedSha = viewing?.version?.sha ?? null;
+  useEffect(() => {
+    setPatchView(null);
+  }, [viewedSha]);
 
   /** Go back to what was being written, or to the list if there is nothing.
    *
@@ -1899,14 +1912,37 @@ export default function App() {
                 if (isText(viewing.path)) editor.current?.backToNow();
                 else set({ viewing: null });
                 setShowingChanges(false);
+                setPatchView(null);
               }}
               onToggleChanges={() => {
                 const next = !showingChanges;
                 setShowingChanges(next);
                 editor.current?.showChanges(next);
               }}
+              showingPatch={patchView !== null}
+              onTogglePatch={() => {
+                if (patchView) {
+                  setPatchView(null);
+                  return;
+                }
+                const pair = editor.current?.viewed();
+                if (!pair) return;
+                const name = viewing.path.split("/").pop() ?? viewing.path;
+                setPatchView({
+                  title: "From that version to the file as it stands",
+                  text: createTwoFilesPatch(name, name, pair.old, pair.live, "", "", {
+                    context: 2,
+                  }),
+                });
+              }}
             />
             </Suspense>
+          ) : null}
+          {viewing && patchView ? (
+            <div className="shrink-0 border-b border-line px-[10px] pb-2" data-testid="history-patch">
+              <p className="t-micro pt-1 text-ink-2">{patchView.title}</p>
+              <Patch text={patchView.text} />
+            </div>
           ) : null}
           <div className="relative flex min-h-0 flex-1">
             <div className="relative min-h-0 flex-1">
@@ -1956,6 +1992,35 @@ export default function App() {
             {historyOpen ? (
               <Suspense fallback={null}>
                 <HistoryPanel
+                  onCompare={async (other) => {
+                    const pair = editor.current?.viewed();
+                    const shown = get().viewing?.version;
+                    if (!projectId || !pair || !shown) return;
+                    try {
+                      const path = get().viewing?.path ?? "";
+                      const fetched = await api.historyVersion(projectId, path, other.sha);
+                      // Older on the left, whichever was clicked, so a
+                      // patch always reads forwards in time.
+                      const forwards = other.at >= shown.at;
+                      const name = path.split("/").pop() ?? "";
+                      const when = new Date(other.at).toLocaleTimeString([], {
+                        hour: "2-digit", minute: "2-digit",
+                      });
+                      setPatchView({
+                        title: forwards
+                          ? `From the version on screen to the one from ${when}`
+                          : `From the version from ${when} to the one on screen`,
+                        text: createTwoFilesPatch(
+                          name, name,
+                          forwards ? pair.old : fetched.text,
+                          forwards ? fetched.text : pair.old,
+                          "", "", { context: 2 },
+                        ),
+                      });
+                    } catch (error: any) {
+                      set({ error: error.message });
+                    }
+                  }}
                   docked={!tight && editorWide}
                   onView={viewVersion}
                   onOpen={(path) => openFile(path)}
