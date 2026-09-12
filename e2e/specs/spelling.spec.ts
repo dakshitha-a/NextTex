@@ -139,3 +139,36 @@ test("turning spelling off and on again brings the underlines back", async ({
     "the underlines did not come back after switching it off and on",
   ).toBeVisible({ timeout: 20_000 });
 });
+
+
+test("the menu can be opened, walked and closed without a mouse", async ({ tab }) => {
+  // R-070. It claimed `role="menu"` and a keyboard user met nothing at
+  // all. Focus never entered it, so an arrow key moved the caret in the
+  // document behind the backdrop while the menu stayed put over a page
+  // that was now scrolling underneath it. Escape did nothing, because the
+  // dismissal was a pointer-only backdrop. And it could not be opened
+  // from the keyboard in the first place: Shift-F10 fires `contextmenu`
+  // on the content element rather than on the word, so the handler's test
+  // for a misspelled ancestor failed. A screen reader was being told
+  // "menu, one item" about something only a mouse could reach and only a
+  // mouse could close.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await type(tab, "The results are wiht the calculation.");
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+
+  // The caret goes into the word first, which is where somebody would
+  // have put it before reaching for the menu key. A left click only
+  // places the caret; it is the menu that had no keyboard route, not the
+  // caret.
+  await marked(tab).first().click();
+
+  await tab.keyboard.press("Shift+F10");
+  const menu = tab.getByTestId("spelling-menu");
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem").first()).toBeFocused();
+
+  await tab.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(tab.locator(".cm-content")).toBeFocused();
+});

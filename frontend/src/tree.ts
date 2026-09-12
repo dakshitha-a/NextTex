@@ -130,3 +130,29 @@ export function search(
   for (const child of tree.children ?? []) walk(child, []);
   return { matches, show };
 }
+
+/** Which row carries the tree's one tab stop.
+ *
+ *  The tree is a roving tabindex: one stop for forty files, and the arrow
+ *  keys move inside it. Which row holds it was
+ *  `focusPath ?? activePath ?? first`, and `focusPath` is written in four
+ *  places and cleared in none. So the moment it named a path that no longer
+ *  exists, deleted, or renamed, since committing a rename refreshes the tree
+ *  without touching it, the expression matched no row at all and **the tree
+ *  had no tab stop**. It could not be reached with Tab again until somebody
+ *  clicked a row with the mouse, which is the one thing the person this
+ *  affects cannot do.
+ *
+ *  So the candidates are tried in order and the first one that is actually
+ *  on screen wins. A stale preference is then a preference that is ignored
+ *  rather than a rail that cannot be reached.
+ */
+export function tabStopFor(
+  candidates: (string | null | undefined)[],
+  present: Set<string>,
+): string | null {
+  for (const candidate of candidates) {
+    if (candidate && present.has(candidate)) return candidate;
+  }
+  return null;
+}
