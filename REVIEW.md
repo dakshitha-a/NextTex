@@ -2733,7 +2733,11 @@ walks the project with its exclusion rules, so the server half starts from
 something that knows which files count. The tree's filter row is the visual
 idiom to copy.
 
-### R-082 · Files rail · comfort · high · confirmed
+### ~~R-082 · Files rail · comfort · high · confirmed~~
+
+**Built.** `Cmd-Alt-O` puts the caret in the filter row, unfolding the rail if it is folded. The input claims focus itself rather than being focused on a timer, because the tree is unmounted while the rail is folded.
+Held by `e2e/specs/navigation.spec.ts`.
+
 
 Where: `frontend/src/panes/FileTree.tsx:927` and the global keymap at
 `frontend/src/App.tsx:1147`.
@@ -2751,7 +2755,11 @@ Cost: a line, if it focuses the filter row that exists. The app's global keys
 today are `Cmd-B`, `Cmd-S`, `Cmd-Enter`, `Cmd-Alt-A`, `Cmd-Alt-P` and Escape,
 so there is room.
 
-### R-083 · Editor · comfort · high · confirmed
+### ~~R-083 · Editor · comfort · high · confirmed~~
+
+**Built.** Next, previous, close and reopen, on `Cmd-Alt` with the arrows, W and Shift-T. The closed list is capped at twenty and comes from what `afterClosing` has always returned.
+Held by `frontend/src/tabs.test.ts` and `e2e/specs/navigation.spec.ts`.
+
 
 Where: `frontend/src/tabs.ts:16` and `frontend/src/App.tsx:534`.
 
@@ -2951,7 +2959,11 @@ Cost: a control for the list, edit distance over the word list for the
 suggestions, a second `words.txt` for the locale. The route and its client
 wrapper are both already written.
 
-### R-092 · Editor · comfort · medium · confirmed
+### ~~R-092 · Editor · comfort · medium · confirmed~~
+
+**Built.** `$` is in the language's own closing-bracket set, and Enter after a `\begin{x}` writes the block when the document is short an `\end{x}`.
+Held by `frontend/src/panes/close-environment.test.ts` and `e2e/specs/writing.spec.ts`. The existing test for a half-written equation now makes that state deliberately, since typing one no longer produces it.
+
 
 Where: `frontend/src/panes/editor-setup.ts:398` and
 `frontend/src/panes/latex-complete.ts:299`.
@@ -2986,7 +2998,11 @@ Cost: a control. The route is written, takes a limit from 1 to 500 and returns
 every file's versions, and has no client wrapper and no caller. The History
 panel's row rendering is reusable as it stands.
 
-### R-094 · Diagnostics · comfort · medium · confirmed
+### ~~R-094 · Diagnostics · comfort · medium · confirmed~~
+
+**Built,** all four parts. F8 and Shift-F8 step, a filter appears when more than one document is previewed, every row has a Copy, and the raw log opens inside the expanded row over a new route. Nothing became a console, which is what §7 rules out.
+Held by `tests/api/test_diagnostics_and_switches.py` and `e2e/specs/navigation.spec.ts`.
+
 
 Where: `frontend/src/panes/Diagnostics.tsx`, `frontend/src/store.ts:577` and
 `nexttex/project.py:387`.

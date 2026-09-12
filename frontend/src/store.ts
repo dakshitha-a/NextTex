@@ -219,6 +219,14 @@ export type State = {
    *  trees: without this, forgetting a word left the underline off until
    *  the tab was reloaded, which reads as the control not working. */
   dictionaryStamp: number;
+  /** Bumped by the shortcut that opens a file by name. The filter row is
+   *  in the file tree and the key is global, and a nonce is how one tells
+   *  the other to take focus without either owning the other's state. */
+  focusTreeSearch: number;
+  /** Which diagnostic the drawer has selected, by key rather than by
+   *  index. In the store rather than in the drawer because F8 steps
+   *  through them from anywhere, including with the drawer shut. */
+  selectedDiagnostic: string | null;
   chat: ChatItem[];
   thinking: boolean;
   /** What the agent is doing at this moment, and since when.
@@ -332,6 +340,8 @@ const state: State = {
   lint: [],
   pdfStamp: 0,
   dictionaryStamp: 0,
+  focusTreeSearch: 0,
+  selectedDiagnostic: null,
   chat: [],
   thinking: false,
   activity: null,
@@ -645,7 +655,11 @@ function syncVisible(patch: Partial<State> = {}) {
   // call would re-render for ever.
   const merged: Diagnostic[] = [];
   for (const name of patch.previews ?? state.previews) {
-    for (const item of byDoc[name] ?? []) merged.push(item);
+    // Tagged with the document it came from. The drawer merges every
+    // previewed document's diagnostics into one flat list and had no way
+    // to say which was which, so a project previewing three documents
+    // showed three documents' errors with nothing to separate them.
+    for (const item of byDoc[name] ?? []) merged.push({ ...item, document: name });
   }
   set({
     ...patch,

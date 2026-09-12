@@ -1774,6 +1774,9 @@ MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 MAX_UPLOAD_TOTAL = MAX_BODY_BYTES
 MAX_UPLOAD_FILES = 200
 MAX_TEXT_BYTES = 10 * 1024 * 1024
+#: The tail of a latexmk log, for the drawer. A run with a package looping
+#: writes tens of megabytes and the interesting part is always the end.
+MAX_LOG_BYTES = 2 * 1024 * 1024
 
 
 def _size(count: int) -> str:
@@ -2684,6 +2687,43 @@ async def library_resolve(
     await session.events.publish({"type": "files_changed",
                                   "paths": [session.project.relative(bib)]})
     return {"added": True, "key": found["key"], "warning": warning}
+
+
+@app.get("/api/projects/{project_id}/log")
+async def build_log(project_id: str, document: str = ""):
+    """The engine's own log, for the row in the drawer that came from it.
+
+    `build/` is excluded from the file tree, deliberately, so this file was
+    unreachable from the app: no route, and no way to open it even though
+    `.log` is a text kind the editor would draw. Section 7 of the design
+    document rejects a bottom console with Problems, Output and Terminal
+    tabs, and this is what keeping the log reachable looks like without
+    one: it opens inside the diagnostic it belongs to.
+
+    A missing log is an empty answer rather than a 404: a project that has
+    never built has no log, and that is an ordinary state of affairs the
+    drawer should not have to translate from an error.
+    """
+    session = session_for(project_id)
+    # Named explicitly rather than through `document_for`, which falls back
+    # to the main document for a name it does not know. That fallback is
+    # right for callers written before several documents existed and wrong
+    # here: a client asking for one document's log and being handed
+    # another's would be told nothing about the substitution.
+    if document and document not in session.documents:
+        raise HTTPException(404, "no such document")
+    state = session.document_for(document or None)
+
+    def read() -> str:
+        path = state.paths.log
+        if not path.is_file():
+            return ""
+        # Capped, because a run with a package looping can write tens of
+        # megabytes and the interesting part is the end.
+        raw = path.read_bytes()[-MAX_LOG_BYTES:]
+        return raw.decode("utf-8", errors="replace")
+
+    return {"document": state.path, "text": await asyncio.to_thread(read)}
 
 
 @app.post("/api/projects/{project_id}/library/add")

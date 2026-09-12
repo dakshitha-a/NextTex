@@ -49,3 +49,39 @@ export function viewingClosed(
 ): boolean {
   return viewing !== null && closed.includes(viewing.path);
 }
+
+/** The tab one step along the strip, wrapping at both ends.
+ *
+ *  Wrapping rather than stopping, because the strip is a ring in the way a
+ *  writer uses it: two or three files, gone round and round. Stopping at
+ *  the end would make the second press of a repeated key do nothing, which
+ *  reads as the key having failed.
+ */
+export function neighbour(
+  tabs: Tab[],
+  activePath: string | null,
+  step: 1 | -1,
+): string | null {
+  if (tabs.length === 0) return null;
+  const at = tabs.findIndex((tab) => tab.path === activePath);
+  // A strip with nothing in front, which happens after closing the last
+  // tab: the first press goes to an end rather than to nowhere.
+  if (at === -1) return step === 1 ? tabs[0].path : tabs[tabs.length - 1].path;
+  return tabs[(at + step + tabs.length) % tabs.length].path;
+}
+
+/** The most recently closed tabs, newest last, capped.
+ *
+ *  Capped because this is a convenience and not a history: a session that
+ *  opens and closes two hundred files should not carry two hundred paths
+ *  around, and nobody reopens the two hundredth.
+ */
+export const CLOSED_CAP = 20;
+
+export function pushClosed(stack: string[], paths: string[]): string[] {
+  // A path closed twice is remembered once, at its newest position:
+  // reopening it, closing it again and pressing reopen should give it
+  // back rather than give it back and then give it back again.
+  const next = stack.filter((path) => !paths.includes(path)).concat(paths);
+  return next.slice(-CLOSED_CAP);
+}

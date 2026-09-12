@@ -172,3 +172,38 @@ def test_nothing_is_scheduled_when_compiling_as_you_type_is_off(client, opened):
 
     assert asyncio.run(schedule(False)) is False
     assert asyncio.run(schedule(True)) is True
+
+
+def test_the_raw_log_can_be_read_without_leaving_the_drawer(client, opened, tmp_path):
+    """R-094. `build/` is excluded from the file tree, deliberately, so the
+    full latexmk log was unreachable from the app entirely: no route, and
+    no way to open the file.
+
+    Section 7 of the design document rejects a bottom console with
+    Problems, Output and Terminal tabs, so the log goes inside the row it
+    belongs to rather than into a panel of its own.
+    """
+    session = server_main.SESSIONS[opened["id"]]
+    session.paths.build_dir.mkdir(parents=True, exist_ok=True)
+    session.paths.log.write_text("This is pdfTeX\n! Undefined control sequence.\n",
+                                 encoding="utf-8")
+
+    answer = client.get(f"/api/projects/{opened['id']}/log")
+    assert answer.status_code == 200, answer.text
+    assert "Undefined control sequence" in answer.json()["text"]
+
+
+def test_a_log_that_is_not_there_is_not_an_error(client, opened):
+    """A project that has never built has no log, and saying so is the
+    answer rather than a 404 the drawer would have to translate."""
+    session = server_main.SESSIONS[opened["id"]]
+    if session.paths.log.exists():
+        session.paths.log.unlink()
+    answer = client.get(f"/api/projects/{opened['id']}/log")
+    assert answer.status_code == 200
+    assert answer.json()["text"] == ""
+
+
+def test_a_document_nobody_has_is_refused(client, opened):
+    answer = client.get(f"/api/projects/{opened['id']}/log?document=../../etc/passwd")
+    assert answer.status_code in (400, 403, 404)

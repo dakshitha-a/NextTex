@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afterClosing, viewingClosed } from "./tabs";
+import { CLOSED_CAP, afterClosing, neighbour, pushClosed, viewingClosed } from "./tabs";
 import type { Tab } from "./store";
 
 const strip = (...paths: string[]): Tab[] => paths.map((path) => ({ path }));
@@ -87,5 +87,56 @@ describe("viewingClosed", () => {
 
   it("is true when the file whose past is on screen is going", () => {
     expect(viewingClosed({ path: "main.tex" }, ["main.tex"])).toBe(true);
+  });
+});
+
+describe("neighbour", () => {
+  const ring = strip("a.tex", "b.tex", "c.tex");
+
+  it("steps forward", () => {
+    expect(neighbour(ring, "a.tex", 1)).toBe("b.tex");
+  });
+
+  it("steps back", () => {
+    expect(neighbour(ring, "b.tex", -1)).toBe("a.tex");
+  });
+
+  it("wraps at both ends", () => {
+    // A ring, not a line. Stopping at the end makes the second press of a
+    // repeated key do nothing, which reads as the key having failed.
+    expect(neighbour(ring, "c.tex", 1)).toBe("a.tex");
+    expect(neighbour(ring, "a.tex", -1)).toBe("c.tex");
+  });
+
+  it("goes to an end when nothing is in front", () => {
+    expect(neighbour(ring, null, 1)).toBe("a.tex");
+    expect(neighbour(ring, null, -1)).toBe("c.tex");
+  });
+
+  it("has nowhere to go in an empty strip", () => {
+    expect(neighbour([], null, 1)).toBeNull();
+  });
+});
+
+describe("pushClosed", () => {
+  it("remembers what was closed, newest last", () => {
+    expect(pushClosed(["a.tex"], ["b.tex"])).toEqual(["a.tex", "b.tex"]);
+  });
+
+  it("takes a whole bulk close at once", () => {
+    expect(pushClosed([], ["a.tex", "b.tex"])).toEqual(["a.tex", "b.tex"]);
+  });
+
+  it("remembers a path once, at its newest position", () => {
+    // Reopening a file, closing it again and pressing reopen should give
+    // it back, not give it back and then give it back a second time.
+    expect(pushClosed(["a.tex", "b.tex"], ["a.tex"])).toEqual(["b.tex", "a.tex"]);
+  });
+
+  it("is capped, because this is a convenience and not a history", () => {
+    const many = Array.from({ length: 30 }, (_, n) => `${n}.tex`);
+    const stack = pushClosed([], many);
+    expect(stack).toHaveLength(CLOSED_CAP);
+    expect(stack[stack.length - 1]).toBe("29.tex");
   });
 });
