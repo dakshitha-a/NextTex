@@ -67,16 +67,44 @@ def test_a_shell_command_always_asks(tmp_path):
     assert decision(hook(fence, "Bash", {"command": "rm -rf /"})) == "deny"
 
 
-def test_nexttex_own_tools_need_no_card(tmp_path):
-    """They can only touch the project; a card for them is a card for
-    nothing, and a card for nothing teaches people to click Allow."""
+def test_our_own_tools_that_only_touch_the_project_need_no_card(tmp_path):
+    """A card for them is a card for nothing, and a card for nothing
+    teaches people to click Allow."""
     fence = agent(tmp_path)
     for tool in (
         "mcp__nexttex__insert_at_cursor",
-        "mcp__nexttex__find_papers",
-        "mcp__nexttex__add_reference",
+        "mcp__nexttex__insert_figure",
+        "mcp__nexttex__goto",
     ):
         assert decision(hook(fence, tool, {})) == "allow"
+
+
+def test_our_own_tools_that_leave_the_machine_still_ask(tmp_path):
+    """This test used to assert the opposite, with `find_papers` and
+    `add_reference` in the list above.
+
+    They were waved past the fence with the rest of ours, on the reasoning
+    that our own tools only touch the writing. These three do not: they
+    send a query or a DOI to Crossref, OpenAlex or Semantic Scholar, and
+    the README's own account of what leaves this machine lists searching
+    for papers among the things that do. Being implemented in this
+    repository is not the same property as staying inside it.
+    """
+    fence = agent(tmp_path)
+    fence._ask_user = _refuse
+    for tool in (
+        "mcp__nexttex__find_papers",
+        "mcp__nexttex__add_reference",
+        "mcp__nexttex__check_references",
+    ):
+        assert decision(hook(fence, tool, {"query": "attention"})) == "deny", tool
+
+
+def test_the_quietest_position_still_asks_about_nothing(tmp_path):
+    """The position that asks about nothing means it, including these."""
+    fence = agent(tmp_path)
+    fence.set_mode("all")
+    assert decision(hook(fence, "mcp__nexttex__find_papers", {})) == "allow"
 
 
 def test_an_allowed_write_is_snapshotted_so_undo_has_something_to_restore(tmp_path):
@@ -950,3 +978,96 @@ def test_a_card_says_which_tool_call_it_belongs_to(tmp_path):
     assert cards[0]["toolId"] == "toolu_01ABC", (
         "the card does not say which tool call it belongs to"
     )
+
+
+def test_a_script_is_not_the_work_the_middle_position_runs_silently(tmp_path):
+    """The middle position runs the writing without asking, and a script is
+    not the writing. `_holds_back` has always answered "script" for
+    `run_plot_script`, with a comment saying the honest thing to put in
+    front of the writer is the code, and the branch that decides what the
+    middle position runs silently listed only three of the answers, so the
+    fourth fell through to allowed. A plot script is Python and can do
+    anything Python can, which is more than any single shell command."""
+    fence = agent(tmp_path)
+    fence.set_mode("project")
+    fence._ask_user = _refuse
+
+    result = hook(fence, "mcp__nexttex__run_plot_script", {"script": "print(1)"})
+
+    assert decision(result) == "deny", "the script was run without a card"
+
+
+def test_an_automatic_approval_does_not_record_a_question_nobody_asked(tmp_path):
+    """`reason` is the sentence saying why a card stopped. An approval that
+    stopped nothing carried it anyway, so the record said "Asked at this
+    setting" about an action nobody was asked about."""
+    fence = agent(tmp_path)
+    fence.set_mode("project")
+    seen = []
+
+    async def catch(event):
+        seen.append(event)
+
+    fence._emit = catch
+    asyncio.run(fence._pre_tool(
+        {"tool_name": "Bash", "tool_input": {"command": "echo hi && ls"}},
+        "toolu_x", None,
+    ))
+
+    records = [e for e in seen if e.get("type") == "permission"]
+    assert records, "nothing was recorded"
+    assert records[0]["decision"] == "auto"
+    assert records[0]["reason"] == "", records[0]["reason"]
+
+
+# R-113.  A card has two sentences under the detail and they answer two
+# different questions: what happens if this is allowed, and why this app is
+# asking at a setting where the writer said not to ask.  On a network card
+# at the middle position both were answering the second one, in almost the
+# same words, and two sentences that agree read as a form letter.
+
+
+def test_a_network_card_does_not_say_the_same_thing_twice(tmp_path):
+    fence = agent(tmp_path)
+    fence.mode = "project"
+
+    card = fence.describe("WebFetch", {"url": "https://example.invalid/x"})
+
+    assert card["reason"], "the middle position has to say why it stopped"
+    assert card["consequence"] == "", (
+        "the card says the network is being reached twice over:\n"
+        f"  consequence: {card['consequence']}\n"
+        f"  reason:      {card['reason']}"
+    )
+
+
+def test_the_first_position_keeps_the_consequence(tmp_path):
+    """There the reason is empty, because the answer is simply that this
+    app asks before it acts, so the consequence is the only sentence and
+    the writer needs it."""
+    fence = agent(tmp_path)
+    fence.mode = "ask"
+
+    card = fence.describe("WebSearch", {"query": "planetary albedo"})
+
+    assert card["reason"] == ""
+    assert "leave this machine" in card["consequence"]
+
+
+def test_installing_a_package_keeps_the_sentence_that_matters(tmp_path):
+    """The narrow half of R-113.
+
+    `install_package` reaches the network too, so it is held back for the
+    same reason, but its consequence is not the reason restated: it says
+    this downloads and runs installation code from PyPI, into the
+    environment NextTex itself runs in. That is the most important sentence
+    on the most dangerous card of the set, and a rule that blanked every
+    network card's consequence would have dropped it.
+    """
+    fence = agent(tmp_path)
+    fence.mode = "project"
+
+    card = fence.describe("mcp__nexttex__install_package", {"name": "seaborn"})
+
+    assert "PyPI" in card["consequence"]
+    assert card["reason"]

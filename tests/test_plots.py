@@ -183,12 +183,20 @@ def test_an_install_argument_that_is_not_a_package_is_refused(name):
 
 # -- the fence ---------------------------------------------------------------
 def test_running_a_script_is_asked_about_like_a_shell_call(tmp_path):
-    """The one tool of ours the fence has to ask about.
+    """The tool of ours the fence has to ask about hardest.
 
-    Every other `mcp__nexttex__` tool is waved past because none can reach
-    the shell or a path outside the project. Python can do both, and more
-    than `Bash` can, so routing this around the fence would put the app's
-    one real fence behind a tool whose purpose is to run arbitrary code.
+    Most `mcp__nexttex__` tools are waved past because none can reach the
+    shell or a path outside the project. Python can do both, and more than
+    `Bash` can, so routing this around the fence would put the app's one
+    real fence behind a tool whose purpose is to run arbitrary code.
+
+    It is asked about at the middle position too, and this test used to
+    assert the opposite. That was the bug, not the test: the middle
+    position's whole promise is that a write outside the project and
+    anything reaching the internet still stop, and a script can do either
+    without being named as either. The exclusion set that decides had
+    grown a fifth answer, `"script"`, and the test reading it still named
+    four, so this went through in silence.
     """
     subject = agent(tmp_path)
 
@@ -203,8 +211,15 @@ def test_running_a_script_is_asked_about_like_a_shell_call(tmp_path):
     result = asyncio.run(subject._pre_tool(call, None, None))
     assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
 
-    # And silently at the position that runs the work.
+    # And at the position that runs the work, which is the one this is
+    # really about: it is where somebody who has said "stop asking" is
+    # still promised that two things will stop it.
     subject.set_mode("project")
+    result = asyncio.run(subject._pre_tool(call, None, None))
+    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    # Silent only at the last position, where nothing is asked about.
+    subject.set_mode("all")
     result = asyncio.run(subject._pre_tool(call, None, None))
     assert result["hookSpecificOutput"]["permissionDecision"] == "allow"
 
