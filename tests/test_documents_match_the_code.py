@@ -23,6 +23,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCUMENTS = [
     "README.md",
     "TRACKER.md",
+    # The September review's findings, while the fix run is working through
+    # them. It names several hundred paths, and a fix that renames one would
+    # otherwise leave a record quietly pointing at nothing. It is deleted at
+    # the end of the run, and this line goes with it.
+    "REVIEW.md",
     "docs/architecture.md",
     "docs/design.md",
     "docs/testing.md",
@@ -44,6 +49,10 @@ NOT_OURS = {
     "scripts/figure.py",
     # A URL path being discussed, not a file on disk.
     "/logo.svg",
+    # Claude Code's own configuration, in the writer's home or in a project
+    # they have opened. The review names it where it explains what the agent
+    # reads; nothing in this repository writes it.
+    ".claude/settings.json",
 }
 
 NAMED_FILE = re.compile(
