@@ -2400,7 +2400,11 @@ document does not.
 The correction is the one this repository already uses elsewhere: keep the
 original reasoning in the past tense, and say what was built and where.
 
-### R-076 · Documents · docs · medium · confirmed
+### ~~R-076 · Documents · docs · medium · confirmed~~
+
+**Fixed.** The measured cell is the current figure and a test holds it there. The tolerance is half a percent rather than one, because the drift this record reports is 0.47 percent and a one percent tolerance would have passed it.
+Held by `tests/test_documents_match_the_code.py`, skipped when there is no build.
+
 
 Found by: the benchmark run. Where: `README.md`, the measured column of the
 table under "The measured numbers".
