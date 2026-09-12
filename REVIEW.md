@@ -3584,7 +3584,10 @@ This is the sharper half of R-101, which is about the same rows being printed
 twice. R-101 is tidiness; this one is the transcript saying a thing happened
 that did not.
 
-### R-109 · Appearance · accessibility · high · confirmed
+### ~~R-109 · Appearance · accessibility · high · confirmed~~
+
+**Fixed.** The furniture block redeclares the three tokens derived from the inks it moves.
+Held by `frontend/src/contrast.test.ts`, structurally: a block that moves an ingredient moves the mixture.
 
 Found by: the sweep, measured off the pixels, then verified in the stylesheet
 and recomputed here. Where: `frontend/src/styles.css:191`, `:192` and `:193`,
