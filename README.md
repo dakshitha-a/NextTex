@@ -290,7 +290,10 @@ while serving the old code.
 Both scripts write to `update.log` beside `install.log`, in
 `~/.local/share/nexttex/` on every platform, Windows included. An update is the
 operation most likely to leave a machine in a state its owner cannot explain,
-so it leaves a record the way the install does.
+so it leaves a record the way the install does. The file is appended to, again
+the way `install.log` is, so it holds every update this install has ever run:
+the last block is the one you want, and it is the one to send if you are asking
+for help.
 
 ## Uninstalling
 

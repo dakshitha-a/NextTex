@@ -347,6 +347,10 @@ const api = {
   updateCheck: (force = false) =>
     request<UpdateReport>(`/update${force ? "?force=true" : ""}`),
   startUpdate: () => request<{ started: boolean }>("/update", json({})),
+  /** Leave, so the supervisor starts a new process on the commit the
+   *  files hold.  Refused with 409 where nothing would bring NextTex
+   *  back, which is why the footer only offers it when `supervised`. */
+  restart: () => request<{ restarting: boolean }>("/update/restart", json({})),
   addProject: (path: string) => request<any>("/projects", json({ path })),
   createProject: (path: string, name: string) =>
     request<any>("/projects/create", json({ path, name })),

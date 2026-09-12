@@ -3527,6 +3527,53 @@ shared document indefinitely.
 Expected: the end of a share is the one moment a writer must be told about,
 because it is the moment their typing stops going anywhere.
 
+### ~~R-127 · Update · bug · medium · confirmed~~
+
+**Fixed.** The restart line offers a restart, not a reload, and where nothing
+would bring NextTex back it offers no control and says so in words. Held by
+`tests/api/test_update_routes.py` on the route and by two browser tests in
+`e2e/specs/update.spec.ts` on the line.
+
+Found by: the Windows laptop, during the run, checking R-041's fix. Where:
+`frontend/src/panes/UpdateFooter.tsx`, the `standingOf(self) === "restart"`
+branch added for R-041.
+
+What happens: the line reads "Updated on disk to 1d10915. Restart to run it",
+and the only control beside it is Reload, which is
+`onClick={() => window.location.reload()}`. On that line it is a dead end. The
+page comes back from the same process, `head` is read once when that process
+starts and cannot move while it runs, so the sentence that returns is byte for
+byte the one that was just read. The laptop pressed it rather than only reading
+the source and photographed both states:
+
+```
+before: Updated on disk to 1d10915. Restart to run it. | This process is still running f3493a8. | Reload
+after : Updated on disk to 1d10915. Restart to run it. | This process is still running f3493a8. | Reload
+```
+
+The sentence asks for a restart and the button next to it is the one a reader
+will take as the way to do that. It is the right control for every other state
+the footer draws, which is how it came to be on this one.
+
+Expected: the control does what the sentence beside it asks for, or there is no
+control.
+
+### ~~R-128 · Update · bug · low · confirmed~~
+
+**Fixed.** git's own words are the thing that gives way on that line: they
+truncate with the full text on hover, and the control no longer leaves the
+strip. Held by a browser test that asserts the warning and the control share a
+row when the error is a paragraph.
+
+Found by: the Windows laptop, during the run. Where:
+`frontend/src/panes/UpdateFooter.tsx`, the `!report.checked` branch.
+
+What happens: the unreachable-repository line puts git's message next to Try
+again, and git's message can be a paragraph. It wrapped to three rows and
+carried the control down and out of the footer strip.
+
+Expected: one row, whatever git said.
+
 ### The three collaboration findings are one thing
 
 R-105, R-121 and R-126 are the same fault seen at three points of one

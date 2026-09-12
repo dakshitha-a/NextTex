@@ -6,6 +6,7 @@ hold -- and never reach the network.
 """
 
 import subprocess
+import time
 
 import pytest
 
@@ -185,3 +186,36 @@ def test_a_script_that_fails_ends_the_job_rather_than_hanging(
     asyncio.run(server_main._run_update(None))
     assert server_main.UPDATE_JOB["state"] == "failed"
     server_main.UPDATE_JOB.clear()
+
+
+def test_an_unsupervised_install_will_not_pretend_it_can_restart(client, monkeypatch):
+    """Nothing brings NextTex back on Windows, so the route says so.
+
+    The footer's restart line used to carry a Reload button, which on that
+    line is a dead end: the page comes back from the same process, `head`
+    is fixed at process start, and the reader is returned to exactly what
+    they were already reading.  The control is a real restart now, and
+    where there is no supervisor to do it there is no control at all.
+    """
+    monkeypatch.setattr(updates, "supervised", lambda: False)
+    answer = client.post("/api/update/restart")
+    assert answer.status_code == 409
+    assert "restart" in answer.json()["detail"].lower()
+
+
+def test_a_supervised_install_restarts_by_leaving(client, monkeypatch):
+    """The exit is the restart, which is how the update path does it too."""
+    monkeypatch.setattr(updates, "supervised", lambda: True)
+    left = []
+    monkeypatch.setattr(server_main.os, "_exit", left.append)
+    answer = client.post("/api/update/restart")
+    assert answer.status_code == 202
+    assert answer.json() == {"restarting": True}
+    # The exit waits a moment so the answer reaches the page before the
+    # socket goes; the route is the only thing that ever calls `os._exit`
+    # with the supervisor's code.
+    for _ in range(100):
+        if left:
+            break
+        time.sleep(0.05)
+    assert left == [3]

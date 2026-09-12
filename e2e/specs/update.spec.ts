@@ -303,3 +303,126 @@ test("an install updated on disk and not restarted says so", async ({ page }) =>
     await app.stop();
   }
 });
+
+test("the restart line offers a restart, not a reload", async ({ page }) => {
+  // A Windows laptop pulled to a new commit without restarting, read the
+  // line, and pressed the only control on it. Nothing happened: Reload
+  // fetches the page from the same process, `head` is read once when that
+  // process starts, and the sentence that came back was byte for byte the
+  // one they had just read. The control is the restart the sentence asks
+  // for now, and it is only there when something will bring NextTex back.
+  buildRepo();
+  const app = await startServer({
+    NEXTTEX_INSTALL_ROOT: clone,
+    INVOCATION_ID: "pretend-systemd-started-this",
+  });
+  try {
+    await open(app, page);
+    commitUpstream("server/main.py", "a real change");
+    git(clone, "pull", "--ff-only");
+    await page.reload();
+    await expect(page.getByTestId("update-unrestarted")).toBeVisible({
+      timeout: 20_000,
+    });
+
+    // Answered here rather than let through, because the real route ends
+    // in os._exit and the server under this test has no supervisor to
+    // bring it back. What the exit does is covered in tests/api.
+    let asked = 0;
+    await page.route("**/api/update/restart", (route) => {
+      asked += 1;
+      route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({ restarting: true }),
+      });
+    });
+
+    await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Restart now" }).click();
+    await expect(page.getByText("Restarting")).toBeVisible();
+    expect(asked).toBe(1);
+  } finally {
+    await app.stop();
+  }
+});
+
+test("with no supervisor the line asks for the restart in words", async ({ page }) => {
+  // The same state on an install nothing would start again. There is no
+  // control, because there is nothing the page could press that would
+  // work, and the sentence says what to do instead.
+  buildRepo();
+  const app = await startServer({ NEXTTEX_INSTALL_ROOT: clone });
+  try {
+    await open(app, page);
+    commitUpstream("server/main.py", "a real change");
+    git(clone, "pull", "--ff-only");
+    await page.reload();
+    const line = page.getByTestId("update-unrestarted");
+    await expect(line).toBeVisible({ timeout: 20_000 });
+    await expect(line).toContainText("Stop NextTex and start it again");
+    await expect(page.getByRole("button", { name: "Restart now" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
+  } finally {
+    await app.stop();
+  }
+});
+
+test("a long reason from git does not carry Try again off the footer", async ({
+  page,
+}) => {
+  // The unreachable-repository line puts git's own words next to the
+  // control, and git's own words can be a paragraph. They wrapped to three
+  // rows and pushed Try again down and out of the strip.
+  buildRepo();
+  const app = await startServer({ NEXTTEX_INSTALL_ROOT: clone });
+  try {
+    await page.route("**/api/update*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          checkout: true,
+          checked: false,
+          head: "abc1234",
+          behind: 0,
+          changing: 0,
+          commits: [],
+          dirty: [],
+          rebuild: false,
+          build_ok: true,
+          build_reason: "",
+          can_update: false,
+          reason: "could not reach the repository",
+          restart: "manual",
+          error:
+            "fatal: unable to access 'https://github.com/dakshitha-a/NextTex/': " +
+            "Could not resolve host: github.com, and the proxy this machine is " +
+            "behind did not answer either, so nothing was read, and nothing " +
+            "below this line was read off a fetch that happened; the numbers " +
+            "you can see are the defaults this report carries when it cannot " +
+            "reach anything at all",
+          updating: false,
+          phase: "",
+        }),
+      }),
+    );
+    await open(app, page);
+    const warn = page.getByTestId("update-unchecked");
+    await expect(warn).toBeVisible({ timeout: 20_000 });
+    // The row itself, not the pieces on it: `items-center` keeps a button
+    // centred in a line three rows tall, so comparing the two boxes' tops
+    // would call a wrapped line straight.
+    const row = warn.locator("..");
+    const box = await row.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height).toBeLessThan(24);
+    // And the message is still readable in full, on hover.
+    await expect(warn.locator("..").locator("span[title]")).toHaveAttribute(
+      "title",
+      /Could not resolve host/,
+    );
+  } finally {
+    await app.stop();
+  }
+});
