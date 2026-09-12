@@ -4161,3 +4161,36 @@ build produced, so a browser that already has a result keeps it.
 Two smaller ones in the same pane. The cancellation check on the PDF fetch was
 on the success path and on neither failure path, so a superseded 404 could
 draw the "no preview" screen over a page that had already loaded.
+
+### A stopped server is not a moved deployment, and the promise beside it has to be true
+
+Two records that are one story. A pane is a dynamic import, so when a deploy
+replaces the built assets under an open tab, the next pane it opens asks for a
+chunk that is no longer there. Reloading onto the new build is the only cure
+and the boundary does it, once. What decided when was a pattern over the error
+message, and the pattern included a bare `Failed to fetch`, which is what a
+browser says for **any** request it could not make.
+
+So a NextTex that had simply stopped was read as a deployment that had moved.
+The tab reloaded itself onto the browser's own error page, `ERR_CONNECTION_REFUSED`,
+and the editor and everything in it that had not reached the server went with
+it. The Windows laptop watched that happen four minutes after the app had told
+it, in a `title` attribute, that what you type is kept here until it
+reconnects.
+
+The two are separable and were always distinguishable. A browser that could
+not import a module says which module; a dead server does not. And the
+document socket already knows: `connection` is `offline` before any of this.
+`worthReloading` asks both questions, and the boundary asks it.
+
+Once the tab stays, what it says has to be true as well. The failure screen
+explained every failure as an update that had happened while the tab was open,
+which is a confident and false account of a server somebody stopped, pointing
+at a Reload that cannot work. It says which of the two it is now.
+
+And the promise moves out of the tooltip. "What you type is kept here until it
+reconnects" was a `title`: the one place the app said what happens to a
+writer's work was a place you had to already suspect something to find, and no
+place at all on a tablet or to a screen reader reading the strip. It is beside
+the word `offline` now. A promise that is on the screen is one the rest of the
+app has to keep, which is the reason to move it and not only the effect.

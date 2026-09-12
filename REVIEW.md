@@ -426,7 +426,13 @@ where the sweep looks rather than in how it looks.
 The allowlist in that spec is the right pattern and the argument for extending
 its reach rather than its exceptions.
 
-### R-040 · Interface · bug · high · confirmed
+### ~~R-040 · Interface · bug · high · confirmed~~
+
+**Fixed.** `worthReloading` asks whether the message names a module and whether the
+socket already says the server is unreachable, and the bare `Failed to fetch`
+alternative is gone. The failure screen also says which of the two failures it is
+rather than blaming an update that did not happen. Held by
+`frontend/src/boundary-cause.test.ts` and `e2e/specs/server-gone.spec.ts`.
 
 Found by: driving a real browser and stopping the server underneath it.
 Where: `frontend/src/Boundary.tsx:36` and `:63`.
@@ -3119,7 +3125,11 @@ that did register one could miss on the name.
 Expected: a step that did not happen does not exit zero, and the one word a
 script uses for a thing it created is the word it uses to look for it.
 
-### R-123 · Interface · bug · high · confirmed
+### ~~R-123 · Interface · bug · high · confirmed~~
+
+**Fixed.** The sentence is on the screen beside the word offline rather than in a
+`title`, and the reload that used to take the page out from under it is gone with
+R-040.
 
 Found by: the Windows laptop, which is R-040 on a second platform, and adds
 the part that makes it worse. Where:

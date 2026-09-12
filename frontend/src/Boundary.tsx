@@ -1,4 +1,6 @@
 import { Component, type ReactNode } from "react";
+import { worthReloading } from "./boundary-cause";
+import { get } from "./store";
 
 /** What is on screen when part of the interface cannot be loaded.
  *
@@ -31,26 +33,33 @@ const RETRIED = "nexttex.reloadedAfterChunkError";
  *  so in the text. A false positive here costs one reload; a false negative
  *  costs the black window this exists to prevent.
  */
-function looksLikeAStaleChunk(error: unknown): boolean {
-  const message = String((error as Error)?.message ?? error ?? "");
-  return (
-    /dynamically imported module|Importing a module script failed|Loading chunk|error loading dynamically imported module|Failed to fetch/i
-      .test(message)
-  );
-}
 
 type Props = { children: ReactNode };
-type State = { failed: boolean; message: string };
+type State = { failed: boolean; message: string; serverGone: boolean };
 
 export default class Boundary extends Component<Props, State> {
-  state: State = { failed: false, message: "" };
+  state: State = { failed: false, message: "", serverGone: false };
 
   static getDerivedStateFromError(error: unknown): State {
-    return { failed: true, message: String((error as Error)?.message ?? error) };
+    // Which of the two it is, decided here where the connection can still
+    // be read. The screen below said "NextTex updated while this tab was
+    // open" for both, so a writer whose server had simply stopped was told
+    // a confident and false explanation and pointed at a Reload that could
+    // not work.
+    return {
+      failed: true,
+      message: String((error as Error)?.message ?? error),
+      serverGone: get().connection === "offline",
+    };
   }
 
   componentDidCatch(error: unknown): void {
-    if (!looksLikeAStaleChunk(error)) return;
+    // Asked of the connection as well as of the message. A stopped server
+    // makes every request fail with a bare "Failed to fetch", which used
+    // to be in the pattern below, so a NextTex that was simply not running
+    // was read as a deployment that had moved and the tab reloaded itself
+    // onto the browser's error page, taking the editor with it.
+    if (!worthReloading(error, get().connection)) return;
     let already = false;
     try {
       already = window.sessionStorage.getItem(RETRIED) === "yes";
@@ -73,13 +82,26 @@ export default class Boundary extends Component<Props, State> {
       >
         <div className="max-w-[420px]">
           <p className="t-ui-lg mb-2 font-serif text-ink">
-            Part of the interface could not be loaded.
+            {this.state.serverGone
+              ? "NextTex is not answering."
+              : "Part of the interface could not be loaded."}
           </p>
           <p className="t-meta mb-4 text-ink-2">
-            This almost always means NextTex updated while this tab was open,
-            so the page is asking for files the server has replaced. Nothing
-            you have written is affected: your work is on disk, and the
-            server is still running.
+            {this.state.serverGone ? (
+              <>
+                This tab cannot reach the server, so part of the interface
+                could not be loaded. Your work is on disk as it was at the
+                last keystroke that reached it. Start NextTex again and
+                reload.
+              </>
+            ) : (
+              <>
+                This almost always means NextTex updated while this tab was
+                open, so the page is asking for files the server has
+                replaced. Nothing you have written is affected: your work is
+                on disk, and the server is still running.
+              </>
+            )}
           </p>
           <button
             className="pen-button t-ui h-[28px] px-3"
