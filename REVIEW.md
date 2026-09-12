@@ -1099,7 +1099,11 @@ it.
 The text this affects is the one line on the page that matters most: the
 command that gets a locked-out writer back in.
 
-### R-027 · Sign-in · docs · medium · confirmed
+### ~~R-027 · Sign-in · docs · medium · confirmed~~
+
+**Fixed.** The guard reads three spellings now, not one, which is what let two of them past it. The sign-in page's `&mdash;` went with the sign-in work in pass 10; the status strip's escape is an en dash, matching the file name's fallback a few rows above it.
+Held by `tests/test_cross_platform.py`. The section list's rendering of the writer's own `---` is exempt with its reason, since that is their punctuation and not the app's.
+
 
 Found by: reading, after axe sent me to the file. Where: `server/main.py:748`.
 

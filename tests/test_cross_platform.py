@@ -417,6 +417,11 @@ def test_the_readme_contains_no_em_dash():
         "tests/test_cross_platform.py",
         "tests/test_agent_prompt.py",
         "tests/test_explain.py",
+        # The section list renders the writer's own `---` the way TeX
+        # would. That is their text and their punctuation, and the rule is
+        # about what NextTex writes, not about what it displays.
+        "frontend/src/outline.ts",
+        "frontend/src/outline.test.ts",
     }
     looked = [
         path
@@ -435,12 +440,20 @@ def test_the_readme_contains_no_em_dash():
         if str(path.relative_to(ROOT)).replace("\\", "/") not in exempt
     ]
     assert looked, "nothing was looked at, which means the globs are wrong"
+    # Three spellings, because two of them walked straight past a guard
+    # that only knew the first. The sign-in page is written as an HTML
+    # string and had `&mdash;` in the sentence a writer with no password
+    # reads; the status strip had the character as a `\u2014` escape. Both
+    # reach the screen as an em dash, which is the only thing the rule is
+    # about, so all three are the same offence.
+    spellings = ["—", "&mdash;", "&#8212;", "\\u2014"]
     found = []
     for path in looked:
         text = path.read_text(encoding="utf-8")
-        if "—" in text:
-            line = text[: text.index("—")].count("\n") + 1
-            found.append(f"{path.relative_to(ROOT)}:{line}")
+        for spelling in spellings:
+            if spelling in text:
+                line = text[: text.index(spelling)].count("\n") + 1
+                found.append(f"{path.relative_to(ROOT)}:{line} ({spelling})")
     assert not found, "em dash in: " + ", ".join(sorted(found))
 
 
