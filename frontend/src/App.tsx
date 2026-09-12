@@ -871,35 +871,56 @@ export default function App() {
   useEffect(() => {
     if (projectId) refreshGit(projectId);
   }, [projectId, builtAt]);
-  useEffect(() => {
-    if (!projectId) return;
-    let cancelled = false;
-    const span = rangeFor(
+  // The span the count is of, and the only thing about the caret the count
+  // depends on. Computed here rather than in the effect because the
+  // effect's dependencies would otherwise have to be the cursor line, the
+  // outline, the line count and the selection, all of which change on
+  // every arrow key: a document-scoped count has no span at all, and a
+  // section-scoped one changes only when the caret crosses a heading.
+  const span = useMemo(
+    () => rangeFor(
       wordScope,
       outline,
       cursor.line,
       lineCount,
       selected && selected.path === activePath ? selected : null,
-    );
+    ),
+    [wordScope, outline, cursor.line, lineCount, selected, activePath],
+  );
+  const spanFirst = span?.first ?? null;
+  const spanLast = span?.last ?? null;
+  useEffect(() => {
+    if (!projectId) return;
+    const scoped = wordScope === "selection" || wordScope === "section";
     // A scope with no range to count is not an error and not a zero: the
     // caret is above the first heading, or the selection has gone. The
     // strip falls back to its dash, which is what it shows before the
     // first count arrives too.
-    if ((wordScope === "selection" || wordScope === "section") && !span) {
+    if (scoped && spanFirst === null) {
       setWords(null);
       return;
     }
-    api
-      .words(projectId, activePath ?? "", wordScope, span ?? undefined)
-      .then((result) => !cancelled && setWords(result.words))
-      .catch(() => !cancelled && setWords(null));
+    let cancelled = false;
+    // A selection is written to the store as it is dragged, undebounced by
+    // design because the strip's other readings follow the caret. The
+    // count behind it is a subprocess, so it waits for the drag to settle,
+    // on the same 400 ms the cursor sync uses.
+    const timer = setTimeout(() => {
+      api
+        .words(
+          projectId,
+          activePath ?? "",
+          wordScope,
+          spanFirst === null ? undefined : { first: spanFirst, last: spanLast! },
+        )
+        .then((result) => !cancelled && setWords(result.words))
+        .catch(() => !cancelled && setWords(null));
+    }, wordScope === "selection" ? 400 : 0);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [
-    projectId, activePath, wordScope, builtAt,
-    outline, cursor.line, lineCount, selected,
-  ]);
+  }, [projectId, activePath, wordScope, builtAt, spanFirst, spanLast]);
 
   useEffect(() => {
     keep("nexttex.words", wordScope);

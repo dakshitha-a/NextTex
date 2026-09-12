@@ -88,3 +88,37 @@ test("the word count says what it counted, and remembers", async ({ tab }) => {
     timeout: 60_000,
   });
 });
+
+test("moving the caret does not re-count the document", async ({ tab }) => {
+  // The scoped word count arrived with the cursor line, the outline, the
+  // line count and the selection in its effect's dependencies, because
+  // those are what the section and selection spans are computed from. The
+  // span is what the count actually depends on, and in the two scopes a
+  // writer leaves it on, document and file, there is no span at all: every
+  // arrow key was a round trip that ran texcount over the whole project.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await tab.keyboard.press("Control+b");
+  await tab.keyboard.press("Control+Alt+a");
+  await expect(tab.getByTestId("word-count")).toBeVisible({ timeout: 60_000 });
+  // The first count, and any the reload behind it asked for, are not the
+  // subject: the count is started here and the arrows come after it.
+  await tab.waitForTimeout(1_500);
+
+  let counted = 0;
+  const watch = (request: { url(): string }) => {
+    if (request.url().includes("/words")) counted += 1;
+  };
+  tab.on("request", watch);
+  try {
+    await tab.locator(".cm-content").click();
+    for (let press = 0; press < 8; press += 1) {
+      await tab.keyboard.press("ArrowDown");
+    }
+    await tab.waitForTimeout(1_500);
+    // Clicking into the editor moves the caret, which is one legitimate
+    // change of state; eight arrow keys after it must add nothing.
+    expect(counted, "the caret moved and the document was counted again").toBeLessThan(2);
+  } finally {
+    tab.off("request", watch);
+  }
+});

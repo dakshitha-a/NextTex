@@ -5240,3 +5240,15 @@ one their supervisor will get. The slice is written into the build directory,
 which is already out of the tree, the watcher and every walk, so a temporary
 file there cannot appear in front of anybody, and it is removed whether the
 count succeeded or not.
+
+Going through a subprocess is what makes the count's dependencies matter. The
+section and selection spans are computed from the outline, the cursor line,
+the line count and the selection, and putting those four in the effect's
+dependencies ran texcount on every arrow key, in every scope, including the
+two that have no span to compute. What the count depends on is the span, so
+the span is computed once and memoised and the effect depends on its two
+numbers: a document count now asks the server exactly when the document is
+built, and a section count when the caret crosses a heading. A selection is
+written to the store as it is dragged, which is right for everything else in
+the strip and would be a subprocess per frame here, so that one scope waits
+400 ms for the drag to settle, the same pause the cursor sync uses.
