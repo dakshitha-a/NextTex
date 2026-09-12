@@ -447,3 +447,30 @@ async def test_a_blob_nobody_asked_for_is_not_stored(tmp_path):
         )
     finally:
         made.close()
+
+
+def test_a_frame_header_is_bounded_far_below_the_frame():
+    """`json.loads` on the event loop, before anything has looked at what
+    kind of frame this is. Every header this protocol sends is a handful of
+    short fields, and the ceiling was the same 64 MB as the payload: one
+    oversized header from any member stopped the whole install for
+    seconds."""
+    import struct
+
+    from server.collab import wire
+
+    assert wire.MAX_HEADER < wire.MAX_FRAME
+    claimed = wire.MAX_HEADER + 1
+    # The bytes have to be there, because the length check that runs first
+    # compares the header and body lengths against the frame's own size.
+    raw = struct.pack(">BII", wire.HELLO, claimed, 0) + b"x" * claimed
+
+    with pytest.raises(ValueError, match="header too large"):
+        wire.Frame.decode(raw)
+
+
+def test_an_ordinary_header_is_not_refused():
+    from server.collab import wire
+
+    frame = wire.Frame.decode(wire.hello("share", "Bob", "#fff", "addr"))
+    assert frame.header["name"] == "Bob"

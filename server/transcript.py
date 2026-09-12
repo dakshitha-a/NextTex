@@ -40,6 +40,16 @@ COMPACT_ABOVE_BYTES = 24_000_000
 MAX_ARCHIVES = 50
 
 
+class TranscriptError(Exception):
+    """The record could not be filed away, and still holds what it held.
+
+    Distinct from `None`, which means there was nothing to file: the route
+    has to tell "you have no conversation to clear" from "your conversation
+    is still here and I could not move it", because only the second is a
+    reason to refuse.
+    """
+
+
 class Transcript:
     def __init__(self, path: Path):
         self.path = path
@@ -105,10 +115,10 @@ class Transcript:
         than at the top of the new one.
         """
         self._flush_text()
-        self._buffer.clear()
-        self._counter = 0
-        self._appends = 0
         if not self.path.exists():
+            self._buffer.clear()
+            self._counter = 0
+            self._appends = 0
             return None
         stamp = time.strftime("%Y%m%d-%H%M%S")
         target = self.path.with_name(f"transcript-{stamp}.jsonl")
@@ -116,10 +126,20 @@ class Transcript:
         while target.exists():
             target = self.path.with_name(f"transcript-{stamp}-{attempt}.jsonl")
             attempt += 1
+        # The rename first, and the in-memory record cleared only once it
+        # has worked. It was the other way round, so a rename that failed
+        # left the file where it was and the counters at zero: the panel
+        # showed an empty conversation, the route reported success, and the
+        # next thing said was appended to the end of the old file. `None`
+        # meant both "there was nothing to file away" and "it would not go",
+        # which the caller could not tell apart either.
         try:
             self.path.rename(target)
-        except OSError:
-            return None
+        except OSError as failure:
+            raise TranscriptError(str(failure)) from failure
+        self._buffer.clear()
+        self._counter = 0
+        self._appends = 0
         self._prune_archives()
         # The next append recreates the file, and `_tail` already copes with
         # it not being there in the meantime.

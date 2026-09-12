@@ -10,6 +10,7 @@ losing state. It is about what would be interrupted, which is what `in_use`
 answers and what most of this file is about.
 """
 
+import asyncio
 import time
 
 from server import main as server_main
@@ -219,3 +220,45 @@ def test_a_session_is_closed_before_its_blobs_are_swept(client, opened, monkeypa
     monkeypatch.setattr(session, "close", closing)
     reap(client)
     assert order == ["closed", "swept"]
+
+
+def test_a_project_being_closed_does_not_get_a_second_session(client, opened):
+    """`close()` awaits, and between popping a session and finishing with
+    it there was a window: any request arriving in it built a fresh session
+    over the same project, so one project had two sets of documents, two
+    compile schedulers and two watchers, both flushing to the same files.
+
+    A moment is all the wait ever is, and 503 is what a request in that
+    moment is told.
+    """
+    import threading
+
+    from server import main as server_main
+
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
+    inside = threading.Event()
+    may_finish = threading.Event()
+    real = session.close
+
+    async def slow_close():
+        inside.set()
+        await asyncio.to_thread(may_finish.wait, 5)
+        return await real()
+
+    session.close = slow_close
+    try:
+        client.portal.start_task_soon(
+            server_main._close_session, project_id, session
+        )
+        assert inside.wait(timeout=5), "the close never started"
+
+        answer = client.get(f"/api/projects/{project_id}/tree")
+
+        assert answer.status_code == 503
+        assert "closing" in answer.json()["detail"]
+        assert len(
+            [s for s in server_main.SESSIONS if s == project_id]
+        ) <= 1, "a second session was built beside the one going away"
+    finally:
+        may_finish.set()

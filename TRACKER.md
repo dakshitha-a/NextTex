@@ -124,3 +124,25 @@ things go to be forgotten rather than a list anybody reads.
       account for; the other two things R-069 named, the selection verb row
       and the spelling menu, are fixed there. Left rather than shipped half
       understood.
+
+- [ ] **Building a session walks the project on the event loop.**
+      `session_for` is synchronous, and constructing a `ProjectSession`
+      calls `collab.adopt()`, which walks the whole tree. Measured at about
+      17 ms of held loop on a 2602-file thesis, once per cold open. The
+      obvious fix, building the session in a thread, was tried and reverted:
+      a session builds its pycrdt documents, and the constraint recorded in
+      `docs/architecture.md` is that those belong to the thread that built
+      them, so the whole suite fails. Moving the walk alone means threading
+      a pre-walked listing through `session_for` into `CollabStore.adopt`,
+      which is a change to a function called from about fifty routes, and
+      it is not worth 17 ms without somebody deciding it is.
+
+- [ ] **A collaborator's settled edit records its version from inside the
+      flush.** `CollabStore._write` calls `session.record_version`, which is
+      a sha256 and a zlib compression, on the event loop, once per settled
+      edit rather than once per burst. The bench measures the whole path,
+      `collab.edit_to_disk_ms`, at 3.39 ms against a 120 ms budget, so this
+      is thirty-five times inside its own limit and the queue it would take
+      to fix it properly, an ordered per-session queue consumed off the
+      loop, is more machinery than the measurement justifies. Worth doing
+      if that number ever moves.

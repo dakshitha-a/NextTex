@@ -101,12 +101,37 @@ def test_a_request_with_neither_header_is_allowed(client):
     assert client.post("/api/logout").status_code != 403
 
 
-def test_reading_is_never_refused(client):
-    """The check is about acting, not about reading; a GET cannot be made
-    unsafe by where it came from, and refusing one would break the printed
-    link that arrives with no headers at all."""
+def test_reading_with_no_fetch_header_is_never_refused(client):
+    """A request with no `Sec-Fetch-Site` is not a browser: it is curl, the
+    installer, or the printed link, and refusing those would break the way
+    people are told to open this app. An `Origin` on its own does not make
+    a GET unsafe, because a browser that sends one also sends the fetch
+    header, which is what the test below relies on.
+
+    This used to say that a GET cannot be made unsafe by where it came
+    from, which is not true. `SameSite=Lax` does not separate ports, so a
+    page on another port of localhost is same-site with this one and its
+    cookie travels; a GET from there could read the file list, the
+    transcript, the papers and the settings, one request at a time. The
+    method exemption said yes before anything looked at the headers.
+    """
     answer = client.get("/api/auth", headers={"origin": NEIGHBOUR})
     assert answer.status_code == 200
+
+
+def test_a_read_from_a_neighbouring_page_is_refused(client):
+    """The half the method exemption walked around."""
+    answer = client.get("/api/auth", headers={"sec-fetch-site": "same-site"})
+    assert answer.status_code == 403
+
+    answer = client.get("/api/auth", headers={"sec-fetch-site": "cross-site"})
+    assert answer.status_code == 403
+
+
+def test_a_read_from_this_page_is_not_refused(client):
+    for site in ("same-origin", "none"):
+        answer = client.get("/api/auth", headers={"sec-fetch-site": site})
+        assert answer.status_code == 200, site
 
 
 def test_an_upload_from_a_neighbouring_page_is_refused(client, opened):
