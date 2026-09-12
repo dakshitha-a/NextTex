@@ -4043,11 +4043,17 @@ What is worth noticing about the whole list is that not one of them could have b
 
 ## 30. Fixing what the September review found
 
-The review that produced `REVIEW.md` recorded 126 findings and fixed none of
-them, deliberately: a list fixed as it is found stops at the first hard item.
-This section is what the fixing changed, one subsection per idea rather than
-one per record, since the point of the review's mechanism grouping was that
-several records are one idea in different clothes.
+The September 2026 review recorded 126 findings and fixed none of them,
+deliberately: a list fixed as it is found stops at the first hard item. The
+fix run that followed took every one of them, plus two the Windows laptop
+found while it ran, and its review file was deleted at the close: the commit
+log is the record, and each subsection below names what changed rather than
+the number it was filed under. Of the 128, 125 were fixed, two were deferred
+with their measurements and one was amended with its third part deferred, all
+three in `TRACKER.md` with their reasons. This section is what the fixing
+changed, one subsection per idea rather than one per record, since the point
+of the review's mechanism grouping was that several records are one idea in
+different clothes.
 
 ### Undo belongs to the writer's own keyboard, and to nothing else
 
