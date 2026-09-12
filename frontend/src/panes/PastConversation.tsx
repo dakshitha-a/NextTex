@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api, { type Archive } from "../api";
 import { chatFromTranscript, useStore, type ChatItem } from "../store";
 import Prose from "./prose";
+import { decisionWords } from "./Chat";
 
 /** The conversations "New conversation" filed away, and one of them open.
  *
@@ -129,15 +130,12 @@ function Row({ item }: { item: ChatItem }) {
     );
   }
   if (item.kind === "permission") {
-    const said =
-      item.decision === "allow" || item.decision === "always" || item.decision === "conversation"
-        ? "allowed"
-        : item.decision === "expired"
-          ? "not answered"
-          : "refused";
+    // The live panel's own words for a decision, so a tool that ran
+    // without asking reads "Allowed automatically" here as it does there,
+    // rather than falling into a refused-by-default branch.
     return (
       <p className="t-micro text-ink-2">
-        Asked about {item.headline || item.tool}: {said}
+        {item.headline || item.tool}: {decisionWords(item.decision)}
       </p>
     );
   }
