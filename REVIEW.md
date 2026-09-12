@@ -2757,7 +2757,7 @@ so there is room.
 
 ### ~~R-083 · Editor · comfort · high · confirmed~~
 
-**Built.** Next, previous, close and reopen, on `Cmd-Alt` with the arrows, W and Shift-T. The closed list is capped at twenty and comes from what `afterClosing` has always returned.
+**Built.** Next, previous, close and reopen, on `Cmd-Alt` with the brackets, W and Shift-T. The arrows went first and reached the browser on neither desktop: GNOME and a Mac browser both claim them. The closed list is capped at twenty and comes from what `afterClosing` has always returned.
 Held by `frontend/src/tabs.test.ts` and `e2e/specs/navigation.spec.ts`.
 
 

@@ -1250,15 +1250,26 @@ export default function App() {
       // no close and no way back from a tab closed by mistake, though
       // `afterClosing` has always returned what it closed.
       //
-      // Alt with the arrows, W and T, for the same reason as the two
+      // Alt with the brackets, W and T, for the same reason as the two
       // bindings above: Mod-Alt is the app's own space, and Mod-W and
       // Mod-T belong to the browser and cannot be taken.
-      if (meta && event.altKey && event.code === "ArrowRight") {
+      //
+      // The brackets rather than the arrows, which is where these started
+      // and where they never arrived: `Ctrl-Alt-Left` and
+      // `Ctrl-Alt-Right` are GNOME's own switch-to-workspace keys and are
+      // taken by the window manager before the browser is offered them,
+      // and on a Mac `Cmd-Alt-Left` and `Cmd-Alt-Right` are Safari's and
+      // Chrome's own previous and next tab. A headless browser has no
+      // window manager and no menu bar, so the test passed on both.
+      // `Cmd-[` and `Cmd-]` are already back and forward in a browser, so
+      // the direction reads the same way with Alt added, and nothing on
+      // either desktop claims that combination.
+      if (meta && event.altKey && event.code === "BracketRight") {
         event.preventDefault();
         const to = neighbour(get().tabs, get().activePath, 1);
         if (to) void openFile(to);
       }
-      if (meta && event.altKey && event.code === "ArrowLeft") {
+      if (meta && event.altKey && event.code === "BracketLeft") {
         event.preventDefault();
         const to = neighbour(get().tabs, get().activePath, -1);
         if (to) void openFile(to);
