@@ -4078,3 +4078,42 @@ editor over a real `Y.Doc`, lets the document arrive with a socket-shaped
 origin, and presses the key through `runScopeHandlers`, so it is the binding
 being tested and not the command. `e2e/specs/undo.spec.ts` does it in a
 browser and reads the disk afterwards, which is what was actually being lost.
+
+### A path from somebody else is fenced everywhere it is used, not everywhere it is written
+
+The second blocker. `resolve_for_write` refuses a path that leaves the project
+and a path inside `.git`, `.nexttex` or `.claude`, and every write of a shared
+file went through it. A rename did not, because a rename has two paths and
+only one of them is a write.
+
+`settle_paths` records what a record says its path is the first time it sees
+that file, as the baseline the next change is measured against. That went in
+unfenced. `_rename_locally` then built its source as `root / was` and its
+target through the fence. So the escape ran inwards: name a file
+`../../.ssh/id_rsa`, wait, rename it to `notes.tex`, and the file is carried
+off the machine's own disk into the project, where the manifest offers it to
+everybody in the share. The target being fenced was what made it useful.
+
+The rule is the one the projection already followed and the rename had drifted
+from: **a path proposed by the other end is put through the fence at the point
+it is used, not at the point it is written down.** A baseline is a source path
+later on, so it is fenced when it is recorded; a source is fenced when it is
+used; the target keeps the fence it already had.
+
+Two things beside it, both in the same function and the same family.
+
+A local file that a peer's rename displaces used to be moved to
+`chapter (was here).tex` inside a suppressed `OSError`. The manifest is the
+authority on what a file is called and the local file does have to step aside,
+but the writer's work went sideways in silence, under a name they did not
+choose, with nothing on any screen saying it had happened. It goes to the
+trash now. The trash is restorable, it is a panel somebody can look at, and
+removing the file is a change the watcher announces like any other, so all
+three of the things that were missing come with it.
+
+And the refusal a write gets was latched on the file id rather than on the
+path. Not retrying the same path is right: a record naming
+`.git/hooks/pre-commit` will name it just as much next time. But the path is a
+field the other end can change, and once an id was in that set nothing took it
+out, so a file pointed somewhere ordinary afterwards stayed unwritable for the
+rest of the session. It is a map from id to the path that was refused.

@@ -268,3 +268,141 @@ def test_a_joiner_still_learns_the_share_id(tmp_path):
     asyncio.run(link.handle(_welcome("the-real-share")))
 
     assert share.share_id == "the-real-share"
+
+
+def test_a_rename_cannot_move_a_file_from_outside_the_project_in(store, tmp_path):
+    """The one path into `_named` that was not fenced.
+
+    `settle_paths` records whatever a record says its path is the first time
+    it sees that file, and `_rename_locally` then builds the *source* of the
+    rename as `root / was` with no fence at all.  Only the target was
+    resolved.  So a peer could name a file `../../.ssh/id_rsa`, wait for that
+    to become the baseline, rename it to `notes.tex`, and the file would be
+    moved off the machine's own disk into the project, where the manifest
+    would then hand it to everybody in the share.
+
+    A rename is a move, so this is a read of anything the server's user can
+    read, and it destroys the original on the way.
+    """
+    secret = tmp_path / "secret"
+    secret.mkdir()
+    key = secret / "id_rsa"
+    key.write_text("PRIVATE KEY\n")
+
+    file_id = "beefbeefbeefbeef"
+    outside = "../secret/id_rsa"
+    store.files[file_id] = Map({
+        "path": outside, "kind": "text", "size": 1, "trashed": False,
+    })
+    store.settle_paths()
+
+    store.files[file_id]["path"] = "notes.tex"
+    store.settle_paths()
+
+    assert key.read_text() == "PRIVATE KEY\n", "the file outside the project was moved"
+    assert not (store.project.root / "notes.tex").exists(), (
+        "a file from outside the project arrived inside it"
+    )
+
+
+def test_a_rename_cannot_reach_a_control_file_either(store):
+    """`.git` and `.nexttex` are inside the project and are not writable.
+
+    The target of a rename was already fenced against them.  The source was
+    not, so the move ran the other way: a peer could carry `.git/config` out
+    into the project as an ordinary file, and read it.
+    """
+    (store.project.root / ".git").mkdir()
+    (store.project.root / ".git" / "config").write_text("[core]\n")
+
+    file_id = "cafecafecafecafe"
+    store.files[file_id] = Map({
+        "path": ".git/config", "kind": "text", "size": 1, "trashed": False,
+    })
+    store.settle_paths()
+    store.files[file_id]["path"] = "config.tex"
+    store.settle_paths()
+
+    assert (store.project.root / ".git" / "config").exists()
+    assert not (store.project.root / "config.tex").exists()
+
+
+def test_a_file_displaced_by_a_peer_rename_goes_to_the_trash(tmp_path):
+    """The manifest wins, and the writer's own file is not thrown away for it.
+
+    When a peer renames one of their files onto a name this machine is
+    already using, the local file has to step aside: the manifest is the
+    authority on what a file is called. It used to step aside into
+    `chapter (was here).tex`, silently, inside a suppressed OSError. The
+    writer's file was still there and they had no way to know it had been
+    renamed, or why, or that a name they had chosen was now somebody
+    else's.
+
+    The trash is where this app puts a file that has to go, and it is
+    already reachable from here: `_trash_locally` two functions down uses
+    it for exactly this reason.
+    """
+    from nexttex.history import History
+    from nexttex.trash import Trash
+
+    class Session:
+        def __init__(self, project):
+            self.history = History(project.state_dir / "history")
+            self.trash = Trash(project.state_dir / "trash", self.history, project.root)
+
+        def mark_written(self, path): pass
+        def note_edit(self, *args, **kwargs): pass
+        def schedule_compile(self): pass
+        def record_version(self, *args, **kwargs): pass
+
+    root = tmp_path / "paper"
+    root.mkdir()
+    (root / "mine.tex").write_text("What I wrote.\n")
+    (root / "theirs.tex").write_text("What they wrote.\n")
+    project = Project.open(root)
+    made = CollabStore(project, Session(project))
+    made.adopt()
+    try:
+        file_id = next(
+            fid for fid, record in made.files.items()
+            if record.get("path") == "theirs.tex"
+        )
+        made.settle_paths()
+        made.files[file_id]["path"] = "mine.tex"
+        made.settle_paths()
+
+        assert not (root / "mine.tex (was here).tex").exists(), (
+            "the writer's file was renamed out of the way rather than filed"
+        )
+        names = [entry.path for entry in made.session.trash.entries()]
+        assert "mine.tex" in names, f"nothing was put in the trash: {names}"
+    finally:
+        made.close()
+
+
+def test_a_refusal_is_about_the_path_and_not_the_file_for_ever(store):
+    """A refused write latched on the file id, so a corrected path never wrote.
+
+    Refusing to retry the *same* path is right: a record naming
+    `.git/hooks/pre-commit` will name it just as much next time. But the
+    path is a field a peer can change, and once the id was in the set
+    nothing ever took it out, so the file stayed unwritable for the life of
+    the session even after it was pointed somewhere ordinary.
+    """
+    file_id = "d00dd00dd00dd00d"
+    store.files[file_id] = Map({
+        "path": ".git/config", "kind": "text", "size": 1, "trashed": False,
+    })
+    body = store.body(file_id)
+    body += "[core]\n"
+    store._dirty.add(file_id)
+    store.flush()
+    assert file_id in store._refused
+
+    store.files[file_id]["path"] = "notes.tex"
+    store._dirty.add(file_id)
+    store.flush()
+
+    assert (store.project.root / "notes.tex").exists(), (
+        "a corrected path was still refused"
+    )
