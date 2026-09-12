@@ -128,6 +128,18 @@ export type TreeNode = {
 /** What a word count is counting. */
 export type WordScope = "file" | "document" | "selection" | "section";
 
+/** One match. The line and the column are 1-based, because they are what
+ *  the editor is told to jump to and what a LaTeX error names. */
+export type SearchHit = {
+  path: string;
+  line: number;
+  column: number;
+  /** How much of the line matched. Sent rather than derived, because with
+   *  a pattern the panel cannot work it out from the query. */
+  length: number;
+  text: string;
+};
+
 export type Instance = {
   instance: string;
   /** The commit this process loaded, read once when it started. */
@@ -592,6 +604,43 @@ const api = {
     request<{ words: string[] }>(
       `/projects/${id}/dictionary?word=${encodeURIComponent(word)}`,
       { method: "DELETE" },
+    ),
+  /** Every place a string appears in the project. `regex` off means the
+   *  query is taken literally, which is what a writer typing `eq.flux`
+   *  means; `case` on means the search is case sensitive, which is how
+   *  the editor's own find panel labels the same switch. */
+  search: (
+    id: string,
+    query: string,
+    options: { regex?: boolean; case?: boolean } = {},
+  ) =>
+    request<{
+      hits: SearchHit[];
+      capped: boolean;
+      files: number;
+      searched: number;
+    }>(
+      `/projects/${id}/search?q=${encodeURIComponent(query)}` +
+        `&regex=${options.regex ? "true" : "false"}` +
+        `&case=${options.case ? "true" : "false"}`,
+    ),
+  /** Rewrite every match. Each file that changes keeps a version in its
+   *  history, which is the only undo a replace across a project has. */
+  replaceInProject: (
+    id: string,
+    query: string,
+    replacement: string,
+    options: { regex?: boolean; case?: boolean; paths?: string[] } = {},
+  ) =>
+    request<{ files: number; replaced: number; paths: string[] }>(
+      `/projects/${id}/search/replace`,
+      json({
+        q: query,
+        with: replacement,
+        regex: Boolean(options.regex),
+        case: Boolean(options.case),
+        paths: options.paths ?? null,
+      }),
     ),
   /** The engine's own log for one document. `build/` is out of the file
    *  tree, so this is the only way the drawer can show it. */

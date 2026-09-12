@@ -2714,7 +2714,11 @@ without the extension, as already fixed. **A full build exists** and the
 status strip does distinguish scope; what is missing about it is narrower and
 is R-086.
 
-### R-081 · Editor · comfort · high · confirmed
+### ~~R-081 · Editor · comfort · high · confirmed~~
+
+**Built.** `Cmd-Shift-F` opens a panel in the rail under Files: every match in every text file, grouped by file, click to go there, and a replace across all of them behind a confirmation that says each file keeps a version in its history. The search reads the open documents live and the rest off disk, so it finds the sentence typed a moment ago.
+Held by `tests/test_search.py`, `tests/api/test_search_routes.py` and `e2e/specs/project-search.spec.ts`.
+
 
 Where: `frontend/src/panes/editor-setup.ts:33`, and the absence of any search
 route in `server/main.py`.

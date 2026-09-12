@@ -62,6 +62,11 @@ const SharePanel = lazy(() => import("./panes/SharePanel"));
  *  behind a click on a session where anybody opens history at all, and
  *  most sessions do not. */
 const HistoryPanel = lazy(() => import("./panes/History"));
+// Behind a key and a header row, and the largest panel in the rail:
+// a first visit that never searches the project should not download
+// it, the way the error drawer and the share sheet are not
+// downloaded until something opens them.
+const SearchPanel = lazy(() => import("./panes/SearchPanel"));
 const ViewingBanner = lazy(() =>
   import("./panes/History").then((m) => ({ default: m.ViewingBanner })),
 );
@@ -176,7 +181,10 @@ export default function App() {
   /** Which of the rail's two navigation panels are open.  Kept apart from
    *  `folded`, which is the pane layout the focus modes save and restore:
    *  these are sections inside one pane and have nothing to do with it. */
-  const [railOpen, setRailOpen] = useState({ files: true, sections: true });
+  const [railOpen, setRailOpen] = useState({ files: true, sections: true, search: false });
+  // A nonce rather than a flag, so a second press of the shortcut while
+  // the panel is already open puts the caret back in the box.
+  const [focusSearch, setFocusSearch] = useState(0);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   // Every pane folds away, and says where it went.  Editor and preview are
@@ -408,7 +416,7 @@ export default function App() {
     }
     // Reset first: a project with nothing stored gets the default, not
     // whatever the project before it was left in.
-    setRailOpen(recall(`nexttex.rail.${id}`, { files: true, sections: true }));
+    setRailOpen(recall(`nexttex.rail.${id}`, { files: true, sections: true, search: false }));
     setFolded((current) => recall(`nexttex.folded.${id}`, current));
     setWidths(recall(`nexttex.widths.${id}`, DEFAULTS));
     // The files that were open last time, and the one that was in front.
@@ -508,7 +516,7 @@ export default function App() {
   /** Open or fold one of the rail's navigation panels, and remember which.
    *  Kept out of `folded`, which the focus modes save and restore: these
    *  are sections inside one pane rather than panes. */
-  const toggleRail = useCallback((which: "files" | "sections") => {
+  const toggleRail = useCallback((which: "files" | "sections" | "search") => {
     setRailOpen((current) => {
       const next = { ...current, [which]: !current[which] };
       const id = get().projectId;
@@ -1329,6 +1337,20 @@ export default function App() {
         if (next.file && next.line) void openFile(next.file, next.line);
       }
 
+      // Find in the project, from anywhere. Mod-F belongs to the editor's
+      // own find panel and is right where it is: it searches the file in
+      // front of you. Mod-Shift-F is the same question asked of every
+      // file, which is the convention every editor with both uses, and
+      // neither GNOME nor a browser claims it.
+      if (meta && event.shiftKey && event.code === "KeyF") {
+        event.preventDefault();
+        railByHand.current = true;
+        setRailHidden(false);
+        setFolded((current) => ({ ...current, rail: false }));
+        setRailOpen((current) => ({ ...current, search: true }));
+        setFocusSearch((count) => count + 1);
+      }
+
       // Open a file by name, from anywhere. Every piece of a quick-open
       // was already built and none of them had a key: the filter row, the
       // search, and Enter opening the first match. This puts the caret in
@@ -1737,6 +1759,27 @@ export default function App() {
                   onAskAbout={noAgent ? undefined : askAboutSelection}
                   mainFile={mainFile}
                 />
+              ) : null}
+              {/* Under Files, because it answers the same question the
+                  filter row above it answers and answers it about the
+                  contents rather than the names. The header is here
+                  rather than inside the panel so that the panel itself
+                  can be fetched when it is opened. */}
+              <button
+                className="flex h-[26px] shrink-0 items-center justify-between border-t border-line px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+                aria-expanded={railOpen.search}
+                data-testid="search-toggle"
+                onClick={() => toggleRail("search")}
+              >
+                <span className="t-micro text-ink-2">Search</span>
+                <span className={`text-ink-3 ${railOpen.search ? "rotate-180" : ""}`}>
+                  <Chevron direction="down" />
+                </span>
+              </button>
+              {railOpen.search ? (
+                <Suspense fallback={null}>
+                  <SearchPanel onOpen={openFile} focusNonce={focusSearch} />
+                </Suspense>
               ) : null}
               <SectionsPanel
                 open={railOpen.sections}
