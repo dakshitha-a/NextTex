@@ -5,6 +5,7 @@ import api from "../api";
 import { get, useStore } from "../store";
 import { uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
+import { findIn, spanFor, textOf, type PageHit } from "./pdf-find";
 import { APPEARANCE_CHANGED } from "../appearance";
 import {
   backingFor,
@@ -189,6 +190,49 @@ export default function Pdf({
   const [current, setCurrent] = useState(1);
   const [absence, setAbsence] = useState<Absence>("");
 
+  // ---- find on the page ---------------------------------------------------
+  // The text layer has always carried every word on the page; this reads
+  // it. The bar is unmounted when closed, so the footer, a 26px strip
+  // already dropping controls at narrow widths, is not asked to hold an
+  // input.
+  const [finding, setFinding] = useState(false);
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<PageHit[]>([]);
+  const [at, setAt] = useState(0);
+  const findBox = useRef<HTMLInputElement | null>(null);
+  /** Every page's text, extracted once per build and kept: a walk of a
+   *  three-hundred-page thesis is a few hundred milliseconds once, and
+   *  would be that per keystroke without this. */
+  const pageTexts = useRef<{ generation: number; texts: string[] } | null>(null);
+  /** The hit the reader is on, for the text layer to mark when it renders.
+   *  A ref rather than state, because `renderText` is a stable callback
+   *  and reads it after an await. */
+  const wanted = useRef<{ page: number; occurrence: number; query: string } | null>(null);
+
+  /** Mark the current hit on one page's text layer, if it is there.
+   *
+   *  Called from `renderText` once the spans exist, and directly when the
+   *  layer was already current, so there is no timer waiting for the layer
+   *  to appear. Clears every earlier mark first: one current hit, not a
+   *  trail of them. */
+  const markHit = useCallback((index: number) => {
+    const view = pages.current[index];
+    const want = wanted.current;
+    if (!view) return;
+    for (const old of view.text.querySelectorAll(".nx-find-hit")) {
+      old.classList.remove("nx-find-hit");
+    }
+    if (!want || want.page !== index + 1) return;
+    const span = spanFor(
+      view.text.querySelectorAll("span"), want.query, want.occurrence,
+    ) as HTMLElement | null;
+    if (!span) return;
+    span.classList.add("nx-find-hit");
+    // `goTo` lands on the top of the page, and the match is somewhere
+    // below it. Only in scroll mode: a page-mode page is the whole view.
+    if (modeRef.current === "scroll") span.scrollIntoView({ block: "center" });
+  }, []);
+
   // This document's own build stamp, not the project's: a build of another
   // preview must not make this pane re-fetch a PDF that has not changed.
   const stamp = useStore((s) => s.builds[showing]?.pdfStamp ?? s.pdfStamp);
@@ -273,11 +317,12 @@ export default function Pdf({
       });
       await layer.render();
       if (mine !== generation.current) view.text.replaceChildren();
+      else markHit(index);
     } catch {
       // A page whose text cannot be read is still a page you can look at.
       view.textFor = -1;
     }
-  }, []);
+  }, [markHit]);
 
   const renderPage = useCallback(async (index: number) => {
     const view = pages.current[index];
@@ -975,8 +1020,145 @@ export default function Pdf({
     [goTo],
   );
 
+  /** Go to one hit: the page first, then the mark once the layer is there. */
+  const showHit = useCallback((index: number, list: PageHit[], needle: string) => {
+    const hit = list[index];
+    if (!hit) {
+      wanted.current = null;
+      pages.current.forEach((_, page) => markHit(page));
+      return;
+    }
+    wanted.current = { page: hit.page, occurrence: hit.occurrence, query: needle };
+    goTo(hit.page);
+    // A layer already built for this generation will not be rebuilt, so
+    // it is marked now; one that is not yet built marks itself when it is.
+    const view = pages.current[hit.page - 1];
+    pages.current.forEach((_, page) => {
+      if (page !== hit.page - 1) markHit(page);
+    });
+    if (view && view.textFor === generation.current) markHit(hit.page - 1);
+  }, [goTo, markHit]);
+
+  // The search itself, a moment after the typing stops. The first search
+  // after a build extracts every page's text and keeps it.
+  useEffect(() => {
+    if (!finding) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const document = doc.current;
+      const needle = query.trim();
+      if (!document || !needle) {
+        setHits([]);
+        setAt(0);
+        showHit(-1, [], "");
+        return;
+      }
+      const mine = generation.current;
+      if (!pageTexts.current || pageTexts.current.generation !== mine) {
+        const texts: string[] = [];
+        try {
+          for (let number = 1; number <= document.numPages; number += 1) {
+            const page = await document.getPage(number);
+            const content = await page.getTextContent();
+            texts.push(textOf(content.items as { str: string; hasEOL?: boolean }[]));
+            if (cancelled || mine !== generation.current) return;
+          }
+        } catch {
+          return;
+        }
+        pageTexts.current = { generation: mine, texts };
+      }
+      if (cancelled) return;
+      const found = findIn(pageTexts.current.texts, needle);
+      setHits(found);
+      setAt(0);
+      showHit(0, found, needle);
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [finding, query, stamp, showHit]);
+
+  const stepHit = useCallback((delta: number) => {
+    if (!hits.length) return;
+    const next = (at + delta + hits.length) % hits.length;
+    setAt(next);
+    showHit(next, hits, query);
+  }, [at, hits, query, showHit]);
+
+  const closeFind = useCallback(() => {
+    setFinding(false);
+    setHits([]);
+    showHit(-1, [], "");
+    scroller.current?.focus();
+  }, [showHit]);
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-surround">
+      {finding ? (
+        // Above the page rather than in the footer: the editor's own find
+        // sits at the top of its pane, and the footer is a 26px strip that
+        // already drops controls at narrow widths.
+        <div
+          className="flex h-[30px] shrink-0 items-center gap-2 border-b border-line bg-surface px-2"
+          data-testid="pdf-find-bar"
+        >
+          <input
+            ref={(node) => {
+              findBox.current = node;
+              // Claimed on arrival, because the key that opened this bar
+              // was pressed on the scroller and the box did not exist then.
+              node?.focus();
+            }}
+            className="t-ui min-w-0 flex-1 rounded-[3px] border border-line bg-surface-2 px-[6px] py-[1px] text-ink"
+            placeholder="Find on the page"
+            data-testid="pdf-find"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                stepHit(event.shiftKey ? -1 : 1);
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                closeFind();
+              }
+            }}
+          />
+          <span className="t-micro tnum shrink-0 text-ink-3" data-testid="pdf-find-count">
+            {query.trim()
+              ? hits.length ? `${at + 1} of ${hits.length}` : "Nothing found"
+              : ""}
+          </span>
+          <button
+            className="quiet t-micro shrink-0"
+            onClick={() => stepHit(-1)}
+            disabled={!hits.length}
+            aria-label="Previous match"
+          >
+            ‹
+          </button>
+          <button
+            className="quiet t-micro shrink-0"
+            onClick={() => stepHit(1)}
+            disabled={!hits.length}
+            aria-label="Next match"
+          >
+            ›
+          </button>
+          <button
+            className="quiet t-micro shrink-0"
+            onClick={closeFind}
+            aria-label="Close find"
+            data-testid="pdf-find-close"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
       <div
         ref={scroller}
         className="min-h-0 flex-1 overflow-auto"
@@ -984,6 +1166,18 @@ export default function Pdf({
         onDoubleClick={onDoubleClick}
         tabIndex={0}
         onKeyDown={(event) => {
+          // Before the mode gate below, or the bar never opens in the
+          // mode most people read in. Only while the preview holds the
+          // keyboard, which it does after a click on a page: Mod-F in
+          // the editor is the editor's own find and stays that.
+          if ((event.metaKey || event.ctrlKey) && event.code === "KeyF") {
+            event.preventDefault();
+            setFinding(true);
+            // The box may not exist yet; when it does, its ref takes the
+            // caret. A second press selects what is there.
+            findBox.current?.select();
+            return;
+          }
           if (mode !== "page") return;
           if (event.key === "ArrowRight" || event.key === "PageDown") step(1);
           if (event.key === "ArrowLeft" || event.key === "PageUp") step(-1);
