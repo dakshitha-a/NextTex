@@ -54,6 +54,37 @@ try { Start-Transcript -Path $logFile -Append | Out-Null } catch { }
 function Say  { param($m) Write-Host ''; Write-Host $m -ForegroundColor White }
 function Note { param($m) Write-Host "  $m" }
 
+function Run {
+  <# Run a program, keep what it said, and notice when it failed.
+
+     Both halves were wrong and a real run on a Windows laptop showed both.
+
+     `Start-Transcript` records what PowerShell writes and not what a
+     program writes: git, pip and the interface fetch each appeared in
+     update.log as a single glyph and nothing else, so the console said
+     "Already up to date." and "interface downloaded" and the log, whose
+     entire purpose is diagnosing a failed update on a machine you cannot
+     see, recorded neither. Piping the output through `Write-Host` turns
+     it into something the transcript keeps.
+
+     And the exit code was never read. The dependencies step sat wedged for
+     fifteen minutes, its pip was killed by hand, and the step then printed
+     "up to date" and the script exited zero: a step that certainly did not
+     happen, reported as success, which is the exact fault the restart
+     branch was rewritten to stop doing. #>
+  param([string]$Program, [string[]]$Arguments, [switch]$Optional)
+  & $Program @Arguments 2>&1 | ForEach-Object { Write-Host "  $_" }
+  $code = $LASTEXITCODE
+  if ($code -ne 0) {
+    if ($Optional) {
+      Note "$Program exited $code; carrying on without it"
+      return $false
+    }
+    throw "$Program exited $code"
+  }
+  return $true
+}
+
 function Get-ServerPort {
   # Out of the install's own config.json, because a named instance derives
   # its own port from its name and 8450 is only the default.
@@ -160,7 +191,7 @@ function Start-Server {
 $stopped = ''
 try {
   Say 'Fetching'
-  git pull --ff-only
+  Run git @('pull', '--ff-only') | Out-Null
   Note (git log -1 --pretty='%h %s')
 
   if (-not $NoRestart) {
@@ -172,11 +203,15 @@ try {
   Say 'Dependencies'
   if (Get-Command uv -ErrorAction SilentlyContinue) {
     $env:VIRTUAL_ENV = (Join-Path (Get-Location).Path '.venv')
-    & uv pip install --quiet --upgrade -r requirements.txt
-    & uv pip install --quiet --upgrade iroh 2>$null
+    Run uv @('pip', 'install', '--quiet', '--upgrade', '-r', 'requirements.txt') | Out-Null
+    # iroh publishes no source distribution, so a platform it has no wheel
+    # for must not fail the whole update: an install that cannot have it
+    # keeps everything except sharing a project.
+    Run uv @('pip', 'install', '--quiet', '--upgrade', 'iroh') -Optional | Out-Null
   } else {
-    & .venv\Scripts\python.exe -m pip install --quiet --upgrade -r requirements.txt
-    & .venv\Scripts\python.exe -m pip install --quiet --upgrade iroh 2>$null
+    $python = '.venv\Scripts\python.exe'
+    Run $python @('-m', 'pip', 'install', '--quiet', '--upgrade', '-r', 'requirements.txt') | Out-Null
+    Run $python @('-m', 'pip', 'install', '--quiet', '--upgrade', 'iroh') -Optional | Out-Null
   }
   Note 'up to date'
 
@@ -195,17 +230,18 @@ try {
   # footer matches on it to name the step the user is watching.
   $fetched = $false
   try {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'fetch-interface.ps1')
-    $fetched = ($LASTEXITCODE -eq 0)
+    $fetched = Run powershell @('-NoProfile', '-ExecutionPolicy', 'Bypass',
+                                '-File', (Join-Path $PSScriptRoot 'fetch-interface.ps1')) -Optional
   } catch { $fetched = $false }
 
   if ($fetched) {
     Note 'interface downloaded'
   } elseif (Get-Command node -ErrorAction SilentlyContinue) {
     Push-Location frontend
-    & npm ci --no-audit --no-fund --silent
-    & npm run build 2>&1 | Out-Null
-    Pop-Location
+    try {
+      Run npm @('ci', '--no-audit', '--no-fund', '--silent') | Out-Null
+      Run npm @('run', 'build') | Out-Null
+    } finally { Pop-Location }
     Note 'interface rebuilt here'
   } else {
     Note 'could not fetch the interface and there is no Node to build one; keeping the one in place'
@@ -234,6 +270,17 @@ try {
   Note "could not restart it: there is no scheduled task named '$Name' and no $Name.lnk in your Startup folder."
   Note "start it yourself with: .venv\Scripts\python.exe -u server\run.py"
   Note "the log of this run is at $logFile"
+  exit 1
+} catch {
+  # A step that failed says which one and stops, rather than carrying on
+  # into the next one and reporting success at the end. The server may be
+  # stopped at this point, so the message has to say how to start it.
+  Write-Host ''
+  Write-Host "  the update stopped: $_" -ForegroundColor Red
+  Note "the log of this run is at $logFile"
+  if ($stopped) {
+    Note "the server is stopped. Start it with: .venv\Scripts\python.exe -u server\run.py"
+  }
   exit 1
 } finally {
   try { Stop-Transcript | Out-Null } catch { }

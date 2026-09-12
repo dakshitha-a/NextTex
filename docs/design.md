@@ -4706,6 +4706,35 @@ the command to run, names the log, and exits one. It sweeps up whatever earlier
 updates left behind while nothing has those files open, and it writes
 `update.log` beside `install.log` on both platforms.
 
+Three more came from running it on that laptop for real, and the first is
+the one worth remembering. The dependencies step wedged: pip sat for fifteen
+minutes with no CPU, no sockets and no temporary directory, and the server was
+already stopped, so the machine had no NextTex for that quarter of an hour. The
+operator killed pip by hand, and the step printed "up to date" and the script
+exited zero. Nothing had ever read `$LASTEXITCODE`, so a killed install and a
+finished one were the same thing to it, which is the fault the restart branch
+had just been rewritten to remove, one step to the left.
+
+And the log was keeping the wrong half of the run. `Start-Transcript` records
+what PowerShell writes and not what a program writes, so git, both pips and the
+interface fetch each appeared in `update.log` as a single glyph: the console
+said "Already up to date." and "interface downloaded" and the log, whose entire
+purpose is diagnosing an update on a machine you cannot see, recorded neither.
+Every program now runs through one wrapper that pipes its output through
+`Write-Host`, which the transcript does keep, and that reads its exit code and
+stops the run when it is not zero.
+
+The third was the reason that machine's update check could not reach GitHub.
+`gitrepo._environment()` builds git's environment from nothing, deliberately,
+so that a writer's own git configuration cannot change what this app does, and
+it passed five names. On Windows the socket stack will not initialise without
+`SystemRoot`, so every lookup failed as "Could not resolve host" while a shell
+on the same machine over the same URL worked perfectly. It was proved by
+varying one name at a time against that builder: with `SystemRoot` the lookup
+succeeds, with `SystemDrive` instead it fails. The docstring said the names
+listed were "the ones that being absent actually breaks", which was true on
+POSIX and needed a fifth.
+
 Which process to stop is not the question it looks like. The shortcut runs
 `.venv\Scripts\python.exe -u server\run.py`, and on an install whose
 interpreter came from the Microsoft Store that process immediately re-execs
@@ -4734,3 +4763,4 @@ this installs that checkout. What was missing was saying so when the answer
 disagrees with the question. Asking for the checkout it is standing in is still
 fine, because that answer is redundant rather than wrong, and a script that
 refuses a correct answer is worse than one that ignores it.
+
