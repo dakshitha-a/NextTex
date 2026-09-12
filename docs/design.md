@@ -5053,3 +5053,34 @@ The editor holds the accepted list and the settings sheet edits it, and they
 are in different trees, so the store carries a stamp that both watch. Without
 it, forgetting a word left the underline off until the tab was reloaded, which
 reads as the control not working.
+
+### The panel that exists to make git reachable was hiding half of it
+
+A project with no repository was shown one card, offering to back it up to
+GitHub. A project with a repository and no remote was shown the same card. Two
+different situations with one answer, and the answer was the one that needs an
+account and a network, so the local half of version control was reachable only
+from a terminal: the panel whose whole job is to put git in front of a writer
+was the thing keeping it away.
+
+The card asks the question the project is actually in. With no repository it
+leads with "Keep versions here", which is one call to a route that has taken
+`init` the whole time, and offers GitHub second and quietly. With a repository
+and no remote it is the card it always was. The wording follows: git keeping a
+record of the project as a whole is worth saying next to the per-file history
+NextTex already keeps, because a writer who has one may not see why they want
+the other.
+
+### The number somebody emptying something actually wants
+
+Emptying a file's version history said "Deleted 7 versions". The route answers
+with the bytes it freed as well, and the interface dropped that half. A count
+of versions says nothing about whether the thing was worth doing, which is the
+question somebody clearing space is asking, so it says "Deleted 7 versions,
+freeing 240 KB".
+
+The other end of the same question is what it is holding before anybody
+decides. `/history/size` had a client wrapper and no caller since it was
+written; the figure sits in the history panel's header. Both go through one
+formatter, moved out of the history panel where it was the only copy, because
+two formatters eventually round the same number two ways on one screen.

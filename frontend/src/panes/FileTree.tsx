@@ -7,6 +7,7 @@ import { FileIcon, FolderIcon } from "./FileIcon";
 import { iconFor, isBib, isData, isTeX } from "./file-kinds";
 import api, { startDownload, type TreeNode } from "../api";
 import { get, set, useStore } from "../store";
+import { sizeOf } from "../size";
 import {
   ancestorsOf,
   collisions,
@@ -695,11 +696,18 @@ export default function FileTree({
                       // versions had been deleted when they had not.
                       try {
                         const answer = await api.purgeHistory(projectId, node.path);
-                        setPurged(
+                        // What it freed as well as what it deleted. The
+                        // route has answered with both the whole time and
+                        // the interface dropped one of them, which is the
+                        // number somebody emptying something is after: a
+                        // count of versions says nothing about whether it
+                        // was worth doing.
+                        const freed = sizeOf(answer.freed);
+                        const count =
                           answer.removed === 1
-                            ? "Deleted 1 version."
-                            : `Deleted ${answer.removed} versions.`,
-                        );
+                            ? "Deleted 1 version"
+                            : `Deleted ${answer.removed} versions`;
+                        setPurged(freed ? `${count}, freeing ${freed}.` : `${count}.`);
                       } catch (error: any) {
                         set({ error: error.message });
                       }
