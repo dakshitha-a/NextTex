@@ -1022,6 +1022,15 @@ class PeerNetwork:
             return
         import hashlib
 
+        # Asked for, and not merely well named. These are two questions and
+        # only the second was being asked, so a peer could send BLOB_HAVE
+        # for anything at all, unsolicited, and every one of them was
+        # written into this install's history blobs. Being invited into a
+        # project is not a licence to fill the disk, and nothing on any
+        # screen accounts for what is in there.
+        if not any(sha in link.wanted for link in self.links.values()):
+            return
+
         # Checked rather than trusted. A content-addressed store whose
         # contents do not match their names is worse than an empty one.
         if hashlib.sha256(data).hexdigest() != sha:

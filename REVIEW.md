@@ -1804,9 +1804,18 @@ ever.** The read loop has no timeout, the first frame is awaited with no
 timeout, nothing caps concurrent connections, and membership is checked only
 after that first frame arrives.
 
-**Unsolicited blobs are stored.** Any `BLOB_HAVE` whose payload hashes to its
-claimed sha is written, whether or not anything asked, and each costs a
-sha256 and a `zlib.compress` on the loop.
+**~~Unsolicited blobs are stored.~~ Fixed in `49b6b98`'s successor.** Any
+`BLOB_HAVE` whose payload hashes to its claimed sha was written, whether or
+not anything asked, and each cost a sha256 and a `zlib.compress` on the loop.
+`take_blob` now asks the question its own docstring already claimed to ask,
+whether some link is still waiting for that sha, before it asks whether the
+bytes match the name. Held by
+`tests/collab/test_hostile_peers.py::test_a_blob_nobody_asked_for_is_not_stored`.
+
+**The other two are carried to the pass that does the loop and the bounds**,
+because they are the same work as R-031 and R-038: a ceiling and a timeout on
+something a person never sees. Neither is a rename and neither belongs with
+the fence fix, which is what the rest of this record was grouped with.
 
 ### R-065 · Collaboration and context · bug · medium · likely
 

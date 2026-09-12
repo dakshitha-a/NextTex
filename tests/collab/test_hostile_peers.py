@@ -406,3 +406,44 @@ def test_a_refusal_is_about_the_path_and_not_the_file_for_ever(store):
     assert (store.project.root / "notes.tex").exists(), (
         "a corrected path was still refused"
     )
+
+
+@pytest.mark.asyncio
+async def test_a_blob_nobody_asked_for_is_not_stored(tmp_path):
+    """`take_blob` says "if it is really the one asked for" and never asked.
+
+    It checks that the bytes hash to the name they arrived under, which is
+    the right check for a content-addressed store and is not the same
+    question. A peer could send `BLOB_HAVE` for anything at all, unasked,
+    and every one of them was written into this install's history blobs. A
+    peer is somebody who was invited, but an invitation is not a licence to
+    fill the disk, and nothing on any screen accounts for what is in there.
+    """
+    import hashlib
+
+    from nexttex.history import History
+    from server.collab.peers import PeerNetwork
+
+    class Session:
+        def __init__(self, project):
+            self.history = History(project.state_dir / "history")
+
+    root = tmp_path / "paper"
+    root.mkdir()
+    (root / "main.tex").write_text("The chapter.\n")
+    project = Project.open(root)
+    made = CollabStore(project)
+    made.adopt()
+    try:
+        session = Session(project)
+        history = session.history
+        network = PeerNetwork(made, session=session)
+
+        junk = b"x" * 4096
+        network.take_blob(hashlib.sha256(junk).hexdigest(), junk)
+
+        assert not history.blobs.has(hashlib.sha256(junk).hexdigest()), (
+            "a blob nobody asked for was written to disk"
+        )
+    finally:
+        made.close()
