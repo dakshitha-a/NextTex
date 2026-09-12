@@ -4117,3 +4117,47 @@ path. Not retrying the same path is right: a record naming
 field the other end can change, and once an id was in that set nothing took it
 out, so a file pointed somewhere ordinary afterwards stayed unwritable for the
 rest of the session. It is a map from id to the path that was refused.
+
+### Absence and failure are not the same thing, and neither is "not yet"
+
+The largest family the review found, and the one a writer actually meets,
+because every instance of it puts a false sentence on the screen. One signal
+is being read as one meaning when it carries several.
+
+**The preview told writers their document was empty.** The PDF route raises
+404 whenever `build/main.pdf` is not on disk, and pdflatex writes no PDF for a
+document with nothing in it, so three different pieces of news arrive as one
+status code: no build has ever finished, one is running right now, and one
+finished and produced no pages. Only the third is an empty document. For the
+whole of a project's first build, which is several seconds and is the first
+thing anybody sees, the pane said "Nothing has been typeset yet. An empty
+document produces no pages." That is a statement about the writer's own work,
+it is false, and it sends them looking for a fault in a document that is fine.
+The Windows laptop met it as the first thing a joining writer sees, with the
+build log already on disk beside it.
+
+The store had the answer all along. `builds[document]` carries `compiling`,
+and a `result` that stays null until a `compile_done` has landed for that
+document. `absenceFrom` takes both now and answers four states rather than
+two: **Typesetting** while a build is running, **Not built yet** when none
+has finished, **Nothing has been typeset yet** only for a build that finished
+and made no pages, and the unreachable screen for everything else.
+
+**The strip said Ready through that same build**, which is the other half and
+has a different cause. `compile_start` is news, and the broadcaster keeps no
+backlog, so a browser hears it only if it was subscribed at that instant.
+Opening a project builds it: `connect()` constructs an `EventSource`, which
+returns before the connection exists, and the compile request goes out a few
+lines later. The tab regularly missed its own build starting.
+
+The same absence is why a lost `compile_done` latched the strip on Compiling
+for ever. **A flag raised by one event and lowered only by another needs a way
+to be read, not only listened for.** That is the general rule and this is the
+particular one: the event stream's first frame, on every connection and every
+automatic reconnection, is now `compile_state`, the state of every document's
+build. It is authoritative about what is running and says nothing about what a
+build produced, so a browser that already has a result keeps it.
+
+Two smaller ones in the same pane. The cancellation check on the PDF fetch was
+on the success path and on neither failure path, so a superseded 404 could
+draw the "no preview" screen over a page that had already loaded.

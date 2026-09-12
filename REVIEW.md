@@ -140,7 +140,13 @@ is a list that decides too early what a thing has in common.
 
 ### Compile, diagnostics and the preview
 
-### R-001 · Compile · bug · medium · likely
+### ~~R-001 · Compile · bug · medium · likely~~
+
+**Fixed.** The same first frame is the fourth ending the flag was missing: it is
+sent on every automatic reconnection, so a `compile_done` lost while the stream was
+down is corrected the moment it comes back. Held by
+`frontend/src/compile-state.test.ts`, which stages the dropped stream a browser
+cannot.
 
 Found by: reading. Where: `frontend/src/store.ts:794` and `:809`, with
 `frontend/src/panes/Status.tsx:33`.
@@ -164,7 +170,10 @@ breathes for ever answers nothing.
 Mechanism: a busy flag with fewer ways down than the job has endings, which
 is the family `d11da03` named.
 
-### R-002 · Preview · bug · medium · likely
+### ~~R-002 · Preview · bug · medium · likely~~
+
+**Fixed.** The two failure paths in the PDF fetch check `cancelled` like the
+success path already did.
 
 Found by: reading. Where: `frontend/src/panes/Pdf.tsx:546` and `:564`.
 
@@ -457,7 +466,12 @@ request that does not connect at all. The app can tell those apart.
 This also masks R-001. The compiling latch is real in the code, and killing
 the server cannot be used to see it, because the tab reloads itself first.
 
-### R-044 · Preview · bug · high · confirmed
+### ~~R-044 · Preview · bug · high · confirmed~~
+
+**Fixed.** `absenceFrom` takes the document's build state and answers four states
+instead of two, so a build in flight and a project nobody has built are no longer
+drawn as an empty document. Held by `frontend/src/panes/pdf-absence.test.ts` and
+`e2e/specs/compile-state.spec.ts`.
 
 Found by: driving a real browser and watching the disk beside the screen.
 Where: `frontend/src/panes/pdf-absence.ts:17` with
@@ -498,7 +512,11 @@ walkthrough is "add `examples/minimal-article` as a project. It typesets as it
 opens", and for the six seconds that takes, the app says their document is
 empty and offers to replace it.
 
-### R-045 · Compile · bug · medium · confirmed
+### ~~R-045 · Compile · bug · medium · confirmed~~
+
+**Fixed.** The event stream's first frame is `compile_state`, so a subscriber that
+arrived after `compile_start` went out is told what is running. Held by
+`tests/api/test_compile_state.py` and the browser spec above.
 
 Found by: the same run. Where: `frontend/src/App.tsx:359` and `:419`, with
 `server/session.py`'s event fan-out.
@@ -2970,7 +2988,9 @@ looked at, which is certain; what it looks like is not.
 Cheap to settle: the sweep and clarity specs take a `deviceScaleFactor`, and
 adding 1.25 to them is a line.
 
-### R-107 · Preview · bug · high · confirmed
+### ~~R-107 · Preview · bug · high · confirmed~~
+
+**Fixed with R-044**, which is what this record corroborates from Windows.
 
 Found by: the Windows laptop, on the first screen a joining writer sees. This
 is R-044 on a second machine and a second platform, so it is recorded as

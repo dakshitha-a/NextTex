@@ -108,6 +108,16 @@ An edit reaching the disk measures at 3.1 ms on a thesis-shaped project, of whic
 
 ## Compiling
 
+Every subscriber is told the state before it is told the news. The event
+stream's first frame is `compile_state`, which carries, per document, whether
+a build is running, which build, and whether one has ever finished.
+`compile_start` and `compile_done` are published to whoever is subscribed at
+that instant and are not kept, so without this a tab that opened a project and
+built in the same breath missed its own build, and a stream that dropped
+mid-build came back with nothing in the world able to lower the flag it had
+raised.
+
+
 A compile runs every time typing pauses, so the budget is about a second. Three decisions get it there.
 
 **Only rebuild what changed.** A document using `\include` can be compiled one chapter at a time with `\includeonly`, which halves the work on a seven-chapter dissertation. Whether that applies is detected from the source, never assumed.

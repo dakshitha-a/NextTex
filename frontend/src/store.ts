@@ -648,6 +648,9 @@ export function connect(projectId: string) {
   // a turn that ended while the stream was down is noticed at the moment
   // the stream comes back rather than at the next timer tick.
   source.onopen = () => {
+    // The compile state arrives on its own, as the stream's first frame,
+    // so this no longer has to carry it. The agent's does not: `reconcile`
+    // asks a route.
     if (state.thinking) void reconcile();
   };
   source.onmessage = (event) => {
@@ -787,6 +790,31 @@ function receive(event: any) {
       const next = { ...state.builds };
       for (const name of named.length ? named : state.previews) {
         next[name] = { ...(next[name] ?? NO_BUILD), stale: true };
+      }
+      syncVisible({ builds: next });
+      break;
+    }
+    case "compile_state": {
+      // The stream's first frame, on every connection and every automatic
+      // reconnection. `compile_start` and `compile_done` are news, sent to
+      // whoever is listening at that instant and never kept, so a tab that
+      // opened a project and built in the same breath missed its own build
+      // starting, and a stream that dropped mid-build came back with
+      // `compiling` raised and nothing left to lower it. This is the state
+      // rather than the news: it is how the flag gets a way back.
+      const next = { ...state.builds };
+      for (const row of event.documents ?? []) {
+        const name = row.document as string;
+        const current = next[name] ?? NO_BUILD;
+        if (row.build != null) builds.set(name, row.build);
+        next[name] = {
+          ...current,
+          compiling: Boolean(row.compiling),
+          // Only ever raised here. A snapshot is authoritative about what
+          // is running; what a build *produced* arrives with its own
+          // `compile_done`, and a browser that has one must not lose it.
+          result: current.result,
+        };
       }
       syncVisible({ builds: next });
       break;

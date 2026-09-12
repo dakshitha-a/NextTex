@@ -3913,6 +3913,14 @@ async def events(project_id: str, request: Request):
         import json as _json
         try:
             yield "retry: 2000\n\n"
+            # The first frame is what this connection missed. `compile_start`
+            # goes to whoever is subscribed at that instant and is not kept,
+            # so a tab that opens a project and builds in the same breath
+            # misses its own build starting, and a stream that dropped
+            # during a build comes back with the strip still saying
+            # Compiling. Both are answered by beginning with the state
+            # rather than only with the news.
+            yield f"data: {_json.dumps(session.compile_snapshot())}\n\n"
             while True:
                 if await request.is_disconnected():
                     return

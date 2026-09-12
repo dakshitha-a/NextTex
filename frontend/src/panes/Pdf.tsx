@@ -186,6 +186,15 @@ export default function Pdf({
   // This document's own build stamp, not the project's: a build of another
   // preview must not make this pane re-fetch a PDF that has not changed.
   const stamp = useStore((s) => s.builds[showing]?.pdfStamp ?? s.pdfStamp);
+  // Which of the three things a 404 means. `result` is null until a
+  // `compile_done` has landed for this document, so it says whether this
+  // has ever been built; `compiling` says whether one is running now.
+  const compiling = useStore((s) => s.builds[showing]?.compiling ?? false);
+  const everBuilt = useStore((s) => (s.builds[showing]?.result ?? null) !== null);
+  // A ref as well, because the fetch below reads it inside an async closure
+  // that was started before the build state moved.
+  const buildRef = useRef({ compiling, result: everBuilt ? {} : null });
+  buildRef.current = { compiling, result: everBuilt ? {} : null };
   const projectId = useStore((s) => s.projectId);
 
   const modeRef = useRef(mode);
@@ -544,7 +553,13 @@ export default function Pdf({
           credentials: "same-origin",
         });
         if (!response.ok) {
-          setAbsence(absenceFrom(response));
+          // Checked on the failure paths as well as the success one. The
+          // success path was hardened and these two were left, so a
+          // superseded fetch could still write its answer over a newer
+          // one's: a stale 404 arriving after a good PDF had loaded put
+          // the "no preview" screen over a page that was on the screen.
+          if (cancelled) return;
+          setAbsence(absenceFrom(response, buildRef.current));
           return;
         }
         const data = await response.arrayBuffer();
@@ -562,7 +577,8 @@ export default function Pdf({
       } catch {
         // Never got an answer at all, which is not the same as being told
         // there is nothing to show.
-        setAbsence(absenceFrom(null));
+        if (cancelled) return;
+        setAbsence(absenceFrom(null, buildRef.current));
       }
     })();
     return () => {
@@ -941,6 +957,28 @@ export default function Pdf({
           if (event.key === "ArrowLeft" || event.key === "PageUp") step(-1);
         }}
       >
+        {absence === "building" ? (
+          <div className="flex h-full items-center justify-center px-8 text-center">
+            <div className="max-w-[42ch]">
+              <p className="t-display text-ink-3">Typesetting.</p>
+              <p className="t-meta mt-2 text-ink-2">
+                The first build of a project takes a few seconds. The page
+                appears here when it lands.
+              </p>
+            </div>
+          </div>
+        ) : null}
+        {absence === "unbuilt" ? (
+          <div className="flex h-full items-center justify-center px-8 text-center">
+            <div className="max-w-[42ch]">
+              <p className="t-display text-ink-3">Not built yet.</p>
+              <p className="t-meta mt-2 text-ink-2">
+                Nothing has been typeset for this document in this session.
+                Write a line, or build it, and the page appears here.
+              </p>
+            </div>
+          </div>
+        ) : null}
         {absence === "empty" ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">

@@ -73,6 +73,11 @@ class DocumentState:
     paths: ProjectPaths
     compiler: CompileScheduler
     build_id: int = 0
+    #: The build currently running for this document, or 0. `build_id` says
+    #: how many have started and `last_result` whether one has ever
+    #: finished; neither says whether one is running *now*, which is what a
+    #: browser that connected after `compile_start` went out has to be told.
+    in_flight: int = 0
     last_result: CompileResult | None = None
     diagnostics: list[dict] = field(default_factory=list)
     debounce: asyncio.Task | None = None
@@ -489,6 +494,35 @@ class ProjectSession:
             except (PermissionError, OSError):
                 self._focus = None
 
+    def compile_snapshot(self) -> dict:
+        """What a browser that has just connected has missed.
+
+        `compile_start` is published to whoever is subscribed at that
+        instant and there is no backlog, so a tab that opens a project and
+        starts a build in the same breath regularly misses its own: the
+        `EventSource` constructor returns before the connection exists, and
+        the strip then said Ready for the whole of the first build.
+
+        The same absence is the reason a lost `compile_done` latches the
+        strip on Compiling for ever, which is the older half of the same
+        bug. A flag raised by one event and lowered only by another needs a
+        way to be *read* rather than only listened for, and this is it: the
+        stream sends it as its first frame, so every connection and every
+        reconnection begins by being told the truth.
+        """
+        return {
+            "type": "compile_state",
+            "documents": [
+                {
+                    "document": name,
+                    "compiling": state.in_flight != 0,
+                    "build": state.in_flight or state.build_id,
+                    "everBuilt": state.last_result is not None,
+                }
+                for name, state in self.documents.items()
+            ],
+        }
+
     def as_client_dict(self, result: CompileResult, document: str = "") -> dict:
         """A build result with paths the browser can match against.
 
@@ -540,6 +574,7 @@ class ProjectSession:
         # result, and main's dot would breathe for ever instead.
         state.build_id += 1
         build = state.build_id
+        state.in_flight = build
         await self.events.publish(
             {"type": "compile_start", "build": build, "document": state.path}
         )
@@ -560,6 +595,10 @@ class ProjectSession:
         if result.outcome is not Outcome.CANCELLED:
             state.last_result = result
             state.diagnostics = payload.get("diagnostics", [])
+        # Only if this is still the build in flight: a superseded one
+        # finishing must not say the newer one has stopped.
+        if state.in_flight == build:
+            state.in_flight = 0
         await self.events.publish(
             {"type": "compile_done", "build": build, "document": state.path, **payload}
         )
