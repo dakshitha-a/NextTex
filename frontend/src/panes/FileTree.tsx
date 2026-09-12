@@ -12,6 +12,7 @@ import {
   collisions,
   isInside,
   search as searchTree,
+  tabStopFor,
 } from "../tree";
 import { type Staging } from "./UploadStaging";
 // Both open on a deliberate action and neither is on the first paint,
@@ -113,6 +114,9 @@ export default function FileTree({
   // inside it.  Forty files should not be forty tab presses.
   const [focusPath, setFocusPath] = useState<string | null>(null);
   const order = useRef<{ path: string; directory: boolean; open: boolean }[]>([]);
+  /** Every path on screen this render, which is what makes a stale
+   *  `focusPath` harmless: see `tabStopFor`. */
+  const shown = useRef<Set<string>>(new Set());
   const uploadInput = useRef<HTMLInputElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   // Only one menu is open at a time, so one ref is enough: the row that is
@@ -436,7 +440,28 @@ export default function FileTree({
     : "";
 
   const rows: React.ReactNode[] = [];
+  // Two passes, and the first one exists so the second can know which row
+  // carries the tab stop before it draws any of them. See `tabStopFor`:
+  // the stop used to be `focusPath ?? activePath ?? first`, and a
+  // `focusPath` naming a row that is no longer rendered left the tree with
+  // no tab stop at all.
   order.current = [];
+  const survey = (node: TreeNode, depth: number) => {
+    if (hits && !hits.show.has(node.path)) return;
+    const isDirectory = node.type === "dir";
+    const isOpen = hits ? true : expanded.has(node.path);
+    order.current.push({ path: node.path, directory: isDirectory, open: isOpen });
+    if (isDirectory && isOpen) {
+      for (const child of node.children ?? []) survey(child, depth + 1);
+    }
+  };
+  if (tree) for (const child of tree.children ?? []) survey(child, 0);
+  shown.current = new Set(order.current.map((row) => row.path));
+  const tabStop = tabStopFor(
+    [focusPath, activePath, order.current[0]?.path],
+    shown.current,
+  );
+
   const walk = (node: TreeNode, depth: number) => {
     if (hits && !hits.show.has(node.path)) return;
     const isDirectory = node.type === "dir";
@@ -448,15 +473,12 @@ export default function FileTree({
     const errors = errorsByFile.get(node.path) ?? 0;
     const active = node.path === activePath;
 
-    order.current.push({ path: node.path, directory: isDirectory, open: isOpen });
     rows.push(
       <div
         key={node.path}
         data-path={node.path}
         role="treeitem"
-        tabIndex={
-          (focusPath ?? activePath ?? tree?.children?.[0]?.path) === node.path ? 0 : -1
-        }
+        tabIndex={tabStop === node.path ? 0 : -1}
         aria-selected={active}
         // A treeitem with children has to say whether they are showing, and
         // this one never did. It mattered less while every folder was open

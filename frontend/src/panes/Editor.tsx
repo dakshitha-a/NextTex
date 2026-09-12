@@ -795,6 +795,46 @@ export default function Editor({
     return () => { live = false; };
   }, [spelling, accepted]);
 
+  /** Open the menu on the misspelled word the caret is in.
+   *
+   *  The keyboard route, which did not exist. The menu claimed
+   *  `role="menu"` and a keyboard user met nothing at all: Shift-F10 fires
+   *  `contextmenu` on the content element rather than on the word, so the
+   *  handler's test for a `.nx-misspelled` ancestor failed and nothing
+   *  opened. A screen reader was being told "menu, one item" about
+   *  something only a mouse could reach.
+   *
+   *  Asked of the DOM rather than of the decoration set, because the mark
+   *  carries the word in an attribute precisely so that whatever opens the
+   *  menu does not have to work out what was pointed at. */
+  const offerAtCaret = useCallback(() => {
+    const now = view.current;
+    const root = host.current;
+    if (!now || !root) return false;
+    // Both sides of the caret, because a caret at the first character of a
+    // word is a position the browser can resolve into either the mark or
+    // the text before it, and the writer means the word they are in.
+    const at = now.state.selection.main.head;
+    const marked = (position: number): HTMLElement | null => {
+      if (position < 0 || position > now.state.doc.length) return null;
+      const spot = now.domAtPos(position);
+      const node = spot.node.nodeType === 1
+        ? (spot.node as HTMLElement)
+        : spot.node.parentElement;
+      return (node?.closest?.(".nx-misspelled") as HTMLElement | null) ?? null;
+    };
+    const word = marked(at) ?? marked(at + 1) ?? marked(at - 1);
+    if (!word?.dataset.word) return false;
+    const box = root.getBoundingClientRect();
+    const where = word.getBoundingClientRect();
+    setOffer({
+      word: word.dataset.word,
+      x: where.left - box.left,
+      y: where.bottom - box.top + 2,
+    });
+    return true;
+  }, []);
+
   // A right-click, not a left one: the left button places the caret, and
   // taking that away from a word because it happens to be underlined would
   // make the document harder to edit in exactly the places it needs editing.
@@ -802,19 +842,49 @@ export default function Editor({
     const root = host.current;
     if (!root || !spelling) return;
     const onMenu = (event: MouseEvent) => {
+      // Shift-F10 and the Menu key arrive as a `contextmenu` event with no
+      // pointer behind it, and Chromium reports 0, 0 for its coordinates.
+      // Read literally that is the top left corner of the window, so the
+      // menu opened at a negative offset inside the pane and was drawn
+      // off screen: from the writer's side, the key did nothing. The word
+      // the caret is in is what a keyboard press means, and its own
+      // rectangle is where the menu belongs.
+      if (event.clientX === 0 && event.clientY === 0) {
+        if (offerAtCaret()) event.preventDefault();
+        return;
+      }
       const target = (event.target as HTMLElement | null)?.closest?.(
         ".nx-misspelled",
       ) as HTMLElement | null;
-      if (!target) return;
+      if (!target) {
+        // Shift-F10, and the keyboard's Menu key, arrive here as a
+        // `contextmenu` event fired on the content element rather than on
+        // the word: there is no pointer, so there is nothing under it.
+        // The caret is what the writer means, and this is the only route
+        // the menu ever had from a keyboard.
+        if (offerAtCaret()) event.preventDefault();
+        return;
+      }
       const word = target.dataset.word;
       if (!word) return;
       event.preventDefault();
       const box = root.getBoundingClientRect();
       setOffer({ word, x: event.clientX - box.left, y: event.clientY - box.top });
     };
+    const onKey = (event: KeyboardEvent) => {
+      // Mod-. as well, because Shift-F10 is not a key every keyboard has
+      // and the Menu key is missing from most laptops.
+      const wanted = (event.ctrlKey || event.metaKey) && event.key === ".";
+      if (!wanted) return;
+      if (offerAtCaret()) event.preventDefault();
+    };
     root.addEventListener("contextmenu", onMenu);
-    return () => root.removeEventListener("contextmenu", onMenu);
-  }, [spelling]);
+    root.addEventListener("keydown", onKey);
+    return () => {
+      root.removeEventListener("contextmenu", onMenu);
+      root.removeEventListener("keydown", onKey);
+    };
+  }, [spelling, offerAtCaret]);
 
   const accept = useCallback(async (word: string) => {
     setOffer(null);
@@ -878,6 +948,14 @@ export default function Editor({
             }}
           />
           <div
+            ref={(node) => {
+              // Focus goes into the menu when it opens. Without this the
+              // arrow keys moved the caret in the document behind the
+              // backdrop, so the page scrolled underneath a menu that
+              // stayed put, and nothing about the menu could be reached
+              // or dismissed without a mouse.
+              node?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+            }}
             className="absolute z-50 rounded-[3px] border border-line bg-surface-2 py-1 shadow-[var(--float)]"
             style={{
               left: Math.min(offer.x, (host.current?.clientWidth ?? 0) - 210),
@@ -885,11 +963,36 @@ export default function Editor({
             }}
             role="menu"
             data-testid="spelling-menu"
+            onKeyDown={(event) => {
+              const items = Array.from(
+                event.currentTarget.querySelectorAll<HTMLElement>("[role=menuitem]"),
+              );
+              const at = items.indexOf(document.activeElement as HTMLElement);
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setOffer(null);
+                view.current?.focus();
+              } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                const step = event.key === "ArrowDown" ? 1 : -1;
+                const next = (at + step + items.length) % items.length;
+                items[next]?.focus();
+              } else if (event.key === "Home") {
+                event.preventDefault();
+                items[0]?.focus();
+              } else if (event.key === "End") {
+                event.preventDefault();
+                items[items.length - 1]?.focus();
+              }
+            }}
           >
             <button
               role="menuitem"
               className="t-micro block w-full px-3 py-[3px] text-left text-ink-2 hover:bg-surface-3 hover:text-ink"
-              onClick={() => accept(offer.word)}
+              onClick={() => {
+                accept(offer.word);
+                view.current?.focus();
+              }}
             >
               Add “{offer.word}” to the dictionary
             </button>

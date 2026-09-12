@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
   ancestorsOf,
   collisions,
+  tabStopFor,
   findNode,
   foldersIn,
   isInside,
@@ -188,3 +189,29 @@ describe("search", () => {
     expect(search(null, "main").matches.size).toBe(0);
   });
 });
+
+describe("which row carries the tree's one tab stop", () => {
+  const present = new Set(["main.tex", "chapters/one.tex"]);
+
+  test("the first candidate that is actually on screen wins", () => {
+    expect(tabStopFor(["main.tex", "chapters/one.tex"], present)).toBe("main.tex");
+  });
+
+  test("a preference for a row that is gone is ignored, not fatal", () => {
+    // The bug. `focusPath` is written in four places and cleared in none,
+    // so once it named a deleted or renamed path the expression matched no
+    // row and the tree had no tab stop at all: it could not be reached
+    // with Tab again until somebody clicked a row with the mouse, which is
+    // the one thing the person this affects cannot do.
+    expect(tabStopFor(["deleted.tex", "main.tex"], present)).toBe("main.tex");
+  });
+
+  test("an empty or absent candidate is skipped", () => {
+    expect(tabStopFor([null, "", undefined, "main.tex"], present)).toBe("main.tex");
+  });
+
+  test("a tree with nothing in it has no stop, and says so", () => {
+    expect(tabStopFor(["main.tex"], new Set())).toBeNull();
+  });
+});
+

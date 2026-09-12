@@ -4821,3 +4821,61 @@ it opens nothing. It was focusable in all seven, so somebody tabbing through
 the editor stopped on it, pressed it, and got no answer and no reason. It is
 disabled in those four now, which also means the accessibility sweep has to
 earn its error before it can open the drawer.
+
+### A menu only a mouse could open, walk or close
+
+The spelling menu claimed `role="menu"`. A keyboard user met nothing at all.
+Focus never entered it, so an arrow key moved the caret in the document behind
+the backdrop while the menu stayed put over a page that was now scrolling
+underneath it. Escape did nothing, because the dismissal was a pointer-only
+backdrop. And it could not be opened from the keyboard in the first place.
+
+That last part had a specific cause worth writing down. Shift-F10 and the Menu
+key do reach the page, as a `contextmenu` event with no pointer behind it, and
+Chromium reports its coordinates as 0, 0. Read literally that is the top left
+corner of the window, so the menu opened at a negative offset inside the pane
+and was drawn off screen: from the writing chair, the key did nothing at all.
+A `contextmenu` with no coordinates is now anchored to the misspelled word the
+caret is in, which is what the key means; Mod-. does the same, because
+Shift-F10 is not on every keyboard and the Menu key is missing from most
+laptops. Focus moves into the menu when it opens, the arrows and Home and End
+walk it, and Escape closes it and gives the editor the caret back.
+
+### Two roving tab stops that could name a row that is not there
+
+The file tree is one tab stop and the arrow keys move inside it, which is the
+right shape: forty files should not be forty tab presses. Which row carries it
+was `focusPath ?? activePath ?? first`, and `focusPath` was written in four
+places and cleared in none. The moment it named a path that no longer exists,
+deleted, or renamed, since committing a rename rebuilds the tree without
+touching it, the expression matched no row and **the tree had no tab stop at
+all**. It could not be reached with Tab again until somebody clicked a row with
+the mouse, which is the one thing the person this affects cannot do.
+
+The candidates are tried in order against the rows actually on screen now, and
+the first one present wins, so a stale preference is a preference that is
+ignored rather than a rail that cannot be reached. The Sections panel below it
+had the same fault with an index instead of a path: a heading number from a
+long chapter left a three-heading file with no row carrying the stop. It is
+clamped, and reset when the file changes.
+
+### Two answers, and the destructive one was the emphasised one
+
+The confirmation that ends a conversation drew `Start new` as the
+ghost-button at `--ink` and `Keep this one` as `quiet` at `--ink-3`, which is
+the ink section 19 gives to `\include` rows that cannot be chosen. So the app
+drew the answer it recommends in the colour it uses for things you cannot
+pick. They are swapped, and the safe one takes focus, because the default
+answer to "shall I throw this away" is no.
+
+Two smaller inconsistencies between neighbours, from the same sweep. The
+permission popover marked the current position with a fill alone while the
+model popover, one icon along the same strip, marks its selection with a
+four-pixel dot as well; it has the dot now. And the Files header carries a
+count, as the Sections header one row down always has: two panels in one stack
+with the same header shape, one saying how much it is hiding and the other
+saying nothing, is a difference a reader has to notice and then explain.
+
+### The error drawer is fetched when something opens it
+
+The drawer draws nothing until it has a height, and a session where every build

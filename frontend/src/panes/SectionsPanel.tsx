@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { headingAt, type Heading } from "../outline";
 import { useStore } from "../store";
 import { Chevron } from "../chrome";
@@ -43,6 +43,14 @@ export default function SectionsPanel({
   // headings, and forty tab stops between the tree and the trash is not a
   // keyboard path anybody would use twice.
   const [focused, setFocused] = useState(0);
+  // Clamped, and reset when the file changes. It is an index into
+  // `headings`, and the list is rebuilt whenever the editor opens
+  // something else: a heading number from a long chapter left a
+  // three-heading file with no row carrying the tab stop at all, so the
+  // rail could not be reached with Tab until somebody clicked it. The same
+  // fault as the file tree's, in the panel underneath it.
+  const stop = headings.length ? Math.min(focused, headings.length - 1) : 0;
+  useEffect(() => setFocused(0), [activePath]);
   const list = useRef<HTMLDivElement | null>(null);
 
   // Where the caret is, which is what makes this navigation rather than a
@@ -139,7 +147,7 @@ export default function SectionsPanel({
                   data-line={heading.line}
                   data-kind={heading.kind}
                   disabled={gone}
-                  tabIndex={index === focused ? 0 : -1}
+                  tabIndex={index === stop ? 0 : -1}
                   className={`flex h-[26px] w-full items-center gap-[6px] pr-2 text-left transition-colors duration-[90ms] ${
                     gone ? "cursor-default" : "hover:bg-surface-2"
                   }`}

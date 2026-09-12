@@ -685,7 +685,10 @@ browser, every autosave and every collaborator". Emptying a large trash
 therefore freezes every open tab and every peer for as long as it takes, with
 nothing on screen to say so.
 
-### R-016 · Files rail · accessibility · medium · confirmed
+### ~~R-016 · Files rail · accessibility · medium · confirmed~~
+
+**Fixed.** The tab stop is chosen from the rows actually on screen, and the sections index is clamped and reset with the file.
+Held by `frontend/src/tree.test.ts` and `e2e/specs/a11y.spec.ts`.
 
 Found by: reading. Where: `frontend/src/panes/FileTree.tsx:114`, `:458`.
 
@@ -977,7 +980,10 @@ things therefore carry over from the file the writer just left:
   backdrop, so it can be left offering to add a word to the dictionary over an
   unrelated file.
 
-### R-070 · Editor · accessibility · medium · confirmed
+### ~~R-070 · Editor · accessibility · medium · confirmed~~
+
+**Fixed.** Shift-F10 and Mod-. open the menu on the word the caret is in, focus enters it, the arrows and Home and End walk it, Escape closes it and gives the caret back.
+Held by `e2e/specs/spelling.spec.ts`.
 
 Found by: reading, and counted. Where: `frontend/src/panes/Editor.tsx:830`.
 
