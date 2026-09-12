@@ -434,3 +434,29 @@ async def test_a_copied_project_knows_it_is_not_in_its_own_share(tmp_path):
 
     await alice.close()
     await migrated.close()
+
+
+@pytest.mark.asyncio
+async def test_accepting_writes_the_empty_files_too(tmp_path):
+    """A document that arrived with nothing in it produces no change for
+    the observer to see, so it never reached `_dirty` and was never
+    written: named in the manifest, listed on the card, accepted, and then
+    simply absent. `figures/.gitkeep` is the case, and carrying an empty
+    directory is its entire job."""
+    from .conftest import Peer, join_up, settle
+
+    alice = Peer(
+        tmp_path / "alice",
+        {"main.tex": "A chapter.\n", "figures/.gitkeep": ""},
+    ).be("a" * 64)
+    bob = Peer(tmp_path / "bob", {}).be("b" * 64)
+    await join_up(alice, bob)
+    await settle()
+
+    bob.store.project_everything()
+    bob.store.flush()
+
+    assert (bob.project.root / "main.tex").exists()
+    assert (bob.project.root / "figures" / ".gitkeep").exists(), (
+        "the empty file was offered and never written"
+    )

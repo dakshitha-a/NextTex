@@ -942,17 +942,29 @@ async def join_share(
         reason = await network.join(invite, SETTINGS.display_name or "Unnamed")
         if not reason:
             reason = await _wait_for_the_project(store)
-        if not reason:
-            store.flush()
-    finally:
+    except Exception:
         await network.close()
         store.close()
+        shutil.rmtree(target, ignore_errors=True)
+        raise
 
     if reason:
         await network.close()
         store.close()
         shutil.rmtree(target, ignore_errors=True)
         raise HTTPException(400, reason)
+
+    # Nothing is written here, which is what the card below says. It used
+    # to flush every document to disk and then close the store, which
+    # flushes again, so by the time the offer was built the folder held the
+    # whole project: the Windows laptop found `main.tex` complete and
+    # readable while the card saying "Nothing has been written yet" was
+    # still on screen, and two other files carrying an mtime a minute
+    # older. Discard then had to delete real files rather than decline to
+    # create them, which is the opposite of what the writer was promised.
+    #
+    # The store and its connection stay open until the answer, and
+    # `PendingJoin.release` closes them either way.
 
     # Held open rather than written and registered. Accepting an invite is
     # downloading somebody else's files, and until now the first moment a
@@ -1012,16 +1024,32 @@ def _offered_files(store, project: Project) -> list[dict]:
     interesting fact of the two.
     """
     offered = []
-    for record in store.files.values():
+    for file_id, record in store.files.items():
         if record.get("trashed"):
             continue
         relative = str(record.get("path") or "")
         if not relative:
             continue
+        # Measured here, from what actually arrived, rather than taken from
+        # the record. That number is written once, when the sharer first
+        # adopts a file, and is never refreshed as the document is edited,
+        # so the card was quoting a size from whenever the project was
+        # first shared: the laptop was shown 3 kB for a file that landed at
+        # 957 bytes.
+        #
+        # It is still the sender's line endings. A joiner on Windows writes
+        # CRLF and gets a file a byte or two longer per line, which is why
+        # the card says these are the sizes as sent.
+        kind = str(record.get("kind") or "binary")
+        body = store.body(file_id) if kind == "text" else None
+        size = (
+            len(str(body).encode("utf-8")) if body is not None
+            else int(record.get("size") or 0)
+        )
         offered.append({
             "path": relative,
-            "kind": str(record.get("kind") or "binary"),
-            "size": int(record.get("size") or 0),
+            "kind": kind,
+            "size": size,
             "refused": is_control_path(Path(relative)),
         })
     offered.sort(key=lambda item: item["path"])
@@ -1035,6 +1063,13 @@ async def accept_join(token: str = Body(..., embed=True)):
     if pending is None:
         raise HTTPException(404, "That invite is no longer waiting to be answered.")
     try:
+        # Every record, not only the ones an observer happened to mark
+        # dirty. `_dirty` is filled by the watcher on a document that
+        # changed, and a document that arrived empty produces no change to
+        # observe, so a zero-length file was named in the manifest, listed
+        # on the offer card, accepted, and never written: the writer got a
+        # project with a file missing and nothing saying which.
+        pending.store.project_everything()
         pending.store.flush()
     finally:
         await pending.release(keep=True)
@@ -1065,14 +1100,42 @@ async def _wait_for_the_project(store, seconds: float = 30.0) -> str:
     it waits rather than returning an empty folder and leaving them to
     wonder. Thirty seconds is generous for a paper and mean for a thesis
     full of figures; the files that have arrived are kept either way.
+
+    The manifest is not the project. It named every file and arrived first,
+    and `send_documents` pipelines the bodies behind it without waiting for
+    a reply, so "any text record exists" was true well before the text did:
+    the wait ended, half a second was slept for luck, and whatever had not
+    landed by then was written to disk as an empty file. This waits for the
+    bodies, and only stops early when every text document has one.
     """
-    deadline = asyncio.get_running_loop().time() + seconds
-    while asyncio.get_running_loop().time() < deadline:
-        if any(record.get("kind") == "text" for record in store.files.values()):
-            # One more moment for the contents behind the listing.
-            await asyncio.sleep(0.5)
-            return ""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + seconds
+
+    def wanted() -> list[str]:
+        return [
+            file_id for file_id, record in store.files.items()
+            if record.get("kind") == "text" and not record.get("trashed")
+        ]
+
+    while loop.time() < deadline:
+        listed = wanted()
+        if listed:
+            # A record with a size of zero really is empty, and waiting for
+            # it to have contents would wait for ever.
+            waiting = [
+                file_id for file_id in listed
+                if int(store.files[file_id].get("size") or 0) > 0
+                and not str(store.body(file_id) or "")
+            ]
+            if not waiting:
+                return ""
         await asyncio.sleep(0.1)
+
+    if wanted():
+        # Something arrived and not all of it. Better to say so than to
+        # write the half that came as though it were the project.
+        return ("Only part of that project arrived before the connection "
+                "went quiet. Nothing has been written; try joining again.")
     return ("Nothing arrived from that peer. They may be offline, or the "
             "invite may already have been used.")
 

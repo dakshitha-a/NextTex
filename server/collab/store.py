@@ -916,6 +916,20 @@ class CollabStore:
             return False
         return True
 
+    def project_everything(self) -> None:
+        """Mark every live record for writing, whatever the watcher saw.
+
+        `_dirty` is filled by the observer on a document that changed, and
+        a document that arrived with nothing in it produces no change to
+        observe. On a join that is the difference between a file being
+        written and not existing: a `.gitkeep` or an empty chapter was
+        named in the manifest, listed on the offer card, accepted, and then
+        simply absent, with nothing anywhere saying which file had gone.
+        """
+        for file_id, record in self.files.items():
+            if not record.get("trashed") and record.get("kind") == "text":
+                self._dirty.add(file_id)
+
     def flush(self) -> None:
         """Write every changed document out, now.
 

@@ -46,6 +46,32 @@ TEXT_SUFFIXES = {
 }
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".pdf", ".eps"}
 
+
+def kind_of(name: str) -> str:
+    """Text, image, or binary, from a file's name.
+
+    An extensionless name is text. It is a README, a LICENSE, a Makefile or
+    a `.gitkeep` far more often than it is a binary, and being wrong the
+    other way costs the writer a file they cannot open. The interface has
+    always said so, in `frontend/src/panes/file-kinds.ts`, and this side
+    said the opposite: `Path(".gitignore").suffix` is empty, so the entry
+    for it in the list below never matched anything.
+
+    The two disagreeing was not cosmetic. A file the collaboration layer
+    calls binary gets no shared document, and blob transfer carries history
+    blobs by content address and never file bodies, so it was named in a
+    share's manifest and offered on the join card and then never arrived:
+    the Windows laptop was offered four files and got three, and the one
+    that went missing was `figures/.gitkeep`, whose whole job is to carry
+    an empty directory.
+    """
+    suffix = Path(name).suffix.lower()
+    if suffix in IMAGE_SUFFIXES:
+        return "image"
+    if not suffix or suffix in TEXT_SUFFIXES:
+        return "text"
+    return "binary"
+
 # Directories never worth showing in a file tree.  Build output is the big
 # one: a LaTeX build directory mirrors the whole chapter tree in .aux files.
 IGNORED_DIRS = {
@@ -425,11 +451,7 @@ class Project:
                         "name": child.name,
                         "path": self._relative_below(child),
                         "type": "file",
-                        "kind": (
-                            "text" if suffix in TEXT_SUFFIXES
-                            else "image" if suffix in IMAGE_SUFFIXES
-                            else "binary"
-                        ),
+                        "kind": kind_of(child.name),
                         "size": size,
                     })
             return entries
