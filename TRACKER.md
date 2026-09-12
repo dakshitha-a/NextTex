@@ -165,3 +165,15 @@ things go to be forgotten rather than a list anybody reads.
       changed them" marker is computed from what it last saw. Noticed while
       fixing the rest of R-066; the fix is one publish in the agent's
       `on_edit`, and it wants a test that can drive a real distillation.
+
+- [ ] **The spell checker knows one variety of English.** The word list is
+      `wamerican`, so a thesis written in British English is underlined from
+      end to end: colour, analyse, centre, and every derived form. Left out of
+      R-091 deliberately rather than by oversight. The suggestions and the way
+      back from an accepted word are both about a word at a time and cost
+      nothing but code; a second locale is a second ninety-eight kilobyte list,
+      a setting to choose between them, a decision about what a project shared
+      between two writers with different settings does, and a rule for which
+      one a new project starts with. That is a piece of work with a design in
+      it rather than a control in front of something that exists, which is what
+      the rest of that record was.

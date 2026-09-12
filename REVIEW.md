@@ -2926,7 +2926,11 @@ affordance on hover only" for code blocks in messages. Section 8, which
 records what the audit changed, records no decision to drop it. It was
 specified and never built.
 
-### R-091 · Editor · comfort · medium · confirmed
+### ~~R-091 · Editor · comfort · medium · confirmed~~
+
+**Built, except the locale.** Up to four suggestions above the dictionary item, by edit distance against the list already loaded, and the accepted words listed in Settings with a way to forget one. The second locale is in the `TRACKER.md` backlog with its reason: it is a design question about two lists, a setting, and what a shared project does when its two writers disagree, rather than a control in front of something that exists.
+Held by `frontend/src/panes/spell-suggest.test.ts` and `e2e/specs/spelling.spec.ts`.
+
 
 Where: `server/main.py:2563` and `frontend/src/api.ts:530`.
 

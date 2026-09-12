@@ -172,3 +172,62 @@ test("the menu can be opened, walked and closed without a mouse", async ({ tab }
   await expect(menu).toBeHidden();
   await expect(tab.locator(".cm-content")).toBeFocused();
 });
+
+test("a typo is offered the word it was meant to be", async ({ tab }) => {
+  // R-091. The menu had one item, "Add to the dictionary", which is the
+  // right answer for a surname and the wrong one for a typo. A typo is the
+  // common case, and adding a typo to the dictionary is the one outcome
+  // nobody wants.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await type(tab, "The results are recieved today.");
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+
+  await marked(tab).first().click({ button: "right" });
+  await tab.getByTestId("spelling-menu").waitFor();
+  const guess = tab.getByRole("menuitem", { name: "received", exact: true });
+  await expect(guess).toBeVisible();
+
+  await guess.click();
+  await expect(tab.locator(".cm-content")).toContainText("are received today");
+  await expect(marked(tab)).toHaveCount(0);
+});
+
+test("a word nothing is like is offered the dictionary and nothing else", async ({
+  tab,
+}) => {
+  // The other half. A column of wrong guesses above the item that is the
+  // right answer would be in the way of it.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await type(tab, "The zqxjvkw dissociates.");
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+
+  await marked(tab).first().click({ button: "right" });
+  await tab.getByTestId("spelling-menu").waitFor();
+  await expect(tab.getByRole("menuitem")).toHaveCount(1);
+  await expect(tab.getByRole("menuitem")).toHaveText(/Add/);
+});
+
+test("a word added by mistake can be taken back", async ({ tab }) => {
+  // `DELETE /dictionary` and `api.forgetWord` both existed and nothing
+  // called either, so a slip of the hand was permanent for the life of the
+  // project: the underline was gone and there was no way to ask for it
+  // back.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await type(tab, "The nitrophenol dissociates.");
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+  await marked(tab).first().click({ button: "right" });
+  await tab.getByTestId("spelling-menu").waitFor();
+  await tab.getByRole("menuitem", { name: /Add/ }).click();
+  await expect(marked(tab)).toHaveCount(0);
+
+  await tab.getByTestId("appearance").first().click();
+  await expect(tab.getByText("Words you added")).toBeVisible();
+  await tab.getByRole("button", { name: "Forget nitrophenol" }).click();
+  await expect(tab.getByText("Words you added")).toHaveCount(0);
+  await tab.keyboard.press("Escape");
+
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+});

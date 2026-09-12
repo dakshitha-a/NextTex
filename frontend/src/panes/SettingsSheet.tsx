@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import { get, set, useStore } from "../store";
 import { agentName } from "../agent-name";
@@ -209,6 +209,7 @@ export default function SettingsSheet({
                 ] as const}
                 onPick={(spelling) => change({ spelling })}
               />
+              {look.spelling ? <AddedWords /> : null}
               {/* What the preview spends on a page.  The page is rasterised
                   at the device ratio times the interface scale, so a retina
                   screen or a scaled-up interface already costs several
@@ -633,6 +634,76 @@ function SizeRow({
           +
         </button>
       </div>
+    </div>
+  );
+}
+
+/** The words this project's writer has told the checker about.
+ *
+ *  `DELETE /dictionary` and `api.forgetWord` both existed and nothing
+ *  called either, so a word added by a slip of the hand was added for the
+ *  life of the project: the underline was gone and there was no way to ask
+ *  for it back. The list is per project, which is why it lives beside the
+ *  switch rather than in an application-wide preference.
+ */
+function AddedWords() {
+  const projectId = useStore((s) => s.projectId);
+  const [words, setWords] = useState<string[] | null>(null);
+  const [problem, setProblem] = useState("");
+
+  useEffect(() => {
+    if (!projectId) return;
+    let dropped = false;
+    api
+      .dictionary(projectId)
+      .then((answer) => !dropped && setWords(answer.words))
+      .catch(() => !dropped && setWords([]));
+    return () => {
+      dropped = true;
+    };
+  }, [projectId]);
+
+  const forget = async (word: string) => {
+    if (!projectId) return;
+    try {
+      const answer = await api.forgetWord(projectId, word);
+      setWords(answer.words);
+      setProblem("");
+      // The editor holds its own copy of this list, in another tree.
+      set({ dictionaryStamp: get().dictionaryStamp + 1 });
+    } catch (error: any) {
+      setProblem(error.message);
+    }
+  };
+
+  // Nothing at all until there is something to show. An empty list under
+  // the switch would be a permanent reminder of a feature nobody has used
+  // yet, in a sheet whose whole job is to be quiet.
+  if (!words || words.length === 0) return null;
+
+  return (
+    <div className="border-t border-line px-[10px] py-[8px]">
+      <p className="t-micro mb-[6px] text-ink-3">
+        Words you added, kept with this project
+      </p>
+      <div className="flex flex-wrap gap-[6px]">
+        {words.map((word) => (
+          <span
+            key={word}
+            className="group flex items-center gap-1 rounded-[3px] border border-line px-[6px] py-[1px]"
+          >
+            <span className="t-micro text-ink">{word}</span>
+            <button
+              className="t-micro text-ink-3 hover:text-error"
+              aria-label={`Forget ${word}`}
+              onClick={() => forget(word)}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      {problem ? <p className="t-micro mt-[6px] text-error">{problem}</p> : null}
     </div>
   );
 }
