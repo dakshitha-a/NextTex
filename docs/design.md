@@ -4932,3 +4932,20 @@ test now reads both of its `:root` blocks and asserts every value against
 `styles.css`.
 
 ### The only control on the restart line did nothing
+
+The line R-041 added says "Updated on disk to 1d10915. Restart to run it", and
+the control it carried was Reload, which is the right control for every other
+state the update footer draws. On this one it is a dead end. The page comes
+back from the same process, and `head` is read once when that process starts,
+so the sentence that returns is byte for byte the one that was just read. The
+laptop that found it pressed the button rather than only reading the source,
+and photographed the before and the after as identical strings.
+
+The control is a restart now: `POST /api/update/restart` leaves with the
+supervisor's exit code, which is how the update path has always restarted, and
+the page waits out the new process on the `boot` nonce exactly as it does after
+an update. Where nothing would start NextTex again the route refuses with 409
+and the footer draws no control at all, because there is nothing it could press
+that would work; the sentence reads "Stop NextTex and start it again to run it"
+instead. A button that does nothing is worse than no button, because the reader
+who presses it learns nothing and concludes the state itself is wrong.

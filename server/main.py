@@ -822,22 +822,29 @@ def _sign_in_page() -> str:
     else:
         body = f"""
         <p><b>You need the full link.</b> This install has no password yet, so
-        the only way in is the address the server printed &mdash; the one
+        the only way in is the address the server printed: the one
         ending <code>?token=&hellip;</code></p>
         {recovery}
         <p class=aside>You can set a password once you are in.</p>
         """
-    return f"""<!doctype html><meta charset=utf-8>
+    return f"""<!doctype html><html lang=en><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>NextTex</title>
 <style>
+  /* --ink-2 is here for the recovery command, which sits on --surround
+     rather than on --surface: --ink-3 measures 4.16:1 there at 12px,
+     under the 4.5 small text needs, and the app's own answer to that
+     pairing is `.nx-on-surround`, which steps the dimmest ink up to
+     --ink-2. That rule cannot reach a page whose stylesheet is a copy, so
+     the copy carries the ink it needs. Both values are the app's own,
+     from styles.css. */
   :root {{ --surround:#0A0C0B; --surface:#121614; --surface-3:#2A302C;
-           --ink:#E3E8E2; --ink-3:#909892; --hint:#3FC6D2; --pen:#C988E7;
-           --error:#F47365; color-scheme: dark; }}
+           --ink:#E3E8E2; --ink-2:#B0B5B0; --ink-3:#909892; --hint:#3FC6D2;
+           --pen:#C988E7; --error:#F47365; color-scheme: dark; }}
   @media (prefers-color-scheme: light) {{
     :root {{ --surround:#B9BEB8; --surface:#E3E7E2; --surface-3:#C6CBC5;
-             --ink:#141715; --ink-3:#4E534D; --hint:#00626D; --pen:#6F2998;
-             --error:#9F1912; color-scheme: light; }}
+             --ink:#141715; --ink-2:#373B36; --ink-3:#4E534D; --hint:#00626D;
+             --pen:#6F2998; --error:#9F1912; color-scheme: light; }}
   }}
   * {{ box-sizing: border-box; }}
   ::selection {{ background: color-mix(in oklab, var(--hint) 30%, transparent); }}
@@ -863,9 +870,12 @@ def _sign_in_page() -> str:
   button:hover:not([disabled]) {{ border-color:var(--hint); color:var(--hint); }}
   button[disabled] {{ opacity:.5; cursor:default; }}
   code {{ font:12px ui-monospace,SFMono-Regular,monospace; }}
+  /* On --surround, not --surface: see the note beside --ink-2 above. */
   pre {{ margin:4px 0 0; padding:5px 8px; background:var(--surround);
          border:1px solid var(--surface-3); border-radius:3px;
-         overflow-x:auto; }}
+         overflow-x:auto; color:var(--ink-2); }}
+  pre code {{ color:var(--ink-2); }}
+  pre.aside {{ color:var(--ink-2); }}
   p {{ margin:10px 0 0; }}
   .aside {{ color:var(--ink-3); font-size:12.5px; }}
   #e {{ color:var(--error); font-size:12.5px; margin:6px 0 0; }}
@@ -911,6 +921,7 @@ def _sign_in_page() -> str:
     document.getElementById('p').select();
   }});
 </script>
+</html>
 """
 
 
