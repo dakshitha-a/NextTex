@@ -161,3 +161,42 @@ describe("collapsing the record", () => {
     expect(shown).toHaveLength(3);
   });
 });
+
+describe("a card and the call it is about", () => {
+  const call = {
+    kind: "tool" as const, id: "toolu_1", name: "Bash",
+    summary: 'echo hello', at: 1,
+  };
+  const card = (extra: Record<string, unknown> = {}) => ({
+    kind: "permission" as const, id: "perm-1", tool: "Bash", toolId: "toolu_1",
+    rule: "Bash:echo", headline: "Run a shell command", detail: "echo hello",
+    consequence: "", reason: "", at: 2, ...extra,
+  });
+
+  test("an answered card is folded into its call, so the command reads once", () => {
+    const out = tidy([call, card({ decision: "allow" })] as never);
+    expect(out).toHaveLength(1);
+    expect(out[0].kind).toBe("tool");
+    expect((out[0] as never as { card: { decision: string } }).card.decision)
+      .toBe("allow");
+  });
+
+  test("an open card keeps its own row, because it has to be answerable", () => {
+    const out = tidy([call, card()] as never);
+    expect(out).toHaveLength(2);
+    expect(out[1].kind).toBe("permission");
+    // And the row above still knows about it, so it can say Running
+    // rather than Ran over a command that has not run.
+    expect((out[0] as never as { card?: unknown }).card).toBeTruthy();
+  });
+
+  test("a card belonging to another call is not folded into this one", () => {
+    const out = tidy([call, card({ toolId: "toolu_9", decision: "allow" })] as never);
+    expect(out).toHaveLength(2);
+  });
+
+  test("a card from before the pairing existed is left alone", () => {
+    const out = tidy([call, card({ toolId: "", decision: "allow" })] as never);
+    expect(out).toHaveLength(2);
+  });
+});

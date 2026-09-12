@@ -201,6 +201,12 @@ class Transcript:
                 "id": event.get("id", ""),
                 "tool": event.get("tool", ""),
                 "rule": event.get("rule", ""),
+                # Which tool row this card belongs to. Kept in the record
+                # as well as on the wire, because the panel is rebuilt from
+                # the record on every reload and the pairing has to survive
+                # that: without it the replay drew the command twice and
+                # said "Ran" above a call that was denied.
+                "toolId": event.get("toolId", ""),
                 "headline": event.get("headline", ""),
                 "detail": event.get("detail", ""),
                 "consequence": event.get("consequence", ""),
