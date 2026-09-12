@@ -118,6 +118,20 @@ const OPENED: {
     open: async (tab) => {
       const drawer = tab.getByTestId("status");
       if (!(await drawer.count()) || !(await drawer.isVisible())) return false;
+      // An error first. The control is disabled in the four states where
+      // it opens nothing, so on a build that worked there is no drawer to
+      // open and clicking waits for a button that will never be enabled.
+      // Skipping instead would be worse: the list below exists so that a
+      // surface which stops opening is caught rather than quietly missed.
+      if (!(await drawer.isEnabled())) {
+        const editor = tab.locator(".cm-content");
+        await editor.click();
+        await tab.keyboard.press("End");
+        await tab.keyboard.type("\n\\badcommand{x}\n");
+        await expect(drawer).toHaveAttribute("data-state", /error|warn/, {
+          timeout: 30_000,
+        });
+      }
       await drawer.click();
       return true;
     },

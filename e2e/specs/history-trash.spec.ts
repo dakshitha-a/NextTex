@@ -239,3 +239,22 @@ test("a second version, then back to now, still gives you an editable file", asy
 
   await landed(app, project, "Still editable.");
 });
+
+test("a version can be chosen from the keyboard", async ({ tab, app, project }) => {
+  // The row lost `role="button"` for `nested-interactive`, and the
+  // keyboard's way in became a real button stretched across it with
+  // `pointer-events-none` so the pointer still reaches the row once. That
+  // is a route worth asserting rather than assuming: a button that cannot
+  // be pressed by a mouse is exactly the shape that gets broken later by
+  // somebody who reads the CSS and not the reason.
+  await typeAndSave(tab, "the first draft", app, project);
+  await openHistory(tab);
+  const rows = tab.getByTestId("version");
+  await expect(rows.first()).toBeVisible();
+
+  const way = rows.last().getByRole("button", { name: /^Version from/ });
+  await way.focus();
+  await expect(way).toBeFocused();
+  await tab.keyboard.press("Enter");
+  await expect(tab.getByText(/viewing/i).first()).toBeVisible();
+});

@@ -78,11 +78,18 @@ export default function Status({
     <div
       className="nx-furniture @container group flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]"
     >
+      {/* In four of the seven states this opens nothing, and it was a
+          focusable button either way: somebody tabbing through the editor
+          stopped on it, pressed it, and got no answer and no reason. A
+          control that cannot be used says so. */}
       <button
         data-testid="status"
         data-state={state}
         title={hint || undefined}
-        className="flex shrink-0 items-center gap-2"
+        className="flex shrink-0 items-center gap-2 disabled:cursor-default"
+        disabled={!clickable}
+        aria-disabled={!clickable}
+        tabIndex={clickable ? 0 : -1}
         onClick={() => clickable && onToggleDrawer()}
       >
         <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot}`} />

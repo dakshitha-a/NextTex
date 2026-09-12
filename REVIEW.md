@@ -195,7 +195,10 @@ nothing.
 Mechanism: an asymmetric cancellation check. The success path was hardened and
 the failure paths beside it were not.
 
-### R-003 · Compile · accessibility · low · confirmed
+### ~~R-003 · Compile · accessibility · low · confirmed~~
+
+**Fixed.** The status control is disabled in the four states where it opens nothing.
+Held by `e2e/specs/a11y.spec.ts` and `e2e/specs/clipping.spec.ts`, both of which now have to earn an error before the drawer will open.
 
 Found by: reading. Where: `frontend/src/panes/Status.tsx:80`.
 
@@ -399,7 +402,10 @@ This makes R-004 a mistake in two places rather than one, on both sides of the
 wire, which matters for the fix: correcting only the server would leave the
 drawer disagreeing with the headline above it.
 
-### R-010 · Compile · accessibility · medium · likely
+### ~~R-010 · Compile · accessibility · medium · likely~~
+
+**Fixed.** With R-028: the diagnostics row is a div with a real button over the message and Fix beside it.
+Held by `e2e/specs/a11y.spec.ts`.
 
 Found by: reading. Where: `frontend/src/panes/Diagnostics.tsx:151` and `:197`.
 
@@ -411,7 +417,10 @@ unreachable or reported as part of its name. This is the axe rule
 `nested-interactive`, whose impact is serious, and `e2e/specs/a11y.spec.ts`
 never opens this drawer, so its sweep has never looked at it.
 
-### R-028 · Accessibility · accessibility · medium · confirmed
+### ~~R-028 · Accessibility · accessibility · medium · confirmed~~
+
+**Amended and fixed.** Three surfaces, and two of them were not on this list. The record names five; the sweep opened each one and found the fault on the diagnostics drawer and the history panel, found the papers panel carrying it too, and cleared the other three. The file tree is not one: a treeitem is not a role whose children are presentational, and restructuring it introduced `aria-required-children`, impact critical, before the sweep caught that. The download menu is a real `<button>` with a `role="menu"` of real `<button>`s and has never had the fault. The agent panel does not carry it now, which is the honest statement: pass 8 rebuilt parts of it, so this run cannot say what it looked like when the record was written. What the original run almost certainly saw is one page carrying an open drawer, reported once per surface visible at the time.
+Held by `e2e/specs/a11y.spec.ts`, which now opens each of the five named surfaces rather than sweeping what is on arrival.
 
 Found by: axe, on the real screens, in both themes. Where: five surfaces, one
 mechanism.
