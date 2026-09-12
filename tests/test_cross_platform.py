@@ -1140,3 +1140,42 @@ def test_the_windows_update_waits_for_the_port_rather_than_the_process():
     assert "Test-PortFree" in text
     tail = text[text.index("function Start-Server"):]
     assert "Test-PortFree" in tail, "starting it does not check that it started"
+
+
+def test_a_windows_update_step_that_failed_does_not_report_success():
+    """Reported from the machine, after a real run.
+
+    Its dependencies step wedged: pip sat for fifteen minutes with no CPU,
+    no sockets and no temporary directory, and the server was already
+    stopped, so the laptop had no NextTex for that quarter of an hour. The
+    operator killed pip by hand, and the step then printed "up to date"
+    and the script exited zero.
+
+    `& pip install ...` followed by an unconditional note cannot tell a
+    completed install from a killed one, because nothing reads
+    `$LASTEXITCODE`. That is the same fault the restart branch was
+    rewritten to remove, one step to the left, and it makes the exit code
+    of the whole run meaningless.
+    """
+    text = _update_ps1()
+
+    assert "function Run" in text, "no wrapper reads an exit code"
+    assert "$LASTEXITCODE" in text
+    # And nothing calls a program the old way in the steps that matter.
+    body = text[text.index("Say 'Fetching'"):]
+    for program in ("git pull", "pip install"):
+        assert f"& {program}" not in body, f"{program} is still unchecked"
+
+
+def test_the_windows_update_log_keeps_what_the_programs_said():
+    """`Start-Transcript` records what PowerShell writes and not what a
+    program writes: git, both pips and the interface fetch each appeared
+    in update.log as a single glyph and nothing else. So the console said
+    "Already up to date." and "interface downloaded" and the log, whose
+    entire purpose is diagnosing a failed update on a machine you cannot
+    see, recorded neither."""
+    text = _update_ps1()
+
+    run = text[text.index("function Run"):text.index("function Get-ServerPort")]
+    assert "Write-Host" in run, "native output never reaches the transcript"
+    assert "ForEach-Object" in run

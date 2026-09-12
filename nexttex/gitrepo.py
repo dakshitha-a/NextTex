@@ -47,6 +47,17 @@ def _environment() -> dict[str, str]:
     or `git@` remote cannot push at all: git finds no key, cannot ask for a
     passphrase either, and the writer is told authentication failed by an
     app that never gave their agent a chance to answer.
+
+    `SystemRoot`, because on Windows the socket stack will not initialise
+    without it and every name lookup then fails. What that looked like from
+    the outside was a laptop whose update check said "Could not resolve
+    host: github.com", persistently and across restarts, while `git
+    ls-remote` from a shell on the same machine over the same URL worked
+    perfectly. It was diagnosed by running this builder verbatim and
+    varying one variable: with `SystemRoot` the lookup succeeds, with
+    `SystemDrive` instead of it the lookup fails, so it is that one name
+    and not a general shortage of environment. Passed unconditionally: it
+    does not exist on POSIX, so there is nothing to guard against.
     """
     import os
 
@@ -57,7 +68,7 @@ def _environment() -> dict[str, str]:
         "HOME": str(Path.home()),
         "LC_ALL": "C",
     }
-    for passed in ("SSH_AUTH_SOCK", "SSH_AGENT_PID"):
+    for passed in ("SSH_AUTH_SOCK", "SSH_AGENT_PID", "SystemRoot"):
         if os.environ.get(passed):
             environment[passed] = os.environ[passed]
     return environment

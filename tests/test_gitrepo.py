@@ -201,3 +201,33 @@ def test_the_writer_s_own_name_is_not_overridden(tmp_path):
     (root / "main.tex").write_text("A line.\n", encoding="utf-8")
 
     assert gitrepo._who(root) == [], "a configured identity was overridden"
+
+
+def test_the_windows_socket_stack_gets_what_it_needs(monkeypatch):
+    """Without `SystemRoot` no name resolves on Windows.
+
+    Diagnosed on a real laptop whose update check said "Could not resolve
+    host: github.com", persistently and across restarts, while
+    `git ls-remote` from a shell on that same machine over that same URL
+    worked. The environment here is built from nothing on purpose, so a
+    writer's own git configuration cannot change what this app does, and
+    that deliberate emptiness was the cause: the Windows socket stack will
+    not initialise without `SystemRoot`.
+
+    Proved by varying one name at a time against this builder. With
+    `SystemRoot` the lookup succeeds; with `SystemDrive` instead of it the
+    lookup fails; with the whole inherited environment it succeeds. So it
+    is that one variable rather than a general shortage.
+    """
+    monkeypatch.setenv("SystemRoot", r"C:\WINDOWS")
+
+    assert gitrepo._environment()["SystemRoot"] == r"C:\WINDOWS"
+
+
+def test_nothing_is_invented_where_there_is_no_such_variable(monkeypatch):
+    """It does not exist on POSIX, which is why it is passed through
+    rather than set: an invented value would be a lie on the platform this
+    is usually run on."""
+    monkeypatch.delenv("SystemRoot", raising=False)
+
+    assert "SystemRoot" not in gitrepo._environment()
