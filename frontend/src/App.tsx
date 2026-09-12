@@ -1771,6 +1771,7 @@ export default function App() {
                 <HistoryPanel
                   docked={!tight && editorWide}
                   onView={viewVersion}
+                  onOpen={(path) => openFile(path)}
                   onClose={closeHistory}
                 />
               </Suspense>

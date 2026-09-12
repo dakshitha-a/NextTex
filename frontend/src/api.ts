@@ -484,6 +484,14 @@ const api = {
     ),
   historySize: (id: string) =>
     request<{ bytes: number }>(`/projects/${id}/history/size`),
+  /** Every file's versions, newest first. The per-file list answers "what
+   *  did this file used to say"; this answers "what did I change this
+   *  afternoon", which was previously a question you could only ask by
+   *  opening every file in turn. */
+  timeline: (id: string, limit = 80) =>
+    request<{ versions: (Version & { path: string })[] }>(
+      `/projects/${id}/history/timeline?limit=${limit}`,
+    ),
 
   trash: (id: string) =>
     request<{ entries: TrashEntry[] }>(`/projects/${id}/trash`),

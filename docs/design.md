@@ -4965,3 +4965,25 @@ of the footer. The error is the least important thing on that line and the only
 thing that can be any length, so it is what gives way: it truncates with the
 full text on hover, the warning and the control keep their width, and the line
 is one row whatever git said.
+
+### History could answer one question and the other one had a route already
+
+The panel answers "what did this file used to say". The other question a
+writer has is "what did I change this afternoon", and the only way to ask it
+was to open every file in turn and read each list. The route that answers it
+across the project has existed the whole time, taking a limit and returning
+every file's versions newest first, with no client wrapper and no caller.
+
+Two questions, not two panels. The header carries the same two-way micro
+toggle the preview footer uses for Scroll and Page, and the rows are the rows
+that were already there: in the whole-project list each one also says which
+file it belongs to, which is the only difference between the two shapes.
+Choosing a row brings that file to the front and puts the panel back on This
+file, because reading a version means being in the file it belongs to, and
+from there the panel can answer everything else about it: restoring, naming,
+downloading, comparing. The alternative was a second panel that could show a
+version and do nothing with it.
+
+The list is read on the way into the project view and again after a build,
+which is the trigger the per-file list already uses: a build is the point at
+which a session's typing has become versions.
