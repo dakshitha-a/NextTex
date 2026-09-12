@@ -1,0 +1,42 @@
+% A letter, which in academic writing usually means a cover letter or a
+% response to reviewers.
+%
+% No bibliography and no figures: a letter that needs either is an article.
+% The layout is deliberately plain, because the only thing being judged here
+% is what it says.
+
+\documentclass[11pt]{letter}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1.15in]{geometry}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{hyperref}
+\hypersetup{colorlinks, urlcolor=blue}
+
+\signature{Your Name}
+\address{Your Name \\ Your Department \\ Your Institution \\ your.name@example.edu}
+
+\begin{document}
+
+\begin{letter}{The Editor \\ Journal Name \\ Publisher}
+
+\opening{Dear Editor,}
+
+Please find enclosed our manuscript, \emph{A Working Title}, which we submit
+for consideration.
+
+One paragraph on what the work shows and why this journal is the right home
+for it. Editors read the first two sentences of a cover letter carefully and
+the rest quickly, so put the finding in the first two.
+
+One paragraph on anything the editor needs to know: related work of your own
+under review elsewhere, a conflict of interest, a suggested or excluded
+reviewer, or the reason a resubmission differs from what they saw before.
+
+\closing{Yours sincerely,}
+
+\end{letter}
+
+\end{document}

@@ -17,6 +17,18 @@ import { useStore } from "../store";
 // visit should have to download before the project list appears.
 const ScreenGuide = lazy(() => import("./tutorial/ScreenGuide"));
 
+/** What each template is, in the words somebody choosing one would use.
+ *  A directory called `beamer` is a name only a LaTeX writer knows, and the
+ *  people this chooser is for are exactly the ones who may not. Anything
+ *  the server lists that is not here falls back to its own name, so an
+ *  install with a template of its own is offered it rather than hidden. */
+const START_FROM: Record<string, string> = {
+  basic: "An article",
+  report: "A report, in chapters",
+  beamer: "A talk",
+  letter: "A letter",
+};
+
 /** The project list.  Downloads live here as well as inside an open project:
  *  the moment a copy is most wanted is often before opening anything. */
 export default function Projects({
@@ -40,6 +52,11 @@ export default function Projects({
   /** What a peer is offering, before any of it is written. */
   const [offer, setOffer] = useState<JoinOffer | null>(null);
   const [newName, setNewName] = useState("");
+  /** What to fill a new project with. The route listing these has always
+   *  existed and nothing ever called it, so every project started as an
+   *  article whether or not the writer was writing one. */
+  const [templates, setTemplates] = useState<string[]>([]);
+  const [template, setTemplate] = useState("basic");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgetting, setForgetting] = useState<string | null>(null);
@@ -53,6 +70,16 @@ export default function Projects({
   // project then means typing into a document whose server disappears
   // mid-save, so the screen stops offering it.
   const [locked, setLocked] = useState(false);
+
+  // Once, on the way in. A list of directory names costs nothing and the
+  // chooser is hidden when there is only one, so an install that has had
+  // its templates trimmed to the article looks exactly as it did.
+  useEffect(() => {
+    api
+      .templates()
+      .then((answer) => setTemplates(answer.templates))
+      .catch(() => setTemplates([]));
+  }, []);
   // The strapline names whichever agent is configured, and says nothing
   // about one at all when the writer chose to work on their own.
   const provider = useStore((s) => s.agent?.provider);
@@ -62,8 +89,8 @@ export default function Projects({
       : `Write LaTeX with ${agentName(provider)} beside the typeset page.`;
   const agentCopy =
     provider === "none"
-      ? "A new project starts blank: one empty document, ready to write in."
-      : `A new project starts blank: one empty document. Give ${agentName(provider)} your template or handbook afterwards and it will shape the project around it.`;
+      ? "A new project starts from one of the documents below, ready to write in."
+      : `A new project starts from one of the documents below. Give ${agentName(provider)} your journal's template or handbook afterwards and it will shape the project around it.`;
 
   const refresh = async () => {
     try {
@@ -111,6 +138,17 @@ export default function Projects({
         mode === "create"
           ? await api.createProject(path.trim(), newName.trim())
           : await api.addProject(path.trim());
+      // Before the project opens, so the writer arrives in a document
+      // rather than in an empty one that fills in a moment later. A
+      // template that fails to write is not a reason to lose the project
+      // that was just made, so it is reported and the project still opens.
+      if (mode === "create" && project.id) {
+        try {
+          await api.loadTemplate(project.id, template);
+        } catch (problem: any) {
+          setError(`The project was made, but the template did not: ${problem.message}`);
+        }
+      }
       setPath("");
       setNewName("");
       await refresh();
@@ -511,6 +549,24 @@ export default function Projects({
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && add()}
           />
+          {mode === "create" && templates.length > 1 ? (
+            /* Hidden when there is only one, which is what an install with
+               its templates trimmed looks like: a chooser offering a single
+               choice is a control that asks a question with one answer. */
+            <select
+              value={template}
+              aria-label="What to start from"
+              data-testid="template-choice"
+              className="t-ui h-[28px] shrink-0 rounded-[3px] border border-line bg-surface px-2 text-ink outline-none"
+              onChange={(event) => setTemplate(event.target.value)}
+            >
+              {templates.map((name) => (
+                <option key={name} value={name}>
+                  {START_FROM[name] ?? name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <button
             className={`h-[28px] px-3 t-ui ${
               mode === "join" ? "pen-button self-start" : "ghost-button"

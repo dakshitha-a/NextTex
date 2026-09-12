@@ -3016,7 +3016,11 @@ Cost: one control. The route already takes four actions and
 `gitrepo.initialise` already writes the first commit and the `.gitignore` the
 README describes.
 
-### R-096 · Projects · comfort · medium · confirmed
+### ~~R-096 · Projects · comfort · medium · confirmed~~
+
+**Built.** Four templates, chosen on the create row and written before the project opens. The chooser hides itself when an install has only one, and names each template by what it is rather than by its directory.
+Held by `tests/api/test_templates.py` and `e2e/specs/projects-form.spec.ts`.
+
 
 Where: `server/main.py:2877` and `frontend/src/api.ts:489`.
 
