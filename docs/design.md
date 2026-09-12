@@ -4317,3 +4317,50 @@ And the cure gets a control. Rebuilding everything was Shift-click on a button
 labelled Rebuild, written down in a `title` attribute: undiscoverable, and no
 use at all on a tablet. The modifier stays; a **Rebuild everything** press
 appears beside it when there is a reason to press it.
+
+### Identity by position, in a list that is rebuilt underneath it
+
+Four records, and the same mistake twice on the two sides of one screen.
+
+**Which error to start from was chosen alphabetically.** `summarise` took
+`min` over `(file, line)`, and the drawer sorted with `localeCompare` on the
+filename. Both are the alphabet, and both docstrings, plus the README, say
+document order. `chapters/one.tex` sorts before `main.tex`; a broken preamble
+makes every chapter complain; so the writer was sent to fix a consequence,
+under a note explaining that the list below the first error is usually its
+own consequence.
+
+The log's order is the document's order, because it is the order the engine
+read it in, and `parse` appends as it reads. So the answer was already the
+first element and the sort was undoing it. The drawer keeps errors before
+warnings and otherwise leaves the list alone.
+
+Two existing tests encoded the old behaviour, and one of them asserted it
+outright: of an error in `chapters/02.tex` and one in `chapters/01.tex`, the
+summary was required to name the second. That is only right when the
+filenames happen to sort into the order the document includes them in, which
+is true of numbered chapters and of nothing else. Both were rewritten with
+their reasoning, because a test that passes and is wrong is worse than one
+that fails.
+
+**Which row was open was an index into that list.** The drawer kept `expanded`
+and `selected` as positions in a `useMemo` recomputed from every build. A
+build that reordered the list left the expansion and the selection bar on
+whichever diagnostics had landed in those two slots: a row the writer never
+opened and never chose. They are keyed by the diagnostic now, on the same
+document, file, line and message the server's own `Diagnostic.key()` uses.
+
+**A helper file belonged to whichever chapter came first.** `chapter_for`
+matched by containing directory, and with flat chapters every helper matched
+every chapter equally, so the loop kept the first one. A fast build was scoped
+to a chapter the edited file has nothing to do with, the writer's change was
+not in the pages that came back, and nothing said why. A tie is not an answer:
+it returns not-scoped, which the caller already builds the whole document for.
+
+**And a printed percent sign hid the rest of its line.** Six copies of
+`^[^%\n]*` guarded these scans, and `\%` is a percent that prints. "We
+recovered 95\% of it. \input{chapters/one}" made the `\input` invisible to the
+dependency graph and to the chapter scoping, so a chapter silently stopped
+being rebuilt because its parent line had gained a percentage. One
+`LINE_START` now, in `deps.py`, imported by `compile.py`, matching either an
+ordinary character or a backslash and whatever it escapes.

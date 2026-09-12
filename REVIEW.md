@@ -208,7 +208,11 @@ answer.
 
 Expected: a control that cannot be used says so, or is not a tab stop.
 
-### R-004 · Compile · bug · high · confirmed
+### ~~R-004 · Compile · bug · high · confirmed~~
+
+**Fixed.** `summarise` takes the first error the log gave, which is the order the
+engine read the document in. Two existing tests encoded the alphabetical order and
+are rewritten with their reasoning.
 
 Found by: reading, then reproduced against the real function. Where:
 `nexttex/explain.py:246`.
@@ -263,7 +267,10 @@ document, so the case cannot tell the two orders apart. The test is named
 after the implementation rather than after the intent, which is how the
 behaviour came to be certified rather than caught.
 
-### R-005 · Compile · bug · medium · confirmed
+### ~~R-005 · Compile · bug · medium · confirmed~~
+
+**Fixed.** One `LINE_START` in `deps.py`, imported by `compile.py`, replacing six
+copies of a guard that read `\%` as a comment.
 
 Found by: reading, then reproduced against the real pattern. Where:
 `nexttex/deps.py:34`, the `SCAN` pattern.
@@ -304,7 +311,10 @@ carries the comment "a commented-out heading is not a heading. `\%` is a
 percent sign" and handles the escape. The two sides of the app disagree about
 what a comment is.
 
-### R-006 · Compile · bug · medium · confirmed
+### ~~R-006 · Compile · bug · medium · confirmed~~
+
+**Fixed.** A tie between chapters sharing a directory returns not-scoped, which the
+caller already builds the whole document for, instead of the first chapter.
 
 Found by: reading, then reproduced against the real function. Where:
 `nexttex/compile.py:196`, `chapter_for`.
@@ -340,7 +350,11 @@ Mechanism: the comment beside the loop explains the case it does handle, a
 chapter with a subdirectory of its own, and the code reads as though that is
 the only case there is.
 
-### R-008 · Compile · bug · medium · confirmed
+### ~~R-008 · Compile · bug · medium · confirmed~~
+
+**Fixed.** The open row and the selection are keyed by the diagnostic, on the same
+fields the server's `Diagnostic.key()` uses, rather than by position in a list that
+is rebuilt on every build.
 
 Found by: reading. Where: `frontend/src/panes/Diagnostics.tsx:36`, `:37`,
 `:148`, `:165`.
@@ -367,7 +381,10 @@ same file already has the right key available: file, line and message
 together are what `nexttex/latexlog.py`'s own `Diagnostic.key()` uses to
 deduplicate.
 
-### R-009 · Compile · bug · medium · confirmed
+### ~~R-009 · Compile · bug · medium · confirmed~~
+
+**Fixed with R-004.** `orderRows` keeps errors before warnings and otherwise leaves
+the log's order alone. Held by `frontend/src/panes/diagnostic-rows.test.ts`.
 
 Found by: reading. Where: `frontend/src/panes/Diagnostics.tsx:44`.
 

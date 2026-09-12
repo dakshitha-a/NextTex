@@ -72,12 +72,19 @@ def test_annotating_keeps_everything_the_editor_already_used():
 
 def test_the_summary_names_the_first_error_not_the_loudest():
     """TeX cascades: one unclosed brace makes every paragraph after it
-    complain, and starting at the bottom of the list fixes noise."""
+    complain, and starting at the bottom of the list fixes noise.
+
+    The list is in the order `parse` read the log, which is the order the
+    engine met the errors in. This fixture used to be in the other order,
+    which no real log produces: it was shaped that way to exercise a sort
+    over `(file, line)` that has since been removed, because on more than
+    one file that sort is alphabetical rather than document order.
+    """
     found = summarise([
-        {"severity": "error", "message": "! Emergency stop.",
-         "file": "main.tex", "line": 300},
         {"severity": "error", "message": "! Too many }'s.",
          "file": "main.tex", "line": 40},
+        {"severity": "error", "message": "! Emergency stop.",
+         "file": "main.tex", "line": 300},
         {"severity": "warning", "message": "Overfull \\hbox",
          "file": "main.tex", "line": 4},
     ])
@@ -87,14 +94,45 @@ def test_the_summary_names_the_first_error_not_the_loudest():
     assert "fix this one and rebuild" in found["note"]
 
 
-def test_the_summary_orders_by_file_then_line():
+def test_the_summary_follows_the_log_and_not_the_alphabet():
+    """This test used to assert the bug, and passed for a year.
+
+    It was `test_the_summary_orders_by_file_then_line`, and it asserted
+    that of an error in `chapters/02.tex` and one in `chapters/01.tex` the
+    summary names the second, because `01` sorts before `02`. That is only
+    the right answer when the filenames happen to sort into the order the
+    document includes them in, which is true of the numbered chapters in
+    this fixture and of nothing else. `main.tex` and `chapters/one.tex`
+    sort the wrong way round, and the preamble is where a cascade almost
+    always starts.
+
+    The log's order is the engine's order, and the engine reads the
+    document. So the answer is the first error in the list, and the
+    fixture below is in the order a log would give them.
+    """
     found = summarise([
-        {"severity": "error", "message": "! Too many }'s.",
-         "file": "chapters/02.tex", "line": 5},
         {"severity": "error", "message": "! Missing $ inserted.",
          "file": "chapters/01.tex", "line": 90},
+        {"severity": "error", "message": "! Too many }'s.",
+         "file": "chapters/02.tex", "line": 5},
     ])
     assert found["file"] == "chapters/01.tex"
+
+
+def test_the_preamble_wins_over_a_chapter_that_sorts_before_it():
+    """The case the old sort got backwards, and the one that matters.
+
+    A broken preamble in `main.tex` makes every chapter complain. Sorted
+    alphabetically, `chapters/one.tex` comes first and the writer is sent
+    to fix a consequence.
+    """
+    found = summarise([
+        {"severity": "error", "message": "! Undefined control sequence.",
+         "file": "main.tex", "line": 5},
+        {"severity": "error", "message": "! Undefined control sequence.",
+         "file": "chapters/one.tex", "line": 2},
+    ])
+    assert found["file"] == "main.tex"
 
 
 def test_a_build_with_no_errors_has_nothing_to_summarise():
@@ -108,3 +146,42 @@ def test_one_error_alone_does_not_claim_others_followed():
          "file": "main.tex", "line": 12},
     ])
     assert found["others"] == 0 and found["note"] == ""
+
+
+def test_the_error_to_start_from_is_the_first_one_the_engine_met():
+    """Document order, which is what the docstring and the README both say.
+
+    It was `min` over `(file, line)`, which is alphabetical by filename. A
+    thesis whose preamble is broken in `main.tex` and whose chapter is
+    broken as a consequence was told to start in `chapters/one.tex`,
+    because `c` sorts before `m`. That is precisely backwards: the note
+    beside it says the list below the first error is usually its own
+    consequence.
+
+    Nothing caught it because every test project has one file.
+    """
+    from nexttex.explain import summarise
+
+    # The order `parse` produces: the engine read main.tex first.
+    diagnostics = [
+        {"severity": "error", "file": "main.tex", "line": 5,
+         "message": "Undefined control sequence."},
+        {"severity": "error", "file": "chapters/one.tex", "line": 2,
+         "message": "Undefined control sequence."},
+    ]
+
+    start = summarise(diagnostics)
+    assert start is not None
+    assert start["file"] == "main.tex", (
+        f"told to start in {start['file']}, which is alphabetical order"
+    )
+    assert start["line"] == 5
+    assert start["others"] == 1
+
+
+def test_a_warning_is_never_the_place_to_start():
+    from nexttex.explain import summarise
+
+    assert summarise([
+        {"severity": "warning", "file": "a.tex", "line": 1, "message": "Overfull"},
+    ]) is None
