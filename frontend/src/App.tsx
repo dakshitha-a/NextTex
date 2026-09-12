@@ -69,8 +69,17 @@ import Tabs from "./panes/Tabs";
 import PreviewTabs from "./panes/PreviewTabs";
 import AgentButton from "./panes/AgentButton";
 import Status from "./panes/Status";
-import Diagnostics from "./panes/Diagnostics";
+/** The error drawer, fetched when something opens it.
+ *
+ *  It draws nothing at all until the drawer has a height, and a session
+ *  where every build is clean never opens it: the explanations, the lint
+ *  rows and the resizer are all paid for by the writer who has an error to
+ *  read. The same reasoning as the tutorial, the PDF pane and the version
+ *  panel, and it is what kept the entry chunk under its budget while the
+ *  review's fixes went in. */
+const Diagnostics = lazy(() => import("./panes/Diagnostics"));
 import FileTree from "./panes/FileTree";
+import { countFiles } from "./tree";
 import Projects from "./panes/Projects";
 import SignIn from "./panes/SignIn";
 import ContextPanel from "./panes/ContextPanel";
@@ -1362,6 +1371,8 @@ export default function App() {
    * on.
    */
   const tree = useStore((s) => s.tree);
+  /** How many files the project holds, for the Files header. */
+  const fileCount = useMemo(() => countFiles(tree), [tree]);
   const activeBinary = useMemo(() => {
     if (!activePath) return null;
     const find = (node: any): any =>
@@ -1555,8 +1566,18 @@ export default function App() {
                 onClick={() => toggleRail("files")}
               >
                 <span className="t-micro text-ink-2">Files</span>
-                <span className={`text-ink-3 ${railOpen.files ? "rotate-180" : ""}`}>
-                  <Chevron direction="down" />
+                {/* The count, as the Sections header one row down has
+                    always carried one. Two panels in the same stack with
+                    the same header shape, one saying how much it is
+                    hiding and the other saying nothing, is a difference a
+                    reader has to notice and then explain. */}
+                <span className="flex items-center gap-2">
+                  {fileCount ? (
+                    <span className="t-micro text-ink-3">{fileCount}</span>
+                  ) : null}
+                  <span className={`text-ink-3 ${railOpen.files ? "rotate-180" : ""}`}>
+                    <Chevron direction="down" />
+                  </span>
                 </span>
               </button>
               {/* Unmounted rather than hidden when folded: the tree owns a
@@ -1773,13 +1794,17 @@ export default function App() {
             }
             onRebuild={(full) => void buildNow(full)}
           />
-          <Diagnostics
-            height={drawer}
-            onJump={(file, line) => openFile(file, line)}
-            onFix={(text) => chat.current?.seed(text)}
-            onResize={setDrawer}
-            onClose={() => setDrawer(DRAWER_CLOSED)}
-          />
+          {drawer ? (
+            <Suspense fallback={null}>
+              <Diagnostics
+                height={drawer}
+                onJump={(file, line) => openFile(file, line)}
+                onFix={(text) => chat.current?.seed(text)}
+                onResize={setDrawer}
+                onClose={() => setDrawer(DRAWER_CLOSED)}
+              />
+            </Suspense>
+          ) : null}
         </div>
 
         {tight || folded.editor || folded.pdf ? null : (

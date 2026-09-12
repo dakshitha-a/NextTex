@@ -710,3 +710,63 @@ test("both remembering answers say what they would remember", async ({ tab }) =>
   await expect(line).toHaveCSS("opacity", "0");
   await tab.getByTestId("deny").click();
 });
+
+test("the answer that keeps the conversation is the emphasised one", async ({
+  tab,
+}) => {
+  // R-114. `Start new` was the ghost-button at --ink and `Keep this one`
+  // was quiet at --ink-3, which is the ink section 19 of the design
+  // document gives to `\include` rows that cannot be chosen. So the app
+  // drew the answer it recommends in the colour it uses for things you
+  // cannot pick, on the one confirmation that ends a conversation.
+  await tab.getByTestId("clear-chat").click();
+  const keep = tab.getByTestId("clear-keep");
+  const start = tab.getByTestId("clear-confirm");
+  await expect(keep).toBeVisible();
+
+  // Focus goes to the safe half, because the default answer is no.
+  await expect(keep).toBeFocused();
+
+  // And the weight is on it: the ghost-button draws at --ink, the quiet
+  // one at --ink-3, so the two inks tell which is which without naming a
+  // class.
+  const inks = await tab.evaluate(() => {
+    const of = (id: string) =>
+      getComputedStyle(
+        document.querySelector(`[data-testid="${id}"]`) as HTMLElement,
+      ).color;
+    return { keep: of("clear-keep"), start: of("clear-confirm") };
+  });
+  expect(inks.keep).not.toBe(inks.start);
+
+  await keep.click();
+  await expect(keep).toHaveCount(0);
+});
+
+test("the permission menu marks its position the way the model menu does", async ({
+  tab,
+}) => {
+  // Two popovers a centimetre apart on the same strip. The model one marks
+  // the current choice with a four-pixel dot; this one marked it with a
+  // background fill alone, so the same question was answered two different
+  // ways and a reader had to learn the second one rather than read it.
+  await tab.getByTestId("auto-toggle").click();
+  await expect(tab.getByTestId("mode-menu")).toBeVisible();
+
+  const filled = async (option: string) => {
+    const dot = tab.getByTestId(`mode-${option}`).locator("span").first();
+    return dot.evaluate((node) => getComputedStyle(node).backgroundColor);
+  };
+
+  // "ask" is where a project starts.
+  const chosen = await filled("ask");
+  expect(chosen).not.toBe("rgba(0, 0, 0, 0)");
+  expect(await filled("project")).toBe("rgba(0, 0, 0, 0)");
+  expect(await filled("all")).toBe("rgba(0, 0, 0, 0)");
+
+  // And it follows the choice.
+  await tab.getByTestId("mode-project").click();
+  await tab.getByTestId("auto-toggle").click();
+  expect(await filled("project")).toBe(chosen);
+  expect(await filled("ask")).toBe("rgba(0, 0, 0, 0)");
+});

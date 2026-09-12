@@ -4879,3 +4879,29 @@ saying nothing, is a difference a reader has to notice and then explain.
 ### The error drawer is fetched when something opens it
 
 The drawer draws nothing until it has a height, and a session where every build
+is clean never opens it. It joins the tutorial, the PDF pane, the share sheet
+and the version panel in being fetched on the click that wants it, which is
+what kept the entry chunk inside its budget while this run's fixes went in: 800
+kilobytes is the budget, the fixes took it to 800.4, and moving the drawer out
+brought it back to 796.
+
+### A drag handle the editor was painting over
+
+Dragging the file rail's divider resized nothing and selected text in the
+editor instead. Two sweep shots that should have differed did not: the rail sat
+at the same 240 pixels in both, and the only change between the images was a
+text selection, in both themes.
+
+The visible divider is one pixel and what answers a press is a nine-pixel span
+overhanging it, half into each neighbouring pane. The pane on one side is
+CodeMirror, which paints its content in a later stacking context, so a press on
+the overhanging half landed in the editor. The hit zone is lifted above it now,
+and marked `select-none` for the other half of what those shots showed: with
+the button down and the pointer travelling across a text layer, the browser
+will still start a selection in whatever is under it unless told not to.
+
+### Photographed at one and at two, used at one and a quarter
+
+Every screen in this repository had been photographed at a device pixel ratio
+of 1 or 2. A Windows laptop at 125 per cent scaling, which is the ordinary
+default on a laptop of that class, renders at 1.25. The clarity work here is

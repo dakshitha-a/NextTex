@@ -3724,7 +3724,10 @@ the other:
 `docs/design.md` §5 allows one consequence line and only when the consequence
 is not obvious. Evidence: `25-card-four-answers--*`, `26-card-conversation-scope--*`.
 
-### R-114 · Interface · bug · medium · confirmed
+### ~~R-114 · Interface · bug · medium · confirmed~~
+
+**Fixed.** The safe answer carries the weight and takes focus.
+Held by `e2e/specs/agent.spec.ts`.
 
 Found by: the sweep, across all eight widths and themes of one shot. Where:
 the two in-place confirmations.
@@ -3759,7 +3762,9 @@ command text, per `docs/design.md` §28, and nothing on screen says so. A
 writer choosing it cannot know whether a command that differs by one argument
 will ask again.
 
-### R-116 · Interface · bug · low · confirmed
+### ~~R-116 · Interface · bug · low · confirmed~~
+
+**Fixed.** The permission popover has the same dot the model popover has, and the Files header has a count as the Sections header always did.
 
 Found by: the sweep. Two small inconsistencies between neighbours.
 
