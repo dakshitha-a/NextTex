@@ -54,12 +54,55 @@ try { Start-Transcript -Path $logFile -Append | Out-Null } catch { }
 function Say  { param($m) Write-Host ''; Write-Host $m -ForegroundColor White }
 function Note { param($m) Write-Host "  $m" }
 
+function Get-ServerPort {
+  # Out of the install's own config.json, because a named instance derives
+  # its own port from its name and 8450 is only the default.
+  $config = Join-Path $logDir 'config.json'
+  if (Test-Path $config) {
+    try {
+      $port = (Get-Content $config -Raw | ConvertFrom-Json).port
+      if ($port) { return [int]$port }
+    } catch { }
+  }
+  return 8450
+}
+
 function Get-ServerProcess {
-  # The process serving this install, whichever way it was started. Matched
-  # on the command line rather than on the image name, because the image is
-  # python.exe and a machine may have several of those.
-  Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -like '*server\run.py*' }
+  <# Whoever is actually serving this install.
+
+     Asked of the port first, and this is the part that took a report from
+     a real machine to get right. The Startup shortcut runs
+     `.venv\Scripts\python.exe -u server\run.py`, and on an install whose
+     interpreter came from the Microsoft Store that process immediately
+     re-execs into the Store Python: what ends up holding the port is a
+     child with a different image and a different pid from the one the
+     shortcut started. Matching on the image name would have stopped the
+     launcher, left the child serving, and the start afterwards would then
+     have failed on the port being in use, which is the exact line that
+     filled server.err.log in September.
+
+     So: whoever owns the listening socket is the server, by definition.
+     The command-line match stays as a second pass, because a server that
+     died mid-start holds no port and should still be cleaned up. #>
+  $found = @{}
+  try {
+    foreach ($held in @(Get-NetTCPConnection -LocalPort (Get-ServerPort) `
+                        -State Listen -ErrorAction SilentlyContinue)) {
+      $found[[int]$held.OwningProcess] = $true
+    }
+  } catch { }
+  # No `Name` filter: the whole point is that the image may not be the one
+  # the shortcut named.
+  foreach ($process in @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+                         Where-Object { $_.CommandLine -like '*server\run.py*' })) {
+    $found[[int]$process.ProcessId] = $true
+  }
+  return @($found.Keys)
+}
+
+function Test-PortFree {
+  -not (Get-NetTCPConnection -LocalPort (Get-ServerPort) -State Listen `
+        -ErrorAction SilentlyContinue)
 }
 
 function Stop-Server {
@@ -71,16 +114,21 @@ function Stop-Server {
   }
   $running = @(Get-ServerProcess)
   if ($running.Count -eq 0) { return '' }
-  foreach ($process in $running) {
-    Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+  foreach ($id in $running) {
+    Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
   }
+  # Two things have to have finished, and they finish at different times.
   # Windows will not delete a file a dying process still has mapped, and
-  # pip is about to try, so wait for the handle to actually go.
-  for ($waited = 0; $waited -lt 20; $waited += 1) {
-    if (-not (Get-ServerProcess)) { break }
+  # pip is about to try; and the port has to be free before anything can
+  # start again on it.
+  for ($waited = 0; $waited -lt 40; $waited += 1) {
+    if ((Get-ServerProcess).Count -eq 0 -and (Test-PortFree)) { break }
     Start-Sleep -Milliseconds 250
   }
-  Note "stopped the server (pid $($running[0].ProcessId))"
+  if (-not (Test-PortFree)) {
+    Note "warning: something is still listening on port $(Get-ServerPort)"
+  }
+  Note "stopped the server (pid $($running -join ', '))"
   return 'process'
 }
 
@@ -95,10 +143,17 @@ function Start-Server {
   # decided, so launching the shortcut starts the server exactly the way
   # logging in would.
   $link = Join-Path ([Environment]::GetFolderPath('Startup')) "$Name.lnk"
-  if (Test-Path $link) {
-    Start-Process -FilePath $link
-    return $true
+  if (-not (Test-Path $link)) { return $false }
+  Start-Process -FilePath $link
+  # Started is not serving. The shortcut may re-exec into another
+  # interpreter, and that one may fail on a port the old process has not
+  # let go of, which is a failure that used to be discovered by somebody
+  # opening a browser rather than by the script that caused it.
+  for ($waited = 0; $waited -lt 40; $waited += 1) {
+    Start-Sleep -Milliseconds 250
+    if (-not (Test-PortFree)) { return $true }
   }
+  Note "started it, and nothing is listening on port $(Get-ServerPort) yet"
   return $false
 }
 

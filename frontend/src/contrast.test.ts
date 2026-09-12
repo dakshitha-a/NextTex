@@ -261,6 +261,42 @@ describe.each(PALETTES)("%s theme", (_name, tokens) => {
   });
 });
 
+test("every block that moves an ink moves what is derived from it", () => {
+  // R-109. A custom property whose value contains `var()` is substituted
+  // where it is declared, not where it is used. `--line` is `color-mix`
+  // over `--ink-3` and is declared once, on `:root`, so a block that gives
+  // the element a different `--ink-3` inherits a `--line` already computed
+  // from the old one. Every border, separator and drag handle in a light
+  // theme's furniture was drawn at about half the contrast of the same
+  // furniture in a whole-dark theme, on the identical background.
+  //
+  // Nothing here can measure that, because `color-mix` is not resolvable
+  // without a browser and this file works on hexes. What it can hold is
+  // the rule: a block that moves the ingredient moves the mixture.
+  const DERIVED: Record<string, string[]> = {
+    "ink-3": ["line"],
+    pen: ["pen-wash"],
+    hint: ["hint-wash"],
+  };
+  // Every selector that declares any of the ingredients, `:root` included.
+  const blocks = [...CSS.matchAll(/(^|\n)([^\n{}]+)\{([^}]*)\}/g)]
+    .map((match) => ({ selector: match[2].trim(), body: match[3] }))
+    .filter((block) => !block.selector.startsWith("@"));
+
+  const missing: string[] = [];
+  for (const { selector, body } of blocks) {
+    for (const [ingredient, mixtures] of Object.entries(DERIVED)) {
+      if (!new RegExp(`--${ingredient}:\\s*#`).test(body)) continue;
+      for (const mixture of mixtures) {
+        if (body.includes(`--${mixture}:`)) continue;
+        missing.push(`${selector} moves --${ingredient} and not --${mixture}`);
+      }
+    }
+  }
+
+  expect(missing.join("\n")).toBe("");
+});
+
 test("the dark theme redefines every colour the light one names", () => {
   // Only the colours: the derived tokens (--line, the washes, the shadows)
   // are either color-mix over these or deliberately different, and a colour
