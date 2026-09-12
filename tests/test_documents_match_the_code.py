@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -286,3 +287,40 @@ def test_the_welcome_message_has_as_many_buttons_as_the_document_claims():
         assert claim not in design, (
             f"the design document still says {claim!r} about the welcome message"
         )
+
+
+def test_the_measured_bundle_in_the_readme_is_close_to_the_one_on_disk():
+    """R-076. The budget column of that table has been checked since
+    `1143527`; the measured column in the same row has not, and it drifted.
+
+    Every other measured figure in the table belongs to the machine that
+    took it and cannot be checked from here. This one does not: it is the
+    size of `frontend/dist`, so it is the same number wherever it is read,
+    and it was 788.0 in the README against 791.7 on disk.
+
+    Skipped when there is no build, because the fast tier does not make
+    one and a test that fails for the absence of an artefact it did not
+    ask for is a test people learn to ignore.
+    """
+    from bench import bench
+
+    measured = bench.bundle_size()
+    if measured is None:
+        pytest.skip("frontend/dist has not been built")
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    row = next(
+        (line for line in readme.splitlines() if line.startswith("| Interface bundle |")),
+        None,
+    )
+    assert row, "the benchmark table no longer has an interface bundle row"
+    stated = float(row.split("|")[2].strip().removesuffix(" kB"))
+    on_disk = measured["median"]
+    # Half a percent, not one. The drift that prompted this was 788.0
+    # against 791.7, which is 0.47 percent, so a one percent tolerance
+    # would have been green for exactly the fault it was written for. The
+    # figure is machine-independent, so the only slack it needs is the
+    # rounding to a tenth of a kilobyte.
+    assert abs(stated - on_disk) / on_disk < 0.005, (
+        f"the README says {stated} kB and frontend/dist is {on_disk} kB"
+    )
