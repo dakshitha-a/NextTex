@@ -4764,3 +4764,24 @@ disagrees with the question. Asking for the checkout it is standing in is still
 fine, because that answer is redundant rather than wrong, and a script that
 refuses a correct answer is worse than one that ignores it.
 
+### Half the contrast, in the theme most people use
+
+`--line`, `--pen-wash` and `--hint-wash` are mixtures: `color-mix` over
+`--ink-3`, over `--pen`, over `--hint`. They were declared once, on bare
+`:root`. A custom property whose value contains `var()` is substituted where
+it is declared rather than where it is used, so all three computed against
+the light palette's ink and were then inherited, already resolved, into the
+block that gives the app's furniture the dark palette inside a light theme.
+
+Every border, separator and drag handle in that furniture was therefore drawn
+from the light ink on dark surfaces. The status strip's top border measured
+1.44:1 against the 2.56:1 the same border has in a whole-dark theme, on the
+identical background; the composer's separator, 1.32 against 2.34. Half the
+contrast, in the theme the app opens in.
+
+`.nx-theme-white` below already redeclares `--line` for exactly this reason,
+with a note explaining the arithmetic. That it was needed there and not done
+here is the whole finding, so the guard is structural rather than numeric:
+every block that moves an ingredient has to move what is mixed from it, and
+`contrast.test.ts` now walks the stylesheet and says so. It cannot measure
+`color-mix` without a browser, and it does not need to.
