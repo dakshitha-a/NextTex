@@ -81,6 +81,8 @@ export default function Projects({
       setError(null);
     } catch (problem: any) {
       setError(problem.message);
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -89,12 +91,19 @@ export default function Projects({
   }, []);
 
   const add = async () => {
-    if (!path.trim()) return;
+    if (!path.trim() || busy === "add") return;
     setError(null);
+    setBusy("add");
     try {
       if (mode === "join") {
         // Nothing is on disk yet. What comes back is the list of what the
         // other end is offering, and the decision is the next screen.
+        //
+        // This waits for a whole project to sync, which is thirty seconds
+        // on a thesis, and the button said "Join" the entire time with
+        // nothing disabled. Pressing it again started a second join into
+        // the same folder, which the second one then refuses because the
+        // first has put `.nexttex` in it.
         setOffer(await api.joinShare(invite.trim(), path.trim()));
         return;
       }
@@ -507,8 +516,11 @@ export default function Projects({
               mode === "join" ? "pen-button self-start" : "ghost-button"
             }`}
             onClick={add}
+            disabled={busy === "add"}
           >
-            {mode === "create"
+            {busy === "add" && mode === "join"
+              ? "Joining…"
+              : mode === "create"
               ? "Create project"
               : mode === "add"
               ? "Open folder"

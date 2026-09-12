@@ -61,11 +61,14 @@ export default function ContextPanel({
     limit: number;
   } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const projectId = useStore((s) => s.projectId);
   useEffect(() => {
-    const projectId = get().projectId;
     if (!open || !projectId) return;
     api.memory(projectId).then(setMemory).catch(() => undefined);
-  }, [open, documents]);
+    // Keyed on the project as well. Without it, opening another project
+    // with this panel already open showed the previous project's memory,
+    // because neither `open` nor `documents` had changed.
+  }, [open, documents, projectId]);
 
   const saveMemory = async () => {
     const projectId = get().projectId;

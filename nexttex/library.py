@@ -511,10 +511,18 @@ class Scan:
             paper.reason = "No DOI printed in it."
             return paper, text, False
 
+
+        unreachable = ""
         for doi in candidates:
             try:
                 meta = self.fetch_metadata(doi)
-            except Exception:
+            except Exception as error:
+                # Remembered rather than swallowed. Every DOI in a paper
+                # failing to fetch, because the network is down or the
+                # publisher is refusing, ended as "no record found for any
+                # DOI in it", which is a statement about the paper. The two
+                # send a writer to different places.
+                unreachable = f"Could not reach the publisher for {doi}: {error}"
                 continue
             if not meta:
                 continue
@@ -559,5 +567,8 @@ class Scan:
             return paper, self.appended(text, found["entry"]), True
 
         if not paper.reason:
-            paper.reason = f"No record found for {candidates[0]}."
+            # A publisher that could not be reached is not a paper that
+            # does not exist, and the writer does something different about
+            # each: try again later, or look at the PDF.
+            paper.reason = unreachable or f"No record found for {candidates[0]}."
         return paper, text, False

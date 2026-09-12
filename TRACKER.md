@@ -146,3 +146,20 @@ things go to be forgotten rather than a list anybody reads.
       to fix it properly, an ordered per-session queue consumed off the
       loop, is more machinery than the measurement justifies. Worth doing
       if that number ever moves.
+
+- [ ] **A blob asked for once is never asked for again.** `PeerLink.wanted`
+      in `server/collab/peers.py` is a set of content addresses with no time
+      in it, and `_send_blob` says nothing when it holds none, so a peer that
+      was asked while it happened not to have the blob is never asked again
+      and the version stays unopenable. Giving `wanted` an age and answering
+      a miss are both changes to what the wire says, which wants a frame kind
+      and a version thought rather than a line, and it was found by reading
+      rather than by anybody meeting it.
+
+- [ ] **What a distillation writes does not mark the context stale.** A
+      distilled `voice.md` or `style.md` is written under `.nexttex/`, which
+      the file watcher ignores by design, so nothing publishes
+      `context_changed` and the panel's "these have not been read since you
+      changed them" marker is computed from what it last saw. Noticed while
+      fixing the rest of R-066; the fix is one publish in the agent's
+      `on_edit`, and it wants a test that can drive a real distillation.
