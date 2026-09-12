@@ -739,7 +739,12 @@ it was not issued for.
 
 ### The editor
 
-### R-029 · Editor · bug · blocker · confirmed
+### ~~R-029 · Editor · bug · blocker · confirmed~~
+
+**Fixed.** `yUndoManagerKeymap` is bound beside `yCollab`, and CodeMirror's
+`history()` has come out of the extensions a live editor shares with the
+read-only panes. Held by `frontend/src/panes/editor-undo.test.ts` and
+`e2e/specs/undo.spec.ts`, both of which fail without it.
 
 Found by: reading, then reproduced in a real browser twice. Where:
 `frontend/src/panes/editor-setup.ts:390` and `:408`, with

@@ -4029,3 +4029,52 @@ And a button on the failed-update card read "Hide the log" and was wired to a fu
 Seven found, three deliberately left, each with the reason in `TRACKER.md`. The three left are all cases where the symptom is real and the fix asks a larger question than the symptom is worth: what `state.error` means now that a notice list sits beside it, whether a sign-in error should survive a move between panels, and whether a warning somebody has put away for good should have a way back that is not the settings sheet.
 
 What is worth noticing about the whole list is that not one of them could have been found by a test. Every single one is a correct line of code doing exactly what it says, in a case its author did not have in front of them, and the tests that cover these paths were green throughout and are still green. They were found by asking one question of a screen, over and over: what sets this back.
+
+## 30. Fixing what the September review found
+
+The review that produced `REVIEW.md` recorded 126 findings and fixed none of
+them, deliberately: a list fixed as it is found stops at the first hard item.
+This section is what the fixing changed, one subsection per idea rather than
+one per record, since the point of the review's mechanism grouping was that
+several records are one idea in different clothes.
+
+### Undo belongs to the writer's own keyboard, and to nothing else
+
+Six presses of Ctrl+Z emptied a file, on disk, for everyone in the share, on a
+file nobody had typed in. It is the worst thing the review found and the
+mechanism is worth stating plainly, because it is one of two undo stacks
+quietly taking work that was not offered to it.
+
+A buffer is built from `opened.text.toString()` before that file's socket has
+synced. For a file nobody else has open, the document at that moment is empty,
+and the whole chapter arrives afterwards in one transaction from the socket. A
+transaction is undoable unless it says otherwise, so that chapter sat on
+CodeMirror's undo stack as though the writer had typed it, and undo wrote the
+emptied buffer straight back into the shared document, which is to say to disk
+and to every other browser.
+
+`collab.ts` had built the right thing and never reached it. `yCollab` is given
+a scoped `Y.UndoManager` that tracks only the local sync origin, and it
+installs the manager and a `beforeinput` handler for it, and binds no keys.
+`yUndoManagerKeymap` is exported by the same package and was imported nowhere.
+So Ctrl+Z was taken by `historyKeymap` before the browser ever raised a
+`historyUndo` input event, and the scoped manager was inert.
+
+Both halves had to move. The keymap is now bound beside `yCollab`, and
+`history()` and `historyKeymap` have come out of `base()` in
+`editor-setup.ts`, which the live editor and the read-only panes share. They
+live in `withHistory()` now, which only `viewExtensions()` takes: a version
+being read and the fallback pane a file gets when it could not be connected
+have no shared document behind them, cannot be edited, and should still answer
+the key rather than hand it to the browser.
+
+The rule this leaves is one sentence. **A pane with a shared document behind
+it has exactly one undo stack, the scoped one, and a pane without one has
+CodeMirror's.** Adding an extension to `base()` that touches history puts them
+both in the same editor again.
+
+Two tests hold it. `frontend/src/panes/editor-undo.test.ts` builds a live
+editor over a real `Y.Doc`, lets the document arrive with a socket-shaped
+origin, and presses the key through `runScopeHandlers`, so it is the binding
+being tested and not the command. `e2e/specs/undo.spec.ts` does it in a
+browser and reads the disk afterwards, which is what was actually being lost.

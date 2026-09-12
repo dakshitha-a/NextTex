@@ -100,6 +100,8 @@ Three paths move text.
 
 An edit reaching the disk measures at 3.1 ms on a thesis-shaped project, of which the edit arriving is 3.0.
 
+**Undo belongs to the document, not to the editor.** A live editor's Ctrl+Z runs the scoped `Y.UndoManager` that `collab.ts` builds per file, bound by `yUndoManagerKeymap`; CodeMirror's own `history()` is not in a live editor's extensions at all. The two cannot both be there. A buffer is built before its socket has synced, so the file arrives afterwards as one transaction, and an editor with CodeMirror's history had that transaction on its stack: six presses of undo emptied the file on disk and for every other browser. The read-only panes, a version being viewed and a file that could not be connected, keep CodeMirror's history, because they have no shared document to own theirs.
+
 **Copying a file is a fourth path, and it has to start by closing the second one.** `POST /api/projects/{id}/file/duplicate` flushes every dirty shared document before it copies anything, because the file on disk trails the document by the 120 millisecond debounce and a copy taken without that would hold the chapter as it was rather than as it is, with nothing on screen to say which of the two the writer had got. The name is chosen on the server by `unique_name`, the same rule the trash restores through and the upload chooser quotes back, and the route answers with the name it picked rather than accepting one. It publishes its own `files_changed`; the watcher would find the new file eventually and in a batch, so this is what makes the copy appear in the same beat the menu item was clicked in, for every tab and every collaborator.
 
 ## Compiling

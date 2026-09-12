@@ -383,11 +383,16 @@ export function marksFor(
     }));
 }
 
-/** Everything both the live editor and a historical view want. */
+/** Everything both the live editor and a historical view want.
+ *
+ *  Not undo.  A live editor's undo belongs to the scoped `Y.UndoManager`
+ *  that `collab.ts` builds, which tracks only what this keyboard typed;
+ *  CodeMirror's own `history()` tracks every transaction, including the
+ *  one that carries the whole file in from the socket.  See `withHistory`.
+ */
 function base(symbols: () => Symbols | null): Extension[] {
   return [
     lineNumbers(),
-    history(),
     drawSelection(),
     highlightSpecialChars(),
     highlightActiveLine(),
@@ -405,7 +410,6 @@ function base(symbols: () => Symbols | null): Extension[] {
     keymap.of([
       ...closeBracketsKeymap,
       ...defaultKeymap,
-      ...historyKeymap,
       ...searchKeymap,
       indentWithTab,
     ]),
@@ -492,10 +496,24 @@ export function extensions(
 export function viewExtensions(symbols: () => Symbols | null): Extension[] {
   return [
     ...base(symbols),
+    ...withHistory(),
     diffField,
     EditorState.readOnly.of(true),
     EditorView.editable.of(false),
   ];
+}
+
+/** CodeMirror's own undo, for the panes that have no shared document
+ *  behind them: a version being read, and the read-only fallback a file
+ *  gets when it could not be connected.  Nothing in either can be edited,
+ *  so this exists to answer Ctrl+Z rather than let the browser have it.
+ *
+ *  The live editor must not have this.  Its undo arrives with `yCollab`,
+ *  which installs the scoped `Y.UndoManager` and, since R-029, the keymap
+ *  that reaches it.
+ */
+function withHistory(): Extension[] {
+  return [history(), keymap.of(historyKeymap)];
 }
 
 export function freshState(text: string, ext: Extension[]): EditorState {

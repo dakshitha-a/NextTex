@@ -4,8 +4,9 @@ import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwareness
 import * as syncProtocol from "y-protocols/sync";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
-import { yCollab, ySyncAnnotation } from "y-codemirror.next";
+import { yCollab, ySyncAnnotation, yUndoManagerKeymap } from "y-codemirror.next";
 import type { Extension } from "@codemirror/state";
+import { keymap } from "@codemirror/view";
 
 /** The browser's half of the shared documents.
  *
@@ -403,7 +404,16 @@ export class ProjectCollab {
     return {
       text: file.text,
       undo: file.undo,
-      extension: yCollab(file.text, file.awareness, { undoManager: file.undo }),
+      // The keymap is the half that was missing. `yCollab` installs the
+      // undo manager and a `beforeinput` handler for it, and binds no
+      // keys, so Ctrl+Z went to CodeMirror's own history, which had the
+      // socket's first sync on its stack: six presses emptied the file on
+      // disk, for everyone. `editor-setup.ts` no longer gives a live
+      // editor that history, and this is what answers instead.
+      extension: [
+        yCollab(file.text, file.awareness, { undoManager: file.undo }),
+        keymap.of(yUndoManagerKeymap),
+      ],
     };
   }
 
