@@ -4553,3 +4553,107 @@ appended the next thing said to the end of the old file. And the file watcher
 retried in complete silence for the life of the process, so a project whose
 watch could not start looked exactly like a project where nothing outside the
 app ever changes.
+
+### Three tools that leave this machine, and one that runs anything
+
+The fence has three positions and the middle one is the interesting one. It
+says: the work runs without asking, and two things still stop it, a write
+outside the project and anything reaching the internet. Two of the tools it
+was letting through were neither of those in name and both of them in fact.
+
+Running a Python script the model wrote is more than any single shell command
+could be, and it was fenced for that reason at the first position and silent
+at the middle one, because the list of answers that hold a tool back named
+four cases and the code that read the list named three. Searching the
+literature, adding a reference by DOI and checking a bibliography against its
+publishers all reach out over the network with terms taken from files that may
+not be the writer's, and they went through without a card because they are the
+app's own tools and the app's own tools were waved past as a class. The
+README's page on what leaves this machine already listed all three, so the
+promise was written down and not kept.
+
+Each now has a card of its own that says what the query is and where it goes.
+At the last position, where the writer has said to ask about nothing, they stay
+silent, as everything does.
+
+### Two sentences that agree read as a form letter
+
+A permission card has a headline, the thing itself, and then up to two
+sentences. They answer different questions. `consequence` says what will
+happen if this is allowed. `reason` says why this app is stopping at a setting
+where the writer asked it not to. On a network card at the middle position both
+were answering the second one, in nearly the same words: "what it sends is
+chosen from what the project's files say", above "what is sent and where it
+goes are chosen from files that may not be yours". Two sentences that agree are
+read as boilerplate and boilerplate is scrolled past, which is the opposite of
+what a card asking for a decision needs. The reason wins there, because it is
+the one answering the question the writer is actually asking, which is why this
+stopped when they had said not to stop.
+
+Beside it, the same card was drawing the rule it would remember in the
+protocol's own vocabulary: `Bash:latexmk`, `write:/home/writer/papers/main.tex`.
+That is a wire format, and the colon is doing work that only reads as work if
+you already know the grammar. It says "shell commands starting with latexmk"
+and "changing …/papers/main.tex" now. The whole rule is still in the row's
+tooltip for anybody who wants it.
+
+And of the two answers that remember something, only one would say what. "Allow
+always" had a line that appeared on hover naming the rule; "For this
+conversation", sitting right beside it and remembering the same rule for a
+shorter time, had nothing. The difference between the two is the entire reason
+there are two of them, so it is exactly what the line has to draw: the same
+line now says "Remembers:" for one and "Until this conversation is cleared:"
+for the other.
+
+### A card that expired is not a card that was refused
+
+A card left unanswered times out, and the turn goes on without the tool. What
+the panel drew, and what the transcript wrote down, was "Denied". That is a
+statement about a decision, and nobody made one. It matters most on the
+transcript, which exists to be read months later as the account of what was
+done to somebody's document: refused says the writer looked at this and said
+no.
+
+The timeout now announces itself, the card reads "Not answered", and the record
+carries `expired` as a third decision beside allowed and refused. Answering a
+card that has already expired is told so rather than silently doing nothing,
+because from the writer's side those two look identical.
+
+### One question, typed once, in every window
+
+A question typed in one tab appeared only in that tab, because the bubble was
+pushed by the composer that sent it rather than by the event that says a turn
+started. Every other window learned a turn was running and had nothing to say
+was running. Moving the bubble to the event alone would have made the writer's
+own question appear a beat after they pressed Send, on a slow machine visibly
+so, which is worse. So the composer still draws it immediately, marked
+pending, and the event either adopts that bubble or pushes one of its own. The
+tab that asked sees no delay and the others see the question.
+
+### A turn that stops has to say so, whoever stopped it
+
+Everything the panel does after a question is keyed on one event arriving, and
+`interrupt` was the only path that reliably sent it. A turn cancelled any other
+way, by the session reaper on eviction or by a shutdown, ended in silence: the
+turn was over and the panel still said it was thinking, with a Stop button that
+by then really was the no-op it is never allowed to be. Both remaining agents
+say it now, exactly once however the turn ended, and the parity test cancels a
+turn from outside to check.
+
+Two smaller repairs to the same record. A tool row for the range rewrite said
+"Rewrote what you selected", which is a claim about the writer: the tool takes
+a line range and the model chooses it, so the row now says "Rewrote lines" and
+names them. And an approval given silently by the middle position was writing
+"Asked at this setting" into the audit trail as its reason, which is a sentence
+about a card that was never put up.
+
+### A hundred pixels of nothing beside a clipped sentence
+
+The agent panel's header has one line saying what the agent is doing this
+second, and a spacer whose only job is to push Stop to the right edge. Both
+were flexible, so the browser split the free space between them evenly: the
+line clipped at half the room it could have had, with the spacer sitting beside
+it holding a hundred pixels of nothing. On a panel three hundred and twenty
+pixels wide that is the difference between reading `Read chapters/02_theory.tex`
+and reading `Read chapte…`. The spacer is only drawn when there is no activity
+line, which is the only time anything needs pushing.

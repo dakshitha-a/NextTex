@@ -10,6 +10,7 @@ import { useDismiss } from "../useDismiss";
 import { verbFor, type CallState } from "./tool-verb";
 import { createTwoFilesPatch } from "diff";
 import Prose from "./prose";
+import { shortRule } from "./short-rule";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
 import { agentName, usageNote } from "../agent-name";
 import { Chevron } from "../chrome";
@@ -43,15 +44,17 @@ export type ChatHandle = {
  *  both on its own row and on the tool row an answered card folds into,
  *  and those two must not drift into different words for one answer. */
 export function decisionWords(decision: string | undefined): string {
-  return decision === "deny"
-    ? "Denied"
-    : decision === "auto"
-      ? "Allowed automatically"
-      : decision === "conversation"
-        ? "Allowed for this conversation"
-        : decision === "always"
-          ? "Allowed from now on"
-          : "Allowed";
+  return decision === "expired"
+    ? "Not answered"
+    : decision === "deny"
+      ? "Denied"
+      : decision === "auto"
+        ? "Allowed automatically"
+        : decision === "conversation"
+          ? "Allowed for this conversation"
+          : decision === "always"
+            ? "Allowed from now on"
+            : "Allowed";
 }
 
 export function tidy(items: ChatItem[]): ChatItem[] {
@@ -423,7 +426,9 @@ export default function Chat({
     setDraft("");
     for (const one of attached) URL.revokeObjectURL(one.url);
     setAttached([]);
-    pushChat({ kind: "user", id: nextId(), text, at: Date.now() });
+    // Marked pending, so `turn_start` recognises it as this tab's own and
+    // does not add a second. Every other tab has none and pushes one.
+    pushChat({ kind: "user", id: nextId(), text, at: Date.now(), pending: true });
     pinned.current = true;
     // Read from the store, not from this render's closure.  Pressing Enter
     // in the gap between the server's `done` and React re-rendering queued
@@ -524,7 +529,11 @@ export default function Chat({
             {mode === "all" ? "Auto, all" : "Auto"}
           </button>
         ) : null}
-        <span className="flex-1" />
+        {/* Only when the activity line is not there. Two `flex-1` siblings
+            split the slack between them, so the one line saying what the
+            agent is doing clipped at half the room it had, with about a
+            hundred pixels of nothing beside it: `Read chapte…`. */}
+        {thinking || blocked ? null : <span className="flex-1" />}
         {thinking ? (
           <button
             className="nx-hover t-micro text-hint hover:text-ink"
@@ -1130,20 +1139,6 @@ export default function Chat({
   );
 }
 
-/** A permission rule, short enough for the rail and still recognisable.
- *
- *  A path rule carries the whole absolute path, because that is what makes
- *  it an identity -- two `shared.bib` files in different folders are two
- *  different permissions.  What the writer needs to see is the end of it. */
-export function shortRule(rule: string): string {
-  const [verb, ...rest] = rule.split(":");
-  const value = rest.join(":");
-  if (!value.startsWith("/")) return rule;
-  const parts = value.split("/").filter(Boolean);
-  const tail = parts.slice(-2).join("/");
-  return `${verb}: ${parts.length > 2 ? "\u2026/" : "/"}${tail}`;
-}
-
 /** The shared box for a control under the composer: the size, the corner
  *  and the hover, in one place so the four of them cannot drift apart. */
 const ICON =
@@ -1322,7 +1317,7 @@ const Item = memo(function Item({
     // Which tense the row may use. A call whose card is open has not
     // happened, and one the writer refused never will.
     const state: CallState = item.card
-      ? item.card.decision === "deny"
+      ? item.card.decision === "deny" || item.card.decision === "expired"
         ? "refused"
         : item.card.decision
           ? "done"
@@ -1368,6 +1363,10 @@ const Item = memo(function Item({
       </div>
     );
   }
+
+  // A full stop in the record, not a row. It exists so the replay can tell
+  // an interrupted turn from a finished one.
+  if (item.kind === "turn_end") return null;
 
   if (item.kind === "plan") {
     return <Plan item={item} />;
@@ -1730,7 +1729,11 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
   // a contenteditable div, so a window-level handler that only excludes
   // inputs would let ordinary typing in the editor answer the card.
   const card = useRef<HTMLDivElement | null>(null);
-  const [scope, setScope] = useState(false);
+  // Which of the two remembering answers is under the cursor, so the
+  // line can say what that one remembers.  They remember the same rule
+  // for different lengths of time, and the difference is the whole
+  // reason there are two of them.
+  const [scope, setScope] = useState<"" | "always" | "conversation">("");
   const [focused, setFocused] = useState(false);
   useEffect(() => {
     if (item.decision) return;
@@ -1859,8 +1862,10 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             // writer is agreeing to.  The whole rule is in the tooltip.
             title={item.rule}
             aria-hidden={!scope}
+            data-testid="scope-line"
           >
-            Remembers: {shortRule(item.rule)}
+            {scope === "conversation" ? "Until this conversation is cleared: " : "Remembers: "}
+            {shortRule(item.rule)}
           </div>
         ) : null}
         {/* `flex-wrap` and `whitespace-nowrap` together, because the panel
@@ -1894,6 +1899,10 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               className="h-[28px] shrink-0 whitespace-nowrap rounded-[3px] border border-line px-3 t-ui disabled:opacity-40"
               data-testid="conversation"
               disabled={!armed}
+              onMouseEnter={() => setScope("conversation")}
+              onMouseLeave={() => setScope("")}
+              onFocus={() => setScope("conversation")}
+              onBlur={() => setScope("")}
               onClick={() => decide("conversation")}
             >
               For this conversation
@@ -1913,10 +1922,10 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               className="h-[28px] shrink-0 whitespace-nowrap rounded-[3px] border border-line px-3 t-ui disabled:opacity-40"
               data-testid="always"
               disabled={!armed}
-              onMouseEnter={() => setScope(true)}
-              onMouseLeave={() => setScope(false)}
-              onFocus={() => setScope(true)}
-              onBlur={() => setScope(false)}
+              onMouseEnter={() => setScope("always")}
+              onMouseLeave={() => setScope("")}
+              onFocus={() => setScope("always")}
+              onBlur={() => setScope("")}
               onClick={() => decide("always")}
             >
               Allow always

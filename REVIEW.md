@@ -1104,7 +1104,10 @@ their text and their punctuation.
 
 ### The agent
 
-### R-046 · Agent · security · high · confirmed
+### ~~R-046 · Agent · security · high · confirmed~~
+
+**Fixed.** The middle position holds back a figure script now: the exclusion set names `script` beside the other three.
+Held by `tests/test_permissions.py`.
 
 Found by: reading, checked against three documents and the writer-facing copy.
 Where: `nexttex/agent.py:749` and `:1159`.
@@ -1138,7 +1141,10 @@ card. A sentence written for a card that cannot appear is what a set that was
 meant to grow and did not looks like. `_holds_back`'s own docstring still says
 there are four answers.
 
-### R-047 · Agent · security · medium · confirmed
+### ~~R-047 · Agent · security · medium · confirmed~~
+
+**Fixed.** The three own-tools that reach the network ask wherever a network tool asks, each with a card of its own.
+Held by `tests/test_permissions.py`.
 
 Found by: reading. Where: `nexttex/agent.py:1057` with `:157`.
 
@@ -1162,7 +1168,10 @@ about a DOI", which is true of `add_reference` and not of `find_papers`. The
 same file already made this exact argument in the other direction: `WebFetch`
 was moved out of the always-allowed set because of what travels with it.
 
-### R-048 · Agent · bug · high · confirmed
+### ~~R-048 · Agent · bug · high · confirmed~~
+
+**Fixed.** `reconcile` raises the thinking state when the server says a turn is running, so a reload mid-turn gets its Stop button back.
+Held by `frontend/src/agent-state.test.ts` and `e2e/specs/reload.spec.ts`.
 
 Found by: reading. Where: `frontend/src/store.ts:728` with
 `frontend/src/panes/Chat.tsx:208`.
@@ -1182,7 +1191,10 @@ its job and is the only thing that tells them a turn is in flight.
 `thinking` has two ways up, `turn_start` and `reconcile`-with-a-card, and the
 reload case is a third that nothing covers.
 
-### R-049 · Agent · bug · high · confirmed
+### ~~R-049 · Agent · bug · high · confirmed~~
+
+**Fixed.** A card that times out says so, and the panel draws "Not answered" rather than "Denied".
+Held by `tests/test_transcript.py`.
 
 Found by: reading. Where: `nexttex/agent.py:1247` with
 `frontend/src/panes/Chat.tsx:1682` and `server/main.py:3436`.
@@ -1227,7 +1239,10 @@ client is torn down.
 Mechanism: one flag, two writers and one clearer, which is the family this
 review keeps finding.
 
-### R-051 · Agent · bug · medium · confirmed
+### ~~R-051 · Agent · bug · medium · confirmed~~
+
+**Fixed.** A silent approval carries no reason, because there was no card to have a reason for.
+Held by `tests/test_permissions.py`.
 
 Found by: reading. Where: `nexttex/agent.py:870` with `:1184`.
 
@@ -1244,7 +1259,10 @@ The resolved row in the panel does not draw `reason`, so this lives only in
 asks somebody to read by hand as the whole case for trusting the quiet
 positions, and it is the file that is wrong.
 
-### R-052 · Agent · bug · medium · confirmed
+### ~~R-052 · Agent · bug · medium · confirmed~~
+
+**Fixed.** A fold that fails is logged and says so in the panel, naming the file to reload.
+Held by `tests/test_agent_robustness.py`.
 
 Found by: reading. Where: `nexttex/agent.py:1364`.
 
@@ -1257,7 +1275,10 @@ for instance, is caught by this outer handler and written nowhere.
 The writer then sees the agent report an edit their editor does not show,
 which that same comment calls indistinguishable from a turn that did nothing.
 
-### R-053 · Agent · bug · medium · confirmed
+### ~~R-053 · Agent · bug · medium · confirmed~~
+
+**Fixed.** The composer's bubble is marked pending and the turn's own event adopts it, so the question appears once in every window.
+Held by `frontend/src/store.test.ts` and `e2e/specs/two-tabs.spec.ts`.
 
 Found by: reading. Where: `frontend/src/store.ts:917` and
 `frontend/src/panes/Chat.tsx:386`.
@@ -1271,7 +1292,10 @@ The same line has a second ending. A question that failed to send leaves its
 bubble on screen while the draft is restored to the box, so the writer sees it
 twice, and a reload makes it vanish, because the server never had it.
 
-### R-054 · Agent · bug · medium · confirmed
+### ~~R-054 · Agent · bug · medium · confirmed~~
+
+**Fixed.** A finished turn writes `turn_end`, so an interrupted transcript can be told from a complete one.
+Held by `tests/test_transcript.py` and `frontend/src/store.test.ts`.
 
 Found by: reading. Where: `server/transcript.py:164` with
 `frontend/src/store.ts:445`.
@@ -1282,7 +1306,10 @@ interrupted. A turn that died after its prose, which is the ordinary shape of
 a turn killed by a restart, replays as a completed answer with no notice at
 all. Live, it was a turn still in flight.
 
-### R-055 · Agent · bug · medium · confirmed
+### ~~R-055 · Agent · bug · medium · confirmed~~
+
+**Fixed.** Both remaining agents emit `done` exactly once however the turn ended, and all four answer `pending_cards`.
+Held by `tests/test_agent_parity.py`.
 
 Found by: reading. Where: `tests/test_agent_parity.py:13` with
 `nexttex/openai_agent.py:413` and `nexttex/scripted_agent.py:200`.
@@ -1303,7 +1330,10 @@ put cards up, so the browser tier cannot exercise the reload-restores-the-card
 path at all. Neither `CONTRACT` nor `ATTRIBUTES` lists it, and the parity
 test's own preamble describes this failure mode in the abstract.
 
-### R-056 · Agent · bug · low · likely
+### ~~R-056 · Agent · bug · low · likely~~
+
+**Fixed.** The SDK is started with `strict_mcp_config`, so a project's own `.mcp.json` cannot add tool servers.
+Held by `tests/test_agent_prompt.py`.
 
 Found by: reading. Where: `nexttex/agent.py:2116`.
 
@@ -1323,7 +1353,10 @@ whether a project's `.claude/settings.json` can shadow the hook, which
 `docs/architecture.md` records was settled for `allowed_tools` by testing
 rather than by reading. It has not been settled for this.
 
-### R-073 · Agent · bug · medium · confirmed
+### ~~R-073 · Agent · bug · medium · confirmed~~
+
+**Fixed.** With R-049: `expired` is a third decision in the record, beside allowed and refused.
+Held by `tests/test_transcript.py`.
 
 Found by: a real turn against a real account, then reading the transcript on
 disk. Where: `server/transcript.py:155` with `nexttex/agent.py:1247`.
@@ -1355,7 +1388,10 @@ card answered after the server gave up is recorded as allowed and replays as
 denied, and a card nobody answered is recorded as nothing and replays as
 denied. The one thing it cannot say is that nobody answered.
 
-### R-074 · Agent · bug · low · confirmed
+### ~~R-074 · Agent · bug · low · confirmed~~
+
+**Fixed.** The row says "Rewrote lines" and names them, rather than claiming the writer selected anything.
+Held by `frontend/src/panes/tool-verb.test.ts`.
 
 Found by: a real turn against a real account, watching the panel. Where:
 `frontend/src/panes/Chat.tsx:1190`.
@@ -3563,7 +3599,10 @@ Mechanism: a derived token declared in one place and a palette overridden in
 another. §23's argument that reusing the dark palette creates no new pairs
 holds for every token it redeclares and fails for the three it does not.
 
-### R-110 · Agent · bug · medium · confirmed
+### ~~R-110 · Agent · bug · medium · confirmed~~
+
+**Fixed.** The spacer is drawn only when there is no activity line to push Stop for it.
+Held by `e2e/specs/chat-layout.spec.ts`.
 
 Found by: the sweep. Where: `frontend/src/panes/Chat.tsx:445` and `:488`.
 
@@ -3606,7 +3645,10 @@ Recorded as `likely` because the observation is certain and the cause is read
 rather than reproduced. It is a five minute check in a browser and the fix
 plan should start by making it fail.
 
-### R-112 · Agent · bug · medium · confirmed
+### ~~R-112 · Agent · bug · medium · confirmed~~
+
+**Fixed.** The remembered rule is said in English, in `frontend/src/panes/short-rule.ts`.
+Held by `frontend/src/panes/short-rule.test.ts`.
 
 Found by: the sweep. Where: `frontend/src/panes/Chat.tsx:1100`, `shortRule`.
 
@@ -3621,7 +3663,10 @@ repository can read.
 
 Evidence: `15-card-hover-always--light--1600.png` and its dark twin.
 
-### R-113 · Agent · bug · low · confirmed
+### ~~R-113 · Agent · bug · low · confirmed~~
+
+**Fixed.** On a network card the reason wins and the consequence is blank, so the card says it once.
+Held by `tests/test_permissions.py`.
 
 Found by: the sweep. Where: the network permission card.
 
@@ -3658,7 +3703,10 @@ The second confirmation, `22-all-confirm`, puts a `--warn` border on "Stop
 asking" and leaves "Keep asking about those two" plain. That one is defensible
 as a danger mark and is not part of this finding.
 
-### R-115 · Agent · bug · low · confirmed
+### ~~R-115 · Agent · bug · low · confirmed~~
+
+**Fixed.** Both remembering answers draw a scope line, and they say different things because they mean different things.
+Held by `e2e/specs/agent.spec.ts`.
 
 Found by: the sweep, by diffing two shots that differ by thirty-six pixels.
 Where: `frontend/src/panes/Chat.tsx:1884`.

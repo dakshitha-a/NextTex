@@ -109,3 +109,23 @@ test("a transcript survives a reload", async ({ tab }) => {
     timeout: 20_000,
   });
 });
+
+test("a reload in the middle of a turn comes back to a turn in progress", async ({
+  tab,
+}) => {
+  // R-048. The panel is rebuilt from the transcript, which has no idea a
+  // turn is in flight, so the window came back with no Stop button over a
+  // turn that was still running: the composer was enabled and the next
+  // question typed queued behind an answer the writer could not see
+  // arriving. `reconcile` asks the server on every connect and had a
+  // branch written for every case but this one, which was a bare return.
+  const composer = tab.locator("textarea");
+  await composer.fill("#script:slow\nTake your time.");
+  await tab.getByRole("button", { name: "Send" }).click();
+  await expect(tab.getByTestId("stop")).toBeVisible({ timeout: 20_000 });
+
+  await tab.reload();
+
+  await expect(tab.getByTestId("stop")).toBeVisible({ timeout: 20_000 });
+  await tab.getByTestId("stop").click();
+});

@@ -166,3 +166,50 @@ test("a narrow window never docks it, not even for a frame", async ({ browser })
   expect(seen).toEqual(["absolute"]);
   await context.close();
 });
+
+test("the line saying what the agent is doing gets the room it has", async ({
+  browser,
+}) => {
+  // R-110. Two `flex-1` siblings in the header: the activity line and a
+  // spacer whose job is to push Stop to the right. Flex splits the slack
+  // between them equally, so the line clipped at half the width it could
+  // have had, with a hundred-odd pixels of nothing beside it, on a panel
+  // 320px wide where every pixel is the difference between reading
+  // `Read chapters/02_theory.tex` and reading `Read chapte…`. The spacer
+  // is only needed when there is no activity line to do its job.
+  const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  const page = await context.newPage();
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText(project.root.split("/").pop()!, { exact: false }).first().click();
+  await page.locator(".cm-editor").waitFor({ timeout: 45_000 });
+  // The toggle, not an opener: at this width the panel may already be
+  // there, and pressing it once would be what closed it.
+  const composer = page.locator("textarea");
+  for (let tries = 0; tries < 4; tries += 1) {
+    if (await composer.isVisible()) break;
+    await page.keyboard.press("Control+Alt+a");
+    await page.waitForTimeout(400);
+  }
+  await expect(composer).toBeVisible({ timeout: 20_000 });
+  await composer.click();
+  await composer.fill("#script:working\nRead the theory chapter.");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  const working = page.getByTestId("working");
+  await expect(working).toBeVisible({ timeout: 20_000 });
+  const room = await working.evaluate((element) => {
+    const header = element.parentElement!;
+    const label = element.querySelector("span.truncate") as HTMLElement;
+    return {
+      // Nothing else in the header is claiming a share of the slack.
+      spacers: header.querySelectorAll(":scope > span.flex-1:not([data-testid])").length,
+      text: label.textContent ?? "",
+      clipped: label.scrollWidth > label.clientWidth + 1,
+    };
+  });
+
+  expect(room.spacers).toBe(0);
+  expect(room.text).toContain("02_theory.tex");
+  expect(room.clipped).toBe(false);
+  await context.close();
+});
