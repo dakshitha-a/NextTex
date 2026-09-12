@@ -264,3 +264,53 @@ def test_a_build_superseded_while_it_starts_up_stops_itself(tmp_path):
 
     assert result.outcome is Outcome.CANCELLED
     assert took < 10, f"it ran for {took:.1f}s rather than stopping"
+
+
+def test_a_helper_shared_by_every_chapter_is_not_attributed_to_the_first(tmp_path):
+    """Flat chapters are the ordinary layout, and this was the ordinary case.
+
+    `chapter_for` matched a file to an `\\include` target by containing
+    directory. With `chapters/01_intro`, `chapters/02_theory` and the rest
+    all sitting in one directory, a helper under `chapters/` matched every
+    one of them equally, and the loop kept the first. A fast build was then
+    scoped to a chapter that has nothing to do with the file being edited:
+    the writer's change was not in the pages that came back and nothing
+    said why.
+
+    Not scoped is the honest answer, and the caller already builds the
+    whole document for it.
+    """
+    from nexttex.compile import chapter_for
+
+    root = tmp_path
+    targets = ["chapters/01_intro", "chapters/02_theory", "chapters/03_method"]
+    helper = root / "chapters" / "shared_macros.tex"
+    helper.parent.mkdir(parents=True)
+    helper.write_text("")
+
+    assert chapter_for(helper, root, targets) is None
+
+
+def test_a_chapter_with_a_directory_of_its_own_still_scopes(tmp_path):
+    """The case the directory match exists for, which must keep working."""
+    from nexttex.compile import chapter_for
+
+    root = tmp_path
+    targets = ["chapters/01_intro/main", "chapters/02_theory/main"]
+    helper = root / "chapters" / "02_theory" / "figures.tex"
+    helper.parent.mkdir(parents=True)
+    helper.write_text("")
+
+    assert chapter_for(helper, root, targets) == "chapters/02_theory/main"
+
+
+def test_an_exact_match_still_wins(tmp_path):
+    from nexttex.compile import chapter_for
+
+    root = tmp_path
+    targets = ["chapters/01_intro", "chapters/02_theory"]
+    chapter = root / "chapters" / "02_theory.tex"
+    chapter.parent.mkdir(parents=True)
+    chapter.write_text("")
+
+    assert chapter_for(chapter, root, targets) == "chapters/02_theory"

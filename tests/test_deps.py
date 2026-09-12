@@ -5,6 +5,8 @@ never heard of the saved file, so most of these tests are about the negative
 case: what should *not* be attributed to a document.
 """
 
+import pytest
+
 from pathlib import Path
 
 from nexttex.deps import DependencyGraph, is_standalone, references, resolve
@@ -180,3 +182,39 @@ def test_our_own_stand_in_is_never_offered_as_a_document(tmp_path):
           "\\documentclass{article}\n\\begin{document}\ny\n\\end{document}\n")
     graph = DependencyGraph(tmp_path)
     assert graph.standalone_candidates(["main.tex"]) == []
+
+
+ESCAPED_PERCENT = [
+    # `\%` prints a percent sign; the line goes on. `^[^%\n]*` read it as a
+    # comment, so every command after it on that line vanished from the
+    # dependency scan and from the chapter scoping: a chapter silently
+    # stopped being rebuilt because its parent line gained a percentage.
+    (r"We recovered 95\% of it. \input{chapters/one}", True),
+    (r"Yield was 40\%, see \include{results}", True),
+    (r"A backslash then a percent: \\\% \input{x}", True),
+    # A real comment still hides what follows it.
+    (r"% \input{chapters/one}", False),
+    (r"text before % \input{x}", False),
+]
+
+
+@pytest.mark.parametrize("line,reachable", ESCAPED_PERCENT)
+def test_a_printed_percent_does_not_hide_the_rest_of_the_line(line, reachable):
+    from nexttex.deps import BARE_INPUT, SCAN
+
+    found = bool(SCAN.search(line) or BARE_INPUT.search(line))
+    assert found is reachable, f"{line!r} was read as {'reachable' if found else 'commented out'}"
+
+
+@pytest.mark.parametrize("line,reachable", ESCAPED_PERCENT)
+def test_the_chapter_scan_reads_the_same_lines_the_same_way(line, reachable):
+    """`compile.py` had its own copy of the guard, and the two must agree:
+    one decides what a build depends on and the other decides which chapter
+    a fast build is scoped to."""
+    from nexttex.compile import INCLUDE_RE
+    from nexttex.deps import SCAN
+
+    if "\\include{" not in line:
+        return
+    assert bool(INCLUDE_RE.search(line)) is reachable
+    assert bool(SCAN.search(line)) is reachable

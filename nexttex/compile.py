@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from .deps import LINE_START
 from .latexlog import ParsedLog, parse as parse_log
 
 #: The stand-in written beside a document when only part of it is being
@@ -86,9 +87,9 @@ LOG_ENV = {
     "openin_any": "p",
 }
 
-INCLUDE_RE = re.compile(r"^[^%\n]*\\include\{([^}]*)\}", re.M)
+INCLUDE_RE = re.compile(LINE_START + r"\\include\{([^}]*)\}", re.M)
 INCLUDEONLY_RE = re.compile(r"^%?\s*\\includeonly\{[^}]*\}\s*$", re.M)
-DOCUMENTCLASS_RE = re.compile(r"^[^%\n]*\\documentclass[^\n]*\n", re.M)
+DOCUMENTCLASS_RE = re.compile(LINE_START + r"\\documentclass[^\n]*\n", re.M)
 
 # Edits that make a one-pass build insufficient.  Citations and labels need
 # the bibliography and the aux file to catch up; preamble changes can alter
@@ -209,13 +210,31 @@ def chapter_for(path: Path, root: Path, targets: list[str]) -> str | None:
     # containing directory, longest first, so a file under
     # chapters/02_theory/ is not attributed to chapters/01_introduction
     # merely because both live under chapters/.
+    #
+    # A tie is not an answer. With `chapters/01_intro`, `chapters/02_theory`
+    # and so on all sharing one directory, every helper file under
+    # `chapters/` matched all of them equally and the loop returned
+    # whichever came first, which is the first chapter. A fast build was
+    # then scoped to a chapter the edited file has nothing to do with: the
+    # writer's change was not in the pages that came back, and nothing said
+    # why. Flat chapters are the ordinary layout, so this was the ordinary
+    # case rather than an edge of one.
+    #
+    # `None` means "not scoped", which the caller already handles by
+    # building the whole document. Slower, and right.
     best: str | None = None
+    best_depth = -1
+    tied = False
     for target in targets:
         directory = target.rsplit("/", 1)[0] if "/" in target else None
-        if directory and stem.startswith(directory + "/"):
-            if best is None or len(directory) > len(best.rsplit("/", 1)[0]):
-                best = target
-    return best
+        if not directory or not stem.startswith(directory + "/"):
+            continue
+        depth = len(directory)
+        if depth > best_depth:
+            best, best_depth, tied = target, depth, False
+        elif depth == best_depth:
+            tied = True
+    return None if tied else best
 
 
 def write_shadow(paths: ProjectPaths, only: str | None) -> Path:

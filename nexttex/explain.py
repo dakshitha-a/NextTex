@@ -243,10 +243,14 @@ def summarise(diagnostics: list[dict]) -> dict | None:
     if not errors:
         return None
 
-    def where(item: dict) -> tuple:
-        return (str(item.get("file") or ""), item.get("line") or 0)
-
-    first = min(errors, key=where)
+    # The first one, in the order the log gave them, which is the order the
+    # engine met them in. It used to be `min` over `(file, line)`, which is
+    # alphabetical by filename: with `chapters/one.tex` and `main.tex` both
+    # carrying an error, the one to start from was whichever file sorted
+    # first, and the docstring above and the README both say document
+    # order. `parse` appends in the order it reads the log, so this is
+    # already the answer and the sort was undoing it.
+    first = errors[0]
     found = explain(first.get("message", ""))
     rest = len(errors) - 1
     headline = found["title"] if found else first.get("message", "The build failed")

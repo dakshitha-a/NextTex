@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { orderRows, rowKey } from "./diagnostic-rows";
 import { uiScale } from "../viewport";
 import { Handle } from "../chrome";
 import { onFrame } from "../timing";
@@ -33,18 +34,15 @@ export default function Diagnostics({
   const summary = useStore((s) => s.compile?.summary);
   const lint = useStore((s) => s.lint);
   const activePath = useStore((s) => s.activePath);
-  const [expanded, setExpanded] = useState<number | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
+  // Keyed by what the diagnostic is, not by where it is in the list. These
+  // were indices, and the list is rebuilt from scratch on every build: a
+  // build that reordered it left the open row and the selection bar on
+  // whichever diagnostics had landed in those two slots, which is a row
+  // the writer never opened and never chose.
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
-  const rows = useMemo(() => {
-    const all = [...compile, ...lint];
-    // Errors first, then by file and line: the first row is always the one
-    // most worth reading.
-    return all.sort((a, b) => {
-      if (a.severity !== b.severity) return a.severity === "error" ? -1 : 1;
-      return (a.file ?? "").localeCompare(b.file ?? "") || (a.line ?? 0) - (b.line ?? 0);
-    });
-  }, [compile, lint]);
+  const rows = useMemo(() => orderRows(compile, lint), [compile, lint]);
 
   if (height === 0) return null;
 
@@ -143,33 +141,34 @@ export default function Diagnostics({
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-auto">
-        {rows.map((item, index) => {
+        {rows.map((item) => {
           const bar = item.severity === "error" ? "bg-error" : "bg-warn";
-          const open = expanded === index;
+          const key = rowKey(item);
+          const open = expanded === key;
           return (
-            <div key={index} className="group">
+            <div key={key} className="group">
               <div
                 role="button"
                 tabIndex={0}
                 aria-expanded={open}
                 className={`relative flex h-[28px] cursor-pointer items-center hover:bg-surface-2 ${
-                  selected === index ? "bg-surface-2" : ""
+                  selected === key ? "bg-surface-2" : ""
                 }`}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
-                  setSelected(index);
-                  setExpanded(open ? null : index);
+                  setSelected(key);
+                  setExpanded(open ? null : key);
                   if (item.file && item.line) onJump(item.file, item.line);
                 }}
                 onClick={() => {
-                  setSelected(index);
-                  setExpanded(open ? null : index);
+                  setSelected(key);
+                  setExpanded(open ? null : key);
                   if (item.file && item.line) onJump(item.file, item.line);
                 }}
               >
                 <span className={`absolute left-0 h-full w-[3px] ${bar}`} />
-                {selected === index ? (
+                {selected === key ? (
                   <span className="absolute left-[3px] h-full w-[2px] bg-pen" />
                 ) : null}
                 <span className="ml-[6px] w-2 shrink-0 text-ink-3 opacity-0 group-hover:opacity-100">

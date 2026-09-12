@@ -25,6 +25,18 @@ import re
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
+#: What may sit between the start of a line and a command, for the
+#: commands below to count as reachable. A percent starts a comment, so
+#: nothing after one is real; but `\%` is a *printed* percent sign and the
+#: line goes on. `^[^%\n]*` could not tell them apart, so a sentence like
+#: "we recovered 95\% of it" made every `\input` after it on that line
+#: invisible to the dependency scan and to the chapter scoping: a chapter
+#: silently stopped being rebuilt when its parent line gained a percent.
+#:
+#: Either an ordinary character that is neither a percent nor a backslash,
+#: or a backslash and whatever it escapes.
+LINE_START = r"^(?:[^%\\\n]|\\.)*"
+
 #: Everything that can pull one file into another.
 #:
 #: `\\subfile` and `\\includestandalone` matter more than they look: both name
@@ -33,7 +45,7 @@ from pathlib import Path
 #: would be offered as a document to preview in its own right.
 SCAN = re.compile(
     r"""
-    ^[^%\n]*\\(?:
+    ^(?:[^%\\\n]|\\.)*\\(?:
         (?P<inc>include|input|subfile|includestandalone)\s*\{(?P<incarg>[^}]*)\}
       | (?P<imp>import|subimport|subimportfrom)\s*\{(?P<dir>[^}]*)\}\s*\{(?P<file>[^}]*)\}
       | (?P<bib>bibliography|addbibresource)\s*\{(?P<bibarg>[^}]*)\}
@@ -45,10 +57,12 @@ SCAN = re.compile(
 
 #: `\\input foo` without braces is legal and reasonably common in older
 #: preambles, and the braced pattern above cannot see it.
-BARE_INPUT = re.compile(r"^[^%\n]*\\input\s+([^\s{}\\%]+)", re.M)
 
-DOCUMENTCLASS = re.compile(r"^[^%\n]*\\documentclass", re.M)
-BEGIN_DOCUMENT = re.compile(r"^[^%\n]*\\begin\s*\{document\}", re.M)
+
+BARE_INPUT = re.compile(LINE_START + r"\\input\s+([^\s{}\\%]+)", re.M)
+
+DOCUMENTCLASS = re.compile(LINE_START + r"\\documentclass", re.M)
+BEGIN_DOCUMENT = re.compile(LINE_START + r"\\begin\s*\{document\}", re.M)
 
 #: Tried in order against a reference that names no suffix of its own.
 SUFFIXES = {
