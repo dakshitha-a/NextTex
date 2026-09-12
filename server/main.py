@@ -3631,7 +3631,14 @@ async def update_start():
         raise HTTPException(409, "An update is already running.")
     report = await asyncio.to_thread(UPDATES.get, True)
     if not report.can_update:
-        raise HTTPException(400, report.reason or "There is nothing to update.")
+        # The reason first, and git's own words after it when the check
+        # never reached the network: "there is nothing to update" is a
+        # statement about the code, and a fetch that failed has not earned
+        # the right to make one.
+        why = report.reason or "There is nothing to update."
+        if not report.checked and report.error:
+            why = f"{why} {report.error}"
+        raise HTTPException(400, why)
 
     UPDATE_JOB.clear()
     UPDATE_JOB.update({"state": "running", "log": [], "step": "", "queue": []})

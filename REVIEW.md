@@ -3014,7 +3014,12 @@ happens for the whole of a project's first build. On the laptop it is the
 first thing a joining writer sees, which is worse, because they have nothing
 else to compare it with.
 
-### R-120 · Update · bug · high · confirmed
+### ~~R-120 · Update · bug · high · confirmed~~
+
+**Fixed.** The report carries `checked`, false until the fetch has actually
+happened, and the footer asks that before it reads any number. The update route's
+refusal carries git's own words after the reason. Held by
+`tests/api/test_update_check.py`.
 
 Found by: the Windows laptop, then verified in the source here. Where:
 `nexttex/updates.py:219` with `frontend/src/panes/UpdateFooter.tsx:345`.

@@ -342,6 +342,30 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     const report = phase.report;
     if (!report.checkout) return null;      // nothing it could ever do
 
+    // Asked before anything is read off the numbers, because when the fetch
+    // failed there are no numbers: `behind` keeps its default of zero and
+    // this used to fall straight through to "Up to date." on a machine that
+    // was five commits behind a repository it could not reach. The error
+    // card below belongs to `phase.kind === "error"`, which is the request
+    // itself failing; a report that arrives carrying an error is not that,
+    // and reached nothing that would draw it.
+    if (!report.checked) {
+      return (
+        <Line>
+          <span className="t-micro text-warn" data-testid="update-unchecked">
+            Could not reach the repository.
+          </span>
+          <span className="t-micro text-ink-3">
+            {report.error || "This machine may be offline."}
+          </span>
+          <span className="flex-1" />
+          <button className="quiet t-micro" onClick={() => check(true)}>
+            Try again
+          </button>
+        </Line>
+      );
+    }
+
     if (report.behind === 0) {
       return (
         <Line>

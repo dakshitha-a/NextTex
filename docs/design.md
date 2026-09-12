@@ -4194,3 +4194,33 @@ writer's work was a place you had to already suspect something to find, and no
 place at all on a tablet or to a screen reader reading the strip. It is beside
 the word `offline` now. A promise that is on the screen is one the rest of the
 app has to keep, which is the reason to move it and not only the effect.
+
+### A check that never reached the network is not an answer about the code
+
+The largest instance of one number carrying two meanings, and the one with the
+worst consequence, because the thing it got wrong is whether the writer is
+running the version they think they are.
+
+`check()` returns early when the fetch fails, before `behind` is ever
+assigned, so it keeps its dataclass default of zero. The footer reads
+`report.behind === 0` and draws **Up to date.** Nothing between that line and
+the checkout test looks at `error` or `reason`. There is a card that says the
+repository could not be reached, and it belongs to `phase.kind === "error"`,
+which is the request itself failing; a report that arrives successfully
+carrying an error is not that phase and reached nothing that would draw it.
+
+The Windows laptop found it because its server cannot resolve `github.com`
+while a shell on the same machine can. It sat five commits behind, was told it
+was current, and could not start an update from the page either, because
+`can_update` was false and the route refuses. The documented recovery was the
+one path closed.
+
+A count cannot say "I could not ask", so the report says it: `checked` is
+false until the fetch has actually happened, and the footer asks that before
+it reads any number. The rule is the general one this section keeps arriving
+at. **A field that means "how many" must never be the field that also means
+"I do not know".**
+
+The refusal from the update route carries git's own words after the reason
+now, for the same reason: "there is nothing to update" is a statement about
+the code, and a fetch that failed has not earned the right to make one.

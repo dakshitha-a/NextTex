@@ -135,6 +135,10 @@ export type Instance = {
  *  README edits is a nag rather than a service. */
 export type UpdateReport = {
   checkout: boolean;
+  /** Whether the fetch behind every number below actually happened. A
+   *  count cannot say "I could not ask", and `behind` was left at zero when
+   *  it failed. */
+  checked: boolean;
   head: string;
   behind: number;
   changing: number;

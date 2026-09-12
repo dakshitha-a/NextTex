@@ -71,7 +71,9 @@ def handlers_that_do_not_act(monkeypatch):
     monkeypatch.setattr(
         server_main.UPDATES,
         "get",
-        lambda force=False: SimpleNamespace(can_update=False, reason="nothing to update"),
+        lambda force=False: SimpleNamespace(
+            can_update=False, reason="nothing to update", checked=True, error=""
+        ),
     )
 
 
