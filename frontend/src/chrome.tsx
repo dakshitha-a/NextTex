@@ -296,12 +296,26 @@ export function Handle({
           has to hit.  Nine pixels is a comfortable mouse target and a poor
           finger one, so on a coarse pointer it widens to twenty-four.  The
           divider does not move and nothing reflows: only the area that
-          answers a press changes. */}
+          answers a press changes.
+
+          `z-10`, and this is the whole of R-111. The zone hangs half over
+          each neighbouring pane, and the pane on one side is CodeMirror,
+          which paints its own content in a later stacking context. A press
+          on the overhanging half therefore landed in the editor: it
+          selected text and dragged a selection across it, and the rail did
+          not move at all. Two sweep shots that should have differed showed
+          the same 240 pixel rail and a text selection in the editor as the
+          only change between them.
+
+          `select-none` for the other half of that: the pointer is being
+          dragged across a text layer with the button down, and even with
+          the press caught here the browser will still start a selection in
+          whatever is under it unless told not to. */}
       <span
         className={
           row
-            ? "absolute -top-1 left-0 w-full h-[9px] [@media(pointer:coarse)]:-top-3 [@media(pointer:coarse)]:h-[24px]"
-            : "absolute -left-1 top-0 h-full w-[9px] [@media(pointer:coarse)]:-left-3 [@media(pointer:coarse)]:w-[24px]"
+            ? "absolute -top-1 left-0 z-10 w-full h-[9px] select-none [@media(pointer:coarse)]:-top-3 [@media(pointer:coarse)]:h-[24px]"
+            : "absolute -left-1 top-0 z-10 h-full w-[9px] select-none [@media(pointer:coarse)]:-left-3 [@media(pointer:coarse)]:w-[24px]"
         }
       />
     </div>

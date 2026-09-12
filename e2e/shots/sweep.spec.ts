@@ -22,10 +22,16 @@ const OUT =
 const WIDTHS = [1600, 1300, 1000, 800];
 const THEMES = ["light", "dark"] as const;
 
+/** The device pixel ratio this sweep is being taken at, named in the file
+ *  when it is not 1, so a run at 1.25 does not overwrite the run at 1 and
+ *  the two can be put side by side. */
+const DPR = process.env.NEXTTEX_SHOT_DPR ?? "1";
+
 function shot(page: Page, name: string, theme: string, width: number) {
   fs.mkdirSync(OUT, { recursive: true });
+  const at = DPR === "1" ? "" : `--${DPR}x`;
   return page.screenshot({
-    path: path.join(OUT, `${name}--${theme}--${width}.png`),
+    path: path.join(OUT, `${name}--${theme}--${width}${at}.png`),
   });
 }
 
