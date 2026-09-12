@@ -274,3 +274,84 @@ test("the tutorial contents are one tab stop, walked with the arrows", async ({
   await expect(open).toHaveAttribute("aria-expanded", "false");
   await expect(open).toBeFocused();
 });
+
+// R-028 and R-010. `nested-interactive`, impact serious, on five surfaces
+// with one mechanism between them: an element carrying `role="button"`
+// with a real `<button>` inside it. Assistive technology is told the outer
+// element is one button, and the inner control is either unreachable or
+// folded into its name. None of these surfaces had ever been swept,
+// because opening each one takes a step the earlier sweeps did not take.
+
+test("the diagnostics drawer is usable", async ({ tab }) => {
+  // An error first, because the drawer opens from the status control and
+  // that control is disabled in the states where it opens nothing:
+  // clicking it on a clean build waits for a button that will never be
+  // enabled, which is R-003 working. So the sweep has to earn its error.
+  //
+  // The same keystrokes and the same wait as `layout.spec.ts` uses to
+  // open this drawer, rather than a variation of my own: the state to
+  // wait for is `errors`, not `failed`, and an undefined control sequence
+  // typed at the end of the document does not always reach the build
+  // before the strip settles.
+  const editor = tab.locator(".cm-content");
+  await editor.click();
+  await tab.keyboard.press("End");
+  await tab.keyboard.type("\n\\badcommand{x}\n");
+  const status = tab.getByTestId("status");
+  await expect(status).toHaveAttribute("data-state", /error|warn/, {
+    timeout: 30_000,
+  });
+  await settle(tab);
+  await status.click();
+  await expect(tab.getByTestId("diagnostics")).toBeVisible({ timeout: 20_000 });
+  expect(describeAll(await violations(tab))).toBe("");
+});
+
+test("a file row's menu is usable", async ({ tab }) => {
+  await settle(tab);
+  const row = tab.getByRole("treeitem", { name: /main\.tex/ }).first();
+  await row.hover();
+  await tab
+    .locator('[data-path="main.tex"] [aria-label^="Actions for"]')
+    .first()
+    .click();
+  await expect(tab.getByTestId("file-menu")).toBeVisible();
+  expect(describeAll(await violations(tab))).toBe("");
+});
+
+test("the history panel is usable", async ({ tab }) => {
+  // A version first: a project that has never been typed in has no
+  // history, and an empty panel is not the surface this is about.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type("\nA sentence worth keeping.");
+  await tab.waitForTimeout(2500);
+
+  await settle(tab);
+  await tab.locator('[data-path="main.tex"] [aria-label^="Actions for"]').first()
+    .click();
+  await tab.getByRole("button", { name: /History/i }).first().click();
+  await expect(tab.getByTestId("version").first()).toBeVisible({ timeout: 20_000 });
+  expect(describeAll(await violations(tab))).toBe("");
+});
+
+test("the agent panel mid-turn is usable", async ({ tab }) => {
+  await settle(tab);
+  const composer = tab.locator("textarea");
+  await composer.click();
+  await composer.fill("#script:working\nRead the theory chapter.");
+  await tab.getByRole("button", { name: "Send" }).click();
+  await expect(tab.getByTestId("working")).toBeVisible({ timeout: 20_000 });
+  expect(describeAll(await violations(tab))).toBe("");
+});
+
+test("the download menu is usable", async ({ tab }) => {
+  // The fifth surface on the record's list. The other four were reached by
+  // the sweep and two of them were wrong; this one had never been opened
+  // while axe was watching, so the strike would have been claiming a
+  // surface nobody checked.
+  await settle(tab);
+  await tab.getByTestId("open-download").click();
+  await expect(tab.getByTestId("download-menu")).toBeVisible();
+  expect(describeAll(await violations(tab))).toBe("");
+});

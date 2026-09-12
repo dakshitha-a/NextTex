@@ -157,9 +157,20 @@ export default function History({
                   {day}
                 </div>
               ) : null}
+              {/* A plain div with a click handler, not `role="button"`.
+                  The role turned the row into a widget with a naming
+                  input and a row menu inside it, which is the axe rule
+                  `nested-interactive`, impact serious: assistive
+                  technology is told the row is one button and the
+                  controls in it are folded into its name or unreachable.
+                  Without the role it is a clickable region, and the
+                  keyboard route is the real button below, which carries
+                  the row's name. The keydown guard that used to be here,
+                  ignoring keys aimed at children, was the same problem
+                  seen from the inside: every space typed into a name was
+                  swallowed by the row's own Space handler and toggled the
+                  version on the way past. Real controls do not need it. */}
               <div
-                role="button"
-                tabIndex={0}
                 data-testid="version"
                 data-sha={version.sha}
                 data-by={version.by}
@@ -167,21 +178,21 @@ export default function History({
                   selected ? "bg-surface-2" : "hover:bg-surface-2"
                 }`}
                 onClick={() => choose(version, selected)}
-                onKeyDown={(event) => {
-                  // Only keys aimed at the row itself.  The naming input is
-                  // a child of it, so without this every space typed into a
-                  // name was swallowed by the row's own Space handler --
-                  // and toggled the version being viewed on the way past.
-                  if (event.target !== event.currentTarget) return;
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    choose(version, selected);
-                  }
-                }}
               >
+                {/* The keyboard's way in, and the row's accessible name.
+                    `pointer-events-none` so a click is the row's, once:
+                    the row above already answers the pointer, and a
+                    button stacked over it would answer the same press a
+                    second time and toggle the version straight back. */}
+                <button
+                  className="pointer-events-none absolute inset-0"
+                  aria-label={`Version from ${who(version, me)} at ${timeOf(version.at)}`}
+                  onClick={() => choose(version, selected)}
+                />
                 {selected ? (
-                  <span className="absolute left-0 top-0 h-full w-[2px] bg-pen" />
+                  <span className="absolute left-0 top-0 z-10 h-full w-[2px] bg-pen" />
                 ) : null}
+                <div className="relative z-10 flex flex-col gap-[2px]">
                 <div className="flex items-baseline gap-2">
                   {binary ? (
                     <span
@@ -328,6 +339,7 @@ export default function History({
                     }}
                   />
                 ) : null}
+                </div>
               </div>
             </div>
           );

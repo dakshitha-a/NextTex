@@ -57,31 +57,36 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <div className="shrink-0 border-t border-line" data-testid="papers-panel">
-      <button
-        className="flex h-[26px] w-full items-center gap-2 px-[10px] hover:bg-surface-2"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="t-meta min-w-0 flex-1 truncate text-left text-ink-2">
-          {label(progress, count)}
-        </span>
+      {/* Stop is a sibling of the header button, not a child of it. It was
+          a `role="button"` span inside a real `<button>`, which is the axe
+          rule `nested-interactive`, impact serious: the outer control is
+          announced as one button and the inner one is either unreachable
+          or folded into its name. Two buttons in a row is what this always
+          was, so it is two buttons in a row now. */}
+      <div className="flex h-[26px] w-full items-center gap-2 px-[10px] hover:bg-surface-2">
+        <button
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="t-meta min-w-0 flex-1 truncate text-left text-ink-2">
+            {label(progress, count)}
+          </span>
+          <span className={`shrink-0 text-ink-3 ${open ? "rotate-90" : ""}`}>
+            <Chevron direction="right" />
+          </span>
+        </button>
         {running ? (
-          <span
+          <button
             className="quiet t-micro shrink-0 text-hint"
-            role="button"
-            tabIndex={0}
-            onClick={(event) => {
-              event.stopPropagation();
+            onClick={() => {
               if (projectId) void api.stopPapers(projectId);
             }}
           >
             Stop
-          </span>
+          </button>
         ) : null}
-        <span className={`shrink-0 text-ink-3 ${open ? "rotate-90" : ""}`}>
-          <Chevron direction="right" />
-        </span>
-      </button>
+      </div>
 
       {open ? (
         <div className="border-t border-line px-[10px] py-2">

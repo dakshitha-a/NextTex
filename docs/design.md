@@ -4785,3 +4785,39 @@ here is the whole finding, so the guard is structural rather than numeric:
 every block that moves an ingredient has to move what is mixed from it, and
 `contrast.test.ts` now walks the stylesheet and says so. It cannot measure
 `color-mix` without a browser, and it does not need to.
+
+### Five surfaces the accessibility sweep had never opened
+
+The reason `nested-interactive` survived is in the sweep rather than in the
+code. `a11y.spec.ts` visited the screens that are on arrival, and every one of
+the surfaces the fault lived on needs a step first: an error to open the
+drawer, a row's menu to reach history, a turn in flight to draw the agent
+panel's working line. A sweep of what is already on screen is a sweep of the
+easy half.
+
+Opening all five changed the count in both directions. The fault, impact
+serious, is on the diagnostics drawer and the history panel, and on the papers
+panel, which nobody had listed. It is not on the download menu, which is a real
+button opening a `role="menu"` of real buttons and has never been anything
+else, and it is not on the agent panel as that panel stands now. One shape underneath the three that have it: an element carrying
+`role="button"` with a real `<button>` inside it, so assistive technology is
+told the outer element is one button and the inner control is either
+unreachable or folded into that button's name.
+
+The diagnostics row is a plain div with a real button over the part that says
+what the error is and Fix beside it. The history row is the same shape, with
+the version's own action stretched across the row and the naming control and
+the menu layered above it. The papers panel's Stop was a `role="button"` span
+inside the header button and is now a button beside it. The file tree needed
+nothing, which is worth recording: a treeitem is not a role whose children are
+presentational, so the button inside it was never the fault, and restructuring
+it introduced `aria-required-children`, impact critical, before the sweep
+caught that too.
+
+### A control that cannot be used says so
+
+The status strip's dot and label are a button, and in four of its seven states
+it opens nothing. It was focusable in all seven, so somebody tabbing through
+the editor stopped on it, pressed it, and got no answer and no reason. It is
+disabled in those four now, which also means the accessibility sweep has to
+earn its error before it can open the drawer.

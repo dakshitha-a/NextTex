@@ -147,30 +147,32 @@ export default function Diagnostics({
           const open = expanded === key;
           return (
             <div key={key} className="group">
+              {/* A plain div holding two siblings, rather than a
+                  role="button" with a real button inside it. That shape is
+                  the axe rule `nested-interactive`, impact serious: the
+                  outer element is announced as one button and the inner
+                  one is either unreachable or folded into its name. The
+                  row's own job, opening the diagnostic and jumping to it,
+                  belongs to a real button covering the part of the row
+                  that says what the error is; Fix sits beside it. */}
               <div
-                role="button"
-                tabIndex={0}
-                aria-expanded={open}
-                className={`relative flex h-[28px] cursor-pointer items-center hover:bg-surface-2 ${
+                className={`relative flex h-[28px] items-center hover:bg-surface-2 ${
                   selected === key ? "bg-surface-2" : ""
                 }`}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  setSelected(key);
-                  setExpanded(open ? null : key);
-                  if (item.file && item.line) onJump(item.file, item.line);
-                }}
-                onClick={() => {
-                  setSelected(key);
-                  setExpanded(open ? null : key);
-                  if (item.file && item.line) onJump(item.file, item.line);
-                }}
               >
                 <span className={`absolute left-0 h-full w-[3px] ${bar}`} />
                 {selected === key ? (
                   <span className="absolute left-[3px] h-full w-[2px] bg-pen" />
                 ) : null}
+                <button
+                  className="flex h-full min-w-0 flex-1 cursor-pointer items-center text-left"
+                  aria-expanded={open}
+                  onClick={() => {
+                    setSelected(key);
+                    setExpanded(open ? null : key);
+                    if (item.file && item.line) onJump(item.file, item.line);
+                  }}
+                >
                 <span className="ml-[6px] w-2 shrink-0 text-ink-3 opacity-0 group-hover:opacity-100">
                   <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden>
                     <path
@@ -192,6 +194,7 @@ export default function Diagnostics({
                     {item.file.split("/").pop()}
                   </span>
                 ) : null}
+                </button>
                 <button
                   className="ghost-button mr-2 h-[22px] nx-tap [--nx-tap-y:22px] shrink-0 px-2 t-micro hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100"
                   onClick={(event) => {
