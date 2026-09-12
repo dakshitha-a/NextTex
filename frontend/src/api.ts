@@ -507,6 +507,9 @@ const api = {
       method: "DELETE",
     }),
 
+  /** What a blank project can be filled with. The route has always been
+   *  here and nothing fetched it, so every new project was an article. */
+  templates: () => request<{ templates: string[] }>("/templates"),
   loadTemplate: (id: string, name = "basic") =>
     request<{ ok: boolean; written: string[] }>(
       `/projects/${id}/template`,

@@ -1,0 +1,44 @@
+% A longer document, in chapters.
+%
+% The difference from the article template is structure rather than
+% packages: a report has chapters, a table of contents that is worth having,
+% and each chapter in its own file so that a build of one chapter is cheap.
+% NextTex builds the chapter you are typing in and not the whole document,
+% which is what makes a hundred-page report editable at all.
+
+\documentclass[11pt]{report}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{parskip}
+\usepackage{microtype}
+
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+
+\usepackage[backend=biber, style=numeric, sorting=none]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage{hyperref}
+\hypersetup{colorlinks, linkcolor=black, citecolor=black, urlcolor=blue}
+
+\title{A Working Title}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+% One file per chapter. Click a chapter in the file list and type in it:
+% NextTex works out which document owns it and builds that, so the whole
+% report is not retypeset on every keystroke.
+\input{chapters/01-introduction}
+\input{chapters/02-method}
+
+\printbibliography
+
+\end{document}

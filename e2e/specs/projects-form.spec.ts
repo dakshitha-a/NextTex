@@ -97,3 +97,35 @@ test("the invite box and the folder beneath it are one pair", async ({
   expect(measured.field).toBe(28);
   expect(measured.invite).toBeGreaterThan(measured.field);
 });
+
+test("a new project can start as something other than an article", async ({
+  app,
+  page,
+}) => {
+  // R-096. `GET /api/templates` lists the directories under
+  // `nexttex/templates`, and nothing fetched it: both callers of
+  // `loadTemplate` passed no name, so the parameter never carried anything
+  // and every project anyone made was an article.
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+
+  const choice = page.getByTestId("template-choice");
+  await expect(choice).toBeVisible();
+  await expect(choice.getByRole("option")).toHaveText([
+    "An article",
+    "A talk",
+    "A letter",
+    "A report, in chapters",
+  ]);
+
+  const where = `${app.projects}/started-as-a-talk`;
+  await choice.selectOption("beamer");
+  await page.getByPlaceholder(/Where to put it/).fill(where);
+  await page.getByRole("button", { name: "Create project" }).click();
+
+  // It opens on what it was started from.
+  await expect(page.locator(".cm-content")).toContainText("documentclass", {
+    timeout: 20_000,
+  });
+  await expect(page.locator(".cm-content")).toContainText("beamer");
+});

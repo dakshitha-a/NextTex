@@ -4987,3 +4987,32 @@ version and do nothing with it.
 The list is read on the way into the project view and again after a build,
 which is the trigger the per-file list already uses: a build is the point at
 which a session's typing has become versions.
+
+### Every project anybody made was an article
+
+`GET /api/templates` lists the directories under `nexttex/templates`, the
+`POST /template` route takes the name of one, and `api.loadTemplate` has a
+`name` parameter defaulting to `basic`. Both callers passed no name, the
+listing route was never fetched, and there was one directory anyway. So the
+whole mechanism existed and the answer to "what kind of document is this" was
+always the same one.
+
+There are four now: an article, a report in chapters, a talk and a letter.
+They are named on screen by what they are rather than by what the directory is
+called, because `beamer` is a word only a LaTeX writer knows and the people
+this chooser is for are the ones who may not. A template the server lists and
+this list does not name falls back to its own name, so an install carrying a
+template of its own is offered it rather than hidden.
+
+The chooser is on the create row, and it is hidden when there is only one
+template, which is what an install with its templates trimmed looks like: a
+control that asks a question with a single answer is worse than no control.
+The template is written before the project opens, so a writer arrives in a
+document rather than in an empty one that fills in a moment later, and a
+template that fails to write does not lose the project that was just made: the
+message says which of the two happened and the project still opens.
+
+The report is the one that is a different shape rather than a different
+preamble. Its chapters are separate files, because NextTex builds the document
+that owns the file being typed in rather than the whole project, and that is
+what makes a long report editable at all.
