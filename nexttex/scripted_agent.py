@@ -98,6 +98,14 @@ class ScriptedAgent:
         self._events: asyncio.Queue | None = None
         self._turn: asyncio.Task | None = None
         self._pending: dict[str, asyncio.Future] = {}
+        #: The cards themselves, beside the futures, because a
+        #: reloading browser asks every agent what it is waiting on
+        #: and a future cannot be drawn.
+        self._pending_cards: dict[str, dict] = {}
+        #: Whether this turn has already said it was over.  Both
+        #: `interrupt` and the turn itself can be the one to say so,
+        #: and the panel keys everything on exactly one arriving.
+        self._ended = False
         self._why = ""
         self._last_used = 0.0
         self._counter = 0
@@ -157,10 +165,30 @@ class ScriptedAgent:
     async def interrupt(self) -> None:
         if self._turn is not None and not self._turn.done():
             self._turn.cancel()
+        else:
+            # Nothing to cancel, and Stop may never be a silent no-op: this
+            # is exactly the state a turn that died without a `done` leaves
+            # behind, and the interface is still waiting on one.
+            self._ended = False
         for future in list(self._pending.values()):
             if not future.done():
                 future.cancel()
-        await self._emit({"type": "done", "subtype": "interrupted"})
+        await self._finish("interrupted")
+
+    async def _finish(self, subtype: str, **rest) -> None:
+        """Say the turn is over, once.
+
+        Stop may not be a silent no-op, so `interrupt` says it even with
+        nothing running; and a turn cancelled by anything else, an eviction
+        or a shutdown or a test, has to say it too, because the panel is
+        waiting on `done` and on nothing else.  Both of those are right and
+        together they would say it twice for one turn, which the browser
+        reads as two turns ending.  So whoever gets there first says it.
+        """
+        if self._ended:
+            return
+        self._ended = True
+        await self._emit({"type": "done", "subtype": subtype, **rest})
 
     def resolve_permission(self, request_id: str, decision: str) -> bool:
         future = self._pending.get(request_id)
@@ -193,6 +221,7 @@ class ScriptedAgent:
     # -- replaying ---------------------------------------------------------
     async def _run(self, prompt: str) -> None:
         started = time.monotonic()
+        self._ended = False
         await self._emit({"type": "turn_start", "prompt": prompt})
         vanished = False
         try:
@@ -201,7 +230,10 @@ class ScriptedAgent:
         except asyncio.CancelledError:
             # Re-raised, so the task really ends cancelled: swallowing it
             # leaves a task that reports success and a cancellation that
-            # never reached whoever asked for it.
+            # never reached whoever asked for it.  The ending is said in
+            # the shield below rather than here, because the emit is itself
+            # a suspension point and would be cancelled in turn.
+            await self._say_it_stopped()
             raise
         except Vanish:
             # The one fault the real agent had and nothing could reproduce:
@@ -215,12 +247,26 @@ class ScriptedAgent:
         self.usage["durationMs"] += int((time.monotonic() - started) * 1000)
         self._last_used = time.monotonic()
         if vanished:
-            await self._emit({"type": "done", "subtype": "no_result"})
+            await self._finish("no_result")
             return
-        await self._emit({
-            "type": "done", "subtype": "success",
-            "costUsd": self.usage["costUsd"], "usage": self.usage,
-        })
+        await self._finish(
+            "success", costUsd=self.usage["costUsd"], usage=self.usage
+        )
+
+    async def _say_it_stopped(self) -> None:
+        """Emit the ending from inside a cancellation.
+
+        `await` on a cancelled task raises again immediately, so the emit
+        has to be shielded.  It is a put on an unbounded queue, so it
+        completes at once and the shield costs nothing.
+        """
+        await asyncio.shield(
+            asyncio.ensure_future(self._finish("interrupted"))
+        )
+
+    @property
+    def pending_cards(self) -> list[dict]:
+        return list(self._pending_cards.values())
 
     async def _step(self, step: dict) -> None:
         kind = step.get("kind", "")
@@ -400,7 +446,7 @@ class ScriptedAgent:
             return "allow"
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
-        await self._emit({
+        card = {
             "type": "permission",
             "id": request_id,
             "tool": step.get("tool", "Bash"),
@@ -410,13 +456,16 @@ class ScriptedAgent:
             "detail": step.get("detail", "echo hello"),
             "consequence": step.get("consequence", ""),
             "reason": step.get("reason", ""),
-        })
+        }
+        self._pending_cards[request_id] = card
+        await self._emit(card)
         try:
             answer = await future
         except asyncio.CancelledError:
             return "deny"
         finally:
             self._pending.pop(request_id, None)
+            self._pending_cards.pop(request_id, None)
         if answer == "conversation" and rule:
             self._conversation_allow.add(rule)
         return answer

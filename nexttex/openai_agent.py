@@ -280,6 +280,10 @@ class OpenAIAgent:
         self._last_used = 0.0
         self._events: asyncio.Queue | None = None
         self._turn: asyncio.Task | None = None
+        #: Whether this turn has already said it was over.  True
+        #: between turns, so an interrupt with nothing running is
+        #: still allowed its one honest ending.
+        self._ended = False
         self._messages: list[dict] = self._load_messages()
         self.usage = self._load_usage()
 
@@ -315,7 +319,39 @@ class OpenAIAgent:
     async def interrupt(self) -> None:
         if self._turn is not None and not self._turn.done():
             self._turn.cancel()
-        await self._emit({"type": "done", "subtype": "interrupted"})
+        else:
+            # Nothing to cancel, and Stop may never be a silent no-op: this
+            # is exactly the state a turn that died without a `done` leaves
+            # behind, and the interface is still waiting on one.
+            self._ended = False
+        await self._finish("interrupted")
+
+    async def _finish(self, subtype: str, **rest) -> None:
+        """Say the turn is over, once.
+
+        Stop may not be a silent no-op, so `interrupt` says it even with
+        nothing running; and a turn cancelled by anything else, an eviction
+        or a shutdown, has to say it too, because the panel is waiting on
+        `done` and on nothing else.  Together those would say it twice for
+        one turn, which the browser reads as two turns ending.  So whoever
+        gets there first says it.
+        """
+        if self._ended:
+            return
+        self._ended = True
+        await self._emit({"type": "done", "subtype": subtype, **rest})
+
+    @property
+    def pending_cards(self) -> list[dict]:
+        """Always empty, and that is a fact about the tool list.
+
+        Nothing here asks: there is no shell on it and every path is
+        resolved against the project root, so there is no card to be
+        waiting on.  Answered rather than absent, because the route that
+        asks is asking all four agents and a member missing from one of
+        them is how the four drift apart.
+        """
+        return []
 
     def resolve_permission(self, request_id: str, decision: str) -> bool:
         """Nothing here asks.  Every tool is confined to the project by
@@ -398,6 +434,7 @@ class OpenAIAgent:
     # -- one turn ----------------------------------------------------------
     async def _run(self, prompt: str, context: str = "") -> None:
         started = time.monotonic()
+        self._ended = False
         # The question as typed is what the conversation shows; the model is
         # given the passage the writer had selected as well.
         await self._emit({"type": "turn_start", "prompt": prompt})
@@ -411,9 +448,15 @@ class OpenAIAgent:
             await asyncio.wait_for(self._converse(), timeout=TURN_TIMEOUT)
             subtype = "success"
         except asyncio.CancelledError:
-            # Re-raised rather than swallowed: `interrupt` has already said
-            # the turn is over, and a task that returns normally from its
-            # own cancellation reports success for a turn nobody finished.
+            # Re-raised rather than swallowed: a task that returns normally
+            # from its own cancellation reports success for a turn nobody
+            # finished.  The ending is said first, shielded, because the
+            # emit is itself a suspension point and would be cancelled in
+            # turn; `_finish` makes it a no-op when `interrupt` was the one
+            # who cancelled us and has already said it.
+            await asyncio.shield(
+                asyncio.ensure_future(self._finish("interrupted"))
+            )
             raise
         except asyncio.TimeoutError:
             await self._emit({"type": "error", "message": "The turn timed out."})
@@ -427,12 +470,9 @@ class OpenAIAgent:
         self._last_used = time.monotonic()
         self._save_messages()
         self._save_usage()
-        await self._emit({
-            "type": "done",
-            "subtype": subtype,
-            "costUsd": self.usage["costUsd"],
-            "usage": self.usage,
-        })
+        await self._finish(
+            subtype, costUsd=self.usage["costUsd"], usage=self.usage
+        )
 
     async def _converse(self) -> None:
         """Stream, run whatever tools are asked for, and go round again."""
