@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  chatFromTranscript,
   countDiff,
   firstChangedLine,
   get,
@@ -208,6 +209,22 @@ describe("a notice reaches the panel and keeps its tone", () => {
     // so an absent tone is red rather than plain.
     replayTranscript([{ kind: "notice", text: "old" }]);
     expect(get().chat[0]).toMatchObject({ tone: "error" });
+  });
+
+  test("reading a transcript without replaying it leaves the live conversation alone", () => {
+    // A past conversation is drawn from the same rows and must not touch
+    // the store: the live conversation is what the store holds.
+    replayTranscript([{ kind: "user", text: "the live one" }, { kind: "turn_end" }]);
+    const past = chatFromTranscript([
+      { kind: "user", text: "an old question" },
+      { kind: "permission", id: "p1", tool: "Bash", decision: "auto" },
+    ]);
+    expect(past.map((item: any) => item.kind)).toEqual(["user", "permission"]);
+    // The decision travels as recorded, so a tool that ran without asking
+    // is not turned into a refusal by a default branch.
+    expect(past[1]).toMatchObject({ decision: "auto" });
+    expect(get().chat.map((item: any) => item.kind)).toEqual(["user", "turn_end"]);
+    expect(get().chat[0]).toMatchObject({ text: "the live one" });
   });
 });
 
