@@ -53,6 +53,38 @@ def test_the_instance_route_says_who_this_is(client):
     assert body["boot"]
 
 
+def test_the_running_commit_and_the_one_on_disk_are_two_answers(client, monkeypatch):
+    """R-041. They were one, read at request time, which is the disk one.
+
+    An update moves the files and does not touch the process, so an install
+    that has been updated and not restarted answered with a commit it was
+    not running, and the footer, comparing that same disk commit against
+    the remote, said it was up to date. A Windows laptop was found three
+    commits deep in this: working tree at b16bf6d, process serving 664f237,
+    remote at b832d28, with the middle one reported as though it were the
+    answer.
+    """
+    monkeypatch.setattr(server_main, "HEAD_AT_BOOT", "664f237")
+    monkeypatch.setattr(server_main, "_head_now", lambda: "b16bf6d")
+
+    body = client.get("/api/instance").json()
+
+    assert body["head"] == "664f237", "the running commit moved under the process"
+    assert body["diskHead"] == "b16bf6d"
+
+
+def test_the_running_commit_is_read_once(client, monkeypatch):
+    """It cannot change while the process runs, so reading it again is
+    reading a different fact and calling it this one."""
+    calls = []
+    monkeypatch.setattr(server_main, "_head_now",
+                        lambda: calls.append(1) or "whatever")
+
+    first = client.get("/api/instance").json()["head"]
+    monkeypatch.setattr(server_main, "_head_now", lambda: "moved")
+    assert client.get("/api/instance").json()["head"] == first
+
+
 def test_the_boot_nonce_is_stable_within_one_process(client):
     first = client.get("/api/instance").json()["boot"]
     assert client.get("/api/instance").json()["boot"] == first

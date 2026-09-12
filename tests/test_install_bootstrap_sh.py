@@ -333,3 +333,76 @@ def test_it_still_refuses_the_platform_it_is_not_for():
     text = INSTALLER.read_text(encoding="utf-8")
     assert "install.ps1" in text, "does not point Windows users anywhere"
     assert "Darwin" in text and "Linux" in text
+
+
+# ---------------------------------------------------------------------------
+# R-118: --dir inside a checkout
+
+
+def a_checkout(where: Path) -> Path:
+    """A directory the installer will take the inside-a-checkout branch in."""
+    (where / "scripts").mkdir(parents=True)
+    shutil.copy(INSTALLER, where / "scripts" / "install.sh")
+    (where / "scripts" / "install.sh").chmod(0o755)
+    (where / "requirements.txt").write_text("")
+    return where
+
+
+def test_asking_for_a_different_directory_from_inside_a_checkout_is_refused(sandbox):
+    """It was accepted, documented, and silently ignored.
+
+    What happened instead was not nothing: the checkout the script is
+    standing in was reinstalled, its `.venv` brought up to date and its
+    `frontend/dist` replaced with the downloaded build. Somebody who asked
+    for the install to go elsewhere got their working copy rebuilt, and the
+    only sign of it was a banner line reading "installing the checkout at
+    ..." that scans as a statement rather than as a correction.
+    """
+    tmp_path, home, env = sandbox
+    checkout = a_checkout(tmp_path / "checkout")
+
+    result = subprocess.run(
+        ["sh", str(checkout / "scripts" / "install.sh"), "--yes", "--plain",
+         f"--dir={tmp_path / 'somewhere-else'}"],
+        capture_output=True, text=True, env=env, timeout=60,
+        stdin=subprocess.DEVNULL,
+    )
+
+    assert result.returncode != 0, "it went ahead and installed the wrong thing"
+    said = result.stdout + result.stderr
+    assert "somewhere-else" in said, said
+    assert str(checkout) in said, said
+    assert not (tmp_path / "somewhere-else").exists()
+    assert argv_of(tmp_path) == [], "it handed over to the installer anyway"
+
+
+def test_asking_for_the_checkout_it_is_standing_in_is_fine(sandbox):
+    """The flag is not wrong, it is redundant, and a script that refuses a
+    correct answer is worse than one that ignores it."""
+    tmp_path, home, env = sandbox
+    checkout = a_checkout(tmp_path / "checkout")
+
+    result = subprocess.run(
+        ["sh", str(checkout / "scripts" / "install.sh"), "--yes", "--plain",
+         f"--dir={checkout}"],
+        capture_output=True, text=True, env=env, timeout=60,
+        stdin=subprocess.DEVNULL,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert argv_of(tmp_path)[:2] == ["-m", "nexttex.install"]
+
+
+def test_the_environment_variable_is_refused_the_same_way(sandbox):
+    tmp_path, home, env = sandbox
+    checkout = a_checkout(tmp_path / "checkout")
+    env = {**env, "NEXTTEX_DIR": str(tmp_path / "somewhere-else")}
+
+    result = subprocess.run(
+        ["sh", str(checkout / "scripts" / "install.sh"), "--yes", "--plain"],
+        capture_output=True, text=True, env=env, timeout=60,
+        stdin=subprocess.DEVNULL,
+    )
+
+    assert result.returncode != 0
+    assert "somewhere-else" in result.stdout + result.stderr

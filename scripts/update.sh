@@ -40,6 +40,17 @@ UNIT="nexttex${INSTANCE:+-$INSTANCE}"
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
 
+# An update is the operation most likely to leave a machine in a state its
+# owner cannot explain, and it was the one operation that wrote nothing
+# down.  The install has install.log and that is what makes an install
+# diagnosable after the fact; this is the same file for the update, beside
+# it.  Run from the page the output also goes to the job's in-memory log,
+# which lives exactly as long as the tab watching it.
+#
+# Appended rather than replaced, because the interesting question is
+# usually "what did the last three updates do".
+UPDATE_LOG="${XDG_DATA_HOME:-$HOME/.local/share}/nexttex${INSTANCE:+-$INSTANCE}/update.log"
+
 # Everything below runs inside a function so bash parses the whole file
 # before executing any of it.  Without that, `git pull` replaces this
 # script while bash is part-way through reading it, and bash carries on
@@ -146,4 +157,22 @@ main() {
 # Passed through, because the hand-over above re-execs with them: without
 # this "$@" inside main is empty and a resumed update would silently lose
 # --no-restart, letting systemd stop the server that is running the update.
-main "$@"
+# `tee -a` rather than a redirect, so the console still shows everything as
+# it happens: an update watched from a terminal is the case this has to keep
+# working, and the file is for afterwards.
+#
+# Wrapped once per update rather than once per exec.  `main` hands over to
+# the script it just pulled by re-execing this same file, and without the
+# guard the resumed run wraps itself in a second `tee` writing to the same
+# path, so everything after the pull lands in the log twice.  Exported for
+# that reason: it has to survive the exec, the way NEXTTEX_UPDATE_RESUMED
+# does.
+if [ -z "${NEXTTEX_UPDATE_LOGGED:-}" ] && mkdir -p "$(dirname "$UPDATE_LOG")" 2>/dev/null; then
+  export NEXTTEX_UPDATE_LOGGED=1
+  {
+    printf '\n=== %s  update.sh %s\n' "$(date -Is)" "$*"
+    main "$@"
+  } 2>&1 | tee -a "$UPDATE_LOG"
+else
+  main "$@"
+fi

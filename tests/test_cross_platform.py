@@ -445,13 +445,23 @@ def test_the_readme_contains_no_em_dash():
 
 
 def test_the_readme_does_not_claim_windows_is_tested():
-    """An install has now been run on Windows and reached its last step,
-    which found four real bugs.  What has still not happened is a server
-    serving a project, so the README has to keep hedging: "it installs" and
-    "it works" are different claims, and the second one is the kind that
-    costs somebody an evening."""
+    """"It installs" and "it works" are different claims, and the second is
+    the kind that costs somebody an evening, so the README has to keep
+    naming what has actually not been done.
+
+    What that list holds has changed twice. It used to be everything after
+    the install; then a laptop ran the install, served a project, joined a
+    share and ran the update script, which between them found nine bugs.
+    What is left is the logon-task branch, which needs an administrator
+    account nobody has installed this on, and the Intel Mac. The
+    assertion is on the honesty rather than on the words, because the words
+    are meant to shrink as the list does.
+    """
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "unverified" in readme or "untested" in readme
+    assert "only partly verified" in readme, (
+        "the Windows heading no longer hedges at all"
+    )
+    assert "unproven" in readme or "unverified" in readme or "untested" in readme
 
 
 def test_an_install_without_the_claude_sdk_still_runs(monkeypatch, tmp_path):
@@ -1014,3 +1024,81 @@ def test_windows_leaves_the_shortcut_to_powershell(tmp_path):
     argv = shortcut_argv(Path("C:/NextTex"), "")
     assert argv[0] == "powershell"
     assert "desktop-shortcut.ps1" in " ".join(argv)
+
+# R-042, R-122, R-124 and R-125.  Four findings from one real Windows run,
+# and they are all the same shape: the update decided not to stop the
+# server, so the restart it promised did not happen, the pip cleanup it
+# needed could not happen, and it reported success anyway with no log to
+# read afterwards.
+#
+# These are text assertions, which is what the neighbours here are, because
+# nothing on this machine can run PowerShell.  They check the decisions the
+# script makes rather than what it prints, and the one that matters most is
+# the exit code: a step that did not happen must not exit zero.
+
+
+def _update_ps1() -> str:
+    return (ROOT / "scripts" / "update.ps1").read_text(encoding="utf-8")
+
+
+def test_the_windows_update_stops_the_server_before_it_touches_packages():
+    """pip cannot delete a compiled extension a running process has mapped,
+    and Windows will not let it: every update left a `~ycrdt` directory
+    behind in site-packages, one per update, for the life of the install.
+    Updating a server's dependencies underneath the running server is the
+    cause, and stopping it first is the fix for that and for the restart."""
+    text = _update_ps1()
+    assert "Stop-Server" in text, "nothing stops the server"
+    assert text.index("Stop-Server") < text.index("Say 'Dependencies'"), (
+        "the dependencies are updated before anything stops the server"
+    )
+
+
+def test_the_windows_update_can_restart_a_startup_folder_install():
+    """A scheduled task needs administrator, so an ordinary account gets a
+    Startup-folder shortcut instead, and that is the install shape this
+    script had no branch for. It printed "restart it yourself" and left the
+    old process serving."""
+    text = _update_ps1()
+    assert "GetFolderPath('Startup')" in text, "no Startup-folder branch"
+    assert "Get-ScheduledTask" in text, "no scheduled-task branch"
+
+
+def test_a_windows_update_that_did_not_restart_does_not_exit_zero():
+    """The finding, in one line. The script's own synopsis promises pull,
+    reinstall, rebuild, restart; it did three of the four and exited zero,
+    so every caller, including the page watching it, read a half-finished
+    update as a finished one."""
+    text = _update_ps1()
+    tail = text[text.index("Say 'Restarting'"):]
+    assert "exit 1" in tail, "the restart branch cannot report a failure"
+
+
+def test_the_windows_update_looks_for_the_task_the_installer_registers():
+    """Windows task names are case-insensitive, so this is consistency
+    rather than a miss on this machine; it stops being consistency the
+    moment either file's default changes on its own."""
+    import re
+
+    registered = re.search(
+        r"\[string\]\$Name\s*=\s*'([^']+)'",
+        (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8"),
+    )
+    updating = re.search(r"\[string\]\$Name\s*=\s*'([^']+)'", _update_ps1())
+    assert registered and updating, "one of the two scripts has no default name"
+    assert registered.group(1) == updating.group(1)
+
+
+def test_both_update_scripts_write_a_log():
+    """An update is the operation most likely to leave a machine in a state
+    its owner cannot explain, and it was the one operation that wrote
+    nothing to disk. The install has install.log; this is the same file for
+    the update, beside it."""
+    for script in ("update.sh", "update.ps1"):
+        text = (ROOT / "scripts" / script).read_text(encoding="utf-8")
+        assert "update.log" in text, f"{script} records nothing"
+
+
+def test_the_windows_update_clears_what_earlier_updates_left():
+    text = _update_ps1()
+    assert "'~*'" in text, "the pip litter is never collected"

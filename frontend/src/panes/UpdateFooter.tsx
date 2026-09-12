@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import api, { type UpdateReport } from "../api";
+import api, { type Instance, type UpdateReport } from "../api";
+import { standingOf } from "./update-standing";
 
 /** Whether this install is behind the repository it came from.
  *
@@ -56,6 +57,9 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   const [step, setStep] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [showCommits, setShowCommits] = useState(false);
+  /** Who this server is, asked once on mount. What is wanted from it is the
+   *  pair of commits: the one this process loaded and the one on disk. */
+  const [self, setSelf] = useState<Instance | null>(null);
   const startedFrom = useRef("");
   /** True once we have given up on learning which process we started from.
    *
@@ -107,6 +111,10 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
       setPhase(asked ? { kind: "error", message: problem.message } : { kind: "resting" });
     }
   };
+
+  useEffect(() => {
+    api.instance().then(setSelf).catch(() => setSelf(null));
+  }, []);
 
   useEffect(() => {
     check(false);
@@ -340,6 +348,29 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     }
 
     const report = phase.report;
+
+    // Before anything about the repository, because this is a statement
+    // about the process the writer is talking to rather than about
+    // upstream, and it outranks both of the answers below: "up to date" is
+    // true of the files and false of the program reading them, and "an
+    // update is waiting" is about the wrong update.
+    if (standingOf(self) === "restart") {
+      return (
+        <Line>
+          <span className="t-micro text-warn" data-testid="update-unrestarted">
+            Updated on disk to {self?.diskHead}. Restart to run it.
+          </span>
+          <span className="t-micro text-ink-3">
+            This process is still running {self?.head}.
+          </span>
+          <span className="flex-1" />
+          <button className="quiet t-micro" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </Line>
+      );
+    }
+
     if (!report.checkout) return null;      // nothing it could ever do
 
     // Asked before anything is read off the numbers, because when the fetch

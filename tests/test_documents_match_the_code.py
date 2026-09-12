@@ -191,3 +191,31 @@ def test_the_benchmark_table_quotes_the_budgets_that_are_set():
         assert stated == cell(key), (
             f"{label}: the table says {stated}, thresholds.json says {cell(key)}"
         )
+
+
+def test_the_readme_starts_windows_the_way_the_installer_does():
+    """R-043. It told a Windows writer to start the server with
+    `pythonw.exe`, which is the interpreter that discards everything the
+    server prints, and to stop it by ending a `pythonw` process that does
+    not exist.
+
+    `scripts/register-task.ps1` carries a long comment about why the
+    shortcut runs `python.exe -u` instead: pythonw was tried, it did keep
+    the black rectangle off the desktop, and a server that died on startup
+    then died in complete silence with no window, no message and no log.
+    The README's instruction reproduced exactly the failure that comment
+    removed, and its stop instruction found nothing, because on a running
+    install `Get-Process pythonw` returns nothing.
+
+    This is the class of mistake the tests above cannot see: every name in
+    that sentence is real, and each was being used for the wrong thing.
+    """
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "pythonw.exe server" not in readme, (
+        "the README starts the Windows server with the silent interpreter"
+    )
+    assert "python.exe -u server\\run.py" in readme
+    # And the shortcut agrees with it.
+    task = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
+    assert "pythonw" not in task.replace("# ", "").split("$runner = $venv")[1]
