@@ -84,21 +84,43 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
   }
 
   // First run: one card, dismissible, and once it is gone it stays gone.
+  //
+  // Two conditions, not one. A project with no repository at all and a
+  // project with a repository and no remote are different situations, and
+  // folding them into one card offered the network answer to both: the
+  // local half of version control, which needs no account and no
+  // connection, was reachable only from a terminal, and the panel that
+  // exists to make it reachable was the thing hiding it.
   if (status && (!status.repository || !status.remote) && !dismissed && !wizard) {
     return (
       <div className="shrink-0 border-t border-line p-[8px]" data-testid="git-setup">
         <div className="rounded-[5px] border border-line p-3">
-          <div className="t-ui text-ink">Back this up to GitHub</div>
+          <div className="t-ui text-ink">
+            {status.repository ? "Back this up to GitHub" : "Keep versions of this project"}
+          </div>
           <p className="t-meta mt-1 text-ink-2">
-            A copy somewhere that is not this machine, updated whenever you
-            ask. Private by default.
+            {status.repository
+              ? "A copy somewhere that is not this machine, updated whenever you ask. Private by default."
+              : "Git keeps a record of the project as a whole, alongside the per-file history NextTex already keeps. It works with no account and no connection; sending a copy to GitHub is a separate step you can take later."}
           </p>
           <div className="mt-3 flex gap-2">
+            {status.repository ? null : (
+              <button
+                className="h-[26px] ghost-button px-3 t-ui"
+                data-testid="git-init"
+                disabled={busy === "init"}
+                onClick={() => act("init")}
+              >
+                {busy === "init" ? "Making it…" : "Keep versions here"}
+              </button>
+            )}
             <button
-              className="h-[26px] ghost-button px-3 t-ui"
+              className={`h-[26px] px-3 t-ui ${
+                status.repository ? "ghost-button" : "quiet rounded-[3px]"
+              }`}
               onClick={() => setWizard(true)}
             >
-              Set up
+              {status.repository ? "Set up" : "Back up to GitHub instead"}
             </button>
             <button
               className="h-[26px] rounded-[3px] px-2 t-micro text-ink-3 hover:text-ink"

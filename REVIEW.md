@@ -3005,7 +3005,11 @@ place a longer one would go. `docs/design.md` section 7 rejects a bottom
 console with Problems, Output and Terminal tabs, and keeping all of this
 inside the drawer is the version of it that respects that.
 
-### R-095 · Git · comfort · medium · confirmed
+### ~~R-095 · Git · comfort · medium · confirmed~~
+
+**Built.** The first-run card asks the question the project is actually in: with no repository it leads with "Keep versions here" over the `init` action the route has always taken, and offers GitHub second.
+Held by `e2e/specs/git.spec.ts`.
+
 
 Where: `server/main.py:2801` and `nexttex/gitrepo.py:143`.
 
@@ -3039,7 +3043,11 @@ when the project is made.
 Cost: a control, and four directories. The route, the list and the parameter
 are already there and already unused.
 
-### R-097 · History · comfort · low · confirmed
+### ~~R-097 · History · comfort · low · confirmed~~
+
+**Built.** The purge says what it freed as well as what it deleted, and the panel's header says what the history is holding before anybody decides. One formatter, in `frontend/src/size.ts`, rather than the two that would have rounded the same number two ways.
+Held by `frontend/src/size.test.ts` and `e2e/specs/history-trash.spec.ts`.
+
 
 Where: `frontend/src/api.ts:468`, with `/history/size`.
 

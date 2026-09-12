@@ -3,6 +3,7 @@ import api, { startDownload, type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
 import { Chevron } from "../chrome";
 import { isRenderable, isText, isViewable } from "./file-kinds";
+import { sizeOf } from "../size";
 
 /** Whose version this is.
  *
@@ -58,6 +59,7 @@ export default function History({
   const [scope, setScope] = useState<"file" | "project">("file");
   const [timeline, setTimeline] = useState<(Version & { path: string })[]>([]);
   const [timelineFailed, setTimelineFailed] = useState(false);
+  const [held, setHeld] = useState("");
   const binary = Boolean(activePath) && !isText(activePath!);
   const blobUrl = (sha: string, download = false) =>
     projectId && activePath
@@ -67,6 +69,20 @@ export default function History({
   useEffect(() => {
     if (projectId && activePath) refreshHistory(projectId, activePath);
   }, [projectId, activePath, compile]);
+
+  // What the whole history costs on disk. Read with the panel and again
+  // after a build, which is when it can have grown.
+  useEffect(() => {
+    if (!projectId) return;
+    let dropped = false;
+    api
+      .historySize(projectId)
+      .then((answer) => !dropped && setHeld(sizeOf(answer.bytes)))
+      .catch(() => !dropped && setHeld(""));
+    return () => {
+      dropped = true;
+    };
+  }, [projectId, compile]);
 
   // Read on the way into the whole-project view and again after a build,
   // which is the same trigger the per-file list uses: a build is the point
@@ -193,6 +209,14 @@ export default function History({
           </span>
           {scope === "file" && name ? (
             <span className="t-meta truncate text-ink-3">{name}</span>
+          ) : null}
+          {/* What the project's history is holding, before anybody decides
+              whether to empty it. `/history/size` has had a client wrapper
+              and no caller since it was written. */}
+          {held ? (
+            <span className="t-micro shrink-0 text-ink-3" data-testid="history-size">
+              {held}
+            </span>
           ) : null}
         </span>
         <button className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px]" aria-label="Close the history" onClick={onClose}>
@@ -558,9 +582,7 @@ function dayOf(at: number): string {
   return date.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
 }
 
-function size(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
+// Moved to `../size`, where the file tree and this panel can share one
+// answer: two formatters would round the same number two ways.
+const size = sizeOf;
 

@@ -271,15 +271,17 @@ test("history can be read for the whole project, not just one file", async ({
   // wrapper and no caller.
   await typeAndSave(tab, "the first chapter", app, project);
 
-  // A second file with a version of its own.
-  await tab.getByLabel("Actions for main.tex").click();
-  await tab.getByRole("tree").getByRole("button", { name: "New file here" }).click();
-  await tab.getByPlaceholder("new-file.tex").fill("notes.tex");
-  await tab.keyboard.press("Enter");
-  await expect(tab.getByRole("treeitem", { name: /notes\.tex/ })).toBeVisible();
+  // A second file with a version of its own. The project is seeded with a
+  // bibliography, so this needs no file to be made: what the test is about
+  // is two files' versions in one list.
+  await tab.getByRole("treeitem", { name: /references\.bib/ }).click();
+  await expect(tab.getByTitle("references.bib").first()).toBeVisible({
+    timeout: 10_000,
+  });
   await tab.locator(".cm-content").click();
-  await tab.keyboard.type("a note to self");
-  await landed(app, project, "a note to self", "notes.tex");
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type("\n% a note to self\n");
+  await landed(app, project, "a note to self", "references.bib");
 
   await openHistory(tab);
   await tab.getByRole("button", { name: "Whole project" }).click();
@@ -288,8 +290,34 @@ test("history can be read for the whole project, not just one file", async ({
   await expect(rows.first()).toBeVisible({ timeout: 10_000 });
   // Each row says which file it belongs to, which is the whole difference
   // between this list and the per-file one.
-  await expect(tab.getByTestId("history-scope-path").filter({ hasText: "notes.tex" }).first())
-    .toBeVisible();
+  await expect(
+    tab.getByTestId("history-scope-path").filter({ hasText: "references.bib" }).first(),
+  ).toBeVisible();
   await expect(tab.getByTestId("history-scope-path").filter({ hasText: "main.tex" }).first())
     .toBeVisible();
+});
+
+test("emptying a history says what it freed, and the panel says what it holds", async ({
+  tab,
+  app,
+  project,
+}) => {
+  // R-097. The route answers with both a count and a number of bytes and
+  // the interface dropped the second, which is the one somebody emptying
+  // something is after: a count of versions says nothing about whether it
+  // was worth doing. `/history/size` had a client wrapper and no caller.
+  await typeAndSave(tab, "a first version worth keeping", app, project);
+  await typeAndSave(tab, "and a second one, longer than the first", app, project);
+
+  await openHistory(tab);
+  await expect(tab.getByTestId("history-size")).toBeVisible({ timeout: 10_000 });
+  await expect(tab.getByTestId("history-size")).toHaveText(/\d+ (B|KB|MB)/);
+
+  await tab.getByLabel("Actions for main.tex").click();
+  await tab.getByRole("button", { name: /Delete version history/ }).click();
+  await tab.getByTestId("purge-confirm-yes").click();
+
+  await expect(tab.getByText(/freeing \d+ (B|KB|MB)/)).toBeVisible({
+    timeout: 10_000,
+  });
 });
