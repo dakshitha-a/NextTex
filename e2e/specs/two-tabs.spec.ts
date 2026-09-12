@@ -158,3 +158,41 @@ test("a collaborator's caret is drawn where they are", async ({
   });
   await second.close();
 });
+
+test("a question typed in one window appears in the other, once", async ({
+  app, project, browser, tab,
+}) => {
+  // R-053. The bubble was pushed by the composer that sent it rather than
+  // by the event saying a turn had started, so the other window learned a
+  // turn was running and had nothing to say was running: a spinner over a
+  // blank panel, with no way to see what had been asked. The window that
+  // asked still draws its own question immediately, because waiting for
+  // the round trip is a visible delay on the writer's own typing, so the
+  // fix has to be a bubble the event can adopt rather than duplicate.
+  await openMain(tab);
+  const other = await secondWindow(app, project, browser);
+
+  for (const page of [tab, other]) {
+    const composer = page.locator("textarea");
+    if (!(await composer.isVisible())) {
+      await page.keyboard.press("Control+Alt+a");
+      await expect(composer).toBeVisible({ timeout: 20_000 });
+    }
+  }
+
+  const asked = "What does a label do, exactly?";
+  const composer = tab.locator("textarea");
+  await composer.click();
+  await composer.fill(`#script:reply\n${asked}`);
+  await tab.getByRole("button", { name: "Send" }).click();
+
+  await expect(other.getByText(asked, { exact: false })).toBeVisible({
+    timeout: 20_000,
+  });
+  // Once in each. The window that asked drew it, and the event must not
+  // draw a second one beside it.
+  for (const page of [tab, other]) {
+    await expect(page.getByText(asked, { exact: false })).toHaveCount(1);
+  }
+  await other.close();
+});

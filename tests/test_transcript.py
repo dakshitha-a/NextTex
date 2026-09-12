@@ -292,3 +292,55 @@ def test_a_card_nobody_answered_still_has_no_decision(tmp_path):
         "consequence": "",
     })
     assert "decision" not in t.items()[0]
+
+
+def test_a_card_that_expired_says_so_rather_than_saying_refused(tmp_path):
+    """R-049 and R-073. A card nobody answered is not a card somebody
+    refused, and the transcript is read as the account of what was done.
+
+    The replay marks an undecided card refused, which is the right reading
+    of a card that was still open when the window closed and can never be
+    answered now. It is the wrong word for a card the fence itself gave up
+    on: "Denied" says the writer looked at this and said no. So the fence
+    writes down what actually happened, and the panel has a third word for
+    it.
+    """
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({
+        "type": "permission", "id": "perm-1", "tool": "Bash",
+        "rule": "Bash:latexmk", "headline": "Run a shell command",
+        "detail": "latexmk -pdf main.tex", "consequence": "",
+        "decision": "expired",
+    })
+
+    assert t.items()[0]["decision"] == "expired"
+
+
+def test_a_finished_turn_is_marked_finished(tmp_path):
+    """R-054. Whether a turn ended was guessed from the shape of the last
+    row, and the guess is wrong in both directions.
+
+    A turn whose last act was an edit ends on a tool row, and came back
+    marked interrupted; a turn cut off in the middle of a sentence ends on
+    a partial `claude` row, which is still a `claude` row, and came back
+    looking finished. A full stop is one record and removes the guess.
+    """
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "turn_start", "prompt": "Add a sentence."})
+    t.record({"type": "text", "text": "Added it."})
+    t.record({"type": "done", "subtype": "success"})
+
+    kinds = [item["kind"] for item in t.items()]
+    assert kinds == ["user", "claude", "turn_end"], kinds
+
+
+def test_a_turn_that_never_ended_has_no_full_stop(tmp_path):
+    """The case the guess got backwards: a turn whose last act was a tool
+    call. Streamed text is held until something flushes it, so a tool row
+    is what an interrupted turn actually leaves behind on disk."""
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "turn_start", "prompt": "Add a sentence."})
+    t.record({"type": "tool_use", "id": "t1", "name": "Edit",
+              "input": {"file_path": "main.tex"}})
+
+    assert [item["kind"] for item in t.items()] == ["user", "tool"]

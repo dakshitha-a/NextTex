@@ -344,3 +344,81 @@ describe("the plan for a turn", () => {
     expect(get().chat.some((item: any) => item.kind === "plan")).toBe(false);
   });
 });
+
+/** R-053 and R-054: what the panel shows for a turn, in every window.
+ *
+ *  Two halves of the same record. A question typed in one window appeared
+ *  only there, because the bubble was pushed by the composer rather than by
+ *  the event saying a turn had started; and whether a turn ended was
+ *  guessed from the shape of its last row.
+ */
+describe("a question, in every window that is open", () => {
+  test("a turn that starts elsewhere brings its question with it", () => {
+    set({ chat: [], thinking: false });
+    __receive({ type: "turn_start", prompt: "Reword the abstract." });
+    const said: any[] = get().chat.filter((item) => item.kind === "user");
+    expect(said).toHaveLength(1);
+    expect(said[0].text).toBe("Reword the abstract.");
+  });
+
+  test("the window that asked does not show the question twice", () => {
+    // The composer draws it at once, marked pending, because waiting for
+    // the round trip is a visible delay on the writer's own typing.
+    set({
+      chat: [{ kind: "user", id: "u1", text: "Reword the abstract.",
+               at: Date.now(), pending: true } as any],
+      thinking: false,
+    });
+    __receive({ type: "turn_start", prompt: "Reword the abstract." });
+    const said: any[] = get().chat.filter((item) => item.kind === "user");
+    expect(said).toHaveLength(1);
+    expect(said[0].id).toBe("u1");
+    expect(said[0].pending).toBe(false);
+  });
+
+  test("a question already answered is not adopted by the next turn", () => {
+    set({
+      chat: [{ kind: "user", id: "u1", text: "The first one", at: Date.now() } as any],
+      thinking: false,
+    });
+    __receive({ type: "turn_start", prompt: "The second one" });
+    const said: any[] = get().chat.filter((item) => item.kind === "user");
+    expect(said.map((item: any) => item.text)).toEqual([
+      "The first one", "The second one",
+    ]);
+  });
+});
+
+describe("whether a transcript stopped in the middle", () => {
+  test("a turn that says it ended is not called interrupted", () => {
+    // The shape that used to be read as an interruption: the ordinary
+    // shape of a turn that did exactly what it was asked.
+    replayTranscript([
+      { kind: "user", text: "Add a sentence." },
+      { kind: "tool", name: "Edit", input: { file_path: "main.tex" } },
+      { kind: "turn_end" },
+    ] as any);
+    const notices: any[] = get().chat.filter((item) => item.kind === "notice");
+    expect(notices).toHaveLength(0);
+  });
+
+  test("a turn with no full stop after it is", () => {
+    replayTranscript([
+      { kind: "user", text: "Add a sentence." },
+      { kind: "turn_end" },
+      { kind: "user", text: "And another." },
+      { kind: "tool", name: "Edit", input: { file_path: "main.tex" } },
+    ] as any);
+    const notices: any[] = get().chat.filter((item) => item.kind === "notice");
+    expect(notices).toHaveLength(1);
+    expect(notices[0].text).toMatch(/interrupted/);
+  });
+
+  test("a transcript written before the full stop existed reads as it did", () => {
+    replayTranscript([
+      { kind: "user", text: "What does a label do?" },
+      { kind: "claude", text: "It attaches a name." },
+    ] as any);
+    expect(get().chat.filter((item: any) => item.kind === "notice")).toHaveLength(0);
+  });
+});

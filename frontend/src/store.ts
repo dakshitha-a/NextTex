@@ -5,6 +5,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { Heading } from "./outline";
+import { afterReconcile } from "./agent-state";
 import api, {
   clientId,
   type CompileResult,
@@ -18,7 +19,17 @@ import api, {
 } from "./api";
 
 export type ChatItem =
-  | { kind: "user"; id: string; text: string; at: number }
+  | {
+      kind: "user"; id: string; text: string; at: number;
+      /** Pushed by the tab that typed it, before the server has confirmed
+       *  the turn started. `turn_start` clears it. A tab that did *not*
+       *  ask has no such bubble, which is how it knows to push one: the
+       *  question used to be added only by the asking tab, so in every
+       *  other window a collaborator's answer appeared with no question
+       *  above it, and a reload made it vanish because the server had it
+       *  all along. */
+      pending?: boolean;
+    }
   | { kind: "claude"; id: string; text: string; at: number; streaming: boolean }
   | {
       kind: "edit";
@@ -48,7 +59,12 @@ export type ChatItem =
        *  working. */
       reason: string;
       at: number;
-      decision?: "allow" | "always" | "conversation" | "deny" | "auto";
+      /** `expired` is a card nobody answered before the fence gave up on
+       *  it. The replay marks an undecided card denied, which is right
+       *  about the outcome and wrong about who decided: "Denied" says the
+       *  writer looked at this and said no. */
+      decision?:
+        | "allow" | "always" | "conversation" | "deny" | "auto" | "expired";
       /** Consecutive identical records are shown once, with a count. Only
        *  ever set on a card that has been decided: two questions are not
        *  one question. */
@@ -84,7 +100,11 @@ export type ChatItem =
       id: string;
       items: { text: string; state: "pending" | "active" | "done" }[];
     }
-  | { kind: "notice"; id: string; text: string; tone: "error" | "plain" };
+  | { kind: "notice"; id: string; text: string; tone: "error" | "plain" }
+  /** A full stop. Written by the transcript when a turn finishes, so the
+   *  replay can tell an interrupted turn from a finished one rather than
+   *  guessing from the shape of the last row. Never rendered. */
+  | { kind: "turn_end"; id: string };
 
 /** An open file.
  *
@@ -438,6 +458,8 @@ export function replayTranscript(items: any[]) {
         kind: "notice", id: nextId(), text: item.text ?? "",
         tone: item.tone === "plain" ? "plain" : "error",
       });
+    } else if (item.kind === "turn_end") {
+      chat.push({ kind: "turn_end", id: nextId() });
     }
   }
   // A permission still unanswered when the window closed can never be
@@ -471,8 +493,19 @@ export function replayTranscript(items: any[]) {
  *  would find the sentence and conclude the turn was fine.
  */
 function danglingTurn(chat: ChatItem[]): boolean {
+  // A turn that ended says so, and the record carries it. This used to be
+  // guessed from the shape of the last row, which is wrong in both
+  // directions: a turn whose last act was an edit, which is the ordinary
+  // shape of a turn that did exactly what it was asked, came back marked
+  // interrupted; and a turn cut off mid-sentence came back looking
+  // finished, because a half-written `claude` message is still one.
+  //
+  // A record written before this existed has no `turn_end` in it at all,
+  // so the old shape test is kept for those: an old transcript reads as it
+  // always did rather than as one long interruption.
   const last = chat[chat.length - 1];
   if (!last) return false;
+  if (chat.some((item) => item.kind === "turn_end")) return last.kind !== "turn_end";
   return last.kind === "user" || last.kind === "tool" || last.kind === "edit";
 }
 
@@ -730,7 +763,8 @@ export async function reconcile() {
   // carries so a revived card replaces its own record rather than sitting
   // beside it.
   const open = report.pending ?? [];
-  if (open.length) {
+  const settle = afterReconcile(report, state.thinking);
+  if (settle === "cards") {
     const known = new Set(state.chat.map((item) => item.id));
     const chat = state.chat.map((item) =>
       item.kind === "permission" && open.some((card) => card.id === item.id)
@@ -756,7 +790,17 @@ export async function reconcile() {
     return;
   }
 
-  if (report.busy || !state.thinking) return;
+  if (settle === "raise") {
+    // A turn is running and this browser does not know. That is exactly
+    // what a reload mid-turn produces: the panel comes back from the
+    // transcript, which has no idea a turn is in flight, so the Stop
+    // button was absent, the composer was enabled, and the writer's next
+    // question queued behind an answer they could not see arriving.
+    // Every other branch here was written and this one was a bare return.
+    set({ thinking: true, activity: null });
+    return;
+  }
+  if (settle !== "lower") return;
   endText();
   pushChat({
     kind: "notice",
@@ -985,15 +1029,28 @@ function receive(event: any) {
       }
       handlers.onProjectChanged?.(event.main);
       break;
-    case "turn_start":
+    case "turn_start": {
       // A new turn has no plan and no activity yet.  The plan is the
       // turn's own, so it does not survive into the next one.
-      set({
-        thinking: true,
-        activity: null,
-        chat: state.chat.filter((item) => item.kind !== "plan"),
-      });
+      const without = state.chat.filter((item) => item.kind !== "plan");
+      const asked = [...without].reverse().find((item) => item.kind === "user");
+      const chat =
+        asked && (asked as { pending?: boolean }).pending
+          ? without.map((item) =>
+              item === asked
+                ? { ...item, pending: false, text: event.prompt ?? item.text }
+                : item,
+            )
+          : [
+              ...without,
+              {
+                kind: "user" as const, id: nextId(),
+                text: String(event.prompt ?? ""), at: Date.now(),
+              },
+            ];
+      set({ thinking: true, activity: null, chat });
       break;
+    }
     case "text":
       if (!state.activity || state.activity.kind !== "writing") {
         set({
@@ -1183,14 +1240,20 @@ function setPlan(input: any): void {
   commit();
 }
 
-function summariseTool(name: string, input: any): string {
+export function summariseTool(name: string, input: any): string {
   if (!input) return name;
   if (name === "Bash") return String(input.command ?? "");
   // The note is the whole point of this one; a path lookup finds nothing
   // and the row would read as a verb with no object.
   if (name === "mcp__nexttex__remember") return String(input.note ?? "");
-  const path = input.file_path ?? input.path ?? input.pattern ?? "";
-  return String(path);
+  const path = String(input.file_path ?? input.path ?? input.pattern ?? "");
+  // The verb for this one is "Rewrote lines", so the object has to be the
+  // lines. Without them the row read `Rewrote lines  chapters/one.tex`,
+  // which names a file and not the part of it that changed.
+  if (name === "mcp__nexttex__replace_range" && input.from_line) {
+    return `${path} ${input.from_line} to ${input.to_line ?? input.from_line}`;
+  }
+  return path;
 }
 
 /** Empty the conversation panel.

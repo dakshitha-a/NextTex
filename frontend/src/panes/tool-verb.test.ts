@@ -8,6 +8,7 @@
  */
 import { describe, expect, test } from "vitest";
 import { verbFor } from "./tool-verb";
+import { summariseTool } from "../store";
 
 describe("the word above a tool row", () => {
   test("is never the past tense while a card is still asking", () => {
@@ -27,7 +28,7 @@ describe("the word above a tool row", () => {
   test("is the past tense once the call has been allowed", () => {
     expect(verbFor("Bash")).toBe("Ran");
     expect(verbFor("Bash", "done")).toBe("Ran");
-    expect(verbFor("mcp__nexttex__replace_range")).toBe("Rewrote what you selected");
+    expect(verbFor("mcp__nexttex__replace_range")).toBe("Rewrote lines");
   });
 
   test("falls back to the tool's own name, in both tenses", () => {
@@ -42,5 +43,31 @@ describe("the word above a tool row", () => {
     for (const tool of CLAIMS) {
       expect(verbFor(tool, "asking")).not.toBe(verbFor(tool, "done"));
     }
+  });
+});
+
+describe("R-074: the range rewrite says what it rewrote", () => {
+  test("the row does not claim the writer selected anything", () => {
+    // The tool takes from_line and to_line and the model picks them.
+    expect(verbFor("mcp__nexttex__replace_range", "done")).toBe("Rewrote lines");
+    expect(verbFor("mcp__nexttex__replace_range", "asking")).not.toContain(
+      "selected",
+    );
+  });
+
+  test("the lines are the object of the verb", () => {
+    expect(
+      summariseTool("mcp__nexttex__replace_range", {
+        path: "chapters/one.tex",
+        from_line: 3,
+        to_line: 5,
+      }),
+    ).toBe("chapters/one.tex 3 to 5");
+  });
+
+  test("one line is still a range", () => {
+    expect(
+      summariseTool("mcp__nexttex__replace_range", { path: "a.tex", from_line: 7 }),
+    ).toBe("a.tex 7 to 7");
   });
 });

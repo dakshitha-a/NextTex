@@ -181,8 +181,18 @@ class Transcript:
             self._append({"kind": "user", "text": event.get("prompt", "")})
         elif kind == "text":
             self._buffer.append(event.get("text", ""))
-        elif kind in {"text_end", "done"}:
+        elif kind == "text_end":
             self._flush_text()
+        elif kind == "done":
+            self._flush_text()
+            # A full stop, so the replay does not have to guess. It guessed
+            # from the shape of the last row, which is a heuristic that is
+            # wrong in both directions: a turn that really did end on a
+            # tool call, which is what a turn whose last act was an edit
+            # looks like, came back marked interrupted, and a turn cut off
+            # mid-sentence came back looking finished, because a partial
+            # `claude` message is still a `claude` message.
+            self._append({"kind": "turn_end"})
         elif kind == "tool_use":
             # The turn's plan is not part of the record of what was done to
             # the document, and recording it made that plain the hard way:

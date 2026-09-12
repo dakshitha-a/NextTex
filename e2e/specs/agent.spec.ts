@@ -681,3 +681,32 @@ test("a command is not said to have run while its card is still asking", async (
   // And it appears once, not once for the call and once for the answer.
   expect(after.split("echo hello-from-the-script").length - 1).toBe(1);
 });
+
+test("both remembering answers say what they would remember", async ({ tab }) => {
+  // R-115. "Allow always" had a line that appeared on hover saying what
+  // the rule covers. "For this conversation" is the answer next to it,
+  // remembers the same rule for a shorter time, and had nothing: the one
+  // of the two whose scope is not in its own label was the one that would
+  // not say. The difference between the two is the whole reason there are
+  // two of them, so it is what the line has to draw.
+  await ask(tab, "permission", "Run something.");
+  const always = tab.getByTestId("always");
+  await expect(always).toBeVisible({ timeout: 20_000 });
+  await tab.waitForTimeout(500);
+  const line = tab.getByTestId("scope-line");
+
+  await always.hover();
+  await expect(line).toHaveCSS("opacity", "1");
+  await expect(line).toContainText("Remembers:");
+  // And in English rather than in the protocol's vocabulary (R-112): the
+  // rule on the wire is `Bash:echo`.
+  await expect(line).toContainText("shell commands starting with echo");
+
+  await tab.getByTestId("conversation").hover();
+  await expect(line).toHaveCSS("opacity", "1");
+  await expect(line).toContainText("Until this conversation is cleared:");
+
+  await tab.getByTestId("deny").hover();
+  await expect(line).toHaveCSS("opacity", "0");
+  await tab.getByTestId("deny").click();
+});

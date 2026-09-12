@@ -26,7 +26,11 @@ export const VERBS: Record<string, string> = {
   mcp__nexttex__insert_at_cursor: "Inserted at your cursor",
   mcp__nexttex__insert_figure: "Inserted a figure",
   mcp__nexttex__insert_table: "Inserted a table",
-  mcp__nexttex__replace_range: "Rewrote what you selected",
+  // Not "what you selected". The tool takes a line range and the model
+  // chooses it; a selection is the usual way one gets chosen, and a
+  // row saying otherwise had the agent rewriting a paragraph the
+  // writer had never touched under the words "what you selected".
+  mcp__nexttex__replace_range: "Rewrote lines",
   mcp__nexttex__goto: "Moved your editor",
   mcp__nexttex__find_papers: "Searched the literature",
   mcp__nexttex__add_reference: "Added a reference",
@@ -52,7 +56,7 @@ const ASKING: Record<string, string> = {
   mcp__nexttex__insert_at_cursor: "Inserting at your cursor",
   mcp__nexttex__insert_figure: "Inserting a figure",
   mcp__nexttex__insert_table: "Inserting a table",
-  mcp__nexttex__replace_range: "Rewriting what you selected",
+  mcp__nexttex__replace_range: "Rewriting lines",
   mcp__nexttex__goto: "Moving your editor",
   mcp__nexttex__find_papers: "Searching the literature",
   mcp__nexttex__add_reference: "Adding a reference",
