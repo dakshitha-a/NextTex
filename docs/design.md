@@ -4254,3 +4254,46 @@ the call was allowed, and **Did not run** when it was refused.
 `verbFor` holds both tenses and a test asserts that every tool whose past
 tense is a claim has a present tense, so adding a verb to one table and not
 the other cannot quietly reintroduce this for that tool.
+
+### One connection was modelled and the other was not
+
+Three records and one absence. The interface has no representation of the peer
+link anywhere in its lifetime: it cannot draw a collaborator arriving, cannot
+draw one present, and cannot draw one leaving. All three were the same empty
+space in the tab strip, and the one badge that does exist watches a different
+connection entirely.
+
+`connection` in `collab.ts` is the state of **this browser's WebSocket to its
+own server**, built against `location.host`. The peer link, the iroh leg that
+carries a collaborator's edits, is not in it. So a laptop that loses its
+internet while its browser still reaches localhost shows nothing at all: no
+badge, a live-looking interface, and the other person's edits silently stop
+arriving while both of them keep typing. That is the honest answer to what
+"not connected" looks like on a real network, and it is why the experiment
+that would have produced it was not worth running.
+
+The server had modelled it the whole time. `PeerNetwork.state()` answers
+`connected` per member, `GET /projects/{id}/collab` serves it, the share sheet
+polls it every four seconds, and `Editor.tsx` made the same call and kept only
+`me`. The array went in the bin everywhere else.
+
+Three changes. The store keeps the share, from the call the editor was already
+making. A link being adopted or dropped publishes `collab_peers`, so arrival
+and departure are transitions rather than whatever the next four-second sample
+happens to catch: the writer's typing stops reaching anybody at the instant the
+link goes, and a sample is not news. And `Collaborators` gains its third
+branch: shared, somebody has joined, none of them connected, drawn as
+"Sharing with Bob, not connected".
+
+**Two badges, not one badge with two meanings.** The browser's own socket being
+down and the peer link being down are different facts, both can be true at
+once, and they are drawn separately. Folding them into one word is how a writer
+comes to believe the wrong one, which is the mechanism this whole section is
+about.
+
+The laptop's last report is what made this three records rather than two. It
+sampled its own screen once a second across the window in which the share it
+had joined was shut down from this end, and every sample was identical:
+`{offline: null, collaborators: null, caretLabels: [], editor: true}`. A writer
+whose only collaborator has permanently gone, whose copy is now an ordinary
+folder of files, saw exactly what they saw while the collaboration was live.

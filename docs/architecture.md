@@ -152,6 +152,8 @@ A held join is state the server would not otherwise have, so it is bounded: disc
 
 **What a peer may write is fenced.** A peer-supplied path goes through `resolve_for_write`, which refuses control files. Staying inside the project was never the whole question: `.git/config` is inside the project, and a `core.fsmonitor` entry in it is a command that runs on the next `git status`, which happens after every build.
 
+**What a browser knows about the other end.** `PeerNetwork.state()` answers, per member, whether that peer's link is up, and `collab_peers` is published when a link is adopted or dropped so the browser hears the two ends of a connection rather than sampling for them. This is a different question from `connection` in the browser, which is that tab's own WebSocket to this server; both are drawn, separately, because a machine can have either one without the other and a writer who reads the wrong one believes their typing is arriving when it is not.
+
 ## The agent
 
 One Claude session per project, driven from the browser, optional and off unless configured. Its working directory is the project root, so it cannot see NextTex's own source, and it loads the project's own `CLAUDE.md`.

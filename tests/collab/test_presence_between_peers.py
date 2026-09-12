@@ -149,3 +149,55 @@ async def test_a_tab_opening_later_is_told_about_the_other_installs_cursors(tmp_
     await bob_net.close()
     alice_store.close()
     bob_store.close()
+
+
+@pytest.mark.asyncio
+async def test_a_peer_going_away_is_announced_and_not_only_polled(tmp_path):
+    """A peer arriving and a peer leaving are transitions, not samples.
+
+    `state()` has always answered `connected` per member, and one sheet
+    polled it every four seconds. Everywhere else the answer was thrown
+    away, so the tab strip drew nothing for "nobody is here", nothing for
+    "somebody is here who is not being rendered", and nothing for "they
+    have gone for good". The Windows laptop sampled its own screen once a
+    second across the window in which the share it had joined was shut
+    down, and every sample was identical.
+    """
+    from .conftest import Peer, join_up, settle, until
+
+    class Announcing:
+        """A session that only does the one thing under test."""
+
+        def __init__(self, peer):
+            self.peer = peer
+            self.said: list[dict] = []
+            self.events = self
+
+        async def publish(self, event):
+            self.said.append(event)
+
+    alice = Peer(tmp_path / "alice").be("a" * 64)
+    bob = Peer(tmp_path / "bob", {"main.tex": ""}).be("b" * 64)
+    heard = Announcing(alice)
+    alice.network.session = heard
+
+    await join_up(alice, bob)
+    await settle()
+
+    arrivals = [e for e in heard.said if e.get("type") == "collab_peers"]
+    assert arrivals, "nothing was said when a peer arrived"
+    assert any(
+        member["connected"] for event in arrivals for member in event["members"]
+    ), "the arrival was announced with nobody connected in it"
+
+    heard.said.clear()
+    await bob.network.close()
+    assert await until(
+        lambda: any(e.get("type") == "collab_peers" for e in heard.said)
+    ), "nothing was said when the peer went away"
+
+    last = [e for e in heard.said if e.get("type") == "collab_peers"][-1]
+    assert not any(
+        member["connected"] for member in last["members"]
+        if member["peer"] != alice.me
+    ), "the peer that left is still reported as connected"
