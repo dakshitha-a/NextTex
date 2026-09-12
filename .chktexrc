@@ -18,6 +18,11 @@
 #     two items named "e.g.," and "i.e." -- neither of which ever matches.
 #   * A list written without `=' appends to the stock list rather than
 #     replacing it, which is what these want.
+#
+# The numbers below were checked against chktex 1.7.9 by provoking each one
+# and reading `%n' out of its own output; `tests/test_lint_explain.py' does
+# the same for every warning this project explains in English, so a chktex
+# that renumbers fails the suite rather than mislabelling a warning.
 
 CmdLine
 {
@@ -36,7 +41,16 @@ CmdLine
     -n22
     # 30 "Multiple spaces detected"             -- alignment in tabulars
     -n30
-    # 36 "You should not use ~ before/after"    -- disagrees with itself
+    # 36                                        -- unidentified: chktex 1.7.9
+    #                                              would not report it under
+    #                                              any input tried, even with
+    #                                              -w36, so the description
+    #                                              this line used to carry
+    #                                              could not be confirmed and
+    #                                              has been removed rather
+    #                                              than repeated. The mute
+    #                                              costs nothing while that
+    #                                              is true.
     -n36
     # 44 "User-specified pattern"               -- nothing specified
     -n44

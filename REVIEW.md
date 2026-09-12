@@ -2863,7 +2863,11 @@ already holds the English for the per-reference warning and `:136` for the
 summary; `nexttex/compile.py:604`'s `pdf_is_complete()` already knows, and its
 only consumer is the download route.
 
-### R-087 · Diagnostics · comfort · high · confirmed
+### ~~R-087 · Diagnostics · comfort · high · confirmed~~
+
+**Built.** Twenty-three chktex warnings now carry a title, what the reader will see on the page, and what to type instead, in the shape the drawer already draws for a LaTeX error. Every rule carries the fragment that produces it and the test provokes each one, so a chktex that renumbers fails rather than mislabels.
+Held by `tests/test_lint_explain.py` and `tests/api/test_diagnostics_and_switches.py`.
+
 
 Where: `server/main.py:3229` and `frontend/src/panes/Diagnostics.tsx:208`.
 
