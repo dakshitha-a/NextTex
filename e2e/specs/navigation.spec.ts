@@ -342,3 +342,35 @@ test("F8 walks the errors without a mouse", async ({ tab }) => {
   await tab.keyboard.press("F8");
   await expect(tab.locator('[data-selected="true"]')).toHaveCount(1);
 });
+
+test("the caret readout belongs to the file on screen", async ({ tab }) => {
+  // R-069, the third thing it named, left in the backlog by the fix run.
+  // `setState` does not fire the update listener, so the line and column
+  // in the strip stayed where the caret was in the file just left until
+  // the next keystroke moved it. And the keystroke after the swap must
+  // still reach the readout, which is the half the first attempt broke.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  const caret = tab.getByTestId("caret");
+  await tab.locator(".cm-content").click();
+  // The end of the file rather than a counted number of ArrowDowns: the
+  // template's long lines wrap, and ArrowDown moves by what is on screen.
+  await tab.keyboard.press("Control+End");
+  await expect(caret).not.toHaveText(/^Ln 1, /);
+  const parked = await caret.innerText();
+
+  await tab.getByTestId("new-file").click();
+  await tab.keyboard.type("second");
+  await tab.keyboard.press("Enter");
+  await expect(tab.locator('[data-tab][data-path="second.tex"]')).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(caret).toHaveText("Ln 1, Col 1");
+
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.type("abc");
+  await expect(caret).toHaveText("Ln 1, Col 4");
+
+  // And back again: the parked caret of the first file, not line 1.
+  await tab.locator('[data-tab][data-path="main.tex"]').click();
+  await expect(caret).toHaveText(parked);
+});

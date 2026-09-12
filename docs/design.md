@@ -4466,6 +4466,16 @@ showed the previous project's collaborators beside the next one's.
 **And the verb row followed you to another file**, offering to rewrite a
 paragraph that is no longer selected or even open.
 
+**The caret readout followed you too**, and was fixed after the run closed.
+Swapping to another file replaces the editor's state without a transaction,
+so the update listener that writes the line and column to the strip was never
+told, and "Ln 106" sat over an empty new file until the first keystroke. The
+run's own attempt left the readout stuck after the swap and was set aside as
+half understood. The reading now is taken from the state on screen, after the
+swap, and written straight to the store rather than through the listener's
+path, which also places the verb row, tells collaborators where this browser
+is and arms the focus timer, none of which a swap should do.
+
 ### The join card says nothing has been written, and now that is true
 
 Four statements in this repository said that accepting an invite writes
