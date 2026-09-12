@@ -426,3 +426,48 @@ def test_signing_in_correctly_clears_the_delay(anon):
     anon.post("/api/login", json={"password": "wrong"})
     assert anon.post("/api/login", json={"password": "the real password"}).status_code == 200
     assert "testclient" not in auth._FAILURES
+
+
+def test_a_wrong_token_is_counted_like_a_wrong_password(client, monkeypatch):
+    """The password route has a doubling delay and the token route had
+    none, so the port was a free unlimited oracle for the one credential
+    that is printed in a terminal, pasted into chat windows and left in
+    browser history. A token is 32 bytes of `secrets` and is not guessable
+    in any useful sense, which is why this is not the wall; it is what
+    stops the guessing being free."""
+    from nexttex import auth
+
+    from starlette.testclient import TestClient
+    from server import main as server_main
+
+    counted: list[str] = []
+    monkeypatch.setattr(auth, "note_failure", lambda address: counted.append(address))
+    monkeypatch.setattr(auth, "failure_delay", lambda address: 0)
+
+    # A client with no cookie, because the cookie is checked first and a
+    # test that carries one is not asking this question.
+    bare = TestClient(server_main.app)
+    answer = bare.get("/api/auth", headers={"x-nexttex-token": "not-the-token"})
+
+    assert answer.status_code == 401
+    assert counted, "a wrong token was not counted against the limiter"
+
+
+def test_a_stale_cookie_is_not_counted_against_the_writer(client, monkeypatch):
+    """Every password set clears the session list, so the writer who just
+    changed their own password arrives with a cookie that matches nothing.
+    Counting that would lock them out of their own install."""
+    from nexttex import auth
+    from server import main as server_main
+
+    counted: list[str] = []
+    monkeypatch.setattr(auth, "note_failure", lambda address: counted.append(address))
+
+    from starlette.testclient import TestClient
+
+    bare = TestClient(server_main.app)
+    bare.cookies.set(server_main.COOKIE, "a-session-that-is-gone")
+    answer = bare.get("/api/auth")
+
+    assert answer.status_code == 401
+    assert not counted, "a stale session cookie was counted as a guess"

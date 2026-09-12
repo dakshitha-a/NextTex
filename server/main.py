@@ -31,6 +31,7 @@ from starlette.background import BackgroundTask
 from fastapi import (
     Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile, WebSocket,
 )
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse,
 )
@@ -40,6 +41,7 @@ from nexttex import attachments, auth, claude_auth, gitrepo, synctex
 from server.collab import transport as collab_transport
 from server.collab.peers import PeerNetwork
 from server.collab.store import CollabStore
+from server.transcript import TranscriptError
 from nexttex.atomic import (
     NotAFile, read_bytes, read_text, unique_name, write_atomically,
 )
@@ -264,6 +266,20 @@ async def _watch_projects() -> None:
         except (asyncio.CancelledError, GeneratorExit):
             raise
         except Exception:
+            # Said once, not once a second. The watcher is what makes a
+            # `git pull`, an agent's write and an editor in another
+            # terminal appear in the tree, and it retried in complete
+            # silence: a project whose watch could not start looked like a
+            # project where nothing outside the app ever changes, and
+            # nothing anywhere said otherwise.
+            global _WATCHER_COMPLAINED
+            if not _WATCHER_COMPLAINED:
+                _WATCHER_COMPLAINED = True
+                log.warning(
+                    "the file watcher stopped and is retrying every second; "
+                    "changes made outside NextTex may not appear",
+                    exc_info=True,
+                )
             await asyncio.sleep(1.0)
         finally:
             if stop in WATCH_RESTART:
@@ -323,14 +339,14 @@ async def _reap_once() -> None:
                 # `session_for` builds it again on the next request that asks,
                 # so this is giving memory back rather than closing anything
                 # the writer would notice.
-                if SESSIONS.pop(project_id, None) is not None:
+                if SESSIONS.get(project_id) is session:
                     # Closed *before* collecting.  Closing flushes whatever
                     # documents are still pending out to disk, and each of
                     # those writes a version; collecting first took its
                     # picture of what is referenced before those lines
                     # existed.  In a thread because the walk is unbounded
                     # and this is still the event loop.
-                    await session.close()
+                    await _close_session(project_id, session)
                     await asyncio.to_thread(session.history.collect)
                     _restart_watch()
                 continue
@@ -505,14 +521,22 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
 def _same_origin_request(request: Request) -> bool:
-    if request.method in SAFE_METHODS:
-        return True
-
+    # Asked of every method, before the safe-method exemption. A GET is
+    # supposed to be safe, and a page on `http://127.0.0.1:5173` is
+    # same-site with this one, so `SameSite=Lax` lets its cookie travel:
+    # that page could read a project's file list, its transcript, its
+    # papers and its settings, one GET at a time, and the exemption said
+    # yes before anything looked. A browser sends this header on every
+    # request; curl, the installer and the printed link send none, and a
+    # page cannot forge an absence.
     fetch_site = request.headers.get("sec-fetch-site", "")
     if fetch_site:
         # "none" is the address bar or a bookmark, which is a person.
         # "same-site" is the different-port case above, and is refused.
         return fetch_site in ("same-origin", "none")
+
+    if request.method in SAFE_METHODS:
+        return True
 
     origin = request.headers.get("origin", "")
     if not origin:
@@ -657,6 +681,22 @@ async def authenticate(request: Request, call_next):
     supplied = _supplied_token(request)
     kind = _authorise(supplied)
     if not kind:
+        # The same limiter the password route has. A token is 32 bytes of
+        # `secrets` and is not guessable in any useful sense, so this is
+        # not the wall that stops an attack; it is what stops the port
+        # being a free unlimited oracle, and it costs a legitimate writer
+        # nothing, because a cookie that has gone stale is not counted.
+        #
+        # Only a *supplied* credential that matched nothing. An ordinary
+        # first visit sends none, and every password set clears the session
+        # list, so counting a stale cookie would lock out the writer who
+        # had just changed their own password.
+        if supplied and not request.cookies.get(COOKIE):
+            address = _client_address(request)
+            auth.note_failure(address)
+            delay = auth.failure_delay(address)
+            if delay:
+                await asyncio.sleep(delay)
         if request.url.path.startswith("/api/"):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         return HTMLResponse(_sign_in_page(), status_code=401)
@@ -680,6 +720,24 @@ async def authenticate(request: Request, call_next):
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     return _secure(await call_next(request))
+
+
+@app.exception_handler(RequestValidationError)
+async def malformed(request: Request, exc: RequestValidationError) -> Response:
+    """A body FastAPI would not accept, in the shape the browser reads.
+
+    The default answer is a list of objects under `detail`, each with a
+    `loc`, a `msg` and a `type`. `api.ts` has one error path and it reads
+    `error`, so what reached the writer was the string "[object Object]"
+    or the bare status line, for what is nearly always a missing field.
+
+    The first error is the useful one, said as a sentence.
+    """
+    first = (exc.errors() or [{}])[0]
+    where = [part for part in (first.get("loc") or []) if isinstance(part, str)]
+    field = where[-1] if where else "the request"
+    said = first.get("msg") or "is not acceptable"
+    return _secure(JSONResponse({"error": f"{field}: {said}"}, status_code=422))
 
 
 @app.exception_handler(Exception)
@@ -1005,6 +1063,29 @@ class PendingJoin:
             shutil.rmtree(self.target, ignore_errors=True)
 
 
+#: Whether the watcher's failure has already been logged. It retries every
+#: second, and a fault that persists would otherwise write a stack trace a
+#: second for as long as the server runs.
+_WATCHER_COMPLAINED = False
+
+#: Projects whose session is being closed right now. `session_for` refuses
+#: while an id is in here rather than building a second session beside the
+#: one going away: `close()` awaits, so between popping a session and
+#: finishing with it there was a window in which any request built a fresh
+#: one over the same project, and the two then flushed the same documents
+#: to the same files from two sets of state.
+CLOSING: set[str] = set()
+
+
+async def _close_session(project_id: str, session) -> None:
+    """Take a session down with nothing able to replace it halfway."""
+    CLOSING.add(project_id)
+    try:
+        await session.close()
+    finally:
+        SESSIONS.pop(project_id, None)
+        CLOSING.discard(project_id)
+
 #: Joins waiting for somebody to look at them. Bounded by the reaper below,
 #: because each one holds a peer connection and a set of documents open.
 PENDING_JOINS: dict[str, PendingJoin] = {}
@@ -1283,7 +1364,13 @@ async def set_password(
             return JSONResponse(
                 {"error": "That is not the current password."}, status_code=403)
 
-    SETTINGS.password_hash, SETTINGS.password_salt = auth.hash_password(password)
+    # Off the loop. The verification a few lines above is already threaded,
+    # for exactly this reason, and the hashing that sets a new password is
+    # the same deliberately expensive work with nobody's keystrokes waiting
+    # behind it any less.
+    SETTINGS.password_hash, SETTINGS.password_salt = await asyncio.to_thread(
+        auth.hash_password, password
+    )
     SETTINGS.sessions = []
     if display_name is not None:
         SETTINGS.display_name = display_name.strip()[:60]
@@ -1372,6 +1459,15 @@ def session_for(project_id: str) -> ProjectSession:
     Construction is synchronous, so two requests arriving together cannot
     build two sessions for one project.
     """
+    if project_id in CLOSING:
+        # Asked before the lookup, because the session is still in the
+        # dictionary while it is closing: handing it out would give work to
+        # a session whose documents are being flushed and whose watcher is
+        # going away, and popping it first instead would let the next
+        # request build a second one beside it, so that one project had two
+        # sets of documents flushing to the same files. A moment is all
+        # this ever is.
+        raise HTTPException(503, "That project is closing; try again in a moment.")
     session = SESSIONS.get(project_id)
     if session is not None:
         session.touched = time.monotonic()
@@ -1520,10 +1616,10 @@ async def create_project(
 @app.delete("/api/projects/{project_id}")
 async def forget_project(project_id: str):
     """Take a project out of the list. The files are not touched."""
-    session = SESSIONS.pop(project_id, None)
+    session = SESSIONS.get(project_id)
     project = session.project if session else REGISTRY.find(project_id)
     if session:
-        await session.close()
+        await _close_session(project_id, session)
         _restart_watch()
     # A project whose folder has been moved or deleted cannot be opened, so
     # there is no `Project` to ask for its root -- and that is precisely the
@@ -1569,9 +1665,9 @@ async def relocate_project(project_id: str, path: str = Body(..., embed=True)):
     if other is not None and other.resolve() != old_root.resolve():
         raise HTTPException(409, f"another project is already at {root}")
 
-    session = SESSIONS.pop(project_id, None)
+    session = SESSIONS.get(project_id)
     if session:
-        await session.close()
+        await _close_session(project_id, session)
 
     try:
         project = REGISTRY.relocate(old_root, root)
@@ -1709,27 +1805,48 @@ async def write_file(
     """
     session = session_for(project_id)
     target = _safe(session, path)
+    # The same ceiling the read has, at the same place in the request.
+    # There was none at all: `text: str` with no length, written, hashed,
+    # compressed into a version and scanned three times, all on the loop.
+    # A 40 MB body measured at 1.61 seconds during which nothing else on
+    # this install was answered, against a 9 to 11 millisecond baseline,
+    # and the file it wrote could not then be opened by the editor.
+    size = len(text.encode("utf-8"))
+    if size > MAX_TEXT_BYTES:
+        raise HTTPException(
+            413,
+            f"That is {_size(size)}, and the editor opens files up to "
+            f"{_size(MAX_TEXT_BYTES)}, so it was not written.",
+        )
     if not target.exists() and not create:
         # A save must not bring a file back.  Renaming or deleting one that
         # was open left the tab pointing at the old name, and this route's
         # mkdir-and-write then recreated it -- so the writer went on editing
         # an orphan nothing includes.
         raise HTTPException(404, "no such file")
-    previous = read_text(target)
+    previous = await asyncio.to_thread(read_text, target)
     created = previous is None
     try:
-        write_atomically(target, text)
+        # Off the loop: two fsyncs, a sha256 and a zlib compression, none
+        # of which is anybody's keystroke. The constraint recorded in
+        # `docs/architecture.md` is about pycrdt documents and the thread
+        # that built them, and none of these three touches one; `_ingest`
+        # does, and stays where it is.
+        await asyncio.to_thread(write_atomically, target, text)
     except NotAFile as error:
         raise HTTPException(400, str(error))
     except OSError as error:
         raise HTTPException(500, f"could not save: {error}")
     session.mark_written(target)
-    session.record_version(target, text, by="you", previous=previous, source=origin)
+    await asyncio.to_thread(
+        session.record_version, target, text,
+        by="you", previous=previous, source=origin,
+    )
     # And into the shared document, so anybody with this file open sees it
     # arrive rather than finding out at their next reload.
     _ingest(session, target, text)
 
-    session.note_edit(target, text, previous)
+    await asyncio.to_thread(session.note_edit, target, text, previous)
     if compile:
         session.schedule_compile()
     tag = _tag(text)
@@ -1907,7 +2024,9 @@ async def purge_trash(project_id: str, entry_id: str):
     session = session_for(project_id)
     if session.trash.find(entry_id) is None:
         raise HTTPException(404, "no such trash entry")
-    if not session.trash.purge(entry_id):
+    # Off the loop: an `rmtree` over a deleted chapter's figures, then a
+    # walk of the version ledger. Neither is anybody's keystroke.
+    if not await asyncio.to_thread(session.trash.purge, entry_id):
         # The payload would not come off the disk. The entry stays where it
         # is, because it is the only way back to those files, and saying so
         # is the difference between "delete for good" being a promise and
@@ -1917,7 +2036,7 @@ async def purge_trash(project_id: str, entry_id: str):
             "That could not be deleted for good, so it has been left in the "
             "trash. Something else may have the file open.",
         )
-    session.history.collect()
+    await asyncio.to_thread(session.history.collect)
     await session.events.publish({"type": "trash_changed"})
     return {"ok": True}
 
@@ -1925,8 +2044,8 @@ async def purge_trash(project_id: str, entry_id: str):
 @app.delete("/api/projects/{project_id}/trash")
 async def empty_trash(project_id: str):
     session = session_for(project_id)
-    removed, kept = session.trash.empty()
-    session.history.collect()
+    removed, kept = await asyncio.to_thread(session.trash.empty)
+    await asyncio.to_thread(session.history.collect)
     await session.events.publish({"type": "trash_changed"})
     return {"ok": True, "removed": removed, "kept": kept}
 
@@ -2576,8 +2695,15 @@ async def add_context(
                 f"{_size(MAX_UPLOAD_BYTES)}.",
             )
         data = await item.read()
-        document = session.context.add(
-            kind, Path(item.filename or "upload").name, data, note
+        # `context.add` runs pdftotext and then pdfinfo, as subprocesses,
+        # inline. Measured at 1.00 second of blocked loop for one ordinary
+        # paper, against a 9 to 11 millisecond baseline, and it is on the
+        # path of something nobody can see, which is why it was never
+        # reported. It is the outlier in a file where everything
+        # comparable is already threaded.
+        document = await asyncio.to_thread(
+            session.context.add,
+            kind, Path(item.filename or "upload").name, data, note,
         )
         added.append(document.as_dict())
     await session.events.publish({"type": "context_changed"})
@@ -3396,6 +3522,16 @@ async def agent_attachment(project_id: str, file: UploadFile = File(...)):
             "That is not an image the agent can look at. PNG, JPEG, WebP "
             "and GIF are the ones it can.",
         )
+    # Asked before the read where the header offers an answer. Reading a
+    # file into memory and then measuring it is the wrong order for the one
+    # case the limit exists for.
+    declared = getattr(file, "size", None)
+    if declared is not None and declared > attachments.LIMIT:
+        raise HTTPException(
+            413,
+            f"That image is {declared // (1024 * 1024)} MB, and the agent "
+            f"takes up to {attachments.LIMIT // (1024 * 1024)}.",
+        )
     data = await file.read()
     if not data:
         raise HTTPException(400, "That file is empty.")
@@ -3465,7 +3601,15 @@ async def agent_reset(project_id: str):
         await session.agent.reset()
     except RuntimeError as exc:
         raise HTTPException(409, str(exc))
-    archived = session.transcript.archive()
+    try:
+        archived = session.transcript.archive()
+    except TranscriptError as failure:
+        # The conversation is still there, so saying it was cleared would
+        # be a lie the panel then acts on: it empties itself and the next
+        # thing said is appended to the end of the old record.
+        raise HTTPException(
+            409, f"The conversation could not be filed away: {failure}"
+        )
     # Every tab, so a second one is not left holding a conversation the
     # server has filed away and can no longer answer for.
     await session.events.publish({"type": "conversation_reset"})
@@ -4088,6 +4232,14 @@ if FRONTEND.is_dir():
 
     @app.get("/{path:path}")
     async def spa(path: str):
+        # Not for the API. This is registered last and catches everything
+        # no route claimed, which is right for a single-page app and wrong
+        # for `/api/anything`: a typo in a path, or a route removed while a
+        # tab was open, answered 200 with the whole interface as its body,
+        # and the browser's error path read that as a successful response
+        # and tried to parse a page of HTML as JSON.
+        if path.startswith("api/"):
+            raise HTTPException(404, "no such route")
         index = FRONTEND / "index.html"
         if not index.exists():
             return HTMLResponse("<h1>NextTex</h1><p>The frontend is not built.</p>")

@@ -4489,3 +4489,67 @@ first shared: 3 kB for a file that arrived at 957 bytes. It is measured from
 the body that actually arrived. It is still the sender's line endings, which
 is a real difference on Windows and is said on the card rather than fixed,
 because the joiner's own newlines are the right thing to write.
+
+### Everything the writer never sees is unbounded, and the loop pays for it
+
+NextTex is one process with one event loop. Every autosave, every event stream
+and every collaborator's socket goes through it, so anything synchronous in a
+route is not slow for the person who asked: it is slow for everybody who
+happens to be writing at the time. That is why none of these was ever
+reported. They are all on the path of something nobody can see.
+
+**The write route had no ceiling at all.** `text: str`, written atomically
+with two fsyncs, hashed, compressed into a version and scanned three times,
+every step on the loop. Forty megabytes measured at 1.61 seconds during which
+nothing else on the install was answered, against a nine to eleven millisecond
+baseline, and the file it produced could not then be opened, because the read
+route refuses anything over ten megabytes. The same ceiling now applies at
+both ends, and the write, the version and the edit note are threaded.
+`_ingest` is not, because it folds into a pycrdt document.
+
+**Uploading a paper ran two subprocesses inline.** One second of held loop for
+one ordinary PDF, in a file where everything comparable was already threaded.
+
+**Emptying the trash was an unbounded `rmtree` and a ledger walk on the loop.**
+
+**And three things could be asked for from outside.** A frame header was
+allowed to be sixty-four megabytes of JSON parsed on the loop before anything
+had looked at what kind of frame it was; the transport's read had no timeout,
+so a peer that declares a length and never sends the bytes held its buffer for
+ever; and hashing a new password held the loop for the fifteen milliseconds
+that hashing is deliberately expensive for.
+
+Two are in the backlog rather than fixed, both with their measurement. Building
+a session walks the project on the loop, and the fix is forbidden: a session
+builds its pycrdt documents and those belong to the thread that built them. A
+collaborator's settled edit records its version from inside the flush, and the
+whole path benches at 3.39 ms against a 120 ms budget.
+
+### What a request that goes wrong is told
+
+Three answers a browser could not read.
+
+A GET was exempt from the origin check before anything looked at the headers,
+and `SameSite=Lax` does not separate ports, so a page on another port of
+localhost is same-site with this one and its cookie travels: that page could
+read a project's file list, its transcript, its papers and its settings, one
+request at a time. `Sec-Fetch-Site` is read for every method now. A request
+that sends no such header is still allowed, because that is curl, the
+installer and the printed link, and a page cannot forge an absence.
+
+The single-page catch-all is registered last and claimed everything no route
+wanted, which is right for the app and wrong for the API: a typo in a path
+answered 200 with the whole interface as its body, and the browser's error
+path read that as success and tried to parse a page of HTML.
+
+And a body FastAPI would not accept came back as a list of objects under
+`detail`, which the one error path in `api.ts` renders as "[object Object]"
+for what is nearly always a missing field.
+
+Two more that are about telling the truth rather than about shape. Filing a
+conversation away cleared the in-memory record before the rename that might
+fail, so a rename that failed emptied the panel, reported success, and
+appended the next thing said to the end of the old file. And the file watcher
+retried in complete silence for the life of the process, so a project whose
+watch could not start looked exactly like a project where nothing outside the
+app ever changes.

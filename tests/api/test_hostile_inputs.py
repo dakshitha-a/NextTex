@@ -183,3 +183,27 @@ def test_asking_twice_while_a_turn_is_running_is_refused_not_queued(client, open
     assert client.post(f"/api/projects/{opened['id']}/agent/ask",
                        json={"prompt": "two"}).status_code == 409
     client.post(f"/api/projects/{opened['id']}/agent/interrupt")
+
+
+def test_an_unknown_api_route_is_a_404_and_not_the_whole_interface(client):
+    """The single-page catch-all is registered last and claims everything
+    no route wanted, which is right for the app and wrong for the API: a
+    typo in a path, or a route removed while a tab was open, answered 200
+    with the interface as its body, and the browser's error path read that
+    as success and tried to parse a page of HTML as JSON."""
+    answer = client.get("/api/projects/nosuch/open")
+
+    assert answer.status_code == 404
+    assert "text/html" not in answer.headers.get("content-type", "")
+
+
+def test_a_body_that_will_not_parse_says_which_field(client):
+    """FastAPI's default is a list of objects under `detail`. `api.ts` has
+    one error path and it reads `error`, so the writer was shown
+    "[object Object]" for what is nearly always a missing field."""
+    answer = client.post("/api/projects", json={})
+
+    assert answer.status_code == 422
+    body = answer.json()
+    assert isinstance(body.get("error"), str), body
+    assert "path" in body["error"]

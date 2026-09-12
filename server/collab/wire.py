@@ -25,6 +25,15 @@ from dataclasses import dataclass, field
 
 MAX_FRAME = 64 * 1024 * 1024
 
+#: And a much smaller one for the *header*, which is JSON and is parsed on
+#: the event loop before anything has looked at what kind of frame this is.
+#: Every header this protocol sends is a handful of short fields: a share
+#: id, a document id, a name, a content address. The largest legitimate one
+#: is a WELCOME carrying the member list, which is a few hundred bytes per
+#: member. Sixty-four megabytes of it was one `json.loads` that stops the
+#: whole install for seconds, from any member, at any time.
+MAX_HEADER = 256 * 1024
+
 # What a frame can be.
 HELLO = 1            # who I am, and the invite I was given if I have one
 WELCOME = 2          # you are a member; here is what I know
@@ -62,7 +71,9 @@ class Frame:
         kind, head_len, body_len = struct.unpack_from(">BII", raw, 0)
         if head_len + body_len + 9 != len(raw):
             raise ValueError("frame length does not match its header")
-        if head_len > MAX_FRAME or body_len > MAX_FRAME:
+        if head_len > MAX_HEADER:
+            raise ValueError("frame header too large")
+        if body_len > MAX_FRAME:
             raise ValueError("frame too large")
         head = json.loads(raw[9:9 + head_len].decode("utf-8"))
         if not isinstance(head, dict):

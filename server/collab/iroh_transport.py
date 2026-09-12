@@ -41,6 +41,11 @@ ALPN = b"nexttex/sync/1"
 LENGTH = 4
 MAX_MESSAGE = 64 * 1024 * 1024
 
+#: How long a stream may say nothing at all before it is treated as gone.
+#: The QUIC connection under this has its own keepalives, so silence for a
+#: whole minute is not a slow network.
+READ_TIMEOUT = 60.0
+
 
 class IrohStream:
     """One bidirectional stream to one authenticated peer."""
@@ -69,8 +74,16 @@ class IrohStream:
     async def _messages(self) -> AsyncIterator[bytes]:
         while not self._closed:
             try:
-                chunk = await self._recv.read(64 * 1024)
-            except Exception:
+                chunk = await asyncio.wait_for(
+                    self._recv.read(64 * 1024), timeout=READ_TIMEOUT
+                )
+            except (Exception, asyncio.TimeoutError):
+                # A peer that declares a length and never sends the bytes
+                # held its buffer open for ever, because there was no
+                # timeout anywhere in this loop and nothing else would
+                # close the stream. A minute of complete silence from a
+                # peer that is supposed to be syncing is a dead
+                # connection; a live one has keepalives under it.
                 return
             if not chunk:
                 return

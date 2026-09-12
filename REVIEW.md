@@ -657,7 +657,10 @@ rename was erased, its payload left on disk under an id nothing knew about."
 
 Expected: the fix already applied to `purge`, applied here.
 
-### R-015 · Files rail · performance · medium · confirmed
+### ~~R-015 · Files rail · performance · medium · confirmed~~
+
+**Fixed.** The trash purge, the empty and the history collect that follows each are
+off the loop.
 
 Found by: reading. Where: `server/main.py:1840` and `:1851`.
 
@@ -1434,7 +1437,13 @@ path costs, has to measure paint as well, and that is a different driver.
 
 ### The server
 
-### R-030 · Server · security · medium · confirmed
+### ~~R-030 · Server · security · medium · confirmed~~
+
+**Fixed.** `Sec-Fetch-Site` is read for every method, before the safe-method
+exemption. A request with no such header is still allowed, because that is curl, the
+installer and the printed link, and a page cannot forge an absence. The test whose
+docstring claimed a GET cannot be made unsafe is rewritten with what is actually
+true.
 
 Found by: reading, then probed against a running server. Where:
 `server/main.py:508`.
@@ -1473,7 +1482,11 @@ Expected: the same `Sec-Fetch-Site` test on safe methods as on unsafe ones.
 installer and the test client are all unaffected, and only the neighbouring
 port is refused.
 
-### R-031 · Server · performance · high · confirmed
+### ~~R-031 · Server · performance · high · confirmed~~
+
+**Fixed.** The write path has the same ceiling the read has, and the atomic write,
+the version and the edit note are off the loop. `_ingest` stays, because it folds
+into a pycrdt document. Held by `tests/api/test_off_the_loop.py`.
 
 Found by: reading, then measured against a running server on the
 thesis-shaped bench project.
@@ -1509,7 +1522,10 @@ forty chapters is forty synchronous reads; and `_bib_for` at `:3036` runs
 `rglob("*.bib")` over the whole project including `.git` and the build tree,
 where `walk_project` at `:2729` already has the pruning fix and says why.
 
-### R-032 · Server · bug · medium · confirmed
+### ~~R-032 · Server · bug · medium · confirmed~~
+
+**Fixed.** The single-page catch-all refuses anything under `/api/` rather than
+answering 200 with the interface.
 
 Found by: probing a running server. Where: `server/main.py:4001`, the SPA
 catch-all, with `frontend/src/api.ts:309`.
@@ -1534,7 +1550,10 @@ one commit calling a route that has since moved gets a success it cannot read.
 Expected: a request whose path starts `/api/` is a 404 in the shape the single
 error path reads, never the index page.
 
-### R-033 · Server · bug · medium · confirmed
+### ~~R-033 · Server · bug · medium · confirmed~~
+
+**Fixed.** A validation failure answers in the shape `api.ts` reads, naming the
+field and what is wrong with it.
 
 Found by: probing a running server, then checking the client. Where: no
 `RequestValidationError` handler exists anywhere in `server/`, with
@@ -1556,7 +1575,11 @@ Reachable from every route that takes a `Body(...)`, which is most of the
 writing routes. The app's whole error story is one path with one shape, and
 this is the one answer that does not fit it.
 
-### R-034 · Server · bug · medium · confirmed
+### ~~R-034 · Server · bug · medium · confirmed~~
+
+**Fixed.** The archive renames first and clears the in-memory record only once that
+worked, raising `TranscriptError` when it did not, so the route can tell "nothing to
+file away" from "it would not go" and refuses the reset for the second.
 
 Found by: reading. Where: `server/transcript.py:107` with
 `server/main.py:3395`.
@@ -1577,7 +1600,10 @@ reason it matters more than an ordinary swallowed error.
 audit trail can also simply stop recording, in silence, while the panel goes
 on showing the live conversation.
 
-### R-035 · Server · bug · medium · confirmed
+### ~~R-035 · Server · bug · medium · confirmed~~
+
+**Fixed.** The watcher says once that it has stopped and is retrying, rather than
+retrying in silence for the life of the process.
 
 Found by: reading. Where: `server/main.py:266`.
 
@@ -1591,7 +1617,10 @@ exists to prevent: an external edit, a `git pull` or a checkout no longer
 reaches the open tab, so the tab saves over a change it never saw. The reaper
 twenty lines below logs its exceptions, so the house answer was available.
 
-### R-036 · Server · bug · medium · confirmed
+### ~~R-036 · Server · bug · medium · confirmed~~
+
+**Fixed with R-031**: the ceiling is checked on the write as well as on the read, so
+a file the editor cannot open cannot be put into the project.
 
 Found by: reading, then probed. Where: `server/main.py:1582`, `:1601`.
 
@@ -1608,7 +1637,11 @@ So the app will write, through its own route, a file it will then refuse to
 open, for ever. The refusal is at least honest about why. The same missing cap
 is what makes R-031 reachable at 40 MB.
 
-### R-037 · Server · bug · medium · confirmed
+### ~~R-037 · Server · bug · medium · confirmed~~
+
+**Fixed.** `_close_session` holds the id in `CLOSING` while it awaits, and
+`session_for` asks about that before it looks anything up, so a request arriving
+mid-close is told 503 rather than being given a second session over the same files.
 
 Found by: reading. Where: `server/main.py:326` and `:334`, with `:1460`,
 `:1509`.
@@ -1635,7 +1668,13 @@ project that is no longer registered. `GET /api/projects` then reports it as
 open, and the watcher keeps watching the folder, until the thirty-minute
 eviction.
 
-### R-038 · Server · performance · low · confirmed
+### ~~R-038 · Server · performance · low · confirmed~~ deferred
+
+**Moved to the backlog.** The fix that removes the 17 ms is building the session in
+a thread, and a session builds its pycrdt documents: the constraint in
+`docs/architecture.md` is that those belong to the thread that built them, and trying
+it fails the whole suite. Threading a pre-walked listing through `session_for`
+instead is a change to a function fifty routes call, which 17 ms does not justify.
 
 Found by: reading, then measured. Where: `server/main.py:1300` with
 `server/session.py:302`.
@@ -1652,7 +1691,12 @@ the comment is about, which says most of the fix landed. The second walk is
 still real work done twice, and `_rejoin_shared_projects` at `:157` pays the
 first walk once per shared project, in sequence, at boot.
 
-### R-039 · Server · security · low · confirmed
+### ~~R-039 · Server · security · low · confirmed~~
+
+**Fixed.** Hashing a new password is off the loop, a supplied credential that
+matches nothing is counted against the same limiter the password path uses, and an
+attachment's declared size is checked before it is read. A stale session cookie is
+deliberately not counted: every password set clears the session list.
 
 Found by: reading. Where: `server/main.py:1223`, `:399`, `:3325`.
 
@@ -1821,7 +1865,10 @@ accept leaves a folder full of somebody else's project, unregistered and
 untracked, and the writer's next attempt to join into it is refused with
 "That folder already has something in it".
 
-### R-060 · Context · performance · high · confirmed
+### ~~R-060 · Context · performance · high · confirmed~~
+
+**Fixed.** `context.add`, which runs pdftotext and pdfinfo as subprocesses, is
+threaded like everything comparable in that file.
 
 Found by: reading, then measured against a running server. Where:
 `server/main.py:2505` with `nexttex/context.py:242`.
@@ -1845,7 +1892,12 @@ A journal's author instructions run to a few hundred pages, and the timeout
 permits a hundred and fifty seconds. For the whole of that, every tab, every
 editing socket, every event stream and every peer is stopped.
 
-### R-061 · Collaboration · performance · high · likely
+### ~~R-061 · Collaboration · performance · high · likely~~ deferred
+
+**Moved to the backlog, with the measurement.** The whole path this is about,
+`collab.edit_to_disk_ms`, benches at 3.39 ms against a 120 ms budget, so it is
+thirty-five times inside its own limit. The ordered off-loop queue that would fix it
+properly is more machinery than that number justifies.
 
 Found by: reading. Where: `server/collab/store.py:975` and `:997`, reached
 from the 120 millisecond flush timer.
@@ -1902,7 +1954,13 @@ every file in the manifest as arriving.
 The writer accepts forty files and finds some of them empty, with nothing
 anywhere saying so.
 
-### R-064 · Collaboration · security · medium · likely
+### ~~R-064 · Collaboration · security · medium · likely~~
+
+**Fixed, all three parts.** The blob half landed with pass 1. The frame header has
+its own ceiling now, 256 kB against the payload's 64 MB, because it is parsed on the
+loop before anything has looked at the frame; and the transport's read has a sixty
+second timeout, so a peer that declares a length and never sends the bytes no longer
+holds its buffer open for ever.
 
 Found by: reading. Where: `server/collab/wire.py:67`,
 `server/collab/iroh_transport.py:78`, `server/collab/peers.py:1029`.

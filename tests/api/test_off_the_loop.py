@@ -24,7 +24,7 @@ from server import main as server_main
 HELD = 0.4
 
 
-def race(client, slow_path, body=None, quick="/api/auth"):
+def race(client, slow_path, body=None, quick="/api/auth", method="post"):
     """Fire a slow request, then time a cheap one from outside the loop.
 
     The timing has to be done from the test's own thread, and that is the
@@ -50,7 +50,7 @@ def race(client, slow_path, body=None, quick="/api/auth"):
                 transport=transport, base_url="http://testserver"
             ) as browser:
                 browser.cookies.set(server_main.COOKIE, server_main.SETTINGS.token)
-                answer = await browser.post(slow_path, json=body)
+                answer = await getattr(browser, method)(slow_path, json=body)
                 outcome["slow_status"] = answer.status_code
         finally:
             done.set()
@@ -219,3 +219,46 @@ def test_the_dependency_scan_does_not_read_the_build_directory(tmp_path):
     assert found == []
     assert not any("build" in name for name in opened), opened
     assert not any(".git" in name for name in opened), opened
+
+
+def test_saving_a_file_does_not_stop_everybody_else(client, opened, monkeypatch):
+    """A save writes atomically, hashes for a version, compresses it, and
+    scans the text three times. None of that is anybody's keystroke and all
+    of it was on the loop: a 40 MB body measured at 1.61 seconds during
+    which nothing else on the install was answered."""
+    real = server_main.write_atomically
+
+    def slow_write(target, text, **kwargs):
+        time.sleep(HELD)
+        return real(target, text, **kwargs)
+
+    monkeypatch.setattr(server_main, "write_atomically", slow_write)
+    result = race(
+        client,
+        f"/api/projects/{opened['id']}/file",
+        body={"path": "main.tex", "text": "A line.\n", "compile": False},
+        method="put",
+    )
+
+    assert result["quick_status"] == 200
+    assert result["whole_race"] > HELD
+    assert result["quick_took"] < HELD / 2, (
+        f"the cheap request took {result['quick_took']:.3f}s while a save ran"
+    )
+
+
+def test_a_file_too_big_for_the_editor_is_refused_rather_than_written(client, opened):
+    """There was no ceiling at all on this route, so the writer could put a
+    file into their project that the editor then refused to open."""
+    body = {
+        "path": "huge.tex",
+        "text": "x" * (server_main.MAX_TEXT_BYTES + 1),
+        "compile": False,
+        "create": True,
+    }
+    answer = client.put(f"/api/projects/{opened['id']}/file", json=body)
+
+    assert answer.status_code == 413
+    assert "was not written" in answer.json()["detail"]
+    tree = client.get(f"/api/projects/{opened['id']}/tree").json()
+    assert "huge.tex" not in str(tree)
