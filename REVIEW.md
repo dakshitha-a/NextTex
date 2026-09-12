@@ -1045,7 +1045,10 @@ only on a presence or manifest event, and nothing ticks.
 
 ### Sign-in and the front door
 
-### R-025 · Sign-in · accessibility · medium · confirmed
+### ~~R-025 · Sign-in · accessibility · medium · confirmed~~
+
+**Fixed.** The sign-in page opens `<html lang=en>` and closes it.
+Held by `tests/test_palette_matches_the_stylesheet.py`.
 
 Found by: axe, on the real screen, in both themes. Where: `server/main.py:753`.
 
@@ -1062,7 +1065,10 @@ AXE  sign-in light: html-has-lang (serious) <html> element must have a lang attr
 AXE  sign-in dark:  html-has-lang (serious) <html> element must have a lang attribute
 ```
 
-### R-026 · Sign-in · accessibility · medium · confirmed
+### ~~R-026 · Sign-in · accessibility · medium · confirmed~~
+
+**Fixed.** The page carries `--ink-2` and the recovery command uses it, since `.nx-on-surround` cannot reach a page that cannot import the stylesheet.
+Held by `tests/test_palette_matches_the_stylesheet.py`, which also asserts every colour it copies against `styles.css`.
 
 Found by: axe, on the real screen. Where: `server/main.py:788`, the `pre` and
 `code` rules.
