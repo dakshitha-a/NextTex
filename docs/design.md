@@ -514,6 +514,11 @@ blinks at 1.06 s when generation pauses. Code blocks inside messages: `code-sm`,
 `--surface-2`, 3 px radius, 8 px padding, no border, copy affordance on hover only. 20 px
 between messages, no dividers.
 
+> Revised. The copy affordance was specified here and never built; a code block was a
+> bare `<pre>` until the comfort pass. It is a ghost button in the block's top right,
+> hidden until hover only where hover exists, so a finger sees it, and it says "Copied"
+> for a moment or "Could not copy" when the browser refuses.
+
 ### Edit chip
 
 Sits inline in the stream, directly after the sentence that produced it. 24 px tall, 3 px
@@ -5433,4 +5438,32 @@ while one is on screen, draws the patch between the two, older on the left
 whichever was clicked, so a patch always reads forwards in time. The shading
 stays: reading a change in place and reading a diff are different acts, and
 the banner now offers both.
+
+### The last fifty conversations were kept, and none of them could be reached
+
+"New conversation" has always filed the old one away under a timestamp rather
+than deleting it, because the transcript is the record of what an assistant
+did to somebody's dissertation. The server kept the last fifty, returned each
+one's name, and the browser threw the name away; no route listed them, so a
+past conversation was reachable only by finding the file on disk.
+
+A clock beside "New conversation" opens the list, newest first, each titled
+with the first thing the writer asked, because fifty timestamps is not a list
+anybody can choose from. Opening one draws it in the panel, read-only, and
+Back returns to the live conversation exactly as it was: the store's own
+conversation is never touched.
+
+Read-only is drawn with its own renderers, and that is the whole design
+decision. An edit chip in the live panel has an Undo that writes to a file,
+and a permission card has Allow and Deny that answer an id the agent is
+waiting on. A conversation from last week has neither an agent waiting nor a
+file in the state it was in, so every control on it would be a promise the
+app cannot keep. What is shown is what was said and what was done: the prose,
+a line per tool call, a line per edit with its counts, a line per card with
+how it was answered.
+
+A very long past conversation shows its end, through the same tail the live
+transcript is read through. That is a limit, and it is written here rather
+than fixed, because the case is a conversation longer than four megabytes of
+record and the fix is a paging route nobody has needed.
 

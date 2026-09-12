@@ -770,3 +770,55 @@ test("the permission menu marks its position the way the model menu does", async
   expect(await filled("project")).toBe(chosen);
   expect(await filled("ask")).toBe("rgba(0, 0, 0, 0)");
 });
+
+test("a code block in an answer can be copied", async ({ tab, context }) => {
+  // R-090. A code block was a bare <pre>: what an agent writes in one is
+  // usually meant to be taken somewhere, and selecting it by hand was the
+  // only way.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await ask(tab, "code", "What package do I need?");
+  await expect(tab.getByText(/usepackage\{siunitx\}/)).toBeVisible({
+    timeout: 20_000,
+  });
+  const copy = tab.getByTestId("code-copy").first();
+  await tab.locator("pre", { hasText: "siunitx" }).hover();
+  await copy.click();
+  await expect(copy).toHaveText("Copied");
+  const pasted = await tab.evaluate(() => navigator.clipboard.readText());
+  expect(pasted).toContain("\\usepackage{siunitx}");
+});
+
+test("a conversation that was filed away can be read, and not acted on", async ({
+  tab,
+}) => {
+  // R-090. "New conversation" filed the old one away under a timestamp and
+  // nothing listed them, so a past conversation was reachable only by
+  // finding the file on disk.
+  await ask(tab, "reply", "What does a label do?");
+  await expect(tab.getByText(/A label attaches a name/)).toBeVisible({
+    timeout: 20_000,
+  });
+  await tab.getByTestId("clear-chat").click();
+  await tab.getByTestId("clear-confirm").click();
+  await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
+
+  await tab.getByTestId("past-open").click();
+  const entry = tab.getByTestId("past-conversation").first();
+  await expect(entry).toBeVisible({ timeout: 10_000 });
+  // Titled by the question, because fifty timestamps is not a list.
+  await expect(entry).toContainText("What does a label do?");
+  await entry.click();
+  const items = tab.getByTestId("past-items");
+  await expect(items).toContainText("What does a label do?");
+  await expect(items).toContainText(/A label attaches a name/);
+  // A record, not a control: nothing in a past conversation can undo an
+  // edit or answer a card the agent is no longer waiting on.
+  await expect(items.getByRole("button", { name: /undo|allow|deny/i })).toHaveCount(0);
+
+  // Back, twice, and the live conversation is where it was: empty.
+  await tab.getByTestId("past-back").click();
+  await tab.getByTestId("past-back").click();
+  await expect(tab.getByTestId("past-conversations")).toHaveCount(0);
+  await expect(tab.getByRole("button", { name: /voice/i }).first()).toBeVisible();
+  await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
+});

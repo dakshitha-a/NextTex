@@ -1,0 +1,3 @@
+[
+  {"kind": "text", "text": "Put this in the preamble:\n\n```latex\n\\usepackage{siunitx}\n```\n\nThen build again.", "pieces": 3}
+]

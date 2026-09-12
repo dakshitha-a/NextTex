@@ -128,6 +128,16 @@ export type TreeNode = {
 /** What a word count is counting. */
 export type WordScope = "file" | "document" | "selection" | "section";
 
+/** A conversation filed away by "New conversation". */
+export type Archive = {
+  name: string;
+  /** The first thing the writer asked, so the list can be read. */
+  title: string;
+  size: number;
+  /** When it was filed, as text. */
+  stamp: string;
+};
+
 /** One match. The line and the column are 1-based, because they are what
  *  the editor is told to jump to and what a LaTeX error names. */
 export type SearchHit = {
@@ -641,6 +651,14 @@ const api = {
         case: Boolean(options.case),
         paths: options.paths ?? null,
       }),
+    ),
+  /** The conversations "New conversation" filed away, newest first. */
+  archives: (id: string) =>
+    request<{ archives: Archive[] }>(`/projects/${id}/agent/archives`),
+  /** One of them, as transcript rows, read-only. */
+  archive: (id: string, name: string) =>
+    request<{ name: string; items: any[] }>(
+      `/projects/${id}/agent/archives/${encodeURIComponent(name)}`,
     ),
   /** The engine's own log for one document. `build/` is out of the file
    *  tree, so this is the only way the drawer can show it. */

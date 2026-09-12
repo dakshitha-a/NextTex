@@ -2933,7 +2933,11 @@ diff with per-line colour. This is not a git client creeping in: branching and
 merging stay in the terminal, and seeing what changed is a promise the README
 has already made.
 
-### R-090 · Agent · comfort · medium · confirmed
+### ~~R-090 · Agent · comfort · medium · confirmed~~
+
+**Built.** A Copy button on every code block, and a clock beside "New conversation" that lists the filed-away conversations by the question that started them and opens one read-only, with its own renderers so nothing in it can undo an edit or answer a card. Two routes, `GET /agent/archives` and `GET /agent/archives/{name}`, the name checked against the shape `archive()` writes.
+Held by `tests/api/test_agent_routes.py` and `e2e/specs/agent.spec.ts`.
+
 
 Where: `frontend/src/panes/prose.tsx:167`, `server/main.py:3399` and
 `frontend/src/panes/Chat.tsx:756`.

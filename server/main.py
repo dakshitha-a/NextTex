@@ -3936,6 +3936,27 @@ async def agent_ask(
     return {"ok": True, "attached": paths}
 
 
+@app.get("/api/projects/{project_id}/agent/archives")
+async def agent_archives(project_id: str):
+    """The conversations filed away by "New conversation", newest first."""
+    session = session_for(project_id)
+    return {"archives": await asyncio.to_thread(session.transcript.archives)}
+
+
+@app.get("/api/projects/{project_id}/agent/archives/{name}")
+async def agent_archive(project_id: str, name: str):
+    """One past conversation, read-only.
+
+    The name is checked against the shape `archive()` writes before
+    anything is opened, so this cannot be pointed at another file.
+    """
+    session = session_for(project_id)
+    items = await asyncio.to_thread(session.transcript.archived, name)
+    if items is None:
+        raise HTTPException(404, "no such conversation")
+    return {"name": name, "items": items}
+
+
 @app.post("/api/projects/{project_id}/agent/reset")
 async def agent_reset(project_id: str):
     """Put this conversation away and start an empty one.

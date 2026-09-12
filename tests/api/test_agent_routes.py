@@ -291,3 +291,40 @@ def test_a_turn_that_vanishes_mid_answer_still_ends(client, opened):
     assert again.status_code == 200, again.text
     wait_idle(project_id)
     assert not client.get(f"/api/projects/{project_id}/agent/usage").json()["busy"]
+
+
+# -- past conversations ------------------------------------------------------
+def test_a_filed_conversation_can_be_listed_and_read_back(client, opened):
+    # "New conversation" filed the old one under a timestamp, the server
+    # returned the name, the browser threw it away, and no route listed
+    # them: a past conversation was reachable only by finding the file.
+    pid = opened["id"]
+    client.post(f"/api/projects/{pid}/agent/ask",
+                json={"prompt": "what did the first draft say"})
+    wait_idle(pid)
+    reset = client.post(f"/api/projects/{pid}/agent/reset")
+    assert reset.status_code == 200, reset.text
+    name = reset.json()["archived"]
+    assert name
+
+    listed = client.get(f"/api/projects/{pid}/agent/archives")
+    assert listed.status_code == 200, listed.text
+    archives = listed.json()["archives"]
+    assert [entry["name"] for entry in archives] == [name]
+    # A title, because fifty timestamps is not a list anybody can pick from.
+    assert archives[0]["title"] == "what did the first draft say"
+    assert archives[0]["stamp"]
+
+    read = client.get(f"/api/projects/{pid}/agent/archives/{name}")
+    assert read.status_code == 200, read.text
+    kinds = [item["kind"] for item in read.json()["items"]]
+    assert "user" in kinds and "claude" in kinds
+
+
+def test_only_an_archive_can_be_read_through_the_archive_route(client, opened):
+    pid = opened["id"]
+    # A name that is not the shape an archive has, whether or not a file
+    # by that name exists, and a well-formed name with nothing behind it.
+    for name in ("transcript.jsonl", "..%2F..%2Fmain.tex", "transcript-20260101-000000.jsonl"):
+        answer = client.get(f"/api/projects/{pid}/agent/archives/{name}")
+        assert answer.status_code == 404, (name, answer.text)
