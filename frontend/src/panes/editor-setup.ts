@@ -42,7 +42,8 @@ import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import type { Diagnostic, Symbols } from "../api";
 import { latexCompletions } from "./latex-complete";
-import { environmentToClose, indentOf } from "./close-environment";
+import { environmentToClose, indentOf, opensEnvironment } from "./close-environment";
+import { isEscaped } from "./escaping";
 import { mathHover } from "./math-hover";
 import {
   braceAfter,
@@ -407,6 +408,10 @@ function closeEnvironment(view: EditorView): boolean {
   // split `\begin{figure}` away from something after it is a different
   // gesture and must stay what it was.
   if (at !== line.to) return false;
+  // The line before the document, because `state.doc.toString()` is the
+  // whole buffer and this runs on every press of Enter, almost all of
+  // which are on lines that open nothing.
+  if (!opensEnvironment(line.text)) return false;
   const name = environmentToClose(line.text, state.doc.toString());
   if (!name) return false;
   const pad = indentOf(line.text);
@@ -435,6 +440,23 @@ function base(symbols: () => Symbols | null): Extension[] {
     highlightSelectionMatches(),
     rectangularSelection(),
     bracketMatching(),
+    // Ahead of `closeBrackets`, which is the extension it overrules: a
+    // dollar with a backslash in front of it is a currency sign and must
+    // not be given a closer.  `closeBrackets` decides by what follows the
+    // caret and there is nothing after a price at the end of a sentence,
+    // so `\$100 in all.` came out with a stray `$` on the end of it.
+    EditorView.inputHandler.of((view, from, to, text) => {
+      if (text !== "$" || from !== to) return false;
+      const line = view.state.doc.lineAt(from);
+      if (!isEscaped(line.text, from - line.from)) return false;
+      view.dispatch({
+        changes: { from, insert: "$" },
+        selection: { anchor: from + 1 },
+        scrollIntoView: true,
+        userEvent: "input.type",
+      });
+      return true;
+    }),
     closeBrackets(),
     // The keymap alone was bound, which meant Ctrl-F installed the search
     // extension and opened nothing: the panel field is added by the same
