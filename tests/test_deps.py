@@ -195,14 +195,17 @@ ESCAPED_PERCENT = [
     # A real comment still hides what follows it.
     (r"% \input{chapters/one}", False),
     (r"text before % \input{x}", False),
+    # And a comment after the command hides nothing before it.
+    (r"\input{chapters/one} % the first chapter", True),
 ]
 
 
 @pytest.mark.parametrize("line,reachable", ESCAPED_PERCENT)
 def test_a_printed_percent_does_not_hide_the_rest_of_the_line(line, reachable):
-    from nexttex.deps import BARE_INPUT, SCAN
-
-    found = bool(SCAN.search(line) or BARE_INPUT.search(line))
+    # Through `references` rather than the patterns, because the comment
+    # guard is no longer in the patterns: they are plain scanners, and the
+    # prefix of the line is checked per hit.
+    found = bool(references(line))
     assert found is reachable, f"{line!r} was read as {'reachable' if found else 'commented out'}"
 
 
@@ -211,10 +214,23 @@ def test_the_chapter_scan_reads_the_same_lines_the_same_way(line, reachable):
     """`compile.py` had its own copy of the guard, and the two must agree:
     one decides what a build depends on and the other decides which chapter
     a fast build is scoped to."""
-    from nexttex.compile import INCLUDE_RE
-    from nexttex.deps import SCAN
+    from nexttex.compile import included_targets, supports_partial
 
     if "\\include{" not in line:
         return
-    assert bool(INCLUDE_RE.search(line)) is reachable
-    assert bool(SCAN.search(line)) is reachable
+    assert supports_partial(line) is reachable
+    assert bool(included_targets(line)) is reachable
+
+
+def test_two_commands_on_one_line_are_both_found():
+    # The line-anchored guard could match once per line, so the second of
+    # two \include commands on a line was invisible to the dependency scan
+    # and the fast build was scoped to a chapter that was not the one being
+    # edited. The prefix check has no such limit.
+    from nexttex.compile import included_targets
+
+    line = r"\include{one} \include{two}"
+    assert [ref for _, ref in references(line)] == ["one", "two"]
+    assert included_targets(line) == ["one", "two"]
+    # And a comment between them hides only the second.
+    assert included_targets(r"\include{one} % \include{two}") == ["one"]

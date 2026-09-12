@@ -400,16 +400,16 @@ makes typing slower on the day it happens.
 
 | | measured | budget |
 |---|---|---|
-| Chapter build, as an edit triggers | 330 ms | 4 s |
-| Full build with `biber` | 17.7 s | 30 s |
-| Full symbol scan | 17.6 ms | 400 ms |
-| Symbol lookup, cached | 0.85 ms | 6 ms |
-| Opening a project | 94 ms | 400 ms |
-| Recording a version | 2.3 ms | 8 ms |
-| Rebuilding a transcript | 11.5 ms | 120 ms |
-| Project file tree | 2.9 ms | 250 ms |
+| Chapter build, as an edit triggers | 343 ms | 4 s |
+| Full build with `biber` | 17.9 s | 30 s |
+| Full symbol scan | 17.9 ms | 400 ms |
+| Symbol lookup, cached | 0.93 ms | 6 ms |
+| Opening a project | 20 ms | 400 ms |
+| Recording a version | 2.5 ms | 8 ms |
+| Rebuilding a transcript | 13.5 ms | 120 ms |
+| Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
-| Whole project as a zip | 61 ms | 3 s |
+| Whole project as a zip | 67 ms | 3 s |
 | Interface bundle | 812.6 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,

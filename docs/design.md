@@ -4382,6 +4382,16 @@ being rebuilt because its parent line had gained a percentage. One
 `LINE_START` now, in `deps.py`, imported by `compile.py`, matching either an
 ordinary character or a backslash and whatever it escapes.
 
+> Revised. That head was correct and slow: a general group repeated per
+> character, backtracking through every line to find the command, and the
+> close of the run measured opening a project at 250 ms against the 94 ms the
+> README had recorded. It could also match once per line, so the second of two
+> `\include` commands on a line was invisible. The patterns are plain scanners
+> now and `uncommented` in `deps.py` checks each hit's line prefix for an
+> unescaped percent, which costs a short backwards scan per command found
+> rather than a backtrack per character of the file. Opening a project measures
+> 20 ms, and both commands on a line are found.
+
 ### Something written down once, at the moment it was first true
 
 The largest family in the review, and the repository's own: a flag goes up and

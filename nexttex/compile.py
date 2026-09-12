@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from .deps import LINE_START
+from .deps import uncommented
 from .latexlog import ParsedLog, parse as parse_log
 
 #: The stand-in written beside a document when only part of it is being
@@ -87,9 +87,9 @@ LOG_ENV = {
     "openin_any": "p",
 }
 
-INCLUDE_RE = re.compile(LINE_START + r"\\include\{([^}]*)\}", re.M)
+INCLUDE_RE = re.compile(r"\\include\{([^}]*)\}")
 INCLUDEONLY_RE = re.compile(r"^%?\s*\\includeonly\{[^}]*\}\s*$", re.M)
-DOCUMENTCLASS_RE = re.compile(LINE_START + r"\\documentclass[^\n]*\n", re.M)
+DOCUMENTCLASS_RE = re.compile(r"\\documentclass[^\n]*\n")
 
 # Edits that make a one-pass build insufficient.  Citations and labels need
 # the bibliography and the aux file to catch up; preamble changes can alter
@@ -187,11 +187,11 @@ def supports_partial(main_source: str) -> bool:
     Only if it actually uses `\\include`.  `\\input` cannot be scoped this
     way, and guessing wrong produces a document missing its body.
     """
-    return bool(INCLUDE_RE.search(main_source))
+    return next(uncommented(INCLUDE_RE, main_source), None) is not None
 
 
 def included_targets(main_source: str) -> list[str]:
-    return INCLUDE_RE.findall(main_source)
+    return [match.group(1) for match in uncommented(INCLUDE_RE, main_source)]
 
 
 def chapter_for(path: Path, root: Path, targets: list[str]) -> str | None:
@@ -251,7 +251,7 @@ def write_shadow(paths: ProjectPaths, only: str | None) -> Path:
     if INCLUDEONLY_RE.search(source):
         source = INCLUDEONLY_RE.sub(lambda _m: directive, source, count=1)
     else:
-        match = DOCUMENTCLASS_RE.search(source)
+        match = next(uncommented(DOCUMENTCLASS_RE, source), None)
         if not match:
             # No \documentclass means this is not a compilable main file;
             # fall back rather than produce something broken.
