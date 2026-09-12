@@ -263,6 +263,13 @@ export type State = {
   /** This install's peer id, so a version can tell whose it is. Empty until
    *  a project has been shared, which is when it starts mattering. */
   peerId: string;
+  /** Whether the last attempt to read this panel's data failed, as opposed
+   *  to succeeding and finding nothing. Storing a failure as an empty list
+   *  is how "I could not ask" becomes "there is nothing", which for the
+   *  git panel means offering to set up a backup the project already has. */
+  historyFailed: boolean;
+  trashFailed: boolean;
+  gitFailed: boolean;
   /** The share, as the server sees it: who is a member and whose link is
    *  up. Polled on open and pushed by `collab_peers` when a link comes or
    *  goes. Not the same question as `connection`, which is this browser's
@@ -316,6 +323,9 @@ const state: State = {
   collaborators: [],
   connection: "connecting",
   peerId: "",
+  historyFailed: false,
+  trashFailed: false,
+  gitFailed: false,
   share: null,
   words: null,
   error: null,
@@ -1210,27 +1220,34 @@ export function markLive(id: string) {
   updateChat(id, { state: "live" } as any);
 }
 
+// "I could not ask" was being stored as "there is nothing". Each of these
+// three catches set an empty list, so a panel whose request failed drew
+// its ordinary empty state: no versions of this file yet, an empty trash,
+// no repository. All three are things a writer acts on, and the last one
+// puts the GitHub card in front of somebody who already has a remote.
+//
+// A third state, and it is the panel's job to draw it.
 export async function refreshHistory(projectId: string, path: string) {
   try {
-    set({ history: (await api.history(projectId, path)).versions });
+    set({ history: (await api.history(projectId, path)).versions, historyFailed: false });
   } catch {
-    set({ history: [] });
+    set({ history: [], historyFailed: true });
   }
 }
 
 export async function refreshTrash(projectId: string) {
   try {
-    set({ trash: (await api.trash(projectId)).entries });
+    set({ trash: (await api.trash(projectId)).entries, trashFailed: false });
   } catch {
-    set({ trash: [] });
+    set({ trash: [], trashFailed: true });
   }
 }
 
 export async function refreshGit(projectId: string) {
   try {
-    set({ git: await api.git(projectId) });
+    set({ git: await api.git(projectId), gitFailed: false });
   } catch {
-    set({ git: null });
+    set({ git: null, gitFailed: true });
   }
 }
 

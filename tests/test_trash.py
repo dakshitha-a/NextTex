@@ -117,7 +117,7 @@ def test_emptying_the_trash_takes_the_history_with_it(tmp_path):
     (project / "two.tex").write_text("two", encoding="utf-8")
     trash.delete(project / "one.tex")
     trash.delete(project / "two.tex")
-    assert trash.empty() == 2
+    assert trash.empty() == (2, [])
     assert trash.entries() == []
     assert trash.history.versions("one.tex") == []
 
@@ -466,7 +466,7 @@ def test_a_crash_before_the_payload_moves_leaves_something_findable(tmp_path):
     assert [e.id for e in trash.entries()] == [entry.id], "nothing knew it was there"
     with pytest.raises(FileNotFoundError):
         trash.restore(entry.id)
-    assert trash.empty() == 1, "and it could never be cleared away"
+    assert trash.empty() == (1, []), "and it could never be cleared away"
 
 
 def test_a_scratch_file_left_by_a_crash_does_not_live_for_ever(tmp_path):
@@ -498,3 +498,76 @@ def test_an_emptied_shard_does_not_stay_on_disk(tmp_path):
 
     assert history.collect() == 1
     assert not shard.exists()
+
+
+def test_a_payload_that_will_not_go_stays_in_the_trash(tmp_path, monkeypatch):
+    """"Delete for good" is a promise, and it was sometimes a claim.
+
+    `_destroy` logged an OSError and returned, and `purge` wrote the
+    tombstone regardless. A read-only directory, or a file another program
+    had open, left the payload on the disk and took the entry off the
+    screen: the only route back to those files was gone, and the writer was
+    told they had been deleted.
+    """
+    trash, root = bin(tmp_path)
+    (root / "chapter.tex").write_text("A chapter.\n", encoding="utf-8")
+    entry = trash.delete(root / "chapter.tex")
+
+    def refuse(path, **kwargs):
+        raise PermissionError("Operation not permitted")
+
+    monkeypatch.setattr("nexttex.trash.shutil.rmtree", refuse)
+
+    assert trash.purge(entry.id) is False
+    assert [held.id for held in trash.entries()] == [entry.id], (
+        "the entry was forgotten while its files are still on disk"
+    )
+
+
+def test_emptying_keeps_what_it_could_not_destroy(tmp_path, monkeypatch):
+    trash, root = bin(tmp_path)
+    (root / "one.tex").write_text("One.\n", encoding="utf-8")
+    (root / "two.tex").write_text("Two.\n", encoding="utf-8")
+    first = trash.delete(root / "one.tex")
+    trash.delete(root / "two.tex")
+
+    real = __import__("shutil").rmtree
+
+    def refuse_the_first(path, **kwargs):
+        if first.id in str(path):
+            raise PermissionError("Operation not permitted")
+        return real(path, **kwargs)
+
+    monkeypatch.setattr("nexttex.trash.shutil.rmtree", refuse_the_first)
+
+    removed, kept = trash.empty()
+
+    assert removed == 1
+    assert kept == [first.id]
+    assert [held.id for held in trash.entries()] == [first.id]
+
+
+def test_a_delete_during_an_empty_is_not_erased(tmp_path, monkeypatch):
+    """The ledger was rewritten as empty, whatever had been appended to it
+    while the rmtrees were running. `purge` already knew this and left a
+    note saying so; `empty` had not been told."""
+    trash, root = bin(tmp_path)
+    (root / "one.tex").write_text("One.\n", encoding="utf-8")
+    trash.delete(root / "one.tex")
+
+    real = __import__("shutil").rmtree
+    landed: list[str] = []
+
+    def delete_something_else_meanwhile(path, **kwargs):
+        if not landed:
+            (root / "late.tex").write_text("Late.\n", encoding="utf-8")
+            landed.append(trash.delete(root / "late.tex").id)
+        return real(path, **kwargs)
+
+    monkeypatch.setattr("nexttex.trash.shutil.rmtree", delete_something_else_meanwhile)
+
+    trash.empty()
+
+    assert [held.id for held in trash.entries()] == landed, (
+        "a file deleted while the trash was emptying was erased from the ledger"
+    )

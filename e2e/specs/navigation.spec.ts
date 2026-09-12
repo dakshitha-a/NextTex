@@ -217,3 +217,30 @@ test("a build nobody typed for leaves the page alone", async ({ tab }) => {
   await tab.waitForTimeout(4000);
   await expect(tab.locator(".nx-flash")).toHaveCount(0);
 });
+
+test("the verb row does not follow you to another file", async ({ tab }) => {
+  // R-069, the half that reproduces. `setState` does not fire the update
+  // listener, so nothing floating over the editor was told about a swap:
+  // a row of verbs offering to rewrite a paragraph in the file you just
+  // left hung over the one you opened, and pressing it sent the agent at
+  // a selection that is not there any more.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+Home");
+  await tab.keyboard.press("Shift+ArrowDown");
+  await tab.keyboard.press("Shift+ArrowDown");
+  await expect(tab.getByTestId("selection-actions")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await tab.getByTestId("new-file").click();
+  await tab.keyboard.type("second");
+  await tab.keyboard.press("Enter");
+  await expect(tab.locator('[data-tab][data-path="second.tex"]')).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await expect(
+    tab.getByTestId("selection-actions"),
+    "the verbs for the previous file are still over this one",
+  ).toHaveCount(0);
+});

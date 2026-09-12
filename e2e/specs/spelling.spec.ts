@@ -112,3 +112,30 @@ test("a displayed equation is not prose, however many lines it runs to", async (
   await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
   await expect(marked(tab)).toHaveText(["sentance"]);
 });
+
+test("turning spelling off and on again brings the underlines back", async ({
+  tab,
+}) => {
+  // R-068. The compartment holding the checker is per editor state, and
+  // turning the setting off empties it. Turning it on again took the
+  // branch that says "the module is already loaded, nothing to
+  // reconfigure", because that question was asked of a module-level ref
+  // rather than of the state, and dispatched the settings into a state
+  // with no spelling field. The underlines never came back, on any tab,
+  // for the rest of the session.
+  await type(tab, "This sentance is wrong.");
+  await turnOn(tab);
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+
+  await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("spelling-off").click();
+  await tab.keyboard.press("Escape");
+  await expect(marked(tab)).toHaveCount(0, { timeout: 20_000 });
+
+  await turnOn(tab);
+
+  await expect(
+    marked(tab).first(),
+    "the underlines did not come back after switching it off and on",
+  ).toBeVisible({ timeout: 20_000 });
+});

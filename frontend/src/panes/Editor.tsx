@@ -445,6 +445,25 @@ export default function Editor({
       }, hold + 500);
     };
 
+    /** The floating things that belonged to the state being replaced.
+     *
+     *  `setState` does not fire the update listener, so neither of these
+     *  was told about a swap to another file: a verb row offering to
+     *  rewrite a paragraph in the file you just left hung over the one you
+     *  opened, and pressing it sent the agent at a selection that is not
+     *  there any more. The spelling menu is the same shape.
+     *
+     *  The caret readout is the third thing R-069 names and it is not
+     *  fixed here. Writing the caret from the parked state stopped later
+     *  keystrokes reaching the readout at all, which is worse than the
+     *  bug, and I could not account for it; it is in `TRACKER.md` with
+     *  that reason rather than shipped half understood.
+     */
+    const afterSwap = () => {
+      setActions((open) => (open === null ? open : null));
+      setOffer((open) => (open === null ? open : null));
+    };
+
     const backToNow = () => {
       const parked = viewing.current;
       if (!parked || !view.current) return;
@@ -456,6 +475,7 @@ export default function Editor({
       }
       current.current = parked.path;
       set({ viewing: null });
+      afterSwap();
       refreshOutline();
       view.current.focus();
     };
@@ -528,6 +548,7 @@ export default function Editor({
       current.current = path;
       if (get().selected?.path !== path) set({ selected: null });
       view.current.setState(buffer.state);
+      afterSwap();
       refreshOutline();
       if (line !== undefined) jump(line, undefined, word);
       api.setFocus(projectId, path).catch(() => undefined);
@@ -540,6 +561,13 @@ export default function Editor({
       const editor = view.current;
       if (!projectId || !editor) return;
       cancelTimer();
+      // Back to the live buffer first, if a version is already on screen.
+      // `buffer.state = editor.state` below parks whatever the editor is
+      // showing, and clicking a second version parked the *read-only*
+      // state of the first one. "Back to now" then restored that, so the
+      // writer was returned to a pane that looked live, was not editable,
+      // and swallowed everything they typed into it.
+      if (viewing.current) backToNow();
       if (current.current && current.current !== path) await openBuffer(path);
       const buffer = buffers.current.get(path);
       if (!buffer) return;
@@ -564,6 +592,7 @@ export default function Editor({
       const version = get().history.find((item) => item.sha === sha) ?? null;
       if (version) set({ viewing: { path, sha, version } });
       editor.setState(freshState(file.text, readOnlyExt));
+      afterSwap();
       refreshOutline();
       const target = Math.min(anchorLine, editor.state.doc.lines);
       editor.dispatch({
@@ -744,10 +773,19 @@ export default function Editor({
     const tell = (module: typeof import("./spellcheck")) => {
       const now = view.current;
       if (!live || !now) return;
-      if (speller.current !== module) {
+      // Asked of the state, not of a ref. `speller.current` is one value
+      // for the whole module, and every fresh `EditorState` starts with
+      // `spellCompartment.of([])`: opening a second file after spelling
+      // was switched on found the ref already set, skipped the
+      // reconfigure, and sent `setSpelling` into a state with no spelling
+      // field in it. Spell checking reached one tab and never came back,
+      // for the life of the session.
+      const configured = spellCompartment.get(now.state);
+      const alreadyOn = Array.isArray(configured) && configured.length > 0;
+      if (!alreadyOn) {
         now.dispatch({ effects: spellCompartment.reconfigure(module.spellchecking()) });
-        speller.current = module;
       }
+      speller.current = module;
       now.dispatch({
         effects: module.setSpelling.of({ on: true, custom: accepted }),
       });

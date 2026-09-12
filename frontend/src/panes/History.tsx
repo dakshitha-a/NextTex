@@ -37,6 +37,7 @@ export default function History({
   docked: boolean;
 }) {
   const versions = useStore((s) => s.history);
+  const failed = useStore((s) => s.historyFailed);
   const viewing = useStore((s) => s.viewing);
   const activePath = useStore((s) => s.activePath);
   const projectId = useStore((s) => s.projectId);
@@ -129,7 +130,13 @@ export default function History({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {versions.length === 0 ? (
+        {versions.length === 0 && failed ? (
+          <p className="t-meta p-3 text-ink-3" data-testid="history-unavailable">
+            Could not read the versions of this file. Nothing has been lost;
+            this is about reaching the server, not about the file.
+          </p>
+        ) : null}
+        {versions.length === 0 && !failed ? (
           <p className="t-meta p-3 text-ink-3">
             {binary
               ? `Nothing yet for ${name}. Versions are kept from the moment it is first replaced.`
@@ -309,7 +316,14 @@ export default function History({
                       setLabelling(null);
                       const id = get().projectId;
                       if (!id || !activePath) return;
-                      await api.labelVersion(id, activePath, version.sha, value);
+                      // A name that did not stick used to say nothing at
+                      // all: the input closed on Enter whatever happened,
+                      // and the refusal was an unhandled rejection.
+                      try {
+                        await api.labelVersion(id, activePath, version.sha, value);
+                      } catch (error: any) {
+                        set({ error: error.message });
+                      }
                       refreshHistory(id, activePath);
                     }}
                   />

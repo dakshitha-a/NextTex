@@ -109,6 +109,12 @@ export default function FolderChooser({
                 className={`t-ui w-full border-b bg-transparent outline-none placeholder:text-ink-3 ${
                   problem ? "border-error" : "border-pen"
                 }`}
+                // Cleared as they type, which is what the rename box in
+                // the file tree already does. It was cleared only on
+                // Escape and on success, so "There is already a figures
+                // folder here" stayed under the field while the writer
+                // typed a different name, and stayed red while they did.
+                onChange={() => setProblem("")}
                 onKeyDown={async (event) => {
                   if (event.key === "Escape") { setMaking(false); setProblem(""); return; }
                   if (event.key !== "Enter") return;

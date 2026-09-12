@@ -4364,3 +4364,77 @@ dependency graph and to the chapter scoping, so a chapter silently stopped
 being rebuilt because its parent line had gained a percentage. One
 `LINE_START` now, in `deps.py`, imported by `compile.py`, matching either an
 ordinary character or a backslash and whatever it escapes.
+
+### Something written down once, at the moment it was first true
+
+The largest family in the review, and the repository's own: a flag goes up and
+the way down is missing, or is on only one of the paths out. Eighteen records,
+each small, and the reason to do them together is that the question that finds
+them is one question. **Count the ways this can end, and check each one lowers
+what it raised.**
+
+**A failure was being stored as an emptiness.** `refreshHistory`,
+`refreshTrash` and `refreshGit` each caught their error and set an empty list,
+so a panel whose request failed drew its ordinary empty state: no versions of
+this file yet, an empty trash, no repository. The last is the worst, because
+the git panel's empty state is an offer to set up a backup, put in front of
+somebody who may already have one. Three states, not two, and the panels draw
+the third.
+
+**One failure anywhere stopped every later push.** The commit-and-push button
+ran `act("commit")`, then read `get().error` to decide whether to go on. That
+is the store's session-wide error slot, written by about thirty unrelated
+places and cleared by none, so any earlier failure in the app silently turned
+the button into a commit-only button until the tab was reloaded. `act` returns
+whether *this* action worked.
+
+**"Not now" had no later.** The GitHub card's dismissal is written per project
+and was read back only to keep the card away, so a writer who set it aside
+once had no route to the wizard for the life of that project short of clearing
+their browser storage. There is a Back up control in the panel's header now.
+
+**Everything else the git panel holds followed the writer into the next
+project.** The effect on `projectId` re-read the dismissal and nothing else, so
+a half-written commit message, a pasted access token and a half-finished
+wizard all came along.
+
+**A folder name that was refused stayed refused-looking while it was
+retyped.** The error under the field cleared on Escape and on success and not
+on typing, which the rename box in the file tree already gets right.
+
+**One flag, two writers, one clearer.** Changing the model mid-turn is
+deferred. Changing to another model and then changing your mind back to the
+one already in use cleared the pending model and left the deferred flag
+raised, so when the turn ended the change was applied with nothing pending and
+the project fell back to the account's default.
+
+**Spell checking never came back once turned off.** The compartment holding
+the checker is per editor state and turning the setting off empties it;
+turning it on again asked a module-level ref whether the checker was loaded,
+found that it was, and dispatched the settings into a state with no spelling
+field. Asked of the state instead. Half of that record was wrong and is
+corrected in it: a second tab opened with spelling on *is* checked.
+
+**Two awaits with no catch**, in a file where every other call has one: a
+refused purge and a refused version name were unhandled rejections, so nothing
+appeared and the writer concluded the versions had gone.
+
+**A confirmation outlived the thing it was confirming.** Pressing Restore on a
+version and then clicking a different one left "Replace the file with this?"
+on screen, now asking about a version nobody had asked about. The banner is
+keyed by the version.
+
+**Reading a second version broke the live buffer.** `viewVersion` parks what
+the editor is showing so "Back to now" can restore it, and a second version
+parked the read-only state of the first. The writer was returned to a pane
+that looked live, was not editable, and swallowed what they typed.
+
+**A cached rejection.** One failed fetch of the maths renderer was kept for the
+session, so every equation after it hovered as nothing.
+
+**Leaving a project left it open.** `closeCollab` was exported and called from
+nowhere, so going back to the projects screen kept every document socket and
+showed the previous project's collaborators beside the next one's.
+
+**And the verb row followed you to another file**, offering to rewrite a
+paragraph that is no longer selected or even open.

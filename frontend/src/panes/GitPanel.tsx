@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../api";
-import { get, refreshGit, set, useStore } from "../store";
+import { refreshGit, set, useStore } from "../store";
 
 
 
@@ -14,6 +14,7 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
   const projectId = useStore((s) => s.projectId);
   const projectName = useStore((s) => s.projectName);
   const status = useStore((s) => s.git);
+  const failed = useStore((s) => s.gitFailed);
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
@@ -31,23 +32,56 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
     setDismissed(
       window.localStorage.getItem(`nexttex.backup.dismissed.${projectId}`) === "1",
     );
+    // Everything else this panel holds belongs to the project that is
+    // leaving, and only the dismissal was being re-read. A half-written
+    // commit message, a pasted personal access token and a half-finished
+    // GitHub wizard all followed the writer into the next project.
+    setMessage("");
+    setWizard(false);
+    setUrl("");
+    setToken("");
+    setOpen(false);
   }, [projectId]);
 
-  const act = async (action: string) => {
-    if (!projectId) return;
+  /** True when it worked. The caller below has to know whether *this*
+   *  action succeeded before it decides to push, and it used to ask
+   *  `get().error`, which is the store's session-wide error slot: about
+   *  thirty unrelated places write to it and nothing clears it, so one
+   *  failure anywhere in the app stopped every later push, silently, until
+   *  the tab was reloaded. */
+  const act = async (action: string): Promise<boolean> => {
+    if (!projectId) return false;
     setBusy(action);
     try {
       await api.gitAction(projectId, action, message);
       if (action === "commit") setMessage("");
       await refresh();
+      return true;
     } catch (error: any) {
       set({ error: error.message });
+      return false;
     } finally {
       setBusy("");
     }
   };
 
   if (!projectId) return null;
+
+  // Could not ask, which is not the same as no repository. Drawing the
+  // GitHub card here offered to set up a backup to a project that may
+  // already have one.
+  if (failed) {
+    return (
+      <div className="shrink-0 border-t border-line px-[10px] py-[6px]">
+        <span className="t-micro text-ink-3" data-testid="git-unavailable">
+          Could not read this project's git status.
+        </span>
+        <button className="ml-2 quiet t-micro" onClick={refresh}>
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   // First run: one card, dismissible, and once it is gone it stays gone.
   if (status && (!status.repository || !status.remote) && !dismissed && !wizard) {
@@ -179,6 +213,19 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
           </span>
         ) : null}
         <span className="flex-1" />
+        {/* A way back in after "Not now". The dismissal is written per
+            project and was read back only to keep the card away, so a
+            writer who set it aside once had no route to the wizard for the
+            life of that project except clearing their browser storage. */}
+        {!status.remote ? (
+          <button
+            className="t-micro text-ink-3 hover:text-ink"
+            data-testid="back-up-again"
+            onClick={() => setWizard(true)}
+          >
+            Back up
+          </button>
+        ) : null}
         {status.behind > 0 ? (
           <button
             className="t-micro text-ink-3 hover:text-ink"
@@ -231,8 +278,7 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
           className="mt-2 h-[26px] w-full ghost-button t-ui"
           disabled={Boolean(busy) || (dirty > 0 && !message.trim())}
           onClick={async () => {
-            if (dirty > 0) await act("commit");
-            if (get().error) return;
+            if (dirty > 0 && !(await act("commit"))) return;
             await act("push");
           }}
         >

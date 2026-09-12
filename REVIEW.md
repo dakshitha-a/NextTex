@@ -562,7 +562,10 @@ an event that arrives too early leaves it down.
 
 ### The files rail: tree, history, trash and git
 
-### R-011 · Files rail · bug · high · confirmed
+### ~~R-011 · Files rail · bug · high · confirmed~~
+
+**Fixed.** `act` returns whether this action worked, and the push is gated on
+that rather than on the store's session-wide error slot.
 
 Found by: reading. Where: `frontend/src/panes/GitPanel.tsx:235`.
 
@@ -589,7 +592,10 @@ harmless because nothing in the app reads `s.error` directly". One thing does,
 and this is it: `GitPanel.tsx:235` is the only direct read of `error` in the
 interface, and the gate it guards is exactly what the stale value breaks.
 
-### R-012 · Files rail · bug · high · confirmed
+### ~~R-012 · Files rail · bug · high · confirmed~~
+
+**Fixed.** The viewing banner is keyed by the version, so its confirmation dies
+with the version that raised it.
 
 Found by: reading. Where: `frontend/src/panes/History.tsx:353` with
 `frontend/src/App.tsx:1651`.
@@ -611,7 +617,11 @@ Severity: this is a destructive action taken on a target nobody confirmed. The
 work is recoverable, because the replaced text is itself recorded as a
 version first, which is the only reason this is not a blocker.
 
-### R-013 · Files rail · bug · high · confirmed
+### ~~R-013 · Files rail · bug · high · confirmed~~
+
+**Fixed.** `_destroy` returns the reason it failed, `purge` records nothing when it
+did, and the route answers 500 rather than reporting success. Held by
+`tests/test_trash.py`.
 
 Found by: reading. Where: `nexttex/trash.py:392` and `:407`.
 
@@ -629,7 +639,11 @@ and this differ only by a log line nobody reads.
 
 Expected: **Delete for good** either deletes or says it could not.
 
-### R-014 · Files rail · bug · medium · confirmed
+### ~~R-014 · Files rail · bug · medium · confirmed~~
+
+**Fixed.** `empty` appends a tombstone per entry and compacts by re-reading the
+ledger, so a delete that lands while the rmtrees run is not erased, and it returns
+what it could not destroy.
 
 Found by: reading. Where: `nexttex/trash.py:422`.
 
@@ -675,7 +689,10 @@ a row with the mouse, which is the one thing the person this affects cannot do.
 into `headings` that is not reset when the open file changes, so a heading
 number from a long chapter leaves a three-heading file with no tab stop.
 
-### R-017 · Files rail · bug · medium · confirmed
+### ~~R-017 · Files rail · bug · medium · confirmed~~
+
+**Fixed.** A Back up control in the git panel's header is the way back in after Not
+now.
 
 Found by: reading. Where: `frontend/src/panes/GitPanel.tsx:21`, `:71`.
 
@@ -691,7 +708,10 @@ dismissed or configured it never returns", so the interface is doing what was
 asked. The finding is that what was asked has no *later*, which is the same
 shape as the update card that `0ec4c0d` fixed a week ago by adding one.
 
-### R-018 · Files rail · bug · medium · confirmed
+### ~~R-018 · Files rail · bug · medium · confirmed~~
+
+**Fixed.** Each of the three panels has a failed state, drawn, rather than storing a
+failure as an empty list.
 
 Found by: reading. Where: `frontend/src/store.ts:1151`, `:1158`, `:1165`.
 
@@ -706,7 +726,11 @@ Expected: a panel that could not ask says it could not ask. "There is nothing
 here" and "I could not find out" are different answers, and this is the same
 argument `nexttex/compile.py`'s `_read_log` makes for the opposite case.
 
-### R-019 · Files rail · bug · medium · confirmed
+### ~~R-019 · Files rail · bug · medium · confirmed~~
+
+**Fixed.** Both awaits are caught and set the error. The record's second half was
+wrong: the label route already answers 404 for an unknown sha, so both cases were
+one missing try.
 
 Found by: reading. Where: `frontend/src/panes/FileTree.tsx:671` and
 `frontend/src/panes/History.tsx:312`.
@@ -720,7 +744,11 @@ and has a second way to fail quietly: `set_label` in `nexttex/history.py`
 returns `False` when the sha is not in that file's log, and the route's answer
 is not read either way, so the row refreshes without the name that was typed.
 
-### R-020 · Files rail · bug · medium · confirmed
+### ~~R-020 · Files rail · bug · medium · confirmed~~
+
+**Fixed.** The ssh agent's socket is passed through when there is one, and `LC_ALL`
+is stated rather than being an accident of the empty environment. Held by
+`tests/test_gitrepo.py`, which did not exist.
 
 Found by: reading. Where: `nexttex/gitrepo.py:38`.
 
@@ -735,7 +763,10 @@ missing variable.
 The fixed environment is right about the rest, and usefully forces the C
 locale, which is what keeps the English substring matches at `:124` honest.
 
-### R-021 · Files rail · bug · medium · confirmed
+### ~~R-021 · Files rail · bug · medium · confirmed~~
+
+**Fixed.** A repository the writer made themselves gets the ignores, appended to
+their own `.gitignore` rather than replacing it.
 
 Found by: reading. Where: `nexttex/gitrepo.py:145`.
 
@@ -746,7 +777,10 @@ commit: every `.pdf`, `.aux`, `.log` and `.synctex.gz`. `.nexttex/` is safe,
 because `nexttex/project.py` drops a `*` ignore file inside it, and `build/`
 has no such protection.
 
-### R-022 · Files rail · bug · low · confirmed
+### ~~R-022 · Files rail · bug · low · confirmed~~
+
+**Fixed.** `status` asks for `-z`, so a rename reports the name it has now and a
+non-ASCII path comes back as itself.
 
 Found by: reading. Where: `nexttex/gitrepo.py:105`.
 
@@ -757,7 +791,9 @@ becomes a clickable row in `GitPanel.tsx:207` that calls `onOpen(change.path)`,
 so clicking a renamed file, or any file with an accent in its name, opens
 nothing.
 
-### R-023 · Files rail · bug · low · confirmed
+### ~~R-023 · Files rail · bug · low · confirmed~~
+
+**Fixed.** The folder name's error clears as it is retyped.
 
 Found by: reading. Where: `frontend/src/panes/FolderChooser.tsx:125`.
 
@@ -768,7 +804,9 @@ a different name, and reopening the chooser shows the input still carrying the
 old failure. `NewName` in `FileTree.tsx:1274` clears on every keystroke, which
 is the behaviour this one should have.
 
-### R-024 · Files rail · bug · low · confirmed
+### ~~R-024 · Files rail · bug · low · confirmed~~
+
+**Fixed.** Changing project resets the whole panel, not only the dismissal.
 
 Found by: reading. Where: `frontend/src/panes/GitPanel.tsx:18`.
 
@@ -851,7 +889,10 @@ Nothing in any tier presses Ctrl+Z. `e2e/specs/` has no undo spec, and the
 agent's own undo, which is a different mechanism entirely, is the only undo
 the suite exercises.
 
-### R-067 · Editor · bug · high · likely
+### ~~R-067 · Editor · bug · high · likely~~
+
+**Fixed.** `viewVersion` goes back to now before parking, so a second version cannot
+park the read-only state of the first. Held by `e2e/specs/history-trash.spec.ts`.
 
 Found by: reading. Where: `frontend/src/App.tsx:579` with
 `frontend/src/panes/Editor.tsx:526`.
@@ -876,14 +917,30 @@ Clicking two versions in a row is the ordinary use of a history panel.
 Found by: reading. Where: `frontend/src/panes/editor-setup.ts:419` with
 `frontend/src/panes/Editor.tsx:724`.
 
-What happens: spell checking reaches one tab and never comes back once turned
-off. Every fresh state gets `spellCompartment.of([])`, and the effect that
-would reconfigure it takes an early branch when the module is already loaded,
-dispatching an effect into a state that has no field to receive it. So a
-second tab is never checked, and turning the setting off and on again does not
-restore the underlines on any tab for the rest of the session.
+What happens: spell checking never comes back once turned off. Every fresh
+state gets `spellCompartment.of([])`, and the effect that would reconfigure it
+takes an early branch when the module is already loaded, dispatching an effect
+into a state that has no field to receive it. So turning the setting off and
+on again does not restore the underlines on any tab for the rest of the
+session.
 
-### R-069 · Editor · bug · medium · likely
+**Half of this record was wrong and is corrected here.** It also said a second
+tab is never checked. A browser test that opens a second file with spelling
+already on finds it checked, on the commit before the fix and after it, so
+that half does not happen: something else re-runs the effect when a tab opens.
+The off-and-on half reproduces exactly as written, and
+`e2e/specs/spelling.spec.ts` fails on it without the fix.
+
+**Fixed.** The question is asked of the state, `spellCompartment.get(state)`,
+rather than of a module-level ref.
+
+### ~~R-069 · Editor · bug · medium · likely~~ partly
+
+**Two of three fixed.** The selection verb row and the spelling menu are cleared
+when the editor swaps to another file, held by `e2e/specs/navigation.spec.ts`.
+The caret readout is **not** fixed and is in the `TRACKER.md` backlog with its
+reason: writing the caret from the parked state stopped later keystrokes reaching
+the readout at all, which is worse than the bug and which I could not account for.
 
 Found by: reading. Where: `frontend/src/panes/Editor.tsx:518`, and four
 consequences of one fact.
@@ -926,7 +983,10 @@ item" about something only a mouse can reach and only a mouse can close.
 with `Chat.tsx` carrying one rather than two, so the tracker's count is one
 high and its entry is worth correcting along with the code.
 
-### R-071 · Editor · bug · medium · likely
+### ~~R-071 · Editor · bug · medium · likely~~
+
+**Fixed.** A failed load of the maths renderer clears the cached promise, the way
+`spellcheck.ts` already did.
 
 Found by: reading. Where: `frontend/src/panes/math-hover.ts:17` and
 `frontend/src/panes/Editor.tsx:643`.
@@ -944,7 +1004,10 @@ swallows failure. Between projects, and permanently if the new fetch fails,
 completion offers the previous project's citation keys, labels and figure
 paths, and maths hovers render with the previous project's macros.
 
-### R-072 · Editor · bug · medium · likely
+### ~~R-072 · Editor · bug · medium · likely~~
+
+**Fixed.** Releasing a file re-reads the connection, and leaving a project calls
+`closeCollab`, which was exported and called from nowhere.
 
 Found by: reading. Where: `frontend/src/collab.ts:452`, `:502`, `:341`.
 
@@ -1140,7 +1203,10 @@ unanswered card denied.
 worst thing that run found. This is the same inversion reached from the other
 end.
 
-### R-050 · Agent · bug · medium · confirmed
+### ~~R-050 · Agent · bug · medium · confirmed~~
+
+**Fixed.** Changing your mind back to the model already in use clears both flags.
+Held by `tests/test_agent_model.py`.
 
 Found by: reading. Where: `nexttex/agent.py:2606` and `:2628`.
 

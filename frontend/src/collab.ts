@@ -471,6 +471,11 @@ export class ProjectCollab {
     file.undo.destroy();
     file.awareness.destroy();
     file.doc.destroy();
+    // The overall state is the worst of the sockets, and one of them has
+    // just gone. Without this a file closed while its socket was offline
+    // left the whole project reading offline for as long as the project
+    // stayed open, on evidence that no longer existed.
+    this.noteConnection(this.state);
   }
 
   close() {

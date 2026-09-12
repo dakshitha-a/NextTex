@@ -389,27 +389,41 @@ class Trash:
             return True
         return any(part in SKIP_DIRS for part in inside.parts)
 
-    def _destroy(self, entry: TrashEntry) -> None:
-        """Take one entry's payload off the disk, and say so if it will not go.
+    def _destroy(self, entry: TrashEntry) -> str:
+        """Take one entry's payload off the disk. Empty when it went.
 
         Deliberately not `ignore_errors`: the ledger is about to record that
         this happened, and a purge that quietly did nothing is how "delete for
         good" becomes a lie.  A payload that is already gone is not a failure.
+
+        It returned nothing, so the caller wrote the tombstone whatever
+        happened: a read-only directory or a file another program had open
+        left the payload on disk and the entry off the screen, and "delete
+        for good" became a lie in exactly the way the docstring above says
+        it must not. The reason is handed back so a person can be told it.
         """
         holding = self._holding(entry)
         try:
             shutil.rmtree(holding)
         except FileNotFoundError:
-            pass
+            return ""
         except OSError as failure:
             logger.warning("could not destroy %s: %s", holding.name, failure)
+            return str(failure)
+        return ""
 
     def purge(self, entry_id: str) -> bool:
-        """Delete one entry for good, and the history of what it held."""
+        """Delete one entry for good, and the history of what it held.
+
+        False when the payload would not go, and nothing is recorded then:
+        an entry whose files are still on disk has to stay on the screen,
+        because it is the only way back to them.
+        """
         entry = self.find(entry_id)
         if entry is None:
             return False
-        self._destroy(entry)
+        if self._destroy(entry):
+            return False
         self._forget(entry)
         self._append({"id": entry.id, "removed": True, "at": time.time() * 1000})
         # No compaction here.  It read the ledger and wrote the whole thing
@@ -419,13 +433,35 @@ class Trash:
         # where the file gets shortened.
         return True
 
-    def empty(self) -> int:
+    def empty(self) -> tuple[int, list[str]]:
+        """Everything, and the ids of anything that would not go.
+
+        Two things were wrong here and they are the same shape as `purge`'s.
+        A payload that could not be removed was forgotten anyway, so the
+        files stayed on the disk with nothing on any screen pointing at
+        them. And the ledger was rewritten as empty, which erases a delete
+        that landed while the `rmtree`s were running: `purge` had already
+        learned that and left a note saying so, and this had not.
+
+        So the tombstones are appended per entry, and the compaction reads
+        the ledger again and drops only what this call actually destroyed.
+        """
         entries = self.entries()
+        kept: list[str] = []
+        gone: list[str] = []
         for entry in entries:
-            self._destroy(entry)
+            if self._destroy(entry):
+                kept.append(entry.id)
+                continue
             self._forget(entry)
-        self._rewrite([])
-        return len(entries)
+            gone.append(entry.id)
+            self._append({"id": entry.id, "removed": True, "at": time.time() * 1000})
+        if gone:
+            destroyed = set(gone)
+            self._rewrite([
+                entry for entry in self.entries() if entry.id not in destroyed
+            ])
+        return len(gone), kept
 
     # -- helpers -----------------------------------------------------------
     def _forget(self, entry: TrashEntry) -> None:

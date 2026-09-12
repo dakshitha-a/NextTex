@@ -25,6 +25,13 @@ async function load(): Promise<Katex> {
     ]).then(([module]) => {
       katex = (module as any).default ?? module;
       return katex as Katex;
+    }).catch((failure) => {
+      // The rejected promise was kept, so one failed fetch, on a flaky
+      // connection or during a deploy, meant every equation for the rest
+      // of the session hovered as nothing with no way to try again short
+      // of reloading. `spellcheck.ts` clears its own the same way.
+      loading = null;
+      throw failure;
     });
   }
   return loading;

@@ -206,3 +206,36 @@ test("purging asks once, and then really destroys it", async ({
   ).then((r) => r.json());
   expect(trash.entries ?? []).toHaveLength(0);
 });
+
+test("a second version, then back to now, still gives you an editable file", async ({
+  app, project, tab,
+}) => {
+  // R-067. `viewVersion` parks whatever the editor is showing so that
+  // "Back to now" can restore it, and clicking a second version while the
+  // first was on screen parked the read-only state of the first. The
+  // writer was then returned to a pane that looked live, was not editable,
+  // and swallowed everything typed into it.
+  await typeAndSave(tab, "the first draft", app, project);
+  await typeAndSave(tab, "the second draft", app, project);
+  await openHistory(tab);
+
+  const versions = tab.getByTestId("version");
+  await expect.poll(async () => versions.count(), { timeout: 20_000 })
+    .toBeGreaterThan(1);
+
+  await versions.nth(0).click();
+  await expect(tab.getByText(/viewing/i).first()).toBeVisible();
+  await versions.nth(1).click();
+  await expect(tab.getByText(/viewing/i).first()).toBeVisible();
+
+  await tab.getByRole("button", { name: /back to now/i }).click();
+  await expect(tab.getByText(/viewing/i)).toHaveCount(0);
+
+  // The history panel is an overlay; close it before reaching the editor.
+  await tab.getByLabel("Close the history").click();
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type("\nStill editable.\n");
+
+  await landed(app, project, "Still editable.");
+});
