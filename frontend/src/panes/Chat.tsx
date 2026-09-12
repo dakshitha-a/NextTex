@@ -793,9 +793,27 @@ export default function Chat({
               Start a new conversation? The record of this one is kept on
               disk.
             </p>
+            {/* The safe answer carries the weight, and it is the one that
+                takes focus, because the default answer to "shall I throw
+                this away" is no. It was the other way round: `Start new`
+                was the ghost-button at --ink and `Keep this one` was quiet
+                at --ink-3, which is the ink section 19 gives to `\include`
+                rows that cannot be chosen. The app was drawing the answer
+                it recommends in the colour it uses for things you cannot
+                pick, on the confirmation that ends a conversation. */}
             <div className="mt-2 flex gap-[6px]">
               <button
+                ref={keepButton}
                 className="ghost-button h-[26px] px-3 t-ui"
+                autoFocus
+                data-testid="clear-keep"
+                onClick={closeConfirm}
+              >
+                Keep this one
+              </button>
+              <button
+                className="quiet t-ui h-[26px] rounded-[3px] border border-line px-3"
+                data-tone="danger"
                 data-testid="clear-confirm"
                 onClick={async () => {
                   if (!projectId) return;
@@ -811,13 +829,6 @@ export default function Chat({
                 }}
               >
                 Start new
-              </button>
-              <button
-                ref={keepButton}
-                className="quiet t-ui h-[26px] rounded-[3px] border border-line px-3"
-                onClick={closeConfirm}
-              >
-                Keep this one
               </button>
             </div>
           </div>
@@ -1028,11 +1039,23 @@ export default function Chat({
                         role="menuitemradio"
                         aria-checked={mode === option}
                         data-testid={`mode-${option}`}
-                        className={`block w-full rounded-[3px] px-2 py-[6px] text-left transition-colors duration-[90ms] hover:bg-surface-3 ${
+                        className={`flex w-full items-start gap-2 rounded-[3px] px-2 py-[6px] text-left transition-colors duration-[90ms] hover:bg-surface-3 ${
                           mode === option ? "bg-surface-3" : ""
                         }`}
                         onClick={() => chooseMode(option)}
                       >
+                        {/* The same 4px dot the model popover one icon
+                            along the strip uses for its selection. This
+                            marked the current position with a fill alone,
+                            and two popovers on the same strip saying the
+                            same thing two different ways is a difference
+                            a reader has to learn rather than read. */}
+                        <span
+                          className={`mt-[6px] h-[4px] w-[4px] shrink-0 rounded-full ${
+                            mode === option ? "bg-pen" : "bg-transparent"
+                          }`}
+                        />
+                        <span className="min-w-0 flex-1">
                         <span
                           className={`t-ui block ${
                             option === "all" ? "text-warn" : "text-ink"
@@ -1042,6 +1065,7 @@ export default function Chat({
                         </span>
                         <span className="t-micro mt-[2px] block text-ink-3">
                           {MODE_NOTES[option]}
+                        </span>
                         </span>
                       </button>
                     ))}

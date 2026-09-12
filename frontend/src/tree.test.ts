@@ -2,6 +2,7 @@ import { describe, expect, it, test } from "vitest";
 import {
   ancestorsOf,
   collisions,
+  countFiles,
   tabStopFor,
   findNode,
   foldersIn,
@@ -215,3 +216,38 @@ describe("which row carries the tree's one tab stop", () => {
   });
 });
 
+describe("countFiles", () => {
+  const tree: TreeNode = {
+    name: "",
+    path: "",
+    type: "dir",
+    children: [
+      { name: "main.tex", path: "main.tex", type: "file" },
+      {
+        name: "chapters",
+        path: "chapters",
+        type: "dir",
+        children: [
+          { name: "one.tex", path: "chapters/one.tex", type: "file" },
+          { name: "two.tex", path: "chapters/two.tex", type: "file" },
+        ],
+      },
+      { name: "figures", path: "figures", type: "dir", children: [] },
+    ],
+  };
+
+  it("counts files at every depth", () => {
+    expect(countFiles(tree)).toBe(3);
+  });
+
+  it("does not count the folders they are in", () => {
+    // The number sits beside a chevron on a header a writer folds to hide
+    // files. Counting the folders too would make it a number about the
+    // widget rather than about the project.
+    expect(countFiles(tree)).not.toBe(5);
+  });
+
+  it("is zero before the tree arrives", () => {
+    expect(countFiles(null)).toBe(0);
+  });
+});

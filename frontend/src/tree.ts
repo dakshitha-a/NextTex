@@ -31,6 +31,25 @@ export function foldersIn(tree: TreeNode | null): Folder[] {
  *  Descends only into the folder that could contain the path rather than
  *  walking the whole tree, which matters on a project with a few hundred
  *  files being asked on every keystroke. */
+/** How many files the project holds, folders not counted.
+ *
+ *  For the Files header, which sat beside the Sections header with the
+ *  same shape and no number: one of the two said how much it was hiding
+ *  while folded and the other said nothing, which is a difference a reader
+ *  has to notice and then explain. Files rather than rows, because a
+ *  folder is not a thing anybody is looking for. */
+export function countFiles(tree: TreeNode | null): number {
+  let found = 0;
+  const walk = (node: TreeNode) => {
+    for (const child of node.children ?? []) {
+      if (child.type === "dir") walk(child);
+      else found += 1;
+    }
+  };
+  if (tree) walk(tree);
+  return found;
+}
+
 export function findNode(tree: TreeNode | null, path: string): TreeNode | null {
   if (!tree) return null;
   if (path === "") return tree;
