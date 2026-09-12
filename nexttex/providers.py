@@ -103,6 +103,17 @@ class NoAgent:
     def resolve_permission(self, request_id: str, decision: str) -> bool:
         return False
 
+    @property
+    def pending_cards(self) -> list[dict]:
+        """Nothing is running, so nothing is waiting to be answered.
+
+        Answered rather than absent, because the route that asks is asking
+        every agent, and a member missing from one of them is how the four
+        drift apart: the caller grows a default, the default hides the gap,
+        and the contract quietly becomes optional.
+        """
+        return []
+
     async def set_model(self, model: str | None) -> None:
         return None
 

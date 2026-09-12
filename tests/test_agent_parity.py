@@ -39,7 +39,8 @@ CONTRACT = (
     "resolve_permission", "set_model",
 )
 #: Read, not called: `busy` and `idle_seconds` are properties everywhere.
-ATTRIBUTES = ("model", "usage", "busy", "idle_seconds", "mode")
+ATTRIBUTES = ("model", "usage", "busy", "idle_seconds", "mode",
+              "pending_cards")
 
 
 def build(kind, tmp_path):
@@ -241,3 +242,72 @@ def test_the_browser_s_copy_of_first_changed_line_has_the_same_answers():
     ]
     for before, after, line in cases:
         assert first_changed_line(before, after) == line, (before, after)
+
+
+# R-055.  Two promises the panel is built on and only one implementation
+# kept.  A turn cancelled by anything other than `interrupt` emitted no
+# `done` at all, so the Stop button stayed up for ever over a turn that had
+# already stopped; and `pending_cards`, which a reloading browser asks every
+# agent for, existed on one of the four, with the route papering over the
+# other three with a `getattr` default.  A default in the caller is the
+# shape of the bug this file exists to catch: it makes the contract
+# optional, silently, at the one place that can see all four.
+
+@pytest.mark.parametrize("kind", KINDS, ids=IDS)
+def test_every_agent_can_be_asked_what_it_is_waiting_on(kind, tmp_path):
+    agent = build(kind, tmp_path)
+    assert isinstance(agent.pending_cards, list)
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [k for k in KINDS if k not in (NoAgent, Unavailable)],
+    ids=[k.__name__ for k in KINDS if k not in (NoAgent, Unavailable)],
+)
+def test_a_turn_cancelled_from_outside_still_ends(kind, tmp_path, monkeypatch):
+    """`interrupt` is not the only way a turn stops.
+
+    The session reaper cancels one on eviction, a shutdown cancels one, and
+    a test cancels one.  Every such ending is invisible to the browser,
+    which is waiting on `done` and on nothing else, so the turn was over
+    and the panel still said it was thinking with a Stop button that then
+    really was a no-op.
+    """
+    async def scenario():
+        agent = build(kind, tmp_path)
+        if isinstance(agent, ScriptedAgent):
+            agent.script_name = "slow"
+        if isinstance(agent, OpenAIAgent):
+            # A key it will not use: the turn has to reach the task, and
+            # `_converse` is where the network would have been.
+            agent.api_key = "not-a-key"
+
+            async def forever():
+                await asyncio.sleep(30)
+
+            monkeypatch.setattr(agent, "_converse", forever)
+        if ProjectAgent is not None and isinstance(agent, ProjectAgent):
+            async def stream(*arguments, **named):
+                await asyncio.sleep(30)
+
+            monkeypatch.setattr(agent, "_stream", stream, raising=False)
+        seen = []
+
+        async def drain():
+            async for event in agent.events():
+                seen.append(event)
+
+        reader = asyncio.create_task(drain())
+        await agent.ask("hello")
+        await asyncio.sleep(0.05)
+        agent._turn.cancel()
+        for _ in range(40):
+            await asyncio.sleep(0.02)
+            if any(event["type"] == "done" for event in seen):
+                break
+        reader.cancel()
+        return seen
+
+    seen = asyncio.run(scenario())
+    endings = [event for event in seen if event["type"] == "done"]
+    assert len(endings) == 1, f"{kind.__name__} ended {len(endings)} times: {seen}"

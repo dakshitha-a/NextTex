@@ -252,6 +252,20 @@ silent no-op, a second question while one is running is refused, usage
 carries the fields the footer reads. It found three divergences the first
 time it ran, in three different classes.
 
+It keeps finding them, which is the point. The review added two more
+promises to it and both were kept by exactly one implementation. A question
+always produces a `done` was being tested through `interrupt`, and
+`interrupt` is not the only way a turn stops: the session reaper cancels one
+on eviction and a shutdown cancels one, and neither the OpenAI agent nor the
+stand-in said anything at all when that happened, so the panel kept its Stop
+button over a turn that had already ended. And `pending_cards`, which a
+reloading browser asks for so a card lost with the window can be drawn
+again, existed on one of the four. The route asking for it had a `getattr`
+default, which is the shape this file's lesson is about: a default in the
+caller makes a contract optional, silently, at the one place that can see
+every implementation at once. The default is gone and the member is in the
+parity list, so the next agent cannot be written without it.
+
 ## A curated pair list only covers the pairs somebody thought of
 
 `contrast.test.ts` measures every colour pairing the app uses against WCAG,

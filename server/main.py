@@ -3744,7 +3744,9 @@ async def agent_usage(project_id: str):
         # them back rather than showing a card it cannot answer.  A reload
         # loses the card and not the turn, and the turn then waited out its
         # full ten minutes for an answer nobody could give.
-        "pending": list(getattr(session.agent, "pending_cards", []) or []),
+        # No `getattr` default: every agent answers this now, and a
+        # default here is what let three of the four not answer it.
+        "pending": list(session.agent.pending_cards),
     }
 
 
@@ -3838,6 +3840,7 @@ async def instance():
     `boot` is the interesting field: a page that has just asked for an
     update polls this until the nonce changes, which is how it knows the
     process it is talking to is a new one.
+
     """
     try:
         head = (await asyncio.to_thread(
