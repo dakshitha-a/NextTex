@@ -48,6 +48,8 @@ The lifespan starts four background tasks and cancels them on the way out.
 
 **Two commits, read at two different times.** `HEAD_AT_BOOT` is read once here, when the process starts, and is the only commit this process can honestly claim to be running. The commit on disk is asked for when `/api/instance` is called, because it moves: an update pulls into the working tree of a server that is already running. They were one field, read at request time, so an install updated and not restarted reported the new commit, matched it against the remote, and called itself up to date while serving the old code.
 
+**Restarting on purpose.** `POST /api/update/restart` exits with the supervisor's code, which is the same mechanism the update path uses: there is no way to ask uvicorn to stop from inside a request, so the exit is the restart. It refuses with 409 where `updates.supervised()` is false, because nothing there would bring NextTex back and a route that leaves the writer with no server is worse than one that says it cannot help. The footer only offers the control when the instance reports `supervised`.
+
 ## The gate every request passes
 
 Two middleware, and the order is load-bearing. Starlette builds the stack with the last one added on the outside, so `security_headers` is declared after `authenticate` and therefore wraps it. That matters because `authenticate` returns some responses without ever calling a route, and those refusals need the headers too. The sign-in page is one of them: it is the page an unauthenticated visitor actually sees and it takes a password.

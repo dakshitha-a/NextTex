@@ -3923,6 +3923,29 @@ async def update_start():
     return JSONResponse({"started": True}, status_code=202)
 
 
+@app.post("/api/update/restart")
+async def update_restart():
+    """Restart this process, for an install that has been updated and not
+    restarted.
+
+    The footer's restart line used to offer Reload, which reloads the page
+    from the same process: `head` is read once at start and cannot move
+    while it runs, so the reader pressed the only control on the line and
+    got back the identical sentence.  This is the control that sentence was
+    asking for.  Where nothing would start NextTex again, there is no
+    control and the line says to do it by hand instead.
+    """
+    if not updates.supervised():
+        raise HTTPException(409, "Nothing here would start NextTex again, so it cannot restart itself. Stop it and start it again.")
+
+    async def leave() -> None:
+        await asyncio.sleep(0.3)          # let the answer reach the page
+        os._exit(3)
+
+    spawn(leave(), "the restart")
+    return JSONResponse({"restarting": True}, status_code=202)
+
+
 def _update_say(kind: str, **fields) -> None:
     """Record a line and hand it to whoever is watching."""
     event = {"type": kind, **fields}

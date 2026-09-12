@@ -4949,3 +4949,13 @@ and the footer draws no control at all, because there is nothing it could press
 that would work; the sentence reads "Stop NextTex and start it again to run it"
 instead. A button that does nothing is worse than no button, because the reader
 who presses it learns nothing and concludes the state itself is wrong.
+
+### git's own words, and the control they pushed off the strip
+
+The unreachable-repository line puts the error git returned next to Try again,
+and git's errors are paragraphs: a failed DNS lookup names the URL, the host
+and the resolver. It wrapped to three rows and carried the control down and out
+of the footer. The error is the least important thing on that line and the only
+thing that can be any length, so it is what gives way: it truncates with the
+full text on hover, the warning and the control keep their width, and the line
+is one row whatever git said.

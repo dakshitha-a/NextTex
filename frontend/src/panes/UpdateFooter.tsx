@@ -223,6 +223,25 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     timer.current = window.setTimeout(tick, 1000);
   };
 
+  /** Leave and come back on the commit the files hold.
+   *
+   *  The same wait the update path uses: the page polls `boot` until a
+   *  different process answers and reloads itself then, so the reader is
+   *  not left refreshing to find out whether it worked. */
+  const restartNow = async () => {
+    try {
+      startedFrom.current = (await api.instance()).boot;
+      polling.current = false;
+      blind.current = false;
+      wentAway.current = false;
+      await api.restart();
+      setPhase({ kind: "restarting" });
+      waitForRestart();
+    } catch (problem: any) {
+      setPhase({ kind: "error", message: problem.message });
+    }
+  };
+
   const start = async () => {
     try {
       startedFrom.current = (await api.instance()).boot;
@@ -357,16 +376,31 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     if (standingOf(self) === "restart") {
       return (
         <Line>
-          <span className="t-micro text-warn" data-testid="update-unrestarted">
-            Updated on disk to {self?.diskHead}. Restart to run it.
+          <span
+            className="t-micro shrink-0 text-warn"
+            data-testid="update-unrestarted"
+          >
+            Updated on disk to {self?.diskHead}.{" "}
+            {self?.supervised
+              ? "Restart to run it."
+              : "Stop NextTex and start it again to run it."}
           </span>
-          <span className="t-micro text-ink-3">
+          <span className="t-micro min-w-0 truncate text-ink-3">
             This process is still running {self?.head}.
           </span>
           <span className="flex-1" />
-          <button className="quiet t-micro" onClick={() => window.location.reload()}>
-            Reload
-          </button>
+          {/* Reload was the control here, and on this line it is a dead
+              end: the page comes back from the same process, `head` is
+              fixed at process start, and the reader is handed back the
+              identical sentence.  A restart is what the sentence asks
+              for, and where nothing would start NextTex again there is no
+              control to offer, so the first span says to do it by hand
+              instead. */}
+          {self?.supervised ? (
+            <button className="quiet t-micro" onClick={restartNow}>
+              Restart now
+            </button>
+          ) : null}
         </Line>
       );
     }
@@ -383,14 +417,25 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     if (!report.checked) {
       return (
         <Line>
-          <span className="t-micro text-warn" data-testid="update-unchecked">
+          <span
+            className="t-micro shrink-0 text-warn"
+            data-testid="update-unchecked"
+          >
             Could not reach the repository.
           </span>
-          <span className="t-micro text-ink-3">
+          {/* git's own words, which can be a paragraph: it is the least
+              important thing on the line and the only thing that can be
+              any length, so it is what gives way.  Without the truncate
+              the sentence wrapped to three rows and carried Try again off
+              the end of the footer. */}
+          <span
+            className="t-micro min-w-0 truncate text-ink-3"
+            title={report.error || undefined}
+          >
             {report.error || "This machine may be offline."}
           </span>
           <span className="flex-1" />
-          <button className="quiet t-micro" onClick={() => check(true)}>
+          <button className="quiet t-micro shrink-0" onClick={() => check(true)}>
             Try again
           </button>
         </Line>
