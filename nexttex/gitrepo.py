@@ -9,6 +9,7 @@ the mistakes are recoverable.
 
 from __future__ import annotations
 
+import difflib
 import re
 import subprocess
 from dataclasses import dataclass
@@ -174,6 +175,51 @@ def status(root: Path) -> Status:
     # A URL can carry a token if someone pasted one in; never send it back.
     remote = re.sub(r"//[^/@]*@", "//", remote)
     return Status(True, branch, ahead, behind, remote, changes)
+
+
+def diff(root: Path, relative: str) -> str:
+    """The patch for one file, as a unified diff.
+
+    "See what changed" has been one of the four git buttons since the
+    README named them, and what it showed was a status letter and a path.
+    This is the rest of the promise.
+
+    Against `HEAD` rather than against the index, so a change that has been
+    staged and one that has not both show: the panel has no notion of the
+    index and a writer who has never typed `git add` should not be shown an
+    empty patch for a file the panel itself says is modified. A file git
+    has never seen prints nothing under `git diff`, so its patch is built
+    here instead, every line an addition, which is what it is.
+
+    The `--` before the path is not decoration: without it a file named
+    `--output` is an option.
+    """
+    if not (root / ".git").exists():
+        return ""
+    tracked = True
+    for change in status(root).changes or []:
+        if change.get("path") == relative and str(change.get("state", "")).startswith("?"):
+            tracked = False
+            break
+    if not tracked:
+        try:
+            lines = (root / relative).read_text(encoding="utf-8").splitlines(
+                keepends=True)
+        except (OSError, UnicodeDecodeError):
+            return ""
+        return "".join(difflib.unified_diff(
+            [], lines, fromfile="/dev/null", tofile=relative,
+        ))
+    try:
+        return _run(root, "diff", "HEAD", "--", relative, timeout=30)
+    except GitError:
+        # A repository with no commit yet has no HEAD to diff against, and
+        # git says so with a non-zero exit. The index is the only other
+        # side there is.
+        try:
+            return _run(root, "diff", "--", relative, timeout=30)
+        except GitError:
+            return ""
 
 
 def commit(root: Path, message: str) -> str:

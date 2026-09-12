@@ -231,3 +231,52 @@ def test_nothing_is_invented_where_there_is_no_such_variable(monkeypatch):
     monkeypatch.delenv("SystemRoot", raising=False)
 
     assert "SystemRoot" not in gitrepo._environment()
+
+
+def test_the_patch_for_an_edited_file_shows_the_line_that_changed(tmp_path):
+    # "See what changed" showed a status letter and a path. This is the
+    # rest of the promise: the hunk, with the old line and the new one.
+    root = a_repository(tmp_path / "repo")
+    (root / "main.tex").write_text("one\ntwo\n", encoding="utf-8")
+    commit_everything(root)
+    (root / "main.tex").write_text("one\nthree\n", encoding="utf-8")
+    patch = gitrepo.diff(root, "main.tex")
+    assert "@@" in patch
+    assert "-two" in patch and "+three" in patch
+
+
+def test_a_staged_change_shows_as_well_as_an_unstaged_one(tmp_path):
+    # Against HEAD rather than the index: the panel has no notion of the
+    # index, and a file it says is modified must not show an empty patch.
+    root = a_repository(tmp_path / "repo")
+    (root / "main.tex").write_text("one\n", encoding="utf-8")
+    commit_everything(root)
+    (root / "main.tex").write_text("two\n", encoding="utf-8")
+    subprocess.run(["git", "add", "main.tex"], cwd=root, check=True,
+                   capture_output=True)
+    assert "+two" in gitrepo.diff(root, "main.tex")
+
+
+def test_a_file_git_has_never_seen_is_a_patch_of_additions(tmp_path):
+    # `git diff` prints nothing for an untracked file, which would read as
+    # "nothing changed" about a file the panel lists as new.
+    root = a_repository(tmp_path / "repo")
+    (root / "main.tex").write_text("one\n", encoding="utf-8")
+    commit_everything(root)
+    (root / "notes.tex").write_text("alpha\nbeta\n", encoding="utf-8")
+    patch = gitrepo.diff(root, "notes.tex")
+    body = [line for line in patch.splitlines() if not line.startswith(("---", "+++", "@@"))]
+    assert body and all(line.startswith("+") for line in body), patch
+
+
+def test_a_path_shaped_like_an_option_is_still_a_path(tmp_path):
+    root = a_repository(tmp_path / "repo")
+    (root / "--output").write_text("one\n", encoding="utf-8")
+    commit_everything(root)
+    (root / "--output").write_text("two\n", encoding="utf-8")
+    assert "+two" in gitrepo.diff(root, "--output")
+
+
+def test_no_repository_means_no_patch(tmp_path):
+    (tmp_path / "main.tex").write_text("one\n", encoding="utf-8")
+    assert gitrepo.diff(tmp_path, "main.tex") == ""

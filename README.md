@@ -469,7 +469,10 @@ your own business: thinning is a decision about your own disk.
 
 See what changed, commit it, push it, pull it back on another machine. That is
 a paper's whole relationship with git, and each is one button in the rail
-footer. A project with no repository is offered one, with a first commit and a
+footer. Seeing what changed means the patch, not only the file's name: the
+chevron beside a changed file opens it, with the old lines and the new ones,
+and the same patch is there for any version in a file's history, against the
+file as it stands or against any other version. A project with no repository is offered one, with a first commit and a
 `.gitignore` that already knows about `build/` and `.nexttex/`. With the
 GitHub CLI signed in, *Back this up to GitHub* creates the repository, private
 by default, and pushes into it; a token you supply goes to your credential

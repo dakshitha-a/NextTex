@@ -2910,7 +2910,11 @@ controller ships with its viewer and is not worth pulling in for this.
 document proxy. The catch is that layers are built only for visible pages, so
 a search has to walk the document once rather than read the DOM.
 
-### R-089 · History and git · comfort · medium · confirmed
+### ~~R-089 · History and git · comfort · medium · confirmed~~
+
+**Built.** The git panel's chevron opens a file's patch against the last commit, through `GET /git/diff`; the history banner's "Show what changed" draws the patch from the version on screen to the live file, and "Compare" on any other version draws the patch between the two. One `Patch` renderer serves the agent's chip and both.
+Held by `tests/test_gitrepo.py`, `tests/api/test_git_diff.py`, `frontend/src/panes/patch.test.ts`, `e2e/specs/git.spec.ts` and `e2e/specs/history-trash.spec.ts`.
+
 
 Where: `frontend/src/panes/GitPanel.tsx:200` and
 `frontend/src/panes/Editor.tsx:853`.

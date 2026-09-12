@@ -9,6 +9,7 @@ import {
 import { useDismiss } from "../useDismiss";
 import { verbFor, type CallState } from "./tool-verb";
 import { createTwoFilesPatch } from "diff";
+import Patch from "./Patch";
 import Prose from "./prose";
 import { shortRule } from "./short-rule";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
@@ -1658,27 +1659,7 @@ function EditChip({
           )}
         </span>
       </div>
-      {open ? (
-        <pre className="t-code-sm mt-1 max-h-[220px] overflow-auto whitespace-pre rounded-[3px] border-l border-line bg-surface-2 p-2">
-          {patch
-            .split("\n")
-            .slice(4)
-            .map((line, index) => (
-              <div
-                key={index}
-                className={
-                  line.startsWith("+")
-                    ? "bg-[color-mix(in_oklab,var(--ok)_10%,transparent)]"
-                    : line.startsWith("-")
-                      ? "bg-[color-mix(in_oklab,var(--error)_10%,transparent)]"
-                      : ""
-                }
-              >
-                {line}
-              </div>
-            ))}
-        </pre>
-      ) : null}
+      {open ? <Patch text={patch} /> : null}
     </div>
   );
 }
