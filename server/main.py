@@ -1842,8 +1842,18 @@ async def restore_trash(project_id: str, entry_id: str):
 async def purge_trash(project_id: str, entry_id: str):
     """Delete one entry for good, along with the history of what it held."""
     session = session_for(project_id)
-    if not session.trash.purge(entry_id):
+    if session.trash.find(entry_id) is None:
         raise HTTPException(404, "no such trash entry")
+    if not session.trash.purge(entry_id):
+        # The payload would not come off the disk. The entry stays where it
+        # is, because it is the only way back to those files, and saying so
+        # is the difference between "delete for good" being a promise and
+        # being a claim.
+        raise HTTPException(
+            500,
+            "That could not be deleted for good, so it has been left in the "
+            "trash. Something else may have the file open.",
+        )
     session.history.collect()
     await session.events.publish({"type": "trash_changed"})
     return {"ok": True}
@@ -1852,10 +1862,10 @@ async def purge_trash(project_id: str, entry_id: str):
 @app.delete("/api/projects/{project_id}/trash")
 async def empty_trash(project_id: str):
     session = session_for(project_id)
-    count = session.trash.empty()
+    removed, kept = session.trash.empty()
     session.history.collect()
     await session.events.publish({"type": "trash_changed"})
-    return {"ok": True, "removed": count}
+    return {"ok": True, "removed": removed, "kept": kept}
 
 
 # ---------------------------------------------------------------------------

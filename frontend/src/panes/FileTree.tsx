@@ -667,12 +667,20 @@ export default function FileTree({
                       setMenu(null);
                       setPurging(null);
                       if (!projectId) return;
-                      const answer = await api.purgeHistory(projectId, node.path);
-                      setPurged(
-                        answer.removed === 1
-                          ? "Deleted 1 version."
-                          : `Deleted ${answer.removed} versions.`,
-                      );
+                      // Caught, like every other call in this file. Without
+                      // it a refusal was an unhandled rejection: nothing on
+                      // screen, and the writer reasonably concluded the
+                      // versions had been deleted when they had not.
+                      try {
+                        const answer = await api.purgeHistory(projectId, node.path);
+                        setPurged(
+                          answer.removed === 1
+                            ? "Deleted 1 version."
+                            : `Deleted ${answer.removed} versions.`,
+                        );
+                      } catch (error: any) {
+                        set({ error: error.message });
+                      }
                       window.setTimeout(() => setPurged(""), 6000);
                     }}
                   >

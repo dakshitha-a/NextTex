@@ -115,7 +115,10 @@ export default function Status({
       ) : null}
       <span className="hidden shrink-0 items-center gap-3 @[300px]:flex">
         <Rule />
-        <span className="t-micro tnum w-[96px] text-right text-ink-2">
+        <span
+          className="t-micro tnum w-[96px] text-right text-ink-2"
+          data-testid="caret"
+        >
           Ln {cursor.line}, Col {cursor.column}
         </span>
       </span>

@@ -9,6 +9,7 @@ import { Chevron } from "../chrome";
  *  is a trash that loses the thing you went looking for. */
 export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
   const entries = useStore((s) => s.trash);
+  const failed = useStore((s) => s.trashFailed);
   const projectId = useStore((s) => s.projectId);
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -18,6 +19,15 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
     if (projectId) refreshTrash(projectId);
   }, [projectId]);
 
+  if (!entries.length && failed) {
+    return (
+      <div className="shrink-0 border-t border-line px-[10px] py-[6px]">
+        <span className="t-micro text-ink-3" data-testid="trash-unavailable">
+          Could not read the trash.
+        </span>
+      </div>
+    );
+  }
   if (!entries.length) return null;
 
   const act = async (what: "restore" | "purge" | "empty", id = "") => {

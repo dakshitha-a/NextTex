@@ -2622,7 +2622,14 @@ class ProjectAgent:
         transcript is lost.
         """
         if (model or None) == (self.model or None):
+            # Both, not one. Changing to A while a turn runs, then changing
+            # your mind back to the model already in use, cleared the
+            # pending model and left the deferred flag raised: when the turn
+            # ended `_apply_deferred_model` ran with nothing pending and set
+            # `self.model = None`, so the project silently fell back to the
+            # account's default. One flag, two writers, one clearer.
             self._model_pending = None
+            self._model_deferred = False
             return
         if self.busy:
             # Disconnecting here closes the transport the running turn is

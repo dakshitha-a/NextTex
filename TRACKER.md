@@ -114,3 +114,13 @@ things go to be forgotten rather than a list anybody reads.
       the editor already produces them, so a second entry point buys a shorter
       route to something reachable, at the cost of a hover control on every row
       of a panel that can hold forty.
+
+- [ ] **The caret readout is not reset when the editor swaps to another
+      file.** `setState` does not fire the update listener, so the line and
+      column in the status strip belong to the state that was replaced.
+      Writing the caret from the parked state inside `afterSwap` in
+      `frontend/src/panes/Editor.tsx` stops later keystrokes reaching the
+      readout at all, which is worse than the bug and which I could not
+      account for; the other two things R-069 named, the selection verb row
+      and the spelling menu, are fixed there. Left rather than shipped half
+      understood.

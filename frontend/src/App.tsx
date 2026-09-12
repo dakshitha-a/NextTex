@@ -325,6 +325,15 @@ export default function App() {
     } catch {
       /* nothing was remembered anyway */
     }
+    // `closeCollab` is exported and was called from nowhere, so going back
+    // to the projects screen left every document socket open and the
+    // collaborator strip showing whoever had been in the project that was
+    // left. Opening another project then built a second set beside them.
+    // Imported on demand, never statically: `collab.ts` pulls in Yjs, and
+    // a static import here would put a hundred kilobytes of it into the
+    // entry bundle for every writer who never shares anything.
+    void import("./collab").then((module) => module.closeCollab());
+    set({ collaborators: [], share: null, connection: "offline" });
     setView("projects");
   }, []);
 
@@ -1649,6 +1658,13 @@ export default function App() {
           {viewing ? (
             <Suspense fallback={null}>
             <ViewingBanner
+              // Keyed by the version, so the "Replace the file with this?"
+              // confirmation dies with the version that raised it. It was
+              // component state on a banner that survived a change of
+              // version, so pressing Restore and then clicking a different
+              // version left the confirmation up, now asking about a file
+              // it had never been asked about.
+              key={viewing.version?.sha ?? viewing.path}
               version={viewing.version}
               showingChanges={showingChanges}
               onDownload={

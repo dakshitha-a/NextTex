@@ -28,6 +28,41 @@ class GitError(RuntimeError):
     """A git command failed; the message is what git said."""
 
 
+def _environment() -> dict[str, str]:
+    """A deliberately small environment for git, and what has to be in it.
+
+    Built from nothing rather than inherited, so a writer's own git config
+    variables and credential helpers cannot change what this app does. The
+    four things below are the ones that being absent actually breaks.
+
+    `GIT_TERMINAL_PROMPT` and `GIT_ASKPASS` stop git waiting for a password
+    nobody will ever see on a headless machine.
+
+    `LC_ALL` is set rather than left out. The parsing below reads git's
+    English, and an empty environment happened to give it English by
+    accident; stating it means a machine that starts passing a locale
+    through cannot quietly break the parsing.
+
+    The ssh agent's socket, because without it a project with an `ssh://`
+    or `git@` remote cannot push at all: git finds no key, cannot ask for a
+    passphrase either, and the writer is told authentication failed by an
+    app that never gave their agent a chance to answer.
+    """
+    import os
+
+    environment = {
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ASKPASS": "true",
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": str(Path.home()),
+        "LC_ALL": "C",
+    }
+    for passed in ("SSH_AUTH_SOCK", "SSH_AGENT_PID"):
+        if os.environ.get(passed):
+            environment[passed] = os.environ[passed]
+    return environment
+
+
 def _run(root: Path, *arguments: str, timeout: int = TIMEOUT) -> str:
     try:
         result = subprocess.run(
@@ -35,9 +70,7 @@ def _run(root: Path, *arguments: str, timeout: int = TIMEOUT) -> str:
             text=True, timeout=timeout,
             # Never let git stop for a password prompt: on a headless server
             # nobody would ever see it, and the request would simply hang.
-            env={"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "true",
-                 "PATH": __import__("os").environ.get("PATH", ""),
-                 "HOME": str(Path.home())},
+            env=_environment(),
         )
     except subprocess.TimeoutExpired:
         raise GitError("git took too long and was stopped")
@@ -85,14 +118,26 @@ def status(root: Path) -> Status:
     if not (root / ".git").exists():
         return Status(repository=False)
     try:
-        raw = _run(root, "status", "--porcelain=v1", "--branch", timeout=30)
+        # `-z` rather than the default. Without it git quotes any path
+        # that is not plain ASCII, so `café.tex` came back as
+        # `"caf\303\251.tex"` and a rename came back as one field reading
+        # `old -> new`: the panel showed the escape sequence, and clicking
+        # the row opened nothing, because no such file exists.
+        raw = _run(root, "status", "--porcelain=v1", "-z", "--branch", timeout=30)
     except GitError as error:
         return Status(repository=True, detail=str(error))
 
     branch = ""
     ahead = behind = 0
     changes: list[dict] = []
-    for line in raw.splitlines():
+    # NUL separated, and a rename or a copy spends a second field on the
+    # name it had before, which is why this is an index rather than a loop
+    # over the whole list.
+    fields = [field for field in raw.split("\0") if field]
+    at = 0
+    while at < len(fields):
+        line = fields[at]
+        at += 1
         if line.startswith("## "):
             head = line[3:]
             branch = head.split("...")[0].strip()
@@ -101,8 +146,14 @@ def status(root: Path) -> Status:
             if match := re.search(r"behind (\d+)", head):
                 behind = int(match.group(1))
             continue
-        if len(line) > 3:
-            changes.append({"state": line[:2].strip() or "?", "path": line[3:]})
+        if len(line) <= 3:
+            continue
+        state = line[:2].strip() or "?"
+        change: dict = {"state": state, "path": line[3:]}
+        if state and state[0] in {"R", "C"} and at < len(fields):
+            change["from"] = fields[at]
+            at += 1
+        changes.append(change)
 
     remote = ""
     try:
@@ -142,16 +193,31 @@ def pull(root: Path) -> str:
 
 def initialise(root: Path, ignore: str = "") -> None:
     """Make a repository, with a first commit, if there is not one already."""
+    contents = (
+        ignore
+        or "build/\n.nexttex/\n*.aux\n*.log\n*.out\n*.synctex.gz\n*.bbl\n*.bcf\n"
+    )
+    gitignore = root / ".gitignore"
     if (root / ".git").exists():
+        # A repository the writer made themselves, before NextTex saw the
+        # project. It returned here without writing anything, so `build/`
+        # and `.nexttex/` were never ignored and every build put a hundred
+        # generated files into their next commit. Nothing else is touched:
+        # no init, no commit, and an existing .gitignore is added to rather
+        # than replaced.
+        if not gitignore.exists():
+            gitignore.write_text(contents, encoding="utf-8")
+        elif "build/" not in gitignore.read_text(encoding="utf-8"):
+            existing = gitignore.read_text(encoding="utf-8")
+            joiner = "" if existing.endswith("\n") else "\n"
+            gitignore.write_text(
+                existing + joiner + "\n# What NextTex generates\n" + contents,
+                encoding="utf-8",
+            )
         return
     _run(root, "init", "-b", "main")
-    gitignore = root / ".gitignore"
     if not gitignore.exists():
-        gitignore.write_text(
-            ignore
-            or "build/\n.nexttex/\n*.aux\n*.log\n*.out\n*.synctex.gz\n*.bbl\n*.bcf\n",
-            encoding="utf-8",
-        )
+        gitignore.write_text(contents, encoding="utf-8")
     _run(root, "add", "-A")
     _run(root, "commit", "-m", "Start this writing project")
 
