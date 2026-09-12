@@ -63,6 +63,12 @@ class Report:
     """What a check found.  Everything the screen needs, and no opinions."""
 
     checkout: bool = True
+    #: Whether the fetch that decides everything below actually happened.
+    #: `behind` is a count, and a count cannot say "I could not ask": it was
+    #: left at its default of zero when the fetch failed, and the footer
+    #: reads `behind === 0` as "up to date", so an install five commits
+    #: behind a repository it could not reach was told it was current.
+    checked: bool = False
     head: str = ""
     behind: int = 0
     # How many of those reach the running program rather than the docs.
@@ -219,6 +225,7 @@ def check(root: Path) -> Report:
         report.reason = "Could not reach the repository."
         return report
 
+    report.checked = True
     report.behind = len(report.commits)
     report.changing = sum(1 for c in report.commits if c.touches != "neither")
     report.rebuild = any(c.interface for c in report.commits)
