@@ -304,6 +304,11 @@ class ScriptedAgent:
         """
         self._counter += 1
         identifier = f"scripted-tool-{self._counter}"
+        # Remembered, so a card scripted after this call can name it the way
+        # the real fence does. Without it the browser tier saw two rows
+        # where a writer sees one, and could not see the tense the row above
+        # an open card uses.
+        self._last_tool_id = identifier
         await self._emit({
             "type": "tool_use", "id": identifier, "name": name, "input": args,
         })
@@ -380,6 +385,7 @@ class ScriptedAgent:
                 "type": "permission",
                 "id": f"auto-{self._counter}",
                 "tool": step.get("tool", "Bash"),
+                "toolId": getattr(self, "_last_tool_id", ""),
                 "rule": rule,
                 "decision": (
                     "conversation"
@@ -398,6 +404,7 @@ class ScriptedAgent:
             "type": "permission",
             "id": request_id,
             "tool": step.get("tool", "Bash"),
+            "toolId": getattr(self, "_last_tool_id", ""),
             "rule": step.get("rule", "Bash:echo"),
             "headline": step.get("headline", "Run a shell command"),
             "detail": step.get("detail", "echo hello"),

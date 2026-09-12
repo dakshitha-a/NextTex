@@ -2816,7 +2816,10 @@ find the choice where it was left.
 
 Cost: a line for the persistence, a control for the scope.
 
-### R-101 · Agent · bug · low · confirmed
+### ~~R-101 · Agent · bug · low · confirmed~~
+
+**Fixed with R-108.** An answered card is folded into its tool row, so the command
+appears once. An open card keeps its own row, because it has four buttons on it.
 
 Found by: the live sessions on Sonnet, then read back in the code. Where:
 `frontend/src/panes/Chat.tsx:1742`, `:1308` and `:1800`.
@@ -3275,7 +3278,13 @@ much: the status strip at all four widths, the four breakpoints behaving as §4
 describes them, every row height measuring what §5 specifies, and all five of
 the round-two fixes from `d11da03` present and correct in the pixels.
 
-### R-108 · Agent · bug · high · confirmed
+### ~~R-108 · Agent · bug · high · confirmed~~
+
+**Fixed.** The card carries the id of the call it is about, and the row above says
+Running while the card is open, Ran once it was allowed, and Did not run when it
+was refused. Held by `frontend/src/panes/tool-verb.test.ts`,
+`tests/test_permissions.py` and a browser test that denies a command and asserts
+the panel does not say it ran.
 
 Found by: reading the sweep images against the design document, then matched
 against this review's own live transcripts. Where:

@@ -192,7 +192,7 @@ def test_running_a_script_is_asked_about_like_a_shell_call(tmp_path):
     """
     subject = agent(tmp_path)
 
-    async def refuse(tool, tool_input):
+    async def refuse(tool, tool_input, tool_use_id=None):
         return "deny"
 
     subject._ask_user = refuse
@@ -213,7 +213,7 @@ def test_installing_a_package_asks_wherever_the_network_asks(tmp_path):
     subject = agent(tmp_path)
     subject.set_mode("project")
 
-    async def refuse(tool, tool_input):
+    async def refuse(tool, tool_input, tool_use_id=None):
         return "deny"
 
     subject._ask_user = refuse

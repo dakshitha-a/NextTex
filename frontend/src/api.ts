@@ -676,6 +676,9 @@ const api = {
       pending: {
         id: string;
         tool: string;
+        /** The tool call this card is about, so a card that comes back
+         *  after a reload still pairs with its row. */
+        toolId?: string;
         rule: string;
         headline: string;
         detail: string;

@@ -4224,3 +4224,33 @@ at. **A field that means "how many" must never be the field that also means
 The refusal from the update route carries git's own words after the reason
 now, for the same reason: "there is nothing to update" is a statement about
 the code, and a fetch that failed has not earned the right to make one.
+
+### The transcript may say a thing is being asked about, never that it happened
+
+A permission card and the tool call it is about are one event, and the panel
+drew them as two rows saying the same command, one above the other. That is
+the small half. The large half is that every verb in the table is past tense
+and the tool row is written when the call arrives rather than when it is
+permitted, so `Ran echo hello` sat above a card headed **Run a shell command**,
+and if the writer said no the transcript kept both: `Ran`, then `Denied`, the
+same command twice, nothing having run.
+
+`docs/design.md` section 28 gave its worst-finding subsection to the record
+inverting fact. This is that, in the place a writer looks first.
+
+The two rows had nothing tying them together, and the tie was in scope the
+whole way: the SDK hands `_pre_tool` the tool call's id and `_decide`,
+`_by_mode`, `_ask_user` and `_settled` all dropped it. The card carries it now,
+as `toolId`, on the wire and in the record, so the pairing survives a reload
+rebuilding the panel from the transcript.
+
+With the pairing, two things follow. `tidy` folds an **answered** card into its
+call, so the command reads once. An **open** card keeps its own row, because it
+is a question with four buttons on it and a question the writer cannot answer
+is worse than a repeated line. And the row above knows which of the three
+states it is in, so it says **Running** while the card is open, **Ran** once
+the call was allowed, and **Did not run** when it was refused.
+
+`verbFor` holds both tenses and a test asserts that every tool whose past
+tense is a claim has a present tense, so adding a verb to one table and not
+the other cannot quietly reintroduce this for that tool.

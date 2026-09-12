@@ -652,3 +652,32 @@ test("escape stops a turn before it closes the panel", async ({ tab }) => {
   await tab.locator("textarea").press("Escape");
   await expect(tab.getByTestId("chat-panel")).toBeHidden();
 });
+
+test("a command is not said to have run while its card is still asking", async ({
+  tab,
+}) => {
+  // R-108. Every verb in the panel's table is past tense and the tool row
+  // is drawn when the call arrives, not when it is permitted, so `Ran echo
+  // hello-from-the-script` sat above a card headed "Run a shell command".
+  // If the writer said no, the transcript kept both rows: Ran, then Denied,
+  // the same command twice, nothing having run.
+  await ask(tab, "permission", "Run the command.");
+  const card = tab.locator(".permission-card");
+  await card.waitFor({ timeout: 20_000 });
+
+  const panel = tab.locator('[data-testid="chat"]');
+  const asking = await panel.innerText();
+  expect(asking).not.toContain("Ran echo hello-from-the-script");
+  expect(asking).toContain("Running");
+
+  await card.getByRole("button", { name: /^Deny/ }).click();
+  await expect(card).toHaveCount(0, { timeout: 10_000 });
+
+  const after = await panel.innerText();
+  expect(after, "a denied command is recorded as having run").not.toContain(
+    "Ran echo hello-from-the-script",
+  );
+  expect(after).toContain("Did not run");
+  // And it appears once, not once for the call and once for the answer.
+  expect(after.split("echo hello-from-the-script").length - 1).toBe(1);
+});

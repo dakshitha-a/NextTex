@@ -33,6 +33,10 @@ export type ChatItem =
       kind: "permission";
       id: string;
       tool: string;
+      /** The tool call this card is about, so the panel can draw the two
+       *  as one event. Without it the command appeared twice, and the tool
+       *  row above said "Ran" while the card below was still asking. */
+      toolId: string;
       rule: string;
       headline: string;
       detail: string;
@@ -63,6 +67,10 @@ export type ChatItem =
       /** False for a call that failed.  A tool that gave up used to look
        *  exactly like one that was still working. */
       ok?: boolean;
+      /** The permission card about this call, folded in by `tidy` so the
+       *  two are drawn as one event rather than as two rows repeating the
+       *  same command. Set only in the tidied list, never by the store. */
+      card?: Extract<ChatItem, { kind: "permission" }>;
     }
   /** The model's own plan for the turn, replaced in place as it revises it.
    *
@@ -399,6 +407,7 @@ export function replayTranscript(items: any[]) {
     } else if (item.kind === "permission") {
       chat.push({
         kind: "permission", id: item.id || nextId(), tool: item.tool ?? "",
+        toolId: item.toolId ?? "",
         rule: item.rule ?? "", headline: item.headline ?? "",
         detail: item.detail ?? "", consequence: item.consequence ?? "",
         reason: item.reason ?? "", at,
@@ -716,6 +725,7 @@ export async function reconcile() {
         kind: "permission",
         id: card.id,
         tool: card.tool,
+        toolId: card.toolId ?? "",
         rule: card.rule ?? "",
         headline: card.headline ?? `Use ${card.tool}`,
         detail: card.detail ?? "",
@@ -1040,6 +1050,7 @@ function receive(event: any) {
         kind: "permission",
         id: event.id,
         tool: event.tool,
+        toolId: event.toolId ?? "",
         rule: event.rule ?? "",
         headline: event.headline ?? `Use ${event.tool}`,
         detail: event.detail ?? "",

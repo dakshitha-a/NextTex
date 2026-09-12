@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { useDismiss } from "../useDismiss";
+import { verbFor, type CallState } from "./tool-verb";
 import { createTwoFilesPatch } from "diff";
 import Prose from "./prose";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
@@ -74,6 +75,28 @@ export function tidy(items: ChatItem[]): ChatItem[] {
       };
       continue;
     } else if (
+      // A card and the call it is about are one event, and were drawn as
+      // two rows saying the same command, one above the other. Worse than
+      // the repetition: the tool row is written when the call arrives
+      // rather than when it is permitted, and every verb is past tense, so
+      // `Ran echo hello` sat above a card headed "Run a shell command"
+      // and stayed there if the writer said no.
+      //
+      // Merged by the id the card now carries, not by adjacency, because
+      // the pairing has to survive a reload rebuilding the panel from the
+      // record.
+      item.kind === "permission" &&
+      item.toolId &&
+      previous?.kind === "tool" &&
+      previous.id === item.toolId
+    ) {
+      // The card is attached either way, because the row above needs it to
+      // know which tense it may use. Only an *answered* card is folded
+      // away: an open one is a question with four buttons on it, and a
+      // question the writer cannot answer is worse than a repeated line.
+      out[out.length - 1] = { ...previous, card: item };
+      if (item.decision) continue;
+    } else if (
       item.kind === "tool" &&
       previous?.kind === "tool" &&
       previous.name === item.name &&
@@ -134,7 +157,7 @@ export default function Chat({
       ? ""
       : current
         ? current.kind === "tool"
-          ? `${verb(current.name)}${current.label ? ` ${shorten(current.label)}` : ""}`
+          ? `${verbFor(current.name)}${current.label ? ` ${shorten(current.label)}` : ""}`
           : current.label
         : "Thinking";
   const agent = useStore((s) => s.agent);
@@ -1173,28 +1196,6 @@ function Page() {
  *
  *  `mcp__nexttex__insert_at_cursor` is how the protocol names it; nobody
  *  writing a thesis should have to read that. */
-const VERBS: Record<string, string> = {
-  Read: "Read",
-  Edit: "Edited",
-  MultiEdit: "Edited",
-  Write: "Wrote",
-  Bash: "Ran",
-  Glob: "Searched",
-  Grep: "Searched",
-  mcp__nexttex__editor_state: "Checked where you are",
-  mcp__nexttex__compile_diagnostics: "Read the errors",
-  mcp__nexttex__compile: "Rebuilt the document",
-  mcp__nexttex__insert_at_cursor: "Inserted at your cursor",
-  mcp__nexttex__insert_figure: "Inserted a figure",
-  mcp__nexttex__insert_table: "Inserted a table",
-  mcp__nexttex__replace_range: "Rewrote what you selected",
-  mcp__nexttex__goto: "Moved your editor",
-  mcp__nexttex__find_papers: "Searched the literature",
-  mcp__nexttex__add_reference: "Added a reference",
-  mcp__nexttex__check_references: "Checked the bibliography",
-  mcp__nexttex__search_library: "Searched your papers",
-  mcp__nexttex__remember: "Remembered",
-};
 
 /** A path or a command, cut to something that fits a 32px header beside
  *  the agent's name.  The tail of a path is the part that identifies it. */
@@ -1236,9 +1237,6 @@ const MODE_NOTES: Record<"ask" | "project" | "all", string> = {
  *  genuinely is plumbing, and stays. */
 const HIDDEN_TOOLS = new Set(["ToolSearch"]);
 
-function verb(name: string): string {
-  return VERBS[name] ?? name.replace(/^mcp__[a-z]+__/, "").replace(/_/g, " ");
-}
 
 /** A picture, at the weight of the other four icons under the composer.
  *
@@ -1306,10 +1304,23 @@ const Item = memo(function Item({
   }
 
   if (item.kind === "tool") {
+    // Which tense the row may use. A call whose card is open has not
+    // happened, and one the writer refused never will.
+    const state: CallState = item.card
+      ? item.card.decision === "deny"
+        ? "refused"
+        : item.card.decision
+          ? "done"
+          : "asking"
+      : "done";
     return (
       <div className="flex items-baseline gap-2 stream-indent">
-        <span className={`t-micro ${item.ok === false ? "text-error" : "text-ink-2"}`}>
-          {verb(item.name)}
+        <span
+          className={`t-micro ${
+            item.ok === false || state === "refused" ? "text-error" : "text-ink-2"
+          }`}
+        >
+          {verbFor(item.name, state)}
         </span>
         <span className="t-code-sm truncate text-ink-3">{item.summary}</span>
         {item.repeats && item.repeats > 1 ? (

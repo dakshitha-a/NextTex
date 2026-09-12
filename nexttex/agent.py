@@ -1052,7 +1052,7 @@ class ProjectAgent:
         # above `_ALWAYS_OK` names the exception rather than leaving the
         # next reader to find it.
         if tool_name in self._SCRIPT_TOOLS:
-            return await self._by_mode(tool_name, tool_input)
+            return await self._by_mode(tool_name, tool_input, tool_use_id)
 
         if tool_name in self._ALWAYS_OK or tool_name.startswith(self._OWN_TOOL_PREFIX):
             return self._allow()
@@ -1129,11 +1129,13 @@ class ProjectAgent:
             # made in the same place.  This used to be a second copy of the
             # ask, which is how a new position gets added to one branch and
             # not the other.
-            return await self._by_mode(tool_name, tool_input)
+            return await self._by_mode(tool_name, tool_input, tool_use_id)
 
-        return await self._by_mode(tool_name, tool_input)
+        return await self._by_mode(tool_name, tool_input, tool_use_id)
 
-    async def _by_mode(self, tool_name: str, tool_input: dict) -> dict:
+    async def _by_mode(
+        self, tool_name: str, tool_input: dict, tool_use_id: str | None = None
+    ) -> dict:
         """Ask or allow, according to where the control is.
 
         Read here, at the moment the call is made, so a control moved while
@@ -1149,7 +1151,7 @@ class ProjectAgent:
         if self.mode == "all":
             await self._settled(
                 tool_name, tool_input,
-                self._rule_for(tool_name, tool_input), "auto",
+                self._rule_for(tool_name, tool_input), "auto", tool_use_id,
             )
             return self._allow("Approved automatically.")
         # `project` runs the work silently. A compound command is the work,
@@ -1159,11 +1161,11 @@ class ProjectAgent:
         if self.mode == "project" and held not in {"outside", "control", "network"}:
             await self._settled(
                 tool_name, tool_input,
-                self._rule_for(tool_name, tool_input), "auto",
+                self._rule_for(tool_name, tool_input), "auto", tool_use_id,
             )
             return self._allow("Approved automatically.")
 
-        decision = await self._ask_user(tool_name, tool_input)
+        decision = await self._ask_user(tool_name, tool_input, tool_use_id)
         if decision in {"allow", "always", "conversation"}:
             return self._allow()
         result = self._deny("The user declined this action.")
@@ -1173,7 +1175,8 @@ class ProjectAgent:
         return result
 
     async def _settled(
-        self, tool_name: str, tool_input: dict, rule: str, decision: str
+        self, tool_name: str, tool_input: dict, rule: str, decision: str,
+        tool_use_id: str | None = None,
     ) -> None:
         """Record an action that was allowed without anybody being asked.
 
@@ -1187,6 +1190,11 @@ class ProjectAgent:
             "tool": tool_name,
             "rule": rule,
             "decision": decision,
+            # Which tool row this answer belongs to. The panel draws the
+            # call and the card as two rows and had no way to tie them
+            # together, so it printed the command twice and said "Ran"
+            # above a card that was still asking.
+            "toolId": tool_use_id or "",
             **self.describe(tool_name, tool_input),
         })
 
@@ -1207,17 +1215,19 @@ class ProjectAgent:
             return "conversation"
         return ""
 
-    async def _ask_user(self, tool_name: str, tool_input: dict) -> str:
+    async def _ask_user(
+        self, tool_name: str, tool_input: dict, tool_use_id: str | None = None
+    ) -> str:
         """Put a permission card in front of the user and wait for the answer."""
         rule = self._memo_for(tool_name, tool_input)
         if rule and rule in self._always_allow:
             # Recorded rather than silent.  A rule the writer set earlier is
             # still an action taken on their document, and the transcript is
             # the account of what was done to it.
-            await self._settled(tool_name, tool_input, rule, "always")
+            await self._settled(tool_name, tool_input, rule, "always", tool_use_id)
             return "allow"
         if rule and rule in self._conversation_allow:
-            await self._settled(tool_name, tool_input, rule, "conversation")
+            await self._settled(tool_name, tool_input, rule, "conversation", tool_use_id)
             return "allow"
 
         # Two tool calls can land in the same millisecond, and the second
@@ -1232,6 +1242,7 @@ class ProjectAgent:
             "id": request_id,
             "tool": tool_name,
             "rule": rule,
+            "toolId": tool_use_id or "",
             **self.describe(tool_name, tool_input),
         }
         self._pending_cards[request_id] = card

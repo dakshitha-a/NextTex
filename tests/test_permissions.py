@@ -86,7 +86,7 @@ def test_an_allowed_write_is_snapshotted_so_undo_has_something_to_restore(tmp_pa
     assert fence._file_snapshots[str(target.resolve())] == "x"
 
 
-async def _refuse(tool_name, tool_input):
+async def _refuse(tool_name, tool_input, tool_use_id=None):
     return "deny"
 
 
@@ -222,7 +222,7 @@ def test_auto_mode_never_covers_a_write_outside_the_project(tmp_path):
     fence.set_mode("project")
     outside = tmp_path / "elsewhere.tex"
 
-    async def refuse(tool, tool_input):
+    async def refuse(tool, tool_input, tool_use_id=None):
         return "deny"
 
     fence._ask_user = refuse
@@ -916,3 +916,37 @@ def test_a_remembered_answer_still_outranks_a_conversation_one(tmp_path):
     fence._conversation_allow.add(rule)
     fence._always_allow.add(rule)
     assert fence.already_answered("Bash", call) == "always"
+
+
+def test_a_card_says_which_tool_call_it_belongs_to(tmp_path):
+    """The panel draws the call and the card as two rows.
+
+    It had nothing tying them together, so it printed the command twice and,
+    worse, said "Ran" above a card that was still asking. Every verb in that
+    table is past tense and the tool row is drawn when the call arrives, not
+    when it is permitted, so a command the writer went on to deny was
+    recorded as having run.
+
+    The id is in scope the whole way: `_pre_tool` is handed it by the SDK
+    and `_decide`, `_by_mode`, `_ask_user` and `_settled` all dropped it.
+    """
+    fence = agent(tmp_path)
+    fence.set_mode("project")
+    seen = []
+
+    async def catch(event):
+        seen.append(event)
+
+    fence._emit = catch
+
+    asyncio.run(fence._pre_tool(
+        {"tool_name": "Bash", "tool_input": {"command": "echo hi"}},
+        "toolu_01ABC",
+        None,
+    ))
+
+    cards = [event for event in seen if event.get("type") == "permission"]
+    assert cards, f"no card was emitted; saw {[e.get('type') for e in seen]}"
+    assert cards[0]["toolId"] == "toolu_01ABC", (
+        "the card does not say which tool call it belongs to"
+    )
