@@ -289,12 +289,18 @@ keyboard focus a 1 px inset `--pen` outline; folder drag-over gets `--pen-wash` 
 
 Right slot (16 px), in priority order: error count in `--error` micro; unsaved dot (5 px
 solid `--ink-2`); git status letter (`M`/`A`/`?`) in `--ink-3` mono 10 px. On row hover that
-slot becomes a `⋯` opening, in order: rename, move to…, set as main document, history,
-download, upload here, new file here, new folder here, move to trash. (This paragraph
-described a menu of *rename / duplicate / download / delete / new file here* for some time
-after the built menu had stopped matching it, which is the sort of drift this document
-exists to avoid. Duplicate was specified and never built; it is dropped rather than left
-described.) **Rename is inline**: the label becomes an input in place, same font, same
+slot becomes a `⋯` opening, in order: rename, move to…, history, delete version history…,
+download, upload here, new file here, new folder here, move to trash. Four items appear
+only where they can work and are absent otherwise: *add papers from a folder…* on a
+`.bib`, *plot this…* on a dataset, *set as main document* on a `.tex` that is not already
+it, and *preview this document* or *stop previewing* depending on which side of the
+preview strip the file is on. (This paragraph described a menu of *rename / duplicate /
+download / delete / new file here* for some time after the built menu had stopped matching
+it, which is the sort of drift this document exists to avoid, and it then drifted twice
+more in the correction. It called Duplicate a thing that had been specified and left
+unbuilt, by which time it was built, on the tab strip's menu rather than in the tree, over
+`POST /duplicate`, with `docs/architecture.md` describing it at length. And the list it gave omitted *delete
+version history*, which is the one item on that menu a writer cannot undo.) **Rename is inline**: the label becomes an input in place, same font, same
 position, 1 px `--pen` underline, Enter commits, Escape reverts. Never a modal.
 
 Drag-drop upload highlights the target folder row only, never the whole panel. The project
@@ -1239,7 +1245,7 @@ ghost button that takes `--hint` on hover, which is also now on the drag
 handles, the segmented controls, the chip actions and the fold controls: the
 jobs the second accent was invented for.
 
-Also: the welcome message is three paragraphs with its two instructions as
+Also: the welcome message is three paragraphs with its three instructions as
 buttons that do the thing, rather than five paragraphs of prose pointing at a
 grey row; the usage panel leads with one number instead of a 2×3 grid in four
 units; the edit chip shows `Show` and `Undo` without waiting for a hover, and
@@ -2849,7 +2855,7 @@ wearing one name.
 No stored progress, no scroll restoration, no auto-open on first run. §4
 already refused an auto-opening drawer in a passage written about exactly
 this temptation, and the app does first-run orientation where it belongs,
-`welcome.ts` puts three paragraphs and two buttons in an agent panel with no
+`welcome.ts` puts three paragraphs and three buttons in an agent panel with no
 conversation yet. A tutorial opening on top of that would be two welcomes
 competing for the same thirty seconds. Reopening lands at the top rather
 than where you left off, because somebody reopening it is asking a different
@@ -3808,7 +3814,7 @@ What makes the change safe is machinery that was already there and unused by thi
 
 Two things deliberately do not change. `awaitingPermission` still drives the `--warn` dot in the header and the state dot on the floating pill, because *the agent is waiting for you* has to be visible when the panel is closed, which is precisely when it needs saying. And the 350 ms input shield stays: it protects against a click already travelling toward the composer, which is a different concern from whether the writer may type.
 
-The composer's own line says what changed, once, rather than leaving it to be discovered: `Waiting on your approval, or ask something else`. It used to print nothing there, because the box beside it was dead.
+The composer's own line says what changed, once, rather than leaving it to be discovered: `Waiting on your approval`, and `Waiting on your approval · yours will go next` when something is already queued behind the card. It used to print nothing there, because the box beside it was dead. (This paragraph quoted it as `Waiting on your approval, or ask something else`, which was the specification; the build says the shorter thing and says the queue separately, and the build is right, because "or ask something else" is an invitation and the state line is a statement.)
 
 ### Records collapse, questions never do
 

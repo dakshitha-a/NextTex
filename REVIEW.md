@@ -2370,7 +2370,11 @@ reason the ordering argument in that comment is given at all, so it is worth
 correcting rather than deleting: the argument still holds, and the ratio it
 rests on has changed.
 
-### R-075 · Documents · docs · medium · confirmed
+### ~~R-075 · Documents · docs · medium · confirmed~~
+
+**Fixed.** The paragraph keeps its reasoning in the past tense and says what was built and where, which is the correction this repository already uses elsewhere.
+Held by `tests/test_documents_match_the_code.py`, which reads that sentence and the tab strip's route together.
+
 
 Found by: reading the design document against the code. Where:
 `docs/design.md:296`.
@@ -3842,7 +3846,11 @@ A folded Sections panel keeps its count of 3 on the spine. A folded Files
 panel shows nothing. Evidence: `07-sections-alone--*` against
 `08-sections-folded--*`.
 
-### R-117 · Documents · docs · low · confirmed
+### ~~R-117 · Documents · docs · low · confirmed~~
+
+**Fixed.** All three passages, and the row menu list gained the four conditional items as well as the one it was missing. The composer quote was the specification rather than the build, and the build is the better of the two, so the document follows it and says why.
+Held by `tests/test_documents_match_the_code.py`, on the menu and on the welcome message's button count.
+
 
 Found by: the sweep, reading three design document passages against the
 pixels.

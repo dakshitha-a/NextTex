@@ -245,3 +245,44 @@ def test_the_two_places_that_quote_a_tier_time_agree():
     # have to be consistent with each other: seven minutes of browser
     # inside twelve minutes of everything.
     assert "about twelve minutes" in guide and "about seven minutes" in script
+
+
+def test_the_file_row_menu_in_the_design_document_is_the_menu_that_is_built():
+    """R-075 and R-117. Section 5's list of the file row's menu has drifted
+    twice, and the second time was inside the correction for the first.
+
+    The paragraph is checked rather than merely read because it is the one
+    passage in this document that has now been wrong three times: it named
+    a Duplicate that was never built, then said Duplicate was never built
+    after it had been, and all the while omitted the one item on that menu
+    a writer cannot undo.
+    """
+    design = (ROOT / "docs" / "design.md").read_text(encoding="utf-8")
+    tree = (ROOT / "frontend" / "src" / "panes" / "FileTree.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "delete version history" in design.lower(), (
+        "section 5 lists the row menu without the item that destroys history"
+    )
+    assert '["purge", "Delete version history' in tree, (
+        "the row menu no longer has the item section 5 promises"
+    )
+    assert "Duplicate was specified and never built" not in design, (
+        "the design document still says Duplicate was never built; it is on "
+        "the tab strip"
+    )
+
+
+def test_the_welcome_message_has_as_many_buttons_as_the_document_claims():
+    """R-117. Two passages count them, and a third button was added
+    without either being touched."""
+    design = (ROOT / "docs" / "design.md").read_text(encoding="utf-8")
+    welcome = (ROOT / "frontend" / "src" / "welcome.ts").read_text(encoding="utf-8")
+
+    built = welcome.count("label:")
+    assert built == 3, f"welcome.ts now offers {built} buttons"
+    for claim in ("three paragraphs and two buttons", "its two instructions as"):
+        assert claim not in design, (
+            f"the design document still says {claim!r} about the welcome message"
+        )
