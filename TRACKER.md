@@ -39,7 +39,21 @@ things go to be forgotten rather than a list anybody reads.
       `figures/plot.png` arrives as a name with nothing behind it. Syncing a
       figure's *past* is done; delivering its bytes is not. A file-sync gap
       rather than a history one, which is why it was left when the history
-      work closed.
+      work closed. The September review's Windows laptop joined a project
+      with no real binaries in it, so whether a figure added on one machine
+      arrives on another is still untested between two computers; the gap
+      is known in one process.
+- [ ] **A peer link that dies silently is not noticed until something is
+      sent.** `PeerLink.alive` in `server/collab/peers.py` flips on a send
+      failure, a closed stream, a denial or a removal, and on nothing else,
+      so a QUIC path that stops carrying packets without closing leaves both
+      ends drawn as connected until one of them types. The fix is a
+      heartbeat frame, and `server/collab/wire.py` has ten frame kinds and
+      no version number: adding a kind means both sides have to tolerate one
+      they do not know, which is a wire-version decision rather than a line,
+      and it was found by reading rather than by anybody meeting it. The
+      `collab_peers` event that pass 3 of the fix run added covers every
+      departure the link does notice.
 - [ ] **Rekey history on the collaboration file id rather than the path
       slug.** Three keyspaces meet here, the path slug, the file id and the
       trash entry id, and that is the root cause behind two findings already
@@ -92,6 +106,15 @@ things go to be forgotten rather than a list anybody reads.
       `db8c332`, but the verification run afterwards was never written down.
       The README says Windows is partly verified, which is honest; this is the
       check that would change that.
+- [ ] **The update footer's long-reason line is held by a Linux browser
+      test and was not re-taken on Windows.** The wrapping that pushed Try
+      again off the footer strip was found on the Windows laptop, fixed in
+      `frontend/src/panes/UpdateFooter.tsx`, and confirmed there off the DOM
+      rather than off the screen: the laptop's session could not repoint its
+      checkout at the fixed commit, and was told to leave that refusal alone
+      rather than work around it. The browser test asserts the row's height;
+      a screenshot from a Windows machine at 125 percent is what would close
+      this.
 
 - [ ] **Duplicate is on the tab strip and not in the file tree.** The route and
       the naming rule are shared, so adding it to
