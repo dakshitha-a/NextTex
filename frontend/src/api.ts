@@ -123,7 +123,12 @@ export type TreeNode = {
 
 export type Instance = {
   instance: string;
+  /** The commit this process loaded, read once when it started. */
   head: string;
+  /** The commit the files say now. An update moves this and leaves `head`
+   *  where it was, and the two disagreeing is the whole reason both are
+   *  here: it means the install has been updated and not restarted. */
+  diskHead: string;
   boot: string;
   supervised: boolean;
   root: string;

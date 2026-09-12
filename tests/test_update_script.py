@@ -106,13 +106,25 @@ def release(origin: Path, tmp_path: Path, change) -> None:
 
 
 def run(work: Path) -> subprocess.CompletedProcess:
+    # The state directory is deliberately outside the checkout. It is
+    # outside on a real install too, and inside it the script's own
+    # "you have local changes; stashing them" step swept the update log it
+    # had just opened into a stash, which is a fact about this fixture
+    # rather than about the script.
+    state = work.parent / "state"
+    state.mkdir(exist_ok=True)
     return subprocess.run(
         ["bash", "scripts/update.sh", "--instance=nothinglistenshere", "--no-restart"],
         cwd=work,
         capture_output=True,
         text=True,
-        env={"PATH": PATH, "HOME": str(work), "LANG": "C"},
+        env={"PATH": PATH, "HOME": str(work), "LANG": "C",
+             "XDG_DATA_HOME": str(state)},
     )
+
+
+def log_of(work: Path) -> Path:
+    return work.parent / "state" / "nexttex-nothinglistenshere" / "update.log"
 
 
 def test_the_pulled_script_is_what_finishes_the_update(tmp_path: Path) -> None:
@@ -190,3 +202,39 @@ def test_nothing_is_handed_over_when_there_was_nothing_to_pull(tmp_path: Path) -
     assert done.returncode == 0, done.stderr
     assert "already up to date" in done.stdout
     assert "continuing with the updated script" not in done.stdout
+
+
+def test_the_log_is_written_once_across_the_hand_over(tmp_path: Path) -> None:
+    """The hand-over re-execs this same file, and the file is what opens the
+    log, so without a guard the resumed run wraps itself in a second `tee`
+    writing to the same path and everything after the pull lands twice.
+
+    A doubled log is not a cosmetic problem in a file whose reason for
+    existing is that somebody reads it afterwards to work out what an
+    update did to their machine.
+    """
+    origin, work = repositories(tmp_path)
+    release(origin, tmp_path, lambda text: text.replace(
+        '  note "python packages up to date"',
+        '  note "python packages up to date"  # the second release',
+        1,
+    ))
+
+    done = run(work)
+    assert done.returncode == 0, done.stderr
+
+    log = log_of(work)
+    assert log.is_file(), f"nothing was written\n{done.stdout}"
+    text = log.read_text()
+    assert text.count("continuing with the updated script") == 1, text
+    assert text.count("Dependencies") == 1, text
+
+
+def test_nothing_is_logged_twice_when_there_was_nothing_to_pull(tmp_path: Path) -> None:
+    origin, work = repositories(tmp_path)
+
+    done = run(work)
+    assert done.returncode == 0, done.stderr
+
+    log = log_of(work)
+    assert log.read_text().count("already up to date") == 1

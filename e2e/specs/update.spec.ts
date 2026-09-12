@@ -275,3 +275,31 @@ test("a tab that joins a running update reloads when the server comes back", asy
     await app.stop();
   }
 });
+
+test("an install updated on disk and not restarted says so", async ({ page }) => {
+  // R-041. The instance route answered `head` by running `git rev-parse
+  // HEAD` when it was asked, which reads the working tree. That is the code
+  // on disk; the question is what the running process loaded. An update
+  // moves the first and leaves the second, so a laptop was found serving
+  // day-old code with three places on screen agreeing it was current: the
+  // instance banner, the commit under it, and the footer, all reporting the
+  // same disk commit and comparing it against a remote it matched.
+  buildRepo();
+  const app = await startServer({ NEXTTEX_INSTALL_ROOT: clone });
+  try {
+    await open(app, page);
+    await expect(page.getByTestId("update-unrestarted")).toHaveCount(0);
+
+    // Exactly what an update does: the files move, this process does not.
+    commitUpstream("server/main.py", "a real change");
+    git(clone, "pull", "--ff-only");
+
+    await page.reload();
+    await expect(page.getByTestId("update-unrestarted")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText("Up to date.")).toHaveCount(0);
+  } finally {
+    await app.stop();
+  }
+});

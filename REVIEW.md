@@ -2111,7 +2111,10 @@ A second group, about the papers pipeline, each read and none reproduced.
 
 ### Install and update
 
-### R-041 · Update · bug · high · confirmed
+### ~~R-041 · Update · bug · high · confirmed~~
+
+**Fixed.** The running commit is read once at boot, and the commit on disk is reported beside it.
+Held by `tests/api/test_update_routes.py`, `frontend/src/panes/update-standing.test.ts` and `e2e/specs/update.spec.ts`.
 
 Found by: a real Windows machine, then confirmed against the code. Where:
 `server/main.py:3599`.
@@ -2159,7 +2162,10 @@ fields, contradicting each other, and the only reason anybody can tell is that
 `boot` happens to be beside it. After a manual restart `boot` changed and
 `head` stayed, which is what agreement looks like.
 
-### R-042 · Update · bug · high · confirmed
+### ~~R-042 · Update · bug · high · confirmed~~
+
+**Fixed.** With R-122 and R-125: the update stops the server, restarts either install shape, and exits one if it could not.
+Held by `tests/test_cross_platform.py`.
 
 Found by: a real Windows machine, then confirmed against the code. Where:
 `scripts/update.ps1:61` with `scripts/register-task.ps1:52`.
@@ -2194,7 +2200,10 @@ said the install was ready.
 Taken with R-041, the two make a writer who has done everything right believe
 they are running code they are not.
 
-### R-043 · Documents · docs · medium · confirmed
+### ~~R-043 · Documents · docs · medium · confirmed~~
+
+**Fixed.** The README says `python.exe -u` and names the process to end, and says why it is not `pythonw`.
+Held by `tests/test_documents_match_the_code.py`.
 
 Found by: a real Windows machine. Where: `README.md:221`.
 
@@ -2217,7 +2226,10 @@ listening, `Get-Process pythonw` returns nothing, because the process is
 path, route and `NEXTTEX_*` name a document mentions is real, and both of
 these are real names used for the wrong thing.
 
-### R-118 · Install · bug · medium · confirmed
+### ~~R-118 · Install · bug · medium · confirmed~~
+
+**Fixed.** A `--dir` that disagrees with the checkout the script is standing in is refused with both paths named.
+Held by `tests/test_install_bootstrap_sh.py`.
 
 Found by: running the documented installer on this machine, into a sandbox.
 Where: `scripts/install.sh:134`, against its own `--help` at `:111`.
@@ -2274,7 +2286,10 @@ Anything reviewing or testing an install has the same problem, which is how
 this was found: the sandboxing the review protocol specified could not work,
 and the install landed in the working repository.
 
-### R-119 · Install · docs · low · confirmed
+### ~~R-119 · Install · docs · low · confirmed~~
+
+**Amended and fixed.** No sentence about Linux existed; the stale claim was the Windows paragraph, which said nothing had reported a running server serving a project. One has. The paragraph now names the two things still unproven.
+Held by `tests/test_cross_platform.py`.
 
 Found by: the same run. Where: `README.md`, "Installing".
 
@@ -3331,7 +3346,10 @@ was what "not connected" looks like on a real network. It looks like nothing.
 The experiment would have shown an unchanged screen, which is why the laptop's
 reasoning is better evidence than the test would have been.
 
-### R-122 · Update · bug · medium · confirmed
+### ~~R-122 · Update · bug · medium · confirmed~~
+
+**Fixed.** With R-042. The task name is one default shared with `register-task.ps1`.
+Held by `tests/test_cross_platform.py`.
 
 Found by: the Windows laptop, running `scripts\update.ps1` for real. Where:
 `scripts/update.ps1:62`, with `scripts/register-task.ps1`.
@@ -3410,7 +3428,10 @@ Nothing was lost in this run, because nothing had been typed into the gap.
 `main.tex` was intact at 1181 bytes afterwards and the other two files were
 byte-identical to what had arrived.
 
-### R-124 · Update · docs · low · confirmed
+### ~~R-124 · Update · docs · low · confirmed~~
+
+**Fixed.** Both update scripts write `update.log` beside `install.log`.
+Held by `tests/test_cross_platform.py`.
 
 Found by: the Windows laptop, looking for a log that does not exist. Where:
 `scripts/update.ps1`.
@@ -3425,7 +3446,10 @@ The install has `install.log` and it is the thing that makes an install
 diagnosable after the fact. The update, which is the operation most likely to
 leave a machine in a state its owner cannot explain, has nothing.
 
-### R-125 · Update · bug · low · confirmed
+### ~~R-125 · Update · bug · low · confirmed~~
+
+**Fixed.** With R-042: nothing has the files open when pip runs, and what earlier updates left is swept up.
+Held by `tests/test_cross_platform.py`.
 
 Found by: the Windows laptop. Where: the dependencies step of
 `scripts/update.ps1`.

@@ -218,9 +218,17 @@ Stop-ScheduledTask  -TaskName NextTex
 Registering that task wants administrator, so on an ordinary account
 `scripts\register-task.ps1`, which is what the installer calls for this,
 falls back to a shortcut in your Startup folder and says which it used. If it is the shortcut, there is no task to start or stop: run
-`.venv\Scripts\pythonw.exe server\run.py` to start it, and end the
-`pythonw` process to stop it. `shell:startup` in the Run box opens the folder
+`.venv\Scripts\python.exe -u server\run.py` to start it, or open the
+`nexttex` shortcut itself, and end the `python` process running
+`server\run.py` to stop it. `shell:startup` in the Run box opens the folder
 the shortcut is in.
+
+Not `pythonw`. It was tried, so that logging in did not leave a black
+rectangle on the desktop, and what it also does is discard everything the
+server prints: a server that dies on startup dies in complete silence, no
+window and no log. The shortcut runs the console interpreter minimised
+instead, and writes to `server.log` and `server.err.log` beside the install
+log.
 
 **Any platform.** To print the URL and token again, which is the way back in
 if you have forgotten the password:
@@ -269,6 +277,20 @@ you asked for it.
 says *"An update is waiting"* with a **Show it** beside it, so you can come back
 and update on an afternoon that suits you rather than having to remember. The
 card stays away on its own until you ask.
+
+An update that has landed on disk without the server being restarted is its
+own case, and the footer says so before it says anything about GitHub:
+*"Updated on disk to abc1234. Restart to run it."* The running process
+reports the commit it started with, which is the only commit it can honestly
+claim; the files are a separate fact and are reported beside it. Without that
+pair, an install updated by hand and not restarted reported the new commit,
+matched it against the remote and called itself up to date, three times over,
+while serving the old code.
+
+Both scripts write to `update.log` beside `install.log`, in
+`~/.local/share/nexttex/` on every platform, Windows included. An update is the
+operation most likely to leave a machine in a state its owner cannot explain,
+so it leaves a record the way the install does.
 
 ## Uninstalling
 
@@ -726,11 +748,20 @@ Since then the whole install after the clone has become the same Python that
 Linux and macOS run, so the parts that used to be Windows-only code are now
 Windows-only *branches* of code the test suite exercises on every platform,
 including the console-encoding fallback that a legacy code page needs. What
-that leaves genuinely unproven is smaller than it was and is still real: no
-download here has ever been fetched by a Windows PowerShell, the logon task
-and the Startup shortcut have not run since they moved into their own
-script, and nothing has yet reported a running server serving a project. So
-treat Windows as unverified until somebody reports one. Signing in to Claude
+that leaves genuinely unproven is smaller than it was again. A Windows
+laptop has since run the install end to end, started the server from the
+Startup shortcut, opened a project, joined a shared one from this machine
+and typed into it, and run `scripts\update.ps1` against a real remote. That
+found five more things, all of them fixed: the instance route reported the
+commit on disk rather than the one it had loaded, the update did three of
+its four steps and exited zero, its dependencies step left a directory of
+litter behind every time, it wrote no log, and the README told a Startup
+install to start itself with an interpreter that discards every word the
+server prints.
+
+Two things are still unproven. The logon *task* branch has never run,
+because registering one needs administrator and the accounts this has been
+installed on do not have it, and no Intel Mac has run any of it. Signing in to Claude
 from the browser needs a
 pseudo-terminal, which Windows does not have, so run `claude auth login` in a
 terminal once or use an OpenAI key. Reports welcome.

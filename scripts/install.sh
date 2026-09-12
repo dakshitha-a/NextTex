@@ -132,7 +132,30 @@ done
 # checkout; piped from curl there is no checkout yet, so it makes one and
 # re-runs itself from inside it.
 if [ -f "$(dirname "$0")/../requirements.txt" ] 2>/dev/null; then
-  cd "$(dirname "$0")/.."
+  HERE="$(cd "$(dirname "$0")/.." && pwd)"
+  # --dir was accepted, documented and silently ignored on this branch, and
+  # what happened instead is not nothing: the checkout the script is
+  # standing in is reinstalled, its .venv brought up to date and its
+  # frontend/dist replaced.  Somebody who asked for the install to go
+  # somewhere else got their working copy rebuilt and a line of banner
+  # saying "installing the checkout at ..." that reads as a statement
+  # rather than as a correction.
+  #
+  # Refused rather than honoured, because the design here is right: run
+  # from inside a checkout, this installs that checkout.  What was missing
+  # was saying so when the answer disagrees with the question.
+  if [ -n "$DIR_CHOICE" ]; then
+    WANTED="$(expand_path "$DIR_CHOICE")"
+    if [ "$WANTED" != "$HERE" ]; then
+      die "You asked for the install to go to $WANTED, and this script is
+  running from the checkout at $HERE, which is the one it would install.
+
+  To install there instead, run the installer from there, or pipe the
+  bootstrap from a directory that is not a checkout:
+    curl -fsSL https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.sh | sh -s -- --dir=$WANTED"
+    fi
+  fi
+  cd "$HERE"
 else
   command -v git >/dev/null 2>&1 || die "NextTex needs git.
   macOS:  xcode-select --install

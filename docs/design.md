@@ -4657,3 +4657,67 @@ it holding a hundred pixels of nothing. On a panel three hundred and twenty
 pixels wide that is the difference between reading `Read chapters/02_theory.tex`
 and reading `Read chapte…`. The spacer is only drawn when there is no activity
 line, which is the only time anything needs pushing.
+
+### Three commits, and the interface reporting the middle one
+
+An install can be at three different places at once. The commit the running
+process loaded, the commit the files on disk are at, and the commit the remote
+is at. A Windows laptop was found holding exactly that: `664f237` serving,
+`b16bf6d` on disk, `b832d28` upstream, having fast-forwarded overnight without
+restarting.
+
+What the interface reported was the middle one, everywhere, because the
+instance route answered `head` by running `git rev-parse HEAD` when it was
+asked, and that reads the working tree. The footer then compared that same disk
+commit against the remote and said the install was up to date. Everything the
+writer could see agreed, and all of it was about a copy of the code that was
+not running.
+
+They are two fields now. `head` is read once, when the process starts, and
+cannot move while it runs. `diskHead` is what the files say now. When they
+differ the footer says so before it says anything about GitHub, because "up to
+date" is true of the files and false of the program reading them, and it is the
+program the writer is using.
+
+### An update that did three of its four steps and said it was fine
+
+`update.ps1`'s own synopsis promises pull, reinstall, rebuild, restart. Its
+restart looked for a scheduled task, found none, printed "not running as a
+scheduled task; restart it yourself", and exited zero. Registering a scheduled
+task needs administrator and this installer is deliberately not run elevated,
+so an ordinary Windows account gets a Startup-folder shortcut instead, which
+means that branch is what most installs take. Every caller, including the
+update footer watching from the page, read a half-finished update as a
+finished one.
+
+The same decision caused two more. Dependencies were being updated underneath
+a running server, so pip could not delete the compiled extension the server had
+mapped and left a `~ycrdt` directory behind in site-packages, one per update,
+for the life of the install. And there was no log: the operation most likely to
+leave a machine in a state its owner cannot explain wrote nothing to disk, while
+the install beside it has written `install.log` from the beginning.
+
+So the script stops the server before it touches the dependencies and starts it
+again afterwards, on either install shape: the scheduled task if there is one,
+the Startup shortcut if there is not, since the shortcut's target is what the
+installer decided and launching it starts the server exactly the way logging in
+would. When neither can be done it says which two things it looked for, gives
+the command to run, names the log, and exits one. It sweeps up whatever earlier
+updates left behind while nothing has those files open, and it writes
+`update.log` beside `install.log` on both platforms.
+
+### A flag that was accepted, documented, and ignored
+
+`install.sh` has two modes: run from inside a checkout it installs that
+checkout, piped from curl it makes one first. `--dir` and `NEXTTEX_DIR` are read
+before the branch and used only in the second one. So somebody who ran the
+installer from inside a checkout and asked for the install to go elsewhere got
+their working copy reinstalled instead, its `.venv` brought up to date and its
+`frontend/dist` replaced, with one line of banner reading "installing the
+checkout at ..." that scans as a statement rather than as a correction.
+
+Refused rather than honoured. The design is right: run from inside a checkout,
+this installs that checkout. What was missing was saying so when the answer
+disagrees with the question. Asking for the checkout it is standing in is still
+fine, because that answer is redundant rather than wrong, and a script that
+refuses a correct answer is worse than one that ignores it.

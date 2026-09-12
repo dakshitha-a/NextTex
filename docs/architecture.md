@@ -46,6 +46,8 @@ The lifespan starts four background tasks and cancels them on the way out.
 
 **The warm task** imports the agent SDK while nobody is waiting, because that import costs about six hundred milliseconds and was otherwise paid by the first person to open a project after an update.
 
+**Two commits, read at two different times.** `HEAD_AT_BOOT` is read once here, when the process starts, and is the only commit this process can honestly claim to be running. The commit on disk is asked for when `/api/instance` is called, because it moves: an update pulls into the working tree of a server that is already running. They were one field, read at request time, so an install updated and not restarted reported the new commit, matched it against the remote, and called itself up to date while serving the old code.
+
 ## The gate every request passes
 
 Two middleware, and the order is load-bearing. Starlette builds the stack with the last one added on the outside, so `security_headers` is declared after `authenticate` and therefore wraps it. That matters because `authenticate` returns some responses without ever calling a route, and those refusals need the headers too. The sign-in page is one of them: it is the page an unauthenticated visitor actually sees and it takes a password.

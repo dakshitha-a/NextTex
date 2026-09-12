@@ -87,6 +87,25 @@ UPDATES = updates.Cache(INSTALL_ROOT)
 # asks "is this a different process", not "is the code different": an update
 # that pulls nothing still restarts, and the commit would not have moved.
 BOOT = secrets.token_hex(8)
+
+
+def _head_now() -> str:
+    """The commit the working tree is on, right now."""
+    try:
+        return gitrepo._run(INSTALL_ROOT, "rev-parse", "--short", "HEAD").strip()
+    except gitrepo.GitError:
+        return ""
+
+
+#: The commit this process loaded, read once, here, before anything can move
+#: it. Reading it at request time reads the working tree, which is a
+#: different fact and was being reported as this one: an install whose files
+#: have moved forward without a restart answered with the new commit while
+#: running the old code, and the update footer, comparing that same disk
+#: commit against the remote, said it was up to date. A Windows laptop was
+#: found serving day-old code and being told three times over that it was
+#: current.
+HEAD_AT_BOOT = _head_now()
 # One update at a time, and the log is kept so a tab that arrives late -- or
 # reloads mid-update -- can be shown what has happened so far.
 UPDATE_JOB: dict[str, object] = {}
@@ -3841,16 +3860,17 @@ async def instance():
     update polls this until the nonce changes, which is how it knows the
     process it is talking to is a new one.
 
+    `head` and `diskHead` are two different facts and were one. `head` is
+    the commit this process loaded and cannot change while it runs.
+    `diskHead` is what the files say now, which an update moves without
+    asking this process anything. When they differ, the install has been
+    updated and not restarted, and the footer says so instead of claiming
+    to be up to date.
     """
-    try:
-        head = (await asyncio.to_thread(
-            gitrepo._run, INSTALL_ROOT, "rev-parse", "--short", "HEAD"
-        )).strip()
-    except gitrepo.GitError:
-        head = ""
     return {
         "instance": instance_name(),
-        "head": head,
+        "head": HEAD_AT_BOOT,
+        "diskHead": await asyncio.to_thread(_head_now),
         "boot": BOOT,
         "supervised": updates.supervised(),
         "root": str(INSTALL_ROOT),
