@@ -4,8 +4,8 @@ Four tiers, and each exists because the one above it cannot see what it
 sees.
 
 ```bash
-scripts/check.sh          # types, frontend and Python: about twenty seconds
-scripts/check.sh --all    # adds the browser tier: about two minutes
+scripts/check.sh          # types, frontend and Python: about three minutes
+scripts/check.sh --all    # adds the browser tier: about twelve minutes
 scripts/check.sh --bench  # what the slow parts cost, on a project shaped like a long document
 ```
 

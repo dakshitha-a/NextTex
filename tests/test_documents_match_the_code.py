@@ -219,3 +219,29 @@ def test_the_readme_starts_windows_the_way_the_installer_does():
     # And the shortcut agrees with it.
     task = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
     assert "pythonw" not in task.replace("# ", "").split("$runner = $venv")[1]
+
+
+def test_the_two_places_that_quote_a_tier_time_agree():
+    """R-007. `scripts/check.sh` and `docs/testing.md` both tell a reader
+    how long the tiers take, and they drifted apart and away from the
+    truth: the header said the Python tier took seven seconds when it took
+    a hundred and thirty-six, and the guide said the fast tier took twenty
+    seconds when it took nearly three minutes.
+
+    A measured number cannot be checked from here, since it depends on the
+    machine. What can be checked is that the two files say the same thing,
+    which is the failure that let them drift by an order of magnitude in
+    different directions without anybody noticing.
+    """
+    script = (ROOT / "scripts" / "check.sh").read_text(encoding="utf-8")
+    guide = (ROOT / "docs" / "testing.md").read_text(encoding="utf-8")
+
+    for phrase in ("about seven minutes", "about two"):
+        assert phrase in script, f"check.sh no longer says {phrase!r}"
+    for phrase in ("about three minutes", "about twelve minutes"):
+        assert phrase in guide, f"docs/testing.md no longer says {phrase!r}"
+
+    # The browser tier is the bulk of `--all`, so the two files' figures
+    # have to be consistent with each other: seven minutes of browser
+    # inside twelve minutes of everything.
+    assert "about twelve minutes" in guide and "about seven minutes" in script
