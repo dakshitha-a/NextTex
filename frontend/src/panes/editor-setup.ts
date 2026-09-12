@@ -44,6 +44,8 @@ import type { Diagnostic, Symbols } from "../api";
 import { latexCompletions } from "./latex-complete";
 import { environmentToClose, indentOf, opensEnvironment } from "./close-environment";
 import { isEscaped } from "./escaping";
+import { inputTarget, labelTarget, linkAt } from "./latex-links";
+import { mac } from "./math-hover";
 import { mathHover } from "./math-hover";
 import {
   braceAfter,
@@ -430,7 +432,54 @@ function closeEnvironment(view: EditorView): boolean {
  *  language and would not carry it. */
 const LATEX = StreamLanguage.define(stex);
 
-function base(symbols: () => Symbols | null): Extension[] {
+/** Follow a cross reference under the pointer.
+ *
+ *  The modifier is Ctrl on Linux and Windows and Cmd on a Mac, which is
+ *  what every editor with a go-to-definition uses. CodeMirror reads the
+ *  same one for a second cursor, so this could have cost multi-cursor on
+ *  a `\ref` token; it costs nothing, because this editor never installed
+ *  `allowMultipleSelections` and has no second cursor to lose. The
+ *  handler still claims the event only when there is a link under the
+ *  pointer, so an ordinary modifier-click stays an ordinary click and
+ *  will go on doing whatever CodeMirror decides it means.
+ */
+function followLinks(
+  symbols: () => Symbols | null,
+  open: (path: string, line?: number) => void,
+) {
+  return EditorView.domEventHandlers({
+    mousedown(event, view) {
+      if (event.button !== 0) return false;
+      if (!(mac() ? event.metaKey : event.ctrlKey)) return false;
+      const at = view.posAtCoords({ x: event.clientX, y: event.clientY });
+      if (at === null) return false;
+      const line = view.state.doc.lineAt(at);
+      const link = linkAt(line.text, at - line.from);
+      // A citation names a paper, not a place in this project, so there
+      // is nothing to open and the click stays CodeMirror's.
+      if (!link || link.kind === "cite") return false;
+      const target = link.kind === "ref"
+        ? labelTarget(link.name, symbols())
+        : inputTarget(link.name, symbols());
+      if (!target) {
+        // Not a fall-through to multi-cursor: a click that was aimed at a
+        // reference and quietly did something else reads as the editor
+        // misbehaving. The hover already says the target is missing.
+        event.preventDefault();
+        return true;
+      }
+      event.preventDefault();
+      if (typeof target === "string") open(target);
+      else open(target.file, target.line);
+      return true;
+    },
+  });
+}
+
+function base(
+  symbols: () => Symbols | null,
+  follow?: (path: string, line?: number) => void,
+): Extension[] {
   return [
     lineNumbers(),
     drawSelection(),
@@ -440,6 +489,7 @@ function base(symbols: () => Symbols | null): Extension[] {
     highlightSelectionMatches(),
     rectangularSelection(),
     bracketMatching(),
+    ...(follow ? [followLinks(symbols, follow)] : []),
     // Ahead of `closeBrackets`, which is the extension it overrules: a
     // dollar with a backslash in front of it is a currency sign and must
     // not be given a closer.  `closeBrackets` decides by what follows the
@@ -521,9 +571,13 @@ export function extensions(
    *  rather than a value: the binding is imported on demand, long after
    *  these extensions are built. */
   remote?: { current: unknown },
+  /** Open another file, for a Ctrl-click on a `\ref` or an `\input`.
+   *  Absent in the read-only view of an old version, where following a
+   *  reference out of the version being read is a jump with no way back. */
+  follow?: (path: string, line?: number) => void,
 ): Extension[] {
   return [
-    ...base(symbols),
+    ...base(symbols, follow),
     latexCompletions(symbols),
     markField,
     flashField,

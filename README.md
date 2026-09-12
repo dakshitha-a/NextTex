@@ -410,7 +410,7 @@ makes typing slower on the day it happens.
 | Project file tree | 2.9 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 61 ms | 3 s |
-| Interface bundle | 803.4 kB | 860 kB |
+| Interface bundle | 808.9 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -964,12 +964,13 @@ there, and somebody would have to invite you back.
 | `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
 | `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on |
 | `⌘F` / `Ctrl-F` | Find and replace in the file you are in |
-| `⌘⇧F` / `Ctrl-⇧F` | Find and replace across every file in the project |
+| `⌘⇧F` / `Ctrl-Shift-F` | Find and replace across every file in the project |
 | `⌘⌥O` / `Ctrl-Alt-O` | Open a file by typing its name |
 | `⌘⌥[` `⌘⌥]` / `Ctrl-Alt-[` `Ctrl-Alt-]` | Previous and next tab |
 | `⌘⌥W` / `Ctrl-Alt-W` | Close the tab in front |
-| `⌘⌥⇧T` / `Ctrl-Alt-⇧T` | Reopen the tab you just closed |
-| `F8`, `⇧F8` | Next and previous error |
+| `⌘⌥⇧T` / `Ctrl-Alt-Shift-T` | Reopen the tab you just closed |
+| `F8`, `Shift-F8` | Next and previous error |
+| `⌘`-click / `Ctrl`-click, on a `\ref` or `\input` | Go to the label, or open the file |
 | Typing, in the file tree | Jump to a file |
 | `F2`, `Delete`, in the file tree | Rename, move to trash |
 | `Esc`, in the agent panel | Stop the turn if one is running, otherwise close the panel |

@@ -5308,3 +5308,40 @@ escapes, because a LaTeX writer's replacement is mostly backslashes, and
 `re.sub` handed `\citep` as a replacement string raises "bad escape". With
 the pattern switch on, `\1` means the first group again, which is what was
 asked for.
+
+### The three commands that hold a thesis together, and where they went
+
+A long document is a graph: `\ref` points at a `\label` in another chapter,
+`\input` points at a file, `\cite` points at an entry in a bibliography. None
+of the three went anywhere. Finding what `\ref{eq:flux}` pointed at meant
+remembering which chapter held the equation and searching that chapter for the
+label, and checking a citation meant opening the `.bib` and reading it.
+
+The project's symbol table has known where every label, every `.tex` and every
+bibliography entry lives since the completion list was built on it, and the
+completion list was the only thing that read it. So this is a second reader
+rather than a new mechanism.
+
+Hover says where a reference goes: the file and the line for a `\ref`, the
+resolved filename for an `\input`, and the author, year and title for a
+`\cite`. It reuses the box the equation preview draws in, because the two
+never overlap: a `\ref` is never inside an equation. Ctrl-click, or Cmd-click
+on a Mac, follows it. The hover carries that sentence as well as the answer,
+because a modifier-click is not a gesture anybody finds by looking at a screen
+and the hover is the only place it can be mentioned at the moment somebody
+would use it.
+
+A citation is deliberately hover-only. It names a paper, not a place in this
+project, so there is nothing to open and offering the gesture would be a
+promise the app cannot keep. A `\ref` whose label does not exist is the other
+side of the same rule: the click is swallowed rather than falling through to
+whatever a plain click would have done, because a click aimed at a reference
+that quietly does something else reads as the editor misbehaving, and the
+hover has already said the label is missing.
+
+The command families are spelled out rather than matched by prefix. `\cite`,
+`\citep`, `\parencite` and a dozen more are citations; `\citation` is not,
+and `\reflectbox` is not a reference, and both of those match a prefix rule.
+`\cite[p. 3]{alpha,beta}` is read past its optional argument and answers for
+whichever of its two keys the pointer is on.
+

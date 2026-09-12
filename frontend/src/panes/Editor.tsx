@@ -80,6 +80,7 @@ export type EditorHandle = {
 export default function Editor({
   handleRef,
   onAskAbout,
+  onOpen,
 }: {
   handleRef: (handle: EditorHandle) => void;
   /** Hand a question about the selection to the agent panel.  The panel
@@ -87,8 +88,12 @@ export default function Editor({
    *  `Fix` button on a diagnostic gives: the writer always presses Enter on
    *  their own message. */
   onAskAbout?: (prompt: string) => void;
+  /** Open another file, for a Ctrl-click on a `\ref` or an `\input`. */
+  onOpen?: (path: string, line?: number) => void;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
+  const opener = useRef(onOpen);
+  opener.current = onOpen;
   const editorTheme = useEditorTheme();
   const syntax = useEditorSyntax();
   const spelling = useSpelling();
@@ -398,7 +403,14 @@ export default function Editor({
       }, 400);
     };
 
-    const ext = extensions(onChange, onCursor, () => symbols.current, remoteMarker);
+    const ext = extensions(
+      onChange, onCursor, () => symbols.current, remoteMarker,
+      // Through the ref, because this effect runs once and the extension
+      // it builds lives as long as the pane: the prop is a callback that
+      // is rebuilt whenever the project changes, and a captured one would
+      // go on opening files in the project before this one.
+      (path, line) => opener.current?.(path, line),
+    );
     const readOnlyExt = viewExtensions(() => symbols.current);
     view.current = new EditorView({ parent: host.current, state: freshState("", ext) });
 
