@@ -1087,6 +1087,14 @@ export default function Pdf({
     showHit(next, hits, query);
   }, [at, hits, query, showHit]);
 
+  // The caret goes into the box when the bar opens, and only then. The
+  // first version did this in an inline ref callback, which React calls
+  // again on every commit, so every scroll and every zoom while the bar
+  // was open pulled the caret back out of the page and into the input.
+  useEffect(() => {
+    if (finding) findBox.current?.focus();
+  }, [finding]);
+
   const closeFind = useCallback(() => {
     setFinding(false);
     setHits([]);
@@ -1105,12 +1113,7 @@ export default function Pdf({
           data-testid="pdf-find-bar"
         >
           <input
-            ref={(node) => {
-              findBox.current = node;
-              // Claimed on arrival, because the key that opened this bar
-              // was pressed on the scroller and the box did not exist then.
-              node?.focus();
-            }}
+            ref={findBox}
             className="t-ui min-w-0 flex-1 rounded-[3px] border border-line bg-surface-2 px-[6px] py-[1px] text-ink"
             placeholder="Find on the page"
             data-testid="pdf-find"
