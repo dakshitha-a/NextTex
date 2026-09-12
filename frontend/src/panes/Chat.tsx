@@ -39,6 +39,21 @@ export type ChatHandle = {
 /** Two kinds of noise the raw stream produces, removed before rendering:
  *  an `Edited main.tex` row immediately followed by the chip that says the
  *  same thing with a diff, and the same read repeated back to back. */
+/** What a resolved card is called. Shared, because the decision is drawn
+ *  both on its own row and on the tool row an answered card folds into,
+ *  and those two must not drift into different words for one answer. */
+export function decisionWords(decision: string | undefined): string {
+  return decision === "deny"
+    ? "Denied"
+    : decision === "auto"
+      ? "Allowed automatically"
+      : decision === "conversation"
+        ? "Allowed for this conversation"
+        : decision === "always"
+          ? "Allowed from now on"
+          : "Allowed";
+}
+
 export function tidy(items: ChatItem[]): ChatItem[] {
   const out: ChatItem[] = [];
   for (const item of items) {
@@ -1313,8 +1328,17 @@ const Item = memo(function Item({
           ? "done"
           : "asking"
       : "done";
+    const answered = item.card?.decision;
     return (
-      <div className="flex items-baseline gap-2 stream-indent">
+      <div
+        className="flex items-baseline gap-2 stream-indent"
+        // The account of what was done, on the row the answer belongs to.
+        // Folding a decided card into its call is what stops the command
+        // being printed twice, and the decision has to come with it: at
+        // the quiet positions this row is the only record that the action
+        // happened at all.
+        data-testid={answered ? `decided-${answered}` : undefined}
+      >
         <span
           className={`t-micro ${
             item.ok === false || state === "refused" ? "text-error" : "text-ink-2"
@@ -1323,6 +1347,11 @@ const Item = memo(function Item({
           {verbFor(item.name, state)}
         </span>
         <span className="t-code-sm truncate text-ink-3">{item.summary}</span>
+        {answered && answered !== "allow" ? (
+          <span className="t-micro shrink-0 text-ink-3">
+            {decisionWords(answered)}
+          </span>
+        ) : null}
         {item.repeats && item.repeats > 1 ? (
           <span className="t-micro tabular-nums text-ink-3">×{item.repeats}</span>
         ) : null}
@@ -1734,16 +1763,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
     // this conversation is not the same as a rule they set for good: the
     // record has to be able to say which, because the last of those is the
     // one they will go looking for in their settings later.
-    const label =
-      item.decision === "deny"
-        ? "Denied"
-        : item.decision === "auto"
-          ? "Allowed automatically"
-          : item.decision === "conversation"
-            ? "Allowed for this conversation"
-            : item.decision === "always"
-              ? "Allowed from now on"
-              : "Allowed";
+    const label = decisionWords(item.decision);
     const dot =
       item.decision === "deny"
         ? "bg-ink-3"

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { statusFor, type StatusInput } from "./status-dot";
+import { statusFor, type StatusInput, referencesPending } from "./status-dot";
 
 /** The nine rows, and the tiebreaks between them.
  *
@@ -104,5 +104,30 @@ describe("the status dot", () => {
       .toContain("⌘S");
     expect(at({ stale: true, result: built, autocompile: true }).hint)
       .not.toContain("⌘S");
+  });
+});
+
+describe("references that have not settled", () => {
+  const fast = { enginePass: "fast" };
+  const full = { enginePass: "full" };
+  const undefinedRef = [{ message: "Reference `fig:flux' on page 3 undefined" }];
+  const clean: { message?: string }[] = [];
+
+  test("a fast pass that left ?? on the page says so", () => {
+    expect(referencesPending(fast, undefinedRef)).toBe(true);
+  });
+
+  test("a fast pass with nothing unresolved says nothing", () => {
+    expect(referencesPending(fast, clean)).toBe(false);
+  });
+
+  test("a full pass that still has one is the writer's problem, not the build's", () => {
+    // A missing label survives a full build, and "press rebuild" would be
+    // advice that cannot work.
+    expect(referencesPending(full, undefinedRef)).toBe(false);
+  });
+
+  test("nothing built yet says nothing", () => {
+    expect(referencesPending(null, undefinedRef)).toBe(false);
   });
 });

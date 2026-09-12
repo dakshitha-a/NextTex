@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
-import { statusFor } from "./status-dot";
+import { referencesPending, statusFor } from "./status-dot";
 
 /** A spinner shown at 0ms on a one-second task is what tells the user the
  *  task is slow.  The dot only starts breathing once a build crosses this;
@@ -127,6 +127,15 @@ export default function Status({
         {/* A state, not a control: the action beside it is Rebuild. */}
         <span className="t-micro text-ink-3">
           {result && result.scope !== "full" ? "This chapter" : "Whole document"}
+          {/* And whether the page still has `??` on it. A fast build is one
+              pdflatex pass, which is what makes typing feel immediate and
+              is also what cannot resolve a reference. Until this line, the
+              only thing anywhere about that was a warning count in this
+              strip, a pane away from the page showing the `??`, with the
+              drawer never opening itself. */}
+          {referencesPending(result, diagnostics) ? (
+            <span className="text-warn"> · references pending</span>
+          ) : null}
         </span>
       </span>
       {/* Permanent, not hover-only: it is one word, it is the answer when
@@ -154,6 +163,19 @@ export default function Status({
         >
           {autocompile ? "Rebuild" : "Compile"}
         </button>
+        {/* A press rather than a modifier, when there is a reason to press
+            it. Shift-click stays and was the only way to ask for a full
+            build, written down in a `title` attribute: undiscoverable, and
+            no use at all on a tablet. */}
+        {referencesPending(result, diagnostics) ? (
+          <button
+            className="quiet t-micro"
+            data-testid="rebuild-everything"
+            onClick={() => onRebuild(true)}
+          >
+            Rebuild everything
+          </button>
+        ) : null}
       </span>
       <Rule />
       <button

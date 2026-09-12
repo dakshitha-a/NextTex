@@ -154,3 +154,27 @@ export function statusFor(input: StatusInput): StatusDot {
     hint: "",
   };
 }
+
+/** Whether the page a writer is looking at still has `??` in it.
+ *
+ *  A fast build is one pdflatex pass, which is what makes typing feel
+ *  immediate, and one pass cannot resolve a reference or a citation. So the
+ *  preview shows `??` where a number should be, and until now the only
+ *  thing on any screen about it was a warning count in a strip a pane away,
+ *  with `mark_warnings` off by default and the drawer never opening itself.
+ *  The writer sees `??` on the page and nothing telling them it is the
+ *  build rather than their document.
+ *
+ *  Both halves are needed. A full pass that still has undefined references
+ *  means a label really is missing, which is the writer's problem and a
+ *  different sentence; a fast pass with no `??` has nothing to say.
+ */
+export function referencesPending(
+  result: { enginePass?: string } | null,
+  diagnostics: { message?: string }[],
+): boolean {
+  if (!result || result.enginePass !== "fast") return false;
+  return diagnostics.some((item) =>
+    /undefined|Citation .*undefined|Reference .*undefined/i.test(item.message ?? ""),
+  );
+}

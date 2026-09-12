@@ -4297,3 +4297,23 @@ had joined was shut down from this end, and every sample was identical:
 `{offline: null, collaborators: null, caretLabels: [], editor: true}`. A writer
 whose only collaborator has permanently gone, whose copy is now an ordinary
 folder of files, saw exactly what they saw while the collaboration was live.
+
+### `??` on the page, and the only cure written in a tooltip
+
+A fast build is one pdflatex pass. That is what makes typing feel immediate,
+and it is also what cannot resolve a reference or a citation, so the preview
+shows `??` where a number should be. Everything about why was somewhere else:
+a warning count in the status strip, a pane away from the page showing the
+`??`, with `mark_warnings` off by default and the diagnostics drawer never
+opening itself. A writer sees `??` and has no way to know it is the build
+rather than their document.
+
+The strip says it now, beside the scope it already prints: **Whole document ·
+references pending**. `referencesPending` asks both halves of the question,
+because a *full* pass that still has an undefined reference means a label
+really is missing, which is the writer's problem and a different sentence.
+
+And the cure gets a control. Rebuilding everything was Shift-click on a button
+labelled Rebuild, written down in a `title` attribute: undiscoverable, and no
+use at all on a tablet. The modifier stays; a **Rebuild everything** press
+appears beside it when there is a reason to press it.

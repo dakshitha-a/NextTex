@@ -2380,7 +2380,10 @@ real binary back for its own two tests, a model it names rather than inherits,
 and an answer for the card. It is thirty lines and it turns the only check of
 the real SDK back on.
 
-### R-102 · References · bug · low · confirmed
+### ~~R-102 · References · bug · low · confirmed~~
+
+**Fixed.** A 404 now says the lookup could not find that DOI rather than that the
+paper is unknown. Held by `tests/test_references_message.py`.
 
 Found by: driving the reference paths against the real Crossref and the real
 Semantic Scholar, which no test has done. Where: `nexttex/references.py:71`,
@@ -2551,7 +2554,12 @@ Labels already arrive as `{name, file, line}` and citations as
 `math-hover.ts:215` already registers a `hoverTooltip` over the same symbols
 object and returns null at `:222` for everything that is not maths.
 
-### R-086 · Preview · comfort · high · confirmed
+### ~~R-086 · Preview · comfort · high · confirmed~~
+
+**Fixed.** The strip says "references pending" beside the scope when a fast pass
+left an unresolved reference, and a Rebuild everything press appears beside the
+modifier that was the only way to ask for one. Held by
+`frontend/src/panes/status-dot.test.ts`.
 
 Where: `nexttex/project.py:170`, `frontend/src/panes/Status.tsx:129` and
 `:152`.
