@@ -70,7 +70,12 @@ test("an unbalanced equation holds the build back until it is finished", async (
   // and typing lands in whatever is on screen, which is the preamble.
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");
-  await tab.getByText("What the results mean").click();
+  // Scoped to the editor. The same words are on the typeset page, and the
+  // preview now renders before this line is reached, because the strip
+  // says "compiling" through the first build instead of "ready" and the
+  // poll above waits for it properly. An unscoped `getByText` matched the
+  // source and the PDF's text layer and failed on strict mode.
+  await tab.locator(".cm-content").getByText("What the results mean").click();
   await tab.keyboard.press("End");
 
   const events = await watchEvents(app, project.id);

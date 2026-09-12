@@ -76,9 +76,18 @@ def cited_by(doi: str, limit: int = 20) -> list[dict]:
     except Exception as error:
         status = getattr(getattr(error, "response", None), "status_code", None)
         if status == 404:
+            # What the 404 actually says, which is narrower than it reads.
+            # Semantic Scholar answers this for a paper it holds under some
+            # other id as readily as for one it has never seen: the review
+            # got it for the Nature deep learning paper and for
+            # `10.1126/science.1127647`, while two other well-known DOIs
+            # resolved and returned their citations in full. Telling a
+            # writer building a literature review that a paper is unknown
+            # is a different instruction from telling them this lookup
+            # failed, and only the second one is true.
             raise LookupError(
-                f"Semantic Scholar has no record of {doi}, so it cannot say "
-                "what cites it."
+                f"Semantic Scholar could not find {doi} under that DOI. It "
+                "may hold the paper under another id, or not at all."
             ) from error
         raise
 

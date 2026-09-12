@@ -27,6 +27,28 @@ const chatThere = (page: any) =>
     "true",
   );
 
+/** Open the agent panel, and mean it.
+ *
+ *  `Control+Alt+A` goes to whatever has focus, and a press that lands
+ *  while the app is still mounting its keymap, or just after a viewport
+ *  resize, reaches nothing. It failed about one run in twenty, which is
+ *  often enough to be noise in every full run and rare enough that nobody
+ *  chased it. Pressing again is the honest fix: the shortcut is a toggle,
+ *  so this checks the panel before each press rather than counting them.
+ */
+async function openTheAgentPanel(page: any) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const hidden = await page
+      .getByTestId("chat-panel")
+      .getAttribute("aria-hidden")
+      .catch(() => "true");
+    if (hidden !== "true") return;
+    await page.keyboard.press("Control+Alt+KeyA");
+    await page.waitForTimeout(400);
+  }
+  await chatThere(page);
+}
+
 test("a wide window shows everything at once", async ({ tab }) => {
   await tab.setViewportSize({ width: 1600, height: 1000 });
   await expect(composer(tab)).toBeVisible();
@@ -575,8 +597,7 @@ test("the agent button never sits on top of the panel it opens", async ({
   // landed inside the overlay -- over the model popover, two pixels above
   // Send, and across the corner of the box you type into.
   await tab.setViewportSize({ width: 1300, height: 900 });
-  await tab.keyboard.press("Control+Alt+KeyA");
-  await chatThere(tab);
+  await openTheAgentPanel(tab);
   const pill = (await tab.getByTestId("agent-button-claude").boundingBox())!;
   const panel = (await tab.getByTestId("chat-panel").boundingBox())!;
   expect(
