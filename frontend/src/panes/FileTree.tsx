@@ -104,6 +104,11 @@ export default function FileTree({
   // The filter box is opened rather than always present: the rail is 240px
   // and the bar has three buttons in it already.
   const [searching, setSearching] = useState(false);
+  // The shortcut that opens a file by name is global, and the box it wants
+  // is here. A nonce is how one tells the other to take focus without
+  // either owning the other's state.
+  const focusSearch = useStore((s) => s.focusTreeSearch);
+  const wantsCaret = useRef(false);
   const [query, setQuery] = useState("");
   const searchInput = useRef<HTMLInputElement | null>(null);
   // The ref is read synchronously while a drag is over a row, where React
@@ -195,6 +200,21 @@ export default function FileTree({
     if (!asked) return;
     reveal([asked.path]);
   }, [asked?.nonce]);
+
+  // Mod-Alt-O from anywhere. The row opens if it is closed, and the caret
+  // goes into it either way, so pressing the key twice is not a way to
+  // shut the box you just asked for.
+  //
+  // A flag rather than a `focus()` on a timer. The shortcut also unfolds
+  // the rail, and the tree is unmounted while the rail is folded, so the
+  // element to focus may not exist yet and the one that does may be
+  // thrown away a moment later. The input claims the focus itself when it
+  // arrives, which is true whichever of those happened.
+  useEffect(() => {
+    if (!focusSearch) return;
+    wantsCaret.current = true;
+    setSearching(true);
+  }, [focusSearch]);
 
   /** Start an upload.  The chooser opens only when there is something to
    *  ask: which folder, or what to do about a name already taken. */
@@ -944,7 +964,14 @@ export default function FileTree({
       {searching ? (
         <div className="flex h-[26px] shrink-0 items-center gap-2 border-b border-line px-[10px]">
           <input
-            ref={searchInput}
+            ref={(node) => {
+              searchInput.current = node;
+              if (node && wantsCaret.current) {
+                wantsCaret.current = false;
+                node.focus();
+                node.select();
+              }
+            }}
             className="t-ui h-[20px] min-w-0 flex-1 rounded-[3px] bg-surface-2 px-1 text-ink outline-none placeholder:text-ink-3 focus:outline-1 focus:outline-pen"
             placeholder="Find a file"
             aria-label="Find a file"

@@ -5106,3 +5106,79 @@ only that something did. The whole argument of this feature is that the entry
 comes from the publisher and not from a model, and a writer can only act on
 that if they can see what came back and compare it against the page in front
 of them.
+
+### Five keys for five things a mouse was the only way to do
+
+The app's global keys were `Cmd-B`, `Cmd-S`, `Cmd-Enter`, `Cmd-Alt-A`,
+`Cmd-Alt-P` and Escape, and the room left over was `Cmd-Alt` with anything
+else, which is where these go. `Cmd-W`, `Cmd-T` and the numbers belong to the
+browser and cannot be taken, and Cmd-Alt-Shift-T is what a browser uses for
+its own reopen, which is the association worth borrowing rather than avoiding.
+
+`Cmd-Alt-O` puts the caret in the file tree's filter row, unfolding the rail
+if it is folded. Every piece of a quick-open was already built and none of
+them had a key: the filter row, the search behind it, and Enter opening the
+first match. The input claims the focus itself when it arrives rather than
+being focused on a timer, because the shortcut also unfolds the rail and the
+tree is unmounted while the rail is folded, so the element to focus may not
+exist yet and the one that does may be thrown away a moment later.
+
+`Cmd-Alt-Left` and `Cmd-Alt-Right` walk the tab strip, wrapping at both ends,
+because the strip is a ring in the way a writer uses it: two or three files,
+gone round and round. Stopping at the end would make the second press of a
+repeated key do nothing, which reads as the key having failed. `Cmd-Alt-W`
+closes the tab in front and `Cmd-Alt-Shift-T` brings back the last one closed,
+capped at twenty, from a list `afterClosing` has always returned and both of
+its callers threw away.
+
+`F8` and `Shift-F8` step through the errors, in the drawer's own order, and
+open the drawer if it is shut: stepping to an error the writer cannot see is a
+jump with no explanation beside it. The selection moved into the store for
+this, because the key works from anywhere and the drawer is not always the
+thing holding the keyboard.
+
+### Everything else the error drawer would not do
+
+A message could not be copied, though the one thing a writer does with an
+error NextTex cannot explain is take it somewhere else. It was selectable text
+inside a button, so selecting it opened the row and jumped the editor. There
+is a Copy beside Fix, writing `file:line: message`.
+
+A project previewing several documents had every document's diagnostics in one
+flat list with nothing saying which was which. The store now tags each row with
+the document whose build produced it, and the drawer offers a filter, but only
+where it is a question: one previewed document is the ordinary case and a
+filter with one option is furniture.
+
+And the raw log was unreachable from the app entirely. `build/` is excluded
+from the file tree, deliberately, so there was no route and no way to open the
+file even though `.log` is a text kind the editor would draw. Section 7 of this
+document rejects a bottom console with Problems, Output and Terminal tabs; the
+log opens inside the diagnostic row it belongs to, in the place a few lines of
+context already went, which is what keeping it reachable looks like without
+one. The route reads the last two megabytes, because a run with a package
+looping writes tens of them and the interesting part is the end.
+
+### The two things a LaTeX writer types most did not close themselves
+
+`closeBrackets()` was installed with its default set, `( [ { ' "`, which is a
+sensible answer for a programming language and leaves out the character a
+LaTeX writer types most after a letter. The set comes from the language's own
+data rather than from the extension's options, so the answer belongs on the
+language, which is also why there is now one `stex` instance rather than two: a
+second `StreamLanguage.define(stex)` would be a different language and would
+not carry it.
+
+A `\begin{figure}` typed by hand never produced its `\end{figure}`. That
+happened only when the completion list was used, which is the case where the
+writer already knew the environment's name and needed the help least. Enter at
+the end of a `\begin` line writes the block and leaves the caret on the line
+between, indented to match, which is where they were going to type anyway.
+
+Whether to write it is decided by counting `\begin{x}` against `\end{x}` in the
+whole document. A rule that looked only below the caret cannot tell an unclosed
+block from a closed one whose `\end` belongs to a block further up, and both of
+those happen constantly while somebody writes a nested list. Counting rather
+than parsing: an `\end` inside a comment or a verbatim block is miscounted, and
+the cost of that is one closing line the writer deletes, against parsing the
+buffer on every press of Enter.

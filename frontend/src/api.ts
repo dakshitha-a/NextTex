@@ -24,6 +24,10 @@ export type Diagnostic = {
   context?: string;
   package?: string | null;
   explain?: Explanation;
+  /** Which previewed document's build produced this. Added by the store
+   *  when it flattens the per-document lists into one; the server answers
+   *  per document and does not need to say so. */
+  document?: string;
 };
 
 /** Where to start reading, and why the rest can wait: TeX reports
@@ -574,6 +578,12 @@ const api = {
     request<{ words: string[] }>(
       `/projects/${id}/dictionary?word=${encodeURIComponent(word)}`,
       { method: "DELETE" },
+    ),
+  /** The engine's own log for one document. `build/` is out of the file
+   *  tree, so this is the only way the drawer can show it. */
+  buildLog: (id: string, document = "") =>
+    request<{ document: string; text: string }>(
+      `/projects/${id}/log?document=${encodeURIComponent(document)}`,
     ),
   lint: (id: string, path: string) =>
     request<{ diagnostics: Diagnostic[] }>(

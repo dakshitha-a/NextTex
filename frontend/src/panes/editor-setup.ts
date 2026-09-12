@@ -42,6 +42,7 @@ import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import type { Diagnostic, Symbols } from "../api";
 import { latexCompletions } from "./latex-complete";
+import { environmentToClose, indentOf } from "./close-environment";
 import { mathHover } from "./math-hover";
 import {
   braceAfter,
@@ -390,6 +391,40 @@ export function marksFor(
  *  CodeMirror's own `history()` tracks every transaction, including the
  *  one that carries the whole file in from the socket.  See `withHistory`.
  */
+/** Enter at the end of a `\begin{x}` line writes the block.
+ *
+ *  The caret lands on the empty line between the two, indented to match,
+ *  which is where the writer was going to type anyway.
+ */
+function closeEnvironment(view: EditorView): boolean {
+  const { state } = view;
+  if (state.selection.ranges.length !== 1 || !state.selection.main.empty) {
+    return false;
+  }
+  const at = state.selection.main.head;
+  const line = state.doc.lineAt(at);
+  // At the end of the line, not in the middle of it: pressing Enter to
+  // split `\begin{figure}` away from something after it is a different
+  // gesture and must stay what it was.
+  if (at !== line.to) return false;
+  const name = environmentToClose(line.text, state.doc.toString());
+  if (!name) return false;
+  const pad = indentOf(line.text);
+  const insert = `\n${pad}  \n${pad}\\end{${name}}`;
+  view.dispatch({
+    changes: { from: at, insert },
+    selection: { anchor: at + 1 + pad.length + 2 },
+    scrollIntoView: true,
+    userEvent: "input.complete",
+  });
+  return true;
+}
+
+/** One language instance, because the closing-bracket set is attached to
+ *  it: a second `StreamLanguage.define(stex)` would be a different
+ *  language and would not carry it. */
+const LATEX = StreamLanguage.define(stex);
+
 function base(symbols: () => Symbols | null): Extension[] {
   return [
     lineNumbers(),
@@ -409,11 +444,24 @@ function base(symbols: () => Symbols | null): Extension[] {
     search({ top: true }),
     keymap.of([
       ...closeBracketsKeymap,
+      // Ahead of the default Enter, and it only claims the key when there
+      // is a block to close: everywhere else it returns false and the
+      // default runs. A `\begin{figure}` typed by hand never produced its
+      // `\end{figure}`; that happened only when the completion list was
+      // used, which is the case where the writer already knew the name.
+      { key: "Enter", run: closeEnvironment },
       ...defaultKeymap,
       ...searchKeymap,
       indentWithTab,
     ]),
-    StreamLanguage.define(stex),
+    LATEX,
+    // `$` is the character a LaTeX writer types most after a letter, and
+    // `closeBrackets()` reads its set from the language rather than from
+    // its own options, so a stock stex mode pairs ( [ { ' " and leaves
+    // maths out. The language's own data is where that answer belongs.
+    LATEX.data.of({
+      closeBrackets: { brackets: ["(", "[", "{", "'", '"', "$"] },
+    }),
     syntaxHighlighting(latexHighlight),
     familyHighlight,
     // Empty until the writer asks for spell checking, and filled by a

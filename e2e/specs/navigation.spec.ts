@@ -244,3 +244,88 @@ test("the verb row does not follow you to another file", async ({ tab }) => {
     "the verbs for the previous file are still over this one",
   ).toHaveCount(0);
 });
+
+test("a file can be opened by name without touching the mouse", async ({ tab }) => {
+  // R-082. Every piece of a quick-open was built and none of them had a
+  // key: the filter row, the search behind it, and Enter opening the first
+  // match. Reaching it meant taking a hand off the keyboard, finding the
+  // rail, unfolding Files if it was folded, and pressing a magnifier.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await tab.locator(".cm-content").click();
+
+  await tab.keyboard.press("Control+Alt+o");
+  const box = tab.getByTestId("file-search");
+  await expect(box).toBeFocused();
+
+  await box.fill("references");
+  await tab.keyboard.press("Enter");
+  await expect(tab.getByTitle("references.bib").first()).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+test("the tab strip answers the keyboard, including the tab just closed", async ({
+  tab,
+}) => {
+  // R-083. Every tab change was a trip to the strip with the mouse, and a
+  // tab closed by mistake could not be brought back, though `afterClosing`
+  // has always handed back the path it closed and both callers threw it
+  // away.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+
+  // Two files open, so there is a strip to walk.
+  await tab.keyboard.press("Control+Alt+o");
+  await tab.getByTestId("file-search").fill("references");
+  await tab.keyboard.press("Enter");
+  await expect(tab.getByTitle("references.bib").first()).toBeVisible({
+    timeout: 10_000,
+  });
+
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+Alt+ArrowLeft");
+  await expect(tab.getByTitle("main.tex").first()).toBeVisible();
+
+  // Close it from the keyboard, and bring it back.
+  await tab.keyboard.press("Control+Alt+ArrowRight");
+  await tab.keyboard.press("Control+Alt+w");
+  await expect(tab.getByTitle("references.bib")).toHaveCount(0, {
+    timeout: 10_000,
+  });
+  await tab.keyboard.press("Control+Alt+Shift+T");
+  await expect(tab.getByTitle("references.bib").first()).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+test("F8 walks the errors without a mouse", async ({ tab }) => {
+  // R-094. The drawer answered nothing but a click, and a writer fixing a
+  // build reads the list once and then works down it.
+  // The same keystrokes `a11y.spec.ts` and `layout.spec.ts` use to earn an
+  // error, rather than a variation: Control+End puts the caret after
+  // \end{document}, where the engine ignores everything, so a broken
+  // command typed there never reaches a build at all.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("End");
+  await tab.keyboard.type("\n\\badcommand{x}\n\\anotherbad{y}\n");
+
+  const status = tab.getByTestId("status");
+  await expect(status).toHaveAttribute("data-state", /error|warn/, {
+    timeout: 40_000,
+  });
+
+  // F8 with the drawer shut opens it, rather than jumping to something
+  // the writer cannot see. It may already be open here, which is the
+  // other half of the same rule and needs no assertion of its own.
+  await tab.keyboard.press("F8");
+  await expect(tab.getByTestId("diagnostics")).toBeVisible();
+
+  // And it chose one: the selection bar is drawn on exactly one row,
+  // which is the difference between stepping and merely opening.
+  await expect(tab.getByTestId("diagnostic-copy").first()).toBeVisible();
+  const selected = tab.locator('[data-selected="true"]');
+  await expect(selected).toHaveCount(1);
+
+  await tab.keyboard.press("F8");
+  await expect(tab.locator('[data-selected="true"]')).toHaveCount(1);
+});

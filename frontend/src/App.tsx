@@ -12,7 +12,8 @@ import {
   Handle,
 } from "./chrome";
 import { busyTyping, onFrame } from "./timing";
-import { afterClosing, viewingClosed } from "./tabs";
+import { afterClosing, neighbour, pushClosed, viewingClosed } from "./tabs";
+import { orderRows, rowKey } from "./panes/diagnostic-rows";
 import {
   BREAKPOINTS,
   breakpoints,
@@ -213,6 +214,10 @@ export default function App() {
    *  has nowhere to go back to. */
   const [signinReturnable, setSigninReturnable] = useState(false);
   const pdf = useRef<PdfHandle | null>(null);
+  /** Tabs closed in this session, newest last, so the last one can come
+   *  back. A ref rather than state: nothing draws it, and putting it in
+   *  the store would redraw the strip every time a tab was closed. */
+  const closed = useRef<string[]>([]);
   /** Where the agent last wrote, held until the build that edit scheduled
    *  has landed, because forward search reads the previous build's map. */
   const agentWrote = useRef<{ path: string; line: number } | null>(null);
@@ -531,6 +536,10 @@ export default function App() {
   const closeFile = useCallback(async (path: string) => {
     const state = get();
     const remaining = state.tabs.filter((tab) => tab.path !== path);
+    // Remembered before it goes, so Mod-Alt-Shift-T can bring it back.
+    // `afterClosing` has always handed back what it closed and both
+    // callers threw it away.
+    closed.current = pushClosed(closed.current, [path]);
     await editor.current?.close(path);
     set({
       tabs: remaining,
@@ -566,6 +575,7 @@ export default function App() {
       // has no buffer to park for one, so nothing else would clear it and
       // the banner would go on offering the past of a file that is gone.
       const stillViewing = !viewingClosed(state.viewing, next.closed);
+      closed.current = pushClosed(closed.current, next.closed);
       set({
         tabs: next.tabs,
         activePath: next.activePath,
@@ -1198,6 +1208,72 @@ export default function App() {
       if (meta && event.altKey && event.code === "KeyA") {
         event.preventDefault();
         toggleChat();
+      }
+
+      // The tab strip, from the keyboard. Every tab change used to be a
+      // trip to the strip with the mouse: there was no next, no previous,
+      // no close and no way back from a tab closed by mistake, though
+      // `afterClosing` has always returned what it closed.
+      //
+      // Alt with the arrows, W and T, for the same reason as the two
+      // bindings above: Mod-Alt is the app's own space, and Mod-W and
+      // Mod-T belong to the browser and cannot be taken.
+      if (meta && event.altKey && event.code === "ArrowRight") {
+        event.preventDefault();
+        const to = neighbour(get().tabs, get().activePath, 1);
+        if (to) void openFile(to);
+      }
+      if (meta && event.altKey && event.code === "ArrowLeft") {
+        event.preventDefault();
+        const to = neighbour(get().tabs, get().activePath, -1);
+        if (to) void openFile(to);
+      }
+      if (meta && event.altKey && event.code === "KeyW") {
+        event.preventDefault();
+        const path = get().activePath;
+        if (path) void closeFile(path);
+      }
+      if (meta && event.altKey && event.shiftKey && event.code === "KeyT") {
+        event.preventDefault();
+        const path = closed.current[closed.current.length - 1];
+        if (path) {
+          closed.current = closed.current.slice(0, -1);
+          void openFile(path);
+        }
+      }
+
+      // Next and previous error, from anywhere. The drawer answered
+      // nothing but a click, and a writer fixing a build reads the list
+      // once and then works down it, which is a keyboard's job.
+      if (event.key === "F8") {
+        event.preventDefault();
+        const state = get();
+        const rows = orderRows(state.diagnostics, state.lint);
+        if (!rows.length) return;
+        const at = rows.findIndex((row) => rowKey(row) === state.selectedDiagnostic);
+        const step = event.shiftKey ? -1 : 1;
+        const next = at === -1
+          ? (step === 1 ? rows[0] : rows[rows.length - 1])
+          : rows[(at + step + rows.length) % rows.length];
+        set({ selectedDiagnostic: rowKey(next) });
+        // The drawer opens if it is shut: stepping to an error the writer
+        // cannot see is a jump with no explanation beside it.
+        setDrawer((value) => (value ? value : DRAWER_OPEN));
+        if (next.file && next.line) void openFile(next.file, next.line);
+      }
+
+      // Open a file by name, from anywhere. Every piece of a quick-open
+      // was already built and none of them had a key: the filter row, the
+      // search, and Enter opening the first match. This puts the caret in
+      // that box, unfolding the rail if it is folded, which is the one
+      // thing a writer could not do without a hand on the mouse.
+      if (meta && event.altKey && event.code === "KeyO") {
+        event.preventDefault();
+        railByHand.current = true;
+        setRailHidden(false);
+        setFolded((current) => ({ ...current, rail: false }));
+        setRailOpen((current) => ({ ...current, files: true }));
+        set({ focusTreeSearch: get().focusTreeSearch + 1 });
       }
 
       // Cycle the previewed documents.  KeyP for preview, and free in both

@@ -80,7 +80,13 @@ test("an unbalanced equation holds the build back until it is finished", async (
 
   const events = await watchEvents(app, project.id);
   try {
-    await tab.keyboard.type("\nHalf an equation: $x = ");
+    // The dollar pairs itself now, so a half-written equation has to be
+    // made rather than typed: the closer the editor helpfully added is
+    // deleted, which is what a writer does when they meant to open a
+    // display, or paste one, or take a collaborator's half-line.
+    await tab.keyboard.type("\nHalf an equation: $");
+    await tab.keyboard.press("Delete");
+    await tab.keyboard.type("x = ");
     // Past the ordinary debounce, well short of the unsettled one.
     await tab.waitForTimeout(2_500);
     expect(
@@ -150,4 +156,34 @@ test("hovering an equation shows it typeset", async ({ tab }) => {
   await tab.mouse.move(point!.x, point!.y);
   await tab.mouse.move(point!.x + 1, point!.y);
   await expect(tab.locator(".nx-math-tooltip")).toBeVisible({ timeout: 10_000 });
+});
+
+test("the two things a LaTeX writer types most now close themselves", async ({
+  tab,
+}) => {
+  // R-092. `closeBrackets()` was installed with its default set, which is
+  // ( [ { ' " and does not include the dollar, and a `\begin{figure}`
+  // typed by hand never produced its `\end{figure}`: that happened only
+  // when the completion list was used, which is the case where the writer
+  // already knew the environment's name.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+a");
+
+  await tab.keyboard.type("The gap is $");
+  await expect(tab.locator(".cm-content")).toContainText("The gap is $$");
+  // The caret is between them, so what is typed next is the maths.
+  await tab.keyboard.type("E");
+  await expect(tab.locator(".cm-content")).toContainText("The gap is $E$");
+
+  await tab.keyboard.press("Control+a");
+  await tab.keyboard.type("  \\begin{itemize}");
+  await tab.keyboard.press("Enter");
+  await expect(tab.locator(".cm-content")).toContainText("\\end{itemize}");
+  // And the caret is on the line between, indented to match, which is
+  // where the writer was going to type anyway.
+  await tab.keyboard.type("\\item first");
+  const text = await tab.locator(".cm-content").innerText();
+  expect(text.indexOf("\\item first")).toBeGreaterThan(text.indexOf("\\begin{itemize}"));
+  expect(text.indexOf("\\item first")).toBeLessThan(text.indexOf("\\end{itemize}"));
 });

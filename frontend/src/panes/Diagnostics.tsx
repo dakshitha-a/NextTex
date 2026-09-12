@@ -3,7 +3,8 @@ import { orderRows, rowKey } from "./diagnostic-rows";
 import { uiScale } from "../viewport";
 import { Handle } from "../chrome";
 import { onFrame } from "../timing";
-import { useStore } from "../store";
+import { get, set, useStore } from "../store";
+import api from "../api";
 
 function summarise(rows: { severity: string }[]): string {
   const errors = rows.filter((row) => row.severity === "error").length;
@@ -40,9 +41,42 @@ export default function Diagnostics({
   // whichever diagnostics had landed in those two slots, which is a row
   // the writer never opened and never chose.
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  // In the store, because F8 steps through these from anywhere in the app
+  // and the drawer is not always the thing with the keyboard.
+  const selected = useStore((s) => s.selectedDiagnostic);
+  const setSelected = (key: string | null) => set({ selectedDiagnostic: key });
+  const previews = useStore((s) => s.previews);
+  /** Which document's errors to show, when several are previewed. Empty
+   *  means all of them, which is what this drawer always did and is right
+   *  for a project with one document. */
+  const [only, setOnly] = useState("");
+  const [rawLog, setRawLog] = useState<Record<string, string>>({});
 
-  const rows = useMemo(() => orderRows(compile, lint), [compile, lint]);
+  const all = useMemo(() => orderRows(compile, lint), [compile, lint]);
+  const rows = useMemo(
+    () => (only ? all.filter((row) => row.document === only) : all),
+    [all, only],
+  );
+  // Offered only where it is a question. One previewed document is the
+  // ordinary case and a filter with one option is furniture.
+  const documents = useMemo(
+    () => previews.filter((name) => all.some((row) => row.document === name)),
+    [previews, all],
+  );
+
+  const showLog = async (document: string) => {
+    const projectId = get().projectId;
+    if (!projectId) return;
+    // Marked as asked before the answer arrives, so the button does not
+    // sit there inviting a second press through a slow read.
+    setRawLog((current) => ({ ...current, [document]: "" }));
+    try {
+      const answer = await api.buildLog(projectId, document);
+      setRawLog((current) => ({ ...current, [document]: answer.text }));
+    } catch (error: any) {
+      setRawLog((current) => ({ ...current, [document]: error.message }));
+    }
+  };
 
   if (height === 0) return null;
 
@@ -102,6 +136,27 @@ export default function Diagnostics({
         <span className="t-micro text-ink-2">
           {summarise(rows)}
         </span>
+        {documents.length > 1 ? (
+          /* One flat list of every previewed document's diagnostics, with
+             nothing saying which was which. Offered only where it is a
+             question: one previewed document is the ordinary case and a
+             filter with one option is furniture. */
+          <select
+            value={only}
+            aria-label="Which document"
+            data-testid="diagnostics-document"
+            className="t-micro ml-auto mr-2 rounded-[3px] border border-line bg-surface px-1 text-ink-2"
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => setOnly(event.target.value)}
+          >
+            <option value="">Every document</option>
+            {documents.map((name) => (
+              <option key={name} value={name}>
+                {name.split("/").pop()}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <button className="t-micro text-ink-3 hover:text-ink" onClick={onClose}>
           Close
         </button>
@@ -156,6 +211,7 @@ export default function Diagnostics({
                   belongs to a real button covering the part of the row
                   that says what the error is; Fix sits beside it. */}
               <div
+                data-selected={selected === key ? "true" : undefined}
                 className={`relative flex h-[28px] items-center hover:bg-surface-2 ${
                   selected === key ? "bg-surface-2" : ""
                 }`}
@@ -207,6 +263,26 @@ export default function Diagnostics({
                 >
                   Fix
                 </button>
+                {/* The one thing a writer does with an error message that
+                    NextTex cannot do for them: take it somewhere else, to
+                    a search or to a colleague. It was selectable text
+                    inside a button, which means selecting it opened the
+                    row and jumped the editor. */}
+                <button
+                  className="ghost-button mr-2 h-[22px] nx-tap [--nx-tap-y:22px] shrink-0 px-2 t-micro hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100"
+                  data-testid="diagnostic-copy"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const where = item.file
+                      ? `${item.file}:${item.line ?? 0}: `
+                      : "";
+                    void navigator.clipboard
+                      ?.writeText(`${where}${item.message ?? ""}`)
+                      .catch(() => undefined);
+                  }}
+                >
+                  Copy
+                </button>
               </div>
               {open && item.explain ? (
                 <div className="ml-[40px] border-l border-line bg-surface-2 px-3 py-2">
@@ -222,6 +298,27 @@ export default function Diagnostics({
                 <pre className="t-code-sm ml-[40px] max-h-[54px] overflow-auto border-l border-line bg-surface-2 px-2 py-1 text-ink-2">
                   {item.context}
                 </pre>
+              ) : null}
+              {/* The raw log, in the place a few lines of it already go.
+                  Section 7 of the design document rejects a bottom console
+                  with Problems, Output and Terminal tabs; this is what
+                  keeping the log reachable looks like without one. */}
+              {open ? (
+                <div className="ml-[40px] border-l border-line bg-surface-2 px-2 py-1">
+                  {rawLog[item.document ?? ""] === undefined ? (
+                    <button
+                      className="quiet t-micro"
+                      data-testid="show-raw-log"
+                      onClick={() => void showLog(item.document ?? "")}
+                    >
+                      Show the raw log
+                    </button>
+                  ) : (
+                    <pre className="t-code-sm max-h-[220px] overflow-auto whitespace-pre-wrap text-ink-3">
+                      {rawLog[item.document ?? ""] || "The log is empty."}
+                    </pre>
+                  )}
+                </div>
               ) : null}
             </div>
           );
