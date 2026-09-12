@@ -38,12 +38,20 @@ export default function Collaborators() {
   return (
     <div className="relative flex shrink-0 items-center gap-[6px] pr-[8px] pl-[6px]">
       {connection === "offline" ? (
+        // The sentence is on the screen, not in a title. It was a tooltip,
+        // which meant the one place the app said what happens to a
+        // writer's typing was a place you had to already suspect something
+        // to find, and no place at all on a tablet or to a screen reader
+        // reading the strip. It is also a promise, so it has to be true:
+        // the boundary no longer reloads the tab out from under it.
         <span
-          className="t-micro text-warn"
-          title="Not connected. What you type is kept here until it is."
+          className="t-micro flex items-center gap-[5px] text-warn"
           data-testid="sync-offline"
         >
-          offline
+          <span className="font-medium">offline</span>
+          <span className="text-ink-3">
+            what you type is kept here until it reconnects
+          </span>
         </span>
       ) : null}
 
