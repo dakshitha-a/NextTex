@@ -5194,7 +5194,18 @@ block from a closed one whose `\end` belongs to a block further up, and both of
 those happen constantly while somebody writes a nested list. Counting rather
 than parsing: an `\end` inside a comment or a verbatim block is miscounted, and
 the cost of that is one closing line the writer deletes, against parsing the
-buffer on every press of Enter.
+buffer on every press of Enter. The count is asked for only once the line has
+been recognised as opening a block, because reading the buffer out as a string
+is a copy of the file and almost every Enter is pressed on a line that opens
+nothing.
+
+Pairing the dollar had one case it got wrong, which is the case a pairing rule
+always gets wrong: `closeBrackets` decides by the character after the caret,
+and after a price at the end of a sentence there is nothing there, so `\$100
+in all.` came out with a stray closer on the end of it. A dollar with an odd
+number of backslashes in front of it is a currency sign and is inserted plain;
+`\\$x$` is a line break followed by real maths and still pairs, which is why
+the run is counted rather than the one character read.
 
 ### A page number is the one coordinate a long document has
 

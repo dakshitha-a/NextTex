@@ -187,3 +187,27 @@ test("the two things a LaTeX writer types most now close themselves", async ({
   expect(text.indexOf("\\item first")).toBeGreaterThan(text.indexOf("\\begin{itemize}"));
   expect(text.indexOf("\\item first")).toBeLessThan(text.indexOf("\\end{itemize}"));
 });
+
+test("a price is not turned into an equation", async ({ tab }) => {
+  // The dollar was added to the closing-bracket set so a writer opening
+  // maths gets the closer, and `closeBrackets` decides by what follows the
+  // caret: at the end of a line there is nothing, so it pairs. A backslash
+  // in front of it means the opposite of maths, and `\$100` was becoming
+  // `\$100$` with a stray closer at the end of the price.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+a");
+
+  await tab.keyboard.type("It cost \\$100 in all.");
+  // The whole line, not a substring: the closer lands after the price, so
+  // `toContainText` matches either way.
+  await expect
+    .poll(async () => (await tab.locator(".cm-content").innerText()).trim())
+    .toBe("It cost \\$100 in all.");
+
+  // And a dollar that is not escaped still pairs, which is the other half
+  // of the same decision.
+  await tab.keyboard.press("Control+a");
+  await tab.keyboard.type("A gap of $");
+  await expect(tab.locator(".cm-content")).toContainText("A gap of $$");
+});

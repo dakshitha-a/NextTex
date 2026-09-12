@@ -12,6 +12,25 @@ function count(text: string, pattern: string): number {
   return (text.match(new RegExp(pattern, "g")) ?? []).length;
 }
 
+/** Whether a line opens a block at all.
+ *
+ *  Separate from `environmentToClose` because the answer to that one needs
+ *  the whole document, and the caller asks this first: reading the buffer
+ *  out as a string on every press of Enter, on the many lines that open
+ *  nothing, is a copy of the file per keystroke.
+ */
+export function opensEnvironment(line: string): boolean {
+  return nameIn(line) !== null;
+}
+
+function nameIn(line: string): string | null {
+  const found = BEGIN.exec(line);
+  if (!found) return null;
+  const name = found[1];
+  if (!name || name.includes("\\")) return null;
+  return name;
+}
+
 /** The environment to close, or null.
  *
  *  `whole` is the entire document, including the line just typed, and the
@@ -27,10 +46,8 @@ function count(text: string, pattern: string): number {
  *  on every press of Enter.
  */
 export function environmentToClose(line: string, whole: string): string | null {
-  const found = BEGIN.exec(line);
-  if (!found) return null;
-  const name = found[1];
-  if (!name || name.includes("\\")) return null;
+  const name = nameIn(line);
+  if (!name) return null;
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const opens = count(whole, `\\\\begin\\{${escaped}\\}`);
   const closes = count(whole, `\\\\end\\{${escaped}\\}`);
