@@ -208,8 +208,16 @@ export default function Status({
         title="Click to count this file or the whole document"
         onClick={onToggleWordScope}
       >
+        {/* An en dash, matching the one the file name falls back to a few
+            rows up. It was an em dash written as an escape, which is the
+            one punctuation mark this repository bans without exception;
+            the escape is why the guard that reads every source file for
+            the character never saw it. A dash standing for "no value yet"
+            in a field of numbers is not punctuation between clauses, so
+            the rule is met by using the narrower dash rather than by
+            arguing the case. */}
         {words === null
-          ? "\u2014 words"
+          ? "\u2013 words"
           : `${words.toLocaleString()} ${wordScope === "document" ? "words" : "in file"}`}
       </button>
       </span>
