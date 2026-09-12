@@ -159,3 +159,45 @@ class TestMakingARepository:
         assert (root / ".git").exists()
         assert "build/" in (root / ".gitignore").read_text(encoding="utf-8")
         assert gitrepo.status(root).branch == "main"
+
+
+def test_a_machine_with_no_git_identity_still_gets_its_first_commit(tmp_path,
+                                                                    monkeypatch):
+    """"Just keep versions here" is a button for somebody who does not use
+    git, and has therefore never run `git config --global user.name`.
+
+    On such a machine the first commit failed outright with "empty ident
+    name", so the button did nothing and reported an error about a tool
+    they were not using. Found on a CI runner, which is exactly that
+    machine: no config, and an account with no full name for git to build
+    one out of. That second half is why this stubs the question rather than
+    emptying HOME, which is not enough on a developer's own machine.
+    """
+    real = gitrepo._run
+
+    def without_an_identity(root, *arguments, **named):
+        if arguments[:2] == ("var", "GIT_COMMITTER_IDENT"):
+            raise gitrepo.GitError("fatal: empty ident name (for <r@h>) not allowed")
+        return real(root, *arguments, **named)
+
+    monkeypatch.setattr(gitrepo, "_run", without_an_identity)
+
+    root = tmp_path / "paper"
+    root.mkdir()
+    (root / "main.tex").write_text("A line.\n", encoding="utf-8")
+
+    gitrepo.initialise(root)
+
+    assert gitrepo.status(root).branch == "main"
+    log = subprocess.run(["git", "log", "--oneline", "--format=%an %s"], cwd=root,
+                         capture_output=True, text=True, check=True)
+    assert "NextTex Start this writing project" in log.stdout
+
+
+def test_the_writer_s_own_name_is_not_overridden(tmp_path):
+    """It has to lose to whatever they have set: a fallback that wins is a
+    commit attributed to this app instead of to its author."""
+    root = a_repository(tmp_path / "paper")
+    (root / "main.tex").write_text("A line.\n", encoding="utf-8")
+
+    assert gitrepo._who(root) == [], "a configured identity was overridden"
