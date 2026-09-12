@@ -28,10 +28,14 @@ export function who(version: Version, me: string): string {
  *  on Tuesday" is how people remember losing a paragraph. */
 export default function History({
   onView,
+  onOpen,
   onClose,
   docked,
 }: {
   onView: (sha: string | null) => void;
+  /** Bring a file to the front. Only the whole-project list needs it: a
+   *  version belongs to a file, and reading one means being in that file. */
+  onOpen: (path: string) => void | Promise<void>;
   onClose: () => void;
   /** Docked beside the editor when there is room; over it when there is not. */
   docked: boolean;
@@ -48,6 +52,12 @@ export default function History({
   // would have nothing to show and nothing to diff.
   const [opened, setOpened] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  /** Which question this panel is answering. "file" is what this file used
+   *  to say; "project" is what I changed this afternoon, which was
+   *  previously only answerable by opening every file in turn. */
+  const [scope, setScope] = useState<"file" | "project">("file");
+  const [timeline, setTimeline] = useState<(Version & { path: string })[]>([]);
+  const [timelineFailed, setTimelineFailed] = useState(false);
   const binary = Boolean(activePath) && !isText(activePath!);
   const blobUrl = (sha: string, download = false) =>
     projectId && activePath
@@ -58,12 +68,46 @@ export default function History({
     if (projectId && activePath) refreshHistory(projectId, activePath);
   }, [projectId, activePath, compile]);
 
+  // Read on the way into the whole-project view and again after a build,
+  // which is the same trigger the per-file list uses: a build is the point
+  // at which a session's typing has become versions.
+  useEffect(() => {
+    if (scope !== "project" || !projectId) return;
+    let dropped = false;
+    api
+      .timeline(projectId)
+      .then((answer) => {
+        if (dropped) return;
+        setTimeline(answer.versions);
+        setTimelineFailed(false);
+      })
+      .catch(() => {
+        if (!dropped) setTimelineFailed(true);
+      });
+    return () => {
+      dropped = true;
+    };
+  }, [scope, projectId, compile]);
+
+  /** What the list is showing. Both shapes are versions; the project one
+   *  carries the file each belongs to, which is the only difference. */
+  const rows: (Version & { path?: string })[] =
+    scope === "project" ? timeline : versions;
   const name = activePath?.split("/").pop() ?? "";
   // Which install this is, so a version can say "you" rather than a name.
   const me = useStore((s) => s.peerId);
 
-  const choose = (version: Version, selected: boolean) => {
+  const choose = async (version: Version & { path?: string }, selected: boolean) => {
     const sha = version.sha;
+    // A row in the whole-project list belongs to a file that may not be
+    // the one on screen. Reading it means being in that file, so the file
+    // comes to the front and the panel goes back to answering the
+    // per-file question, which is the one it can answer from there.
+    if (scope === "project" && version.path && version.path !== activePath) {
+      await onOpen(version.path);
+      setScope("file");
+      if (projectId) await refreshHistory(projectId, version.path);
+    }
     // Two versions of a file open in two different places, and which of
     // them applies is a question about the file rather than the version.
     //
@@ -118,10 +162,37 @@ export default function History({
           onClose();
         }}
       >
-        <span className="min-w-0">
+        <span className="flex min-w-0 items-baseline gap-2">
           <span className="t-ui-lg font-serif">History</span>
-          {name ? (
-            <span className="t-meta ml-2 truncate text-ink-3">{name}</span>
+          {/* The same two-way micro toggle the preview footer uses for
+              Scroll and Page. Two questions, not two panels: what this
+              file used to say, and what I changed this afternoon. The
+              second was answerable only by opening every file in turn. */}
+          <span
+            className="flex shrink-0 self-center overflow-hidden rounded-[3px] border border-line"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {(["file", "project"] as const).map((option) => (
+              <button
+                key={option}
+                className={`t-micro border-b-2 px-2 py-[1px] transition-colors duration-[90ms] ${
+                  scope === option
+                    ? "border-hint bg-surface text-ink"
+                    : "border-transparent text-ink-3 hover:text-hint"
+                }`}
+                onClick={() => setScope(option)}
+                title={
+                  option === "file"
+                    ? "Versions of the file in the editor"
+                    : "Every file's versions, newest first"
+                }
+              >
+                {option === "file" ? "This file" : "Whole project"}
+              </button>
+            ))}
+          </span>
+          {scope === "file" && name ? (
+            <span className="t-meta truncate text-ink-3">{name}</span>
           ) : null}
         </span>
         <button className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px]" aria-label="Close the history" onClick={onClose}>
@@ -130,26 +201,35 @@ export default function History({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {versions.length === 0 && failed ? (
+        {rows.length === 0 && (scope === "file" ? failed : timelineFailed) ? (
           <p className="t-meta p-3 text-ink-3" data-testid="history-unavailable">
-            Could not read the versions of this file. Nothing has been lost;
-            this is about reaching the server, not about the file.
+            {scope === "file"
+              ? "Could not read the versions of this file. Nothing has been lost; this is about reaching the server, not about the file."
+              : "Could not read the project's versions. Nothing has been lost; this is about reaching the server."}
           </p>
         ) : null}
-        {versions.length === 0 && !failed ? (
+        {rows.length === 0 && !(scope === "file" ? failed : timelineFailed) ? (
           <p className="t-meta p-3 text-ink-3">
-            {binary
-              ? `Nothing yet for ${name}. Versions are kept from the moment it is first replaced.`
-              : `Nothing yet for ${name || "this file"}. Versions are kept from the moment you first change it.`}
+            {scope === "project"
+              ? "Nothing yet in this project. Versions are kept from the moment a file is first changed."
+              : binary
+                ? `Nothing yet for ${name}. Versions are kept from the moment it is first replaced.`
+                : `Nothing yet for ${name || "this file"}. Versions are kept from the moment you first change it.`}
           </p>
         ) : null}
-        {versions.map((version, index) => {
+        {rows.map((version, index) => {
           const day = dayOf(version.at);
-          const first = index === 0 || dayOf(versions[index - 1].at) !== day;
+          const first = index === 0 || dayOf(rows[index - 1].at) !== day;
           const selected = viewing?.sha === version.sha;
           // Listed, and not on this disk. A collaborator's version arrives
           // as a line and its contents come when somebody asks for them.
           const elsewhere = version.here === false;
+          // Whose file this row is about. In the per-file list that is
+          // always the file on screen; in the project list it is whatever
+          // the row says, and the thumbnail and the extension have to
+          // follow the row rather than the editor.
+          const rowPath = version.path ?? activePath ?? "";
+          const rowBinary = Boolean(rowPath) && !isText(rowPath);
           return (
             <div key={`${version.sha}-${version.at}`}>
               {first ? (
@@ -194,12 +274,12 @@ export default function History({
                 ) : null}
                 <div className="relative z-10 flex flex-col gap-[2px]">
                 <div className="flex items-baseline gap-2">
-                  {binary ? (
+                  {rowBinary ? (
                     <span
                       aria-hidden
                       className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center self-center overflow-hidden rounded-[3px] bg-surface-3"
                     >
-                      {isRenderable(activePath ?? "") && !elsewhere ? (
+                      {isRenderable(rowPath) && !elsewhere ? (
                         <img
                           src={blobUrl(version.sha)}
                           alt=""
@@ -207,7 +287,7 @@ export default function History({
                         />
                       ) : (
                         <span className="nx-mono-11 text-ink-3">
-                          {(activePath ?? "").split(".").pop()?.slice(0, 3)}
+                          {rowPath.split(".").pop()?.slice(0, 3)}
                         </span>
                       )}
                     </span>
@@ -244,6 +324,14 @@ export default function History({
                     {version.label ? "Rename" : "Name it"}
                   </button>
                 </div>
+                {scope === "project" ? (
+                  <span
+                    className="t-micro truncate text-ink-3"
+                    data-testid="history-scope-path"
+                  >
+                    {version.path}
+                  </span>
+                ) : null}
                 {version.label ? (
                   <span className="t-meta text-ink">{version.label}</span>
                 ) : version.why ? (

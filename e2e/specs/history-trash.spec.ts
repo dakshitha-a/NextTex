@@ -258,3 +258,38 @@ test("a version can be chosen from the keyboard", async ({ tab, app, project }) 
   await tab.keyboard.press("Enter");
   await expect(tab.getByText(/viewing/i).first()).toBeVisible();
 });
+
+test("history can be read for the whole project, not just one file", async ({
+  tab,
+  app,
+  project,
+}) => {
+  // R-093. To answer "what did I change this afternoon" a writer had to
+  // open every file in turn, because History is per file. The route that
+  // answers it across the project has existed the whole time, taking a
+  // limit and returning every file's versions newest first, with no client
+  // wrapper and no caller.
+  await typeAndSave(tab, "the first chapter", app, project);
+
+  // A second file with a version of its own.
+  await tab.getByLabel("Actions for main.tex").click();
+  await tab.getByRole("tree").getByRole("button", { name: "New file here" }).click();
+  await tab.getByPlaceholder("new-file.tex").fill("notes.tex");
+  await tab.keyboard.press("Enter");
+  await expect(tab.getByRole("treeitem", { name: /notes\.tex/ })).toBeVisible();
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.type("a note to self");
+  await landed(app, project, "a note to self", "notes.tex");
+
+  await openHistory(tab);
+  await tab.getByRole("button", { name: "Whole project" }).click();
+
+  const rows = tab.getByTestId("version");
+  await expect(rows.first()).toBeVisible({ timeout: 10_000 });
+  // Each row says which file it belongs to, which is the whole difference
+  // between this list and the per-file one.
+  await expect(tab.getByTestId("history-scope-path").filter({ hasText: "notes.tex" }).first())
+    .toBeVisible();
+  await expect(tab.getByTestId("history-scope-path").filter({ hasText: "main.tex" }).first())
+    .toBeVisible();
+});

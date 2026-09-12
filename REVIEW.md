@@ -927,7 +927,10 @@ reaching nothing.
 
 Clicking two versions in a row is the ordinary use of a history panel.
 
-### R-068 · Editor · bug · high · likely
+### ~~R-068 · Editor · bug · high · likely~~
+
+**Amended and fixed in pass 5.** `ec74aaa`. Half the record does not happen; the other half reproduces exactly as written. The heading went unstruck when the rest of that pass was marked, and the correction below was written at the time.
+Held by `e2e/specs/spelling.spec.ts`.
 
 Found by: reading. Where: `frontend/src/panes/editor-setup.ts:419` with
 `frontend/src/panes/Editor.tsx:724`.
@@ -2958,7 +2961,11 @@ Cost: a line for the bracket configuration, since `closeBrackets` takes a
 `brackets` option, and a small input handler for the environment. The
 completion already knows how to build the pair.
 
-### R-093 · Files rail · comfort · medium · confirmed
+### ~~R-093 · Files rail · comfort · medium · confirmed~~
+
+**Built.** The History header carries a This file / Whole project toggle, and the project list is the same rows with the file each belongs to. Choosing one opens that file and puts the panel back on This file, so everything else the panel does still applies to it.
+Held by `e2e/specs/history-trash.spec.ts`.
+
 
 Where: `server/main.py:1988`, `GET /history/timeline`.
 
