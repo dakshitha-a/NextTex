@@ -95,9 +95,24 @@ export default function Editor({
   // The writer's own words, and the offer to add one.  Held here rather
   // than in the store: nothing outside this pane has any use for either.
   const [accepted, setAccepted] = useState<string[]>([]);
-  const [offer, setOffer] = useState<{ word: string; x: number; y: number } | null>(
-    null,
-  );
+  // Changed by the settings sheet as well as by this pane, and the two are
+  // in different trees.
+  const dictionaryStamp = useStore((s) => s.dictionaryStamp);
+  const [offer, setOffer] = useState<{
+    word: string;
+    x: number;
+    y: number;
+    /** Where the word is in the document, so a suggestion can replace it.
+     *  The decoration knows the text; only the position can put something
+     *  else in its place. */
+    from: number;
+    to: number;
+    /** What the writer probably meant, worked out when the menu opens.
+     *  Empty for a word that is nothing like anything in the list, which
+     *  is the case where adding it to the dictionary is the right answer
+     *  and a column of wrong guesses above that item is in the way. */
+    guesses: string[];
+  } | null>(null);
   const view = useRef<EditorView | null>(null);
   const buffers = useRef(new Map<string, Buffer>());
   const current = useRef<string | null>(null);
@@ -755,7 +770,7 @@ export default function Editor({
       .then((result) => { if (live) setAccepted(result.words); })
       .catch(() => undefined);
     return () => { live = false; };
-  }, [spelling, activePath]);
+  }, [spelling, activePath, dictionaryStamp]);
 
   // The checker arrives with its word list, on demand.  Nothing about it
   // is in the interface bundle until the setting is turned on, which is
@@ -827,13 +842,32 @@ export default function Editor({
     if (!word?.dataset.word) return false;
     const box = root.getBoundingClientRect();
     const where = word.getBoundingClientRect();
-    setOffer({
-      word: word.dataset.word,
-      x: where.left - box.left,
-      y: where.bottom - box.top + 2,
-    });
+    setOffer(offerFor(now, word, where.left - box.left, where.bottom - box.top + 2));
     return true;
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- offerFor is
+    // declared just below and is stable for the same accepted list.
+  }, [accepted]);
+
+  /** One offer, however the menu was asked for.
+   *
+   *  The suggestions are worked out here rather than while drawing,
+   *  because the search is a few hundred set lookups and the menu is
+   *  re-rendered on every arrow key once it is open. */
+  const offerFor = useCallback(
+    (now: EditorView, node: HTMLElement, x: number, y: number) => {
+      const word = node.dataset.word ?? "";
+      const from = now.posAtDOM(node);
+      const list = speller.current?.shipped() ?? null;
+      const mine = new Set(accepted.map((w) => w.toLowerCase()));
+      const guesses = list
+        ? speller.current!.suggestions(word, (candidate) =>
+            list.has(candidate) || mine.has(candidate),
+          )
+        : [];
+      return { word, x, y, from, to: from + word.length, guesses };
+    },
+    [accepted],
+  );
 
   // A right-click, not a left one: the left button places the caret, and
   // taking that away from a word because it happens to be underlined would
@@ -866,10 +900,17 @@ export default function Editor({
         return;
       }
       const word = target.dataset.word;
-      if (!word) return;
+      if (!word || !view.current) return;
       event.preventDefault();
       const box = root.getBoundingClientRect();
-      setOffer({ word, x: event.clientX - box.left, y: event.clientY - box.top });
+      setOffer(
+        offerFor(
+          view.current,
+          target,
+          event.clientX - box.left,
+          event.clientY - box.top,
+        ),
+      );
     };
     const onKey = (event: KeyboardEvent) => {
       // Mod-. as well, because Shift-F10 is not a key every keyboard has
@@ -884,7 +925,7 @@ export default function Editor({
       root.removeEventListener("contextmenu", onMenu);
       root.removeEventListener("keydown", onKey);
     };
-  }, [spelling, offerAtCaret]);
+  }, [spelling, offerAtCaret, offerFor]);
 
   const accept = useCallback(async (word: string) => {
     setOffer(null);
@@ -986,6 +1027,32 @@ export default function Editor({
               }
             }}
           >
+            {/* The guesses first, because a typo is the common case and
+                adding a typo to the dictionary is the one outcome nobody
+                wants. A word that is nothing like anything in the list
+                gets no guesses at all, and then the item below is the
+                whole menu, which is what it was before. */}
+            {offer.guesses.map((guess) => (
+              <button
+                key={guess}
+                role="menuitem"
+                className="t-micro block w-full px-3 py-[3px] text-left text-ink hover:bg-surface-3"
+                onClick={() => {
+                  const now = view.current;
+                  setOffer(null);
+                  now?.dispatch({
+                    changes: { from: offer.from, to: offer.to, insert: guess },
+                    selection: { anchor: offer.from + guess.length },
+                  });
+                  now?.focus();
+                }}
+              >
+                {guess}
+              </button>
+            ))}
+            {offer.guesses.length ? (
+              <div className="my-1 border-t border-line" />
+            ) : null}
             <button
               role="menuitem"
               className="t-micro block w-full px-3 py-[3px] text-left text-ink-2 hover:bg-surface-3 hover:text-ink"

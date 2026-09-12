@@ -5016,3 +5016,40 @@ The report is the one that is a different shape rather than a different
 preamble. Its chapters are separate files, because NextTex builds the document
 that owns the file being typed in rather than the whole project, and that is
 what makes a long report editable at all.
+
+### One item on the menu, and it was the wrong one for the common case
+
+An underlined word offered "Add to the dictionary" and nothing else. That is
+the right answer for a surname, an acronym or a variable name, and the wrong
+one for a typo, and a typo is what most underlines are. The one outcome nobody
+wants from that menu is a typo added to the dictionary, which is what the menu
+made easiest.
+
+Up to four suggestions sit above it now, nearest first, worked out by edit
+distance against the word list that is already loaded: the ninety-eight
+kilobyte chunk is fetched the first time checking is switched on, so a
+suggestion costs a few hundred set lookups rather than a download. Distance two
+is searched only when distance one comes up short, because the work grows as
+the square and this runs while a menu is opening. A suggestion arrives with the
+shape of the word it replaces, so a sentence-initial `Recieve` is offered as
+`Receive` rather than as something the writer then has to fix by hand. Edit
+distance and not phonetics: a soundalike index would catch `fizix` and this
+does not, but the mistakes people make while typing are transpositions,
+doubled letters and dropped letters, and those are all one edit away.
+
+A word that is nothing like anything in the list gets no suggestions, and then
+the menu is exactly what it was, which is the case that item was written for.
+
+The other half is the way back. `DELETE /dictionary` and its client wrapper
+both existed and nothing called either, so a word added by a slip of the hand
+was added for the life of the project: the underline was gone and there was no
+way to ask for it back. The words are listed under the spelling switch in the
+settings sheet, each with a way to forget it, and the list is absent entirely
+until there is something in it, because an empty list under a switch is a
+permanent reminder of a feature nobody has used yet in a sheet whose job is to
+be quiet.
+
+The editor holds the accepted list and the settings sheet edits it, and they
+are in different trees, so the store carries a stamp that both watch. Without
+it, forgetting a word left the underline off until the tab was reloaded, which
+reads as the control not working.

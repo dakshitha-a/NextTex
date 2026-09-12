@@ -70,6 +70,21 @@ function load(view: EditorView): void {
     });
 }
 
+/** What the writer probably meant, re-exported so that it travels in this
+ *  chunk: the search is only useful once the word list is here, and the
+ *  word list is only here because this module was loaded. */
+export { suggest as suggestions } from "./spell-suggest";
+
+/** The shipped list, once it has loaded, for anything that needs to ask it
+ *  a question the underlines do not answer.
+ *
+ *  Null until the chunk arrives, which is the honest answer rather than an
+ *  empty set: "no suggestions" and "the list is not here yet" are different
+ *  states and the menu draws them differently. */
+export function shipped(): Set<string> | null {
+  return words;
+}
+
 /** Whether a word is one the list, or the writer, does not know.
  *
  *  A hyphenated compound is judged on its parts: no list holds

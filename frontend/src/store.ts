@@ -214,6 +214,11 @@ export type State = {
   diagnostics: Diagnostic[];
   lint: Diagnostic[];
   pdfStamp: number;
+  /** Bumped whenever the project's own word list changes. The editor holds
+   *  the list and the settings sheet edits it, and they are in different
+   *  trees: without this, forgetting a word left the underline off until
+   *  the tab was reloaded, which reads as the control not working. */
+  dictionaryStamp: number;
   chat: ChatItem[];
   thinking: boolean;
   /** What the agent is doing at this moment, and since when.
@@ -326,6 +331,7 @@ const state: State = {
   diagnostics: [],
   lint: [],
   pdfStamp: 0,
+  dictionaryStamp: 0,
   chat: [],
   thinking: false,
   activity: null,
