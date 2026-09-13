@@ -230,23 +230,32 @@ def test_a_supervised_install_restarts_by_leaving(client, monkeypatch):
 # the pid and starts NextTex the way it was started.
 
 
-def test_the_windows_helper_waits_for_the_pid_and_prefers_the_task(tmp_path):
+def test_the_windows_helper_waits_for_the_pid_and_starts_the_command_line(tmp_path):
     argv = updates.windows_restart_argv(4242, tmp_path, "thesis", r"C:\py\python.exe",
                                         tmp_path / "state")
     assert argv[0] == "powershell" and "-Command" in argv
     script = argv[-1]
     assert "Get-Process -Id 4242" in script and "WaitForExit" in script
-    # The task first, the Startup shortcut second, the command line last.
-    assert script.index("Start-ScheduledTask") < script.index("GetFolderPath('Startup')") \
-        < script.index("Start-Process -FilePath 'C:\\py\\python.exe'")
-    assert "'nexttex-thesis'" in script and "'nexttex-thesis.lnk'" in script
-    assert "'--instance', 'thesis'" in script
-    assert "server.log" in script and "server.err.log" in script
+    # The pid first, then the command line, hidden, logging where the old
+    # server did.  Not Start-ScheduledTask: the helper is inside the task's
+    # job, so the task still counts as Running and that call does nothing.
+    assert script.index("WaitForExit") < script.index("Start-Process -FilePath 'C:\\py\\python.exe'")
+    assert "Start-ScheduledTask" not in script
+    assert "'--log-to-state'" in script and "'--instance', 'thesis'" in script
+    assert "-WindowStyle Hidden" in script
+    assert "restart.log" in script
+
+
+def test_the_windows_helper_carries_no_double_quote(tmp_path):
+    """Windows PowerShell 5.1 does not escape a double quote inside an
+    argument (I-017), and -Command is one argument."""
+    script = updates.windows_restart_argv(7, tmp_path / "a b", "x", r"C:\Program Files\py.exe", tmp_path)[-1]
+    assert '"' not in script
 
 
 def test_the_windows_helper_names_the_default_instance_plainly(tmp_path):
     script = updates.windows_restart_argv(1, tmp_path, "", "python", tmp_path)[-1]
-    assert "'nexttex'" in script and "--instance" not in script
+    assert "--instance" not in script
 
 
 def test_on_windows_the_exit_starts_the_helper_first(client, monkeypatch):

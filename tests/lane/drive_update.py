@@ -102,7 +102,16 @@ def main(argv=None) -> int:
         time.sleep(1)
         after = None
     if after is None:
-        print("no new process answered within three minutes")
+        # Which half failed: the old process never left, or nothing came
+        # back.  The restart helper's own transcript says more on Windows.
+        try:
+            status, still = ask(url, "/api/instance", token, timeout=5)
+            print(f"no new process answered within three minutes; the old one (boot {still['boot']}) still does")
+        except Exception as error:  # noqa: BLE001
+            print(f"no new process answered within three minutes, and nothing answers at all ({type(error).__name__})")
+        for line in lines:
+            if line.startswith("<"):
+                print("  stream: " + line)
         return 1
     print(f"back: {after['head']} (boot {after['boot']}), diskHead {after['diskHead']}")
     ok = args.head.startswith(after["head"]) and after["head"] == after["diskHead"]

@@ -185,7 +185,8 @@ def supervised() -> bool:
     Windows registers a logon task, which is not a supervisor: a task that
     ends stays ended.  So there the server arranges its own return before
     it leaves, with the helper `windows_restart_argv` describes, and the
-    answer is yes wherever that helper can run.  Until it existed the
+    answer is yes wherever that helper can run.  It needs the same Python
+    it is running on and PowerShell, which every Windows has.  Until it existed the
     update button on Windows finished with "stop it and start it again",
     which for a server a task started meant finding Task Scheduler.
     """
@@ -197,38 +198,37 @@ def supervised() -> bool:
 def windows_restart_argv(pid: int, root: Path, instance: str, python: str,
                          state: Path) -> list:
     """A detached PowerShell that waits for this process to end and starts
-    NextTex the way it was started.
+    NextTex again from its command line.
 
-    In order: the scheduled task, if the installer registered one, since
-    starting the task is what logging in does; the Startup shortcut, on
-    the ordinary account where the task could not be registered; and
-    failing both, the same command line this process was started with,
-    hidden, writing to the state directory's server.log the way the
-    Startup fallback does.  The wait is on the pid, not a sleep: the port
-    has to be free before anything can bind it again.
+    Not through the scheduled task, and this was learned on the install
+    lane: a task runs its action inside a job object, the helper is a
+    child of that action and so inside the same job, and a task whose job
+    still holds a live process still counts as Running, so
+    Start-ScheduledTask did nothing and the page waited for a server that
+    never came.  Starting the server directly puts it in the same job,
+    which is what keeps Stop-ScheduledTask able to stop it.  The wait is
+    on the pid, not a sleep: the port has to be free before anything can
+    bind it again.  The command line is the one both login shapes use,
+    with `--log-to-state` so the new server writes where the old did.
     """
-    name = "nexttex" + (f"-{instance}" if instance else "")
     q = lambda text: "'" + str(text).replace("'", "''") + "'"  # noqa: E731
     run = root / "server" / "run.py"
-    args = ["'-u'", q(run)]
+    args = ["'-u'", q(run), "'--log-to-state'"]
     if instance:
         args += ["'--instance'", q(instance)]
     script = "; ".join([
+        # Its own transcript, beside server.log: a restart that did not
+        # happen is otherwise a helper nobody can ask.
+        f"try {{ Start-Transcript -Path {q(state / 'restart.log')} -Append | Out-Null }} catch {{}}",
+        f"Write-Host 'waiting for pid {int(pid)}'",
         f"$p = Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue",
         "if ($p) { $p.WaitForExit() }",
         "Start-Sleep -Milliseconds 500",
-        # The task is still Running for a moment after its process has
-        # gone, and Start-ScheduledTask on a running task does nothing.
-        f"$t = Get-ScheduledTask -TaskName {q(name)} -ErrorAction SilentlyContinue",
-        "if ($t) { for ($i = 0; $i -lt 40 -and (Get-ScheduledTask -TaskName $t.TaskName).State -eq 'Running'; $i++) { Start-Sleep -Milliseconds 250 } }",
-        f"if ($t) {{ Start-ScheduledTask -TaskName {q(name)}; exit 0 }}",
-        f"$link = Join-Path ([Environment]::GetFolderPath('Startup')) {q(name + '.lnk')}",
-        "if (Test-Path $link) { Start-Process -FilePath $link; exit 0 }",
         f"New-Item -ItemType Directory -Force -Path {q(state)} | Out-Null",
+        f"Write-Host ('starting ' + {q(python)})",
         f"Start-Process -FilePath {q(python)} -ArgumentList @({', '.join(args)}) "
-        f"-WorkingDirectory {q(root)} -WindowStyle Hidden "
-        f"-RedirectStandardOutput {q(state / 'server.log')} "
-        f"-RedirectStandardError {q(state / 'server.err.log')}",
+        f"-WorkingDirectory {q(root)} -WindowStyle Hidden",
+        "Write-Host 'started'",
     ])
     return ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
             "-Command", script]
