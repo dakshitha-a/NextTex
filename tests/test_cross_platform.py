@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -1198,11 +1199,37 @@ def test_the_windows_launchers_put_the_instance_on_the_command_line():
         assert "--instance $Instance" in text
     # The scheduled task's action, the Startup shortcut's arguments and the
     # one process the fallback starts by hand all carry it.
-    assert "-Argument $entryArgs" in task
+    assert "-Argument \"-u $entryArgs\"" in task
     assert "'-u ' + $entryArgs" in task
-    assert "$startArgs = if ($Instance) { @('-u', $entry, '--instance', $Instance) }" in task
+    assert "$startArgs = if ($Instance) { @('-u', $entry, '--log-to-state', '--instance', $Instance) }" in task
     # And the fallback's server.log goes in the instance's own directory.
     assert "'nexttex' + $(if ($Instance)" in task
+
+
+def test_every_windows_login_shape_sends_its_output_to_the_state_directory(tmp_path):
+    """I-022.  The unit and the plist redirect their server's output.  A
+    scheduled task and a Startup shortcut are a command line with nowhere
+    for output to go: the task's server wrote no log at all, and the
+    shortcut's went to a minimised console that logging in closes.  Both
+    now ask the server to do it, with `run.py --log-to-state`."""
+    task = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
+    assert '--log-to-state' in task.split("$entryArgs =", 1)[1].splitlines()[0]
+    assert '-Argument "-u $entryArgs"' in task, "the task's server is buffered or unlogged"
+    assert "'-u ' + $entryArgs" in task, "the Startup shortcut's server is unlogged"
+
+    # And the flag does what the launchers believe it does.
+    state = tmp_path / "state"
+    done = subprocess.run(
+        [sys.executable, str(ROOT / "server" / "run.py"), "--print-url", "--log-to-state",
+         "--instance", "logged"],
+        cwd=ROOT, capture_output=True, text=True, timeout=60,
+        env={**os.environ, "XDG_DATA_HOME": str(state)},
+    )
+    assert done.returncode == 0, done.stderr
+    assert done.stdout == "", "the address went to the console, not the log"
+    log = state / "nexttex-logged" / "server.log"
+    assert "?token=" in log.read_text(encoding="utf-8")
+    assert (state / "nexttex-logged" / "server.err.log").exists()
 
 
 def test_windows_leaves_the_shortcut_to_powershell(tmp_path):

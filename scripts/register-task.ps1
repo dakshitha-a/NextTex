@@ -35,7 +35,11 @@ $entry = Join-Path $Root 'server\run.py'
 # of their own.  Setting $env:NEXTTEX_INSTANCE below reaches the one
 # process this script starts now and not the one that starts at login,
 # which came up as the default instance on the default port.
-$entryArgs = if ($Instance) { "`"$entry`" --instance $Instance" } else { "`"$entry`"" }
+# And `--log-to-state`: a task and a shortcut have nowhere for output to
+# go, so the server is asked to send its own to server.log and
+# server.err.log in the state directory.  Neither shape wrote a log before;
+# the task's server wrote nowhere at all.
+$entryArgs = "`"$entry`" --log-to-state" + $(if ($Instance) { " --instance $Instance" } else { '' })
 if (-not (Test-Path $venv)) {
   Write-Output "no interpreter at $venv"
   exit 1
@@ -43,7 +47,7 @@ if (-not (Test-Path $venv)) {
 
 $registered = $false
 try {
-  $action = New-ScheduledTaskAction -Execute $venv -Argument $entryArgs -WorkingDirectory $Root
+  $action = New-ScheduledTaskAction -Execute $venv -Argument "-u $entryArgs" -WorkingDirectory $Root
   $trigger = New-ScheduledTaskTrigger -AtLogOn
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -StartWhenAvailable
@@ -102,10 +106,9 @@ if (-not $registered) {
   # empty after five.  Unbuffered, the startup banner lands at once, which
   # is what makes the file's emptiness mean something: empty now means it
   # never got that far.
-  $startArgs = if ($Instance) { @('-u', $entry, '--instance', $Instance) } else { @('-u', $entry) }
+  $startArgs = if ($Instance) { @('-u', $entry, '--log-to-state', '--instance', $Instance) } else { @('-u', $entry, '--log-to-state') }
   Start-Process -FilePath $runner -ArgumentList $startArgs `
-    -WorkingDirectory $Root -WindowStyle Hidden `
-    -RedirectStandardOutput $out -RedirectStandardError $err
+    -WorkingDirectory $Root -WindowStyle Hidden
   Write-Output "started; output in $out, errors in $err"
 }
 
