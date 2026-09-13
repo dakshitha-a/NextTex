@@ -518,7 +518,12 @@ def install_service(console: Console, root: Path, platform: str, instance: str,
         path.write_text(service_mod.launchd_plist(root, home, state, instance),
                         encoding="utf-8")
         console.note(f"  launch agent written to {path}")
-        console.run("Loading it", ["launchctl", "unload", str(path)])
+        # A second install replaces the agent, and launchd only reads the
+        # plist on load, so the old one is unloaded first.  Only when it is
+        # loaded: unloading an agent that is not prints an I/O error and
+        # "try running as root", which a first install used to show.
+        if service_mod.launchd_loaded(service_mod.plist_label(instance)):
+            console.run("Unloading the old agent", ["launchctl", "unload", str(path)])
         loaded = console.run("Starting NextTex", ["launchctl", "load", str(path)])
         if not loaded.ok:
             notes.append(f"could not load the launch agent; try: launchctl load {path}")
