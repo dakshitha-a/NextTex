@@ -207,8 +207,48 @@ function Start-Server {
 $stopped = ''
 try {
   Say 'Fetching'
-  Run git @('pull', '--ff-only') | Out-Null
-  Note (git log -1 --pretty='%h %s')
+  if ($env:NEXTTEX_UPDATE_RESUMED) {
+    Note "$env:NEXTTEX_UPDATE_RESUMED -> $((git rev-parse --short HEAD).Trim()), already fetched"
+  } else {
+    # Local changes are put aside rather than left to make the pull fail,
+    # the way update.sh does it; the page's own check refuses a dirty
+    # install with its reason, and this is the path for somebody running
+    # the script by hand.
+    if (git status --porcelain) {
+      Note 'you have local changes; stashing them'
+      Run git @('stash', 'push', '-u', '-m', "nexttex update $(Get-Date -Format s)") | Out-Null
+      Note 'restore them later with: git stash pop'
+    }
+    $before = (git rev-parse --short HEAD).Trim()
+    Run git @('pull', '--ff-only') | Out-Null
+    $after = (git rev-parse --short HEAD).Trim()
+    if ($before -eq $after) {
+      Note "already up to date at $after"
+    } else {
+      Note "$before -> $after"
+      git log --oneline "$before..$after" | ForEach-Object { Note "  $_" }
+      # Hand over to the version just pulled, and let it do the rest.
+      #
+      # PowerShell reads the whole file before running it, so the *old*
+      # script is what runs every step after the pull -- and an update that
+      # adds an install step is exactly the update that skips it.  update.sh
+      # learned this when a release that added iroh landed without it; this
+      # script had the same shape and was never run to find out.  Guarded
+      # by the variable, so a re-exec loop is impossible however the pull
+      # behaves.  The transcript is closed first so the resumed script can
+      # open its own on the same file, in order.
+      Note 'continuing with the updated script'
+      try { Stop-Transcript | Out-Null } catch { }
+      $env:NEXTTEX_UPDATE_RESUMED = $before
+      $forward = @('-Name', $Name)
+      if ($NoRestart) { $forward += '-NoRestart' }
+      $psExe = $null
+      try { $psExe = (Get-Process -Id $PID).Path } catch { $psExe = $null }
+      if (-not $psExe) { $psExe = 'powershell' }
+      & $psExe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @forward
+      exit $LASTEXITCODE
+    }
+  }
 
   if (-not $NoRestart) {
     Say 'Stopping'
