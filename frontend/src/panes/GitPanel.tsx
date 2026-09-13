@@ -290,7 +290,10 @@ export default function GitPanel({
     // browser's storage.
     if (!status.repository) {
       return (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-[10px] py-[6px]">
+        <div
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 px-[10px] py-[6px]"
+          data-testid="git-aside"
+        >
           <span className="t-micro text-ink-3">Not kept in versions.</span>
           <button
             className="t-micro whitespace-nowrap text-ink-3 hover:text-ink"
