@@ -326,7 +326,11 @@ jobs:
 
       - name: Move the remote to the previous commit
         shell: bash
-        run: git -C "$RUNNER_TEMP/remote.git" update-ref refs/heads/master "$(git rev-parse HEAD~1)"
+        # Written down for the PowerShell steps: `HEAD~1` handed to git
+        # from PowerShell came back as the commit before the one bash got.
+        run: |
+          git rev-parse HEAD~1 > "$RUNNER_TEMP/previous.sha"
+          git -C "$RUNNER_TEMP/remote.git" update-ref refs/heads/master "$(cat "$RUNNER_TEMP/previous.sha")"
 
       - name: Update by hand (update.sh)
         if: runner.os != 'Windows'
@@ -349,7 +353,7 @@ jobs:
           & "$HOME\apps\NextTex\scripts\update.ps1"
           if ($LASTEXITCODE) { throw "update.ps1 exited $LASTEXITCODE" }
           $head = (git -C "$HOME\apps\NextTex" rev-parse HEAD).Trim()
-          $want = (git rev-parse HEAD~1).Trim()
+          $want = (Get-Content "$env:RUNNER_TEMP\previous.sha" -Raw).Trim()
           if ($head -ne $want) { throw "landed on $head, not $want" }
           $log = "$HOME\.local\share\nexttex\update.log"
           if (-not (Test-Path $log)) { throw "no update.log at $log" }
@@ -366,7 +370,7 @@ jobs:
       - name: Verify the by-hand update, with the task back
         if: runner.os == 'Windows'
         shell: pwsh
-        run: python tests\lane\verify_install.py installed --root "$HOME\apps\NextTex" --head "$(git rev-parse HEAD~1)" --service
+        run: python tests\lane\verify_install.py installed --root "$HOME\apps\NextTex" --head "$((Get-Content "$env:RUNNER_TEMP\previous.sha" -Raw).Trim())" --service
 
       - name: Move the remote to this commit
         shell: bash
