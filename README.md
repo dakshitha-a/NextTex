@@ -303,8 +303,8 @@ for help.
 
 ## Uninstalling
 
-Three things to remove, in this order: the service, the install, and the
-state directory. Your projects are in none of them.
+Four things to remove, in this order: the service, the desktop shortcut,
+the install, and the state directory. Your projects are in none of them.
 
 **Linux.**
 
@@ -312,6 +312,7 @@ state directory. Your projects are in none of them.
 systemctl --user disable --now nexttex
 rm ~/.config/systemd/user/nexttex.service
 systemctl --user daemon-reload
+rm -f ~/Desktop/NextTex.desktop
 rm -rf ~/apps/NextTex ~/.local/share/nexttex
 ```
 
@@ -320,6 +321,7 @@ rm -rf ~/apps/NextTex ~/.local/share/nexttex
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.nexttex.server.plist
 rm ~/Library/LaunchAgents/com.nexttex.server.plist
+rm -f ~/Desktop/NextTex.command
 rm -rf ~/apps/NextTex ~/.local/share/nexttex
 ```
 
@@ -330,6 +332,7 @@ Stop-ScheduledTask -TaskName NextTex -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName NextTex -Confirm:$false -ErrorAction SilentlyContinue
 Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*apps\NextTex\server\run.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 Remove-Item "$([Environment]::GetFolderPath('Startup'))\NextTex.lnk" -ErrorAction SilentlyContinue
+Remove-Item "$([Environment]::GetFolderPath('Desktop'))\NextTex.lnk" -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$HOME\.local\share\nexttex"
 ```
 
