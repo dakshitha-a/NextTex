@@ -138,6 +138,11 @@ def test_a_forged_session_is_refused(anon):
     server_main.SETTINGS.password_hash, server_main.SETTINGS.password_salt = (
         auth.hash_password("the right one"))
     anon.post("/api/login", json={"password": "the right one"})
+    # The real session goes first: with both in the jar the browser sends
+    # two cookies of one name, and which the server reads depends on the
+    # jar's order, which differs between 3.10 and 3.11.  A forged cookie
+    # beside a real one is a different question from a forged one alone.
+    anon.cookies.clear()
     anon.cookies.set(server_main.COOKIE, "not-a-real-session-token")
     assert anon.get("/api/projects").status_code == 401
 

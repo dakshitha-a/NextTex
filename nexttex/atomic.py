@@ -87,7 +87,10 @@ def write_atomically(
                 _flush_to_disk(handle)
         if mode is not None:
             temp.chmod(mode)
-        temp.replace(target)
+        # `os.replace` by name rather than `Path.replace`: on 3.10 pathlib
+        # bound the function at import, so a test watching the order of
+        # the rename against the two fsyncs could not see it there.
+        os.replace(temp, target)
         _flush_directory(target.parent)
     except OSError:
         # Never leave the scratch file behind: the tree would show it, and
