@@ -4303,7 +4303,7 @@ async def _run_update(report) -> None:
             ]
         else:
             script = INSTALL_ROOT / "scripts" / "update.sh"
-            argv = ["bash", str(script), "--no-restart"]
+            argv = ["sh", str(script), "--no-restart"]
             if instance_name():
                 argv.append(f"--instance={instance_name()}")
         process = subprocess.Popen(

@@ -154,12 +154,21 @@ def test_the_installer_still_says_the_word_the_footer_watches_for():
     assert "interface" in inspect.getsource(steps.fetch_interface)
 
 
-def test_the_installer_is_posix_shell_because_the_readme_pipes_it_into_sh():
+# Every shell script the installer or the server runs on the user's machine.
+# `install.sh` because `curl | sh` never reads a shebang; the other three
+# because Alpine has no bash, and the install lane's Alpine container
+# stopped at the interface download with "env: can't execute 'bash'".
+SH_SCRIPTS = ("install.sh", "fetch-interface.sh", "update.sh", "gen_cert.sh")
+
+
+@pytest.mark.parametrize("name", SH_SCRIPTS)
+def test_the_installer_is_posix_shell_because_the_readme_pipes_it_into_sh(name):
     """`curl ... | sh` never reads the shebang: whatever `sh` is executes the
     text, and on Debian and Ubuntu that is dash.  `set -o pipefail` on line
     seven meant the documented install command died before printing a word,
     on the most common Linux there is."""
-    text = (ROOT / "scripts" / "install.sh").read_text(encoding="utf-8")
+    text = (ROOT / "scripts" / name).read_text(encoding="utf-8")
+    assert text.startswith("#!/bin/sh\n"), f"{name} names a shell Alpine does not have"
     # Comments stripped: the file explains at length why pipefail is not
     # here, and the explanation must not trip the check it explains.
     code = "\n".join(line for line in text.splitlines()
@@ -174,7 +183,7 @@ def test_the_installer_is_posix_shell_because_the_readme_pipes_it_into_sh():
         # is.  `.gitattributes` now pins `*.sh` to LF, but the check itself
         # belongs where the script actually runs.
         pytest.skip("no POSIX shell whose checkout of this file is faithful")
-    assert subprocess.run([shell, "-n", str(ROOT / "scripts" / "install.sh")],
+    assert subprocess.run([shell, "-n", str(ROOT / "scripts" / name)],
                           capture_output=True).returncode == 0
 
 

@@ -44,13 +44,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
-      - name: Lint the shell installer
-        # It is run as `curl ... | sh`, so it has to be POSIX shell rather
-        # than bash: on Debian and Ubuntu `sh` is dash.  This is cheap and
-        # it is the tier that has burned this repository twice.
+      - name: Lint the shell scripts
+        # The installer is run as `curl ... | sh`, so it has to be POSIX
+        # shell rather than bash: on Debian and Ubuntu `sh` is dash.  The
+        # other three are run by the installer and the server on whatever
+        # the machine has, and Alpine has no bash.  This is cheap and it is
+        # the tier that has burned this repository three times.
         run: |
           sudo apt-get install -y shellcheck
-          shellcheck -S warning scripts/install.sh
+          shellcheck -S warning -s sh scripts/install.sh scripts/fetch-interface.sh scripts/update.sh scripts/gen_cert.sh
 
       - name: Lint the PowerShell scripts
         # ubuntu-latest ships PowerShell 7, which is more than the machine

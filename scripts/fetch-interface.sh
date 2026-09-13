@@ -1,5 +1,12 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Fetch the interface that belongs to the commit this checkout is on.
+#
+# POSIX sh, like install.sh, and for a plainer reason: this is run by the
+# installer on whatever the machine has, and Alpine has no bash.  The
+# install lane's Alpine container failed here with "env: can't execute
+# 'bash'" after everything before it had worked.  Nothing below needs an
+# array, a substring expansion or pipefail, and the test suite runs it
+# under dash.
 #
 # The install is a git checkout and stays one -- that is what keeps the
 # update button working -- but the interface inside it is built once, by CI,
@@ -13,7 +20,7 @@
 # update.sh fall back to building locally when Node is available, so a
 # machine that cannot reach GitHub is inconvenienced rather than stopped.
 
-set -euo pipefail
+set -eu
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
@@ -103,4 +110,4 @@ fi
 mv "$ROOT/frontend/dist.incoming" "$ROOT/frontend/dist"
 rm -rf "$ROOT/frontend/dist.previous"
 
-note "interface ${SHA:0:7} downloaded"
+note "interface $(printf '%s' "$SHA" | cut -c1-7) downloaded"
