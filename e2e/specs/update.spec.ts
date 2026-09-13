@@ -352,7 +352,15 @@ test("with no supervisor the line asks for the restart in words", async ({ page 
   // control, because there is nothing the page could press that would
   // work, and the sentence says what to do instead.
   buildRepo();
-  const app = await startServer({ NEXTTEX_INSTALL_ROOT: clone });
+  // Taken out rather than left alone: a GitHub runner is itself a systemd
+  // service, so every process on it inherits INVOCATION_ID and the server
+  // under test believed it was supervised.  An empty override is how
+  // `startServer` removes a variable.
+  const app = await startServer({
+    NEXTTEX_INSTALL_ROOT: clone,
+    INVOCATION_ID: "",
+    XPC_SERVICE_NAME: "",
+  });
   try {
     await open(app, page);
     commitUpstream("server/main.py", "a real change");
