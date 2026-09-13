@@ -322,10 +322,16 @@ rm -rf ~/apps/NextTex ~/.local/share/nexttex
 **Windows**, in PowerShell:
 
 ```powershell
+Stop-ScheduledTask -TaskName NextTex -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName NextTex -Confirm:$false -ErrorAction SilentlyContinue
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*apps\NextTex\server\run.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 Remove-Item "$([Environment]::GetFolderPath('Startup'))\NextTex.lnk" -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$HOME\.local\share\nexttex"
 ```
+
+The third line stops a server that the Startup shortcut started, which no
+task knows about. Windows will not delete a program that is running, so
+the folder cannot go until the server has.
 
 If you installed somewhere else with `NEXTTEX_DIR`, that is the directory to
 remove instead. If you installed a second copy with `--instance NAME`, every
