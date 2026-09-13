@@ -208,3 +208,61 @@ def test_the_interface_checksum_is_right_without_get_filehash(tmp_path):
         "fetch-interface.ps1", f"Write-Host (Get-Sha256 '{target}')"
     ))
     assert hashlib.sha256(payload).hexdigest() in output
+
+
+# I-026.  The restart helper the server starts before it leaves on Windows
+# had never been run by a PowerShell anywhere: the unit tests read the
+# script it builds, and the lane's Windows update leg was the first thing
+# to execute it, three dispatches in a row with nothing to show for it.
+# This runs it the way the server does, with no window and its stdio
+# closed, under both PowerShells on the Windows job.
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the restart helper is a Windows thing")
+def test_the_restart_helper_starts_the_server_from_the_command_line(tmp_path):
+    import sys
+    import time
+
+    from nexttex import updates
+
+    root = tmp_path / "root"
+    (root / "server").mkdir(parents=True)
+    marker = tmp_path / "started.txt"
+    # The stand-in for run.py records how it was started and leaves.
+    (root / "server" / "run.py").write_text(
+        "import sys, pathlib\n"
+        f"pathlib.Path({str(marker)!r}).write_text(' '.join(sys.argv[1:]))\n"
+    )
+    state = tmp_path / "state"
+    # A process the helper has to wait for, the way it waits for the server.
+    old = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1)"])
+    # An instance name no task on this machine carries.
+    instance = "helper" + os.urandom(3).hex()
+    argv = updates.windows_restart_argv(old.pid, root, instance, sys.executable, state)
+    argv[0] = POWERSHELL
+
+    child = None
+    for breakaway in (True, False):  # as the server tries them
+        try:
+            child = subprocess.Popen(
+                argv, creationflags=updates.windows_restart_flags(breakaway),
+                close_fds=True, stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            break
+        except OSError:
+            continue
+    assert child is not None
+    assert child.wait(timeout=120) == 0
+    old.wait()
+
+    log = (state / "restart.log").read_text()
+    assert f"waiting for pid {old.pid}" in log, log
+    assert "failed" not in log, log
+    assert "started" in log, log
+
+    deadline = time.monotonic() + 30
+    while not marker.exists() and time.monotonic() < deadline:
+        time.sleep(0.2)
+    assert marker.exists(), log
+    assert marker.read_text() == f"--log-to-state --instance {instance}"

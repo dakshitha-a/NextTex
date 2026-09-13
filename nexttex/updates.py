@@ -213,6 +213,13 @@ def windows_restart_argv(pid: int, root: Path, instance: str, python: str,
     Startup shortcut; failing both, the command line, hidden, logging to
     the state directory.  The wait is on the pid, not a sleep: the port
     has to be free before anything can bind it again.
+
+    It writes what it does to restart.log beside server.log, with
+    Add-Content rather than a transcript: a transcript needs the console
+    host to be up, and a helper that died before its first statement left
+    nothing at all for the lane to read.  Each step is a line, and a
+    failure is a line too, so a restart that did not happen is a helper
+    that can be asked.
     """
     name = "nexttex" + (f"-{instance}" if instance else "")
     q = lambda text: "'" + str(text).replace("'", "''") + "'"  # noqa: E731
@@ -220,40 +227,54 @@ def windows_restart_argv(pid: int, root: Path, instance: str, python: str,
     args = ["'-u'", q(run), "'--log-to-state'"]
     if instance:
         args += ["'--instance'", q(instance)]
-    script = "; ".join([
-        # Its own transcript, beside server.log: a restart that did not
-        # happen is otherwise a helper nobody can ask.
-        f"try {{ Start-Transcript -Path {q(state / 'restart.log')} -Append | Out-Null }} catch {{}}",
-        f"Write-Host 'waiting for pid {int(pid)}'",
+    log = q(state / "restart.log")
+    task = f"Get-ScheduledTask -TaskName {q(name)}"
+    # One statement per line here; the joins below put the semicolons in,
+    # and none between a brace and the elseif or else that follows it.
+    body = "; ".join([
+        f"say 'waiting for pid {int(pid)}'",
         f"$p = Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue",
         "if ($p) { $p.WaitForExit() }",
         "Start-Sleep -Milliseconds 500",
-        f"$t = Get-ScheduledTask -TaskName {q(name)} -ErrorAction SilentlyContinue",
+        f"$t = {task} -ErrorAction SilentlyContinue",
+        f"$link = Join-Path ([Environment]::GetFolderPath('Startup')) {q(name + '.lnk')}",
         # The task is still Running for a moment after its process has
         # gone, and Start-ScheduledTask on a running task does nothing.
-        "if ($t) { for ($i = 0; $i -lt 60 -and (Get-ScheduledTask -TaskName $t.TaskName).State -eq 'Running'; $i++) { Start-Sleep -Milliseconds 250 } }",
-        f"if ($t) {{ Write-Host ('task state: ' + (Get-ScheduledTask -TaskName {q(name)}).State); "
-        f"Start-ScheduledTask -TaskName {q(name)}; Write-Host 'started the task'; exit 0 }}",
-        f"$link = Join-Path ([Environment]::GetFolderPath('Startup')) {q(name + '.lnk')}",
-        "if (Test-Path $link) { Write-Host ('starting ' + $link); Start-Process -FilePath $link; exit 0 }",
-        f"New-Item -ItemType Directory -Force -Path {q(state)} | Out-Null",
-        f"Write-Host ('starting ' + {q(python)})",
+        "if ($t) { "
+        f"for ($i = 0; $i -lt 120 -and ({task}).State -eq 'Running'; $i++) {{ Start-Sleep -Milliseconds 250 }}; "
+        f"say ('task state: ' + ({task}).State); "
+        f"Start-ScheduledTask -TaskName {q(name)}; "
+        "say 'started the task' } "
+        "elseif (Test-Path $link) { say ('starting ' + $link); Start-Process -FilePath $link } "
+        "else { "
+        f"say ('starting ' + {q(python)}); "
         f"Start-Process -FilePath {q(python)} -ArgumentList @({', '.join(args)}) "
-        f"-WorkingDirectory {q(root)} -WindowStyle Hidden",
-        "Write-Host 'started'",
+        f"-WorkingDirectory {q(root)} -WindowStyle Hidden; "
+        "say 'started' }",
+    ])
+    script = "; ".join([
+        f"New-Item -ItemType Directory -Force -Path {q(state)} | Out-Null",
+        f"function say($m) {{ Add-Content -Path {log} -Value ('[' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '] helper: ' + $m) }}",
+        "$ErrorActionPreference = 'Stop'",
+        f"try {{ {body} }} catch {{ say ('failed: ' + $_) }}",
     ])
     return ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
             "-Command", script]
 
 
-#: How the helper is started: detached, in its own group, and out of the
-#: job the scheduled task runs its action in, so it outlives the action.
+#: How the helper is started: with a console it does not show, in its own
+#: group, and out of the job the scheduled task runs its action in, so it
+#: outlives the action.  Not DETACHED_PROCESS: that is no console at all,
+#: and PowerShell's console host stops before the first statement without
+#: one, which is what the lane saw, a helper pid noted by the server and
+#: not a line from the helper itself.  CREATE_NO_WINDOW is what every
+#: hidden launcher gives it.
 CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+CREATE_NO_WINDOW = 0x08000000
 
 
 def windows_restart_flags(breakaway: bool = True) -> int:
-    flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
-             | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    flags = CREATE_NO_WINDOW | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     if breakaway:
         flags |= CREATE_BREAKAWAY_FROM_JOB
     return flags
