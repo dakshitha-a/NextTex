@@ -93,6 +93,13 @@ def main(argv=None) -> int:
     state = state_home()
     console = Console(plain=not interactive, log=state / "install.log")
 
+    # The log is appended to across every install this machine has run, so
+    # each run opens with a line saying when it was and what it was asked,
+    # the way update.log does.  The last block is the one to read.
+    import datetime
+    console.log_line("=== " + datetime.datetime.now().isoformat(timespec="seconds")
+                     + " python -m nexttex.install " + " ".join(sys.argv[1:]))
+
     console.write("")
     console.write("  " + console.bold("NextTex"))
     console.note(f"installing the checkout at {root}")
