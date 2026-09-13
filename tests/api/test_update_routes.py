@@ -236,14 +236,25 @@ def test_the_windows_helper_waits_for_the_pid_and_starts_the_command_line(tmp_pa
     assert argv[0] == "powershell" and "-Command" in argv
     script = argv[-1]
     assert "Get-Process -Id 4242" in script and "WaitForExit" in script
-    # The pid first, then the command line, hidden, logging where the old
-    # server did.  Not Start-ScheduledTask: the helper is inside the task's
-    # job, so the task still counts as Running and that call does nothing.
-    assert script.index("WaitForExit") < script.index("Start-Process -FilePath 'C:\\py\\python.exe'")
-    assert "Start-ScheduledTask" not in script
+    # The pid first; then the task, once it has left Running; the Startup
+    # shortcut; the command line last, hidden, logging where the old
+    # server did.
+    assert script.index("WaitForExit") < script.index("Start-ScheduledTask") \
+        < script.index("GetFolderPath('Startup')") \
+        < script.index("Start-Process -FilePath 'C:\\py\\python.exe'")
+    assert "'nexttex-thesis'" in script and "'nexttex-thesis.lnk'" in script
     assert "'--log-to-state'" in script and "'--instance', 'thesis'" in script
     assert "-WindowStyle Hidden" in script
     assert "restart.log" in script
+
+
+def test_the_helper_breaks_away_from_the_task_job_first():
+    """Everything a scheduled task's action starts is inside the task's
+    job, and the job is torn down when the action's process exits, which
+    took the helper with it.  Breakaway first; a job that forbids it
+    refuses, and the plain flags are the fallback."""
+    assert updates.windows_restart_flags(True) & updates.CREATE_BREAKAWAY_FROM_JOB
+    assert not updates.windows_restart_flags(False) & updates.CREATE_BREAKAWAY_FROM_JOB
 
 
 def test_the_windows_helper_carries_no_double_quote(tmp_path):
@@ -262,15 +273,39 @@ def test_on_windows_the_exit_starts_the_helper_first(client, monkeypatch):
     started = []
     left = []
     monkeypatch.setattr(server_main.os, "_exit", left.append)
+
+    class Child:
+        pid = 99
+
     monkeypatch.setattr(server_main.subprocess, "Popen",
-                        lambda argv, **kw: started.append((argv, kw)))
+                        lambda argv, **kw: (started.append((argv, kw)), Child())[1])
     server_main._leave_for_restart(windows=True)
     assert left == [3]
-    assert started and started[0][0][0] == "powershell"
+    assert len(started) == 1 and started[0][0][0] == "powershell"
     # Started with nothing of ours attached, so it survives the exit it is
-    # waiting for and holds no handle on the port.
+    # waiting for and holds no handle on the port, and out of the job.
     assert started[0][1]["close_fds"] is True
     assert started[0][1]["stdin"] is subprocess.DEVNULL
+    assert started[0][1]["creationflags"] & updates.CREATE_BREAKAWAY_FROM_JOB
+
+
+def test_a_job_that_forbids_breakaway_gets_the_helper_inside_it(client, monkeypatch):
+    started = []
+    monkeypatch.setattr(server_main.os, "_exit", lambda code: None)
+
+    class Child:
+        pid = 100
+
+    def popen(argv, **kw):
+        started.append(kw["creationflags"])
+        if kw["creationflags"] & updates.CREATE_BREAKAWAY_FROM_JOB:
+            raise OSError(5, "Access is denied")
+        return Child()
+
+    monkeypatch.setattr(server_main.subprocess, "Popen", popen)
+    server_main._leave_for_restart(windows=True)
+    assert len(started) == 2
+    assert not started[1] & updates.CREATE_BREAKAWAY_FROM_JOB
 
 
 def test_off_windows_the_exit_is_the_whole_act(client, monkeypatch):

@@ -4276,14 +4276,32 @@ def _leave_for_restart(windows: bool = os.name == "nt") -> None:
         argv = updates.windows_restart_argv(
             os.getpid(), INSTALL_ROOT, instance_name(), sys.executable, state_home(),
         )
-        flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        try:
-            subprocess.Popen(argv, creationflags=flags, close_fds=True,
-                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
-        except OSError as error:
-            log.warning("could not start the restart helper: %s", error)
+        # Out of the task's job first; a job that forbids breakaway refuses
+        # with access denied, and then the helper runs inside it and does
+        # what it can.  Noted in restart.log either way, since this is the
+        # last thing this process does and the one thing nobody can ask it
+        # about afterwards.
+        note = state_home() / "restart.log"
+        for breakaway in (True, False):
+            try:
+                child = subprocess.Popen(argv, creationflags=updates.windows_restart_flags(breakaway),
+                                         close_fds=True, stdin=subprocess.DEVNULL,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError as error:
+                _note(note, f"helper not started (breakaway={breakaway}): {error}")
+                continue
+            _note(note, f"helper started as pid {child.pid} (breakaway={breakaway}); leaving")
+            break
     os._exit(3)
+
+
+def _note(path: Path, text: str) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] server: {text}\n")
+    except OSError:
+        pass
 
 
 def _update_say(kind: str, **fields) -> None:
