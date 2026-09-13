@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hunksOf } from "./patch";
+import { hunksOf } from "./patch-hunks";
 
 describe("hunksOf", () => {
   it("starts at the first hunk of what jsdiff writes", () => {

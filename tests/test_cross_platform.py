@@ -197,6 +197,48 @@ def test_nothing_shipped_hardcodes_a_path_from_the_machine_it_was_written_on():
     assert not offenders, offenders
 
 
+def test_no_two_tracked_paths_differ_only_by_case():
+    """I-014.  `panes/Patch.tsx` and `panes/patch.ts` were both tracked, so
+    on macOS and Windows, where the filesystem folds case, the import of
+    `./Patch` resolved to `patch.ts` and the interface would not build:
+    "default" is not exported by "src/panes/patch".  Every install on those
+    two platforms that could not download the interface, and every update
+    on one that could not reach GitHub, failed there, and a checkout on
+    Linux never showed it.  The install lane's macOS update leg did."""
+    if shutil.which("git") is None:
+        pytest.skip("no git here")
+    listed = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT,
+                            capture_output=True, text=True)
+    if listed.returncode != 0:
+        pytest.skip("not a git checkout")
+    importable = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".py"}
+    seen: dict = {}
+    clashes = set()
+    for path in listed.stdout.split("\0"):
+        if not path:
+            continue
+        parts = path.split("/")
+        # A path and every directory on the way to it: two folders that
+        # differ only by case clash before any file inside them does.
+        for depth in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:depth])
+            folded = prefix.lower()
+            if folded in seen and seen[folded] != prefix:
+                clashes.add((seen[folded], prefix))
+            seen.setdefault(folded, prefix)
+        # And for source files, the stem alone: an import names no
+        # extension, so `./Patch` is resolved by trying each one, and on a
+        # folding filesystem `Patch.ts` is `patch.ts`.  `words.ts` beside
+        # `words.txt` is fine; nothing imports a .txt.
+        stem, ext = os.path.splitext(path)
+        if ext in importable:
+            key = ("stem", stem.lower())
+            if key in seen and seen[key].lower() != path.lower():
+                clashes.add((seen[key], path))
+            seen.setdefault(key, path)
+    assert not sorted(clashes), sorted(clashes)
+
+
 def test_nothing_private_is_committed_with_the_example_project():
     """`.nexttex/` holds a project's history, its trash, its agent
     transcript and the id of the Claude session that produced it.  It was

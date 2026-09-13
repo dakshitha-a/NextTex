@@ -1,4 +1,4 @@
-import { hunksOf } from "./patch";
+import { hunksOf } from "./patch-hunks";
 
 /** A unified diff, drawn the way the agent's edit chip has always drawn
  *  one: a monospace block, additions washed with the ok colour and
