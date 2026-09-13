@@ -21,7 +21,8 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$Root,
-  [string]$Name = 'NextTex'
+  [string]$Name = 'NextTex',
+  [string]$Instance = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,7 +44,9 @@ $link = Join-Path $desktop "$Name.lnk"
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($link)
 $shortcut.TargetPath = $runner
-$shortcut.Arguments = '-u "' + $entry + '" --open'
+# The instance on the command line: a shortcut has no environment of its
+# own, and one for a second install used to open the first.
+$shortcut.Arguments = '-u "' + $entry + '" --open' + $(if ($Instance) { " --instance $Instance" } else { '' })
 $shortcut.WorkingDirectory = $Root
 $shortcut.WindowStyle = 7
 $shortcut.Description = 'Write LaTeX with the typeset page beside you'
