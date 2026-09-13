@@ -35,6 +35,23 @@ things go to be forgotten rather than a list anybody reads.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **The install lane has not yet run its TinyTeX shape.** Every leg is
+      green with `--tex=none`; `tex=tinytex` on the dispatch installs a real
+      TinyTeX on all three runners and then `tlmgr` adds the five extras.
+      Slow, a CTAN mirror away, and the one path a first install actually
+      takes. Worth one dispatch, and worth watching the scheduled Monday run
+      the first time it takes it.
+- [ ] **The Windows restart helper has run on the lane once it is green
+      there, and nowhere else.** `updates.windows_restart_argv` brings the
+      server back after the update button on Windows. The update leg drives
+      it; a person pressing the button on a laptop where the task could not
+      be registered, so the Startup shortcut is the way back, has not.
+- [ ] **`fetch-interface.ps1` on Windows 7 or 8.1.** `Invoke-WebRequest`
+      there does not offer TLS 1.2 by default and GitHub requires it. Modern
+      Windows is fine and the lane runs on it; the fix is one line setting
+      `[Net.ServicePointManager]::SecurityProtocol`, left until somebody on
+      such a machine appears.
+
 - [ ] **A joiner gets a manifest entry for a binary file and no file.**
       `figures/plot.png` arrives as a name with nothing behind it. Syncing a
       figure's *past* is done; delivering its bytes is not. A file-sync gap
