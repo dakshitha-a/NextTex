@@ -202,7 +202,7 @@ test("every panel in the rail stays inside it", async ({ app, project, page }) =
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 
   // Everything the rail holds, open at once.
-  for (const name of [/Claude reads/i, /^Trash$/, /^Papers$/, /^Git$/]) {
+  for (const name of [/Claude reads/i, /^Trash$/, /^Papers$/, /^Git\b/]) {
     const toggle = page.getByRole("button", { name }).first();
     if (!(await toggle.count())) continue;
     if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
@@ -219,6 +219,16 @@ test("every panel in the rail stays inside it", async ({ app, project, page }) =
     const box = (e: Element | null) =>
       e ? e.getBoundingClientRect() : null;
     const named = /^(Files|Sections|Trash|Papers|Git)|Claude reads/i;
+    // The stack scrolls, deliberately, when the panels it holds add up to
+    // more than the pane. A header below the pane's bottom edge is only a
+    // fault when it cannot be scrolled to, which is what the first bug
+    // above was: so the slack the stack can scroll through is allowed,
+    // and only when the stack really does scroll.
+    const stack = bar?.parentElement as HTMLElement | null;
+    const scrolls = stack
+      ? /auto|scroll/.test(getComputedStyle(stack).overflowY)
+      : false;
+    const slack = stack && scrolls ? stack.scrollHeight - stack.clientHeight : 0;
     return {
       paneBottom: Math.round(pane.getBoundingClientRect().bottom),
       treeHeight: Math.round(box(treeRoot)?.height ?? -1),
@@ -228,16 +238,19 @@ test("every panel in the rail stays inside it", async ({ app, project, page }) =
         .filter((n) => named.test((n.textContent ?? "").trim()))
         .map((n) => ({
           label: (n.textContent ?? "").trim().slice(0, 20),
-          over: Math.round(n.getBoundingClientRect().bottom - pane.getBoundingClientRect().bottom),
+          over: Math.round(
+            n.getBoundingClientRect().bottom - pane.getBoundingClientRect().bottom - slack,
+          ),
         })),
     };
   });
 
   expect(rail).not.toBeNull();
-  // 1. Nothing hangs out of the bottom of the pane.
+  // 1. Nothing hangs out of the bottom of the pane beyond where it can be
+  //    scrolled to.
   expect(rail!.panels.length).toBeGreaterThan(2);
   for (const panel of rail!.panels) {
-    expect(panel.over, `"${panel.label}" hangs ${panel.over}px below the rail`)
+    expect(panel.over, `"${panel.label}" hangs ${panel.over}px below the rail, out of reach`)
       .toBeLessThanOrEqual(0);
   }
   // 2. The file list keeps a real height, and its toolbar stays inside it --
