@@ -114,7 +114,7 @@ def run(work: Path) -> subprocess.CompletedProcess:
     state = work.parent / "state"
     state.mkdir(exist_ok=True)
     return subprocess.run(
-        ["bash", "scripts/update.sh", "--instance=nothinglistenshere", "--no-restart"],
+        ["sh", "scripts/update.sh", "--instance=nothinglistenshere", "--no-restart"],
         cwd=work,
         capture_output=True,
         text=True,
@@ -238,3 +238,32 @@ def test_nothing_is_logged_twice_when_there_was_nothing_to_pull(tmp_path: Path) 
 
     log = log_of(work)
     assert log.read_text().count("already up to date") == 1
+
+
+def test_a_failure_after_the_hand_over_is_still_a_failure(tmp_path: Path) -> None:
+    """The exit status crosses two things on its way out: the exec into the
+    pulled script, and the pipe into `tee` that writes update.log.  bash's
+    `pipefail` carried it across both; under POSIX sh a status file does,
+    and this is the test that it does.  The server reads this number, and
+    an update that failed and exited zero is reported to the writer as one
+    that worked."""
+    origin, work = repositories(tmp_path)
+    release(origin, tmp_path, lambda text: text.replace(
+        'say "Dependencies"', 'say "Dependencies"\n  false  # the step the release broke', 1))
+    done = run(work)
+    assert "continuing with the updated script" in done.stdout
+    assert done.returncode != 0, done.stdout + done.stderr
+    # And the log still has the one block, ending where the update stopped.
+    assert log_of(work).read_text().count("=== ") == 1
+
+
+def test_a_failure_before_the_hand_over_is_a_failure_too(tmp_path: Path) -> None:
+    """`set -e` has to stay in force inside `main`.  Calling it as
+    `main || code=$?` would have switched it off in there, and a failed
+    `git pull` would have been followed by every step after it."""
+    origin, work = repositories(tmp_path)
+    # A remote that cannot be fetched: the pull fails before any hand-over.
+    git(work, "remote", "set-url", "origin", str(tmp_path / "nowhere.git"))
+    done = run(work)
+    assert done.returncode != 0
+    assert "Dependencies" not in done.stdout, "the update carried on past a failed pull"

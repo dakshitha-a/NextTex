@@ -1,10 +1,18 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Update NextTex to the latest release, keeping everything you have made.
 #
 # Your projects are never inside this directory: the registry holds paths,
 # and the files stay where you put them.  What this touches is the code, the
 # Python environment and the built interface.
-set -euo pipefail
+#
+# POSIX sh, not bash, for the same reason as install.sh and
+# fetch-interface.sh: Alpine has no bash, and this is run by the server on
+# whatever the machine has.  The one thing bash gave this file was
+# `pipefail`, which carried the update's exit status through the `tee` at
+# the bottom; a status file does that job now, and survives the hand-over
+# to the pulled script, which pipefail did too.  The test suite runs this
+# under dash.
+set -eu
 # Resolved before the cd, because after it "$0" may no longer name this file.
 # Needed so the script can hand over to its own updated self, below.
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
@@ -67,7 +75,7 @@ main() {
   elif [ -d .git ]; then
     if [ -n "$(git status --porcelain)" ]; then
       note "you have local changes; stashing them"
-      git stash push -u -m "nexttex update $(date -Is)" >/dev/null
+      git stash push -u -m "nexttex update $(date '+%Y-%m-%dT%H:%M:%S%z')" >/dev/null
       note "restore them later with: git stash pop"
     fi
     before=$(git rev-parse --short HEAD)
@@ -167,12 +175,38 @@ main() {
 # path, so everything after the pull lands in the log twice.  Exported for
 # that reason: it has to survive the exec, the way NEXTTEX_UPDATE_RESUMED
 # does.
+#
+# The exit status crosses the pipe in a file.  A pipeline's status is its
+# last command's, and `tee` succeeds however the update went, so without
+# this a failed update exited zero to the server that ran it and to the
+# person watching a terminal.  The path is exported too, because the
+# resumed script is what actually finishes most updates, and it is the one
+# that has to write the number.
+#
+# Recorded from an EXIT trap rather than from `main "$@" || code=$?`,
+# because a function called on the left of `||` runs with `set -e`
+# switched off inside it, and a failed `git pull` would then have been
+# followed by every step after it.  The trap sees the status `set -e` is
+# exiting with.
+record() {  # record STATUS: where the wrapper will look for it
+  if [ -n "${NEXTTEX_UPDATE_STATUS:-}" ]; then
+    printf '%s' "$1" > "$NEXTTEX_UPDATE_STATUS" 2>/dev/null || true
+  fi
+}
+
 if [ -z "${NEXTTEX_UPDATE_LOGGED:-}" ] && mkdir -p "$(dirname "$UPDATE_LOG")" 2>/dev/null; then
   export NEXTTEX_UPDATE_LOGGED=1
+  NEXTTEX_UPDATE_STATUS="$(mktemp 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/nexttex-update-status.$$")"
+  export NEXTTEX_UPDATE_STATUS
   {
-    printf '\n=== %s  update.sh %s\n' "$(date -Is)" "$*"
+    printf '\n=== %s  update.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"
+    trap 'record $?' EXIT
     main "$@"
   } 2>&1 | tee -a "$UPDATE_LOG"
+  code="$(cat "$NEXTTEX_UPDATE_STATUS" 2>/dev/null || printf 1)"
+  rm -f "$NEXTTEX_UPDATE_STATUS"
+  exit "${code:-1}"
 else
+  trap 'record $?' EXIT
   main "$@"
 fi
