@@ -43,8 +43,20 @@
   Install a second, separate NextTex on this machine -- its own state, its
   own port, its own logon task.
 
+.PARAMETER Service
+  Arrange for NextTex to start when you log in, without being asked.
+  Interactively this is the default; unattended, with -Yes or no console,
+  the default is not to, so an unattended install that wants it says so.
+
 .PARAMETER NoService
   Do not arrange for NextTex to start when you log in.
+
+.PARAMETER Shortcut
+  Put a shortcut on the desktop.  This is the default either way; the
+  switch exists so every choice the installer offers can be made here.
+
+.PARAMETER NoShortcut
+  Do not put a shortcut on the desktop.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\install.ps1
@@ -78,7 +90,14 @@ param(
   [ValidateSet('localhost', '')]
   [string]$Bind = '',
   [string]$Instance = '',
+  # Both directions, the way install.sh has --service and --no-service,
+  # because only -NoService existed: an unattended install could refuse
+  # the login start and had no way to ask for it, and the install lane,
+  # which has no console, could not exercise the task registration at all.
+  [switch]$Service,
   [switch]$NoService,
+  [switch]$Shortcut,
+  [switch]$NoShortcut,
   [switch]$Plain
 )
 
@@ -356,7 +375,10 @@ if ($Tex) { $installArgs += "--tex=$Tex" }
 if ($Agent) { $installArgs += "--agent=$Agent" }
 if ($Bind) { $installArgs += "--bind=$Bind" }
 if ($Instance) { $installArgs += "--instance=$Instance" }
+if ($Service) { $installArgs += '--service' }
 if ($NoService) { $installArgs += '--no-service' }
+if ($Shortcut) { $installArgs += '--shortcut' }
+if ($NoShortcut) { $installArgs += '--no-shortcut' }
 
 & $pythonExe @pythonArgs @installArgs
 exit $LASTEXITCODE

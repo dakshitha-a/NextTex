@@ -206,6 +206,25 @@ def test_nothing_shipped_hardcodes_a_path_from_the_machine_it_was_written_on():
     assert not offenders, offenders
 
 
+def test_every_installer_choice_can_be_made_from_both_bootstraps():
+    """I-008.  install.sh passes anything it does not recognise through to
+    `python -m nexttex.install`, so every choice the installer offers can
+    be made from it.  install.ps1 forwards only the parameters it declares,
+    and it declared -NoService and not -Service: an unattended Windows
+    install could refuse the login start and had no way to ask for it."""
+    installer = (ROOT / "nexttex" / "install" / "__main__.py").read_text(encoding="utf-8")
+    ps1 = (ROOT / "scripts" / "install.ps1").read_text(encoding="utf-8")
+    long_options = set(re.findall(r'add_argument\("(--[a-z-]+)"', installer)) - {"--dir", "--root"}
+    assert "--service" in long_options and "--no-shortcut" in long_options
+    for option in sorted(long_options):
+        # --no-service is -NoService, --tex is -Tex, --yes is -Yes.
+        switch = "-" + "".join(part.capitalize() for part in option[2:].split("-"))
+        assert f"[switch]${switch[1:]}" in ps1 or f"[string]${switch[1:]}" in ps1, \
+            f"install.ps1 has no {switch} for {option}"
+        assert f"'{option}" in ps1 or f'"{option}' in ps1, \
+            f"install.ps1 never hands {option} to the installer"
+
+
 def test_the_windows_python_probe_has_no_double_quote_for_5_1_to_mangle():
     """I-017.  Windows PowerShell 5.1 hands a native command an argument
     with a space in it wrapped in double quotes and does not escape the
