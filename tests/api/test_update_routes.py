@@ -219,3 +219,66 @@ def test_a_supervised_install_restarts_by_leaving(client, monkeypatch):
             break
         time.sleep(0.05)
     assert left == [3]
+
+
+# --- Windows brings itself back --------------------------------------------
+#
+# I-021.  A scheduled task is not a supervisor: a task that ends stays
+# ended.  So the update button on Windows finished with "stop it and start
+# it again", and for a server the task started that meant Task Scheduler.
+# The server now starts a detached helper before it leaves, which waits for
+# the pid and starts NextTex the way it was started.
+
+
+def test_the_windows_helper_waits_for_the_pid_and_prefers_the_task(tmp_path):
+    argv = updates.windows_restart_argv(4242, tmp_path, "thesis", r"C:\py\python.exe",
+                                        tmp_path / "state")
+    assert argv[0] == "powershell" and "-Command" in argv
+    script = argv[-1]
+    assert "Get-Process -Id 4242" in script and "WaitForExit" in script
+    # The task first, the Startup shortcut second, the command line last.
+    assert script.index("Start-ScheduledTask") < script.index("GetFolderPath('Startup')") \
+        < script.index("Start-Process -FilePath 'C:\\py\\python.exe'")
+    assert "'nexttex-thesis'" in script and "'nexttex-thesis.lnk'" in script
+    assert "'--instance', 'thesis'" in script
+    assert "server.log" in script and "server.err.log" in script
+
+
+def test_the_windows_helper_names_the_default_instance_plainly(tmp_path):
+    script = updates.windows_restart_argv(1, tmp_path, "", "python", tmp_path)[-1]
+    assert "'nexttex'" in script and "--instance" not in script
+
+
+def test_on_windows_the_exit_starts_the_helper_first(client, monkeypatch):
+    started = []
+    left = []
+    monkeypatch.setattr(server_main.os, "_exit", left.append)
+    monkeypatch.setattr(server_main.subprocess, "Popen",
+                        lambda argv, **kw: started.append((argv, kw)))
+    server_main._leave_for_restart(windows=True)
+    assert left == [3]
+    assert started and started[0][0][0] == "powershell"
+    # Started with nothing of ours attached, so it survives the exit it is
+    # waiting for and holds no handle on the port.
+    assert started[0][1]["close_fds"] is True
+    assert started[0][1]["stdin"] is subprocess.DEVNULL
+
+
+def test_off_windows_the_exit_is_the_whole_act(client, monkeypatch):
+    started = []
+    left = []
+    monkeypatch.setattr(server_main.os, "_exit", left.append)
+    monkeypatch.setattr(server_main.subprocess, "Popen",
+                        lambda argv, **kw: started.append(argv))
+    server_main._leave_for_restart(windows=False)
+    assert left == [3] and started == []
+
+
+def test_windows_counts_as_supervised_when_powershell_is_there(monkeypatch):
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+    monkeypatch.delenv("XPC_SERVICE_NAME", raising=False)
+    monkeypatch.setattr(updates.os, "name", "nt")
+    monkeypatch.setattr(updates.shutil, "which", lambda name: r"C:\ps.exe" if name == "powershell" else None)
+    assert updates.supervised() is True
+    monkeypatch.setattr(updates.shutil, "which", lambda name: None)
+    assert updates.supervised() is False

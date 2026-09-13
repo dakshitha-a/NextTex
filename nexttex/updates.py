@@ -178,14 +178,57 @@ def node_available() -> tuple[bool, str]:
 
 
 def supervised() -> bool:
-    """Whether something will start NextTex again if it stops.
+    """Whether something will start NextTex again if it stops on purpose.
 
     systemd sets `INVOCATION_ID` for every service it runs and launchd sets
     `XPC_SERVICE_NAME`; both are configured to restart on a non-zero exit.
-    Windows registers a logon task, which is not a supervisor -- so there
-    the writer restarts it themselves and is told so.
+    Windows registers a logon task, which is not a supervisor: a task that
+    ends stays ended.  So there the server arranges its own return before
+    it leaves, with the helper `windows_restart_argv` describes, and the
+    answer is yes wherever that helper can run.  Until it existed the
+    update button on Windows finished with "stop it and start it again",
+    which for a server a task started meant finding Task Scheduler.
     """
-    return bool(os.environ.get("INVOCATION_ID") or os.environ.get("XPC_SERVICE_NAME"))
+    if os.environ.get("INVOCATION_ID") or os.environ.get("XPC_SERVICE_NAME"):
+        return True
+    return os.name == "nt" and shutil.which("powershell") is not None
+
+
+def windows_restart_argv(pid: int, root: Path, instance: str, python: str,
+                         state: Path) -> list:
+    """A detached PowerShell that waits for this process to end and starts
+    NextTex the way it was started.
+
+    In order: the scheduled task, if the installer registered one, since
+    starting the task is what logging in does; the Startup shortcut, on
+    the ordinary account where the task could not be registered; and
+    failing both, the same command line this process was started with,
+    hidden, writing to the state directory's server.log the way the
+    Startup fallback does.  The wait is on the pid, not a sleep: the port
+    has to be free before anything can bind it again.
+    """
+    name = "nexttex" + (f"-{instance}" if instance else "")
+    q = lambda text: "'" + str(text).replace("'", "''") + "'"  # noqa: E731
+    run = root / "server" / "run.py"
+    args = ["'-u'", q(run)]
+    if instance:
+        args += ["'--instance'", q(instance)]
+    script = "; ".join([
+        f"$p = Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue",
+        "if ($p) { $p.WaitForExit() }",
+        "Start-Sleep -Milliseconds 500",
+        f"if (Get-ScheduledTask -TaskName {q(name)} -ErrorAction SilentlyContinue) "
+        f"{{ Start-ScheduledTask -TaskName {q(name)}; exit 0 }}",
+        f"$link = Join-Path ([Environment]::GetFolderPath('Startup')) {q(name + '.lnk')}",
+        "if (Test-Path $link) { Start-Process -FilePath $link; exit 0 }",
+        f"New-Item -ItemType Directory -Force -Path {q(state)} | Out-Null",
+        f"Start-Process -FilePath {q(python)} -ArgumentList @({', '.join(args)}) "
+        f"-WorkingDirectory {q(root)} -WindowStyle Hidden "
+        f"-RedirectStandardOutput {q(state / 'server.log')} "
+        f"-RedirectStandardError {q(state / 'server.err.log')}",
+    ])
+    return ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+            "-Command", script]
 
 
 def _commits_behind(root: Path) -> list[Commit]:
