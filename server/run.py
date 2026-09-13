@@ -126,6 +126,28 @@ async def serve(settings: Settings) -> None:
     await asyncio.gather(*(server.serve() for server in servers))
 
 
+def _log_to_state() -> None:
+    """Point file descriptors 1 and 2 at the state directory's logs.
+
+    At the descriptor rather than by swapping `sys.stdout`, so children
+    inherit it, and appended rather than replaced, so a server that dies
+    on startup leaves its last words beside the previous run's.  `-u` on
+    the command line is what keeps the file current while it runs.
+    """
+    from nexttex.paths import state_home
+
+    state = state_home()
+    state.mkdir(parents=True, exist_ok=True)
+    for name, fd in (("server.log", 1), ("server.err.log", 2)):
+        handle = os.open(str(state / name), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        os.dup2(handle, fd)
+        os.close(handle)
+    # Python's own objects still point at the old descriptors' buffers;
+    # give them the new ones, line buffered.
+    sys.stdout = os.fdopen(1, "w", buffering=1, encoding="utf-8", errors="replace", closefd=False)
+    sys.stderr = os.fdopen(2, "w", buffering=1, encoding="utf-8", errors="replace", closefd=False)
+
+
 def _print_version() -> None:
     """The commit this install is on, and the one its interface was built
     from.
@@ -232,12 +254,24 @@ def main() -> None:
     parser.add_argument("--instance", default="",
                         help="which named instance this is; the same as "
                              "setting NEXTTEX_INSTANCE")
+    # What the Windows launchers pass.  A scheduled task and a Startup
+    # shortcut are a command line with nowhere for the output to go: the
+    # task's server wrote to no file at all, and the shortcut's only to a
+    # minimised console window that logging in closes with the rest.  The
+    # unit and the plist redirect for their servers; on Windows the server
+    # does it for itself, at the file descriptor, so what latexmk and the
+    # agent print lands in the same file.
+    parser.add_argument("--log-to-state", action="store_true",
+                        help="append stdout and stderr to server.log and "
+                             "server.err.log in the state directory")
     arguments = parser.parse_args()
 
     if arguments.instance:
         # Before Settings.load(), which is the first thing to ask where the
         # state directory is.
         os.environ["NEXTTEX_INSTANCE"] = arguments.instance
+    if arguments.log_to_state:
+        _log_to_state()
 
     if arguments.version:
         _print_version()

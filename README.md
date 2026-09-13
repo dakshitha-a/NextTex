@@ -229,8 +229,10 @@ Not `pythonw`. It was tried, so that logging in did not leave a black
 rectangle on the desktop, and what it also does is discard everything the
 server prints: a server that dies on startup dies in complete silence, no
 window and no log. The shortcut runs the console interpreter minimised
-instead, and writes to `server.log` and `server.err.log` beside the install
-log.
+instead. Both the task and the shortcut start it with `--log-to-state`,
+which sends everything it prints to `server.log` and `server.err.log`
+beside the install log, so a server that will not start has left its last
+words there whichever way it was started.
 
 **Any platform.** To print the URL and token again, which is the way back in
 if you have forgotten the password:
