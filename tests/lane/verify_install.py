@@ -200,6 +200,41 @@ def log_blocks(instance: str) -> int:
 # ---------------------------------------------------------------------------
 
 
+# The five a project needs beyond pdflatex, the ones `tlmgr` adds after
+# TinyTeX itself; `nexttex.install.survey.TEX_EXTRAS` names the same five.
+TEX_EXTRAS = ("latexmk", "biber", "synctex", "chktex", "texcount")
+
+
+def tinytex_bin() -> Path | None:
+    """Where TinyTeX puts its binaries on this platform, if it is there."""
+    if PLATFORM == "windows":
+        base = Path(os.environ.get("APPDATA", "")) / "TinyTeX" / "bin"
+    elif PLATFORM == "macos":
+        base = HOME / "Library" / "TinyTeX" / "bin"
+    else:
+        base = HOME / ".TinyTeX" / "bin"
+    if not base.is_dir():
+        return None
+    for arch in sorted(base.iterdir()):
+        if (arch / "pdflatex").exists() or (arch / "pdflatex.exe").exists():
+            return arch
+    return None
+
+
+def tex_tool(directory: Path, name: str) -> bool:
+    return any((directory / (name + suffix)).exists() for suffix in ("", ".exe", ".bat", ".cmd"))
+
+
+def service_output(instance: str) -> str:
+    """What the service-started server printed: server.log where the
+    launcher writes one, the journal under systemd."""
+    if PLATFORM == "linux":
+        done = run(["journalctl", "--user", "-u", unit_name(instance), "--no-pager", "-o", "cat"])
+        return done.stdout
+    log = state_home(instance) / "server.log"
+    return log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
+
+
 def cmd_installed(args) -> int:
     root = Path(args.root).resolve()
     instance = args.instance
@@ -319,6 +354,27 @@ def cmd_installed(args) -> int:
             else:
                 report.note("no desktop directory here", "the shortcut step is skipped, as documented")
 
+    if args.tex == "tinytex":
+        # The README's TinyTeX shape: pdflatex and the five extras in the
+        # directory the installer says, and the service seeing them.  The
+        # server prints the TeX it found at startup, so the service's own
+        # output says whether the PATH it was given reaches TinyTeX, which
+        # is the thing a `systemd --user` unit with a minimal PATH gets
+        # wrong and a shell never does.
+        bin_dir = tinytex_bin()
+        report.check("TinyTeX is installed where the installer says", bin_dir is not None, str(bin_dir or ""))
+        if bin_dir is not None:
+            version = run([str(bin_dir / "pdflatex"), "--version"])
+            report.check("pdflatex runs", version.returncode == 0 and "pdfTeX" in version.stdout,
+                         (version.stdout or version.stderr).strip().splitlines()[0] if (version.stdout or version.stderr).strip() else "")
+            missing = [name for name in TEX_EXTRAS if not tex_tool(bin_dir, name)]
+            report.check("the five extras are installed beside it", not missing, "missing: " + ", ".join(missing) if missing else ", ".join(TEX_EXTRAS))
+        if args.service:
+            printed = re.findall(r"LaTeX\s+(\S.*)", service_output(instance))
+            seen = printed[-1].strip() if printed else ""
+            report.check("the service-started server found TeX", bool(seen) and "NOT FOUND" not in seen,
+                         seen or "no 'LaTeX' line in the service's output")
+
     if args.record:
         Path(args.record).write_text(json.dumps({"url": url, "port": port, "token": token, "head": head}), encoding="utf-8")
     return report.finish("installed" + (f" ({instance})" if instance else ""))
@@ -386,6 +442,7 @@ def main(argv=None) -> int:
             p.add_argument("--head", default="")
             p.add_argument("--service", action="store_true")
             p.add_argument("--shortcut", action="store_true")
+            p.add_argument("--tex", default="none", choices=("none", "tinytex"))
         if name == "again":
             p.add_argument("--service", action="store_true")
         if name == "gone":
