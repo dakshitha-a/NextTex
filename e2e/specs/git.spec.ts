@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures";
+import { test, expect, openProject } from "../fixtures";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { landed } from "../typing";
@@ -56,4 +56,62 @@ test("what changed in a file can be read in the panel, not only named", async ({
   const patch = tab.getByTestId("git-patch");
   await expect(patch).toBeVisible({ timeout: 10_000 });
   await expect(patch).toContainText("+A line that was not there before.");
+});
+
+/** Every button in a git surface holds its label on one line, at the
+ *  narrowest rail there is.  The card had three labels in one row, no wrap
+ *  on the row and no `nowrap` on the labels, so each wrapped inside its
+ *  own 26px box and the card showed the top half of every word. */
+async function fitting(page: import("@playwright/test").Page, within: string) {
+  return page.evaluate((selector) => {
+    const root = document.querySelector(selector);
+    return [...(root?.querySelectorAll("button") ?? [])].map((b) => {
+      // The line boxes the label actually occupies, rather than the
+      // button's height over its line height: a quiet control in a row
+      // with a 26px button is stretched to 26px and is still one line.
+      const range = document.createRange();
+      range.selectNodeContents(b);
+      const tops = new Set(
+        [...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)),
+      );
+      return {
+        text: (b.textContent ?? "").trim(),
+        over: b.scrollWidth - b.clientWidth,
+        lines: tops.size,
+      };
+    });
+  }, within);
+}
+
+test("the card's buttons fit at the narrowest rail", async ({ page, app, project }) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  // The rail at its minimum, before the project opens and reads it back.
+  await page.evaluate(
+    (id) => localStorage.setItem(`nexttex.widths.${id}`, JSON.stringify({ rail: 180 })),
+    project.id,
+  );
+  await openProject(page, project.root);
+  const card = page.getByTestId("git-setup");
+  await expect(card).toBeVisible({ timeout: 20_000 });
+
+  const check = async (where: string) => {
+    const buttons = await fitting(page, where);
+    expect(buttons.length, where).toBeGreaterThan(0);
+    for (const b of buttons) {
+      expect(b.over, `"${b.text}" overflows by ${b.over}px`).toBeLessThanOrEqual(1);
+      expect(b.lines, `"${b.text}" wrapped`).toBe(1);
+    }
+  };
+  // No repository: "Keep versions here" over the quiet pair.
+  await check('[data-testid="git-setup"]');
+  // A repository and no remote: the GitHub card.
+  await page.getByTestId("git-init").click();
+  await expect(page.getByTestId("git-init")).toHaveCount(0, { timeout: 20_000 });
+  await expect(card).toContainText("Back this up to GitHub");
+  await check('[data-testid="git-setup"]');
+  // And the wizard behind it.
+  await page.getByTestId("git-backup").click();
+  await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
+  await check('[data-testid="git-wizard"]');
 });
