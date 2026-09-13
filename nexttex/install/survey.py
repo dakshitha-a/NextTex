@@ -178,6 +178,33 @@ COMMANDS = {
     },
 }
 
+# The Linux lines above are Debian's.  A Fedora or Alpine box, which the
+# install lane runs the bootstrap on, was told to `sudo apt install`, a
+# command it does not have; the first package manager found on PATH picks
+# the spelling instead.  Package names differ where they do.
+LINUX_INSTALLERS = (
+    ("apt", "sudo apt install {}"),
+    ("dnf", "sudo dnf install {}"),
+    ("zypper", "sudo zypper install {}"),
+    ("pacman", "sudo pacman -S {}"),
+    ("apk", "sudo apk add {}"),
+)
+LINUX_PACKAGES = {
+    "git": {"default": "git"},
+    "pdftotext": {"default": "poppler-utils", "pacman": "poppler", "apk": "poppler-utils"},
+}
+
+
+def linux_command(key: str, which) -> str:
+    """The install line for this Linux, by whichever package manager it has."""
+    packages = LINUX_PACKAGES.get(key)
+    if not packages:
+        return COMMANDS.get(key, {}).get("linux", "")
+    for manager, shape in LINUX_INSTALLERS:
+        if which(manager):
+            return shape.format(packages.get(manager, packages["default"]))
+    return COMMANDS[key]["linux"]
+
 # Roughly what each download costs, so the plan can add them up.  Deliberately
 # approximate and deliberately shown: the previous installer asked "Install
 # TinyTeX (about 200 MB)?" one question at a time, which tells you the price
@@ -254,6 +281,8 @@ def survey(
     add = result.findings.append
 
     def command_for(key: str) -> str:
+        if platform == "linux":
+            return linux_command(key, which)
         return COMMANDS.get(key, {}).get(platform, "")
 
     # -- the things the bootstrap already proved ---------------------------
