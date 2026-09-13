@@ -941,7 +941,7 @@ def test_the_windows_launcher_does_not_buffer_the_log_it_names():
     """
     text = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
     starts = [line for line in text.splitlines()
-              if "ArgumentList" in line or "$shortcut.Arguments" in line]
+              if "$startArgs =" in line or "$shortcut.Arguments" in line]
     assert starts, "the launcher no longer starts anything"
     for line in starts:
         assert "-u" in line, (
@@ -1118,6 +1118,54 @@ def test_a_second_install_gets_its_own_shortcut(tmp_path):
     made = write(tmp_path / "NextTex", "linux", home, Path("/opt/py"),
                  instance="thesis", environ={})
     assert made == home / "Desktop" / "NextTex (thesis).desktop"
+
+
+# I-007.  A named instance is carried by NEXTTEX_INSTANCE, and the unit and
+# the plist set it.  A Windows scheduled task, a Startup shortcut and a
+# desktop shortcut on any platform are a command line with no environment,
+# so every one of them started the *default* instance: the default port,
+# the default state directory, somebody else's projects.  `run.py
+# --instance` is the argument that travels, and every launcher writes it.
+
+
+def test_a_named_instance_travels_on_every_launcher_command_line(tmp_path):
+    from nexttex.install.desktop import command_script, desktop_entry, shortcut_argv
+    from nexttex.install.service import register_task_argv
+
+    root = tmp_path / "NextTex"
+    assert "--open --instance thesis" in desktop_entry(root, Path("/opt/py"), "thesis")
+    assert "--open --instance thesis" in command_script(root, Path("/opt/py"), "thesis")
+    assert "--instance" not in desktop_entry(root, Path("/opt/py"), "")
+    assert "--instance" not in command_script(root, Path("/opt/py"), "")
+    for argv in (shortcut_argv(root, "thesis"), register_task_argv(root, "thesis")):
+        assert argv[argv.index("-Instance") + 1] == "thesis"
+
+
+def test_run_py_takes_the_instance_as_an_argument():
+    """Before Settings.load(), which is the first thing to ask where the
+    state directory is; a flag read after it would name the wrong one."""
+    text = (ROOT / "server" / "run.py").read_text(encoding="utf-8")
+    assert '"--instance"' in text
+    sets = text.index('os.environ["NEXTTEX_INSTANCE"] = arguments.instance')
+    loads = text.index("settings = Settings.load()")
+    assert sets < loads
+
+
+def test_the_windows_launchers_put_the_instance_on_the_command_line():
+    """Text assertions, since nothing here can run PowerShell: each script
+    takes -Instance and appends --instance to what it writes."""
+    task = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
+    link = (ROOT / "scripts" / "desktop-shortcut.ps1").read_text(encoding="utf-8")
+    for text in (task, link):
+        assert "[string]$Instance" in text
+        assert "--instance $Instance" in text
+    # The scheduled task's action, the Startup shortcut's arguments and the
+    # one process the fallback starts by hand all carry it.
+    assert "-Argument $entryArgs" in task
+    assert "'-u ' + $entryArgs" in task
+    assert "$startArgs = if ($Instance) { @('-u', $entry, '--instance', $Instance) }" in task
+    # And the fallback's server.log goes in the instance's own directory.
+    assert "'nexttex' + $(if ($Instance)" in task
 
 
 def test_windows_leaves_the_shortcut_to_powershell(tmp_path):

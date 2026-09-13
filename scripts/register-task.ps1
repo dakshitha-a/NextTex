@@ -31,6 +31,11 @@ $ErrorActionPreference = 'Stop'
 
 $venv = Join-Path $Root '.venv\Scripts\python.exe'
 $entry = Join-Path $Root 'server\run.py'
+# On the command line, because a task and a shortcut carry no environment
+# of their own.  Setting $env:NEXTTEX_INSTANCE below reaches the one
+# process this script starts now and not the one that starts at login,
+# which came up as the default instance on the default port.
+$entryArgs = if ($Instance) { "`"$entry`" --instance $Instance" } else { "`"$entry`"" }
 if (-not (Test-Path $venv)) {
   Write-Output "no interpreter at $venv"
   exit 1
@@ -38,7 +43,7 @@ if (-not (Test-Path $venv)) {
 
 $registered = $false
 try {
-  $action = New-ScheduledTaskAction -Execute $venv -Argument $entry -WorkingDirectory $Root
+  $action = New-ScheduledTaskAction -Execute $venv -Argument $entryArgs -WorkingDirectory $Root
   $trigger = New-ScheduledTaskTrigger -AtLogOn
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -StartWhenAvailable
@@ -74,7 +79,7 @@ if (-not $registered) {
   # a taskbar button is a thing a person can find and read.  `-u` for the
   # same reason as below.
   $shortcut.TargetPath = $runner
-  $shortcut.Arguments = '-u "' + $entry + '"'
+  $shortcut.Arguments = '-u ' + $entryArgs
   $shortcut.WorkingDirectory = $Root
   $shortcut.WindowStyle = 7
   $shortcut.Description = 'NextTex LaTeX editor'
@@ -82,7 +87,10 @@ if (-not $registered) {
   Write-Output "shortcut written to $link"
 
   $env:NEXTTEX_INSTANCE = $Instance
-  $logDir = Join-Path $HOME '.local\share\nexttex'
+  # The instance's own state directory, the one paths.py names, so a
+  # second install's server.log is not written over the first's.
+  $stateHome = if ($env:XDG_DATA_HOME) { $env:XDG_DATA_HOME } else { Join-Path $HOME '.local\share' }
+  $logDir = Join-Path $stateHome ('nexttex' + $(if ($Instance) { "-$Instance" } else { '' }))
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
   $out = Join-Path $logDir 'server.log'
   $err = Join-Path $logDir 'server.err.log'
@@ -94,7 +102,8 @@ if (-not $registered) {
   # empty after five.  Unbuffered, the startup banner lands at once, which
   # is what makes the file's emptiness mean something: empty now means it
   # never got that far.
-  Start-Process -FilePath $runner -ArgumentList '-u', $entry `
+  $startArgs = if ($Instance) { @('-u', $entry, '--instance', $Instance) } else { @('-u', $entry) }
+  Start-Process -FilePath $runner -ArgumentList $startArgs `
     -WorkingDirectory $Root -WindowStyle Hidden `
     -RedirectStandardOutput $out -RedirectStandardError $err
   Write-Output "started; output in $out, errors in $err"

@@ -257,7 +257,9 @@ will not start:
 If you installed a second copy with `--instance NAME`, every name above gains
 the same suffix: the service is `nexttex-NAME`, its state lives in
 `~/.local/share/nexttex-NAME`, and the interface carries a badge so you can
-tell the two apart.
+tell the two apart. Running `server/run.py` by hand for that copy takes
+`--instance NAME` as well, which is what its shortcut and its login task
+pass; without it you are talking to the first install.
 
 ## Keeping it up to date
 

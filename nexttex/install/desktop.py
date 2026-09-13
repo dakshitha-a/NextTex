@@ -32,6 +32,16 @@ def shortcut_name(instance: str) -> str:
     return f"NextTex ({instance})" if instance else "NextTex"
 
 
+def instance_flag(instance: str) -> str:
+    """` --instance NAME`, or nothing.
+
+    A shortcut is a command line with no environment of its own, so the
+    instance has to travel as an argument or not at all.  It did not
+    travel: a shortcut for a second install opened the first one.
+    """
+    return f" --instance {instance}" if instance else ""
+
+
 def desktop_dir(home: Path, environ=None, is_dir=None) -> Path | None:
     """The desktop directory, or None when this machine has no desktop.
 
@@ -63,7 +73,7 @@ def desktop_entry(root: Path, python: Path, instance: str) -> str:
         "Type=Application",
         f"Name={shortcut_name(instance)}",
         "Comment=Write LaTeX with the typeset page beside you",
-        f'Exec="{python}" "{entry}" --open',
+        f'Exec="{python}" "{entry}" --open{instance_flag(instance)}',
         f"Path={root}",
         "Terminal=false",
         "Categories=Office;Publishing;",
@@ -81,7 +91,7 @@ def command_script(root: Path, python: Path, instance: str) -> str:
         "#!/bin/sh\n"
         f"# {shortcut_name(instance)}. Opens NextTex, starting it first if\n"
         "# nothing is listening yet.\n"
-        f'exec "{python}" "{entry}" --open\n'
+        f'exec "{python}" "{entry}" --open{instance_flag(instance)}\n'
     )
 
 
@@ -119,4 +129,5 @@ def shortcut_argv(root: Path, instance: str) -> list:
         "-File", str(root / "scripts" / "desktop-shortcut.ps1"),
         "-Root", str(root),
         "-Name", shortcut_name(instance),
+        "-Instance", instance,
     ]

@@ -223,7 +223,21 @@ def main() -> None:
                         help="print the commit this install is on and exit")
     parser.add_argument("--set-password", action="store_true",
                         help="set the password browsers sign in with, and exit")
+    # The one way to name an instance that survives every launcher.  The
+    # unit and the plist carry NEXTTEX_INSTANCE in their environment; a
+    # Windows scheduled task, a Startup shortcut and a desktop shortcut on
+    # any platform carry a command line and nothing else, so a named
+    # instance started from one of those came up as the default one, on
+    # the default port, with the default state directory.
+    parser.add_argument("--instance", default="",
+                        help="which named instance this is; the same as "
+                             "setting NEXTTEX_INSTANCE")
     arguments = parser.parse_args()
+
+    if arguments.instance:
+        # Before Settings.load(), which is the first thing to ask where the
+        # state directory is.
+        os.environ["NEXTTEX_INSTANCE"] = arguments.instance
 
     if arguments.version:
         _print_version()

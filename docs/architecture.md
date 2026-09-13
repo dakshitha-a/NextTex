@@ -209,6 +209,8 @@ Inside the project, in `.nexttex/`:
 
 In the install's state directory, outside every project: the instance token, hashed browser sessions, the OpenAI key if there is one, the project registry, and `peer.key`. Losing `peer.key` is losing the peer, not the work: the files are on disk and the collaboration can be joined again with a new invite.
 
+A second install on the same machine is a named instance: `--instance NAME` at install time gives it `~/.local/share/nexttex-NAME`, a port derived from the name, a service called `nexttex-NAME` and a badge in the interface. The name reaches the process as `NEXTTEX_INSTANCE`, which the systemd unit and the launchd plist set in their environment. A Windows scheduled task, a Startup shortcut and a desktop shortcut on any platform are a command line and nothing else, so for those the name travels as `server/run.py --instance NAME`, which sets the variable before `Settings.load()` asks where the state directory is. Every launcher writes that argument; until it did, a named instance started from a shortcut or at login on Windows came up as the default instance, on the default port, over somebody else's projects.
+
 Everything written through `write_atomically` goes to a sibling temporary file, is flushed to disk, and is then renamed over the target, with the directory flushed afterwards so the rename survives too. Renaming is atomic against this process dying and says nothing about the machine losing power: without the flush the rename can be on disk while the bytes it points at are still in the page cache, and the file comes back existing, the right length, and full of zeroes.
 
 ## The browser
