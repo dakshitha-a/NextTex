@@ -406,3 +406,89 @@ def test_the_environment_variable_is_refused_the_same_way(sandbox):
 
     assert result.returncode != 0
     assert "somewhere-else" in result.stdout + result.stderr
+
+
+# ---------------------------------------------------------------------------
+# I-013: no Python at all
+#
+# The branch that fetches uv had never run anywhere.  It ran uv's installer
+# as `UV_INSTALL_DIR=... curl | sh`, where the assignments belong to curl,
+# so uv went to ~/.local/bin, edited the profile, and `.uv/uv` was not there.
+
+# Stands in for uv's install.sh: refuses to be run without the variables the
+# bootstrap promises to set, and otherwise puts a fake uv where it was told.
+FAKE_UV_INSTALLER = """#!/bin/sh
+[ -n "${UV_INSTALL_DIR:-}" ] || { echo "UV_INSTALL_DIR is not set"; exit 1; }
+[ "${UV_NO_MODIFY_PATH:-}" = 1 ] || { echo "would have edited the profile"; exit 1; }
+mkdir -p "$UV_INSTALL_DIR"
+cat > "$UV_INSTALL_DIR/uv" <<'UV'
+#!/bin/sh
+if [ "$1 $2" = "python find" ]; then printf '%s\\n' "$NEXTTEX_TEST_HIDDEN_PYTHON"; fi
+exit 0
+UV
+chmod +x "$UV_INSTALL_DIR/uv"
+echo "installed to $UV_INSTALL_DIR"
+"""
+
+# `curl -fsSL URL -o FILE`: writes the fake installer to FILE.
+FAKE_CURL = """#!/bin/sh
+out=""
+while [ $# -gt 0 ]; do
+  if [ "$1" = "-o" ]; then out="$2"; shift; fi
+  shift
+done
+[ -n "$out" ] || { echo "curl was piped rather than asked for a file" >&2; exit 2; }
+cp "$NEXTTEX_TEST_UV_INSTALLER" "$out"
+"""
+
+
+@pytest.fixture
+def no_python(sandbox):
+    tmp_path, home, env = sandbox
+    binaries = tmp_path / "bin"
+    for name in PYTHON_NAMES:
+        (binaries / name).unlink()
+    # The interpreter uv "installs", kept off PATH so only uv can find it.
+    hidden = tmp_path / "hidden"
+    hidden.mkdir()
+    (hidden / "python3").write_text(FAKE_PYTHON)
+    (hidden / "python3").chmod(0o755)
+    (tmp_path / "uv-install.sh").write_text(FAKE_UV_INSTALLER)
+    curl = binaries / "curl"
+    curl.write_text(FAKE_CURL)
+    curl.chmod(0o755)
+    # A PATH with nothing on it but the stand-ins and the handful of tools
+    # the bootstrap and the fakes use, linked one by one, so the machine's
+    # own python3 in /usr/bin cannot answer the probe.
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("sh", "uname", "mkdir", "tail", "sed", "mktemp", "dirname",
+                 "basename", "ls", "cat", "cp", "rm", "chmod", "env", "head",
+                 "tr", "id", "grep", "expr"):
+        found = shutil.which(name)
+        if found:
+            (tools / name).symlink_to(found)
+    env["PATH"] = f"{binaries}:{tools}"
+    env["NEXTTEX_TEST_HIDDEN_PYTHON"] = str(hidden / "python3")
+    env["NEXTTEX_TEST_UV_INSTALLER"] = str(tmp_path / "uv-install.sh")
+    return tmp_path, home, env
+
+
+def test_with_no_python_uv_is_fetched_into_the_checkout(no_python):
+    tmp_path, home, env = no_python
+    result = run_plain(env, "--yes", "--tex=none", "--dir=" + str(home / "apps" / "NextTex"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "NextTex will fetch one" in result.stdout
+    checkout = home / "apps" / "NextTex"
+    assert (checkout / ".uv" / "uv").is_file(), "uv did not land in the checkout"
+    assert argv_of(tmp_path)[:2] == ["-m", "nexttex.install"], "the fetched Python never ran the installer"
+    assert not (home / ".local" / "bin").exists(), "uv was installed onto the user's PATH"
+
+
+def test_when_uv_cannot_be_installed_the_reason_is_shown(no_python):
+    tmp_path, home, env = no_python
+    (tmp_path / "uv-install.sh").write_text("#!/bin/sh\necho 'no download for this platform'\nexit 3\n")
+    result = run_plain(env, "--yes", "--dir=" + str(home / "apps" / "NextTex"))
+    assert result.returncode != 0
+    assert "no download for this platform" in result.stderr, result.stderr
+    assert "none was found" in result.stderr

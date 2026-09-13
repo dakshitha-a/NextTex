@@ -111,8 +111,10 @@ That plan is the second question. Press return to accept it, type a number to
 change that one item, or `q` to stop. Once it starts working, nothing
 interrupts you again.
 
-`git` is the only thing you need beforehand. Python, TeX and the Claude CLI
-are all fetched for you if they are missing and you asked for them. If you
+`git` is the only thing you need beforehand, and `curl` if there is no
+Python on the machine at all, since that is what fetches one. Python, TeX
+and the Claude CLI are all fetched for you if they are missing and you
+asked for them. If you
 would rather read the script before you run it, clone the repository yourself
 and run `scripts/install.sh` from inside it. It does the same thing either
 way, except that it then installs into the checkout you are standing in
