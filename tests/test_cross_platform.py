@@ -225,6 +225,26 @@ def test_every_installer_choice_can_be_made_from_both_bootstraps():
             f"install.ps1 never hands {option} to the installer"
 
 
+def test_the_windows_update_hands_over_to_the_script_it_pulled():
+    """I-010.  update.sh re-execs the version it just pulled, because the
+    old script is otherwise what runs every step after the pull and an
+    update that adds a step is the one that skips it.  update.ps1 had the
+    same shape and no hand-over, which the install lane made visible: its
+    Windows update leg runs the previous commit's script, so a fix to the
+    script itself did not take until the commit after.  Text assertions,
+    with the real run on the lane."""
+    text = _update_ps1()
+    fetch = text[text.index("Say 'Fetching'"):text.index("Say 'Dependencies'")]
+    assert "$env:NEXTTEX_UPDATE_RESUMED" in fetch, "no guard against a re-exec loop"
+    assert "-File $PSCommandPath" in fetch, "the pulled script is not what carries on"
+    assert "exit $LASTEXITCODE" in fetch, "the resumed run's status is dropped"
+    assert "Stop-Transcript" in fetch, "two transcripts would write one file at once"
+    # Arguments survive the hand-over, the way update.sh keeps "$@".
+    assert "if ($NoRestart) { $forward += '-NoRestart' }" in fetch
+    # And local changes are stashed rather than left to fail the pull.
+    assert "git status --porcelain" in fetch and "'stash', 'push', '-u'" in fetch
+
+
 def test_the_windows_update_keeps_a_child_stderr_line_from_stopping_it():
     """I-020.  Windows PowerShell 5.1 makes an error record of every line a
     native program writes to a redirected stderr, and under

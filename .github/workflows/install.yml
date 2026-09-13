@@ -333,8 +333,9 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          & "$HOME\apps\NextTex\scripts\update.ps1"
+          & "$HOME\apps\NextTex\scripts\update.ps1" 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\update.out"
           if ($LASTEXITCODE) { throw "update.ps1 exited $LASTEXITCODE" }
+          if (-not (Select-String -Path "$env:RUNNER_TEMP\update.out" -Pattern 'continuing with the updated script' -Quiet)) { throw "the pulled script did not take over" }
           $head = (git -C "$HOME\apps\NextTex" rev-parse HEAD).Trim()
           if ($head -ne $env:GITHUB_SHA) { throw "landed on $head, not $env:GITHUB_SHA" }
           $log = "$HOME\.local\share\nexttex\update.log"
