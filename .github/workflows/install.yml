@@ -134,6 +134,7 @@ jobs:
           systemctl --user disable --now nexttex
           rm ~/.config/systemd/user/nexttex.service
           systemctl --user daemon-reload
+          rm -f ~/Desktop/NextTex.desktop
           rm -rf ~/apps/NextTex ~/.local/share/nexttex
 
       - name: Uninstall, the README's way (macOS)
@@ -142,6 +143,7 @@ jobs:
         run: |
           launchctl unload ~/Library/LaunchAgents/com.nexttex.server.plist
           rm ~/Library/LaunchAgents/com.nexttex.server.plist
+          rm -f ~/Desktop/NextTex.command
           rm -rf ~/apps/NextTex ~/.local/share/nexttex
 
       - name: Verify nothing is left
@@ -204,6 +206,7 @@ jobs:
           Unregister-ScheduledTask -TaskName NextTex -Confirm:$false -ErrorAction SilentlyContinue
           Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*apps\NextTex\server\run.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
           Remove-Item "$([Environment]::GetFolderPath('Startup'))\NextTex.lnk" -ErrorAction SilentlyContinue
+          Remove-Item "$([Environment]::GetFolderPath('Desktop'))\NextTex.lnk" -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$HOME\.local\share\nexttex"
 
       - name: Verify nothing is left

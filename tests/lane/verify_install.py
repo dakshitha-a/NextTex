@@ -360,6 +360,13 @@ def cmd_gone(args) -> int:
     if PLATFORM == "windows":
         report.check("the scheduled task is gone", not scheduled_task_exists(unit_name(instance)))
         report.check("the Startup shortcut is gone", not startup_shortcut(instance).exists())
+    name = f"NextTex ({instance})" if instance else "NextTex"
+    if PLATFORM == "windows":
+        desktop = run(["powershell", "-NoProfile", "-Command", "[Environment]::GetFolderPath('Desktop')"]).stdout.strip()
+        link = Path(desktop) / f"{name}.lnk"
+    else:
+        link = HOME / "Desktop" / (name + (".command" if PLATFORM == "macos" else ".desktop"))
+    report.check("the desktop shortcut is gone", not link.exists(), str(link))
     if args.port:
         import time
         time.sleep(2)
