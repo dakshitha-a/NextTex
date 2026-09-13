@@ -18,6 +18,7 @@ import mimetypes
 import secrets
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -56,6 +57,7 @@ from nexttex.library import (
 from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
+from nexttex.paths import state_home
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
     is_ours, kind_of,
@@ -4254,10 +4256,34 @@ async def update_restart():
 
     async def leave() -> None:
         await asyncio.sleep(0.3)          # let the answer reach the page
-        os._exit(3)
+        _leave_for_restart()
 
     spawn(leave(), "the restart")
     return JSONResponse({"restarting": True}, status_code=202)
+
+
+def _leave_for_restart(windows: bool = os.name == "nt") -> None:
+    """Exit so that whatever supervises this process starts it again.
+
+    On Linux and macOS that is the unit or the agent, both configured to
+    restart on a non-zero exit, and the exit is the whole act.  On Windows
+    nothing watches the process, so a detached helper is started first to
+    wait for this one to end and start NextTex the way it was started:
+    `updates.windows_restart_argv` says how.  Detached, so it survives the
+    exit it is waiting for.
+    """
+    if windows:
+        argv = updates.windows_restart_argv(
+            os.getpid(), INSTALL_ROOT, instance_name(), sys.executable, state_home(),
+        )
+        flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        try:
+            subprocess.Popen(argv, creationflags=flags, close_fds=True,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        except OSError as error:
+            log.warning("could not start the restart helper: %s", error)
+    os._exit(3)
 
 
 def _update_say(kind: str, **fields) -> None:
@@ -4353,7 +4379,7 @@ async def _run_update(report) -> None:
         # supervisors this app installs bring a service back after a
         # non-zero exit and leave it down after a clean one.
         await asyncio.sleep(0.6)          # let the stream flush
-        os._exit(3)
+        _leave_for_restart()
 
 
 @app.get("/api/update/stream")
