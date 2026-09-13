@@ -158,3 +158,23 @@ test("a rail remembered from before the panel could fold still opens it", async 
   // reset to the default.
   await expect(page.getByTestId("sections-toggle")).toHaveAttribute("aria-expanded", "false");
 });
+
+test("setting the card aside on a project with no repository leaves a way back", async ({
+  tab, project,
+}) => {
+  // The footer has had a way back to the wizard since "Not now" was found
+  // to have no later, but the footer only draws for a project with a
+  // repository. On a project without one the panel was simply empty, and
+  // init was gone for the life of the project.
+  await expect(tab.getByTestId("git-setup")).toBeVisible({ timeout: 20_000 });
+  await tab.getByRole("button", { name: "Not now" }).click();
+  await expect(tab.getByTestId("git-setup")).toHaveCount(0);
+
+  await expect(tab.getByTestId("git-init-again")).toBeVisible();
+  expect(existsSync(join(project.root, ".git"))).toBe(false);
+  await tab.getByTestId("git-init-again").click();
+  await expect(tab.getByTestId("git-init-again")).toHaveCount(0, { timeout: 20_000 });
+  expect(existsSync(join(project.root, ".git"))).toBe(true);
+  // With a repository and no remote, the footer takes over.
+  await expect(tab.getByTestId("back-up-again")).toBeVisible();
+});

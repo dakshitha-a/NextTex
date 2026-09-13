@@ -279,7 +279,36 @@ export default function GitPanel({
       );
     }
 
-    if (!status?.repository) return null;
+    // Nothing to show while the status is still on its way.
+    if (!status) return null;
+
+    // No repository and the card set aside. The footer below has had a
+    // way back to the wizard since the dismissal was found to have no
+    // later, but that footer only draws for a project with a repository,
+    // so on a project without one "Not now" was "not ever": the route to
+    // init was gone for the life of the project short of clearing the
+    // browser's storage.
+    if (!status.repository) {
+      return (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-[10px] py-[6px]">
+          <span className="t-micro text-ink-3">Not kept in versions.</span>
+          <button
+            className="t-micro whitespace-nowrap text-ink-3 hover:text-ink"
+            data-testid="git-init-again"
+            disabled={busy === "init"}
+            onClick={() => act("init")}
+          >
+            {busy === "init" ? "Making it…" : "Keep versions"}
+          </button>
+          <button
+            className="t-micro whitespace-nowrap text-ink-3 hover:text-ink"
+            onClick={() => setWizard(true)}
+          >
+            Back up
+          </button>
+        </div>
+      );
+    }
 
     return (
       <div className="px-[10px] py-[6px]">
