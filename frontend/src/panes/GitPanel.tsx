@@ -105,27 +105,43 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
               ? "A copy somewhere that is not this machine, updated whenever you ask. Private by default."
               : "Git keeps a record of the project as a whole, alongside the per-file history NextTex already keeps. It works with no account and no connection; sending a copy to GitHub is a separate step you can take later."}
           </p>
-          <div className="mt-3 flex gap-2">
+          {/* Two rows, not one. The rail is 240px wide by default and can
+              be dragged to 180, and three labels of this length in one
+              row wrapped inside their own 26px boxes, so the card showed
+              the top half of each word. The primary is full width, as the
+              footer's "Commit and push" is, and the rest is the footer's
+              quiet control, so the card has the two typographies the
+              panel already has and not a third. */}
+          {status.repository ? (
+            <button
+              className="mt-3 h-[26px] w-full ghost-button whitespace-nowrap t-ui"
+              data-testid="git-backup"
+              onClick={() => setWizard(true)}
+            >
+              Back up to GitHub
+            </button>
+          ) : (
+            <button
+              className="mt-3 h-[26px] w-full ghost-button whitespace-nowrap t-ui"
+              data-testid="git-init"
+              disabled={busy === "init"}
+              onClick={() => act("init")}
+            >
+              {busy === "init" ? "Making it…" : "Keep versions here"}
+            </button>
+          )}
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             {status.repository ? null : (
               <button
-                className="h-[26px] ghost-button px-3 t-ui"
-                data-testid="git-init"
-                disabled={busy === "init"}
-                onClick={() => act("init")}
+                className="t-micro whitespace-nowrap text-ink-3 hover:text-ink"
+                data-testid="git-backup"
+                onClick={() => setWizard(true)}
               >
-                {busy === "init" ? "Making it…" : "Keep versions here"}
+                Back up to GitHub
               </button>
             )}
             <button
-              className={`h-[26px] px-3 t-ui ${
-                status.repository ? "ghost-button" : "quiet rounded-[3px]"
-              }`}
-              onClick={() => setWizard(true)}
-            >
-              {status.repository ? "Set up" : "Back up to GitHub instead"}
-            </button>
-            <button
-              className="h-[26px] rounded-[3px] px-2 t-micro text-ink-3 hover:text-ink"
+              className="t-micro ml-auto whitespace-nowrap text-ink-3 hover:text-ink"
               onClick={() => {
                 setDismissed(true);
                 window.localStorage.setItem(
@@ -144,7 +160,7 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
 
   if (wizard) {
     return (
-      <div className="shrink-0 border-t border-line p-[8px]">
+      <div className="shrink-0 border-t border-line p-[8px]" data-testid="git-wizard">
         <div className="t-ui text-ink">Back up to GitHub</div>
         {status?.gh ? (
           <>
@@ -153,7 +169,7 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
               for you.
             </p>
             <button
-              className="mt-2 h-[26px] ghost-button px-3 t-ui"
+              className="mt-2 h-[26px] w-full ghost-button whitespace-nowrap t-ui"
               disabled={busy === "create"}
               onClick={async () => {
                 setBusy("create");
@@ -193,7 +209,7 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
         />
         <div className="mt-2 flex gap-2">
           <button
-            className="h-[26px] rounded-[3px] border border-line px-3 t-ui"
+            className="h-[26px] ghost-button whitespace-nowrap px-3 t-ui"
             disabled={!url || busy === "attach"}
             onClick={async () => {
               setBusy("attach");
@@ -212,7 +228,7 @@ export default function GitPanel({ onOpen }: { onOpen?: (path: string) => void }
             Connect
           </button>
           <button
-            className="h-[26px] px-2 t-micro text-ink-3 hover:text-ink"
+            className="t-micro whitespace-nowrap px-2 text-ink-3 hover:text-ink"
             onClick={() => setWizard(false)}
           >
             Cancel
