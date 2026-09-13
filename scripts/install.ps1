@@ -282,25 +282,39 @@ if ($scriptDir -and (Test-Path (Join-Path $scriptDir '..\requirements.txt'))) {
 # and makes its own virtual environment, so this does not have to be the
 # Python NextTex ends up running on.
 
+# No double quotes anywhere in the probe.  Windows PowerShell 5.1 builds a
+# native command line without escaping a double quote inside an argument,
+# so `print("%d.%d" % ...)` reached Python as `print(%d.%d % ...)`, a syntax
+# error on stderr, which under `2>$null` with $ErrorActionPreference Stop
+# is a terminating error -- and the loop then said no Python 3.10 was here
+# on a machine with 3.12 on PATH.  PowerShell 7.3 escapes the quote, which
+# is why the lint job, on pwsh, never saw it and the install lane, on the
+# 5.1 a stock Windows opens, did.
+$probe = "import sys; print('%d.%d' % sys.version_info[:2])"
+
+function Find-Python {
+  foreach ($candidate in @('py -3.13', 'py -3.12', 'py -3.11', 'py -3.10', 'python3', 'python')) {
+    $parts = $candidate.Split(' ')
+    $exe = $parts[0]
+    # Not $parts[1..($parts.Length - 1)]: for a one-element array that is
+    # 1..0, which PowerShell counts *down*, so "python3" ends up passed to
+    # itself as an argument.
+    $extra = if ($parts.Length -gt 1) { $parts[1..($parts.Length - 1)] } else { @() }
+    if (-not (Have $exe)) { continue }
+    try {
+      $version = & $exe @extra -c $probe 2>$null
+    } catch { continue }
+    if ("$version" -match '^3\.(\d+)$' -and [int]$Matches[1] -ge 10) {
+      return @{ Exe = $exe; Args = $extra }
+    }
+  }
+  return $null
+}
+
+$found = Find-Python
 $pythonExe = $null
 $pythonArgs = @()
-foreach ($candidate in @('py -3.13', 'py -3.12', 'py -3.11', 'py -3.10', 'python3', 'python')) {
-  $parts = $candidate.Split(' ')
-  $exe = $parts[0]
-  # Not $parts[1..($parts.Length - 1)]: for a one-element array that is
-  # 1..0, which PowerShell counts *down*, so "python3" ends up passed to
-  # itself as an argument.
-  $extra = if ($parts.Length -gt 1) { $parts[1..($parts.Length - 1)] } else { @() }
-  if (-not (Have $exe)) { continue }
-  try {
-    $version = & $exe @extra -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>$null
-  } catch { continue }
-  if ($version -match '^3\.(\d+)$' -and [int]$Matches[1] -ge 10) {
-    $pythonExe = $exe
-    $pythonArgs = $extra
-    break
-  }
-}
+if ($found) { $pythonExe = $found.Exe; $pythonArgs = $found.Args }
 
 if (-not $pythonExe -and (Have 'winget')) {
   Write-Host ''
@@ -308,7 +322,14 @@ if (-not $pythonExe -and (Have 'winget')) {
   Write-Host ''
   & winget install --id Python.Python.3.12 --silent `
       --accept-package-agreements --accept-source-agreements
-  if (Have 'python') { $pythonExe = 'python'; $pythonArgs = @() }
+  # This process's PATH is the one it started with, and on it `python` is
+  # the Microsoft Store stub that says "Python was not found".  The install
+  # just made put its directory on the machine's or the user's PATH; read
+  # both back from the registry, then look again the same way as before.
+  $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
+              [Environment]::GetEnvironmentVariable('Path', 'User')
+  $found = Find-Python
+  if ($found) { $pythonExe = $found.Exe; $pythonArgs = $found.Args }
 }
 
 if (-not $pythonExe) {
