@@ -197,6 +197,28 @@ def test_nothing_shipped_hardcodes_a_path_from_the_machine_it_was_written_on():
     assert not offenders, offenders
 
 
+def test_the_windows_python_probe_has_no_double_quote_for_5_1_to_mangle():
+    """I-017.  Windows PowerShell 5.1 hands a native command an argument
+    with a space in it wrapped in double quotes and does not escape the
+    double quotes already inside it, so `-c 'print("%d.%d" % ...)'` reached
+    Python as `print(%d.%d % ...)`, a syntax error, and the probe said no
+    Python 3.10 was on a machine that had 3.12.  PowerShell 7.3 escapes
+    them, which is why the parse job on pwsh never saw it and the install
+    lane's 5.1 leg did.  Every piece of Python a .ps1 here hands to `-c`
+    must be free of double quotes; single quotes are not special on a
+    Windows command line and pass through."""
+    offenders = []
+    for path in (ROOT / "scripts").glob("*.ps1"):
+        text = path.read_text(encoding="utf-8")
+        # Inline: `-c '...'`.  Named: `$probe = "..."` handed to `-c $probe`.
+        pieces = re.findall(r"-c\s+'([^']*)'", text)
+        pieces += re.findall(r'\$probe\s*=\s*"([^"]*(?:`"[^"]*)*)"', text)
+        for code in pieces:
+            if '"' in code:
+                offenders.append(f"{path.name}: {code}")
+    assert not offenders, offenders
+
+
 def test_no_two_tracked_paths_differ_only_by_case():
     """I-014.  `panes/Patch.tsx` and `panes/patch.ts` were both tracked, so
     on macOS and Windows, where the filesystem folds case, the import of
