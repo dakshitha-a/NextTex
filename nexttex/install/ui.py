@@ -15,6 +15,7 @@ a virtual environment.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -123,6 +124,9 @@ def _enable_vt(stream) -> bool:
         return False
 
 
+_ESCAPES = re.compile(r"\033\[[0-9;]*[A-Za-z]")
+
+
 class Console:
     """The screen, and what it can and cannot do.
 
@@ -156,8 +160,18 @@ class Console:
     # -- plain output -------------------------------------------------------
 
     def write(self, text: str = "") -> None:
+        """One line on the screen, and the same line in the log.
+
+        The log used to hold only what child processes printed, which is
+        the half a bug report can least use on its own: it said what pip
+        printed and not which step pip was, whether TeX was skipped or
+        failed, what the survey found, or what the closing notes said was
+        left undone.  The installer's last line names the file as "Log of
+        everything above", and it now is.
+        """
         self.stream.write(text + "\n")
         self.stream.flush()
+        self.log_line(_ESCAPES.sub("", text))
 
     def bold(self, text: str) -> str:
         return f"\033[1m{text}\033[0m" if self.colour else text
@@ -275,7 +289,10 @@ class Console:
                 kept.append(line)
                 self.log_line(line)
                 if not self.animate:
-                    self.write("      " + line)
+                    # Straight to the stream: `write` logs too, and the
+                    # line was logged once already, just above.
+                    self.stream.write("      " + line + "\n")
+                    self.stream.flush()
 
         thread = threading.Thread(target=reader, daemon=True)
         thread.start()

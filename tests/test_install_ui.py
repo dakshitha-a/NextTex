@@ -188,6 +188,29 @@ def test_the_log_is_readable_afterwards(tmp_path):
     assert "\033" not in text
 
 
+def test_the_log_holds_what_the_screen_showed(tmp_path):
+    """The installer's last line calls the file "Log of everything above".
+
+    It held only what child processes printed: which step a failure was in,
+    whether TeX was skipped, the survey and the closing notes were on the
+    screen and nowhere else, which is the half a bug report most needs.
+    """
+    log = tmp_path / "install.log"
+    console = quiet_console(log=log)
+    console.note(console.bold("[2/7] TeX"))
+    console.skipped("skipped", "NextTex will start but cannot typeset")
+    console.run("Installing", ["sh", "-c", "echo hello"])
+    console.rule("Ready")
+    text = log.read_text(encoding="utf-8")
+    assert "[2/7] TeX" in text
+    assert "skipped -- NextTex will start but cannot typeset" in text
+    assert "Ready" in text
+    # Once each: the child's line is logged by the reader, not again by the
+    # screen echo of it.
+    assert text.splitlines().count("hello") == 1
+    assert "\033" not in text
+
+
 def test_the_log_names_itself_when_a_step_fails(tmp_path):
     log = tmp_path / "install.log"
     console = quiet_console(log=log)
