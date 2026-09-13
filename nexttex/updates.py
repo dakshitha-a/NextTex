@@ -120,6 +120,35 @@ def classify(paths: list[str]) -> tuple[str, bool]:
     return "neither", False
 
 
+#: Where the checkout came from, for anything that has to name it when the
+#: remote cannot say: a clone whose origin is a local path, or a tarball.
+CANONICAL_SLUG = "dakshitha-a/NextTex"
+
+
+def repository_slug(root: Path) -> str:
+    """`owner/repo` for the checkout's origin, or nothing if it is not GitHub.
+
+    Both spellings a clone can carry, with or without the `.git`.  Empty
+    rather than a guess when the remote is somewhere else, because the two
+    callers want different things then: the update check stops asking, and
+    the bug report falls back to the canonical name.
+    """
+    try:
+        remote = gitrepo._run(root, "remote", "get-url", "origin").strip()
+    except gitrepo.GitError:
+        return ""
+    slug = re.sub(r"^git@github\.com:", "", remote)
+    slug = re.sub(r"^(?:https?|ssh)://(?:[^@/]+@)?github\.com/", "", slug)
+    slug = re.sub(r"\.git$", "", slug).strip("/")
+    if slug == remote.strip("/") or slug.count("/") != 1:
+        return ""
+    return slug
+
+
+def slug_or_canonical(root: Path) -> str:
+    return repository_slug(root) or CANONICAL_SLUG
+
+
 def interface_published(root: Path, sha: str) -> tuple[bool, str]:
     """Whether the interface for a commit has been built and published yet.
 
@@ -135,15 +164,9 @@ def interface_published(root: Path, sha: str) -> tuple[bool, str]:
     """
     if not sha:
         return True, ""
-    try:
-        remote = gitrepo._run(root, "remote", "get-url", "origin").strip()
-    except gitrepo.GitError:
-        return True, ""     # nothing to ask; do not block on it
-    slug = re.sub(r"^git@github\.com:", "", remote)
-    slug = re.sub(r"^https://github\.com/", "", slug)
-    slug = re.sub(r"\.git$", "", slug).strip("/")
-    if slug.count("/") != 1:
-        return True, ""     # not a GitHub remote; the scripts fall back
+    slug = repository_slug(root)
+    if not slug:
+        return True, ""     # nothing to ask, or not GitHub; the scripts fall back
     url = (
         f"https://github.com/{slug}/releases/download/{INTERFACE_TAG}"
         f"/nexttex-frontend-{sha}.tar.gz"

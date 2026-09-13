@@ -32,6 +32,9 @@ def modules():
     return sorted(PACKAGE.glob("*.py")) + [
         ROOT / "nexttex" / "tools.py",
         ROOT / "nexttex" / "paths.py",
+        # The bug report is asked for from a bare interpreter too, for the
+        # install whose virtual environment is the thing that broke.
+        ROOT / "nexttex" / "report.py",
     ]
 
 
@@ -67,7 +70,8 @@ def test_the_installer_actually_imports_on_a_bare_interpreter():
     """
     for module in ("nexttex.install.ui", "nexttex.install.survey",
                    "nexttex.install.plan", "nexttex.install.steps",
-                   "nexttex.install.service", "nexttex.install.__main__"):
+                   "nexttex.install.service", "nexttex.install.__main__",
+                   "nexttex.report"):
         result = subprocess.run(
             [sys.executable, "-I", "-S", "-c",
              f"import sys; sys.path.insert(0, {str(ROOT)!r}); import {module}"],

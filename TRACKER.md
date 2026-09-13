@@ -24,6 +24,10 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+- [ ] Bug reports through GitHub: `nexttex/report.py` and `--report` (done),
+      the footer's *Report a problem* control, the issue form and intake
+      workflow, a runbook under docs/, a CLAUDE.md and the `/fix-issue`
+      skill. Each lands in its own commit; this line goes with the last.
 - [ ] Delete the superseded Artifact trackers from the gallery at
       claude.ai/code/artifacts. Ten NextTex pages, from Reworking the Agent
       Panel back to the Release Tracker. Nothing here can do it: publishing an

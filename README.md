@@ -299,7 +299,8 @@ operation most likely to leave a machine in a state its owner cannot explain,
 so it leaves a record the way the install does. The file is appended to, again
 the way `install.log` is, so it holds every update this install has ever run:
 the last block is the one you want, and it is the one to send if you are asking
-for help.
+for help. The report described under *Reporting a bug* quotes that block for
+you.
 
 ## Uninstalling
 
@@ -868,7 +869,9 @@ Six things go out, all of them things you asked for:
    offline is something you are told rather than something you wait for.
 4. GitHub, to check whether this install is behind and to download the
    interface for the commit it is on. Nothing about you or your documents
-   goes with either request.
+   goes with either request. Reporting a bug (below) opens a GitHub page in
+   your own browser with a report you have read first; NextTex's own code
+   sends nothing.
 5. **Only if you agree to it**, and never on its own: `pypi.org`, when a
    figure needs a Python package this install does not have. The agent
    reports the missing package and asks; installing it is a press of yours
@@ -1018,6 +1021,47 @@ screen you are looking at, which is usually faster than the files below.
   is why it sits outside `docs/`, and it is struck and added to in the same
   commit as the code so it cannot drift out of date on its own.
 
+## Reporting a bug
+
+Something broke, and the thing that makes the difference between a fix and a
+question back is knowing what this install is and what it saw. NextTex writes
+that down for you:
+
+```sh
+cd ~/apps/NextTex
+.venv/bin/python server/run.py --report
+```
+
+or, when the virtual environment is the thing that broke, from whatever Python
+the machine has:
+
+```sh
+python3 -m nexttex.report
+```
+
+Either prints a report: the commit the code is on and the commit the
+interface was built from, the settings with a yes or no in place of every
+secret, each tool NextTex looks for and where it found it, whether a service
+is running it, what the Claude CLI says about itself (never the account), and
+the last eighty lines of every log the install keeps. On Linux that is the
+user journal (`journalctl --user -u nexttex` is what it runs); on macOS and
+Windows it is `server.log` and `server.err.log` in `~/.local/share/nexttex/`;
+on every platform it is the last run recorded in `install.log` and
+`update.log`.
+
+The access token, the OpenAI key, the password hash and every browser
+session's fingerprint are removed before you see it, and so is your home
+directory, which appears as `~`. A property test writes secrets into every
+file the report reads and asserts none of them comes out. It is still yours
+to read before you paste it: it names your hostname, your tailnet address if
+you have one, and the commit subjects of your last update.
+
+Open an issue at [github.com/dakshitha-a/NextTex/issues](https://github.com/dakshitha-a/NextTex/issues),
+say what happened and what you expected, and paste the report. A fix lands
+on `master`; when the issue closes, the comment on it names the commit, and
+taking the fix is the footer's **Update** button or `scripts/update.sh`
+(`scripts\update.ps1` on Windows).
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
@@ -1026,4 +1070,5 @@ NextTex was built to write scientific papers in: the kind of document that
 lives in git, carries a bibliography, and gets rewritten more often than it
 gets written. It is tested against a forty-file LaTeX project with its own
 Makefile, which NextTex has to leave working exactly as it was. Issues are
-welcome. This is a personal tool; I make no promises about pull requests.
+welcome; *Reporting a bug* above says what to put in one. This is a personal
+tool; I make no promises about pull requests.

@@ -69,7 +69,11 @@ async def serve(settings: Settings) -> None:
     logging.basicConfig(
         level=logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
+        # With the date.  The launchers append this output to a log that
+        # spans every run the install has made, and a bug report quotes the
+        # end of that log; a time with no day cannot be placed against the
+        # update that preceded it.
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     servers: list[uvicorn.Server] = []
@@ -243,6 +247,13 @@ def main() -> None:
                              "if it is not already running")
     parser.add_argument("--version", action="store_true",
                         help="print the commit this install is on and exit")
+    # What a bug report asks for.  `python -m nexttex.report` is the same
+    # text from a bare interpreter, for the install whose virtual
+    # environment is the thing that broke; this file imports uvicorn before
+    # it reads its arguments, so it cannot answer then.
+    parser.add_argument("--report", action="store_true",
+                        help="print a diagnostics report for a bug report "
+                             "and exit")
     parser.add_argument("--set-password", action="store_true",
                         help="set the password browsers sign in with, and exit")
     # The one way to name an instance that survives every launcher.  The
@@ -275,6 +286,17 @@ def main() -> None:
 
     if arguments.version:
         _print_version()
+        return
+    if arguments.report:
+        # Before Settings.load() for the same reason --version is: a report
+        # about a machine must not be the first thing to write a config
+        # file on it.
+        from nexttex import report
+
+        sys.stdout.write(report.compose(
+            root=Path(__file__).resolve().parent.parent,
+            source="server/run.py --report",
+        ))
         return
 
     settings = Settings.load()

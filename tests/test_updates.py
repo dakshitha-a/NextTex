@@ -220,3 +220,28 @@ def test_a_bare_process_knows_it_will_not_be(monkeypatch):
     monkeypatch.delenv("INVOCATION_ID", raising=False)
     monkeypatch.delenv("XPC_SERVICE_NAME", raising=False)
     assert updates.supervised() is False
+
+
+# -- naming the repository ---------------------------------------------------
+
+
+def test_the_slug_is_read_from_either_spelling_of_a_github_remote(pair):
+    work, clone = pair
+    for remote in ("git@github.com:someone/NextTex.git",
+                   "https://github.com/someone/NextTex",
+                   "https://github.com/someone/NextTex.git",
+                   "ssh://git@github.com/someone/NextTex.git"):
+        git(clone, "remote", "set-url", "origin", remote)
+        assert updates.repository_slug(clone) == "someone/NextTex", remote
+
+
+def test_a_remote_that_is_not_github_has_no_slug(pair):
+    work, clone = pair
+    assert updates.repository_slug(clone) == ""      # a local path
+    git(clone, "remote", "set-url", "origin", "https://gitlab.com/someone/NextTex.git")
+    assert updates.repository_slug(clone) == ""
+    assert updates.slug_or_canonical(clone) == updates.CANONICAL_SLUG
+
+
+def test_a_checkout_with_no_remote_has_no_slug(tmp_path):
+    assert updates.repository_slug(tmp_path) == ""
