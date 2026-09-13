@@ -163,7 +163,11 @@ def show_survey(console: Console, result) -> None:
         console.note(console.bold(title))
         for finding in findings:
             right = finding.version or finding.size or ""
-            head = f"  {finding.name:<{NAME_WIDTH}}{right:<{RIGHT_WIDTH}}"
+            # A column that is too narrow for its text still ends in a gap.
+            # Git for Windows reports `2.55.0.windows.5`, sixteen
+            # characters for a column of thirteen, and the survey printed
+            # `2.55.0.windows.5C:\Program Files\Git...` as one word.
+            head = f"  {_column(finding.name, NAME_WIDTH)}{_column(right, RIGHT_WIDTH)}"
             # What goes in the wide column, in order of what is worth saying.
             # Where it is, for something already here; why it matters, for
             # something that is not.  A thing that is missing and does not
@@ -199,6 +203,11 @@ def show_survey(console: Console, result) -> None:
         console.write("")
         console.note(console.red("Cannot reach: " + ", ".join(result.offline)))
         console.note("  The downloads below will fail. Check your connection first.")
+
+
+def _column(text: str, width: int) -> str:
+    """`text` padded to `width`, or followed by one space if it is wider."""
+    return f"{text:<{width}}" if len(text) < width else text + " "
 
 
 # ---------------------------------------------------------------------------
