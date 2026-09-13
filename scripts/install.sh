@@ -228,14 +228,32 @@ done
 
 # No Python at all is the one case that forces a download before anything
 # can be surveyed, so it says so rather than appearing to hang.
+#
+# Downloaded to a file and run from the file, with the variables set on the
+# shell that runs it.  This was `UV_INSTALL_DIR=... curl ... | sh`, and in
+# that shape the assignments belong to curl and not to sh: uv installed
+# itself to ~/.local/bin, edited the shell's profile to add it to PATH,
+# which is the one thing the line above promises not to do, and `.uv/uv`
+# was then not there -- so the install said no Python was found, on a
+# machine where it had just fetched one.  The output was discarded too, so
+# nothing said why.  Run inside a container with no Python, which is what
+# the lane in .github/workflows/install.yml is for.
 if [ -z "$PYTHON" ] && command -v curl >/dev/null 2>&1; then
   printf '\n  There is no Python 3.10 or newer here, so NextTex will fetch one.\n'
   printf '  uv, about 15 MB, into this directory. Nothing is added to your PATH.\n\n'
-  if UV_INSTALL_DIR="$PWD/.uv" UV_NO_MODIFY_PATH=1 \
-       curl -fsSL https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 \
+  UV_WORK="$(mktemp -d 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/nexttex-uv.$$")"
+  mkdir -p "$UV_WORK"
+  if curl -fsSL https://astral.sh/uv/install.sh -o "$UV_WORK/uv-install.sh" \
+     && UV_INSTALL_DIR="$PWD/.uv" UV_NO_MODIFY_PATH=1 \
+          sh "$UV_WORK/uv-install.sh" >"$UV_WORK/uv-install.log" 2>&1 \
      && [ -x .uv/uv ]; then
-    ./.uv/uv python install 3.13 >/dev/null 2>&1 || true
+    ./.uv/uv python install 3.13 >>"$UV_WORK/uv-install.log" 2>&1 || true
     PYTHON="$(./.uv/uv python find 3.13 2>/dev/null || true)"
+    rm -rf "$UV_WORK"
+  else
+    printf '  uv did not install. The last lines it printed:\n' >&2
+    tail -n 6 "$UV_WORK/uv-install.log" 2>/dev/null | sed 's/^/    /' >&2
+    printf '  All of it: %s\n' "$UV_WORK/uv-install.log" >&2
   fi
 fi
 
