@@ -78,6 +78,24 @@ def test_the_command_is_the_one_for_this_platform(tmp_path):
     assert "winget install" in bare("windows", tmp_path).get("pdftotext").command
 
 
+@pytest.mark.parametrize("manager, expected", [
+    ("apt", "sudo apt install poppler-utils"),
+    ("dnf", "sudo dnf install poppler-utils"),
+    ("pacman", "sudo pacman -S poppler"),
+    ("apk", "sudo apk add poppler-utils"),
+    ("zypper", "sudo zypper install poppler-utils"),
+])
+def test_the_linux_command_is_the_one_for_this_linux(tmp_path, manager, expected):
+    """I-023.  Every Linux was told `sudo apt install`; Fedora and Alpine,
+    which the install lane runs the bootstrap on, do not have it."""
+    which = lambda name: f"/usr/bin/{name}" if name == manager else None  # noqa: E731
+    assert bare("linux", tmp_path, which=which).get("pdftotext").command == expected
+
+
+def test_a_linux_with_no_known_package_manager_still_gets_a_line(tmp_path):
+    assert bare("linux", tmp_path).get("pdftotext").command == "sudo apt install poppler-utils"
+
+
 @pytest.mark.parametrize("platform", PLATFORMS)
 def test_a_missing_tex_is_named_as_the_thing_that_stops_you_typesetting(platform, tmp_path):
     tex = bare(platform, tmp_path).get("tex")
