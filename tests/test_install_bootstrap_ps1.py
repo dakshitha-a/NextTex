@@ -15,6 +15,7 @@ legacy code page.
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -24,14 +25,23 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 
+# Which PowerShell.  `pwsh` (7) wherever it is, which on the Linux job is
+# the only one there is.  The Windows job runs this file twice, the second
+# time with NEXTTEX_TEST_POWERSHELL=powershell, because Windows PowerShell
+# 5.1 is what a stock machine opens for `irm | iex` and it differs from 7
+# in ways that have shipped: it passes a double quote inside an argument
+# through unescaped, and it makes a terminating error of a native
+# command's stderr.
+POWERSHELL = os.environ.get("NEXTTEX_TEST_POWERSHELL", "pwsh")
+
 pytestmark = pytest.mark.skipif(
-    shutil.which("pwsh") is None, reason="pwsh is not installed here"
+    shutil.which(POWERSHELL) is None, reason=f"{POWERSHELL} is not installed here"
 )
 
 
 def pwsh(script: str) -> str:
     result = subprocess.run(
-        ["pwsh", "-NoProfile", "-NonInteractive", "-Command", script],
+        [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", script],
         capture_output=True, text=True, timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr

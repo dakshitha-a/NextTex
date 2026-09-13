@@ -32,10 +32,12 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          # The floor named in requirements.txt, so the tests run against
-          # the oldest Python an install is allowed to have rather than
-          # against whatever happens to be newest.
-          python-version: "3.11"
+          # The floor named in requirements.txt and by both bootstraps, so
+          # the tests run against the oldest Python an install is allowed
+          # to have rather than against whatever happens to be newest.  It
+          # said 3.11 here while everything else said 3.10, and three tests
+          # did not pass on 3.10 until this was made true.
+          python-version: "3.10"
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
@@ -90,7 +92,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10"
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
@@ -109,4 +111,17 @@ jobs:
       # one.  These are the tests whose Windows and macOS branches only a
       # real Windows and a real macOS can answer.
       - name: Test
-        run: python -m pytest tests/test_install_survey.py tests/test_install_plan.py tests/test_install_steps.py tests/test_install_service_files.py tests/test_install_stdlib_only.py tests/test_install_ui.py tests/test_cross_platform.py -q
+        # The sh bootstrap's pty tests run here as well as on Linux: macOS
+        # /bin/sh is bash 3.2 in POSIX mode, a third shell after dash and
+        # busybox ash, and the file skips itself on Windows where there is
+        # no pty.  The PowerShell file runs under pwsh 7 on both.
+        run: python -m pytest tests/test_install_survey.py tests/test_install_plan.py tests/test_install_steps.py tests/test_install_service_files.py tests/test_install_stdlib_only.py tests/test_install_ui.py tests/test_cross_platform.py tests/test_install_bootstrap_sh.py tests/test_install_bootstrap_ps1.py tests/test_update_script.py -q
+
+      - name: The PowerShell tests under Windows PowerShell 5.1
+        # What a stock Windows opens for `irm | iex`, and the one that
+        # mangled the Python probe and stopped the update on git's first
+        # stderr line while pwsh passed both.
+        if: runner.os == 'Windows'
+        env:
+          NEXTTEX_TEST_POWERSHELL: powershell
+        run: python -m pytest tests/test_install_bootstrap_ps1.py -q

@@ -89,7 +89,7 @@ def test_a_name_with_a_quote_in_it_does_not_break_the_config(client, tmp_path):
     root = tmp_path / "quoted"
     client.post("/api/projects/create",
                 json={"path": str(root), "name": 'Bob"s "Thesis"'})
-    import tomllib
+    from nexttex.project import tomllib   # tomli on 3.10, the way the app has it
 
     tomllib.loads((root / "nexttex.toml").read_text(encoding="utf-8"))
 
