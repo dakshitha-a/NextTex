@@ -267,3 +267,33 @@ def test_a_failure_before_the_hand_over_is_a_failure_too(tmp_path: Path) -> None
     done = run(work)
     assert done.returncode != 0
     assert "Dependencies" not in done.stdout, "the update carried on past a failed pull"
+
+
+def test_on_a_mac_the_launchd_agent_is_restarted(tmp_path: Path) -> None:
+    """I-025.  Only systemd was asked whether the server was running, so on
+    a Mac the script pulled, reinstalled, rebuilt, printed Done and left the
+    old process serving.  A stand-in launchctl lists the agent and records
+    the kickstart it is asked for."""
+    origin, work = repositories(tmp_path)
+    fake = tmp_path / "fakebin"
+    fake.mkdir()
+    launchctl = fake / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = list ]; then printf "%s\\n" "123\t0\tcom.nexttex.server-nothinglistenshere"; exit 0; fi\n'
+        'printf "%s\\n" "$*" >> "$(dirname "$0")/launchctl.log"\n'
+        "exit 0\n"
+    )
+    launchctl.chmod(0o755)
+    state = work.parent / "state"
+    state.mkdir(exist_ok=True)
+    done = subprocess.run(
+        ["sh", "scripts/update.sh", "--instance=nothinglistenshere"],
+        cwd=work, capture_output=True, text=True,
+        env={"PATH": f"{fake}:{PATH}", "HOME": str(work), "LANG": "C",
+             "XDG_DATA_HOME": str(state)},
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "Restarting" in done.stdout
+    recorded = (fake / "launchctl.log").read_text()
+    assert "kickstart -k gui/" in recorded and "/com.nexttex.server-nothinglistenshere" in recorded

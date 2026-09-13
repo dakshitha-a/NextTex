@@ -64,9 +64,18 @@ UPDATE_LOG="${XDG_DATA_HOME:-$HOME/.local/share}/nexttex${INSTANCE:+-$INSTANCE}/
 # script while bash is part-way through reading it, and bash carries on
 # at its old byte offset in the new file.
 main() {
-  RUNNING=0
+  # Which supervisor has the server, if either does: systemd's unit on
+  # Linux, launchd's agent on macOS.  Only systemd was asked, so on a Mac
+  # this script pulled, reinstalled and rebuilt, printed Done, and left
+  # the old process serving, which is three of the four things its own
+  # first line promises.  The install lane's macOS update leg is where
+  # that showed.
+  RUNNING=""
+  LABEL="com.nexttex.server${INSTANCE:+-$INSTANCE}"
   if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
-    RUNNING=1
+    RUNNING=systemd
+  elif command -v launchctl >/dev/null 2>&1 && launchctl list 2>/dev/null | awk '{print $NF}' | grep -qx "$LABEL"; then
+    RUNNING=launchd
   fi
 
   say "Fetching"
@@ -147,9 +156,17 @@ main() {
     note "could not fetch the interface and there is no Node to build one; keeping the one in place"
   fi
 
-  if [ "$RUNNING" = 1 ] && [ "$RESTART" = 1 ]; then
+  if [ -n "$RUNNING" ] && [ "$RESTART" = 1 ]; then
     say "Restarting"
-    systemctl --user restart "$UNIT"
+    if [ "$RUNNING" = systemd ]; then
+      systemctl --user restart "$UNIT"
+    else
+      # kickstart -k: stop it if it is running and start it again, by
+      # label, which is the one call that does both on every macOS since
+      # 10.10.  The plist has KeepAlive, so the exit alone would also have
+      # brought it back, but that is a race with the address printed below.
+      launchctl kickstart -k "gui/$(id -u)/$LABEL"
+    fi
     note "running"
   elif [ "$RESTART" = 0 ]; then
     # The server is running this script and will restart itself: asking
