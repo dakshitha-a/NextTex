@@ -217,8 +217,11 @@ def windows_restart_argv(pid: int, root: Path, instance: str, python: str,
         f"$p = Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue",
         "if ($p) { $p.WaitForExit() }",
         "Start-Sleep -Milliseconds 500",
-        f"if (Get-ScheduledTask -TaskName {q(name)} -ErrorAction SilentlyContinue) "
-        f"{{ Start-ScheduledTask -TaskName {q(name)}; exit 0 }}",
+        # The task is still Running for a moment after its process has
+        # gone, and Start-ScheduledTask on a running task does nothing.
+        f"$t = Get-ScheduledTask -TaskName {q(name)} -ErrorAction SilentlyContinue",
+        "if ($t) { for ($i = 0; $i -lt 40 -and (Get-ScheduledTask -TaskName $t.TaskName).State -eq 'Running'; $i++) { Start-Sleep -Milliseconds 250 } }",
+        f"if ($t) {{ Start-ScheduledTask -TaskName {q(name)}; exit 0 }}",
         f"$link = Join-Path ([Environment]::GetFolderPath('Startup')) {q(name + '.lnk')}",
         "if (Test-Path $link) { Start-Process -FilePath $link; exit 0 }",
         f"New-Item -ItemType Directory -Force -Path {q(state)} | Out-Null",
