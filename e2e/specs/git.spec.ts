@@ -115,3 +115,46 @@ test("the card's buttons fit at the narrowest rail", async ({ page, app, project
   await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
   await check('[data-testid="git-wizard"]');
 });
+
+test("the panel is open until it is folded, and stays folded across a reload", async ({
+  tab,
+}) => {
+  // The one thing in the rail that could not fold, and the first-run card
+  // is the tallest thing the rail holds. A project with nothing stored
+  // opens with it showing, so the offer to keep versions is seen once.
+  const toggle = tab.getByTestId("git-toggle");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(tab.getByTestId("git-setup")).toBeVisible({ timeout: 20_000 });
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(tab.getByTestId("git-setup")).toHaveCount(0);
+
+  await tab.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
+  await expect(tab.getByTestId("git-toggle")).toHaveAttribute("aria-expanded", "false");
+  await expect(tab.getByTestId("git-setup")).toHaveCount(0);
+});
+
+test("a rail remembered from before the panel could fold still opens it", async ({
+  page, app, project,
+}) => {
+  // What is stored is merged over the default, key by key. A project
+  // whose rail was remembered before there was a `git` key would
+  // otherwise come back with the panel closed, and the writer would have
+  // no idea it had gained a header.
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await page.evaluate(
+    (id) => localStorage.setItem(
+      `nexttex.rail.${id}`,
+      JSON.stringify({ files: true, sections: false, search: false }),
+    ),
+    project.id,
+  );
+  await openProject(page, project.root);
+  await expect(page.getByTestId("git-toggle")).toHaveAttribute("aria-expanded", "true");
+  // And the keys it did have are honoured, so this is a merge and not a
+  // reset to the default.
+  await expect(page.getByTestId("sections-toggle")).toHaveAttribute("aria-expanded", "false");
+});

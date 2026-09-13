@@ -113,6 +113,12 @@ const DRAWER_WITH_SUMMARY = 248;
 
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 
+/** How the rail's folding panels stand in a project with nothing stored.
+ *  Git is open, so the card offering to keep versions is the first thing a
+ *  new project shows; `recall` merges what is stored over this, so a
+ *  project remembered from before the panel could fold gets the same. */
+const RAIL_DEFAULT = { files: true, sections: true, search: false, git: true };
+
 /** The project the writer was in, so a reload comes back to the document. */
 const LAST_PROJECT = "nexttex.lastProject";
 
@@ -184,10 +190,10 @@ export default function App() {
    *  chosen with Compare. Null when there is none. */
   const [patchView, setPatchView] = useState<{ title: string; text: string } | null>(null);
   const [mainFile, setMainFile] = useState("main.tex");
-  /** Which of the rail's two navigation panels are open.  Kept apart from
+  /** Which of the rail's folding panels are open.  Kept apart from
    *  `folded`, which is the pane layout the focus modes save and restore:
    *  these are sections inside one pane and have nothing to do with it. */
-  const [railOpen, setRailOpen] = useState({ files: true, sections: true, search: false });
+  const [railOpen, setRailOpen] = useState(RAIL_DEFAULT);
   // A nonce rather than a flag, so a second press of the shortcut while
   // the panel is already open puts the caret back in the box.
   const [focusSearch, setFocusSearch] = useState(0);
@@ -429,7 +435,7 @@ export default function App() {
     }
     // Reset first: a project with nothing stored gets the default, not
     // whatever the project before it was left in.
-    setRailOpen(recall(`nexttex.rail.${id}`, { files: true, sections: true, search: false }));
+    setRailOpen(recall(`nexttex.rail.${id}`, RAIL_DEFAULT));
     setFolded((current) => recall(`nexttex.folded.${id}`, current));
     setWidths(recall(`nexttex.widths.${id}`, DEFAULTS));
     // The files that were open last time, and the one that was in front.
@@ -529,7 +535,7 @@ export default function App() {
   /** Open or fold one of the rail's navigation panels, and remember which.
    *  Kept out of `folded`, which the focus modes save and restore: these
    *  are sections inside one pane rather than panes. */
-  const toggleRail = useCallback((which: "files" | "sections" | "search") => {
+  const toggleRail = useCallback((which: keyof typeof RAIL_DEFAULT) => {
     setRailOpen((current) => {
       const next = { ...current, [which]: !current[which] };
       const id = get().projectId;
@@ -1812,7 +1818,11 @@ export default function App() {
                   onHandled={() => setContextRequest(null)}
                 />
               )}
-              <GitPanel onOpen={openFile} />
+              <GitPanel
+                open={railOpen.git}
+                onToggle={() => toggleRail("git")}
+                onOpen={openFile}
+              />
             </div>
           </div>
           <Handle
