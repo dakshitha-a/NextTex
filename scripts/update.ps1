@@ -73,8 +73,24 @@ function Run {
      happen, reported as success, which is the exact fault the restart
      branch was rewritten to stop doing. #>
   param([string]$Program, [string[]]$Arguments, [switch]$Optional)
-  & $Program @Arguments 2>&1 | ForEach-Object { Write-Host "  $_" }
-  $code = $LASTEXITCODE
+  # Continue, not Stop, for the length of the child.  Windows PowerShell
+  # 5.1 turns every line a native program writes to a redirected stderr
+  # into an error record, and under Stop the first one ends the script:
+  # `git pull` announces "From <remote>" on stderr whenever it fetches
+  # anything, so every update that had something to pull stopped there,
+  # with "the update stopped: From D:\..." as its whole explanation.  The
+  # exit code below is what decides whether the child failed; its stderr
+  # is output to keep, and it is kept.  PowerShell 7 does not do this,
+  # which is how the parse job on pwsh never saw it and the install lane,
+  # running the update under the `powershell` the server spawns, did.
+  $kept = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & $Program @Arguments 2>&1 | ForEach-Object { Write-Host "  $_" }
+    $code = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $kept
+  }
   if ($code -ne 0) {
     if ($Optional) {
       Note "$Program exited $code; carrying on without it"
