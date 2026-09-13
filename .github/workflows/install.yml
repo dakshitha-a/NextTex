@@ -266,14 +266,24 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------
-  # The update, from the previous commit to this one.
+  # The update, two commits back to this one, both ways the README gives.
   #
   # A bare copy of the checkout stands in for GitHub, with its master set
-  # back one commit.  The install is made from that, master is moved to
-  # HEAD, and the update script is run by hand the way the README says.
-  # The interface for a local remote cannot be downloaded, so this leg
-  # always takes the Node fallback, which is the path a machine that cannot
-  # reach GitHub takes.
+  # back two commits.  The install is made from that, with the login
+  # service, so there is a running server to update.  The first hop is the
+  # script by hand, the way the README's "Keeping it up to date" opens:
+  # master is moved to the previous commit and update.sh or update.ps1 is
+  # run, which pulls, hands over to the pulled script, and restarts the
+  # service.  The second hop is the button: master is moved to HEAD and
+  # `tests/lane/drive_update.py` does what the footer does, POST
+  # /api/update, follow the stream, and wait for a process with a new boot
+  # nonce to answer on the new commit.  That last wait is the promise the
+  # page makes, and it is kept by systemd on Linux, launchd on macOS, and
+  # on Windows by the helper the server starts before it leaves.
+  #
+  # The interface for a local remote cannot be downloaded, so both hops
+  # take the Node fallback, which is the path a machine that cannot reach
+  # GitHub takes.
   update:
     # `inputs` is empty on the schedule, and a loose comparison there says
     # the wrong thing, so the event is asked first.
@@ -283,55 +293,55 @@ jobs:
       matrix:
         os: ${{ (inputs.os == 'ubuntu' && fromJSON('["ubuntu-latest"]')) || (inputs.os == 'macos' && fromJSON('["macos-latest"]')) || (inputs.os == 'windows' && fromJSON('["windows-latest"]')) || fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 3
 
-      - name: A remote one commit behind
+      - name: A remote two commits behind
         shell: bash
         run: |
           set -euo pipefail
           git clone --bare --quiet "$GITHUB_WORKSPACE" "$RUNNER_TEMP/remote.git"
           git -C "$RUNNER_TEMP/remote.git" symbolic-ref HEAD refs/heads/master
-          git -C "$RUNNER_TEMP/remote.git" update-ref refs/heads/master "$(git rev-parse HEAD~1)"
-          echo "previous $(git rev-parse --short HEAD~1), this $(git rev-parse --short HEAD)"
+          git -C "$RUNNER_TEMP/remote.git" update-ref refs/heads/master "$(git rev-parse HEAD~2)"
+          echo "start $(git rev-parse --short HEAD~2), by hand to $(git rev-parse --short HEAD~1), by the button to $(git rev-parse --short HEAD)"
 
-      - name: Install the previous commit (sh)
+      - name: Install two commits back, with the login service (sh)
         if: runner.os != 'Windows'
         shell: bash
         working-directory: ${{ runner.temp }}
         env:
           NEXTTEX_REPO: ${{ runner.temp }}/remote.git
-        run: cat "$GITHUB_WORKSPACE/scripts/install.sh" | sh -s -- --yes --tex=none
+        run: cat "$GITHUB_WORKSPACE/scripts/install.sh" | sh -s -- --yes --tex=none --service
 
-      - name: Install the previous commit (powershell)
+      - name: Install two commits back, with the login task (powershell)
         if: runner.os == 'Windows'
         shell: powershell
         working-directory: ${{ runner.temp }}
         env:
           NEXTTEX_REPO: ${{ runner.temp }}\remote.git
-        run: Get-Content -Raw "$env:GITHUB_WORKSPACE\scripts\install.ps1" | iex
+        run: '& ([scriptblock]::Create((Get-Content -Raw "$env:GITHUB_WORKSPACE\scripts\install.ps1"))) -Yes -Tex none -Service'
 
-      - name: Move the remote to this commit
+      - name: Move the remote to the previous commit
         shell: bash
-        run: git -C "$RUNNER_TEMP/remote.git" update-ref refs/heads/master "$GITHUB_SHA"
+        run: git -C "$RUNNER_TEMP/remote.git" update-ref refs/heads/master "$(git rev-parse HEAD~1)"
 
-      - name: Update (update.sh)
+      - name: Update by hand (update.sh)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           "$HOME/apps/NextTex/scripts/update.sh" | tee "$RUNNER_TEMP/update.out"
-          test "$(git -C "$HOME/apps/NextTex" rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C "$HOME/apps/NextTex" rev-parse HEAD)" = "$(git rev-parse HEAD~1)"
           grep -q "continuing with the updated script" "$RUNNER_TEMP/update.out"
+          grep -q "Restarting" "$RUNNER_TEMP/update.out"
           log=~/.local/share/nexttex/update.log
           test -f "$log"
           test "$(grep -c '^=== ' "$log")" = 1
-          "$HOME/apps/NextTex/.venv/bin/python" "$HOME/apps/NextTex/server/run.py" --version
 
-      - name: Update (update.ps1)
+      - name: Update by hand (update.ps1)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
@@ -339,17 +349,48 @@ jobs:
           & "$HOME\apps\NextTex\scripts\update.ps1"
           if ($LASTEXITCODE) { throw "update.ps1 exited $LASTEXITCODE" }
           $head = (git -C "$HOME\apps\NextTex" rev-parse HEAD).Trim()
-          if ($head -ne $env:GITHUB_SHA) { throw "landed on $head, not $env:GITHUB_SHA" }
+          $want = (git rev-parse HEAD~1).Trim()
+          if ($head -ne $want) { throw "landed on $head, not $want" }
           $log = "$HOME\.local\share\nexttex\update.log"
           if (-not (Test-Path $log)) { throw "no update.log at $log" }
           # In the transcript, not in a Tee: the script speaks through
           # Write-Host, which goes to the host and not down the pipeline.
           if (-not (Select-String -Path $log -Pattern 'continuing with the updated script' -Quiet)) { throw "the pulled script did not take over" }
-          & "$HOME\apps\NextTex\.venv\Scripts\python.exe" "$HOME\apps\NextTex\server\run.py" --version
+          if (-not (Select-String -Path $log -Pattern 'restarted' -Quiet)) { throw "the task was not restarted" }
 
-      - name: Verify the updated install
+      - name: Verify the by-hand update, with the service back
+        if: runner.os != 'Windows'
         shell: bash
-        run: python3 tests/lane/verify_install.py installed --root "$HOME/apps/NextTex" --head "$GITHUB_SHA"
+        run: python3 tests/lane/verify_install.py installed --root "$HOME/apps/NextTex" --head "$(git rev-parse HEAD~1)" --service
+
+      - name: Verify the by-hand update, with the task back
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python tests\lane\verify_install.py installed --root "$HOME\apps\NextTex" --head "$(git rev-parse HEAD~1)" --service
+
+      - name: Move the remote to this commit
+        shell: bash
+        run: git -C "$RUNNER_TEMP/remote.git" update-ref refs/heads/master "$GITHUB_SHA"
+
+      - name: Update from the page
+        if: runner.os != 'Windows'
+        shell: bash
+        run: python3 tests/lane/drive_update.py --root "$HOME/apps/NextTex" --head "$GITHUB_SHA"
+
+      - name: Update from the page (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python tests\lane\drive_update.py --root "$HOME\apps\NextTex" --head "$env:GITHUB_SHA"
+
+      - name: Verify the updated install, with the service back
+        if: runner.os != 'Windows'
+        shell: bash
+        run: python3 tests/lane/verify_install.py installed --root "$HOME/apps/NextTex" --head "$GITHUB_SHA" --service
+
+      - name: Verify the updated install, with the task back
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python tests\lane\verify_install.py installed --root "$HOME\apps\NextTex" --head "$env:GITHUB_SHA" --service
 
       - name: Collect the logs
         if: always()
