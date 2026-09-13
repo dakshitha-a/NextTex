@@ -188,8 +188,71 @@ where `ubuntu-latest` ships PowerShell 7. What only a real `windows-latest`
 job can ever answer is `winget`, `schtasks`, the `WScript.Shell` COM call
 and a genuine legacy code page.
 
-And what nothing asserts, on any platform, is a real fresh machine reaching
-a served project. The README says so and should go on saying so.
+## A real fresh machine, on a schedule
+
+Everything above is a unit test of the installer, and a unit test cannot
+answer the question the README's first line asks: does the documented
+command work on a machine that was clean five minutes ago. Nobody had ever
+run it on one. `.github/workflows/install.yml` does, weekly and on demand,
+and it is the tier that found the bugs in this section's last paragraph.
+
+Each native leg, on `ubuntu-latest`, `macos-latest` and `windows-latest`,
+installs twice because the README documents two shapes: the checkout from
+inside itself, as a named instance, and the pipe, the checkout's script fed
+to `sh -s` the way `curl | sh` feeds it, cloning from GitHub into
+`~/apps/NextTex`. On Windows the pipe runs under Windows PowerShell 5.1,
+which is what a stock machine opens, and the in-checkout shape under pwsh 7;
+both documented forms run, the script block with arguments and the verbatim
+`irm | iex`. The pipe install is run a second time and expected to change
+nothing but one appended block in `install.log`, and removed with the
+README's own uninstall commands and expected to leave nothing.
+`tests/lane/verify_install.py` holds the assertions, which are the README's
+claims one by one: the venv imports the app, the interface belongs to the
+commit when it was downloaded, `install.log` names every step, the address
+prints, `/api/instance` answers with the right head and refuses a wrong
+token, the service file is where the README says and the service manager
+has it, the shortcut is where the platform puts it. It runs on the runner's
+bare interpreter, imports only the standard library, and is not collected by
+pytest.
+
+The update leg installs two commits back with the login service, updates by
+hand to the previous commit with `update.sh` or `update.ps1` and expects the
+hand-over to the pulled script and a restarted service, then moves the
+remote to HEAD and presses the button: `tests/lane/drive_update.py` does
+what the footer does, and waits for a process with a new boot nonce to
+answer on the new commit. Four containers run the shell bootstrap where it
+will actually meet a Linux: Debian with a `python3` that cannot make a venv,
+Alpine where `sh` is busybox ash and there is no bash, Fedora, and a box
+with no Python at all. The browser tier's update spec runs on the Linux
+leg against the install just made.
+
+The first five dispatches found, in order: the log held half of what its
+last line claims; the branch for a machine with no Python had never worked
+(`VAR=x curl | sh` sets the variable for curl); two source files differed
+only by case, so the interface would not build on macOS or Windows; three
+scripts were bash on a platform without one; under PowerShell 5.1 the Python
+probe's double quotes were not escaped and git's first stderr line stopped
+the update; a named instance's launchers started the default one; the
+update script did not restart a launchd agent; and bash 3.2 does not run an
+EXIT trap in a pipeline subshell. Not one of them was visible from Linux
+with the child processes replaced.
+
+**What the lane cannot verify**, and stays a checklist for a person with the
+machine in front of them:
+
+- that start-at-login actually fires after a reboot, since a runner cannot
+  reboot;
+- that the desktop shortcut opens a browser, and starts the server first if
+  none is running;
+- the non-admin Windows account, where the scheduled task cannot be
+  registered and the Startup-folder shortcut is used instead: runners are
+  administrators;
+- a machine with a pre-existing MacTeX or MiKTeX, and the `tlmgr` additions
+  on it;
+- the interactive prompts on Windows, since only the sh bootstrap has pty
+  tests;
+- a slow or failing CTAN mirror in the middle of a TinyTeX install; the
+  scheduled shape with `tex=tinytex` installs one, but on a fast mirror.
 
 ## Two things the browser tier cannot prove
 
