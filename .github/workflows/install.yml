@@ -161,28 +161,31 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          & scripts\install.ps1 -Yes -Tex none -Instance checkout
+          & scripts\install.ps1 -Yes -Tex none -Service -Instance checkout
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Verify the checkout install
         if: runner.os == 'Windows'
         shell: pwsh
-        run: python "$env:RUNNER_TEMP\verify_install.py" installed --root "$env:GITHUB_WORKSPACE" --instance checkout --head "$env:GITHUB_SHA" --shortcut
+        run: python "$env:RUNNER_TEMP\verify_install.py" installed --root "$env:GITHUB_WORKSPACE" --instance checkout --head "$env:GITHUB_SHA" --service --shortcut
 
-      - name: Install from the pipe (Windows PowerShell 5.1, iex, cloning from GitHub)
+      # The README's second form: the script block, which is how an
+      # argument is given to a piped install, since `iex` takes none.  The
+      # plain `irm | iex` line is the second run below, so both forms run.
+      - name: Install from the pipe (Windows PowerShell 5.1, script block, cloning from GitHub)
         if: runner.os == 'Windows'
         shell: powershell
         working-directory: ${{ runner.temp }}
         run: |
           $PSVersionTable.PSVersion
-          Get-Content -Raw "$env:GITHUB_WORKSPACE\scripts\install.ps1" | iex
+          & ([scriptblock]::Create((Get-Content -Raw "$env:GITHUB_WORKSPACE\scripts\install.ps1"))) -Yes -Tex none -Service
 
       - name: Verify the pipe install
         if: runner.os == 'Windows'
         shell: powershell
-        run: python "$env:RUNNER_TEMP\verify_install.py" installed --root "$HOME\apps\NextTex" --shortcut --record "$env:RUNNER_TEMP\pipe.json"
+        run: python "$env:RUNNER_TEMP\verify_install.py" installed --root "$HOME\apps\NextTex" --service --shortcut --record "$env:RUNNER_TEMP\pipe.json"
 
-      - name: Run the pipe install a second time
+      - name: Run the pipe install a second time (irm | iex, verbatim)
         if: runner.os == 'Windows'
         shell: powershell
         working-directory: ${{ runner.temp }}
@@ -191,13 +194,15 @@ jobs:
       - name: Verify it changed nothing
         if: runner.os == 'Windows'
         shell: powershell
-        run: python "$env:RUNNER_TEMP\verify_install.py" again --root "$HOME\apps\NextTex" --record "$env:RUNNER_TEMP\pipe.json"
+        run: python "$env:RUNNER_TEMP\verify_install.py" again --root "$HOME\apps\NextTex" --service --record "$env:RUNNER_TEMP\pipe.json"
 
       - name: Uninstall, the README's way (Windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
+          Stop-ScheduledTask -TaskName NextTex -ErrorAction SilentlyContinue
           Unregister-ScheduledTask -TaskName NextTex -Confirm:$false -ErrorAction SilentlyContinue
+          Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*apps\NextTex\server\run.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
           Remove-Item "$([Environment]::GetFolderPath('Startup'))\NextTex.lnk" -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$HOME\.local\share\nexttex"
 
