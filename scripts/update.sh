@@ -202,6 +202,12 @@ if [ -z "${NEXTTEX_UPDATE_LOGGED:-}" ] && mkdir -p "$(dirname "$UPDATE_LOG")" 2>
     printf '\n=== %s  update.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"
     trap 'record $?' EXIT
     main "$@"
+    # Written here as well as from the trap.  macOS /bin/sh is bash 3.2,
+    # and it does not run an EXIT trap set inside the subshell a pipeline
+    # puts this group in, so an update that had nothing to pull left the
+    # file empty and exited 1 with "Done" on the screen.  A file with
+    # nothing in it still means failure below; success has to say so.
+    record 0
   } 2>&1 | tee -a "$UPDATE_LOG"
   code="$(cat "$NEXTTEX_UPDATE_STATUS" 2>/dev/null || printf 1)"
   rm -f "$NEXTTEX_UPDATE_STATUS"
@@ -209,4 +215,5 @@ if [ -z "${NEXTTEX_UPDATE_LOGGED:-}" ] && mkdir -p "$(dirname "$UPDATE_LOG")" 2>
 else
   trap 'record $?' EXIT
   main "$@"
+  record 0
 fi
