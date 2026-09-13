@@ -620,14 +620,26 @@ on strip hover.
 digits changing during a compile shift nothing. A status bar that jitters makes the whole
 app feel loose.
 
-### Git section (rail footer)
+### Git panel (rail, last)
 
-Docked to the rail bottom, 1 px `--line` top border, max three rows: branch in Source Code
-Pro 12 px with `↑2 ↓0` in `micro`; `4 files changed` in `--ink-2`, click expanding an inline
-list of dirty paths; a 26 px `Commit and push` button. Clean state shows `main` with an
-`--ok` dot and no button. First run replaces all of it with one 5 px-radius card, `Back
-this up to GitHub` / `Set up`: dismissible, and once dismissed or configured it never
-returns.
+A panel like the others in the rail: a 26 px header, `Git` in `micro`, the count of
+changed files in `--ink-3` beside the chevron when there are any, and the body folds under
+it. The open state is remembered per project with Files, Sections and Search; a project
+with nothing stored opens with it showing, so the offer to keep versions is the first
+thing a new project shows. Open, the footer is at most three rows: branch in Source Code
+Pro 12 px with `↑2 ↓0` in `micro`; `4 files changed` in `--ink-2`, click expanding an
+inline list of dirty paths; a 26 px `Commit and push` button. Clean state shows `main`
+with an `--ok` dot and no button.
+
+First run replaces the footer with one 5 px-radius card, and there are two: a project
+with no repository is offered `Keep versions here`, a project with a repository and no
+remote is offered `Back up to GitHub`. The primary is full width, as `Commit and push`
+is, and the quiet controls (`Back up to GitHub` under the first, `Not now` under both)
+sit on a second row in `micro`, because the rail is 240 px and drags to 180, and three
+labels in one row folded inside their own 26 px boxes. `Not now` sets the card aside for
+that project, but never the panel: a repository with no remote keeps `Back up` on the
+branch row, and a project with no repository keeps `Keep versions` and `Back up` on one
+quiet line.
 
 ## 6. Motion
 
@@ -2379,9 +2391,10 @@ five things in it, and a panel that had to be folded by hand.
 
 ### The rail is a stack of panels, and Files is one of them
 
-The rail held one thing that could not fold, the file tree, and four that
-could: the trash, the papers, what the agent reads, and git. That was right
-when a project was a handful of files. It stops being right the moment a
+The rail held one thing that could not fold, the file tree, and three that
+could: the trash, the papers, and what the agent reads. (Git was a fourth
+that could not, and it is a panel like the others now, see the end of this
+document.) That was right when a project was a handful of files. It stops being right the moment a
 document is long enough that finding a section matters more than finding a
 file, because the tree then occupies the whole rail to answer a question
 nobody is asking.
@@ -2799,7 +2812,7 @@ at them.
 What survives: the tab strip's empty run (invisible by definition), the
 errors drawer (a state you cannot conjure without breaking your document),
 an edit chip opened to its diff, a permission card, the composer's row of
-unlabelled buttons, and the git card that never returns once dismissed.
+unlabelled buttons, and the git card that is set aside once dismissed.
 
 `prefers-color-scheme` is the wrong test for choosing between them. §2 is
 explicit that the theme here is *"authored and chosen, not inherited"* and
@@ -5493,3 +5506,38 @@ transcript is read through. That is a limit, and it is written here rather
 than fixed, because the case is a conversation longer than four megabytes of
 record and the fix is a paging route nobody has needed.
 
+### The git panel's buttons did not fit, and the panel could not be put away
+
+The card offering to keep versions of a project put three buttons in one
+row: "Keep versions here", "Back up to GitHub instead" and "Not now". The
+rail is 240px wide by default and drags down to 180, the row did not wrap
+and the labels were not told not to, so each folded inside its own fixed
+height box and the card showed the top half of every word. The third
+button was a different size and weight from the other two as well, so the
+row read as three separate decisions rather than one.
+
+Two rows now, and the two typographies the panel already had: the primary
+is full width, as "Commit and push" is, and the second row holds the quiet
+controls in the idiom of the footer's own "Back up" and "Pull". "Instead"
+goes; the position under the primary says it. Every button in the card
+and in the wizard is nowrap, so a label can never again fold inside a box
+that cannot grow, and a test seeds the rail at its 180px minimum and
+checks that every label in both cards and the wizard occupies one line.
+
+The panel was also the one thing in the rail that could not fold, and the
+first-run card is the tallest thing the rail holds. It has the 26px header
+the other panels have, with the count of changed files where Files and
+Sections carry their counts, and the open state is held by the app so that
+it is remembered per project alongside the rest. Open is the default, so
+the first thing a new project shows is the offer to keep versions; what is
+stored is merged over the default key by key, so a rail remembered from
+before the panel could fold comes back with it open rather than silently
+closed.
+
+With a header over it, the empty state had to be looked at. The footer has
+had a way back to the GitHub wizard since "Not now" was found to have no
+later, but the footer only draws for a project that has a repository, so
+on a project without one the dismissal was permanent: the route to init was
+gone for the life of the project short of clearing the browser's storage.
+That state now draws one quiet line with the two controls the card
+offered.
