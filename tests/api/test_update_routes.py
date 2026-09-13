@@ -240,7 +240,7 @@ def test_the_windows_helper_waits_for_the_pid_and_starts_the_command_line(tmp_pa
     # shortcut; the command line last, hidden, logging where the old
     # server did.
     assert script.index("WaitForExit") < script.index("Start-ScheduledTask") \
-        < script.index("GetFolderPath('Startup')") \
+        < script.index("elseif (Test-Path $link)") \
         < script.index("Start-Process -FilePath 'C:\\py\\python.exe'")
     assert "'nexttex-thesis'" in script and "'nexttex-thesis.lnk'" in script
     assert "'--log-to-state'" in script and "'--instance', 'thesis'" in script
@@ -255,6 +255,30 @@ def test_the_helper_breaks_away_from_the_task_job_first():
     refuses, and the plain flags are the fallback."""
     assert updates.windows_restart_flags(True) & updates.CREATE_BREAKAWAY_FROM_JOB
     assert not updates.windows_restart_flags(False) & updates.CREATE_BREAKAWAY_FROM_JOB
+
+
+def test_the_helper_gets_a_console_it_does_not_show():
+    """Started DETACHED_PROCESS, with no console at all, PowerShell's host
+    stopped before the helper's first statement, and the lane's restart.log
+    held the server's line and nothing from the helper.  CREATE_NO_WINDOW
+    is a console it does not show, which is what every hidden launcher
+    gives it."""
+    for breakaway in (True, False):
+        flags = updates.windows_restart_flags(breakaway)
+        assert flags & updates.CREATE_NO_WINDOW
+        assert not flags & 0x00000008  # DETACHED_PROCESS
+
+
+def test_the_helper_writes_its_own_lines_rather_than_a_transcript(tmp_path):
+    """A transcript needs the console host up; Add-Content needs a path.
+    Every step is a line and a failure is one too, so a restart that did
+    not happen is a helper that can be asked."""
+    script = updates.windows_restart_argv(1, tmp_path, "", "python", tmp_path / "state")[-1]
+    assert "Start-Transcript" not in script and "Write-Host" not in script
+    assert "Add-Content" in script and "catch { say ('failed: ' + $_) }" in script
+    # The if chain is one statement: a semicolon before elseif or else
+    # would be a parse error, and the helper would write nothing.
+    assert "; elseif" not in script and "; else" not in script
 
 
 def test_the_windows_helper_carries_no_double_quote(tmp_path):

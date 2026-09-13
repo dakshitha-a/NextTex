@@ -1997,8 +1997,16 @@ reference to them, so **no route can ask for a graceful shutdown**. The exit
 *is* the restart: systemd's `Restart=on-failure` and launchd's
 `KeepAlive.SuccessfulExit=false` both bring a service back after a non-zero
 exit and leave it down after a clean one. Windows registers a logon task,
-which is not a supervisor, so there the writer is told to start it again.
-Supervision is detected from `INVOCATION_ID` or `XPC_SERVICE_NAME`.
+which is not a supervisor: a task that ends stays ended. For a long time the
+writer there was told to start it again, which for a server the task had
+started meant finding Task Scheduler. Now the server arranges its own return
+before it leaves: a hidden PowerShell helper, started out of the task's job
+so it outlives the exit, waits for the pid to go and starts the task again,
+or the Startup shortcut, or the same command line. It writes each step to
+`restart.log` beside `server.log`, one line per step and a line for a
+failure, so a restart that did not happen is a helper that can be asked.
+Supervision is detected from `INVOCATION_ID` or `XPC_SERVICE_NAME`, and on
+Windows from PowerShell being there, which it always is.
 
 The page then polls for a **boot nonce**, regenerated once per process, not
 for the commit sha. The question being asked is "did a different process
