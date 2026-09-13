@@ -112,6 +112,17 @@ def main(argv=None) -> int:
         for line in lines:
             if line.startswith("<"):
                 print("  stream: " + line)
+        # The server that pressed the button is the previous commit's, so
+        # what it wrote about its own leaving is the previous commit's
+        # story; still the best one there is.
+        from verify_install import state_home
+        note = state_home(args.instance) / "restart.log"
+        if note.exists():
+            print("  restart.log:")
+            for line in note.read_text(encoding="utf-8", errors="replace").splitlines()[-20:]:
+                print("    " + line)
+        else:
+            print(f"  no restart.log at {note}")
         return 1
     print(f"back: {after['head']} (boot {after['boot']}), diskHead {after['diskHead']}")
     ok = args.head.startswith(after["head"]) and after["head"] == after["diskHead"]
