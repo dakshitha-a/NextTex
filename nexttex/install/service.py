@@ -17,6 +17,7 @@ Nothing in this module imports anything outside the standard library.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 # What the service needs on PATH.  Written out in full on purpose: under
@@ -110,6 +111,25 @@ def launchd_plist(root: Path, home: Path, state: Path, instance: str) -> str:
 </dict>
 </plist>
 """
+
+
+def launchd_loaded(label: str) -> bool:
+    """Whether launchd has an agent by this label, from `launchctl list`.
+
+    Asked before unloading, because `launchctl unload` of an agent that
+    is not loaded prints "Unload failed: 5: Input/output error" and a
+    suggestion to try again as root, and a first install used to show
+    exactly that, in the step called "Loading it", to somebody who had
+    done nothing wrong.  The label is the last column of `list`, and it
+    is matched whole: `com.nexttex.server` is a prefix of every named
+    instance's label.
+    """
+    try:
+        done = subprocess.run(["launchctl", "list"], capture_output=True, text=True,
+                              timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return any(line.split()[-1:] == [label] for line in done.stdout.splitlines())
 
 
 def unit_path(home: Path, instance: str, config_home: str = "") -> Path:

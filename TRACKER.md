@@ -35,17 +35,19 @@ things go to be forgotten rather than a list anybody reads.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **The install lane has not yet run its TinyTeX shape.** Every leg is
-      green with `--tex=none`; `tex=tinytex` on the dispatch installs a real
-      TinyTeX on all three runners and then `tlmgr` adds the five extras.
-      Slow, a CTAN mirror away, and the one path a first install actually
-      takes. Worth one dispatch, and worth watching the scheduled Monday run
-      the first time it takes it.
-- [ ] **The Windows restart helper has run on the lane once it is green
-      there, and nowhere else.** `updates.windows_restart_argv` brings the
-      server back after the update button on Windows. The update leg drives
-      it; a person pressing the button on a laptop where the task could not
-      be registered, so the Startup shortcut is the way back, has not.
+- [ ] **The scheduled lane runs with `--tex=none`.** The TinyTeX shape has
+      been dispatched by hand on all three runners and is green, with
+      `verify_install.py --tex tinytex` checking pdflatex, the five extras
+      and the service seeing them; the Monday schedule does not take it,
+      to keep a CTAN mirror's bad day from painting the lane red for a
+      reason that is not in the code. Dispatch `tex=tinytex` after any
+      change to the TeX step in `nexttex/install/steps.py`.
+- [ ] **The Windows restart helper on a machine where the task could not
+      be registered.** `updates.windows_restart_argv` brings the server
+      back after the update button on Windows. The lane drives it through
+      the scheduled task and the per-push Windows job runs its command-line
+      fallback for real under both PowerShells; the middle way back, the
+      Startup shortcut on a non-admin account, has run nowhere.
 - [ ] **`fetch-interface.ps1` on Windows 7 or 8.1.** `Invoke-WebRequest`
       there does not offer TLS 1.2 by default and GitHub requires it. Modern
       Windows is fine and the lane runs on it; the fix is one line setting

@@ -309,6 +309,44 @@ def test_macos_gets_a_plist_and_linux_gets_a_unit(sandbox):
     assert "systemctl" not in console.ran
 
 
+def test_a_first_install_on_a_mac_does_not_unload_an_agent_that_is_not_there(sandbox, monkeypatch):
+    """`launchctl unload` of an agent that is not loaded prints "Unload
+    failed: 5: Input/output error" and "try running as root", and the
+    TinyTeX dispatch of the install lane showed a first install saying
+    exactly that in a step called "Loading it"."""
+    from nexttex.install import service as service_mod
+
+    monkeypatch.setattr(service_mod, "launchd_loaded", lambda label: False)
+    console = Recorder()
+    run_install(console, sandbox, platform="macos", tex="none", service="yes")
+    assert "launchctl unload" not in console.ran
+    assert "launchctl load" in console.ran
+
+
+def test_a_second_install_on_a_mac_unloads_the_agent_it_replaces(sandbox, monkeypatch):
+    """launchd reads the plist on load, so a replaced agent has to be
+    unloaded first or the old command line keeps running."""
+    from nexttex.install import service as service_mod
+
+    asked = []
+    monkeypatch.setattr(service_mod, "launchd_loaded", lambda label: asked.append(label) or True)
+    console = Recorder()
+    run_install(console, sandbox, platform="macos", tex="none", service="yes", instance="thesis")
+    assert asked == ["com.nexttex.server-thesis"]
+    assert console.index_of("launchctl unload") < console.index_of("launchctl load")
+
+
+def test_launchd_loaded_matches_the_label_whole(monkeypatch):
+    from nexttex.install import service as service_mod
+
+    class Done:
+        stdout = "123\t0\tcom.nexttex.server-thesis\n-\t0\tcom.apple.foo\n"
+
+    monkeypatch.setattr(service_mod.subprocess, "run", lambda *a, **k: Done())
+    assert service_mod.launchd_loaded("com.nexttex.server-thesis")
+    assert not service_mod.launchd_loaded("com.nexttex.server")
+
+
 def test_windows_calls_the_helper_rather_than_writing_a_unit(sandbox):
     console = Recorder()
     run_install(console, sandbox, platform="windows", tex="none", service="yes")
