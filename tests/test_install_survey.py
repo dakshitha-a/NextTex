@@ -219,6 +219,29 @@ def test_nothing_runs_off_the_edge_of_the_terminal(platform, columns, tmp_path):
         assert len(line) <= columns, f"{len(line)} columns: {line}"
 
 
+def test_a_version_wider_than_its_column_still_ends_in_a_gap():
+    """I-019.  Git for Windows reports `2.55.0.windows.5`, three characters
+    wider than the version column, and the survey ran it straight into
+    the path beside it: `2.55.0.windows.5C:\\Program Files\\Git\\bin`."""
+    import io
+
+    from nexttex.install import __main__ as installer
+    from nexttex.install.survey import PRESENT, Finding, Survey
+    from nexttex.install.ui import Console
+
+    console = Console(stream=io.StringIO(), plain=True)
+    result = Survey(platform="windows", root=Path("."))
+    result.findings.append(Finding("git", "git", PRESENT,
+                                   where=r"C:\Program Files\Git\bin\git.EXE",
+                                   version="2.55.0.windows.5"))
+    result.findings.append(Finding("service", "starting at login", PRESENT,
+                                   where="a logon task, or the Startup folder"))
+    installer.show_survey(console, result)
+    text = console.stream.getvalue()
+    assert "2.55.0.windows.5 C:" in text, text
+    assert "starting at login " in text and "logina logon" not in text, text
+
+
 @pytest.mark.parametrize("platform", PLATFORMS)
 def test_a_command_meant_to_be_copied_is_never_wrapped(platform, tmp_path):
     """A copy-paste line broken across two rows is one somebody has to
