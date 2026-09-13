@@ -197,20 +197,24 @@ def supervised() -> bool:
 
 def windows_restart_argv(pid: int, root: Path, instance: str, python: str,
                          state: Path) -> list:
-    """A detached PowerShell that waits for this process to end and starts
-    NextTex again from its command line.
+    """A PowerShell that waits for this process to end and starts NextTex
+    the way it was started.
 
-    Not through the scheduled task, and this was learned on the install
-    lane: a task runs its action inside a job object, the helper is a
-    child of that action and so inside the same job, and a task whose job
-    still holds a live process still counts as Running, so
-    Start-ScheduledTask did nothing and the page waited for a server that
-    never came.  Starting the server directly puts it in the same job,
-    which is what keeps Stop-ScheduledTask able to stop it.  The wait is
-    on the pid, not a sleep: the port has to be free before anything can
-    bind it again.  The command line is the one both login shapes use,
-    with `--log-to-state` so the new server writes where the old did.
+    Started outside the task's job, which is the part that took the install
+    lane two tries to learn.  A scheduled task runs its action inside a
+    job object, and everything the action starts is in that job: a helper
+    inside it could not restart the task, because a job with a live
+    process in it is a task that has not finished, and when the action's
+    own process exited the job was torn down and the helper with it.  So
+    the server starts the helper with CREATE_BREAKAWAY_FROM_JOB, see
+    `windows_restart_flags`, and from outside the job the helper waits for
+    the pid, then for the task to leave Running, then starts the task, so
+    the new server is the task's own process again.  With no task, the
+    Startup shortcut; failing both, the command line, hidden, logging to
+    the state directory.  The wait is on the pid, not a sleep: the port
+    has to be free before anything can bind it again.
     """
+    name = "nexttex" + (f"-{instance}" if instance else "")
     q = lambda text: "'" + str(text).replace("'", "''") + "'"  # noqa: E731
     run = root / "server" / "run.py"
     args = ["'-u'", q(run), "'--log-to-state'"]
@@ -224,6 +228,14 @@ def windows_restart_argv(pid: int, root: Path, instance: str, python: str,
         f"$p = Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue",
         "if ($p) { $p.WaitForExit() }",
         "Start-Sleep -Milliseconds 500",
+        f"$t = Get-ScheduledTask -TaskName {q(name)} -ErrorAction SilentlyContinue",
+        # The task is still Running for a moment after its process has
+        # gone, and Start-ScheduledTask on a running task does nothing.
+        "if ($t) { for ($i = 0; $i -lt 60 -and (Get-ScheduledTask -TaskName $t.TaskName).State -eq 'Running'; $i++) { Start-Sleep -Milliseconds 250 } }",
+        f"if ($t) {{ Write-Host ('task state: ' + (Get-ScheduledTask -TaskName {q(name)}).State); "
+        f"Start-ScheduledTask -TaskName {q(name)}; Write-Host 'started the task'; exit 0 }}",
+        f"$link = Join-Path ([Environment]::GetFolderPath('Startup')) {q(name + '.lnk')}",
+        "if (Test-Path $link) { Write-Host ('starting ' + $link); Start-Process -FilePath $link; exit 0 }",
         f"New-Item -ItemType Directory -Force -Path {q(state)} | Out-Null",
         f"Write-Host ('starting ' + {q(python)})",
         f"Start-Process -FilePath {q(python)} -ArgumentList @({', '.join(args)}) "
@@ -232,6 +244,19 @@ def windows_restart_argv(pid: int, root: Path, instance: str, python: str,
     ])
     return ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
             "-Command", script]
+
+
+#: How the helper is started: detached, in its own group, and out of the
+#: job the scheduled task runs its action in, so it outlives the action.
+CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+
+
+def windows_restart_flags(breakaway: bool = True) -> int:
+    flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
+             | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    if breakaway:
+        flags |= CREATE_BREAKAWAY_FROM_JOB
+    return flags
 
 
 def _commits_behind(root: Path) -> list[Commit]:
