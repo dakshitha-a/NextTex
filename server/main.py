@@ -27,6 +27,7 @@ from functools import partial
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlsplit
 
 from starlette.background import BackgroundTask
@@ -38,8 +39,9 @@ from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
-from nexttex import attachments, auth, claude_auth, gitrepo, synctex
+from nexttex import attachments, auth, claude_auth, gitrepo, report, synctex
 from server.collab import transport as collab_transport
 from server.collab.peers import PeerNetwork
 from server.collab.store import CollabStore
@@ -4202,6 +4204,55 @@ async def instance():
         "supervised": updates.supervised(),
         "root": str(INSTALL_ROOT),
     }
+
+
+class ClientError(BaseModel):
+    """One thing the interface saw go wrong, as the footer hands it over."""
+    at: str = Field(default="", max_length=40)
+    kind: str = Field(default="", max_length=32)
+    message: str = Field(default="", max_length=report.MAX_MESSAGE)
+    stack: str = Field(default="", max_length=4000)
+
+
+class ReportRequest(BaseModel):
+    errors: list[ClientError] = Field(default_factory=list,
+                                      max_length=report.MAX_CLIENT_ERRORS)
+    browser: str = Field(default="", max_length=300)
+
+
+@app.post("/api/report")
+async def report_problem(body: Optional[ReportRequest] = None):
+    """The text for a bug report, and the issue page to paste it into.
+
+    The interface sends what it saw (its last errors, which browser it is)
+    and the server composes the whole thing, so that redaction happens in
+    one place: a client error's message can quote `window.location`, and
+    that carries the token.  Nothing here leaves the machine; the URL is
+    handed back for the writer's own browser to open.
+
+    Bounded by the model rather than by hand, so a page that had recorded
+    a thousand errors is answered with a 422 that names the field.
+    """
+    client = (body or ReportRequest()).model_dump()
+
+    def build() -> dict:
+        text = report.compose(
+            root=INSTALL_ROOT, client=client, source="the projects screen",
+            open_projects=len(SESSIONS),
+        )
+        facts = report.facts_of(INSTALL_ROOT)
+        slug = updates.slug_or_canonical(INSTALL_ROOT)
+        service = ("systemd" if os.environ.get("INVOCATION_ID")
+                   else "launchd" if os.environ.get("XPC_SERVICE_NAME")
+                   else "a task" if updates.supervised() else "")
+        return {
+            "text": text,
+            "newIssue": report.prefill(facts, slug, browser=client["browser"],
+                                       service=service),
+            "slug": slug,
+        }
+
+    return await asyncio.to_thread(build)
 
 
 @app.get("/api/update")
