@@ -237,6 +237,19 @@ update script did not restart a launchd agent; and bash 3.2 does not run an
 EXIT trap in a pipeline subshell. Not one of them was visible from Linux
 with the child processes replaced.
 
+The Windows update leg then took five dispatches of its own, because of a
+property of every updater: the server that presses the button runs the
+previous commit, so a fix to the restart helper is exercised by the
+dispatch after the one that follows its commit, never sooner. It taught
+that a scheduled task runs its action inside a job object which is torn
+down with the action's process, helper included, so the helper breaks out
+of the job first; and that a PowerShell started with no console at all
+stops before its first statement, so the helper gets a console it does not
+show. The helper is now also run for real by
+`tests/test_install_bootstrap_ps1.py` under both PowerShells on the
+per-push Windows job, the way the server runs it, which is the test that
+would have caught both a week earlier.
+
 **What the lane cannot verify**, and stays a checklist for a person with the
 machine in front of them:
 
