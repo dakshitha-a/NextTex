@@ -211,9 +211,12 @@ claims one by one: the venv imports the app, the interface belongs to the
 commit when it was downloaded, `install.log` names every step, the address
 prints, `/api/instance` answers with the right head and refuses a wrong
 token, the service file is where the README says and the service manager
-has it, the shortcut is where the platform puts it. It runs on the runner's
-bare interpreter, imports only the standard library, and is not collected by
-pytest.
+has it, the shortcut is where the platform puts it, and on a `tex=tinytex`
+dispatch that TinyTeX landed where the installer says with pdflatex running
+and the five extras beside it, and that the service-started server printed
+the TeX it found, which is the check a `systemd --user` unit with a minimal
+PATH fails and a shell never does. It runs on the runner's bare interpreter,
+imports only the standard library, and is not collected by pytest.
 
 The update leg installs two commits back with the login service, updates by
 hand to the previous commit with `update.sh` or `update.ps1` and expects the
