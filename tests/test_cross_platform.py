@@ -225,6 +225,23 @@ def test_every_installer_choice_can_be_made_from_both_bootstraps():
             f"install.ps1 never hands {option} to the installer"
 
 
+def test_the_windows_update_keeps_a_child_stderr_line_from_stopping_it():
+    """I-020.  Windows PowerShell 5.1 makes an error record of every line a
+    native program writes to a redirected stderr, and under
+    $ErrorActionPreference Stop the first one is terminating.  `git pull`
+    writes "From <remote>" to stderr whenever it fetches, so every update
+    with something to pull stopped on its first step, under the
+    `powershell` the server spawns.  `Run` lowers the preference for the
+    length of the child and judges it by its exit code."""
+    text = _update_ps1()
+    run = text[text.index("function Run"):text.index("function Get-ServerPort")]
+    assert "$ErrorActionPreference = 'Continue'" in run
+    assert "2>&1" in run and "$LASTEXITCODE" in run
+    # Restored afterwards, so the rest of the script keeps stopping on the
+    # first thing that goes wrong.
+    assert "finally" in run and "$ErrorActionPreference = $kept" in run
+
+
 def test_the_windows_python_probe_has_no_double_quote_for_5_1_to_mangle():
     """I-017.  Windows PowerShell 5.1 hands a native command an argument
     with a space in it wrapped in double quotes and does not escape the

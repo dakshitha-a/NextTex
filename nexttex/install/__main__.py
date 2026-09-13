@@ -569,10 +569,13 @@ def ready(console: Console, root: Path, platform: str, instance: str,
     if started:
         port = _port_of(url.output)
         if port and not _answers(port):
+            # The instance's own directory, not the default one: a named
+            # instance's log is in nexttex-NAME, and the note sent people to
+            # the other install's file.
             notes.append(
                 "NextTex was started but nothing is answering on port "
                 f"{port} yet. The link above will not open until it is. "
-                "Look in ~/.local/share/nexttex/server.err.log, and you can "
+                f"Look in {state_home() / 'server.err.log'}, and you can "
                 "always start it yourself with " + _start_yourself(root, platform)
             )
     console.paragraph("That link contains your access token. Anyone with it "
