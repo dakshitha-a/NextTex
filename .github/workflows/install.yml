@@ -440,6 +440,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A dispatch a minute after a push can get here before the interface
+      # workflow has published this commit's asset, and a container has no
+      # Node to build one instead; the closing dispatch of the installer
+      # review lost Debian to a 404 by ten seconds.  So this waits for that
+      # workflow's run for this commit, when there is one still going.  On
+      # the schedule it finished long ago and this is one call.
+      - name: Wait for this commit's interface to be published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 30); do
+            state="$(gh run list --workflow frontend.yml --commit "$GITHUB_SHA" --json status --jq '.[0].status // "none"')"
+            echo "interface for $GITHUB_SHA: $state"
+            case "$state" in none|completed) exit 0 ;; esac
+            sleep 10
+          done
+          echo "still not published after five minutes; going ahead anyway"
+
       - name: Install inside ${{ matrix.image }}
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" -e CI=1 -e HOME=/root "${{ matrix.image }}" sh -c '

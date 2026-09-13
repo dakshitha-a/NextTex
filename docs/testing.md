@@ -227,7 +227,11 @@ answer on the new commit. Four containers run the shell bootstrap where it
 will actually meet a Linux: Debian with a `python3` that cannot make a venv,
 Alpine where `sh` is busybox ash and there is no bash, Fedora, and a box
 with no Python at all. The browser tier's update spec runs on the Linux
-leg against the install just made.
+leg against the install just made. The containers have no Node, so the
+interface for the commit under test has to be published, and a dispatch a
+minute after a push can arrive before it is: the container job waits for
+that commit's `interface` run to finish first, which on the schedule is one
+call that says it finished long ago.
 
 The first five dispatches found, in order: the log held half of what its
 last line claims; the branch for a machine with no Python had never worked
