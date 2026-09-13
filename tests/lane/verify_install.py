@@ -67,6 +67,21 @@ def startup_shortcut(instance: str) -> Path:
     return startup / f"{unit_name(instance)}.lnk"
 
 
+def launchctl_lists(label: str) -> bool:
+    """Whether launchd has an agent with exactly this label.
+
+    Whole label, not a substring: `com.nexttex.server` is a prefix of
+    `com.nexttex.server-checkout`, and the first run of this file passed
+    the uninstall of one on the strength of the other still being loaded.
+    """
+    listed = run(["launchctl", "list"])
+    for line in listed.stdout.splitlines():
+        parts = line.split()
+        if parts and parts[-1] == label:
+            return True
+    return False
+
+
 def scheduled_task_exists(name: str) -> bool:
     done = subprocess.run(["schtasks", "/query", "/tn", name], capture_output=True, text=True)
     return done.returncode == 0
@@ -284,9 +299,8 @@ def cmd_installed(args) -> int:
                 enabled = run(["systemctl", "--user", "is-enabled", unit_name(instance)])
                 report.note("systemctl --user is-enabled", (enabled.stdout + enabled.stderr).strip())
             else:
-                listed = run(["launchctl", "list"])
                 label = "com.nexttex.server" + (f"-{instance}" if instance else "")
-                report.check("launchctl lists the agent", label in listed.stdout, label)
+                report.check("launchctl lists the agent", launchctl_lists(label), label)
 
     if args.shortcut:
         if PLATFORM == "windows":
@@ -341,9 +355,8 @@ def cmd_gone(args) -> int:
         active = run(["systemctl", "--user", "is-active", unit_name(instance)])
         report.check("the unit is not active", active.stdout.strip() != "active", active.stdout.strip())
     if PLATFORM == "macos":
-        listed = run(["launchctl", "list"])
         label = "com.nexttex.server" + (f"-{instance}" if instance else "")
-        report.check("launchctl no longer lists the agent", label not in listed.stdout, label)
+        report.check("launchctl no longer lists the agent", not launchctl_lists(label), label)
     if PLATFORM == "windows":
         report.check("the scheduled task is gone", not scheduled_task_exists(unit_name(instance)))
         report.check("the Startup shortcut is gone", not startup_shortcut(instance).exists())
