@@ -116,6 +116,25 @@ test("the card's buttons fit at the narrowest rail", async ({ page, app, project
   await check('[data-testid="git-wizard"]');
 });
 
+test("the line left after setting the card aside fits at the narrowest rail too", async ({
+  page, app, project,
+}) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await page.evaluate(
+    (id) => localStorage.setItem(`nexttex.widths.${id}`, JSON.stringify({ rail: 180 })),
+    project.id,
+  );
+  await openProject(page, project.root);
+  await expect(page.getByTestId("git-setup")).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Not now" }).click();
+  await expect(page.getByTestId("git-init-again")).toBeVisible();
+  for (const b of await fitting(page, '[data-testid="git-aside"]')) {
+    expect(b.over, `"${b.text}" overflows by ${b.over}px`).toBeLessThanOrEqual(1);
+    expect(b.lines, `"${b.text}" wrapped`).toBe(1);
+  }
+});
+
 test("the panel is open until it is folded, and stays folded across a reload", async ({
   tab,
 }) => {
