@@ -1,8 +1,10 @@
 """Is this install behind the repository it came from, and does it matter?
 
-NextTex is always a git checkout -- there is no package, no version string,
-no release artefact -- so "is there an update" is a question about `git`.
-The interesting half is the second one. Most commits to a project like this
+NextTex is always a git checkout, and there is no package and no release
+artefact to download, so "is there an update" is a question about `git`.
+The version number in `nexttex/version.py` names what an update would move
+to, and is read off the upstream commit for the footer to say so; it does
+not decide anything here.  The interesting half is the second one. Most commits to a project like this
 change its documentation or its tests, and telling somebody every session
 that three commits exist, when none of them changes the program they are
 running, is a nag rather than a service. So every commit is classified by
@@ -23,6 +25,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 from . import gitrepo
+from .version import VERSION, parse as parse_version
 
 # How long a check is trusted before the network is asked again.  A writer
 # who opens the app four times in an afternoon should pay for one fetch.
@@ -70,6 +73,12 @@ class Report:
     #: behind a repository it could not reach was told it was current.
     checked: bool = False
     head: str = ""
+    #: The version this install is on, and the one the upstream commit
+    #: carries.  The second is "" when the upstream commit has no
+    #: `nexttex/version.py`, which every install that predates the number
+    #: sees once, and when the fetch failed.
+    version: str = ""
+    upstream_version: str = ""
     behind: int = 0
     # How many of those reach the running program rather than the docs.
     changing: int = 0
@@ -322,9 +331,26 @@ def _commits_behind(root: Path) -> list[Commit]:
     return commits
 
 
+def _upstream_version(root: Path) -> str:
+    """The number the upstream commit carries, or "" when it carries none.
+
+    `git show` of one file at one ref, after the fetch that `check` has
+    already paid for, so it costs nothing on the network.  An upstream
+    without the file is an upstream older than the number, and "" is the
+    honest answer rather than a guess.
+    """
+    try:
+        text = gitrepo._run(root, "show", "@{upstream}:nexttex/version.py")
+    except gitrepo.GitError:
+        return ""
+    return parse_version(text)
+
+
 def check(root: Path) -> Report:
     """Ask the remote what it has, and work out what it would mean."""
-    report = Report(at=time.time(), restart="auto" if supervised() else "manual")
+    report = Report(
+        at=time.time(), restart="auto" if supervised() else "manual", version=VERSION,
+    )
 
     if not (root / ".git").exists():
         report.checkout = False
@@ -341,6 +367,7 @@ def check(root: Path) -> Report:
         return report
 
     report.checked = True
+    report.upstream_version = _upstream_version(root)
     report.behind = len(report.commits)
     report.changing = sum(1 for c in report.commits if c.touches != "neither")
     report.rebuild = any(c.interface for c in report.commits)

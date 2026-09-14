@@ -34,6 +34,7 @@ import urllib.parse
 from pathlib import Path
 
 from .paths import instance_name, state_home
+from .version import VERSION
 
 #: The config keys whose values are secrets, replaced wherever they appear.
 SECRET_KEYS = ("token", "openai_key", "password_hash", "password_salt")
@@ -162,6 +163,7 @@ def facts_of(root: Path, environ=None) -> dict:
         built = "unknown"
     dirty = _git(root, "status", "--porcelain")
     return {
+        "version": VERSION,
         "head": head,
         "short": head.split(" ")[0],
         "built": built,
@@ -177,6 +179,7 @@ def facts_of(root: Path, environ=None) -> dict:
 
 def install_section(facts: dict) -> list:
     return [
+        f"version    {facts['version']}",
         f"code       {facts['head']}",
         f"interface  {facts['built']}",
         f"changed    {facts['dirty']} file(s) not committed" if facts["dirty"] else "changed    nothing",

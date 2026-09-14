@@ -42,6 +42,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from nexttex import attachments, auth, claude_auth, gitrepo, report, synctex
+from nexttex.version import VERSION
 from server.collab import transport as collab_transport
 from server.collab.peers import PeerNetwork
 from server.collab.store import CollabStore
@@ -4257,6 +4258,9 @@ async def instance():
     update polls this until the nonce changes, which is how it knows the
     process it is talking to is a new one.
 
+    `version` is the number in `nexttex/version.py` at the commit this
+    process loaded, which is what the footer names as the version it has.
+
     `head` and `diskHead` are two different facts and were one. `head` is
     the commit this process loaded and cannot change while it runs.
     `diskHead` is what the files say now, which an update moves without
@@ -4266,6 +4270,7 @@ async def instance():
     """
     return {
         "instance": instance_name(),
+        "version": VERSION,
         "head": HEAD_AT_BOOT,
         "diskHead": await asyncio.to_thread(_head_now),
         "boot": BOOT,

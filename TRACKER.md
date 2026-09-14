@@ -35,11 +35,6 @@ things go to be forgotten rather than a list anybody reads.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **`server/run.py --version` cannot answer on a broken virtual
-      environment.** The file imports uvicorn before it reads its
-      arguments. `--report` has `python -m nexttex.report` as its bare
-      interpreter spelling; `--version` has none, and the answer is in the
-      report anyway, so this waits for somebody to want it on its own.
 - [ ] **The server prints its token URL to stdout at every start**, so
       `server.log` on macOS and Windows, and the journal on Linux, hold the
       token in clear for the life of the log. The bug report redacts it,

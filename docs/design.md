@@ -6075,3 +6075,30 @@ of its role at last, which closes one of the two `role="menu"` gaps
 TRACKER.md carried; the agent panel's mode menu, the other one, gets the
 same handler in the same commit, with the radio items `menu-keys.ts` now
 knows to walk.
+
+## 34. Related tabs close together, and the footer names a version
+
+Two requests arrived in one message. The first was about the tab strips:
+closing a preview should close the source files that belong to that
+document, and the writer noted that the reverse, a source closing its
+preview, could not be automatic "because of the whole parent issue", but
+asked for it to be thought out and done if a safe form existed. The
+second was a version number, `x.y.z`, for a program that until then was
+named by its commit hash. This section records both.
+
+### The footer names the number
+
+The update footer was the one place a writer could read anything about
+which NextTex they had, and what it read was a seven character hash in
+the restart-needed state and nothing at all otherwise. It now names the
+version on its quiet line, *NextTex 1.0.0, up to date*, and when an update
+is on offer that reaches the program the headline leads with the number
+it would move to, *NextTex 1.1.0 is available. Two new commits change
+NextTex.* The commit count stays, because it is what says how much moved;
+the number goes first because it is what a writer remembers and compares.
+An upstream that carries the same number, or none, adds nothing to the
+line, and the docs-only case is unchanged: three commits none of which
+change NextTex still get the grey line and never a number, since the
+number did not move either. Where the number lives and how it is advanced
+is `CLAUDE.md`'s to say; `docs/architecture.md` says how it reaches the
+footer.
