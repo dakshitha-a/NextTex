@@ -758,6 +758,15 @@ as `chapter (copy).tex` and the file list opens far enough to show you where
 it landed; nothing moves out from under you, so the file you were editing is
 still the one in front.
 
+The two strips keep each other tidy. Stop previewing a document and the files
+that belong to it, its chapters, its bibliography, its own root file, close
+with it; a file another previewed document also reads stays, and so does a
+scratch file nothing reads. In the other direction, a document that arrived
+on the preview strip only because you opened one of its chapters leaves again
+when you close the last of them, while one you added with `+` or clicked on
+stays until you stop it yourself. Reopening a closed tab with `⌘⌥⇧T` /
+`Ctrl-Alt-Shift-T` brings its document back too.
+
 The file list has a filter row behind a magnifier: type and the tree narrows
 to what matches, through folders you had collapsed, and clearing it gives back
 exactly the tree you had. Rows drag onto folders, and a folder takes

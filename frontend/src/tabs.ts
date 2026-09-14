@@ -85,3 +85,58 @@ export function pushClosed(stack: string[], paths: string[]): string[] {
   const next = stack.filter((path) => !paths.includes(path)).concat(paths);
   return next.slice(-CLOSED_CAP);
 }
+
+/** The open files that belonged to documents no longer on the strip.
+ *
+ *  Closing a preview closes the files of that document: the chapter that
+ *  brought it there, its own root file, a `.bib` only it reads.  `owners`
+ *  is the server's file-to-documents map as it stood *before* the removal,
+ *  because the answer to the removal no longer mentions the document that
+ *  went; `remaining` is the strip after it.  A file with an owner still on
+ *  the strip stays, so a block shared between two variants of a resume is
+ *  not taken away by closing one of them, and a file with no owner at all
+ *  stays too: a scratch file, a figure, a chapter `\input` seconds ago that
+ *  the graph has not caught up with.  Closing what is not known to belong
+ *  to anything is how a writer loses their place.
+ */
+export function orphanedBy(
+  tabs: Tab[],
+  owners: Record<string, string[]>,
+  remaining: string[],
+): string[] {
+  return tabs
+    .map((tab) => tab.path)
+    .filter((path) => {
+      const readers = owners[path] ?? [];
+      return readers.length > 0 && !readers.some((document) => remaining.includes(document));
+    });
+}
+
+/** The documents this window followed onto the strip whose last open file
+ *  has just gone.
+ *
+ *  `followed` is what this window put on the strip because a file of it was
+ *  opened, and nothing the writer asked for by name: a document added with
+ *  `+`, restored from `previews.json`, or clicked on the strip is not in it.
+ *  Such a document may leave when its files do, since it arrived the same
+ *  way.  The strip cannot be emptied, so when every document on it would go
+ *  the one in front stays, or the first if nothing is in front.
+ */
+export function unfollowed(
+  followed: Iterable<string>,
+  previews: string[],
+  activePreview: string | null,
+  tabs: Tab[],
+  owners: Record<string, string[]>,
+): string[] {
+  const held = new Set<string>();
+  for (const tab of tabs) for (const document of owners[tab.path] ?? []) held.add(document);
+  const going = [...followed].filter(
+    (document) => previews.includes(document) && !held.has(document),
+  );
+  if (going.length && going.length >= previews.length) {
+    const keep = activePreview && going.includes(activePreview) ? activePreview : going[0];
+    return going.filter((document) => document !== keep);
+  }
+  return going;
+}

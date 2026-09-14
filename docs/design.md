@@ -485,7 +485,10 @@ previewing the others*, a rule, *Download PDF*. *The others* leaves the tab the 
 opened on, and is disabled when it is alone; there is no *all*, because there is no main
 document that stays regardless and the last tab on the strip cannot go (§33). *Download
 PDF* fetches that document's own PDF, named after its file, through the same route the
-downloads menu uses with `document` naming which.
+downloads menu uses with `document` naming which. Stopping a preview, by its close
+button or by *the others*, closes the source tabs of that document as well, and a
+document the strip got by following an opened file leaves when its last file closes;
+§34 has the rules and what they refuse to touch.
 
 *Duplicate* copies the file beside itself as `name (copy).ext`, the same naming rule the
 trash and the upload chooser use, so there is one implementation of it and no second one
@@ -6102,3 +6105,87 @@ change NextTex still get the grey line and never a number, since the
 number did not move either. Where the number lives and how it is advanced
 is `CLAUDE.md`'s to say; `docs/architecture.md` says how it reaches the
 footer.
+
+### Closing a preview closes its files
+
+The request was one sentence: closing a preview closes all related source
+files. The word doing the work is *related*, and the answer is the map the
+browser already has. The server ships `owners`, every file mapped to the
+documents that read it, so that a keystroke can mark the right preview
+stale without waiting; inverted over the open tabs, it also says which
+files belong to the document that has just gone. `orphanedBy` in
+`frontend/src/tabs.ts` closes a tab when the file has owners and none of
+them is still on the strip, against the map as it stood *before* the
+removal, because the server's answer to a removal no longer mentions the
+document that went.
+
+What that rule refuses to close is the point of it. A file another
+document on the strip also reads stays: the block of text shared between
+two variants of a resume is not taken away by closing one of them. A file
+with no owner at all stays too: a scratch file, a figure, a chapter that
+was `\input` a moment ago and that the graph, which re-scans a third of a
+second after a `.tex` file changes, has not caught up with. Closing what
+is not known to belong to anything is how a writer loses their place, and
+the cost of leaving a tab open is one click. A `.bib` or a figure that only
+the closing document reads is related under this rule and goes with it,
+since the map carries those edges too.
+
+Both strips move in one store write. `closeMany` in `App.tsx` is now the
+one place a tab is closed, for a single tab, for *the others* and *all*,
+and for the files a preview takes with it, and it accepts the preview
+fields to write in the same `set`: if the tabs moved first, the effect
+that makes the page follow the file would run against a strip that still
+had the document on it. The files close only once the server has agreed
+to the removal, so the 409 that guards the last document leaves the source
+strip exactly as it was, and the closed files go onto the same reopen stack
+as any other, so `Mod-Alt-Shift-T` brings the chapter back and the follow
+effect brings its document back after it. That effect stands down while a
+removal is in flight, because the server publishes the new strip over the
+event stream before it answers the request: for a moment the strip was
+without the document while its chapter was still the tab in front, and the
+first browser test caught the effect asking for the document straight back.
+
+The gesture is this window's. Another window's removal arrives as
+`previews_changed` and closes nothing here, because the strip is shared
+between windows and the tabs are each window's own; a strip that lost a
+document while you were reading it in another window is one thing, and
+tabs that vanished for it is another.
+
+### A followed document leaves with its last file
+
+The writer said the reverse could not be automatic "because of the whole
+parent issue", and asked for it to be thought out and done if a safe form
+existed. The naive form, closing a source closes its document's preview,
+is unsafe for four reasons and impossible for a fifth. The strip is shared
+viewer state, so a preview closed here would be gone from every window. A
+preview may have been added with `+` and never had a source open at all,
+or be there to read the PDF. The agent edits files that are not tabs. And
+retiring a document cancels its compiler and removes its stand-in, so
+putting a thesis back costs a full build. The fifth is that the last
+document on the strip cannot go. Three variants were considered and set
+aside: asking, which is a prompt on every tab close; a setting, which is a
+setting to explain; and an origin flag in `previews.json`, which is a
+server format change, and so a major version, for a per-window question.
+
+The safe form is narrow on purpose. The window remembers which documents
+*it* put on the strip by following an opened file: `followed`, a set in
+`App.tsx` that is added to only in the effect that asks the server for a
+file's document, and only when the strip did not have that document
+before the answer. Such a document was never asked for; it appeared
+because a tab did, so it may leave when the tab does. `unfollowed` in
+`tabs.ts` names the followed documents with no open file left, after any
+close, and never names the last document on the strip, keeping the one in
+front. A document added with `+`, restored from `previews.json` on load,
+or put on the strip by another window is not in the set and is never
+closed this way. And a followed document becomes the writer's the moment
+they act on it by name on the strip, clicking its tab, cycling to it with
+`Mod-Alt-P`, keeping it with *the others*, or downloading its PDF, since
+touching it is asking for it.
+The removal is quiet: a refusal or a network failure on a removal the
+writer never asked for is not theirs to read.
+
+The known gap is stated rather than hidden. After a reload the set is
+empty, so every document then on the strip reads as asked for, and a
+chapter opened before the reload can be closed after it without its
+document following. That errs the safe way, and the alternative was the
+format change above.

@@ -16,7 +16,9 @@ import {
   Handle,
 } from "./chrome";
 import { busyTyping, onFrame } from "./timing";
-import { afterClosing, neighbour, pushClosed, viewingClosed } from "./tabs";
+import {
+  afterClosing, neighbour, orphanedBy, pushClosed, unfollowed, viewingClosed,
+} from "./tabs";
 import { followDecision } from "./follow-preview";
 import {
   DOUBLE_CLICK_MS, headerClick as headerVerdict, type Pane, type Pending,
@@ -255,6 +257,18 @@ export default function App() {
    *  back. A ref rather than state: nothing draws it, and putting it in
    *  the store would redraw the strip every time a tab was closed. */
   const closed = useRef<string[]>([]);
+  /** The documents this window put on the preview strip by following a
+   *  file that was opened, and nothing the writer asked for by name. A
+   *  document in here may leave the strip when its last open file does;
+   *  one added with `+`, restored on load, or touched on the strip may
+   *  not. A ref for the reason `closed` is one, and per window on
+   *  purpose: the strip is shared between windows and this is a memory of
+   *  what *this* one did. Empty after a reload, so every document then
+   *  reads as asked for, which errs the safe way. */
+  const followed = useRef(new Set<string>());
+  /** `stopPreviewingMany`, reachable from `closeMany`, which is defined
+   *  first because the preview removals close tabs through it. */
+  const dropPreviews = useRef<((paths: string[], quiet: boolean) => Promise<void>) | null>(null);
   /** Where the agent last wrote, held until the build that edit scheduled
    *  has landed, because forward search reads the previous build's map. */
   const agentWrote = useRef<{ path: string; line: number } | null>(null);
@@ -579,62 +593,97 @@ export default function App() {
     [openFile],
   );
 
-  const closeFile = useCallback(async (path: string) => {
-    const state = get();
-    const remaining = state.tabs.filter((tab) => tab.path !== path);
-    // Remembered before it goes, so Mod-Alt-Shift-T can bring it back.
-    // `afterClosing` has always handed back what it closed and both
-    // callers threw it away.
-    closed.current = pushClosed(closed.current, [path]);
-    await editor.current?.close(path);
-    set({
-      tabs: remaining,
-      activePath:
-        state.activePath === path
-          ? (remaining[remaining.length - 1]?.path ?? null)
-          : state.activePath,
-    });
-    const next = get().activePath;
-    if (next) set({ pendingOpen: { path: next, nonce: Date.now() } });
-  }, []);
-
-  /** Close every tab but one, or every tab.
+  /** Take files off the strip, in one write.
    *
-   *  Not `closeFile` in a loop.  That recomputes the tab in front,
-   *  dispatches a `pendingOpen` and re-reads the store after an await, so N
-   *  calls redraw the strip N times and write the session out N times; the
-   *  decision here is one calculation, in `afterClosing`, and one write.
+   *  Every close goes through here: one tab, the menu's "the others" and
+   *  "all", and the files a preview takes with it when it stops. One
+   *  calculation and one `set` rather than `closeFile` in a loop, which
+   *  recomputed the tab in front, dispatched a `pendingOpen` and re-read
+   *  the store after an await per tab, so a strip of twelve redrew twelve
+   *  times and wrote the session out twelve times. `extra` is whatever the
+   *  caller wants written in the same `set`, which is how the preview
+   *  strip and the source strip move together: if the tabs moved first the
+   *  follow effect would run against a strip that still had the document
+   *  on it.
+   *
+   *  `nextActive` is the tab to put in front, or undefined to keep the one
+   *  there unless it was closed, in which case the last remaining, the
+   *  way a browser lands.
    */
-  const closeTabs = useCallback(
-    async (what: "others" | "all", target: string) => {
+  const closeMany = useCallback(
+    async (
+      paths: string[],
+      nextActive?: string | null,
+      extra: Partial<Parameters<typeof set>[0]> = {},
+    ) => {
       const state = get();
-      const next = afterClosing(state.tabs, state.activePath, what, target);
-      if (!next.closed.length) return;
+      const closing = paths.filter((path) => state.tabs.some((tab) => tab.path === path));
+      if (!closing.length) {
+        if (Object.keys(extra).length) set(extra);
+        return;
+      }
       // Gathered rather than awaited one at a time: releasing a buffer
       // touches no disk and no network -- the keystrokes are in the shared
       // document already -- so a strip of twelve is one turn of the loop
       // rather than twelve.
-      await Promise.all(
-        next.closed.map((path) => editor.current?.close(path)),
-      );
+      await Promise.all(closing.map((path) => editor.current?.close(path)));
+      const tabs = state.tabs.filter((tab) => !closing.includes(tab.path));
+      const activePath =
+        nextActive !== undefined
+          ? nextActive
+          : state.activePath && closing.includes(state.activePath)
+            ? (tabs[tabs.length - 1]?.path ?? null)
+            : state.activePath;
       // A figure's `viewing` is set here rather than by the editor, which
       // has no buffer to park for one, so nothing else would clear it and
       // the banner would go on offering the past of a file that is gone.
-      const stillViewing = !viewingClosed(state.viewing, next.closed);
-      closed.current = pushClosed(closed.current, next.closed);
+      const stillViewing = !viewingClosed(state.viewing, closing);
+      // Remembered before they go, so Mod-Alt-Shift-T can bring them back.
+      closed.current = pushClosed(closed.current, closing);
       set({
-        tabs: next.tabs,
-        activePath: next.activePath,
+        ...extra,
+        tabs,
+        activePath,
         ...(stillViewing ? {} : { viewing: null }),
       });
       // Only when the file in front actually changed.  "Close the others"
       // from the tab already in front must not scroll the pane or move the
       // caret, which is what a `pendingOpen` does.
-      if (next.activePath && next.activePath !== state.activePath) {
-        set({ pendingOpen: { path: next.activePath, nonce: Date.now() } });
+      if (activePath && activePath !== state.activePath) {
+        set({ pendingOpen: { path: activePath, nonce: Date.now() } });
+      }
+      // A document this window followed onto the strip leaves it with its
+      // last file, quietly: the writer closed a tab, and a notice about a
+      // preview they never asked for is not what that gesture wants.
+      const after = get();
+      const going = unfollowed(
+        followed.current, after.previews, after.activePreview, after.tabs, after.owners,
+      );
+      if (going.length) {
+        for (const document of going) followed.current.delete(document);
+        void dropPreviews.current?.(going, true);
       }
     },
     [],
+  );
+
+  const closeFile = useCallback(
+    (path: string) => closeMany([path]),
+    [closeMany],
+  );
+
+  /** Close every tab but one, or every tab. The decision is one
+   *  calculation, in `afterClosing`, which has the interesting cases: a
+   *  strip of one, a target that is no longer in the strip, and a tab in
+   *  front that is not the tab the menu was opened on. */
+  const closeTabs = useCallback(
+    async (what: "others" | "all", target: string) => {
+      const state = get();
+      const next = afterClosing(state.tabs, state.activePath, what, target);
+      if (!next.closed.length) return;
+      await closeMany(next.closed, next.activePath);
+    },
+    [closeMany],
   );
 
   const viewVersion = useCallback(async (sha: string | null) => {
@@ -1201,6 +1250,9 @@ export default function App() {
   // ---- previewed documents ----------------------------------------------
   const previews = useStore((s) => s.previews);
   const activePreview = useStore((s) => s.activePreview);
+  /** Removals in flight, during which the preview does not follow the
+   *  editor; see `stopPreviewingMany`. */
+  const [removing, setRemoving] = useState(0);
 
   /** Bring a document's preview forward, and its source with it.
    *
@@ -1215,6 +1267,9 @@ export default function App() {
    *  opening that document's own file as well would put a tab on the
    *  source strip the writer did not ask for. */
   const showPreview = useCallback((path: string, withSource = true) => {
+    // A click on the strip is asking for the document by name, so it is no
+    // longer one this window merely followed and may not leave on its own.
+    if (withSource) followed.current.delete(path);
     if (!path || path === get().activePreview) return;
     set({ activePreview: path });
     const id = get().projectId;
@@ -1231,6 +1286,7 @@ export default function App() {
     if (!id) return;
     try {
       const body = await api.addPreview(id, path);
+      followed.current.delete(body.document);
       set({ previews: body.previews, candidates: body.candidates, owners: body.owners });
       showPreview(body.document);
     } catch (problem: any) {
@@ -1238,47 +1294,64 @@ export default function App() {
     }
   }, [showPreview]);
 
-  const stopPreviewing = useCallback(async (path: string) => {
-    const id = get().projectId;
-    if (!id) return;
-    try {
-      const body = await api.removePreview(id, path);
-      const next = get().activePreview === path ? body.visible : get().activePreview;
-      set({
-        previews: body.previews, candidates: body.candidates,
-        owners: body.owners, activePreview: next,
-      });
-    } catch (problem: any) {
-      set({ error: problem.message });
-    }
-  }, []);
-
-  /** The tab menu's "the others" and "all".  One request per document,
-   *  in sequence, and the store set from the last answer: the route
-   *  removes one at a time and each answer is the whole list, so setting
-   *  state after every one would redraw the strip once per tab. */
-  const stopPreviewingMany = useCallback(async (paths: string[]) => {
+  /** Stop previewing a document, and close its files.
+   *
+   *  The files are found with `orphanedBy` against the owners map as it
+   *  stood before the request, because the answer to the removal no longer
+   *  mentions the document that went, and they are closed only once the
+   *  server has agreed: a 409 for the last document on the strip leaves
+   *  the source strip exactly as it was. Both strips move in one `set`,
+   *  through `closeMany`. Only this window closes tabs: another window's
+   *  removal arrives as `previews_changed` and touches nothing here, since
+   *  its tabs are its own and so are this one's.
+   *
+   *  `quiet` is for a removal the writer did not ask for by name, the
+   *  followed document leaving with its last file, where a refusal is not
+   *  theirs to read.
+   */
+  const stopPreviewingMany = useCallback(async (paths: string[], quiet = false) => {
     const id = get().projectId;
     if (!id || !paths.length) return;
+    const before = get().owners;
+    // The follow effect stands down until both strips have moved. The
+    // server publishes `previews_changed` before it answers the request,
+    // so for a moment the strip is without the document while its chapter
+    // is still the tab in front, and the effect would ask for the document
+    // straight back.
+    setRemoving((count) => count + 1);
     try {
+      // One request per document, in sequence, and the store set from the
+      // last answer: the route removes one at a time and each answer is
+      // the whole list, so setting state after every one would redraw the
+      // strip once per tab.
       let body: Awaited<ReturnType<typeof api.removePreview>> | null = null;
       for (const path of paths) body = await api.removePreview(id, path);
       if (!body) return;
+      for (const path of paths) followed.current.delete(path);
       const active = get().activePreview;
-      set({
+      await closeMany(orphanedBy(get().tabs, before, body.previews), undefined, {
         previews: body.previews, candidates: body.candidates, owners: body.owners,
         activePreview: active && body.previews.includes(active) ? active : body.visible,
       });
     } catch (problem: any) {
-      set({ error: problem.message });
+      if (!quiet) set({ error: problem.message });
+    } finally {
+      setRemoving((count) => count - 1);
     }
-  }, []);
+  }, [closeMany]);
+  dropPreviews.current = stopPreviewingMany;
+
+  const stopPreviewing = useCallback(
+    (path: string) => stopPreviewingMany([path]),
+    [stopPreviewingMany],
+  );
 
   /** Download PDF, from the preview tab's menu: the document under the
    *  tab, named after its file rather than after the project. */
   const downloadPreviewPdf = useCallback((path: string) => {
     const id = get().projectId;
     if (!id) return;
+    followed.current.delete(path);
     void downloadPdf(id, path);
   }, []);
 
@@ -1295,7 +1368,19 @@ export default function App() {
   useEffect(() => {
     orphans.current.clear();
   }, [owners]);
+  // A followed document that left the strip some other way, another
+  // window's removal or a project switch, is forgotten rather than kept
+  // for a strip it is no longer on.
   useEffect(() => {
+    for (const document of followed.current) {
+      if (!previews.includes(document)) followed.current.delete(document);
+    }
+  }, [previews]);
+  useEffect(() => {
+    followed.current.clear();
+  }, [projectId]);
+  useEffect(() => {
+    if (removing) return;
     const decision = followDecision(activePath, previews, activePreview, owners);
     if (decision.kind === "show") {
       showPreview(decision.document, false);
@@ -1305,11 +1390,18 @@ export default function App() {
     const id = get().projectId;
     if (!id) return;
     const asked = activePath;
+    // The strip as it was before asking, not as it is when the answer
+    // comes: the server publishes the new strip before it answers, so by
+    // then the document is already on it.
+    const had = get().previews;
     api.addPreview(id, asked).then(
       (body) => {
         // The writer has moved on; the answer is about a file no longer in
         // front, and the switch that follows will ask its own question.
         if (get().activePath !== asked) return;
+        // A document the strip did not have until this file was opened is
+        // one this window followed, and may leave when the file does.
+        if (!had.includes(body.document)) followed.current.add(body.document);
         set({ previews: body.previews, candidates: body.candidates, owners: body.owners });
         showPreview(body.document, false);
       },
@@ -1324,7 +1416,7 @@ export default function App() {
         set({ error: problem.message });
       },
     );
-  }, [activePath, previews, activePreview, owners, showPreview]);
+  }, [activePath, previews, activePreview, owners, removing, showPreview]);
 
   // ---- keyboard ---------------------------------------------------------
   useEffect(() => {
@@ -2241,7 +2333,14 @@ export default function App() {
                 showPreview(path);
               }}
               onClose={stopPreviewing}
-              onCloseMany={stopPreviewingMany}
+              onCloseMany={(paths) => {
+                // "The others" names the one that stays, so it is asked
+                // for and no longer merely followed.
+                for (const document of get().previews) {
+                  if (!paths.includes(document)) followed.current.delete(document);
+                }
+                void stopPreviewingMany(paths);
+              }}
               onDownload={downloadPreviewPdf}
               onAdd={startPreviewing}
               onHeaderClick={!tight ? () => headerClick("pdf") : undefined}

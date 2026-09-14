@@ -134,9 +134,12 @@ test("any document can be taken off the strip, but not the last one", async ({
   await page.getByRole("menuitem", { name: "esi.tex" }).click();
   await expect(page.getByTestId("preview-tab-esi.tex")).toBeVisible();
 
-  // The document that used to be "main" is a document like any other.
+  // The document that used to be "main" is a document like any other, and
+  // its file goes with it; esi.tex, opened by the add, stays.
   await page.getByRole("button", { name: "Stop previewing main.tex" }).click();
   await expect(page.getByTestId("preview-tab-main.tex")).toHaveCount(0);
+  await expect(page.locator('[data-tab][data-path="main.tex"]')).toHaveCount(0);
+  await expect(page.locator('[data-tab][data-path="esi.tex"]')).toHaveCount(1);
   // The last one has no close button at all: a control that is always
   // refused is worse than no control.
   await expect(
