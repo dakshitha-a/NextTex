@@ -129,7 +129,6 @@ class Survey:
     # from another machine and inventing a ~/Desktop would be rude.
     desktop: bool = True
     service: str = ""          # "systemd", "launchd", "windows" or ""
-    service_running: bool = False
     interface_present: bool = False
     offline: list = field(default_factory=list)
     config: dict = field(default_factory=dict)
