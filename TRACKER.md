@@ -164,6 +164,29 @@ things go to be forgotten rather than a list anybody reads.
       the editor already produces them, so a second entry point buys a shorter
       route to something reachable, at the cost of a hover control on every row
       of a panel that can hold forty.
+- [ ] **Two documents whose stems match cannot both be on the strip.** The
+      jobname is the stem, so `variants/acme/resume.tex` beside `resume.tex`
+      would build to one `resume.pdf`, and `server/session.py` refuses the
+      second with a 409 that the preview now shows as a notice when a
+      chapter of the colliding document is opened. A jobname made from the
+      relative path would end it and was not done: the writer keeps names
+      unique across their folders, and `main.pdf` is what every Makefile
+      pointed at a project expects to find. Revisit if somebody reports the
+      notice rather than renaming.
+- [ ] **A folder with no `.tex` in it opens with an empty preview strip, and
+      only the API says so.** `tests/api/test_previews.py` covers the 404 and
+      the template load that gives the folder its first document; the pane
+      shows its "nothing typeset yet" offer through `pdf-absence.ts`, which
+      keys on the status and not the message, but no browser test opens such
+      a folder. It is a state a project is in for the first minute and never
+      again.
+- [ ] **The README's screenshots and the tutorial's tab-strip figure show
+      the headers as they were.** The preview header had a serif "Preview"
+      label for a single document and the `+` was a glyph; both are tabs and
+      an icon now. `e2e/shots/` regenerates them and is never run by a check,
+      and the photographs are the one part of the documents this run did not
+      remake, because the headers were photographed at one and two on a
+      machine this session does not have.
 - [ ] **An unnumbered heading set at body size is not read as a heading by
       the inverse search.** A double-click on the page carries a hint that
       the span is a heading when it is set at least 15% larger than the
