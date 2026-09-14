@@ -271,6 +271,10 @@ class CollabStore:
         self._named: dict[str, str] = {}
         #: Set when the manifest changes, cleared by the next flush.
         self._paths_moved = False
+        #: Files this machine saw missing and has not yet called deleted.
+        #: The flag goes on the record at the next flush, and only if the
+        #: file is still absent then: see `_settle_gone`.
+        self._gone_pending: set[str] = set()
         self.last_projected: dict[str, str] = {}
 
         self._dirty: set[str] = set()
@@ -625,7 +629,9 @@ class CollabStore:
                 if record.get("trashed"):
                     continue
                 if record.get("path") not in seen:
-                    record["trashed"] = True
+                    self._gone_pending.add(file_id)
+            if self._gone_pending:
+                self._schedule()
 
     def _walk(self) -> list[tuple[str, str, int]]:
         """Every file in the project, as (path, kind, size)."""
@@ -755,7 +761,20 @@ class CollabStore:
         if after is None:
             record = self.files.get(file_id)
             if record is not None and not record.get("trashed"):
-                record["trashed"] = True
+                # Not flagged here.  A file absent at the instant the
+                # watcher looked is not a file that was deleted: a tool
+                # that rewrites by unlinking and recreating leaves exactly
+                # that gap, and the flag is shared state, so setting it
+                # now and clearing it a moment later would publish a
+                # deletion to every peer, and one whose flush landed inside
+                # the gap would move its own copy into its trash before the
+                # retraction arrived.  Here it went further than that: the
+                # next flush found the file back and moved it into this
+                # machine's trash, silently, which is how an .aux written
+                # by hand vanished mid-run.  The flag goes on at the flush,
+                # if the file is still missing then.
+                self._gone_pending.add(file_id)
+                self._schedule()
                 return True
             return False
 
@@ -924,6 +943,29 @@ class CollabStore:
                 noted(was, now_called)
         self._named[file_id] = now_called
 
+    def _settle_gone(self) -> None:
+        """Call deleted what this machine saw missing, if it still is.
+
+        The debounce between the sighting and this is what tells a
+        deletion from a rewrite: a file that is back on disk by now was
+        never gone, and its record is left alone.  A file still absent is
+        flagged here, outside the observer that noticed it, and
+        `settle_paths` follows in the same flush.
+        """
+        if not self._gone_pending or self._closed:
+            return
+        pending, self._gone_pending = self._gone_pending, set()
+        for file_id in pending:
+            record = self.files.get(file_id)
+            if record is None or record.get("trashed"):
+                continue
+            try:
+                target = self.project.resolve(record.get("path") or "")
+            except (PermissionError, OSError, ValueError):
+                continue
+            if not target.exists():
+                record["trashed"] = True
+
     def _trash_locally(self, was: str) -> bool:
         """Put a file somebody else deleted into this machine's own trash."""
         trash = getattr(self.session, "trash", None)
@@ -940,6 +982,14 @@ class CollabStore:
         except Exception:
             log.warning("could not follow a deletion into the trash: %s", was)
             return False
+        # Say so.  A file a peer deleted left this disk without a word:
+        # the trash panel did not refresh and the tree learned of it only
+        # from the watcher, if at all.  Through a hook, as `note_moved`
+        # is, because this runs from a flush that cannot await and a stub
+        # session in a test may not have one.
+        noted = getattr(self.session, "note_trashed", None)
+        if noted is not None:
+            noted(was)
         return True
 
     def open_texts(self) -> dict[str, str]:
@@ -994,6 +1044,7 @@ class CollabStore:
         is a timer callback, and nothing was ever retried because the set was
         already empty.
         """
+        self._settle_gone()
         if self._paths_moved:
             self._paths_moved = False
             self.settle_paths()

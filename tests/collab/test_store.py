@@ -122,11 +122,54 @@ def test_ingesting_an_outside_change_reaches_the_document(store, project):
     assert str(store.body(file_id)) == "Rewritten elsewhere.\n"
 
 
-def test_ingesting_a_deletion_marks_the_file_rather_than_dropping_it(store):
+def test_ingesting_a_deletion_marks_the_file_rather_than_dropping_it(store, project):
     """A map delete concurrent with an edit is ambiguous; a flag is not."""
     file_id = store.file_id_for("chapters/one.tex")
+    (project.root / "chapters" / "one.tex").unlink()
     assert store.ingest("chapters/one.tex", None, gone=True)
+    store.flush()
     assert store.files[file_id]["trashed"] is True
+
+
+def test_a_file_absent_for_an_instant_is_not_a_file_that_was_deleted(store, project):
+    """The watcher saw the file missing; by the flush it is back.
+
+    A tool that rewrites by unlinking and recreating, pdflatex writing its
+    .aux by hand into a folder the app watches, leaves exactly that gap.
+    The flag used to go on at the sighting, and the next flush, finding the
+    file back on disk, moved it into this machine's trash without a word:
+    an .aux vanished mid-run and its .log stayed, which took a long time
+    to attribute.  The flag is shared state besides, so a peer whose flush
+    landed inside the gap would have trashed its own copy before the
+    retraction arrived.  So the flag goes on at the flush, and only if the
+    file is still missing then.
+    """
+    file_id = store.file_id_for("chapters/one.tex")
+    path = project.root / "chapters" / "one.tex"
+    path.unlink()
+    assert store.ingest("chapters/one.tex", None, gone=True)
+    # Nothing has reached the manifest yet, so nothing has reached a peer.
+    assert store.files[file_id]["trashed"] is False
+    path.write_text("Rewritten by a tool that unlinks first.\n")
+    store.flush()
+    assert store.files[file_id]["trashed"] is False
+    assert path.read_text() == "Rewritten by a tool that unlinks first.\n"
+    assert store.file_id_for("chapters/one.tex") == file_id
+
+
+def test_a_file_missing_when_the_project_opens_is_called_deleted_at_the_flush(project):
+    """The same rule for the open-time sweep of an unshared project."""
+    first = CollabStore(project)
+    first.adopt()
+    file_id = first.file_id_for("chapters/one.tex")
+    first.close()
+    (project.root / "chapters" / "one.tex").unlink()
+    second = CollabStore(project)
+    second.adopt()
+    assert second.files[file_id]["trashed"] is False
+    second.flush()
+    assert second.files[file_id]["trashed"] is True
+    second.close()
 
 
 def test_a_file_that_cannot_be_read_is_not_a_file_that_is_gone(store, project):
