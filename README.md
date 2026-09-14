@@ -1016,6 +1016,8 @@ screen you are looking at, which is usually faster than the files below.
   handbook and a sample of your own writing change what the agent produces.
 - [docs/testing.md](docs/testing.md): the four test tiers, why each exists,
   and the bugs they found.
+- [docs/bug-reports.md](docs/bug-reports.md): what a bug report carries, and
+  how one becomes a fix on `master` and a comment saying how to take it.
 - [TRACKER.md](TRACKER.md): what is being worked on and what is waiting, each
   waiting item with its reason. Working state rather than documentation, which
   is why it sits outside `docs/`, and it is struck and added to in the same
@@ -1063,7 +1065,8 @@ Open an issue at [github.com/dakshitha-a/NextTex/issues](https://github.com/daks
 say what happened and what you expected, and paste the report. A fix lands
 on `master`; when the issue closes, the comment on it names the commit, and
 taking the fix is the footer's **Update** button or `scripts/update.sh`
-(`scripts\update.ps1` on Windows).
+(`scripts\update.ps1` on Windows). What happens in between is written down
+in [docs/bug-reports.md](docs/bug-reports.md).
 
 ## Licence
 

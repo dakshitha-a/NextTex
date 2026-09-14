@@ -1,0 +1,40 @@
+name: Bug report
+description: Something NextTex did that it should not have, or did not do.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. The two boxes that matter most are the first and the last.
+
+        The projects screen's footer has **Report a problem**. It fills in the two fields marked "filled in by the footer" and puts a report on your clipboard; paste that into the last box. From a terminal, `python server/run.py --report` prints the same text (or `python3 -m nexttex.report` when the virtual environment is what broke).
+  - type: input
+    id: what
+    attributes:
+      label: What happened
+      placeholder: One sentence.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: What you did, what you expected, what you saw instead.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where NextTex runs
+      description: Filled in by the footer. Platform, how it is started, Python, browser.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Filled in by the footer. The code commit and the interface commit.
+  - type: textarea
+    id: report
+    attributes:
+      label: The report
+      description: Paste the report from your clipboard, or the output of `python server/run.py --report`. The token, keys and password are already removed from it, and a test asserts that; it does name your machine, so read it first.
+      render: text
