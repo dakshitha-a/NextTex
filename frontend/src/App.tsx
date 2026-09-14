@@ -1528,6 +1528,32 @@ export default function App() {
     setFocus(pane);
   }, []);
 
+  // The two modes, from the keyboard.  The gestures that enter them are a
+  // double click on the preview header and on the empty run of the tab
+  // strip, and the second of those shrinks to nothing as tabs fill the
+  // strip: a writer with eight files open has no place left to double
+  // click.  Asked which handle should replace it, the writer chose a
+  // shortcut instead, so these are the route that never shrinks.  R for
+  // reading and E for editing, in the app's own Mod-Alt space, both free
+  // in CodeMirror's keymap and in the browser's; W was the obvious letter
+  // for writing and is already Close the tab in front.  Pressing the same
+  // one again gives the layout back, like the second double click.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const meta = event.metaKey || event.ctrlKey;
+      if (!meta || !event.altKey) return;
+      if (event.code === "KeyR") {
+        event.preventDefault();
+        toggleFocus("pdf");
+      } else if (event.code === "KeyE") {
+        event.preventDefault();
+        toggleFocus("editor");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleFocus]);
+
   /** One header, two gestures.
    *
    *  A double click arrives as two clicks, so the fold has to wait long

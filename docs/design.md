@@ -349,6 +349,11 @@ has not left themselves a place to click, and a fold they did not ask for is wor
 gesture they have to reach the chevron for. Below 900 px, where the two panes share one
 view, neither gesture exists: there is nothing to fold them into.
 
+**Each mode has a key**, `⌘⌥R` for reading and `⌘⌥E` for writing, the same key again giving
+the layout back (§32). They are the route that never shrinks: with the strip full there is
+no run left to double click, and asked which new handle should carry the gesture, the
+writer chose a shortcut over any of them.
+
 ### Files bar
 
 26 px, directly under the 32 px project header, and the header's bottom rule moves down
@@ -5819,4 +5824,25 @@ count of those went from three to two.
 One more: a click in a preview tab's padding folded the pane, because the
 header's click handler excused only buttons. It excuses tabs now, which
 is the rule the source strip already had.
+
+### Reading and writing modes have a key
+
+The plan for the tab strips offered the writer three shapes of handle for
+the fold and fill gestures once tabs took the whole header: the pane's
+name as a fixed cell at the left, the whole header with tabs squeezing to
+keep a blank run, or the fold chevron alone carrying both gestures. They
+chose none, and asked for two keyboard shortcuts that give the window to
+the source or the preview and give it back. So the header gestures are
+exactly what they were, the preview header whole and the source strip's
+blank run, and the shortcuts are the route that is there when the run is
+not.
+
+`⌘⌥R` and `⌘⌥E`, in the app's own Mod-Alt space, both free in
+CodeMirror's keymap and in the browser's; W was the obvious letter for
+writing and is already Close the tab in front. The same key again gives
+the layout back, like the second double click, and the layout it gives
+back is the one the mode was entered from, agent put away and all, because
+the shortcut calls the same `toggleFocus` the double click does. The
+browser test opens eight files, measures the blank run at under eight
+pixels, and enters writing mode from the keyboard.
 

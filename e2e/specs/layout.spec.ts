@@ -660,3 +660,79 @@ test("the rail's handle resizes the rail rather than selecting the editor", asyn
   expect(selected).toBe("");
   expect(rail).toBeTruthy();
 });
+
+/** The two modes from the keyboard.
+ *
+ *  The gesture that enters writing mode is a double click on the empty run
+ *  of the tab strip, and that run shrinks to nothing as tabs fill the
+ *  strip.  Asked which handle should replace it, the writer chose a
+ *  shortcut, so these are the route that never shrinks.
+ */
+test("Ctrl-Alt-R is reading mode, and again gives the layout back", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  // Put the agent away first: coming back should not undo a decision
+  // made before reading started.
+  await tab.getByTestId("chat-header").click();
+  await expect(tab.getByTestId("chat")).toBeHidden();
+  await tab.locator(".cm-content").click();
+
+  await tab.keyboard.press("Control+Alt+r");
+  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-source")).toBeVisible();
+  await expect(tab.locator(".cm-editor")).toBeHidden();
+  await expect(tab.getByTestId("preview-header")).toBeVisible();
+
+  await tab.keyboard.press("Control+Alt+r");
+  await expect(tab.locator('[role="tree"]')).toBeVisible();
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+  // The agent stays put away, exactly as it was.
+  await expect(tab.getByTestId("chat")).toBeHidden();
+});
+
+test("Ctrl-Alt-E is writing mode, keeps the file list, and again gives the layout back", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await tab.locator(".cm-content").click();
+
+  await tab.keyboard.press("Control+Alt+e");
+  await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+  await expect(tab.locator('[role="tree"]')).toBeVisible();
+  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+  await expect(tab.getByTestId("chat")).toBeHidden();
+
+  await tab.keyboard.press("Control+Alt+e");
+  await expect(tab.getByTestId("chat")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-preview")).toHaveCount(0);
+});
+
+test("the shortcut works when no place is left to double click", async ({
+  app, project, tab,
+}) => {
+  // Eight files open: the blank run of the strip is gone, and the
+  // shortcut is the only way into writing mode.
+  for (let i = 1; i <= 8; i += 1) {
+    await fetch(`${app.base}/api/projects/${project.id}/file`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+      body: JSON.stringify({
+        path: `chapter-${i}.tex`, text: `% ${i}\n`, compile: false, create: true,
+      }),
+    });
+  }
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  for (let i = 1; i <= 8; i += 1) {
+    await tab.locator(`[role="tree"] [data-path="chapter-${i}.tex"]`).click({ timeout: 15_000 });
+    await expect(tab.locator(`[data-tab][data-path="chapter-${i}.tex"]`)).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+  const blank = (await tab.getByTestId("tabs-blank").boundingBox())!;
+  expect(blank.width).toBeLessThan(8);
+
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+Alt+e");
+  await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
+});
