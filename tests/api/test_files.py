@@ -54,6 +54,23 @@ def test_reading_a_file_that_is_not_text(client, opened, project_dir):
     assert response.status_code == 415
 
 
+@pytest.mark.parametrize("name, text", [
+    ("scripts/fig.py", "from figure import figure, save\n"),
+    ("scripts/plotstyle.mplstyle", "font.size: 9\n"),
+    ("data/runs.csv", "x,y\n1,2\n"),
+])
+def test_a_script_and_what_it_reads_are_text(client, opened, project_dir, name, text):
+    """The README promised the two files the plot tool seeds could be opened
+    and changed.  For a year the route called `.py` binary and answered 415,
+    and the editor showed a download card."""
+    target = project_dir / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    response = client.get(f"/api/projects/{opened['id']}/file", params={"path": name})
+    assert response.status_code == 200
+    assert response.json()["text"] == text
+
+
 @pytest.mark.parametrize("path", ESCAPES)
 def test_reading_outside_the_project_is_refused(client, opened, path):
     response = client.get(f"/api/projects/{opened['id']}/file", params={"path": path})

@@ -394,3 +394,33 @@ def test_a_failed_write_is_tried_again(store, project):
 
     store.flush()
     assert "cafecafecafecafe" in store._dirty
+
+
+def test_a_script_recorded_as_a_blob_is_promoted_to_text_on_the_next_open(
+    store, project,
+):
+    """A project opened by a NextTex that called `.py` binary carries its
+    scripts as blobs, and a blob has no document for the editor to bind to.
+    The record is promoted in place, under the same id, and its body is the
+    file on disk."""
+    (project.root / "scripts").mkdir(exist_ok=True)
+    (project.root / "scripts" / "fig.py").write_text("print('hi')\n")
+    store.adopt()
+    file_id = store.file_id_for("scripts/fig.py")
+    assert store.files[file_id]["kind"] == "text"
+    # The state an older install left behind.
+    store.files[file_id]["kind"] = "blob"
+    store.adopt()
+    assert store.file_id_for("scripts/fig.py") == file_id
+    assert store.files[file_id]["kind"] == "text"
+    assert str(store.body(file_id)) == "print('hi')\n"
+
+
+def test_a_text_record_is_never_demoted_by_adopt(store, project):
+    """The other direction would take a document somebody may be editing
+    away, so a record the tree now calls binary keeps its document."""
+    file_id = store.file_id_for("main.tex")
+    (project.root / "main.tex").rename(project.root / "main.bin")
+    store.files[file_id]["path"] = "main.bin"
+    store.adopt()
+    assert store.files[file_id]["kind"] == "text"

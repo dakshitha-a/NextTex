@@ -14,12 +14,14 @@ import {
   extensions,
   flashRange,
   freshState,
+  languageFor,
   marksFor,
   setDiff,
   setMarks,
   spellCompartment,
   viewExtensions,
 } from "./editor-setup";
+import { isCode } from "./file-kinds";
 
 import { outline as sectionsOf, sameOutline } from "../outline";
 import {
@@ -133,6 +135,16 @@ export default function Editor({
   const applySpelling = useCallback((now: EditorView) => {
     const module = speller.current;
     if (!module || !spellingRef.current) return;
+    // Code is not prose: every identifier in a script is a word the
+    // dictionary has never heard of, and a page of red underlines under a
+    // figure script says nothing about its spelling.
+    if (isCode(current.current ?? "")) {
+      const configured = spellCompartment.get(now.state);
+      if (Array.isArray(configured) && configured.length > 0) {
+        now.dispatch({ effects: spellCompartment.reconfigure([]) });
+      }
+      return;
+    }
     const configured = spellCompartment.get(now.state);
     const alreadyOn = Array.isArray(configured) && configured.length > 0;
     if (!alreadyOn) {
@@ -442,15 +454,23 @@ export default function Editor({
       }, 400);
     };
 
-    const ext = extensions(
-      onChange, onCursor, () => symbols.current, remoteMarker,
-      // Through the ref, because this effect runs once and the extension
-      // it builds lives as long as the pane: the prop is a callback that
-      // is rebuilt whenever the project changes, and a captured one would
-      // go on opening files in the project before this one.
-      (path, line) => opener.current?.(path, line),
-    );
-    const readOnlyExt = viewExtensions(() => symbols.current);
+    const ext = extensions(onChange, onCursor, remoteMarker);
+    const readOnlyExt = viewExtensions();
+    /** The language for a live buffer of `path`: LaTeX with its
+     *  completions and links, or Python for a script.  The link opener
+     *  goes through the ref, because this effect runs once and the
+     *  extension it builds lives as long as the pane: the prop is a
+     *  callback that is rebuilt whenever the project changes, and a
+     *  captured one would go on opening files in the project before this
+     *  one. */
+    const languageOf = (path: string) => languageFor(path, () => symbols.current, {
+      follow: (target, line) => opener.current?.(target, line),
+      complete: true,
+    });
+    /** The same, for a pane that cannot be edited: no completions, and
+     *  no following a reference out of a version being read. */
+    const readOnlyLanguageOf = (path: string) =>
+      languageFor(path, () => symbols.current);
     view.current = new EditorView({ parent: host.current, state: freshState("", ext) });
 
     /** Go and look at a line.
@@ -611,7 +631,10 @@ export default function Editor({
           // So the file is shown, read-only, and the reason is said out
           // loud rather than left for the writer to discover.
           const file = await api.readFile(projectId, path);
-          buffer = { state: freshState(file.text, readOnlyExt), release: () => {} };
+          buffer = {
+            state: freshState(file.text, readOnlyExt, readOnlyLanguageOf(path)),
+            release: () => {},
+          };
           set({
             error:
               `${path} is not connected to this project's shared documents, ` +
@@ -619,7 +642,9 @@ export default function Editor({
           });
         } else {
           buffer = {
-            state: freshState(opened.text.toString(), [...ext, opened.extension]),
+            state: freshState(
+              opened.text.toString(), [...ext, opened.extension], languageOf(path),
+            ),
             release: () => shared!.release(path),
           };
         }
@@ -675,7 +700,7 @@ export default function Editor({
       // have written the old text over it.
       const version = get().history.find((item) => item.sha === sha) ?? null;
       if (version) set({ viewing: { path, sha, version } });
-      editor.setState(freshState(file.text, readOnlyExt));
+      editor.setState(freshState(file.text, readOnlyExt, readOnlyLanguageOf(path)));
       afterSwap();
       refreshOutline();
       const target = Math.min(anchorLine, editor.state.doc.lines);

@@ -7,7 +7,9 @@ import {
   extensionOf,
   iconFor,
   isBib,
+  isCode,
   isData,
+  isScript,
   isTeX,
   isText,
   isViewable,
@@ -71,6 +73,20 @@ describe("what kind of thing a file is", () => {
     expect(iconFor("figures/pes.pdf")).toBe("pdf");
     expect(iconFor("figures/pes.png")).toBe("image");
     expect(iconFor("notes.odt")).toBe("file");
+    expect(iconFor("scripts/fig.py")).toBe("script");
+  });
+
+  test("a script and its style sheet are text, and code rather than prose", () => {
+    // The README promised the two files the plot tool seeds could be
+    // opened and changed; the editor called them binary for a year.
+    expect(isText("scripts/fig.py")).toBe(true);
+    expect(isText("scripts/plotstyle.mplstyle")).toBe(true);
+    expect(isCode("scripts/fig.py")).toBe(true);
+    expect(isCode("scripts/plotstyle.mplstyle")).toBe(true);
+    expect(isCode("chapters/one.tex")).toBe(false);
+    expect(isCode("notes.md")).toBe(false);
+    expect(isScript("scripts/fig.py")).toBe(true);
+    expect(isScript("scripts/plotstyle.mplstyle")).toBe(false);
   });
 });
 

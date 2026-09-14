@@ -45,6 +45,13 @@ STATE_DIR = ".nexttex"
 TEXT_SUFFIXES = {
     ".tex", ".ltx", ".sty", ".cls", ".bib", ".bst", ".md", ".txt",
     ".toml", ".yaml", ".yml", ".json", ".cfg", ".gitignore",
+    # The figure scripts the agent writes and the style sheet beside them.
+    # The README promised these could be opened and changed; while they
+    # were not here the file route refused them as binary and the editor
+    # showed a download card.  The columns a figure is drawn from are text
+    # too, and a dataset too large for a shared document becomes a blob at
+    # `MAX_TEXT_BYTES` in the collaboration store rather than here.
+    ".py", ".mplstyle", ".csv", ".tsv", ".dat",
 }
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".pdf", ".eps"}
 
