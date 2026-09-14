@@ -226,6 +226,16 @@ def test_a_report_longer_than_is_worth_pasting_is_cut(state):
     assert text.rstrip().endswith("(cut here: the report was longer than it is worth pasting)")
 
 
+def test_the_service_lines_describe_the_server_and_not_the_terminal(state, monkeypatch):
+    monkeypatch.setenv("INVOCATION_ID", "abc")
+    at_terminal = compose()
+    assert "composed at a terminal" in at_terminal
+    assert "INVOCATION_ID" not in at_terminal.split("## Service")[1].split("## ")[0]
+    from_server = compose(client={"browser": "", "errors": []})
+    assert "INVOCATION_ID  set" in from_server
+    assert "supervised     True" in from_server
+
+
 # -- the prefilled issue -----------------------------------------------------
 
 
