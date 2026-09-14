@@ -2,6 +2,8 @@
 // `request`, so the token, the error shape and the JSON handling are decided
 // once rather than at each call site.
 
+import { record, type Recorded } from "./errors";
+
 /** What one LaTeX message means, from the server's own rule table.  No
  *  model is involved: NextTex is a LaTeX editor before it is an AI tool,
  *  and somebody running it with no agent still gets told what went wrong. */
@@ -148,6 +150,14 @@ export type SearchHit = {
    *  a pattern the panel cannot work it out from the query. */
   length: number;
   text: string;
+};
+
+/** The bug report and where to take it.  `text` is already redacted;
+ *  `newIssue` is the form on GitHub with the short facts filled in. */
+export type Report = {
+  text: string;
+  newIssue: string;
+  slug: string;
 };
 
 export type Instance = {
@@ -352,6 +362,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* a non-JSON error body is still an error */
     }
+    // A 500 carries the reference the server logged under, and the report
+    // quotes both halves; nothing below the server's own fault is worth
+    // remembering here, since a 4xx is the page being told something.
+    if (response.status >= 500) record("api", `${response.status} ${path}: ${message}`);
     throw new ApiError(response.status, message);
   }
   if (response.status === 204) return undefined as T;
@@ -373,6 +387,10 @@ const api = {
    *  `boot` nonce changes when the process does -- which is how a page
    *  waiting out a restart knows the wait is over. */
   instance: () => request<Instance>("/instance"),
+  /** What the footer's Report a problem asks for.  What the browser saw
+   *  goes with it, so the server can redact it with the rest. */
+  report: (errors: Recorded[], browser: string) =>
+    request<Report>("/report", json({ errors, browser })),
   updateCheck: (force = false) =>
     request<UpdateReport>(`/update${force ? "?force=true" : ""}`),
   startUpdate: () => request<{ started: boolean }>("/update", json({})),

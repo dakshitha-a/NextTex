@@ -426,7 +426,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 812.6 kB | 860 kB |
+| Interface bundle | 818.1 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -1025,7 +1025,10 @@ screen you are looking at, which is usually faster than the files below.
 
 Something broke, and the thing that makes the difference between a fix and a
 question back is knowing what this install is and what it saw. NextTex writes
-that down for you:
+that down for you. On the projects screen, the footer has **Report a
+problem**: it puts the report on your clipboard, shows it to you, and offers
+to open the issue form on GitHub with the platform and commit already filled
+in. From a terminal, the same text is:
 
 ```sh
 cd ~/apps/NextTex
