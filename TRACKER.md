@@ -182,6 +182,19 @@ things go to be forgotten rather than a list anybody reads.
       and the photographs are the one part of the documents this run did not
       remake, because the headers were photographed at one and two on a
       machine this session does not have.
+- [ ] **A document followed onto the strip before a reload is not
+      followed after it.** The `followed` set in `frontend/src/App.tsx` is
+      browser memory, so after a reload every document on the strip reads
+      as asked for and closing the chapter that brought one there leaves
+      it. Persisting the origin would be a field in `.nexttex/previews.json`,
+      a stored format change and so a major version by the rule in
+      `CLAUDE.md`, for a per-window question; left until somebody misses it.
+- [ ] **Another window's removal of a preview closes no tabs here.**
+      `previews_changed` from elsewhere moves the strip and nothing else,
+      by design: the strip is shared and the tabs are each window's own.
+      Wiring `handlers.onPreviewsChanged` would make the two windows'
+      tabs move together and would also fire for this window's own
+      removal; revisit if two-window writers report the asymmetry.
 - [ ] **An unnumbered heading set at body size is not read as a heading by
       the inverse search.** A double-click on the page carries a hint that
       the span is a heading when it is set at least 15% larger than the

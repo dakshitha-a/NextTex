@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { CLOSED_CAP, afterClosing, neighbour, pushClosed, viewingClosed } from "./tabs";
+import {
+  CLOSED_CAP, afterClosing, neighbour, orphanedBy, pushClosed, unfollowed, viewingClosed,
+} from "./tabs";
 import type { Tab } from "./store";
 
 const strip = (...paths: string[]): Tab[] => paths.map((path) => ({ path }));
@@ -138,5 +140,69 @@ describe("pushClosed", () => {
     const stack = pushClosed([], many);
     expect(stack).toHaveLength(CLOSED_CAP);
     expect(stack[stack.length - 1]).toBe("29.tex");
+  });
+});
+
+describe("orphanedBy", () => {
+  const tabs = [
+    { path: "esi.tex" }, { path: "parts/two.tex" }, { path: "shared.tex" },
+    { path: "scratch.tex" }, { path: "main.tex" },
+  ];
+  const owners = {
+    "esi.tex": ["esi.tex"],
+    "parts/two.tex": ["esi.tex"],
+    "shared.tex": ["esi.tex", "main.tex"],
+    "main.tex": ["main.tex"],
+  };
+
+  it("closes the document's own file and its parts, and keeps the rest", () => {
+    expect(orphanedBy(tabs, owners, ["main.tex"])).toEqual(["esi.tex", "parts/two.tex"]);
+  });
+
+  it("keeps a file another document on the strip still reads", () => {
+    expect(orphanedBy(tabs, owners, ["main.tex"])).not.toContain("shared.tex");
+  });
+
+  it("closes a shared file when every document that read it has gone", () => {
+    expect(orphanedBy(tabs, owners, [])).toEqual([
+      "esi.tex", "parts/two.tex", "shared.tex", "main.tex",
+    ]);
+  });
+
+  it("never closes a file nothing is known to read", () => {
+    expect(orphanedBy(tabs, owners, [])).not.toContain("scratch.tex");
+    expect(orphanedBy([{ path: "new.tex" }], {}, [])).toEqual([]);
+  });
+});
+
+describe("unfollowed", () => {
+  const owners = {
+    "parts/two.tex": ["esi.tex"],
+    "main.tex": ["main.tex"],
+    "shared.tex": ["esi.tex", "main.tex"],
+  };
+
+  it("drops a followed document once none of its files is open", () => {
+    expect(unfollowed(["esi.tex"], ["main.tex", "esi.tex"], "main.tex", [{ path: "main.tex" }], owners))
+      .toEqual(["esi.tex"]);
+  });
+
+  it("keeps it while any file it reads is open, shared or not", () => {
+    expect(unfollowed(["esi.tex"], ["main.tex", "esi.tex"], "esi.tex", [{ path: "shared.tex" }], owners))
+      .toEqual([]);
+  });
+
+  it("ignores documents the writer asked for", () => {
+    expect(unfollowed([], ["main.tex", "esi.tex"], "esi.tex", [], owners)).toEqual([]);
+  });
+
+  it("ignores a followed document that has already left the strip", () => {
+    expect(unfollowed(["esi.tex"], ["main.tex"], "main.tex", [], owners)).toEqual([]);
+  });
+
+  it("never empties the strip, keeping the one in front", () => {
+    expect(unfollowed(["esi.tex", "main.tex"], ["main.tex", "esi.tex"], "esi.tex", [], owners))
+      .toEqual(["main.tex"]);
+    expect(unfollowed(["esi.tex"], ["esi.tex"], null, [], owners)).toEqual([]);
   });
 });
