@@ -57,3 +57,12 @@ describe("why there is no preview", () => {
     expect(absenceFrom(missing, undefined)).toBe("unbuilt");
   });
 });
+
+test("a strip with nothing on it is its own answer, whatever the build says", () => {
+  // The only document went to the trash.  The 404 is the same one an
+  // empty folder gets, and the pane must not offer that project a
+  // template as if it were new.
+  expect(absenceFrom(missing, BUILT, false)).toBe("nodocument");
+  expect(absenceFrom(missing, NEVER_BUILT, false)).toBe("nodocument");
+  expect(absenceFrom(missing, NEVER_BUILT, true)).toBe("unbuilt");
+});

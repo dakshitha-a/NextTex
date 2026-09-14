@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  CLOSED_CAP, afterClosing, neighbour, orphanedBy, pushClosed, unfollowed, viewingClosed,
+  CLOSED_CAP, afterClosing, movedPath, neighbour, orphanedBy, pushClosed, renamePaths,
+  unfollowed, viewingClosed,
 } from "./tabs";
 import type { Tab } from "./store";
 
@@ -204,5 +205,39 @@ describe("unfollowed", () => {
     expect(unfollowed(["esi.tex", "main.tex"], ["main.tex", "esi.tex"], "esi.tex", [], owners))
       .toEqual(["main.tex"]);
     expect(unfollowed(["esi.tex"], ["esi.tex"], null, [], owners)).toEqual([]);
+  });
+});
+
+describe("renamePaths", () => {
+  const before = () => ({
+    tabs: strip("main.tex", "chapters/one.tex", "notes.md"),
+    activePath: "chapters/one.tex",
+    viewing: { path: "chapters/one.tex" },
+    previews: ["main.tex", "esi.tex"],
+    activePreview: "main.tex",
+    builds: { "main.tex": { compiling: false, stale: false, result: null, pdfStamp: 1 } },
+    diagnosticsByDoc: { "esi.tex": [] },
+  });
+
+  it("follows a file and everything under a moved folder", () => {
+    expect(movedPath("chapters/one.tex", "chapters", "parts")).toBe("parts/one.tex");
+    expect(movedPath("chapters.tex", "chapters", "parts")).toBeNull();
+    const after = renamePaths(before(), { chapters: "parts", "main.tex": "paper.tex" });
+    expect(after.touched).toBe(true);
+    expect(after.tabs.map((tab) => tab.path)).toEqual(
+      ["paper.tex", "parts/one.tex", "notes.md"],
+    );
+    expect(after.activePath).toBe("parts/one.tex");
+    expect(after.viewing?.path).toBe("parts/one.tex");
+    expect(after.previews).toEqual(["paper.tex", "esi.tex"]);
+    expect(after.activePreview).toBe("paper.tex");
+    expect(Object.keys(after.builds)).toEqual(["paper.tex"]);
+    expect(Object.keys(after.diagnosticsByDoc)).toEqual(["esi.tex"]);
+  });
+
+  it("says when nothing moved, so the caller does not write the store", () => {
+    const after = renamePaths(before(), { "figures/a.pdf": "figures/b.pdf" });
+    expect(after.touched).toBe(false);
+    expect(after.tabs).toEqual(before().tabs);
   });
 });

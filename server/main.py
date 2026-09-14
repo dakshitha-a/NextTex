@@ -2121,6 +2121,14 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
     # first and adopts the second, and every browser editing it carries on
     # looking normal while nothing it types reaches disk again.
     session.collab.rename(path, to)
+    # The strip before the tabs.  A previewed document that moves is
+    # re-registered under its new name and `previews_changed` carries the
+    # mapping, and the browser moves its tabs and the strip in one store
+    # write when it reads that event, so the effect that makes the page
+    # follow the file never sees the two disagree.  Published first for
+    # that reason: with the tabs moved first the effect asked the server
+    # about the new name before the server had reconciled.
+    await session.reconcile_documents(moved={path: to})
     # A second tab has the file open under its old name, and the watcher
     # only tells it the tree changed -- not that this path became that one.
     # Every tab gets this, the originating one included, which is safe
@@ -2179,6 +2187,8 @@ async def delete_file(project_id: str, path: str):
     if not target.exists():
         raise HTTPException(404, "no such file")
     entry = session.trash.delete(target)
+    # A previewed document, or a folder holding one, leaves the strip.
+    await session.reconcile_documents(gone=[session.project.relative(target)])
     await session.events.publish({"type": "trash_changed"})
     # Structural: a name has gone from the tree, which every open tab has
     # to redraw, and the document re-scan behind `files_changed` has to
@@ -2226,6 +2236,20 @@ async def restore_trash(project_id: str, entry_id: str):
         session.collab.untrash(was, relative, read_text(restored))
         session.note_edit(restored, read_text(restored), None)
     session.schedule_compile()
+    # A document coming back comes back onto the strip.  A chapter does not
+    # need to: its document was never taken off.  Read with the graph fresh,
+    # because the restore has just changed who reads what.
+    session.deps.invalidate()
+    for relative in result["restored"]:
+        if not relative.lower().endswith((".tex", ".ltx")):
+            continue
+        if session.deps.root_of(relative) != relative:
+            continue
+        try:
+            state = await session.register_preview(relative)
+        except (ValueError, OSError):
+            continue
+        spawn(session.compile(document=state.path), "the first build of a restored document")
     return {"ok": True, **result}
 
 

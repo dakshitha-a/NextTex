@@ -522,6 +522,126 @@ class ProjectSession:
         await state.compiler.cancel()
         state.compiler.cleanup()
 
+    async def reconcile_documents(
+        self,
+        *,
+        moved: dict[str, str] | None = None,
+        gone: list[str] | tuple[str, ...] = (),
+    ) -> None:
+        """Keep the strip in step with the files it names.
+
+        Nothing did.  A previewed `main.tex` renamed to `thesis.tex` left
+        `documents` keyed by a path that no longer existed, with a scheduler
+        that would build a missing file, `previews.json` naming the old
+        path and the tab wearing the old name until the next open quietly
+        dropped it; a deleted document stayed registered and its stale PDF
+        went on being served.  Every path a change can arrive by comes
+        through here: the rename and delete routes name what moved or
+        went, the watcher's re-scan names nothing and the check against the
+        disk finds it, and a peer's rename arrives through `note_moved`.
+
+        A moved document, or one under a moved folder, is re-registered
+        under its new name at the same place on the strip, visible if it
+        was, and given a build so its page comes back without a keystroke.
+        A gone one, or one whose file is no longer there, leaves; the
+        "last document stays" refusal is for the writer's own close
+        gesture and does not apply, so a strip whose only document was
+        deleted becomes empty, which the pane already draws.  A move whose
+        new name would share a jobname with another document on the strip
+        cannot be registered, so it leaves too, and the notice says so:
+        the strip silently staying put is the failure a writer cannot work
+        out the cause of.  Nothing matched means nothing published, so a
+        chapter's rename does not redraw every strip.
+        """
+        moved = moved or {}
+        away = set(gone)
+
+        def under(path: str, prefix: str) -> bool:
+            return path == prefix or path.startswith(prefix + "/")
+
+        def destination(path: str) -> str | None:
+            for old, new in moved.items():
+                if under(path, old):
+                    return new + path[len(old):]
+            return None
+
+        order = list(self.documents)
+        # What each document becomes: its own name, a new one, or nothing.
+        fate: dict[str, str | None] = {}
+        for name in order:
+            target = destination(name)
+            if target is not None:
+                fate[name] = target
+            elif any(under(name, g) for g in away):
+                fate[name] = None
+            elif not self.project.resolve(name).is_file():
+                fate[name] = None
+            else:
+                fate[name] = name
+        changed = any(fate[name] != name for name in order)
+        if not changed:
+            return
+
+        renamed: dict[str, str] = {}
+        notices: list[str] = []
+        for name in order:
+            if fate[name] == name:
+                continue
+            await self._retire(self.documents[name])
+            # Out of the registry before any new name goes in: `_register`
+            # checks jobnames against everything registered, so a same-stem
+            # move, `main.tex` to `old/main.tex`, would collide with itself.
+            self.documents.pop(name, None)
+        for name in order:
+            target = fate[name]
+            if target is None or target == name:
+                continue
+            try:
+                replacement = self._register(target)
+            except (ValueError, OSError) as error:
+                notices.append(str(error))
+                continue
+            renamed[name] = replacement.path
+        # The strip in its old order, with each new name where the old
+        # one was.
+        self.documents = {
+            renamed.get(name, name): self.documents[renamed.get(name, name)]
+            for name in order
+            if renamed.get(name, name) in self.documents
+        }
+        if self.visible in renamed:
+            self.visible = renamed[self.visible]
+        elif self.visible not in self.documents:
+            # The nearest survivor on the left of where it was, the way
+            # `unregister_preview` lands after closing a tab, else the first.
+            at = order.index(self.visible) if self.visible in order else 0
+            left = [renamed.get(n, n) for n in order[:at]]
+            survivors = [n for n in reversed(left) if n in self.documents]
+            self.visible = survivors[0] if survivors else next(iter(self.documents), "")
+        self.previews.save(list(self.documents))
+        await self._publish_documents(
+            renamed=renamed, notice="; ".join(notices)
+        )
+        for new in renamed.values():
+            spawn(self.compile(document=new), "rebuilding a renamed document")
+
+    def note_moved(self, was: str, now: str) -> None:
+        """A file moved by something other than the rename route: a peer.
+
+        The route tells every tab itself; a peer's rename lands on disk
+        through the collaboration store, which cannot await, so this
+        spawns what the route does inline: the strip first, so a browser
+        moves both strips in one write, then the tabs, then the tree.
+        """
+        async def follow() -> None:
+            await self.reconcile_documents(moved={was: now})
+            await self.events.publish({"type": "renamed", "from": was, "to": now})
+            await self.events.publish(
+                {"type": "files_changed", "paths": [now], "structural": True}
+            )
+
+        spawn(follow(), "following a peer's rename")
+
     def _after_publish(self, event: dict) -> None:
         """Re-scan the documents when the files they are found among change.
 
@@ -557,11 +677,23 @@ class ProjectSession:
             "visible": self.visible,
         }
 
-    async def _publish_documents(self) -> None:
+    async def _publish_documents(self, *, renamed: dict[str, str] | None = None,
+                                 notice: str = "") -> None:
         self.deps.invalidate()
-        await self.events.publish(
-            {"type": "previews_changed", **self.documents_payload()}
-        )
+        # A document whose file has gone leaves here, which is the path an
+        # outside `mv`, an `rm`, a `git checkout` or the agent's own shell
+        # take: they reach this only as the watcher's `files_changed`.
+        if renamed is None and any(
+            not self.project.resolve(name).is_file() for name in self.documents
+        ):
+            await self.reconcile_documents()
+            return
+        payload = {"type": "previews_changed", **self.documents_payload()}
+        if renamed:
+            payload["renamed"] = renamed
+        if notice:
+            payload["notice"] = notice
+        await self.events.publish(payload)
 
     # -- editor -----------------------------------------------------------
     def note_selection(self, selection: dict) -> None:

@@ -1,4 +1,5 @@
-import type { Tab } from "./store";
+import type { Diagnostic } from "./api";
+import type { DocBuild, Tab } from "./store";
 
 /** What a bulk close leaves behind.
  *
@@ -139,4 +140,86 @@ export function unfollowed(
     return going.filter((document) => document !== keep);
   }
   return going;
+}
+
+/** Where a path is after `from` became `to`, or null if it did not move.
+ *
+ *  A folder that moves takes every file under it, so this follows a path
+ *  prefix rather than an exact match.  Matching only the moved path itself
+ *  left every tab inside a moved folder pointing at a file that was no
+ *  longer there, and the next save wrote it back to the old place.
+ */
+export function movedPath(path: string, from: string, to: string): string | null {
+  if (path === from) return to;
+  if (path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
+  return null;
+}
+
+/** Everything in the store that names a path, after a rename.
+ *
+ *  One function for the two callers, the route's `renamed` event and the
+ *  `renamed` map a `previews_changed` carries, so the prefix rule exists
+ *  once.  The second caller is why the strip's fields are here too: the
+ *  tabs and the strip have to move in one store write, because the effect
+ *  that makes the page follow the file runs on either changing and, with
+ *  the strip moved and the tab still under its old name, asked the server
+ *  to preview a file that no longer existed.  `touched` says whether
+ *  anything moved, so a caller with nothing to do does not write the
+ *  store and redraw both strips.
+ */
+export function renamePaths(
+  state: {
+    tabs: Tab[];
+    activePath: string | null;
+    viewing: { path: string } | null;
+    previews: string[];
+    activePreview: string;
+    builds: Record<string, DocBuild>;
+    diagnosticsByDoc: Record<string, Diagnostic[]>;
+  },
+  renamed: Record<string, string>,
+): {
+  touched: boolean;
+  tabs: Tab[];
+  activePath: string | null;
+  viewing: typeof state.viewing;
+  previews: string[];
+  activePreview: string;
+  builds: Record<string, DocBuild>;
+  diagnosticsByDoc: Record<string, Diagnostic[]>;
+} {
+  const moved = (path: string): string | null => {
+    for (const [from, to] of Object.entries(renamed)) {
+      const next = movedPath(path, from, to);
+      if (next !== null) return next;
+    }
+    return null;
+  };
+  let touched = false;
+  const follow = (path: string): string => {
+    const next = moved(path);
+    if (next === null) return path;
+    touched = true;
+    return next;
+  };
+  const rekey = <T,>(record: Record<string, T>): Record<string, T> => {
+    const out: Record<string, T> = {};
+    for (const [key, value] of Object.entries(record)) out[follow(key)] = value;
+    return out;
+  };
+  const tabs = state.tabs.map((tab) => {
+    const next = moved(tab.path);
+    if (next === null) return tab;
+    touched = true;
+    return { ...tab, path: next };
+  });
+  const activePath = state.activePath === null ? null : follow(state.activePath);
+  const viewing = state.viewing ? { ...state.viewing, path: follow(state.viewing.path) } : null;
+  const previews = state.previews.map(follow);
+  const activePreview = state.activePreview ? follow(state.activePreview) : state.activePreview;
+  const builds = rekey(state.builds);
+  const diagnosticsByDoc = rekey(state.diagnosticsByDoc);
+  return {
+    touched, tabs, activePath, viewing, previews, activePreview, builds, diagnosticsByDoc,
+  };
 }

@@ -25,7 +25,7 @@ async function withScript({ app, project, page }: any, body = HELLO) {
   await page.getByText("Projects", { exact: false }).first().waitFor();
   await openProject(page, project.root);
   await openFolders(page, "scripts/hello.py");
-  await page.locator('[data-path="scripts/hello.py"]').click();
+  await page.locator('[role="tree"] [data-path="scripts/hello.py"]').click();
   await expect(page.locator(".cm-content")).toContainText("def greet", { timeout: 15_000 });
 }
 

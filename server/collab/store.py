@@ -915,6 +915,13 @@ class CollabStore:
             # Without this the past stays filed under the old name, and the
             # file's whole history is unreachable from either name.
             session.history.note_move(was, now_called)
+            # And the strip and the tabs follow, the way they do for a
+            # rename made here.  Through a hook, because this runs inside
+            # an observer and cannot await; a stub session in a test may
+            # not have one.
+            noted = getattr(session, "note_moved", None)
+            if noted is not None:
+                noted(was, now_called)
         self._named[file_id] = now_called
 
     def _trash_locally(self, was: str) -> bool:

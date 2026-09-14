@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, expect, openFolders, openProject } from "../fixtures";
+import { watchEvents } from "../events";
 
 /** Previewing more than one document.
  *
@@ -233,4 +234,89 @@ test("the documents can be changed with a mouse below 900px", async ({
   await expect(page.getByTestId("preview-tab-main.tex")).toHaveAttribute(
     "aria-current", "true",
   );
+});
+
+/** The strip follows the files it names.
+ *
+ *  A previewed document renamed from the tree was left on the strip under
+ *  its old name, with a scheduler building a file that no longer existed,
+ *  until the next open quietly dropped it; a deleted one stayed and its
+ *  stale page went on being served.  The strip and the tabs now move
+ *  together, and a document that goes to the trash leaves the strip and
+ *  comes back with the file.
+ */
+
+test("renaming a previewed document moves its tab and its page together", async ({
+  app, project, page,
+}) => {
+  await withEsi({ app, project, page });
+  await page.getByTestId("add-preview").click();
+  await page.getByRole("menuitem", { name: "esi.tex" }).click();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toBeVisible();
+  // Back to main, open in the editor and in front on the strip.
+  await page.getByTestId("preview-tab-main.tex").click();
+  await page.locator('[role="tree"] [data-path="main.tex"]').click();
+  await expect(page.locator(".cm-content")).toContainText("documentclass");
+
+  const watch = await watchEvents(app, project.id);
+  const builds = watch.count("compile_start");
+  await page.getByLabel("Actions for main.tex").click();
+  await page.getByRole("button", { name: "Rename" }).click();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("paper.tex");
+  await page.keyboard.press("Enter");
+
+  // Same place on the strip, new name, still in front; the source tab
+  // followed; and nothing complained, which is the race this guards: the
+  // strip moving while the tab still said main.tex asked the server to
+  // preview a file that no longer existed.
+  const tabs = page.getByTestId("preview-header").locator('[data-testid^="preview-tab-"]');
+  await expect(page.getByTestId("preview-tab-paper.tex")).toBeVisible({ timeout: 10_000 });
+  await expect(tabs.first()).toHaveAttribute("data-testid", "preview-tab-paper.tex");
+  await expect(page.getByTestId("preview-tab-main.tex")).toHaveCount(0);
+  await expect(page.getByTestId("preview-tab-paper.tex")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByTestId("source-strip").locator('[data-path="paper.tex"]')).toBeVisible();
+  await expect(page.getByTestId("source-strip").locator('[data-path="main.tex"]')).toHaveCount(0);
+  await expect(page.getByTestId("notices")).toBeEmpty();
+  // And the page came back without a keystroke.
+  await expect.poll(() => watch.count("compile_start"), { timeout: 15_000 }).toBeGreaterThan(builds);
+  watch.stop();
+});
+
+test("a document that goes to the trash leaves the strip and comes back with the file", async ({
+  app, project, page,
+}) => {
+  await withEsi({ app, project, page });
+  await page.getByTestId("add-preview").click();
+  await page.getByRole("menuitem", { name: "esi.tex" }).click();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toBeVisible();
+
+  await page.getByLabel("Actions for esi.tex").click();
+  await page.getByRole("button", { name: "Move to trash" }).click();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByTestId("preview-tab-main.tex")).toHaveAttribute("aria-current", "true");
+
+  await page.getByRole("button", { name: /deleted/ }).click();
+  const entry = page.getByTestId("trash-entry").filter({ hasText: "esi" });
+  await expect(entry).toBeVisible({ timeout: 10_000 });
+  await entry.hover();
+  await entry.getByRole("button", { name: "Restore" }).click();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toBeVisible({ timeout: 10_000 });
+});
+
+test("deleting the only document leaves a strip that says so", async ({
+  app, project, page,
+}) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.getByTestId("preview-tab-main.tex")).toBeVisible();
+
+  await page.getByLabel("Actions for main.tex").click();
+  await page.getByRole("button", { name: "Move to trash" }).click();
+  await expect(page.getByTestId("preview-tab-main.tex")).toHaveCount(0, { timeout: 10_000 });
+  // Not "load a template": this project has content, and the way back is
+  // the trash.
+  await expect(page.getByText("No document to preview.")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "Load a basic document" })).toHaveCount(0);
 });
