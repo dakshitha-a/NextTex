@@ -5846,3 +5846,59 @@ the shortcut calls the same `toggleFocus` the double click does. The
 browser test opens eight files, measures the blank run at under eight
 pixels, and enters writing mode from the keyboard.
 
+### A double-click on a heading lands on its section line
+
+Body text landed on the right word and headings did not, and only on
+pages after the first, which is the shape of a bug in the page arithmetic
+and was not one: nothing in the click-to-synctex-to-editor path treats
+page one differently. Measured with `synctex edit` against a built thesis,
+a heading's synctex box runs from the top of its glyphs to its *baseline*,
+so the lower part of the glyph box, which is where a pointer aimed at a
+big word tends to land, already resolves to the paragraph beneath. Body
+text has the same edge and nobody sees it, because a one-line miss inside
+a paragraph is repaired by the word search and lands in the same paragraph
+anyway.
+
+For a heading the repair was what made it flaky rather than merely off.
+The search started from the line synctex named, the paragraph under the
+heading, and walked below before above, matching the heading's word
+case-insensitively wherever a letter boundary allowed: in the body's first
+sentence, which for "Results" or "Methods" very often opens with the
+heading's own word; or inside `\label{sec:results}` on the line between,
+because a colon is a boundary. The `\section` line was two steps up and
+was reached last. Page one looked fine because "Introduction" rarely
+recurs in its own first paragraph.
+
+Three things changed, and the browser test that reproduces the report,
+a second-page `\section{Results}` followed by its label and a paragraph
+opening with "Results", clicked at 85% of the heading span's height, was
+red before them and green after:
+
+- **The page is asked at the middle of the span**, not at the pointer.
+  The text layer's span is the typeset line, and its vertical middle is
+  inside the synctex box for a heading and for a body line alike. The one
+  pixel border of `.nx-page` is subtracted at the same time; it was in
+  the rectangle and not in the canvas.
+- **Keys are not prose.** The search runs on a copy of each line with the
+  arguments of `\label`, `\ref`, `\cite`, `\input`, `\includegraphics`
+  and their relatives blanked at the same length, and everything after
+  an unescaped `%` blanked too, so a column found in the copy is a column
+  in the line.
+- **The click carries a hint.** Beside the word, the whole span's text and
+  whether the span reads as a heading: set at least 15% larger than the
+  most common span size on the page, or opening with a section number.
+  With the hint the search looks for a `\section`-shaped line first, and
+  above before below, since the line synctex named is under the heading;
+  the span's other words then break ties between lines that all hold the
+  word, so a paragraph and the heading above it are told apart by the
+  rest of what the writer clicked on. A heading's number, which is no
+  word to search for, stands the nearest heading line in. An unnumbered
+  `\paragraph{}` set at body size is missed by both readings and gets
+  the ordinary search, which is no worse than before.
+
+The writer also asked, mid-run, that with several documents previewed a
+double-click open the source of the one on screen. It did: the preview
+already asks synctex about the document under the pointer. The browser
+test that says so previews a second document, opens something else in the
+editor, and double-clicks the second document's page.
+

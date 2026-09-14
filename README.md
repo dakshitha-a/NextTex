@@ -426,7 +426,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 824.3 kB | 860 kB |
+| Interface bundle | 825.5 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -732,7 +732,10 @@ a strip and the typeset page gets the screen. The empty part of the tab strip
 does the same for writing, except that it keeps the file list, because you are
 still moving between chapters. Double-click again and your layout comes back
 exactly as you left it, including what you had already folded away. A single
-click on either folds just that pane, as it does on the agent's header.
+click on either folds just that pane, as it does on the agent's header. Both
+modes have a key as well, `⌘⌥R` / `Ctrl-Alt-R` for reading and `⌘⌥E` /
+`Ctrl-Alt-E` for writing, for when the tab strip is full and there is nothing
+left to double-click.
 
 Right-click the tab you are working in and you can close every other tab,
 close the lot, or duplicate the file. A duplicate arrives beside the original

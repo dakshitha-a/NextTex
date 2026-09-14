@@ -4,6 +4,7 @@
 // lets components subscribe to exactly the slice they draw.
 
 import { useSyncExternalStore } from "react";
+import type { WordHint } from "./panes/locate-word";
 import type { Heading } from "./outline";
 import { afterReconcile } from "./agent-state";
 import api, {
@@ -155,8 +156,9 @@ export type State = {
     path: string;
     line?: number;
     /** From a double-click on the typeset page: the word that was under
-     *  the pointer, used to place the cursor exactly. */
-    word?: string;
+     *  the pointer, used to place the cursor exactly, with what the page
+     *  could say about the line it sat in. */
+    word?: string | WordHint;
     /** False when the agent is saying where it is about to write, rather
      *  than the writer asking to be taken somewhere. The pane scrolls and
      *  the range flashes; the caret stays where they put it. */

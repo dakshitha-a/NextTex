@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
+import type { WordHint } from "./panes/locate-word";
 import api, { captureToken, landingAfter, startDownload, type WordScope } from "./api";
 import { forget, keep, recall, recallText } from "./remember";
 import { rangeFor, scopesFor } from "./words";
@@ -508,9 +509,9 @@ export default function App() {
     path: string,
     line?: number,
     /** The word a double-click on the page landed on, when that is where
-     *  this came from. The editor puts the cursor on it rather than at the
-     *  start of the line. */
-    word?: string,
+     *  this came from, with what the page could say about its line. The
+     *  editor puts the cursor on it rather than at the start of the line. */
+    word?: string | WordHint,
     /** False when this is the agent saying where it is about to write.
      *  The pane scrolls and the range flashes; the caret is left where the
      *  writer put it. */
@@ -2261,7 +2262,7 @@ export default function App() {
           <Pdf
             document={activePreview}
             handleRef={(handle) => (pdf.current = handle)}
-            onNavigate={(file, line, word) => openFile(file, line, word)}
+            onNavigate={(file, line, hint) => openFile(file, line, hint)}
             onLoadTemplate={async () => {
               const id = get().projectId;
               if (!id) return;
