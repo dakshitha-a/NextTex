@@ -994,6 +994,7 @@ there, and somebody would have to invite you back.
 | `F8`, `Shift-F8` | Next and previous error |
 | `⌘`-click / `Ctrl`-click, on a `\ref` or `\input` | Go to the label, or open the file |
 | Typing, in the file tree | Jump to a file |
+| `↹` or `↵`, in the completion list | Take the suggestion |
 | `F2`, `Delete`, in the file tree | Rename, move to trash |
 | `Esc`, in the agent panel | Stop the turn if one is running, otherwise close the panel |
 | `A`, `⇧A`, `C`, `D`, in a permission card | Allow, allow always, allow for this conversation, deny |

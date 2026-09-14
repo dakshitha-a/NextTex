@@ -121,6 +121,46 @@ test("completion offers the project's own labels", async ({ tab }) => {
   await expect(tab.locator(".cm-tooltip-autocomplete")).toContainText("eq:");
 });
 
+test("Tab accepts the selected completion, as Enter does", async ({ tab }) => {
+  // The completion keymap binds Enter alone. A writer whose hands know Tab
+  // from every other editor pressed it and got an indent in front of the
+  // half-typed command, with the list still open.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type("\n\\secti");
+  await expect(tab.locator(".cm-tooltip-autocomplete")).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(
+    tab.locator(".cm-tooltip-autocomplete li[aria-selected]"),
+  ).toContainText("\\section");
+  // CodeMirror refuses to accept a list younger than 75 ms
+  // (`interactionDelay`), so a keypress that could not have been aimed at
+  // it is not taken as one, and the clock restarts each time the list is
+  // refilled, which the last keystroke's query does after the list is
+  // already on screen. A person is slower than that; the test has to be
+  // too, and there is nothing in the DOM that says the clock has run.
+  await tab.waitForTimeout(400);
+  await tab.keyboard.press("Tab");
+  await expect(tab.locator(".cm-tooltip-autocomplete")).toHaveCount(0);
+  // The whole line, anchored: an indent in front of the half-typed
+  // command is what the bug produced, and `toContainText` trims.
+  await expect(tab.locator(".cm-activeLine")).toHaveText(/^\\section\{title\}$/);
+});
+
+test("Tab with no completion open still indents", async ({ tab }) => {
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type("\nplain words");
+  await expect(tab.locator(".cm-tooltip-autocomplete")).toHaveCount(0);
+  await tab.keyboard.press("Home");
+  await tab.keyboard.press("Tab");
+  // `indentWithTab` puts the line's indentation in, whatever the unit is;
+  // what matters is that the words are still there and something is in
+  // front of them.
+  await expect(tab.locator(".cm-activeLine")).toHaveText(/^\s+plain words$/);
+});
+
 test("hovering an equation shows it typeset", async ({ tab }) => {
   // Written here rather than found in the template: CodeMirror only renders
   // the lines on screen, and typing scrolls the caret into view.

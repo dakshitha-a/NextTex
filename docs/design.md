@@ -5600,3 +5600,26 @@ every answer of 500 or worse from the server, whose message carries the
 eight-hex reference the server logged under. That reference is the join
 between what the writer saw and the line the report quotes from the log.
 Nothing here calls `preventDefault`, so the console still shows all of it.
+
+## 32. Six things the writer asked for in one message
+
+A batch rather than a review: the spelling menu on light pages, inverse
+search on headings, column selection, the tab strips and their shortcuts,
+an emphasis setting, and Tab for completions. Each subsection records what
+was observed, what the cause was, and what was decided against.
+
+### Tab takes the completion
+
+The completion keymap binds Enter alone. A writer whose hands know Tab
+from every other editor pressed it with the list open and got two spaces
+in front of the half-typed command, list still showing. `acceptCompletion`
+is now bound to Tab ahead of `indentWithTab`; it returns false when no
+list is open or nothing in it is selected, so a Tab typed anywhere else
+still indents. Nothing about Enter changed.
+
+One thing the test had to learn: CodeMirror refuses to accept a list
+younger than 75 ms, and that clock restarts each time the list is refilled,
+which the last keystroke's query does after the list is already on screen.
+A person is slower than that. The test waits, with the reason beside it,
+because nothing in the DOM says the clock has run.
+
