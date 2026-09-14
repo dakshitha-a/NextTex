@@ -24,10 +24,6 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-- [ ] Bug reports through GitHub: `nexttex/report.py` and `--report` (done),
-      the footer's *Report a problem* control, the issue form and intake
-      workflow, a runbook under docs/, a CLAUDE.md and the `/fix-issue`
-      skill. Each lands in its own commit; this line goes with the last.
 - [ ] Delete the superseded Artifact trackers from the gallery at
       claude.ai/code/artifacts. Ten NextTex pages, from Reworking the Agent
       Panel back to the Release Tracker. Nothing here can do it: publishing an
@@ -38,6 +34,25 @@ things go to be forgotten rather than a list anybody reads.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **`server/run.py --version` cannot answer on a broken virtual
+      environment.** The file imports uvicorn before it reads its
+      arguments. `--report` has `python -m nexttex.report` as its bare
+      interpreter spelling; `--version` has none, and the answer is in the
+      report anyway, so this waits for somebody to want it on its own.
+- [ ] **The server prints its token URL to stdout at every start**, so
+      `server.log` on macOS and Windows, and the journal on Linux, hold the
+      token in clear for the life of the log. The bug report redacts it,
+      and `update.sh` prints it too. Printing it once, to a terminal, and
+      telling a service to ask `--print-url` would close it; left because
+      the log is 0600 and the fix touches every launcher.
+- [ ] **The bug report has no Windows event log section.** `server.err.log`
+      covers a server that started; a launcher that never got that far
+      leaves its trace in the task's history, which `Get-WinEvent` can read.
+      Waits for a Windows reporter whose report comes back empty.
+- [ ] **The issue form's `where` field is an input rather than a dropdown**
+      because GitHub does not prefill dropdowns from a URL. If that changes,
+      a dropdown for the platform would make the field sortable.
 
 - [ ] **The scheduled lane runs with `--tex=none`.** The TinyTeX shape has
       been dispatched by hand on all three runners and is green, with
