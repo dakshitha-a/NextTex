@@ -71,21 +71,28 @@ test("Ctrl-clicking a reference goes to the label", async ({ tab }) => {
   });
 });
 
-test("a Ctrl-click on ordinary prose is an ordinary click", async ({ tab }) => {
-  // The modifier is the one CodeMirror reads for a second cursor, so what
+test("a Ctrl-click on ordinary prose adds a caret there", async ({ tab }) => {
+  // The modifier is the one CodeMirror reads for a second caret, so what
   // matters is that taking it for references does not swallow it
-  // everywhere else. This editor does not enable multiple selections, so
-  // an ordinary click is all there is to be left alone.
-  // Two lines, and the caret left on the second, so moving it to the
-  // first is something the click has to have done.
+  // everywhere else. Multiple selections are on now (column selection
+  // needs them), so a Ctrl-click off a link means what it means in every
+  // other editor: a second caret, with the first left where it was. Two
+  // lines, the caret on the second, and the click on the first, so both
+  // lines end up active and one of them is the one clicked.
   await write(tab, "An ordinary sentence with no reference in it.");
   await tab.keyboard.type("\nAnd a second one, where the caret is now.");
   const point = await pointAt(tab, "An ordinary sentence", "ordinary");
   expect(point).not.toBeNull();
   await modifierClick(tab, point!);
-  await expect(tab.locator(".cm-activeLine")).toContainText("An ordinary sentence", {
-    timeout: 10_000,
-  });
+  const active = tab.locator(".cm-activeLine");
+  await expect(active).toHaveCount(2, { timeout: 10_000 });
+  await expect(active.first()).toContainText("An ordinary sentence");
+  await expect(active.last()).toContainText("And a second one");
+  // And it is a caret, not a selection: typing lands on both lines. The
+  // click point is somewhere inside the word, so only the line is asserted.
+  await tab.keyboard.type("Z");
+  await expect(active.first()).toHaveText(/^An o\w*Z\w* sentence with no reference in it\.$/);
+  await expect(tab.locator(".cm-content")).toContainText("caret is now.Z");
 });
 
 test("hovering a citation shows who wrote it", async ({ tab }) => {
