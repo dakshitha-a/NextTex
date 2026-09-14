@@ -6238,3 +6238,51 @@ every identifier in a script is a word the dictionary has never heard of.
 The file tree draws a script with a play mark on the sheet, the same mark
 the run control carries below, and nothing else in the tree has a
 triangle on it.
+
+### A document that moves keeps its tab, and one that goes takes it
+
+The writer's first request was one sentence: if a source file is moved,
+renamed or deleted, reconcile the preview or close it, so a new one can be
+built. Reading for it found that nothing had ever tried. A previewed
+`main.tex` renamed from the tree stayed on the strip under its old name,
+with a scheduler that would build a file no longer there, and the next
+open dropped it without a word; a deleted document kept its tab and its
+stale page. The mechanics are `reconcile_documents` and are described in
+`docs/architecture.md`; this section is what the writer sees.
+
+**A rename moves the tab where it is.** `main.tex` becoming `paper.tex`
+leaves the strip in the same order with the new name in the old place,
+still in front if it was, and the page rebuilds on its own. The source
+tab moves at the same instant, because the server's `previews_changed`
+carries the mapping and the browser moves both strips in one store
+write, the rule §34 established for closing. The order mattered: with the
+strip moved and the source tab still reading the old name, the effect
+that makes the page follow the file asked the server to preview a file
+that no longer existed and put its refusal on screen as a notice. The
+browser test renames a previewed document with its tab open and asserts
+that nothing was said.
+
+**A folder move carries what is inside it**, and a move that lands on a
+name already building to the same PDF, `sub/main.tex` beside `main.tex`,
+is the one move the strip cannot follow: the document leaves and a
+notice says which file it collided with, since the tab silently vanishing
+is the failure §33 was written against.
+
+**A deletion closes the preview**, and the neighbour on the left comes
+forward, as after closing a tab by hand. The last-document rule does not
+apply: it exists to keep the writer from emptying their own strip, and a
+document in the trash is not on the strip whatever the rule says. So a
+project whose only document was trashed has an empty strip, and the pane
+says *No document to preview* and points at the trash and the `+` menu.
+It used to say *Nothing has been typeset yet* and offer to load a
+template, which is the copy for a folder that has never had a document
+and is wrong for one that has a chapter in the trash. Restoring the
+document from the trash puts it back on the strip; restoring a chapter
+changes nothing there, because its document never left.
+
+**Changes from outside arrive too.** An `mv` in a terminal, a `git
+checkout`, or a rename the agent makes with its shell reach the session
+only as the watcher's `files_changed`, and the re-scan behind that event
+now checks each registered document against the disk before it publishes.
+A collaborator's rename lands through the shared manifest and takes the
+same path a rename made here does.

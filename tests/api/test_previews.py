@@ -318,3 +318,197 @@ def test_an_asset_nobody_claims_rebuilds_everything(client, project_dir, opened)
     session._dirty.clear()
     session.note_edit(project_dir / "house.sty", "% styles\n")
     assert session._dirty == {"main.tex", "esi.tex"}
+
+
+# -- the strip follows the files it names ------------------------------------
+#
+# Nothing kept `session.documents` in step with the file system.  A previewed
+# document renamed from the tree was left registered under a path that no
+# longer existed, `previews.json` named the old path, and the tab wore the
+# old name until the next open silently dropped it; a deleted document stayed
+# registered and its stale PDF went on being served.  Every path a change can
+# arrive by goes through `reconcile_documents` now.
+
+
+def spy_on(project_id):
+    session = server_main.SESSIONS[project_id]
+    seen = []
+    original = session.events.publish
+
+    async def record(event):
+        seen.append(event)
+        await original(event)
+
+    session.events.publish = record
+    return session, seen, original
+
+
+def previews_events(seen):
+    return [e for e in seen if e["type"] == "previews_changed"]
+
+
+def remembered(project_dir):
+    return json.loads(
+        (project_dir / ".nexttex" / "previews.json").read_text(encoding="utf-8")
+    )
+
+
+def test_renaming_a_previewed_document_keeps_its_place_and_its_page(
+    client, project_dir, opened,
+):
+    project_id = opened["id"]
+    add(client, project_dir, "esi.tex", STANDALONE)
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
+    client.post(f"/api/projects/{project_id}/editor", json={"preview": "main.tex"})
+    session, seen, original = spy_on(project_id)
+    try:
+        response = client.post(
+            f"/api/projects/{project_id}/file/rename",
+            json={"path": "main.tex", "to": "paper.tex"},
+        )
+    finally:
+        session.events.publish = original
+    assert response.status_code == 200, response.text
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    # Same position, new name, still in front.
+    assert body["previews"] == ["paper.tex", "esi.tex"]
+    assert body["visible"] == "paper.tex"
+    assert remembered(project_dir) == ["paper.tex", "esi.tex"]
+    assert "main.tex" not in session.documents
+    assert session.documents["paper.tex"].paths.jobname == "paper"
+    # The strip moved before the tabs were told, and it said what moved.
+    kinds = [e["type"] for e in seen]
+    assert kinds.index("previews_changed") < kinds.index("renamed")
+    assert previews_events(seen)[0]["renamed"] == {"main.tex": "paper.tex"}
+
+
+def test_moving_a_folder_carries_the_document_inside_it(client, project_dir, opened):
+    project_id = opened["id"]
+    (project_dir / "drafts").mkdir()
+    add(client, project_dir, "drafts/esi.tex", STANDALONE)
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "drafts/esi.tex"})
+    response = client.post(
+        f"/api/projects/{project_id}/file/rename",
+        json={"path": "drafts", "to": "final"},
+    )
+    assert response.status_code == 200, response.text
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == ["main.tex", "final/esi.tex"]
+
+
+def test_a_move_onto_a_taken_jobname_leaves_the_strip_and_says_so(
+    client, project_dir, opened,
+):
+    """`sub/main.tex` would build to main.pdf beside main.tex.  The moved
+    document cannot stay, and the notice says why rather than the strip
+    silently losing a tab."""
+    project_id = opened["id"]
+    add(client, project_dir, "esi.tex", STANDALONE)
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
+    session, seen, original = spy_on(project_id)
+    try:
+        response = client.post(
+            f"/api/projects/{project_id}/file/rename",
+            json={"path": "esi.tex", "to": "sub/main.tex"},
+        )
+    finally:
+        session.events.publish = original
+    assert response.status_code == 200, response.text
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == ["main.tex"]
+    assert "main.pdf" in previews_events(seen)[0]["notice"]
+
+
+def test_a_same_stem_move_does_not_collide_with_itself(client, project_dir, opened):
+    project_id = opened["id"]
+    response = client.post(
+        f"/api/projects/{project_id}/file/rename",
+        json={"path": "main.tex", "to": "old/main.tex"},
+    )
+    assert response.status_code == 200, response.text
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == ["old/main.tex"]
+    assert body["visible"] == "old/main.tex"
+
+
+def test_renaming_a_chapter_changes_nothing_on_the_strip(client, project_dir, opened):
+    project_id = opened["id"]
+    add(client, project_dir, "chapter.tex", "A chapter.\n")
+    session, seen, original = spy_on(project_id)
+    try:
+        client.post(
+            f"/api/projects/{project_id}/file/rename",
+            json={"path": "chapter.tex", "to": "part.tex"},
+        )
+    finally:
+        session.events.publish = original
+    assert not previews_events(seen)
+    assert list(session.documents) == ["main.tex"]
+
+
+def test_deleting_a_previewed_document_takes_it_off_the_strip(
+    client, project_dir, opened,
+):
+    project_id = opened["id"]
+    add(client, project_dir, "esi.tex", STANDALONE)
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
+    client.post(f"/api/projects/{project_id}/editor", json={"preview": "esi.tex"})
+    response = client.delete(
+        f"/api/projects/{project_id}/file", params={"path": "esi.tex"}
+    )
+    assert response.status_code == 200
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == ["main.tex"]
+    # The neighbour on the left comes forward, as after closing a tab.
+    assert body["visible"] == "main.tex"
+    assert remembered(project_dir) == ["main.tex"]
+
+
+def test_deleting_the_only_document_leaves_an_empty_strip(client, project_dir, opened):
+    """The "last document stays" refusal is for the writer's own close
+    gesture.  A deleted document is gone, and the pane draws the empty
+    state rather than serving a PDF of a file that is in the trash."""
+    project_id = opened["id"]
+    response = client.delete(
+        f"/api/projects/{project_id}/file", params={"path": "main.tex"}
+    )
+    assert response.status_code == 200
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == []
+    assert body["visible"] == ""
+    assert client.get(f"/api/projects/{project_id}/pdf").status_code == 404
+    # And restoring it brings it back.
+    entry = client.get(f"/api/projects/{project_id}/trash").json()["entries"][0]
+    restored = client.post(f"/api/projects/{project_id}/trash/{entry['id']}/restore")
+    assert restored.status_code == 200, restored.text
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == ["main.tex"]
+    assert body["visible"] == "main.tex"
+
+
+def test_restoring_a_chapter_does_not_put_it_on_the_strip(client, project_dir, opened):
+    project_id = opened["id"]
+    add(client, project_dir, "chapter.tex", "A chapter.\n")
+    client.delete(f"/api/projects/{project_id}/file", params={"path": "chapter.tex"})
+    entry = client.get(f"/api/projects/{project_id}/trash").json()["entries"][0]
+    client.post(f"/api/projects/{project_id}/trash/{entry['id']}/restore")
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == ["main.tex"]
+
+
+def test_a_document_deleted_outside_the_app_leaves_at_the_next_scan(
+    client, project_dir, opened,
+):
+    """An `rm` in a terminal reaches the session only as the watcher's
+    `files_changed`, and the re-scan behind it checks the disk."""
+    project_id = opened["id"]
+    add(client, project_dir, "esi.tex", STANDALONE)
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
+    (project_dir / "esi.tex").unlink()
+    session = server_main.SESSIONS[project_id]
+    # On the app's own loop, the way the eviction tests run the reaper: the
+    # scheduler this retires holds objects bound to that loop.
+    client.portal.call(session._publish_documents)
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == ["main.tex"]
+    assert remembered(project_dir) == ["main.tex"]

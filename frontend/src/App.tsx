@@ -17,7 +17,8 @@ import {
 } from "./chrome";
 import { busyTyping, onFrame } from "./timing";
 import {
-  afterClosing, neighbour, orphanedBy, pushClosed, unfollowed, viewingClosed,
+  afterClosing, movedPath, neighbour, orphanedBy, pushClosed, renamePaths,
+  unfollowed, viewingClosed,
 } from "./tabs";
 import { followDecision } from "./follow-preview";
 import {
@@ -766,31 +767,32 @@ export default function App() {
   // left every tab inside a moved folder pointing at a file that was no
   // longer there, and the next save wrote it back to the old place.
   const renameOpenFile = useCallback((from: string, to: string) => {
-    const moved = (path: string): string | null => {
-      if (path === from) return to;
-      if (path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
-      return null;
-    };
     const state = get();
     // The editor follows the same prefix rule over its own buffers, so one
     // call moves every open file under a renamed folder.
     editor.current?.renamed(from, to);
-    const touched =
-      state.tabs.some((tab) => moved(tab.path) !== null) ||
-      (state.activePath !== null && moved(state.activePath) !== null) ||
-      (state.viewing != null && moved(state.viewing.path) !== null);
-    if (!touched) return;
+    // A document this window followed onto the strip is still followed
+    // under its new name.
+    for (const document of [...followed.current]) {
+      const next = movedPath(document, from, to);
+      if (next !== null) {
+        followed.current.delete(document);
+        followed.current.add(next);
+      }
+    }
+    // The store's own fields.  When the rename reached this window as a
+    // `previews_changed` carrying the mapping, the store has already moved
+    // them together with the strip and there is nothing left to do here.
+    const moved = renamePaths(state, { [from]: to });
+    if (!moved.touched) return;
     set({
-      tabs: state.tabs.map((tab) => {
-        const next = moved(tab.path);
-        return next ? { ...tab, path: next } : tab;
-      }),
-      activePath: state.activePath
-        ? (moved(state.activePath) ?? state.activePath)
-        : state.activePath,
-      viewing: state.viewing
-        ? { ...state.viewing, path: moved(state.viewing.path) ?? state.viewing.path }
-        : state.viewing,
+      tabs: moved.tabs,
+      activePath: moved.activePath,
+      viewing: moved.viewing as typeof state.viewing,
+      previews: moved.previews,
+      activePreview: moved.activePreview,
+      builds: moved.builds,
+      diagnosticsByDoc: moved.diagnosticsByDoc,
     });
   }, []);
 

@@ -7,6 +7,7 @@ import { useSyncExternalStore } from "react";
 import type { WordHint } from "./panes/locate-word";
 import type { Heading } from "./outline";
 import { afterReconcile } from "./agent-state";
+import { renamePaths } from "./tabs";
 import api, {
   clientId,
   type CompileResult,
@@ -880,17 +881,39 @@ function receive(event: any) {
     case "library_scan":
       set({ library: event as any });
       break;
-    case "previews_changed":
+    case "previews_changed": {
+      // A renamed document moves the tabs and the strip in one write.  The
+      // rename route publishes this before its own `renamed` event, so by
+      // the time that arrives nothing here matches the old path, which the
+      // route already says is safe.  The editor's buffers are told through
+      // the same handler the `renamed` event uses.
+      const renamed: Record<string, string> = event.renamed ?? {};
+      const moved = renamePaths(state, renamed);
+      const strip: string[] = event.previews ?? moved.previews;
       syncVisible({
-        previews: event.previews ?? state.previews,
+        ...(moved.touched
+          ? {
+              tabs: moved.tabs,
+              activePath: moved.activePath,
+              viewing: moved.viewing as State["viewing"],
+              builds: moved.builds,
+              diagnosticsByDoc: moved.diagnosticsByDoc,
+            }
+          : {}),
+        previews: strip,
         candidates: event.candidates ?? [],
         owners: event.owners ?? {},
-        activePreview: (event.previews ?? []).includes(state.activePreview)
-          ? state.activePreview
-          : event.visible ?? state.activePreview,
+        activePreview: strip.includes(moved.activePreview)
+          ? moved.activePreview
+          : event.visible ?? moved.activePreview,
       });
-      handlers.onPreviewsChanged?.(event.previews ?? []);
+      for (const [from, to] of Object.entries(renamed)) handlers.onRenamed?.(from, to);
+      // A move the strip could not follow, a new name that would build to
+      // the same PDF as another document, is said rather than swallowed.
+      if (event.notice) set({ error: String(event.notice) });
+      handlers.onPreviewsChanged?.(strip);
       break;
+    }
     case "compile_scheduled": {
       // A build is coming but has not started, so those previews are
       // already behind what is on screen.  With autocompile off no build is

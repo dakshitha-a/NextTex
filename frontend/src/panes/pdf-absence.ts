@@ -1,5 +1,11 @@
 /** Why there is no preview to show. */
-export type Absence = "" | "building" | "unbuilt" | "empty" | "unreachable";
+export type Absence =
+  | "" | "building" | "unbuilt" | "empty" | "unreachable"
+  /** The strip has no document on it.  A folder that never had one, or
+   *  one whose only document has just gone to the trash: the route's 404
+   *  is the same for both, and the second is not a project that needs a
+   *  template. */
+  | "nodocument";
 
 /** What the store knows about this document's builds. Only the two fields
  *  that answer the question below; `DocBuild` in the store has more. */
@@ -33,10 +39,14 @@ export type BuildState = { compiling: boolean; result: unknown | null };
 export function absenceFrom(
   response: { ok: boolean; status: number } | null,
   build?: BuildState,
+  /** Whether any document is on the strip at all.  With none, a 404 is
+   *  not about a build, and the build state has nothing to say. */
+  onStrip = true,
 ): Absence {
   if (response === null) return "unreachable";
   if (response.ok) return "";
   if (response.status !== 404) return "unreachable";
+  if (!onStrip) return "nodocument";
   if (build?.compiling) return "building";
   if (!build || build.result === null) return "unbuilt";
   return "empty";

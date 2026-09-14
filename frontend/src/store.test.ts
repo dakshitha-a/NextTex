@@ -139,6 +139,49 @@ describe("staleness is routed to the documents that read the file", () => {
   });
 });
 
+describe("a renamed document moves the tabs and the strip in one write", () => {
+  test("every field that names the path follows it", () => {
+    reset();
+    set({
+      tabs: [{ path: "main.tex" }, { path: "notes.tex" }],
+      activePath: "main.tex",
+      builds: { "main.tex": { compiling: false, stale: true, result: null, pdfStamp: 7 } },
+      diagnosticsByDoc: { "main.tex": [{ severity: "error", file: "main.tex", line: 1 } as any] },
+    });
+    __receive({
+      type: "previews_changed",
+      previews: ["paper.tex", "esi.tex"],
+      candidates: [],
+      owners: { "paper.tex": ["paper.tex"], "esi.tex": ["esi.tex"] },
+      visible: "paper.tex",
+      renamed: { "main.tex": "paper.tex" },
+    });
+    expect(get().tabs.map((tab) => tab.path)).toEqual(["paper.tex", "notes.tex"]);
+    expect(get().activePath).toBe("paper.tex");
+    expect(get().activePreview).toBe("paper.tex");
+    // The build dot and the diagnostics survive the rename.
+    expect(get().builds["paper.tex"].pdfStamp).toBe(7);
+    expect(get().builds["main.tex"]).toBeUndefined();
+    expect(get().diagnostics[0].file).toBe("main.tex");
+    expect(get().diagnostics[0].document).toBe("paper.tex");
+  });
+
+  test("a notice about a move the strip could not follow is said", () => {
+    reset();
+    set({ error: null });
+    __receive({
+      type: "previews_changed",
+      previews: ["main.tex"],
+      candidates: [],
+      owners: {},
+      visible: "main.tex",
+      renamed: {},
+      notice: "main.tex already builds to main.pdf",
+    });
+    expect(get().error).toContain("main.pdf");
+  });
+});
+
 // --- collaboration ----------------------------------------------------------
 
 describe("what the interface is told about collaboration", () => {

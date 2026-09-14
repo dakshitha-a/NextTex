@@ -228,6 +228,11 @@ export default function Pdf({
   const [pageCount, setPageCount] = useState(0);
   const [current, setCurrent] = useState(1);
   const [absence, setAbsence] = useState<Absence>("");
+  /** Whether the strip has any document on it.  Read through a ref by
+   *  the fetch, which runs on its own dependencies. */
+  const anyDocument = useStore((s) => s.previews.length > 0);
+  const anyDocumentRef = useRef(anyDocument);
+  anyDocumentRef.current = anyDocument;
 
   // ---- find on the page ---------------------------------------------------
   // The text layer has always carried every word on the page; this reads
@@ -649,7 +654,7 @@ export default function Pdf({
           // one's: a stale 404 arriving after a good PDF had loaded put
           // the "no preview" screen over a page that was on the screen.
           if (cancelled) return;
-          setAbsence(absenceFrom(response, buildRef.current));
+          setAbsence(absenceFrom(response, buildRef.current, Boolean(source) || anyDocumentRef.current));
           return;
         }
         const data = await response.arrayBuffer();
@@ -1276,6 +1281,27 @@ export default function Pdf({
                   onClick={onLoadTemplate}
                 >
                   Load a basic document
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {absence === "nodocument" ? (
+          <div className="flex h-full items-center justify-center px-8 text-center">
+            <div className="max-w-[42ch]">
+              <p className="t-display text-ink-3">No document to preview.</p>
+              <p className="t-meta mt-2 text-ink-2">
+                A file with a \documentclass and a \begin{"{"}document{"}"} of
+                its own is a document, and none is on the strip. One that
+                went to the trash comes back from there; a new one is offered
+                under + as soon as it exists.
+              </p>
+              {onLoadTemplate ? (
+                <button
+                  className="ghost-button mt-4 px-3 py-2 t-ui"
+                  onClick={onLoadTemplate}
+                >
+                  Start a basic document
                 </button>
               ) : null}
             </div>
