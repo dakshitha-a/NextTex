@@ -97,6 +97,18 @@ test("the page keeps its place while the script tab is in front", async ({
   await page.locator('[role="tree"] [data-path="main.tex"]').click();
   const scroller = page.getByTestId("page-behind-script").locator(".overflow-auto").first();
   await expect(scroller.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  // The first layout can run before the pane has its width and fit the
+  // page to a guess; the refit that follows keeps the reader's place as a
+  // fraction of the page, which moves the offset.  Scroll once the page
+  // is fitted to the pane it is actually in.
+  await expect
+    .poll(() =>
+      scroller.evaluate((node) => {
+        const sheet = node.querySelector(".nx-page") as HTMLElement | null;
+        return sheet ? Math.abs(sheet.offsetWidth - (node.clientWidth - 48)) < 6 : false;
+      }),
+    )
+    .toBe(true);
   await scroller.evaluate((node) => { node.scrollTop = 120; });
   await expect.poll(() => scroller.evaluate((node) => node.scrollTop)).toBe(120);
   await page.locator('[role="tree"] [data-path="scripts/hello.py"]').click();
