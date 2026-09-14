@@ -228,14 +228,26 @@ def tools_section(root: Path, environ) -> list:
     return [row for row in rows if row]
 
 
-def service_section(instance: str) -> list:
+def service_section(instance: str, from_server: bool) -> list:
+    """Whether something supervises the server, asked of the right process.
+
+    `supervised()` reads the environment of the process it runs in.  From
+    the projects screen that is the server, and the answer is a fact about
+    it; from a terminal it is the terminal, and a supervised install would
+    print `supervised False` two lines above `systemd unit: active`.  So
+    those lines are only quoted when the server composed the report, and
+    the unit probe below answers for both.
+    """
     from . import updates
 
-    rows = [
-        f"supervised     {updates.supervised()}",
-        f"INVOCATION_ID  {'set' if os.environ.get('INVOCATION_ID') else 'unset'}",
-        f"XPC_SERVICE    {'set' if os.environ.get('XPC_SERVICE_NAME') else 'unset'}",
-    ]
+    if from_server:
+        rows = [
+            f"supervised     {updates.supervised()}",
+            f"INVOCATION_ID  {'set' if os.environ.get('INVOCATION_ID') else 'unset'}",
+            f"XPC_SERVICE    {'set' if os.environ.get('XPC_SERVICE_NAME') else 'unset'}",
+        ]
+    else:
+        rows = ["(composed at a terminal, so only the unit can be asked)"]
     # What systemd says about the unit, where there is a systemd to ask.
     # The survey knows whether a unit file exists and not whether it is
     # running, which is the half a report needs.
@@ -373,7 +385,7 @@ def compose(*, root: Path, environ=None, client=None, source: str,
         ("Install", install_section(facts)),
         ("Settings", settings_section(config)),
         ("Tools", tools_section(root, environ)),
-        ("Service", service_section(facts["instance"])),
+        ("Service", service_section(facts["instance"], from_server=client is not None)),
         ("Agent", agent_section(config)),
         ("Projects", projects_section(state, open_projects)),
     ]
