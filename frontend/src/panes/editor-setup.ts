@@ -30,6 +30,7 @@ import {
   historyKeymap,
   indentWithTab,
 } from "@codemirror/commands";
+import { acceptCompletion } from "@codemirror/autocomplete";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import {
   HighlightStyle,
@@ -524,6 +525,13 @@ function base(
       { key: "Enter", run: closeEnvironment },
       ...defaultKeymap,
       ...searchKeymap,
+      // Ahead of `indentWithTab`, which would otherwise take the key.
+      // `acceptCompletion` returns false when no list is open or nothing
+      // in it is selected, so a Tab typed anywhere else still indents.
+      // The completion keymap binds Enter alone, and a writer whose hands
+      // know Tab from every other editor pressed it and got an indent in
+      // front of the half-typed command.
+      { key: "Tab", run: acceptCompletion },
       indentWithTab,
     ]),
     LATEX,
