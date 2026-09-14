@@ -5723,3 +5723,39 @@ fixed in the same commit:
   the word as the pointer was. Both routes go through `toShell` now, as
   the tab strip's menu already did.
 
+### A column can be selected
+
+`rectangularSelection()` had been in the editor's extension list for a
+year and did nothing. The comment beside the link-following handler even
+said why, without noticing it was describing a bug: this editor never set
+`EditorState.allowMultipleSelections`, and without that facet every
+selection with more than one range is reduced to its main range before it
+is drawn, so an Alt-drag collapsed to a single caret and looked like an
+ordinary click. The writer asked for column selection to edit tables, and
+the whole of the fix is the facet, plus `crosshairCursor()` so that holding
+Alt says what the drag is about to do.
+
+Two keyboard routes come with it. `defaultKeymap` already binds
+`Ctrl-Alt-Up` and `Ctrl-Alt-Down` (`Cmd-Alt` on a Mac) to add a caret on
+the neighbouring row, and the facet brings those to life. GNOME takes that
+chord for switching workspaces on many installs, and some window managers
+take Alt-drag itself before the browser sees it, so the same two commands
+are bound a second time to `Ctrl-Shift-Alt-Up` and `Ctrl-Shift-Alt-Down`,
+a chord no desktop and no other CodeMirror binding uses. `Shift-Alt-Up` was
+not an option: that is `copyLineUp`. `Escape` runs `simplifySelection`,
+which is how a writer gets back to one caret, and the README says so.
+
+One consequence is deliberate: a Ctrl-click that is not on a `\ref` or
+`\input` now adds a caret, which is CodeMirror's meaning for it. The link
+handler claims the event only over a link, so a reference is the one place
+a second caret cannot be put by mouse, and the comment beside it now says
+that rather than the opposite.
+
+The browser test drags a column through a four-row table with Alt held and
+types once, then does the same with the keyboard chord and takes the
+carets away with Escape. It had to wait a beat before that Escape: the
+completion source is asked 100 ms after a keystroke, and an Escape inside
+that window closes the pending query rather than the carets, which is
+CodeMirror's own rule and not one worth changing for a press nobody makes
+that fast.
+
