@@ -6324,8 +6324,10 @@ one click away; clicking the tab brings the run back; running always
 brings it forward. The page is behind the run, not replaced by it: the
 same hidden-not-unmounted treatment a folded pane gets, so coming back
 finds the page at the scroll and zoom it was left at rather than
-fetched again from the top, and a build that lands while the run is in
-front still has a live page to reveal its line on.
+fetched again from the top. A build that lands while the run is in
+front is laid out behind it and refitted when the page returns, the way
+it is behind a folded pane; the line it would have revealed waits for
+the next cursor move.
 
 **What the pane shows, top to bottom.** The same furniture row the image
 viewer's footer uses, with the path, Run or Stop, and the outcome in four
