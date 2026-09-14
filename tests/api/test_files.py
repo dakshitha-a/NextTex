@@ -311,6 +311,35 @@ def test_creating_a_file_tells_the_other_tabs_a_name_appeared(client, opened):
     assert told and told[-1]["structural"] is True
 
 
+def test_deleting_a_file_tells_the_other_tabs_a_name_went(client, opened, project_dir):
+    """A deletion published only `trash_changed`, which the trash panel
+    reads and nothing else does: the other windows kept the row, and the
+    document re-scan behind `files_changed` never ran, so the strip's `+`
+    went on offering a document that was in the trash."""
+    from conftest import server_main
+
+    (project_dir / "spare.tex").write_text("spare\n", encoding="utf-8")
+    session = server_main.SESSIONS[opened["id"]]
+    seen = []
+    original = session.events.publish
+
+    async def spy(event):
+        seen.append(event)
+        await original(event)
+
+    session.events.publish = spy
+    try:
+        response = client.delete(f"/api/projects/{opened['id']}/file",
+                                 params={"path": "spare.tex"})
+    finally:
+        session.events.publish = original
+    assert response.status_code == 200
+
+    told = [e for e in seen if e["type"] == "files_changed"]
+    assert told and told[-1]["structural"] is True
+    assert told[-1]["paths"] == ["spare.tex"]
+
+
 def test_lint_answers_with_a_list_whether_or_not_chktex_is_installed(client, opened):
     """The route is optional by design: no chktex, no findings, and the
     editor simply shows nothing rather than an error.  What the findings
