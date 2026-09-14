@@ -58,11 +58,17 @@ jobs:
             if [ -n "$previous" ]; then
               echo "Since $previous:"
               echo
-              git log --format='- %s' "$previous..HEAD"
+              # Up to but not including the version commit itself, whose
+              # subject is the title of this release.
+              git log --format='- %s' "$previous..HEAD^"
             else
               # The first numbered version: the commit that made it says
               # why, and every commit before it is the whole of git log.
-              git log -1 --format='%b'
+              # Without its trailers, which are for git and not for a
+              # reader, and without the blank lines that leave behind.
+              git log -1 --format='%b' \
+                | sed -E '/^(Co-Authored-By|Claude-Session|Signed-off-by|Fixes|Co-authored-by): /d' \
+                | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
             fi
           } > notes.md
           cat notes.md
