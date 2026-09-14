@@ -25,10 +25,12 @@ per plot is not the hundreds of cards this rework exists to remove.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import shutil
 import sys
+import time
 from pathlib import Path
 
 #: Where a script lives, and where its figure goes.  Both inside the
@@ -59,6 +61,12 @@ OUTPUT_LIMIT = 64 * 1024
 #: What a missing import looks like, so it can be reported as a package
 #: rather than as a traceback.
 MISSING = re.compile(r"No module named ['\"]([A-Za-z0-9_.]+)['\"]")
+
+#: The variable the runner reads the capture directory from, and what a
+#: captured figure may be called: the route that serves one matches this
+#: and nothing else.
+CAPTURE_ENV = "NEXTTEX_CAPTURE_DIR"
+FIGURE_NAME = re.compile(r"^figure-\d{1,4}\.png$")
 
 
 def ensure_baseline(root: Path) -> list[str]:
@@ -128,15 +136,36 @@ def _clip(raw: bytes) -> tuple[str, bool]:
     return text[:OUTPUT_LIMIT], True
 
 
-async def run(root: Path, state_dir: Path, path: Path) -> dict:
-    """Run one script and say what happened, in a shape a model can act on."""
+#: The program that runs a script when what it draws is wanted: see
+#: `script_runner.py`, which is standard library only and imports nothing
+#: of NextTex, since the script's directory replaces its own on `sys.path`.
+RUNNER = Path(__file__).resolve().with_name("script_runner.py")
+
+
+async def run(
+    root: Path, state_dir: Path, path: Path, capture: Path | None = None,
+) -> dict:
+    """Run one script and say what happened, in a shape a model can act on.
+
+    With `capture`, the script runs under `script_runner.py`, which keeps
+    what `pyplot.show()` and the end of the run see as PNGs in that
+    directory and notes every `savefig`; the result then carries `figures`
+    (their names, in order) and `saved` (the project-relative paths the
+    script wrote, with anything outside the project left out).
+    """
     (state_dir / "matplotlib").mkdir(parents=True, exist_ok=True)
+    env = environment(state_dir)
+    argv = [sys.executable, str(path)]
+    if capture is not None:
+        capture.mkdir(parents=True, exist_ok=True)
+        env[CAPTURE_ENV] = str(capture)
+        argv = [sys.executable, str(RUNNER), str(path)]
+    started = time.monotonic()
     try:
         process = await asyncio.create_subprocess_exec(
-            sys.executable,
-            str(path),
+            *argv,
             cwd=str(root),
-            env=environment(state_dir),
+            env=env,
             # Nothing to read.  Left to inherit, stdin was the server's
             # own, so an `input()` in a script sat waiting on a terminal
             # nobody was at until the timeout stopped it two minutes later.
@@ -175,14 +204,45 @@ async def run(root: Path, state_dir: Path, path: Path) -> dict:
     stdout, out_clipped = _clip(out or b"")
     stderr, err_clipped = _clip(err or b"")
     missing = MISSING.search(stderr)
-    return {
+    result = {
         "ok": process.returncode == 0,
         "code": process.returncode,
         "out": stdout,
         "err": stderr,
         "clipped": out_clipped or err_clipped,
         "missing": missing.group(1).split(".")[0] if missing else "",
+        "duration_ms": int((time.monotonic() - started) * 1000),
     }
+    if capture is not None:
+        result.update(captured(root, capture))
+    return result
+
+
+def captured(root: Path, capture: Path) -> dict:
+    """What the runner left in the capture directory, checked before it is
+    believed: the names are matched against the pattern the route serves,
+    and a saved path is reported only when it is inside the project."""
+    figures: list[str] = []
+    saved: list[str] = []
+    try:
+        data = json.loads((capture / "capture.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    for name in data.get("figures") or []:
+        if isinstance(name, str) and FIGURE_NAME.match(name) and (capture / name).is_file():
+            figures.append(name)
+    resolved_root = root.resolve()
+    for raw in data.get("saved") or []:
+        if not isinstance(raw, str):
+            continue
+        try:
+            target = Path(raw).resolve()
+            relative = target.relative_to(resolved_root).as_posix()
+        except (OSError, ValueError):
+            continue
+        if target.is_file() and relative not in saved:
+            saved.append(relative)
+    return {"figures": figures, "saved": saved}
 
 
 #: A package name, and nothing that could be an option, a URL or a path.
