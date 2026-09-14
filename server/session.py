@@ -658,6 +658,21 @@ class ProjectSession:
 
         spawn(follow(), "following a peer's rename")
 
+    def note_trashed(self, was: str) -> None:
+        """A file a peer deleted has just been moved into this trash.
+
+        The store cannot await, and the tree and the trash panel both
+        draw from events: without these the file left the disk and
+        nothing on screen said so.
+        """
+        async def announce() -> None:
+            await self.events.publish({"type": "trash_changed"})
+            await self.events.publish(
+                {"type": "files_changed", "paths": [was], "structural": True}
+            )
+
+        spawn(announce(), "announcing a peer's deletion")
+
     def _after_publish(self, event: dict) -> None:
         """Re-scan the documents when the files they are found among change.
 

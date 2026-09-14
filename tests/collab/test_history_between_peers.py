@@ -286,12 +286,18 @@ async def test_a_deletion_reaches_the_other_machines_trash(tmp_path):
     (alice.project.root / "main.tex").unlink()
     alice.store.ingest("main.tex", None, gone=True)   # what the watcher does
 
+    # And Bob's screen hears about it.  The store cannot await, so the
+    # session is told through a hook, the way a peer's rename is.
+    announced: list[str] = []
+    bob.note_trashed = announced.append
+
     assert await until(
         lambda: not (bob.project.root / "main.tex").exists(), 8.0
     ), "Bob's copy was left sitting there, written by nothing"
     assert [e.path for e in bob.trash.entries()] == ["main.tex"], (
         "Bob has no way to put it back"
     )
+    assert announced == ["main.tex"], "the tree and the trash panel were not told"
 
     await alice.close()
     await bob.close()

@@ -236,6 +236,34 @@ def test_a_new_file_is_in_the_shared_manifest_before_the_route_answers(client, o
     assert session.collab.file_id_for("figures") is None
 
 
+def test_a_file_rewritten_by_unlinking_it_first_stays_out_of_the_trash(
+    client, opened, project_dir,
+):
+    """What the watcher hands the store for a file it saw missing, followed
+    by the file coming back before the store's debounce fires: the shape of
+    a tool that rewrites by unlinking and recreating.  The store used to
+    flag the record at the sighting and, at the flush, move the file it
+    found back on disk into the trash without a word."""
+    import asyncio
+    from server import main as server_main
+
+    session = server_main.SESSIONS[opened["id"]]
+    path = project_dir / "main.tex"
+    path.unlink()
+
+    async def sighting_then_return():
+        session.collab.ingest("main.tex", None, gone=True)
+        path.write_text("rewritten\n", encoding="utf-8")
+        await asyncio.sleep(0.5)   # past PROJECT_DEBOUNCE, so the flush ran
+
+    client.portal.call(sighting_then_return)
+    assert path.read_text(encoding="utf-8") == "rewritten\n"
+    assert client.get(f"/api/projects/{opened['id']}/trash").json() in ([], {"entries": []})
+    names = [c["name"] for c in client.get(
+        f"/api/projects/{opened['id']}/tree").json()["children"]]
+    assert "main.tex" in names
+
+
 def test_the_tree_hides_what_it_should(client, opened, project_dir):
     (project_dir / "build").mkdir(exist_ok=True)
     (project_dir / "build" / "main.pdf").write_bytes(b"%PDF")
