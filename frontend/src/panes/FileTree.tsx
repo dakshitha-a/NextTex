@@ -4,7 +4,7 @@ import {
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
-import { iconFor, isBib, isData } from "./file-kinds";
+import { iconFor, isBib, isData, isScript } from "./file-kinds";
 import api, { startDownload, type TreeNode } from "../api";
 import { downloadPdf } from "../chrome";
 import { get, set, useStore } from "../store";
@@ -56,6 +56,7 @@ export default function FileTree({
   onPreview,
   onUnpreview,
   onAskAbout,
+  onRunScript,
 }: {
   onOpen: (path: string) => void;
   onRefresh: () => void;
@@ -65,6 +66,8 @@ export default function FileTree({
   /** Hand a question about a file to the agent, seeded into the composer.
    *  Used by "Plot this", which is how a writer points at a dataset. */
   onAskAbout?: (prompt: string) => void;
+  /** Run a script, which opens it and brings its tab forward too. */
+  onRunScript?: (path: string) => void;
   /** Put a document on the preview strip, or take it off.  Owned by the
    *  shell rather than here, because adding one also brings its tab
    *  forward and opens its source. */
@@ -299,6 +302,8 @@ export default function FileTree({
       } else if (action === "history") {
         onOpen(node.path);
         onHistory?.();
+      } else if (action === "run") {
+        onRunScript?.(node.path);
       } else if (action === "plot") {
         // Pointing at a dataset, which is the whole interaction: naming a
         // file in prose is unreliable, and this is the same gesture the
@@ -757,6 +762,11 @@ export default function FileTree({
               // with the file operations every row has.
               ...(!isDirectory && isData(node.name) && onAskAbout
                 ? [["plot", "Plot this…"]]
+                : []),
+              // A script's reason to have a menu opened on it is that
+              // somebody wants to see what it does.
+              ...(!isDirectory && isScript(node.name) && onRunScript
+                ? [["run", "Run"]]
                 : []),
               // Offered only where it can work: a document already on the
               // preview strip can come off it, unless it is the last one

@@ -14,7 +14,7 @@ That constraint drives most of what follows. A single process means anything syn
    browser ──WS────┤        │                                             │
                    └───────▶│  FastAPI app                                │
                             │    middleware: headers, then the gate       │
-                            │    97 routes                                │
+                            │    113 routes                               │
                             │                                             │
                             │  SESSIONS: one ProjectSession per project   │
                             │    ├─ CollabStore   the documents           │
@@ -200,6 +200,10 @@ A figure script is run by the agent's plot tool and, since the script pane, by t
 
 The runner writes `capture.json` beside the images, and `plots.captured` reads it without believing it: a figure name has to match the pattern the route serves, and a saved path is reported only once it resolves to a file inside the project. The result then carries `figures`, `saved` and `duration_ms` beside what it always carried.
 
+**Around the run, per project, is `ScriptRuns`** in `nexttex/scripts.py`, owned by the session as `session.scripts`, and both the agent's plot tool and the writer's Run button go through it, so a figure the agent drew is in the pane too. It flushes the shared documents before every run, because the disk trails the editor by the debounce and the script the writer just edited has to be the one that runs; it publishes `script_start` and `script_done` on the event stream, so the pane in every window follows a run whoever started it; and it keeps each script's last result under `.nexttex/runs/<slug>/`, emptied at the start of every run so a figure from last time cannot be mistaken for one from this time, where the slug is the path with its separators folded plus a short hash. One run per script at a time: a second run cancels the first, which `plots.run` turns into a kill of the process group, and the five routes are the verbs: `/api/projects/{id}/scripts/run`, `/api/projects/{id}/scripts/stop`, `/api/projects/{id}/scripts/last`, `/api/projects/{id}/scripts/figure` and `/api/projects/{id}/scripts/install`, each fenced the way every path is and `figure` serving only a name that matches the runner's pattern, uncached because the next run writes the same name. `install` is `plots.install`, the same pip call the agent's tool makes, and the pane asks first and says what it reaches for the same reason that tool is fenced.
+
+**The browser's side is one window's.** The script tab on the preview strip is store state, `script` and `previewShowing`, never the server's strip and never `previews.json`: a run's output is read beside the script, and another window's script is not this window's reading. `followDecision` answers `script` for a `.py` in front of the editor, and the follow effect puts the tab up with the last run fetched from `last`; a `.tex` coming to the front puts the page back and leaves the tab. `script_start` and `script_done` land on the tab when the path matches and are ignored otherwise. A `files_changed` carrying `byAgent` that names a script whose failed run is on screen sets `changedByAgent`, and the pane offers a rerun rather than running it: the agent's own runs pass the permission fence with the script as the card's text, and a rerun from the pane of a script the agent has just rewritten would not.
+
 ## History, trash and versions
 
 **Content addressing.** A version is a sha256 of the file's bytes, stored once under that name, zlib compressed. Saving a file back to a state it has been in before costs nothing.
@@ -221,6 +225,7 @@ Inside the project, in `.nexttex/`:
 | `collab/` | `share.json`, the document logs, cursors |
 | `context/` | templates and style guides the agent is given |
 | `attachments/` | images handed to the agent by pasting, dropping or picking one |
+| `runs/` | each script's last run: what it printed, what it drew as PNG, and what it wrote |
 | `library/` | the scanned bibliography folder |
 | `transcript.jsonl` | the agent's audit trail, plus archived conversations |
 | `session.json`, `agent-settings.json`, `usage.json` | per-project preferences |
@@ -265,7 +270,7 @@ A single process with no database means nothing is bounded unless something boun
 | Unanswered join | discarded after 10 minutes |
 | Transcript | compacted by bytes, and 50 archived conversations kept |
 | Build | 120 second timeout, then the process group is killed |
-| A figure script | 120 second timeout, then the process group is killed; 64 kB of output per stream |
+| A figure script, from the agent or from the source pane | 120 second timeout, then the process group is killed; 64 kB of output per stream; one run per script at a time |
 | Installing a package | 300 second timeout |
 | A project search | 200 characters of pattern, 500 hits, and the regular expression runs in a thread |
 

@@ -203,6 +203,12 @@ async def run(
 
     stdout, out_clipped = _clip(out or b"")
     stderr, err_clipped = _clip(err or b"")
+    # A traceback names the script by its absolute path, which is the
+    # machine's business and not the writer's: `scripts/fig.py` is how the
+    # file is known everywhere else on the screen, and it is the name the
+    # agent should be handed.
+    for prefix in {str(root), str(root.resolve())}:
+        stderr = stderr.replace(prefix + os.sep, "")
     missing = MISSING.search(stderr)
     result = {
         "ok": process.returncode == 0,

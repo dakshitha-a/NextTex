@@ -7,6 +7,7 @@ import { useSyncExternalStore } from "react";
 import type { WordHint } from "./panes/locate-word";
 import type { Heading } from "./outline";
 import { afterReconcile } from "./agent-state";
+import { agentChangedScript } from "./script-run";
 import { renamePaths } from "./tabs";
 import api, {
   clientId,
@@ -14,6 +15,7 @@ import api, {
   type Member,
   type ContextDocument,
   type Diagnostic,
+  type ScriptResult,
   type ProjectSummary,
   type TrashEntry,
   type TreeNode,
@@ -190,6 +192,22 @@ export type State = {
   viewing: { path: string; sha: string; version: Version } | null;
   history: Version[];
   trash: TrashEntry[];
+  /** The script on the preview strip, if one is: the `.py` in front of
+   *  the editor, or the one last run.  One at a time, and this window's
+   *  own, never the server's strip: a script tab is where a run's output
+   *  is read, and another window's script is not this window's reading. */
+  script: {
+    path: string;
+    running: boolean;
+    result: ScriptResult | null;
+    /** The agent changed the script since its last failed run here, so
+     *  the pane offers a rerun rather than running it on its own. */
+    changedByAgent: boolean;
+  } | null;
+  /** Which of the two the preview pane draws: the document in front, or
+   *  the script tab.  Running a script always brings the script forward;
+   *  clicking a document tab puts the page back without closing it. */
+  previewShowing: "document" | "script";
   /** Which documents are previewed, in tab order, main first. */
   previews: string[];
   /** The tab in front.  It builds first and waits the shorter debounce. */
@@ -335,6 +353,8 @@ const state: State = {
   viewing: null,
   history: [],
   trash: [],
+  script: null,
+  previewShowing: "document",
   previews: [],
   activePreview: "",
   candidates: [],
@@ -1031,6 +1051,12 @@ function receive(event: any) {
       // Our own save, coming back around.  The buffer already holds it, and
       // reloading would fight a caret that has moved on since.
       if (event.origin && event.origin === clientId) break;
+      // The agent rewrote the script whose failed run is on screen: the
+      // pane offers a rerun rather than running it, since the agent's own
+      // runs pass the permission fence and a rerun from here would not.
+      if (agentChangedScript(state.script, event.paths ?? [], Boolean(event.byAgent))) {
+        set({ script: { ...state.script!, changedByAgent: true } });
+      }
       handlers.onFilesChanged?.(event.paths ?? [], event.structural !== false);
       break;
     case "conversation_reset":
@@ -1051,6 +1077,32 @@ function receive(event: any) {
               : "ask",
       });
       break;
+    case "script_start": {
+      // A run of the script this window is looking at, from here, from
+      // another window or from the agent: the tab breathes and the pane
+      // says so.  A run of any other script is not this window's news.
+      const held = state.script;
+      if (!held || held.path !== event.script) break;
+      set({
+        script: { ...held, running: true },
+        previewShowing: "script",
+      });
+      break;
+    }
+    case "script_done": {
+      const held = state.script;
+      if (!held || held.path !== event.script) break;
+      const { type: _type, ...result } = event;
+      set({
+        script: {
+          ...held,
+          running: false,
+          result: result as ScriptResult,
+          changedByAgent: false,
+        },
+      });
+      break;
+    }
     case "renamed":
       // A move in another tab.  The tree refresh that follows would show the
       // file in its new place while this tab's open tab still pointed at the

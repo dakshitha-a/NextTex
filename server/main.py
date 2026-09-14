@@ -41,7 +41,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from nexttex import attachments, auth, claude_auth, gitrepo, report, synctex
+from nexttex import attachments, auth, claude_auth, gitrepo, plots, report, synctex
 from nexttex.version import VERSION
 from server.collab import transport as collab_transport
 from server.collab.peers import PeerNetwork
@@ -2200,6 +2200,93 @@ async def delete_file(project_id: str, path: str):
         {"type": "files_changed", "paths": [path], "structural": True}
     )
     return {"ok": True, "entry": entry.as_dict()}
+
+
+# ---------------------------------------------------------------------------
+# Scripts, run from the source pane
+#
+# The agent's plot tool and the writer's Run button are the same run,
+# through `ScriptRuns` on the session, which announces it on the event
+# stream and keeps its result.  Every route takes the script's path and
+# goes through the same fence every path does.
+
+
+def _script(session: ProjectSession, relative: str) -> str:
+    target, name = _safe_rel(session, relative)
+    if target.suffix.lower() != ".py" or not target.is_file():
+        raise HTTPException(400, "only a Python script in the project can be run")
+    return name
+
+
+@app.post("/api/projects/{project_id}/scripts/run")
+async def run_script(project_id: str, path: str = Body(..., embed=True)):
+    """Run a script and answer with what it printed, drew and wrote.
+
+    The answer is the same shape the `script_done` event carries, so a
+    window that asked and one that only listened hold the same thing.
+    A run already in flight for this script is stopped first.
+    """
+    session = session_for(project_id)
+    name = _script(session, path)
+    try:
+        return await session.scripts.run(name)
+    except asyncio.CancelledError:
+        # Superseded by a later run of the same script; that run answers
+        # its own request, and this one is told what happened to it.
+        return {"ok": False, "code": -1, "out": "", "err": "Stopped.",
+                "stopped": True, "script": name, "figures": [], "saved": []}
+
+
+@app.post("/api/projects/{project_id}/scripts/stop")
+async def stop_script(project_id: str, path: str = Body(..., embed=True)):
+    """End a run in flight.  200 whether or not one was, since the writer
+    pressing Stop after the run has finished has what they wanted."""
+    session = session_for(project_id)
+    _target, name = _safe_rel(session, path)
+    stopped = await session.scripts.stop(name)
+    return {"ok": True, "stopped": stopped}
+
+
+@app.get("/api/projects/{project_id}/scripts/last")
+async def last_script_run(project_id: str, path: str):
+    """What the script did the last time it ran here, for a pane that has
+    just opened it; 404 when it never has."""
+    session = session_for(project_id)
+    _target, name = _safe_rel(session, path)
+    last = session.scripts.last(name)
+    if last is None:
+        raise HTTPException(404, "this script has not been run here")
+    return last
+
+
+@app.get("/api/projects/{project_id}/scripts/figure")
+async def script_figure(project_id: str, path: str, name: str):
+    """One figure the last run drew, as the PNG the runner captured."""
+    session = session_for(project_id)
+    _target, relative = _safe_rel(session, path)
+    figure = session.scripts.figure(relative, name)
+    if figure is None:
+        raise HTTPException(404, "no such figure")
+    # Never cached: the next run writes the same name.
+    return FileResponse(
+        figure, media_type="image/png", headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.post("/api/projects/{project_id}/scripts/install")
+async def install_for_script(project_id: str, name: str = Body(..., embed=True)):
+    """Install the package a failed run said was missing.
+
+    The pane asks the writer first and says what this reaches: pip
+    downloads from PyPI and runs what it downloads, which is the same
+    reason the agent's `install_package` is fenced.  Nothing about the
+    project goes with the request.
+    """
+    session_for(project_id)
+    result = await plots.install(name)
+    if not result["ok"] and "not a package name" in (result.get("err") or ""):
+        raise HTTPException(400, result["err"])
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -35,6 +35,37 @@ things go to be forgotten rather than a list anybody reads.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A script's output is not streamed while it runs.** The pane shows
+      the result when the run ends, which fits the two minute bound and is
+      what the compile does with its log; a script printing progress for
+      ninety seconds shows nothing until then. Streaming needs a second
+      channel per run and a pane that appends, left until somebody's
+      script is that slow.
+- [ ] **A script never runs on its own.** Not on save and not after the
+      agent edits it; the pane says the agent changed it and offers Run
+      again. The agent's runs pass the permission fence with the script as
+      the card's text, and a rerun from the pane of code the agent just
+      wrote would not, so an automatic rerun would be the fence's one
+      hole. Left deliberately.
+- [ ] **The agent has no `run_script` tool** that reruns a script by name
+      without rewriting it, and the OpenAI provider has no plot tools at
+      all, which predates this run. The pane's Run is the writer's; the
+      agent rewrites and reruns through `run_plot_script`.
+- [ ] **Captured figures are PNG only.** `plt.show()` is kept at 150 dpi;
+      a figure saved through the seeded helper is a PDF in `figures/` and
+      opens in the viewer, so the vector copy exists where it matters.
+- [ ] **A document dropped by an outside move comes back as a followed
+      one.** The watcher's re-scan drops a document whose file moved; the
+      open tab's follow effect asks for it under the new name and marks it
+      followed, so it can now leave with its last file where before the
+      move it stayed. Recorded rather than fixed: the alternative is the
+      `previews.json` format change section 34 of the design document
+      declined.
+- [ ] **`site-packages` and `env` are not in `IGNORED_DIRS`**; `.venv`,
+      `venv` and `__pycache__` are. A project with a bare environment
+      folder inside it would adopt every `.py` in it as a text file, up to
+      the two megabyte bound each. Add them when such a project turns up.
+
 - [ ] **The server prints its token URL to stdout at every start**, so
       `server.log` on macOS and Windows, and the journal on Linux, hold the
       token in clear for the life of the log. The bug report redacts it,

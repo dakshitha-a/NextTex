@@ -28,6 +28,7 @@ from nexttex.dictionary import ProjectDictionary
 from nexttex.atomic import read_text, write_atomically
 from nexttex.config import Settings
 from nexttex.history import History
+from nexttex.scripts import ScriptRuns
 from nexttex.symbols import SymbolCache
 from nexttex.trash import Trash
 from server.collab.peers import PeerNetwork
@@ -251,6 +252,18 @@ class ProjectSession:
         self.library = Library(project.state_dir / "library")
         self.dictionary = ProjectDictionary(project.state_dir)
         self.events = Broadcaster(after=self._after_publish)
+        #: The project's scripts, run from the source pane or by the agent,
+        #: announced on the stream and remembered under `.nexttex/runs/`.
+        #: Every run flushes the shared documents first: the disk trails
+        #: the editor by the debounce, and the script the writer just
+        #: edited has to be the one that runs.
+        self.scripts = ScriptRuns(
+            project.root, project.state_dir,
+            # Looked up at publish time rather than bound here, so a test
+            # that spies on the broadcaster sees these events too.
+            lambda event: self.events.publish(event),
+            before_run=lambda: self.collab.flush(),
+        )
         #: The pending re-scan of the document graph, see `_after_publish`.
         self._rescan: asyncio.TimerHandle | None = None
 
@@ -309,6 +322,9 @@ class ProjectSession:
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
             compile_now=self.compile,
+            run_script=lambda path: self.scripts.run(
+                self.project.relative(path), by="agent",
+            ),
             apply_edit=self.write_from_agent,
             on_edit=self.note_agent_edit,
             reveal=self.reveal_in_editor,
@@ -1157,5 +1173,6 @@ class ProjectSession:
         if self._agent_pump is not None and not self._agent_pump.done():
             self._agent_pump.cancel()
         await self.agent.disconnect()
+        await self.scripts.close()
         for state in list(self.documents.values()):
             await self._retire(state)

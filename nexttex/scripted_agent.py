@@ -74,6 +74,7 @@ class ScriptedAgent:
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
+        run_script: Callable[[Path], Any] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,

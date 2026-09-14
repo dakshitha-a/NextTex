@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import type { WordHint } from "./panes/locate-word";
-import api, { captureToken, landingAfter, startDownload, type WordScope } from "./api";
+import api, {
+  captureToken, landingAfter, startDownload, type ScriptResult, type WordScope,
+} from "./api";
 import { forget, keep, recall, recallText } from "./remember";
 import { rangeFor, scopesFor } from "./words";
 import { createTwoFilesPatch } from "diff";
@@ -15,6 +17,7 @@ import {
   Segmented,
   Handle,
 } from "./chrome";
+import { troubleshootPrompt } from "./script-run";
 import { busyTyping, onFrame } from "./timing";
 import {
   afterClosing, movedPath, neighbour, orphanedBy, pushClosed, renamePaths,
@@ -58,6 +61,10 @@ const FileView = lazy(() => import("./panes/FileView"));
 // of the bundle and the first screen is the project list, which has no
 // preview on it at all.
 const Pdf = lazy(() => import("./panes/Pdf"));
+/** The script pane, in place of the page while a script tab is in front.
+ *  Behind a click on a `.py`, so a session that never opens one never
+ *  downloads it. */
+const Script = lazy(() => import("./panes/Script"));
 // Lazy for the same reason Pdf is: the tutorial carries a dozen screenshots
 // and a thousand words, and none of it belongs in what a first visit has to
 // download before the editor appears.
@@ -110,7 +117,7 @@ import { APPEARANCE_CHANGED } from "./appearance";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
 import SectionsPanel, { includePath } from "./panes/SectionsPanel";
-import { isText, isViewable } from "./panes/file-kinds";
+import { isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
 
 const DRAWER_CLOSED = 0;
 const DRAWER_OPEN = 168;
@@ -1252,6 +1259,8 @@ export default function App() {
   // ---- previewed documents ----------------------------------------------
   const previews = useStore((s) => s.previews);
   const activePreview = useStore((s) => s.activePreview);
+  const script = useStore((s) => s.script);
+  const previewShowing = useStore((s) => s.previewShowing);
   /** Removals in flight, during which the preview does not follow the
    *  editor; see `stopPreviewingMany`. */
   const [removing, setRemoving] = useState(0);
@@ -1268,6 +1277,54 @@ export default function App() {
    *  chapter coming to the front shows the document that reads it, and
    *  opening that document's own file as well would put a tab on the
    *  source strip the writer did not ask for. */
+  /** Run a script, from the header, from Mod-Enter, from the tree's row
+   *  menu or from the pane.  The script tab comes forward at once with
+   *  the run marked as going, and the answer fills it; the `script_done`
+   *  event says the same thing to every other window.  The tab is this
+   *  window's, so the strip is not asked. */
+  const runScript = useCallback(async (path: string) => {
+    const id = get().projectId;
+    if (!id || !isScript(path)) return;
+    const held = get().script;
+    set({
+      script: {
+        path,
+        running: true,
+        result: held?.path === path ? held.result : null,
+        changedByAgent: false,
+      },
+      previewShowing: "script",
+    });
+    try {
+      const result = await api.runScript(id, path);
+      const now = get().script;
+      if (now?.path !== path) return;
+      set({ script: { ...now, running: false, result, changedByAgent: false } });
+    } catch (problem: any) {
+      const now = get().script;
+      if (now?.path === path) set({ script: { ...now, running: false } });
+      set({ error: problem.message });
+    }
+  }, []);
+
+  const stopScript = useCallback((path: string) => {
+    const id = get().projectId;
+    if (!id) return;
+    api.stopScript(id, path).catch((problem: any) => set({ error: problem.message }));
+  }, []);
+
+  /** Hand a failed run to the agent, seeded into the composer with the
+   *  tail of what the script said.  Seeded rather than sent, which is the
+   *  `Fix` button's rule: the writer presses Enter on their own message. */
+  const askAboutScript = useCallback((path: string, result: ScriptResult) => {
+    if (get().agent?.provider === "none") return;
+    if (chatOverRef.current && !chatOpenRef.current) setChatOpen(true);
+    window.setTimeout(() => {
+      chat.current?.seed(troubleshootPrompt(path, result));
+      chat.current?.focusComposer();
+    }, 60);
+  }, []);
+
   const showPreview = useCallback((path: string, withSource = true) => {
     // A click on the strip is asking for the document by name, so it is no
     // longer one this window merely followed and may not leave on its own.
@@ -1384,6 +1441,38 @@ export default function App() {
   useEffect(() => {
     if (removing) return;
     const decision = followDecision(activePath, previews, activePreview, owners);
+    // A script in front brings its tab forward, with what it last did;
+    // a chapter in front puts the page back.  The tab stays on the strip
+    // either way, since a run's output is read beside the script and
+    // beside the page in turn.
+    if (decision.kind === "script") {
+      const path = decision.path;
+      const held = get().script;
+      if (held?.path !== path) {
+        set({
+          script: { path, running: false, result: null, changedByAgent: false },
+          previewShowing: "script",
+        });
+        const id = get().projectId;
+        if (id) {
+          api.lastScriptRun(id, path).then(
+            (last) => {
+              const now = get().script;
+              if (now?.path !== path) return;
+              const { running, ...result } = last;
+              set({ script: { ...now, running, result: result as ScriptResult } });
+            },
+            () => undefined,
+          );
+        }
+      } else if (get().previewShowing !== "script") {
+        set({ previewShowing: "script" });
+      }
+      return;
+    }
+    if (activePath && isTeX(activePath) && get().previewShowing === "script") {
+      set({ previewShowing: "document" });
+    }
     if (decision.kind === "show") {
       showPreview(decision.document, false);
       return;
@@ -1440,7 +1529,9 @@ export default function App() {
       }
       if (meta && event.key === "Enter" && activePath) {
         event.preventDefault();
-        pdf.current?.reveal(activePath, get().cursor.line);
+        // On a script, the key runs it; on a chapter it goes to the page.
+        if (isScript(activePath)) void runScript(activePath);
+        else pdf.current?.reveal(activePath, get().cursor.line);
       }
       // The agent panel.  `code` rather than `key`: with Alt held, macOS
       // reports the character the combination would type, so `key` here is
@@ -1970,6 +2061,10 @@ export default function App() {
                   onRename={renameOpenFile}
                   onHistory={() => setHistoryOpen(true)}
                   onAskAbout={noAgent ? undefined : askAboutSelection}
+                  onRunScript={(path) => {
+                    openFile(path);
+                    void runScript(path);
+                  }}
                 />
               ) : null}
               {/* Under Files, because it answers the same question the
@@ -2054,6 +2149,8 @@ export default function App() {
             onClose={closeFile}
             onCloseTabs={closeTabs}
             onDuplicate={duplicateFile}
+            onRunScript={(path) => void runScript(path)}
+            onStopScript={stopScript}
             // The tab in front and the empty run of the strip: fold, or
             // double-click for writing mode.  Below 900px nothing folds.
             onHeaderClick={!tight ? () => headerClick("editor") : undefined}
@@ -2345,6 +2442,8 @@ export default function App() {
               }}
               onDownload={downloadPreviewPdf}
               onAdd={startPreviewing}
+              onRunScript={(path) => void runScript(path)}
+              onStopScript={stopScript}
               onHeaderClick={!tight ? () => headerClick("pdf") : undefined}
               trailing={
                 tight ? (
@@ -2376,6 +2475,14 @@ export default function App() {
               losing the window. */}
           <Boundary>
           <Suspense fallback={<div className="h-full bg-surface-2" />}>
+          {previewShowing === "script" && script ? (
+            <Script
+              onRun={(path) => void runScript(path)}
+              onStop={stopScript}
+              onOpen={(path) => openFile(path)}
+              onAsk={noAgent ? undefined : askAboutScript}
+            />
+          ) : (
           <Pdf
             document={activePreview}
             handleRef={(handle) => (pdf.current = handle)}
@@ -2391,6 +2498,7 @@ export default function App() {
               }
             }}
           />
+          )}
           </Suspense>
           </Boundary>
         </div>

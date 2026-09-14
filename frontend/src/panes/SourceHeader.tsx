@@ -1,5 +1,8 @@
 import { Suspense, lazy, useMemo, type ReactNode } from "react";
+import { RunIcon, StopIcon } from "../chrome";
 import { useStore } from "../store";
+import { isScript } from "./file-kinds";
+import { mac } from "./math-hover";
 import PaneHeader from "./PaneHeader";
 import TabStrip, { middleTruncate, type MenuItem, type StripTab } from "./TabStrip";
 
@@ -21,6 +24,8 @@ export default function SourceHeader({
   onClose,
   onCloseTabs,
   onDuplicate,
+  onRunScript,
+  onStopScript,
   onHeaderClick,
   leading,
   trailing,
@@ -32,6 +37,10 @@ export default function SourceHeader({
    *  the thinking, so this component has nothing left to work out. */
   onCloseTabs: (what: "others" | "all", path: string) => void;
   onDuplicate: (path: string) => void;
+  /** Run the script in front, or stop it.  The control sits at the
+   *  strip's end only while the tab in front is a `.py`. */
+  onRunScript: (path: string) => void;
+  onStopScript: (path: string) => void;
   /** A click on the tab in front or the empty run: fold, or double-click
    *  for writing mode.  Absent below 900px, where nothing folds. */
   onHeaderClick?: () => void;
@@ -47,6 +56,9 @@ export default function SourceHeader({
   const others = useStore((s) => s.collaborators.length);
   const connection = useStore((s) => s.connection);
   const anybodyElse = others > 0 || connection === "offline";
+  const script = useStore((s) => s.script);
+  const runnable = activePath !== null && isScript(activePath);
+  const runningThis = runnable && script?.path === activePath && script.running;
 
   const errorCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -102,8 +114,31 @@ export default function SourceHeader({
       testId="editor-header"
       leading={leading}
       trailing={
-        anybodyElse || trailing ? (
+        anybodyElse || trailing || runnable ? (
           <>
+            {/* The script in front runs from here, and from Mod-Enter in
+                the editor.  Stop replaces it while the run is going. */}
+            {runnable && activePath ? (
+              runningThis ? (
+                <button
+                  className="quiet nx-tap [--nx-tap-y:26px] t-micro mr-1 flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3"
+                  data-testid="stop-script"
+                  title="Stop this script"
+                  onClick={() => onStopScript(activePath)}
+                >
+                  <StopIcon /> Stop
+                </button>
+              ) : (
+                <button
+                  className="quiet nx-tap [--nx-tap-y:26px] t-micro mr-1 flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3"
+                  data-testid="run-script"
+                  title={`Run this script (${mac() ? "⌘↵" : "Ctrl-Enter"})`}
+                  onClick={() => onRunScript(activePath)}
+                >
+                  <RunIcon /> Run
+                </button>
+              )
+            ) : null}
             {/* Who else is here, at the strip's end. A project with one
                 writer looks exactly as it did, and does not download this. */}
             {anybodyElse ? (
