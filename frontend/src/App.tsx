@@ -18,6 +18,9 @@ import {
 import { busyTyping, onFrame } from "./timing";
 import { afterClosing, neighbour, pushClosed, viewingClosed } from "./tabs";
 import { followDecision } from "./follow-preview";
+import {
+  DOUBLE_CLICK_MS, headerClick as headerVerdict, type Pane, type Pending,
+} from "./header-gesture";
 import { orderRows, rowKey } from "./panes/diagnostic-rows";
 import {
   BREAKPOINTS,
@@ -76,8 +79,8 @@ const ViewingBanner = lazy(() =>
 );
 import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
-import Tabs from "./panes/Tabs";
-import PreviewTabs from "./panes/PreviewTabs";
+import SourceHeader from "./panes/SourceHeader";
+import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton from "./panes/AgentButton";
 import Status from "./panes/Status";
 /** The error drawer, fetched when something opens it.
@@ -1276,8 +1279,7 @@ export default function App() {
   const downloadPreviewPdf = useCallback((path: string) => {
     const id = get().projectId;
     if (!id) return;
-    const stem = (path.split("/").pop() ?? path).replace(/\.(tex|ltx)$/i, "");
-    void downloadPdf(id, stem, path);
+    void downloadPdf(id, path);
   }, []);
 
   /** The preview follows the file you open.  A document in its own right
@@ -1565,11 +1567,10 @@ export default function App() {
   }, []);
 
   // The two modes, from the keyboard.  The gestures that enter them are a
-  // double click on the preview header and on the empty run of the tab
-  // strip, and the second of those shrinks to nothing as tabs fill the
-  // strip: a writer with eight files open has no place left to double
-  // click.  Asked which handle should replace it, the writer chose a
-  // shortcut instead, so these are the route that never shrinks.  R for
+  // double click on either pane's tab in front or on the empty run of its
+  // strip; the keys were added when the empty run was the only handle and
+  // shrank to nothing as tabs filled the strip, and they stay because a
+  // key is a good route whether or not the gesture has a handle.  R for
   // reading and E for editing, in the app's own Mod-Alt space, both free
   // in CodeMirror's keymap and in the browser's; W was the obvious letter
   // for writing and is already Close the tab in front.  Pressing the same
@@ -1590,41 +1591,48 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleFocus]);
 
-  /** One header, two gestures.
+  /** One header, two gestures, on the tab in front and on the empty run.
    *
-   *  A double click arrives as two clicks, so the fold has to wait long
-   *  enough to find out which one this is. 250 ms is the shortest wait
-   *  that does not turn a deliberate double click into a fold followed by
-   *  a mode, and it is short enough that a single click still feels like
-   *  a button rather than a request. */
-  // The pending click carries which header it was on: a click on the
-  // preview followed quickly by one on the source is two single clicks,
-  // not a double click on whichever came second.
-  const headerTimer = useRef<{ pane: "editor" | "pdf"; id: number } | null>(null);
+   *  The arithmetic is `header-gesture.ts`, which has the tests; this is
+   *  the timer.  A double click arrives as two clicks, so the fold waits
+   *  DOUBLE_CLICK_MS to find out which one it is.  The pending fold
+   *  carries which header it was on: a click on the preview followed
+   *  quickly by one on the source is two single clicks, not a double click
+   *  on whichever came second.  And a selection is recorded per pane, so
+   *  the second click of a double click that selected a tab, which lands
+   *  on a tab that is now in front, does not fold the pane under a writer
+   *  who only meant to switch. */
+  const headerTimer = useRef<number | null>(null);
+  const pendingFold = useRef<Pending | null>(null);
+  const selectedAt = useRef<Record<Pane, number | null>>({ editor: null, pdf: null });
+  const noteSelect = useCallback((pane: Pane) => {
+    selectedAt.current[pane] = performance.now();
+  }, []);
   const headerClick = useCallback(
-    (pane: "editor" | "pdf") => {
-      const pending = headerTimer.current;
-      if (pending) {
-        window.clearTimeout(pending.id);
-        headerTimer.current = null;
-        if (pending.pane === pane) {
-          toggleFocus(pane);
-          return;
-        }
-        // A different header: the first click was meant on its own.
-        fold(pending.pane);
+    (pane: Pane) => {
+      const now = performance.now();
+      const verdict = headerVerdict(pendingFold.current, selectedAt.current[pane], pane, now);
+      if (verdict.kind === "ignore") return;
+      if (headerTimer.current !== null) window.clearTimeout(headerTimer.current);
+      headerTimer.current = null;
+      pendingFold.current = null;
+      if (verdict.kind === "mode") {
+        toggleFocus(pane);
+        return;
       }
-      const id = window.setTimeout(() => {
+      if (verdict.kind === "fold-then-arm") fold(verdict.fold);
+      headerTimer.current = window.setTimeout(() => {
         headerTimer.current = null;
+        pendingFold.current = null;
         fold(pane);
-      }, 250);
-      headerTimer.current = { pane, id };
+      }, DOUBLE_CLICK_MS);
+      pendingFold.current = { pane, at: now };
     },
     [fold, toggleFocus],
   );
   useEffect(
     () => () => {
-      if (headerTimer.current) window.clearTimeout(headerTimer.current.id);
+      if (headerTimer.current !== null) window.clearTimeout(headerTimer.current);
     },
     [],
   );
@@ -1811,7 +1819,7 @@ export default function App() {
                     projectId &&
                     startDownload(api.downloadUrl(projectId, { format: "zip" }))
                   }
-                  onPdf={() => projectId && downloadPdf(projectId, projectName)}
+                  onPdf={(document) => projectId && downloadPdf(projectId, document)}
                 />
                 <FoldButton
                   direction="left"
@@ -1944,11 +1952,21 @@ export default function App() {
               : { flex: `${folded.pdf ? 1 : editorFraction} 1 0` }
           }
         >
-          <div className="flex items-center bg-surface-2">
-            {railFolded ? (
-              // Nothing is lost when the rail folds away: the project name,
-              // its switcher, the theme and the downloads move here.
-              <div className="flex h-[32px] shrink-0 items-center border-r border-line pl-1">
+          <SourceHeader
+            onSelect={(path) => {
+              noteSelect("editor");
+              openFile(path);
+            }}
+            onClose={closeFile}
+            onCloseTabs={closeTabs}
+            onDuplicate={duplicateFile}
+            // The tab in front and the empty run of the strip: fold, or
+            // double-click for writing mode.  Below 900px nothing folds.
+            onHeaderClick={!tight ? () => headerClick("editor") : undefined}
+            // Nothing is lost when the rail folds away: the project name,
+            // its switcher, the theme and the downloads move here.
+            leading={
+              railFolded ? (
                 <AppControls
                   projectId={projectId}
                   projectName={projectName}
@@ -1956,30 +1974,20 @@ export default function App() {
                   onTutorial={openTutorial}
                   onChangeAgent={changeAgent}
                 />
-              </div>
-            ) : null}
-            <div className="min-w-0 flex-1">
-              <Tabs
-                onSelect={(path) => openFile(path)}
-                onClose={closeFile}
-                onCloseTabs={closeTabs}
-                onDuplicate={duplicateFile}
-                // Only the empty run of the strip, never a tab: this is the
-                // one header whose whole width is already a control.
-                onBlank={!tight ? () => headerClick("editor") : undefined}
-              />
-            </div>
-            {tight ? (
-              <Segmented value={showing} onChange={setShowing} />
-            ) : null}
-            {!tight ? (
-              <FoldButton
-                direction="left"
-                label="Fold the source away"
-                onClick={() => fold("editor")}
-              />
-            ) : null}
-          </div>
+              ) : undefined
+            }
+            trailing={
+              tight ? (
+                <Segmented value={showing} onChange={setShowing} />
+              ) : (
+                <FoldButton
+                  direction="left"
+                  label="Fold the source away"
+                  onClick={() => fold("editor")}
+                />
+              )
+            }
+          />
           {viewing ? (
             <Suspense fallback={null}>
             <ViewingBanner
@@ -2217,75 +2225,49 @@ export default function App() {
               : { flex: `${folded.editor ? 1 : 1 - editorFraction} 1 0` }
           }
         >
-          {!tight ? (
-            <div
-              // `select-none`: this header answers a double click by
-              // entering reading mode, and a double click on text also
-              // selects the word under it -- so the label was left
-              // highlighted in a lavender that reads like --pen, the one
-              // colour reserved for "the agent touched this".
-              className="flex h-[32px] shrink-0 cursor-pointer select-none items-center gap-2 border-b border-line bg-surface-2 pl-2 pr-1 transition-colors duration-[90ms] hover:bg-surface-3"
-              title="Click to fold the preview away, double-click to read"
-              data-testid="preview-header"
-              onClick={(event) => {
-                // The header is the control; the chip inside it is not,
-                // and neither is a tab, whose padding used to fold the
-                // pane when a click missed the name by a few pixels.
-                const target = event.target as HTMLElement;
-                if (target.closest("button") || target.closest("[data-preview-tab]")) return;
-                headerClick("pdf");
+          {!tight || showing === "preview" ? (
+            // The same header as the source pane's, built once.  Below
+            // 900px the two panes share one view, so the strip shares the
+            // row with the source/preview toggle and nothing folds; without
+            // that there was no way to change document with a mouse there.
+            // When the rail and the editor are both folded away this header
+            // also carries the project controls, beside the fold chevron
+            // rather than in the strip's place, so the second half of the
+            // double click that leaves reading mode cannot land on "switch
+            // project" and leave the document entirely.
+            <PreviewHeader
+              onSelect={(path) => {
+                noteSelect("pdf");
+                showPreview(path);
               }}
-            >
-              {/* The label stays on the left in every state.  When the
-                  rail is folded away this header also carries the project
-                  controls, and those used to take the label's place -- so
-                  the second half of the double click that leaves reading
-                  mode landed on "switch project" and left the document
-                  entirely.  They go beside the other control instead, and
-                  the left of the bar stays the thing you click. */}
-              {/* No spacer after it.  There was one, `flex-1` beside a
-                  strip that is itself `flex-1`, and the two split the
-                  header between them: the strip had half the width and
-                  showed three tabs where the row had room for seven. */}
-              <PreviewTabs
-                onSelect={showPreview}
-                onClose={stopPreviewing}
-                onCloseMany={stopPreviewingMany}
-                onDownload={downloadPreviewPdf}
-                onAdd={startPreviewing}
-              />
-              {railFolded && folded.editor ? (
-                <AppControls
-                  projectId={projectId}
-                  projectName={projectName}
-                  onSwitch={leaveProject}
-                  onTutorial={openTutorial}
-                  onChangeAgent={changeAgent}
-                />
-              ) : null}
-              <FoldButton
-                direction="right"
-                label="Fold the preview away"
-                onClick={() => fold("pdf")}
-              />
-            </div>
-          ) : null}
-          {tight && showing === "preview" ? (
-            // The preview has no header at this width, so the tabs share
-            // the row that carries the source/preview toggle.  Without
-            // this there was no way to change document with a mouse below
-            // 900px -- the same hole the agent button had, in the same
-            // place, for the same reason.
-            <div className="flex items-center gap-2 bg-surface-2 py-1 pl-1 pr-2">
-              <PreviewTabs
-                onSelect={showPreview}
-                onClose={stopPreviewing}
-                onCloseMany={stopPreviewingMany}
-                onDownload={downloadPreviewPdf}
-                onAdd={startPreviewing}
-              />
-              <Segmented value={showing} onChange={setShowing} />
-            </div>
+              onClose={stopPreviewing}
+              onCloseMany={stopPreviewingMany}
+              onDownload={downloadPreviewPdf}
+              onAdd={startPreviewing}
+              onHeaderClick={!tight ? () => headerClick("pdf") : undefined}
+              trailing={
+                tight ? (
+                  <Segmented value={showing} onChange={setShowing} />
+                ) : (
+                  <>
+                    {railFolded && folded.editor ? (
+                      <AppControls
+                        projectId={projectId}
+                        projectName={projectName}
+                        onSwitch={leaveProject}
+                        onTutorial={openTutorial}
+                        onChangeAgent={changeAgent}
+                      />
+                    ) : null}
+                    <FoldButton
+                      direction="right"
+                      label="Fold the preview away"
+                      onClick={() => fold("pdf")}
+                    />
+                  </>
+                )
+              }
+            />
           ) : null}
           {/* Its own boundary as well as the root's: the preview is the
               largest chunk and the one most likely to be missing after an

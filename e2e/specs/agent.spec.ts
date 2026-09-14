@@ -263,6 +263,24 @@ test("the mode menu closes from the button that opened it", async ({ tab }) => {
   await expect(tab.getByTestId("mode-menu")).toBeHidden();
 });
 
+test("the mode menu keeps the promise of its role", async ({ tab }) => {
+  // It claimed role="menu" and offered none of what that means, which
+  // TRACKER.md carried for a year.  Focus goes to the current choice's
+  // row when it opens, the arrows walk the three, and Escape gives the
+  // bolt its focus back.
+  const control = tab.getByTestId("auto-toggle");
+  await control.click();
+  await expect(tab.getByTestId("mode-menu")).toBeVisible();
+  await expect(tab.getByTestId("mode-ask")).toBeFocused();
+  await tab.keyboard.press("ArrowDown");
+  await expect(tab.getByTestId("mode-project")).toBeFocused();
+  await tab.keyboard.press("End");
+  await expect(tab.getByTestId("mode-all")).toBeFocused();
+  await tab.keyboard.press("Escape");
+  await expect(tab.getByTestId("mode-menu")).toBeHidden();
+  await expect(control).toBeFocused();
+});
+
 test("what the agent is told to remember survives a new conversation", async ({
   tab,
 }) => {

@@ -146,8 +146,8 @@ test("the preview tab in front has a menu, and the others keep the browser's", a
   // there is no main document that stays regardless, and the last one on
   // the strip cannot go.
   await menu.getByRole("menuitem", { name: "Stop previewing the others" }).click();
-  await expect(page.locator(PREVIEW_TABS)).toHaveCount(0);
-  await expect(page.getByText("Preview", { exact: true })).toBeVisible();
+  await expect(page.locator(PREVIEW_TABS)).toHaveCount(1);
+  await expect(page.getByTestId(`preview-tab-${front}`)).toHaveAttribute("aria-current", "true");
 });
 
 test("Download PDF on a preview tab fetches that document's PDF", async ({
@@ -177,17 +177,32 @@ test("Download PDF on a preview tab fetches that document's PDF", async ({
   expect(url.searchParams.get("document")).toBe(front);
 });
 
-test("a click on a preview tab's edge is not a click on the header", async ({
+test("a click on the edge of a tab is a click on that tab, and the tab in front is the header", async ({
   app, project, page,
 }) => {
-  await withPreviews({ app, project, page }, 4);
+  // Three tabs, so every edge is on screen: with five the strip scrolls to
+  // the tab in front and the first tab's edge is under the fold.  The left
+  // edge, because the right one belongs to the close button's 44px finger
+  // target, on this strip as on the source strip.
+  const DOCS = await withPreviews({ app, project, page }, 2);
+  const front = DOCS[DOCS.length - 1];
   const tab = page.locator('[data-preview-tab][data-path="main.tex"]');
   const box = (await tab.boundingBox())!;
-  // The right-hand padding of the tab, past its close button.
-  await page.mouse.click(box.x + box.width - 3, box.y + box.height / 2);
-  await page.waitForTimeout(500);
+  await page.mouse.click(box.x + 4, box.y + box.height / 2);
+  // A tab not in front is selected by it, and nothing folds.
+  await expect(page.getByTestId("preview-tab-main.tex")).toHaveAttribute("aria-current", "true");
+  await page.waitForTimeout(400);
   await expect(page.getByTestId("collapsed-preview")).toHaveCount(0);
   await expect(page.getByTestId("preview-header")).toBeVisible();
+  await expect(page.locator(PREVIEW_TABS)).toHaveCount(DOCS.length + 1);
+
+  // The tab in front is the header: the same click there folds the pane.
+  await page.getByTestId(`preview-tab-${front}`).click();
+  await expect(page.getByTestId(`preview-tab-${front}`)).toHaveAttribute("aria-current", "true");
+  await page.waitForTimeout(400);
+  const frontBox = (await page.locator(`[data-preview-tab][data-path="${front}"]`).boundingBox())!;
+  await page.mouse.click(frontBox.x + 4, frontBox.y + frontBox.height / 2);
+  await expect(page.getByTestId("collapsed-preview")).toBeVisible({ timeout: 5_000 });
 });
 
 /** The source strip, the same way. */

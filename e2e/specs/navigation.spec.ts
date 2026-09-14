@@ -292,15 +292,16 @@ test("the tab strip answers the keyboard, including the tab just closed", async 
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+Alt+BracketLeft");
   // The tab in front, not merely a tab that is on the strip: main.tex is
-  // visible either way, and the first version of this asserted that.
-  await expect(tab.locator('[aria-current="true"]')).toHaveAttribute(
+  // visible either way, and the first version of this asserted that.  On
+  // the source strip: the preview strip always has a tab in front too.
+  await expect(tab.locator('[data-tab] [aria-current="true"]')).toHaveAttribute(
     "title",
     /main\.tex/,
   );
 
   // Close it from the keyboard, and bring it back.
   await tab.keyboard.press("Control+Alt+BracketRight");
-  await expect(tab.locator('[aria-current="true"]')).toHaveAttribute(
+  await expect(tab.locator('[data-tab] [aria-current="true"]')).toHaveAttribute(
     "title",
     /references\.bib/,
   );

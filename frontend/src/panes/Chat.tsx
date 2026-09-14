@@ -20,6 +20,7 @@ import { shortRule } from "./short-rule";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
 import { agentName, usageNote } from "../agent-name";
 import { Chevron } from "../chrome";
+import { focusFirst, walkMenu } from "./menu-keys";
 import api from "../api";
 import {
   clearChat,
@@ -268,6 +269,11 @@ export default function Chat({
   const [confirmAll, setConfirmAll] = useState(false);
   const modeRef2 = useRef<HTMLDivElement | null>(null);
   const modeButton = useRef<HTMLButtonElement | null>(null);
+  // Focus goes into the mode menu once, when it opens, from an effect keyed
+  // on the opening: the same lesson the strip menus learned about refs.
+  useEffect(() => {
+    if (modeOpen) focusFirst(modeRef2.current);
+  }, [modeOpen]);
   const confirmAllRef = useRef<HTMLDivElement | null>(null);
   const keepAskingButton = useRef<HTMLButtonElement | null>(null);
   const closeConfirmAll = useCallback(() => {
@@ -1062,6 +1068,13 @@ export default function Chat({
                     role="menu"
                     data-testid="mode-menu"
                     className="nx-arrive absolute bottom-[30px] left-0 z-20 w-[288px] rounded-[5px] border border-line bg-surface-2 p-1 shadow-float"
+                    // The role's promise, kept: arrows walk the three,
+                    // Escape closes and gives the bolt its focus back.
+                    onKeyDown={(event) => {
+                      if (walkMenu(event, () => setModeOpen(false)) && event.key === "Escape") {
+                        modeButton.current?.focus();
+                      }
+                    }}
                   >
                     {(["ask", "project", "all"] as const).map((option) => (
                       <button

@@ -25,13 +25,16 @@ async function withEsi({ app, project, page }: any) {
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 }
 
-test("a standalone document is offered, and the strip appears once it is taken", async ({
+test("a standalone document is offered, and joins the strip once it is taken", async ({
   app, project, page,
 }) => {
   await withEsi({ app, project, page });
-  // One document is a label, not a strip: a single tab is a control that
-  // controls nothing.
-  await expect(page.getByTestId("preview-tab-main.tex")).toHaveCount(0);
+  // One document is one tab, drawn all the same: the tab in front is the
+  // pane's handle, and a label is not a handle.  Alone, it cannot close.
+  await expect(page.getByTestId("preview-tab-main.tex")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Stop previewing main.tex" }),
+  ).toHaveCount(0);
 
   await page.getByTestId("add-preview").click();
   await page.getByRole("menuitem", { name: "esi.tex" }).click();

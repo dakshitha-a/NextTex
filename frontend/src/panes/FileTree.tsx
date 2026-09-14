@@ -291,8 +291,7 @@ export default function FileTree({
       } else if (action === "pdf") {
         // Named after the file, never the project: twenty resume variants
         // downloaded under one name would be twenty copies of one name.
-        const stem = node.name.replace(/\.(tex|ltx)$/i, "");
-        void downloadPdf(projectId, stem, node.path);
+        void downloadPdf(projectId, node.path);
       } else if (action === "preview") {
         await onPreview?.(node.path);
       } else if (action === "unpreview") {
