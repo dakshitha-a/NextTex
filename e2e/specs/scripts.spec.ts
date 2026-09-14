@@ -73,7 +73,7 @@ test("Run shows what the script printed on a script tab in the preview pane", as
   await page.locator('[role="tree"] [data-path="main.tex"]').click();
   await expect(page.getByTestId("preview-tab-main.tex")).toHaveAttribute("aria-current", "true");
   await expect(page.getByTestId("script-tab-scripts/hello.py")).toBeVisible();
-  await expect(page.getByTestId("script-pane")).toHaveCount(0);
+  await expect(page.getByTestId("script-pane")).toBeHidden();
   // Clicking the script tab brings the run back; closing it returns to the page.
   await page.getByTestId("script-tab-scripts/hello.py").click();
   await expect(page.getByTestId("script-stdout")).toContainText("hello world");
@@ -82,6 +82,30 @@ test("Run shows what the script printed on a script tab in the preview pane", as
   await page.getByTestId("preview-strip").getByRole("button", { name: "Close hello.py" }).click();
   await expect(page.getByTestId("script-tab-scripts/hello.py")).toHaveCount(0);
   await expect(page.getByTestId("script-pane")).toHaveCount(0);
+});
+
+test("the page keeps its place while the script tab is in front", async ({
+  app, project, page,
+}) => {
+  // Drawn in front of the page rather than instead of it: coming back
+  // finds the page where it was, not fetched again and scrolled to the top.
+  writeFileSync(
+    join(project.root, "main.tex"),
+    "\\documentclass{article}\n\\begin{document}\nOne.\\newpage Two.\\newpage Three.\n\\end{document}\n",
+  );
+  await withScript({ app, project, page });
+  await page.locator('[role="tree"] [data-path="main.tex"]').click();
+  const scroller = page.getByTestId("page-behind-script").locator(".overflow-auto").first();
+  await expect(scroller.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  await scroller.evaluate((node) => { node.scrollTop = 120; });
+  await expect.poll(() => scroller.evaluate((node) => node.scrollTop)).toBe(120);
+  await page.locator('[role="tree"] [data-path="scripts/hello.py"]').click();
+  await page.getByTestId("run-script").click();
+  await expect(page.getByTestId("script-stdout")).toContainText("hello world", { timeout: 20_000 });
+  await expect(scroller).toBeHidden();
+  await page.locator('[role="tree"] [data-path="main.tex"]').click();
+  await expect(scroller).toBeVisible();
+  expect(await scroller.evaluate((node) => node.scrollTop)).toBe(120);
 });
 
 test("Ctrl-Enter in a script runs it", async ({ app, project, page }) => {

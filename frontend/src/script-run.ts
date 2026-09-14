@@ -70,3 +70,21 @@ export function agentChangedScript(
   if (!paths.includes(script.path)) return false;
   return script.result !== null && !script.result.ok;
 }
+
+/** What `scripts/last` answered, read as a result or as nothing.
+ *
+ *  Mid-run, before a first `result.json` exists, the route answers only
+ *  the script's name and `running: true`; the pane reads `figures`,
+ *  `saved` and `out` off a result, so an answer without them is not one.
+ *  Handed the result the window already holds, so a stale answer that
+ *  arrives after `script_done` never replaces a real one with nothing. */
+export function resultFrom(
+  last: Partial<ScriptResult> & { running: boolean },
+  held: ScriptResult | null,
+): ScriptResult | null {
+  const { running: _running, ...rest } = last;
+  if (Array.isArray(rest.figures) && Array.isArray(rest.saved) && typeof rest.out === "string") {
+    return rest as ScriptResult;
+  }
+  return held;
+}
