@@ -41,10 +41,10 @@ function buildRepo() {
   git(sandbox, "clone", remote, clone);
 }
 
-function commitUpstream(path: string, message: string) {
+function commitUpstream(path: string, message: string, content = "x\n") {
   const full = join(work, path);
   mkdirSync(join(full, ".."), { recursive: true });
-  writeFileSync(full, "x\n");
+  writeFileSync(full, content);
   git(work, "add", "-A");
   git(work, "commit", "-m", message);
   git(work, "push");
@@ -65,7 +65,29 @@ test("an install level with its repository says so quietly", async ({ page }) =>
   try {
     await open(app, page);
     await expect(page.getByText("Up to date.")).toBeVisible({ timeout: 15_000 });
+    // The quiet line names the number this install is on: the one place a
+    // writer can read it without a terminal.
+    await expect(page.getByTestId("update-current")).toHaveText(
+      /^NextTex \d+\.\d+\.\d+, up to date\.$/,
+    );
     await expect(page.getByTestId("update-now")).toHaveCount(0);
+  } finally {
+    await app.stop();
+  }
+});
+
+test("an update names the version it would move to", async ({ page }) => {
+  buildRepo();
+  // The upstream commit carries a number; the running code carries its
+  // own, and the two differing is what the headline leads with.
+  commitUpstream("nexttex/version.py", "NextTex is 9.9.9", 'VERSION = "9.9.9"\n');
+  const app = await startServer({ NEXTTEX_INSTALL_ROOT: clone });
+  try {
+    await open(app, page);
+    await expect(page.getByTestId("update-headline")).toHaveText(
+      "NextTex 9.9.9 is available. One new commit changes NextTex.",
+      { timeout: 15_000 },
+    );
   } finally {
     await app.stop();
   }

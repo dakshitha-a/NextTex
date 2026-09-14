@@ -25,10 +25,45 @@ prevent.
 
 Work happens on `master`. Commit there, push there, and then run
 `gh run list --limit 5` and wait for `python`, `interface checks` and
-`interface` to be green before the work is called done. A red workflow you
-did not cause is still yours to mention and, while you are there, to fix.
-Never hand back a feature branch or a pull request; a branch is at most a
-scratch space on the way to `master` and is deleted afterwards.
+`interface`, and `release` when the push carried a tag, to be green before
+the work is called done. A red workflow you did not cause is still yours to
+mention and, while you are there, to fix. Never hand back a feature branch
+or a pull request; a branch is at most a scratch space on the way to
+`master` and is deleted afterwards.
+
+## Versions
+
+NextTex has a version, `x.y.z`, on the `VERSION` line of
+`nexttex/version.py`, and the session that pushes is the one that advances
+it. The number names the program, so a push that touches only what
+`nexttex/updates.py` lists as not the program (`docs/`, `README.md`,
+`tests/`, `e2e/`, `bench/`, `examples/`) leaves it alone; the update footer
+is already quiet about those commits and the number agrees with it.
+
+- **z** when the program changed and a writer would notice nothing new: a
+  bug fix, a performance improvement, a refactor, a dependency bump, a
+  change to the installer, the update scripts or the workflows.
+- **y** when a writer can newly see or do something: a feature, a changed
+  behaviour, a new setting, route, shortcut or panel; anything that earns a
+  line in `README.md` or a section in `docs/design.md`. Resets z.
+- **x** when what an install *is* changes: the installer must be run again;
+  a file under `.nexttex/`, the history store or the collaboration wire
+  changes shape so an older NextTex cannot read what a newer one wrote; a
+  feature is removed; the Python or Node floor rises. Resets y and z.
+
+One bump per push, at the highest level anything in that push earned, and
+it is its own commit, the last one before the push, with the subject
+`NextTex is 1.2.0` and a body naming which change earned the level and why
+it is that level rather than the one below. The same commit is tagged,
+`git tag -a v1.2.0 -m "NextTex 1.2.0"`, and the two go up together with
+`git push origin master v1.2.0`. The `release` workflow then checks that
+the tag and the file agree, refuses if they do not, and publishes the
+commit subjects since the previous tag as the release notes. A push that
+earned no bump gets no tag; a session that pushes several times bumps at
+each push that earned one; a docs-only push after a feature push needs
+nothing. Never change the number inside a commit that does something else,
+and never move or re-make a tag: a wrong number is corrected by the next
+one.
 
 ## Documents move with the code
 

@@ -11,6 +11,7 @@ import time
 import pytest
 
 from nexttex import updates
+from nexttex.version import VERSION
 from server import main as server_main
 
 
@@ -50,8 +51,9 @@ def behind(tmp_path, monkeypatch):
 
 def test_the_instance_route_says_who_this_is(client):
     body = client.get("/api/instance").json()
-    assert set(body) >= {"instance", "boot", "supervised", "root"}
+    assert set(body) >= {"instance", "version", "boot", "supervised", "root"}
     assert body["boot"]
+    assert body["version"] == VERSION
 
 
 def test_the_running_commit_and_the_one_on_disk_are_two_answers(client, monkeypatch):

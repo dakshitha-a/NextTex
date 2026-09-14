@@ -162,6 +162,9 @@ export type Report = {
 
 export type Instance = {
   instance: string;
+  /** The version in `nexttex/version.py` at the commit this process
+   *  loaded. Absent from a server older than the number. */
+  version?: string;
   /** The commit this process loaded, read once when it started. */
   head: string;
   /** The commit the files say now. An update moves this and leaves `head`
@@ -184,6 +187,10 @@ export type UpdateReport = {
    *  it failed. */
   checked: boolean;
   head: string;
+  /** The version this install is on and the one upstream carries; the
+   *  second is empty when the upstream commit predates the number. */
+  version?: string;
+  upstream_version?: string;
   behind: number;
   changing: number;
   commits: { sha: string; subject: string; touches: "app" | "interface" | "neither" }[];

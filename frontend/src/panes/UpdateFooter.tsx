@@ -523,7 +523,9 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     if (report.behind === 0) {
       return (
         <Line>
-          <span className="t-micro text-ink-3">Up to date.</span>
+          <span className="t-micro text-ink-3" data-testid="update-current">
+            {report.version ? `NextTex ${report.version}, up to date.` : "Up to date."}
+          </span>
           <span className="flex-1" />
           <button className="quiet t-micro" onClick={() => check(true)}>
             Check again
@@ -653,18 +655,25 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   }
 }
 
+/** The version on offer first, when upstream carries one and it is not
+ *  the one installed, then the commit count: a number is what a writer
+ *  remembers and compares, and the count is what says how much moved. An
+ *  upstream that carries the same number is one whose commits since here
+ *  were docs and tests, which is already the "none of which change
+ *  NextTex" line and never reaches this. */
 function headline(report: UpdateReport): string {
-  const { behind, changing } = report;
+  const { behind, changing, version, upstream_version: upstream } = report;
   const word = (n: number) =>
     ["no", "one", "two", "three", "four", "five"][n] ?? String(n);
+  const lead = upstream && upstream !== version ? `NextTex ${upstream} is available. ` : "";
   if (changing === behind) {
-    return behind === 1
+    return lead + (behind === 1
       ? "One new commit changes NextTex."
-      : `${cap(word(behind))} new commits change NextTex.`;
+      : `${cap(word(behind))} new commits change NextTex.`);
   }
-  return changing === 1
+  return lead + (changing === 1
     ? `${cap(word(behind))} new commits, one of which changes NextTex.`
-    : `${cap(word(behind))} new commits, ${word(changing)} of which change NextTex.`;
+    : `${cap(word(behind))} new commits, ${word(changing)} of which change NextTex.`);
 }
 
 const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);

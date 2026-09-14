@@ -10,6 +10,9 @@
 # `scripts/update.sh` pulls, then fetches the interface belonging to the
 # commit it landed on. A mismatch between the two is the one failure this
 # arrangement can have, and `dist/BUILD_SHA` is how anything can notice it.
+# The version number in `nexttex/version.py` is a fact about the code and
+# not about the build, which is why nothing here reads it: two commits with
+# the same number still get two assets.
 
 name: interface
 

@@ -1,0 +1,78 @@
+# A version tag becomes a release whose notes are the commit subjects since
+# the previous version.
+#
+# The repository keeps no changelog on purpose: every commit subject is a
+# full sentence saying what is now true, so `git log` is the record. This
+# renders that record on the releases page, where somebody deciding whether
+# to update reads about versions, and it is the one place the number and
+# the file are checked against each other: a tag that disagrees with
+# `nexttex/version.py` is refused rather than published, because the file
+# is what the running program reports and the tag is what people cite.
+#
+# Nothing installs from here. Installs stay git checkouts of master and the
+# interface stays keyed to the commit; `CLAUDE.md` says when a push earns
+# a tag and how it is made.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history, so the previous tag and the commits since
+          # it are there to read.
+          fetch-depth: 0
+
+      - name: The tag and the file agree
+        id: version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          number="${tag#v}"
+          filed="$(sed -n 's/^VERSION = "\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' nexttex/version.py | head -n 1)"
+          if [ -z "$filed" ]; then
+            echo "nexttex/version.py has no VERSION line this workflow can read" >&2
+            exit 1
+          fi
+          if [ "$number" != "$filed" ]; then
+            echo "the tag says $number and nexttex/version.py says $filed; they must agree" >&2
+            exit 1
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Write the notes
+        id: notes
+        run: |
+          set -euo pipefail
+          previous="$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)"
+          {
+            if [ -n "$previous" ]; then
+              echo "Since $previous:"
+              echo
+              git log --format='- %s' "$previous..HEAD"
+            else
+              # The first numbered version: the commit that made it says
+              # why, and every commit before it is the whole of git log.
+              git log -1 --format='%b'
+            fi
+          } > notes.md
+          cat notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "NextTex ${{ steps.version.outputs.number }}" \
+            --notes-file notes.md \
+            --latest

@@ -105,6 +105,29 @@ def test_commits_on_the_remote_are_found_and_classified(pair):
     assert report.can_update is True
 
 
+def test_the_check_names_the_version_here_and_the_one_upstream(pair):
+    """The footer leads with the number on offer, so the check reads it off
+    the upstream commit's copy of `nexttex/version.py`."""
+    work, clone = pair
+    commit(work, "nexttex/version.py", 'VERSION = "9.9.9"\n', message="NextTex is 9.9.9")
+
+    report = updates.check(clone)
+    assert report.version == updates.VERSION
+    assert report.upstream_version == "9.9.9"
+    assert report.as_dict()["upstream_version"] == "9.9.9"
+
+
+def test_an_upstream_older_than_the_number_has_no_version_to_offer(pair):
+    """Every install that predates the number sees this once: the upstream
+    commit has no `nexttex/version.py`, and "" is the honest answer."""
+    work, clone = pair
+    commit(work, "server/main.py", message="a real change")
+
+    report = updates.check(clone)
+    assert report.version == updates.VERSION
+    assert report.upstream_version == ""
+
+
 def test_documentation_alone_is_offered_but_not_called_a_change(pair):
     work, clone = pair
     commit(work, "docs/one.md", message="one")

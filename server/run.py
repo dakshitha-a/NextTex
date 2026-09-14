@@ -153,33 +153,14 @@ def _log_to_state() -> None:
 
 
 def _print_version() -> None:
-    """The commit this install is on, and the one its interface was built
-    from.
+    """The version, the commit this install is on, and the one its
+    interface was built from.  `nexttex/version.py` has the text and the
+    reason there are three lines; `python -m nexttex.version` prints the
+    same from a bare interpreter."""
+    from nexttex.version import describe
 
-    Two numbers rather than one because they can disagree: the interface is
-    downloaded per commit, so a failed or half-finished update can leave new
-    code serving an older bundle. Nothing could see that before, which is
-    the reason to print it at all.
-    """
-    from nexttex import gitrepo
-
-    # Derived here rather than imported from server.main, which would build
-    # the whole application to answer a question about a file on disk.
-    root = Path(__file__).resolve().parent.parent
-    try:
-        head = gitrepo._run(root, "rev-parse", "HEAD").strip()
-    except Exception:
-        head = "unknown (not a git checkout)"
-    stamp = root / "frontend" / "dist" / "BUILD_SHA"
-    try:
-        built = stamp.read_text(encoding="utf-8").strip()
-    except OSError:
-        built = "unknown (built here, or before this was recorded)"
-    print(f"code      {head}")
-    print(f"interface {built}")
-    if head != built and not built.startswith("unknown"):
-        print("\nThese differ: the interface does not belong to this commit.")
-        print("Run scripts/update.sh, or scripts/fetch-interface.sh on its own.")
+    for line in describe():
+        print(line)
 
 
 def _set_password(settings: Settings) -> None:
@@ -246,7 +227,8 @@ def main() -> None:
                         help="open NextTex in a browser, starting it first "
                              "if it is not already running")
     parser.add_argument("--version", action="store_true",
-                        help="print the commit this install is on and exit")
+                        help="print the version and the commit this install is on, "
+                             "and exit")
     # What a bug report asks for.  `python -m nexttex.report` is the same
     # text from a bare interpreter, for the install whose virtual
     # environment is the thing that broke; this file imports uvicorn before

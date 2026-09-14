@@ -284,6 +284,16 @@ reported as *"three new commits, none of which change NextTex"*, a grey line
 rather than an alert, and a check that cannot reach GitHub says nothing unless
 you asked for it.
 
+NextTex has a version number, and the same line at the foot of the page is
+where to read it: *"NextTex 1.0.0, up to date"* when there is nothing to do,
+and *"NextTex 1.1.0 is available"* ahead of the commit count when there is.
+The number moves the way you would expect: the last part for fixes, the
+middle for something new you can see or do, the first when an update needs
+more than an update. In a terminal, `python3 -m nexttex.version` prints it
+with the commit the code is on and the one the interface was built from,
+and the [releases page](https://github.com/dakshitha-a/NextTex/releases)
+lists what each version changed.
+
 **Not now** puts the card away without losing it. The foot of the page then
 says *"An update is waiting"* with a **Show it** beside it, so you can come back
 and update on an afternoon that suits you rather than having to remember. The
