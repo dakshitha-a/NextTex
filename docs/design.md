@@ -342,17 +342,20 @@ two gestures, and the fold has to wait 250 ms to find out which it is. That is t
 wait that does not turn a deliberate double click into a fold followed by a mode. The
 agent's header, which has no second gesture, folds immediately.
 
-**On the source pane the target is the empty run of the tab strip**, never a tab. It is the
-only part of that row that is not already something, and it shrinks as tabs fill the strip
-, which is the right behaviour rather than a limitation: a writer with a dozen files open
-has not left themselves a place to click, and a fold they did not ask for is worse than a
-gesture they have to reach the chevron for. Below 900 px, where the two panes share one
-view, neither gesture exists: there is nothing to fold them into.
+**On both panes the target is the tab in front, and the empty run of the strip** (§33).
+For a year the source pane's target was the empty run alone, never a tab, on the reasoning
+that it was the only part of the row that was not already something, and that its
+shrinking to nothing as tabs filled the strip was right rather than a limitation. A resume
+project with a dozen variations open changed the writer's mind: there was no run left on
+either pane, and they asked for the tab in front to carry the gesture. A click on any other
+tab is still only a selection, and a double-click on one selects it and folds nothing.
+Below 900 px, where the two panes share one view, neither gesture exists: there is nothing
+to fold them into.
 
 **Each mode has a key**, `⌘⌥R` for reading and `⌘⌥E` for writing, the same key again giving
-the layout back (§32). They are the route that never shrinks: with the strip full there is
-no run left to double click, and asked which new handle should carry the gesture, the
-writer chose a shortcut over any of them.
+the layout back (§32). They were added as the route that never shrinks, when the strip full
+meant no run left to double click; they stay, because a key is a good route whether or not
+the gesture has a handle.
 
 ### Files bar
 
@@ -435,8 +438,10 @@ promise `plot (2).png`.
 
 32 px tall, 10 px horizontal padding, max 200 px, and a tab squeezes to 72 px before the
 strip overflows, the way a browser's do (§32; it was a fixed 96 px minimum). Label at
-`meta` 12 px, stem `--ink` / extension `--ink-3`; overflow truncates the **stem from the
-middle** so the extension survives: `04_o-nitro…mics.tex`.
+`meta` 12 px, stem `--ink` on the tab in front and `--ink-2` on the others, extension
+`--ink-3`; overflow truncates the **stem from the middle** so the extension survives:
+`04_o-nitro…mics.tex`. One component draws the tab for both strips, `TabStrip` in one
+`PaneHeader` (§33), so none of this can differ between them.
 
 Tabs are separated by 1 px `--line` rules, not pills. The **active** tab takes `--surface`
 (identical to the editor body, so it merges into the canvas), carries a 2 px `--pen` bar
@@ -447,7 +452,10 @@ without depending on being able to see the colour. Middle-click closes. Overflow
 horizontally with a hidden scrollbar, under a wheel turned over the strip as well as by
 trackpad, plus a 24 px count at the right of the tabs out of sight; pressing it lists them
 and choosing one brings it in front, and the strip follows the tab in front (§32). The
-preview strip is the same object, with the same count, list and wheel.
+preview strip is the same object, with the same count, list and wheel. **The tab in front
+is the pane's header** as well as a tab (§33): a click on it folds the pane and a
+double-click gives the pane the window, the gestures the empty run of the strip carries,
+because a writer with a dozen files open has no empty run left.
 
 **There is no dirty state on a tab**, and this section described one for two rewrites after
 it stopped being true. It said the close × was replaced by a hollow `--ink-2` ring while a
@@ -466,19 +474,18 @@ disabled rather than absent when it is the only tab open, and the panel is `posi
 fixed`, not absolute, because the strip is a horizontal scroll box and would clip it, which
 is the same bug the file tree's row menu hit inside its own.
 
-The menu does not claim `role="menu"`, and the reasoning is the file tree's: the role
-promises arrow-key navigation between items, this is a column of buttons, and saying
-otherwise tells a screen reader something untrue. Two other menus in the app still claim it
-without implementing it, which is a real inconsistency and is in `TRACKER.md` rather than
-fixed here; the handler that keeps the promise is `menu-keys.ts` now, and the menus §32
-added took it.
+The menu claims `role="menu"` and keeps the promise, through `menu-keys.ts`: focus on the
+first row when it opens, arrows that walk and wrap, Escape. It did not claim the role for
+two rewrites, with the file tree's reasoning that a column of buttons should not, and the
+preview strip's menu did; §33 gave the two one component, and one answer.
 
 **The preview strip's tab in front has the same menu**, minus *Duplicate*, which is about a
 file and not a build, plus *Download PDF*, which is about a build and not a file: *Stop
-previewing the others*, *Stop previewing all*, a rule, *Download PDF*. The main document is
-never stopped, so *all* means every tab but the main and is disabled when only the main is
-open. *Download PDF* fetches that document's own PDF, named after its file, through the
-same route the downloads menu uses with `document` naming which.
+previewing the others*, a rule, *Download PDF*. *The others* leaves the tab the menu was
+opened on, and is disabled when it is alone; there is no *all*, because there is no main
+document that stays regardless and the last tab on the strip cannot go (§33). *Download
+PDF* fetches that document's own PDF, named after its file, through the same route the
+downloads menu uses with `document` naming which.
 
 *Duplicate* copies the file beside itself as `name (copy).ext`, the same naming rule the
 trash and the upload chooser use, so there is one implementation of it and no second one
@@ -5988,3 +5995,83 @@ not on the strip, builds it with a scheduler of its own under the project's
 queue and throws that away afterwards, so downloading twenty variants does
 not put twenty tabs on the strip. The file is named after the document,
 never the project.
+
+### The two headers are one object
+
+The source header and the preview header were written a year apart as
+"the same object" and had drifted into two. The editor's row had no height
+of its own, no rule, no hover and no test id; the preview's hovered as a
+whole bar and carried a `border-b` that ran under its active tab, which
+defeated the one rule the Editor tab spec (§5) is built on, that the tab in
+front opens into the pane below it. Inactive labels were `--ink` on one
+side and `--ink-2` on the other; the close buttons were two styles; one
+right-click menu had keyboard support and the arrive animation and the
+other had neither; the `+` was a text glyph sitting on a baseline in a box
+it was never centred in.
+
+There is one `PaneHeader` now and one `TabStrip`, and each pane says only
+what its tabs are: `SourceHeader` an open file each with its extension and
+error count, `PreviewHeader` a document each with its build dot. The
+header carries no bottom border and no hover. The rule under the row is
+composed by what sits in it, inactive tabs, the empty run and the trailing
+controls, and the tab in front carries none, so it opens into the pane on
+both sides. Hover belongs to the things that answer a click: an inactive
+tab and the empty run tint to `--surface-3` over 90 ms, the tab in front
+does not, because it is already the surface. Both menus share
+`menu-keys.ts` and `nx-arrive`, and both focus their first row from an
+effect keyed on opening (§32). The `+` is an SVG, two strokes crossing at
+the middle of its viewBox, in the same 26 px quiet button the download
+icon uses, so it is centred by geometry rather than by font metrics. The
+preview strip always draws tabs, one included: the serif "Preview" label
+that stood in for a single document is gone, because the tab in front is
+the pane's handle and a label is not a handle. Below 900 px the same
+header carries the source/preview toggle in its trailing slot and nothing
+folds, replacing the separate row the preview had there.
+
+### The tab in front is the header
+
+§"Reading and writing modes" recorded, in the writer's words, that the
+fold gesture's target on the source pane was the empty run of the strip,
+that it shrank to nothing as tabs filled the strip, and that this was
+right. The resume project changed their mind: with a dozen tabs there was
+no run left on either pane, and a shortcut is not a gesture. Their words
+this time were "if the currently opened tab is clicked either on the
+editor or the preview, it collapses and double clicking it expands it".
+
+So the tab in front is a handle, on both panes, as well as the empty run,
+which keeps its gesture. A click folds after the 250 ms wait; a
+double-click gives the pane the window and a second double-click restores
+the layout, as before. The arithmetic is `frontend/src/header-gesture.ts`,
+a pure function with the tests, and it has one more case than the old
+timer had: a double-click on a tab that is *not* in front is click one
+selecting it and click two landing on a tab that now is, and without a
+guard the pane folded under a writer who only meant to switch. So each
+pane records when a tab was last selected, and a header click within the
+window of that selection is the second half of that double-click and is
+ignored. The close button is excused everywhere; a click on the edge of a
+tab not in front is still only a click on that tab. The keyboard route,
+`⌘⌥R` and `⌘⌥E`, stays.
+
+The browser tests say all of this: a click on the tab in front folds the
+source and the preview and a double-click gives each the window; a
+double-click on a tab not in front selects it and folds nothing; the
+shortcut and the tab in front both still work with eight files open; and a
+parity test reads both headers' computed styles and asserts the same
+height, no rule on the row or on the active tab, the same active
+background, and the same tint on the empty run under the pointer.
+
+### The download menu lists every document
+
+The menu offered "Whole project .zip" and one "Typeset page .pdf", which
+was the main document's, and the client named the file after the project.
+It lists every document now, the ones on the strip first and then the ones
+that are not, each by its stem with `.pdf` after it, in a column that
+scrolls past twenty. A document not on the strip is built by the route on
+the spot and never becomes a tab. The file is named by the server's
+`Content-Disposition`, after the document and never the project, from the
+rail, from the folded-rail controls, from the row menu, from the preview
+tab's menu and from the projects screen alike. The menu keeps the promise
+of its role at last, which closes one of the two `role="menu"` gaps
+TRACKER.md carried; the agent panel's mode menu, the other one, gets the
+same handler in the same commit, with the radio items `menu-keys.ts` now
+knows to walk.

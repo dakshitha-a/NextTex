@@ -213,7 +213,11 @@ export default function Projects({
         const body = await response.json().catch(() => ({}));
         throw new Error(body.detail || "the project did not typeset");
       }
-      saveBlob(await response.blob(), `${project.name}.pdf`);
+      // Named after the document the server chose, the one it last had in
+      // front, rather than after the project.
+      const header = response.headers.get("content-disposition") ?? "";
+      const named = /filename="?([^";]+)"?/.exec(header)?.[1];
+      saveBlob(await response.blob(), named || `${project.name}.pdf`);
     } catch (problem: any) {
       setError(`${project.name}: ${problem.message}`);
     } finally {

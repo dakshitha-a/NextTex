@@ -103,20 +103,6 @@ things go to be forgotten rather than a list anybody reads.
       second history on the same directory while the first is still writing to
       it. Closing it properly needs `session_for` to be able to wait, and it is
       called synchronously from most of the routes in `server/main.py`.
-- [ ] **Two menus claim `role="menu"` without implementing it.** The downloads
-      menu in `frontend/src/chrome.tsx` and one in `frontend/src/panes/Chat.tsx`
-      carry the role, and neither offers the arrow-key navigation it promises,
-      so assistive technology is told each is a menu widget when it is a column
-      of buttons. `frontend/src/panes/FileTree.tsx` and the tab strip's menu
-      deliberately do not claim it, which is the honest half of an
-      inconsistency rather than a resolution. The count was five, then three;
-      the spelling menu in `frontend/src/panes/Editor.tsx` was the one a
-      keyboard could not reach at all, and its handler is now
-      `frontend/src/panes/menu-keys.ts`, shared by the document chooser and
-      the two new menus on the preview strip (the tab menu and the hidden-tabs
-      list) and by the source strip's hidden-tabs list. The two that remain
-      want the same two lines. The literal grep behind the old count of five
-      also found four, which R-077 corrected.
 
 - [ ] **Three small latches left standing on purpose, from the projects screen
       sweep.** `dismissNotice` in `frontend/src/store.ts` leaves `state.error`

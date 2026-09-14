@@ -185,26 +185,28 @@ export default function Tutorial({
 
         <Section id="folding" n={4} title="Folding, reading and writing">
           <Lead>
-            A single click on a pane's header folds that pane away, leaving a
-            narrow strip that says where it went. Click the strip to bring it
-            back.
+            A single click on the tab in front, on either pane, folds that
+            pane away, leaving a narrow strip that says where it went. Click
+            the strip to bring it back. The empty run to the right of the
+            tabs does the same, when there is one.
           </Lead>
           <P>
-            A double-click on the preview header gives the page the whole
-            window, which is reading mode. A second double-click puts your layout back
-            exactly as it was, including anything you had already folded.
+            A double-click on the preview's tab in front gives the page the
+            whole window, which is reading mode. A second double-click puts
+            your layout back exactly as it was, including anything you had
+            already folded.
           </P>
           <P>
-            The editor has the same pair of gestures, but the target is the
-            empty run of the tab strip to the right of your open files, not a
-            tab. Writing mode keeps the file list open, because somebody
-            writing is still moving between chapters.
+            The editor has the same pair of gestures on its own tab in front.
+            Writing mode keeps the file list open, because somebody writing
+            is still moving between chapters. Any other tab is only selected
+            by a click, and a double-click on one selects it and folds
+            nothing.
           </P>
           <P>
-            Both modes have a key as well, for when the strip is full of
-            tabs and there is nothing left to double-click: <C>⌘⌥R</C> for
-            reading and <C>⌘⌥E</C> for writing, and the same key again puts
-            your layout back.
+            Both modes have a key as well: <C>⌘⌥R</C> for reading and{" "}
+            <C>⌘⌥E</C> for writing, and the same key again puts your layout
+            back.
           </P>
           <Figure
             light={tabStripLight}

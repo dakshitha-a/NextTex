@@ -215,10 +215,11 @@ export function HiddenTabs({
 /** Where a fixed menu goes to hang under its button, right-aligned to it,
  *  in the zoomed shell's own pixels: see viewport.ts for why a measured
  *  rectangle has to be converted before it is written as a style. */
-function fixedBelow(anchor: HTMLElement | null): { left: number; top: number } | undefined {
+export function fixedBelow(
+  anchor: HTMLElement | null, width = 220,
+): { left: number; top: number } | undefined {
   if (!anchor) return undefined;
   const box = anchor.getBoundingClientRect();
-  const width = 220;
   const left = Math.max(0, Math.min(toShell(box.right) - width, viewportWidth() - width));
   return { left, top: toShell(box.bottom) };
 }

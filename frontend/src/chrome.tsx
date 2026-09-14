@@ -8,11 +8,13 @@
  *  control, a segmented toggle and a drag handle.
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import api, { saveBlob, startDownload } from "./api";
-import { set } from "./store";
+import { set, useStore } from "./store";
 import { useDismiss } from "./useDismiss";
+import { focusFirst, walkMenu } from "./panes/menu-keys";
+import { fixedBelow } from "./panes/tab-overflow";
 import Settings from "./panes/Settings";
 
 /** Sharing, as a glyph: two people, and the line between them.
@@ -60,28 +62,36 @@ export function DownloadIcon() {
   );
 }
 
-/** The two ways out of a project, behind one button.
+/** The ways out of a project, behind one button.
  *
- *  A menu rather than a dialog: there is nothing to decide, only which of
- *  two things to fetch, and a card with a heading would be more ceremony
- *  than the act deserves.
+ *  A menu rather than a dialog: there is nothing to decide, only which
+ *  thing to fetch, and a card with a heading would be more ceremony than
+ *  the act deserves.  The whole project as a zip, then every document in
+ *  it as its own PDF: the ones on the preview strip first, then the ones
+ *  that are not, which the route builds on the spot.  A resume project has
+ *  twenty, so the column scrolls rather than leaving the window.  The role
+ *  is kept this time: focus on open, arrows, Escape back to the button.
  */
-export function DownloadMenu({
-  onZip,
-  onPdf,
-}: {
+export function DownloadMenu({ onZip, onPdf }: {
   onZip: () => void;
-  onPdf: () => void;
+  onPdf: (document: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const menu = useRef<HTMLDivElement | null>(null);
   useDismiss(menu, open, () => setOpen(false), trigger);
+  useEffect(() => {
+    if (open) focusFirst(menu.current);
+  }, [open]);
+  const previews = useStore((s) => s.previews);
+  const candidates = useStore((s) => s.candidates);
+  const documents = [...previews, ...candidates.filter((path) => !previews.includes(path))];
 
   const choose = (what: () => void) => () => {
     setOpen(false);
     what();
   };
+  const item = "t-ui flex w-full items-baseline px-[10px] py-[5px] text-left text-ink focus:bg-hint-wash";
 
   return (
     <div className="relative flex items-center">
@@ -102,35 +112,65 @@ export function DownloadMenu({
           ref={menu}
           role="menu"
           data-testid="download-menu"
-          className="nx-furniture nx-arrive absolute top-[30px] right-0 z-40 w-[176px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
+          // Fixed and clamped to the window rather than hung off the
+          // button's right edge: the button sits 40px from the left of the
+          // rail, and a column wide enough for a file name hung there
+          // started off screen.
+          className="nx-furniture nx-arrive fixed z-40 max-h-[60vh] w-[232px] overflow-y-auto rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
+          style={fixedBelow(trigger.current, 232)}
+          onKeyDown={(event) => {
+            if (walkMenu(event, () => setOpen(false)) && event.key === "Escape") {
+              trigger.current?.focus();
+            }
+          }}
         >
           <button
             role="menuitem"
             data-testid="download-zip"
-            className="t-ui block w-full px-[10px] py-[5px] text-left text-ink hover:bg-surface-2"
+            className={item}
+            onPointerMove={(event) => {
+              if (event.movementX || event.movementY) event.currentTarget.focus();
+            }}
             onClick={choose(onZip)}
           >
             Whole project
             <span className="t-micro ml-[6px] text-ink-3">.zip</span>
           </button>
-          <button
-            role="menuitem"
-            data-testid="download-pdf"
-            className="t-ui block w-full px-[10px] py-[5px] text-left text-ink hover:bg-surface-2"
-            onClick={choose(onPdf)}
-          >
-            Typeset page
-            <span className="t-micro ml-[6px] text-ink-3">.pdf</span>
-          </button>
+          {documents.length ? <div className="my-1 border-t border-line" /> : null}
+          {documents.map((path) => (
+            <button
+              key={path}
+              role="menuitem"
+              data-testid="download-pdf"
+              data-document={path}
+              title={path}
+              className={item}
+              onPointerMove={(event) => {
+                if (event.movementX || event.movementY) event.currentTarget.focus();
+              }}
+              onClick={choose(() => onPdf(path))}
+            >
+              <span className="min-w-0 truncate">{stemOf(path)}</span>
+              <span className="t-micro ml-[6px] shrink-0 text-ink-3">.pdf</span>
+            </button>
+          ))}
         </div>
       ) : null}
     </div>
   );
 }
 
-/** A PDF download can fail -- the document may not typeset -- and a plain
- *  link would save the error as a .pdf.  Fetching first lets it say why. */
-export async function downloadPdf(projectId: string, name: string, document = "") {
+/** A document's stem, which is what its PDF is called. */
+export function stemOf(path: string): string {
+  return (path.split("/").pop() ?? path).replace(/\.(tex|ltx)$/i, "");
+}
+
+/** A PDF download can fail, the document may not typeset, and a plain link
+ *  would save the error as a .pdf.  Fetching first lets it say why.  The
+ *  file is named after the document, never the project: the server says
+ *  which in Content-Disposition, which is the one source for the name when
+ *  no document was asked for and the one on screen was sent. */
+export async function downloadPdf(projectId: string, document = "") {
   try {
     const response = await fetch(
       api.downloadUrl(projectId, { format: "pdf", document }),
@@ -138,9 +178,12 @@ export async function downloadPdf(projectId: string, name: string, document = ""
     );
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      throw new Error(body.detail || "the project did not typeset");
+      throw new Error(body.detail || "the document did not typeset");
     }
-    saveBlob(await response.blob(), `${name || "project"}.pdf`);
+    const header = response.headers.get("content-disposition") ?? "";
+    const named = /filename="?([^";]+)"?/.exec(header)?.[1];
+    const fallback = document ? `${stemOf(document)}.pdf` : "document.pdf";
+    saveBlob(await response.blob(), named || fallback);
   } catch (error: any) {
     set({ error: `Could not download the PDF: ${error.message}` });
   }
@@ -187,9 +230,23 @@ export function AppControls({
         onZip={() =>
           projectId && startDownload(api.downloadUrl(projectId, { format: "zip" }))
         }
-        onPdf={() => projectId && downloadPdf(projectId, projectName)}
+        onPdf={(document) => projectId && downloadPdf(projectId, document)}
       />
     </div>
+  );
+}
+
+/** A plus, drawn rather than typed.  The `+` glyph sits on the baseline
+ *  of whatever font is in force and is never centred in a square box;
+ *  two strokes crossing at the middle of the viewBox are. */
+export function PlusIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+        <path d="M5.5 1 L5.5 10" />
+        <path d="M1 5.5 L10 5.5" />
+      </g>
+    </svg>
   );
 }
 

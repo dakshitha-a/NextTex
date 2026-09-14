@@ -258,6 +258,123 @@ test("clicking a tab is not clicking the strip it sits in", async ({
   await expect(tab.locator(".cm-editor")).toBeVisible();
 });
 
+/** Open a second file and leave it in front, so both strips have a tab in
+ *  front and a tab that is not. */
+async function withSecondFile({ app, project, tab }: any) {
+  await fetch(`${app.base}/api/projects/${project.id}/file`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({ path: "second.tex", text: "x\n", compile: false, create: true }),
+  });
+  await tab.locator('[role="tree"] [data-path="second.tex"]').click();
+  await expect(
+    tab.locator('[data-tab][data-path="second.tex"] button[aria-current="true"]'),
+  ).toBeVisible({ timeout: 15_000 });
+}
+
+test("the tab in front is the header: a click folds, a double-click takes the window", async ({
+  app, project, tab,
+}) => {
+  // A writer with a dozen files open has no empty run left to click, so
+  // the tab in front carries the same two gestures on both panes.
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await withSecondFile({ app, project, tab });
+
+  const sourceFront = tab.locator('[data-tab][data-path="second.tex"] button[aria-current="true"]');
+  await sourceFront.click();
+  await expect(tab.locator(".cm-editor")).toBeHidden({ timeout: 5_000 });
+  await tab.getByTestId("collapsed-source").click();
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+
+  await sourceFront.dblclick();
+  await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+  await sourceFront.dblclick();
+  await expect(tab.getByTestId("collapsed-preview")).toHaveCount(0);
+
+  const previewFront = tab.getByTestId("preview-tab-main.tex");
+  await expect(previewFront).toHaveAttribute("aria-current", "true");
+  await previewFront.click();
+  await expect(tab.getByTestId("collapsed-preview")).toBeVisible({ timeout: 5_000 });
+  await tab.getByTestId("collapsed-preview").click();
+  await expect(tab.getByTestId("preview-header")).toBeVisible();
+
+  await previewFront.dblclick();
+  await expect(tab.getByTestId("collapsed-source")).toBeVisible();
+  await previewFront.dblclick();
+  await expect(tab.getByTestId("collapsed-source")).toHaveCount(0);
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+});
+
+test("a double-click on a tab not in front selects it and folds nothing", async ({
+  app, project, tab,
+}) => {
+  // Click one selects the tab; click two lands on a tab that is now in
+  // front.  Without a guard that is a fold the writer never asked for.
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await withSecondFile({ app, project, tab });
+  await tab.locator('[data-tab][data-path="main.tex"] button').first().dblclick();
+  await expect(
+    tab.locator('[data-tab][data-path="main.tex"] button[aria-current="true"]'),
+  ).toBeVisible();
+  await tab.waitForTimeout(400);
+  await expect(tab.locator(".cm-editor")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-source")).toHaveCount(0);
+  await expect(tab.getByTestId("collapsed-preview")).toHaveCount(0);
+});
+
+test("the two headers are one object", async ({ app, project, tab }) => {
+  // Same height, the tab in front open to the pane on both sides, and the
+  // empty run answering the pointer the same way.  Read off the computed
+  // styles rather than a screenshot, which docs/testing.md asks for.
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await withSecondFile({ app, project, tab });
+  const measure = (testId: string, front: string) =>
+    tab.evaluate(
+      ([header, tabSelector]) => {
+        const row = document.querySelector(`[data-testid="${header}"]`) as HTMLElement;
+        const active = document.querySelector(tabSelector) as HTMLElement;
+        const blank = row.querySelector('[data-testid$="-blank"]') as HTMLElement;
+        const of = (el: HTMLElement) => getComputedStyle(el);
+        return {
+          height: row.getBoundingClientRect().height,
+          rowBottom: of(row).borderBottomWidth,
+          activeBottom: of(active).borderBottomWidth,
+          activeBackground: of(active).backgroundColor,
+          blankBottom: of(blank).borderBottomWidth,
+          blankCursor: of(blank).cursor,
+        };
+      },
+      [testId, front] as const,
+    );
+  const source = await measure("editor-header", '[data-tab][data-path="second.tex"]');
+  const preview = await measure("preview-header", '[data-preview-tab][data-path="main.tex"]');
+  expect(source.height).toBe(32);
+  expect(preview.height).toBe(32);
+  expect(source.rowBottom).toBe("0px");
+  expect(preview.rowBottom).toBe("0px");
+  expect(source.activeBottom).toBe("0px");
+  expect(preview.activeBottom).toBe("0px");
+  expect(source.activeBackground).toBe(preview.activeBackground);
+  expect(source.blankBottom).toBe(preview.blankBottom);
+  expect(source.blankCursor).toBe("pointer");
+  expect(preview.blankCursor).toBe("pointer");
+
+  // Hovering the empty run tints it, and by the same colour on both.
+  const tint = async (testId: string) => {
+    const blank = tab.getByTestId(testId);
+    const box = (await blank.boundingBox())!;
+    await tab.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    return blank.evaluate((el) => getComputedStyle(el).backgroundColor);
+  };
+  const rest = await tab.getByTestId("tabs-blank").evaluate(
+    (el) => getComputedStyle(el).backgroundColor,
+  );
+  await expect.poll(() => tint("tabs-blank")).not.toBe(rest);
+  const sourceTint = await tint("tabs-blank");
+  await expect.poll(() => tint("preview-blank")).toBe(sourceTint);
+});
+
 test("the error list closes from its own bar", async ({ tab }) => {
   const editor = tab.locator(".cm-content");
   await editor.click();
@@ -708,7 +825,7 @@ test("Ctrl-Alt-E is writing mode, keeps the file list, and again gives the layou
   await expect(tab.getByTestId("collapsed-preview")).toHaveCount(0);
 });
 
-test("the shortcut works when no place is left to double click", async ({
+test("the shortcut works when the empty run is gone, and so does the tab in front", async ({
   app, project, tab,
 }) => {
   // Eight files open: the blank run of the strip is gone, and the
@@ -735,4 +852,10 @@ test("the shortcut works when no place is left to double click", async ({
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+Alt+e");
   await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
+  await tab.keyboard.press("Control+Alt+e");
+  await expect(tab.getByTestId("collapsed-preview")).toHaveCount(0);
+
+  // And the tab in front is a handle that never shrinks away either.
+  await tab.locator('[data-tab][data-path="chapter-8.tex"] button[aria-current="true"]').click();
+  await expect(tab.locator(".cm-editor")).toBeHidden({ timeout: 5_000 });
 });

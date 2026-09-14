@@ -42,7 +42,7 @@ test("the menu closes every tab but the one it was opened on", async ({
   await threeOpen(app, project, tab);
   await tab.locator('[data-tab][data-path="notes.tex"]').click({ button: "right" });
   await expect(tab.getByTestId("tab-menu")).toBeVisible();
-  await tab.getByRole("button", { name: "Close the others" }).click();
+  await tab.getByRole("menuitem", { name: "Close the others" }).click();
 
   await expect(tab.locator("[data-tab]")).toHaveCount(1);
   expect(await paths(tab)).toEqual(["notes.tex"]);
@@ -71,7 +71,7 @@ test("a tab that is not in front keeps its browser menu", async ({
 test("close all empties the strip", async ({ app, project, tab }) => {
   await threeOpen(app, project, tab);
   await tab.locator('[data-tab][data-path="notes.tex"]').click({ button: "right" });
-  await tab.getByRole("button", { name: "Close all" }).click();
+  await tab.getByRole("menuitem", { name: "Close all" }).click();
   await expect(tab.locator("[data-tab]")).toHaveCount(0);
 });
 
@@ -113,7 +113,7 @@ test("a duplicate is made, and the tree opens far enough to show it", async ({
   await tab
     .locator('[data-tab][data-path="chapters/two.tex"]')
     .click({ button: "right" });
-  await tab.getByRole("button", { name: "Duplicate" }).click();
+  await tab.getByRole("menuitem", { name: "Duplicate" }).click();
 
   await expect(
     tab.locator('[role="tree"] [data-path="chapters/two (copy).tex"]'),
