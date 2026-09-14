@@ -178,6 +178,19 @@ things go to be forgotten rather than a list anybody reads.
       the editor already produces them, so a second entry point buys a shorter
       route to something reachable, at the cost of a hover control on every row
       of a panel that can hold forty.
+- [ ] **An unnumbered heading set at body size is not read as a heading by
+      the inverse search.** A double-click on the page carries a hint that
+      the span is a heading when it is set at least 15% larger than the
+      page's running size or opens with a section number; a `\paragraph{}`
+      heading in a class that sets it at body size and unnumbered gets the
+      ordinary word search, which is no worse than before this run. Reading
+      the font's weight off the text layer would catch it, and pdf.js does
+      not put the weight on the span; left until somebody reports one.
+- [ ] **A press of Escape within 100 ms of a keystroke closes the pending
+      completion query rather than the extra carets.** CodeMirror's own
+      rule, met while testing column selection. Nobody presses that fast;
+      recorded so the next person to see the test's wait knows why it is
+      there.
 
 - [ ] **Building a session walks the project on the event loop.**
       `session_for` is synchronous, and constructing a `ProjectSession`
