@@ -2,9 +2,11 @@ import {
   Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import { useStore } from "../store";
-import { onFrame } from "../timing";
 import { useDismiss } from "../useDismiss";
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
+import {
+  HiddenTabs, useFollowActive, useHiddenTabs, useWheelScroll,
+} from "./tab-overflow";
 /** Fetched when somebody else turns up, which for most sessions is never.
  *  It draws nothing at all until then, so the parent decides whether to
  *  mount it and the chunk follows -- `bundle.initial_kb` is measured on the
@@ -59,7 +61,11 @@ export default function Tabs({
   }, [diagnostics]);
 
   const strip = useRef<HTMLDivElement | null>(null);
-  const [hidden, setHidden] = useState(0);
+  // Which tabs are scrolled out of sight, and a wheel over the strip to
+  // bring them in: both shared with the preview strip, see tab-overflow.
+  const hidden = useHiddenTabs(strip, tabs.length);
+  useWheelScroll(strip, tabs.length);
+  useFollowActive(strip, activePath);
 
   // The right-click menu, and which tab it belongs to.  Only ever the tab
   // in front: its items are about the file being written, and a menu on a
@@ -77,39 +83,6 @@ export default function Tabs({
   useEffect(() => {
     if (menu && !tabs.some((tab) => tab.path === menu.path)) setMenu(null);
   }, [menu, tabs]);
-
-  // How many tabs are scrolled out of sight, so the overflow says so
-  // instead of swallowing them silently.
-  useEffect(() => {
-    const element = strip.current;
-    if (!element) return;
-    const measure = () => {
-      const children = Array.from(element.children) as HTMLElement[];
-      const right = element.scrollLeft + element.clientWidth;
-      setHidden(
-        children.filter(
-          (child) =>
-            child.dataset.tab &&
-            (child.offsetLeft + child.offsetWidth > right + 1 ||
-              child.offsetLeft < element.scrollLeft - 1),
-        ).length,
-      );
-    };
-    // `measure` reads `offsetLeft` and `offsetWidth` for every tab, which
-    // forces layout, and it ran on every scroll event and every resize
-    // notification. Once per frame is as often as the answer can change on
-    // screen.
-    const settle = onFrame(measure);
-    measure();
-    element.addEventListener("scroll", settle);
-    const observer = new ResizeObserver(settle);
-    observer.observe(element);
-    return () => {
-      settle.cancel();
-      element.removeEventListener("scroll", settle);
-      observer.disconnect();
-    };
-  }, [tabs.length]);
 
   return (
     <div className="relative flex h-[32px] shrink-0">
@@ -138,8 +111,12 @@ export default function Tabs({
             key={tab.path}
             data-tab="1"
             data-path={tab.path}
+            // A tab squeezes from 200px down to 72px before the strip
+            // overflows, the way a browser's do: a writer with eight
+            // files open sees eight names, shortened, rather than four
+            // and a count.  The count is for when even that is not room.
             className={[
-              "relative flex min-w-[96px] max-w-[200px] shrink-0 items-center gap-2 border-r border-line pr-[10px]",
+              "relative flex min-w-[72px] max-w-[200px] basis-[200px] shrink items-center gap-2 border-r border-line pr-[10px]",
               active
                 ? "bg-surface"
                 : "border-b border-line hover:bg-surface-3",
@@ -217,18 +194,13 @@ export default function Tabs({
           onClick={onBlank}
         />
       </div>
-      {hidden > 0 ? (
-        <button
-          className="flex w-6 shrink-0 items-center justify-center border-b border-l border-line bg-surface-2 t-micro text-ink-3 hover:text-ink"
-          title={`${hidden} more open`}
-          onClick={() => {
-            const element = strip.current;
-            if (element) element.scrollLeft = element.scrollWidth;
-          }}
-        >
-          {hidden}
-        </button>
-      ) : null}
+      <HiddenTabs
+        hidden={hidden}
+        label="open"
+        name={(path) => path.split("/").pop() ?? path}
+        testId="tabs-hidden"
+        onPick={onSelect}
+      />
       {menu ? (
         <div
           ref={menuRef}

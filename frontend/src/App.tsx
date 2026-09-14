@@ -1248,6 +1248,36 @@ export default function App() {
     }
   }, []);
 
+  /** The tab menu's "the others" and "all".  One request per document,
+   *  in sequence, and the store set from the last answer: the route
+   *  removes one at a time and each answer is the whole list, so setting
+   *  state after every one would redraw the strip once per tab. */
+  const stopPreviewingMany = useCallback(async (paths: string[]) => {
+    const id = get().projectId;
+    if (!id || !paths.length) return;
+    try {
+      let body: Awaited<ReturnType<typeof api.removePreview>> | null = null;
+      for (const path of paths) body = await api.removePreview(id, path);
+      if (!body) return;
+      const active = get().activePreview;
+      set({
+        previews: body.previews, candidates: body.candidates, owners: body.owners,
+        activePreview: active && body.previews.includes(active) ? active : body.main,
+      });
+    } catch (problem: any) {
+      set({ error: problem.message });
+    }
+  }, []);
+
+  /** Download PDF, from the preview tab's menu: the document under the
+   *  tab, named after its file rather than after the project. */
+  const downloadPreviewPdf = useCallback((path: string) => {
+    const id = get().projectId;
+    if (!id) return;
+    const stem = (path.split("/").pop() ?? path).replace(/\.(tex|ltx)$/i, "");
+    void downloadPdf(id, stem, path);
+  }, []);
+
   /** The preview follows the file you open, when that file is a document
    *  in its own right.  A chapter is not: its preview is the document that
    *  includes it, which is already showing. */
@@ -2137,8 +2167,11 @@ export default function App() {
               title="Click to fold the preview away, double-click to read"
               data-testid="preview-header"
               onClick={(event) => {
-                // The header is the control; the chip inside it is not.
-                if ((event.target as HTMLElement).closest("button")) return;
+                // The header is the control; the chip inside it is not,
+                // and neither is a tab, whose padding used to fold the
+                // pane when a click missed the name by a few pixels.
+                const target = event.target as HTMLElement;
+                if (target.closest("button") || target.closest("[data-preview-tab]")) return;
                 headerClick("pdf");
               }}
             >
@@ -2149,12 +2182,17 @@ export default function App() {
                   mode landed on "switch project" and left the document
                   entirely.  They go beside the other control instead, and
                   the left of the bar stays the thing you click. */}
+              {/* No spacer after it.  There was one, `flex-1` beside a
+                  strip that is itself `flex-1`, and the two split the
+                  header between them: the strip had half the width and
+                  showed three tabs where the row had room for seven. */}
               <PreviewTabs
                 onSelect={showPreview}
                 onClose={stopPreviewing}
+                onCloseMany={stopPreviewingMany}
+                onDownload={downloadPreviewPdf}
                 onAdd={startPreviewing}
               />
-              <span className="flex-1" />
               {railFolded && folded.editor ? (
                 <AppControls
                   projectId={projectId}
@@ -2181,6 +2219,8 @@ export default function App() {
               <PreviewTabs
                 onSelect={showPreview}
                 onClose={stopPreviewing}
+                onCloseMany={stopPreviewingMany}
+                onDownload={downloadPreviewPdf}
                 onAdd={startPreviewing}
               />
               <Segmented value={showing} onChange={setShowing} />

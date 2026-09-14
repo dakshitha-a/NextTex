@@ -210,14 +210,14 @@ No all-caps tracked labels anywhere. Sentence case throughout, including buttons
 ## 4. Layout
 
 One `100dvh` shell, `overflow: hidden`, four columns with three drag handles. Handles are a
-1 px `--line` rule with an 8 px invisible hit zone; `col-resize` cursor; double-click resets
-to default; widths persist to `localStorage` per project.
+1 px `--line` rule with a 9 px invisible hit zone, 24 px on a coarse pointer; `col-resize`
+cursor; double-click resets to default; widths persist to `localStorage` per project.
 
 | Pane | Default | Min | Max |
 |---|---|---|---|
 | Rail | 240 px | 180 px | 400 px |
 | Editor | flex | 420 px |, |
-| PDF | flex (splits remaining 50/50 with editor) | 320 px | 60% of the pair |
+| PDF | flex (splits remaining 50/50 with editor) | 320 px | the pair less the editor's minimum |
 | Claude | 380 px | 320 px | 560 px |
 
 **Claude is a docked column, not a slide-over, whenever there is room.** The loop this app
@@ -428,9 +428,10 @@ promise `plot (2).png`.
 
 ### Editor tab
 
-32 px tall, 10 px horizontal padding, min 96 px, max 200 px. Label at `meta` 12 px, stem
-`--ink` / extension `--ink-3`; overflow truncates the **stem from the middle** so the
-extension survives: `04_o-nitro…mics.tex`.
+32 px tall, 10 px horizontal padding, max 200 px, and a tab squeezes to 72 px before the
+strip overflows, the way a browser's do (§32; it was a fixed 96 px minimum). Label at
+`meta` 12 px, stem `--ink` / extension `--ink-3`; overflow truncates the **stem from the
+middle** so the extension survives: `04_o-nitro…mics.tex`.
 
 Tabs are separated by 1 px `--line` rules, not pills. The **active** tab takes `--surface`
 (identical to the editor body, so it merges into the canvas), carries a 2 px `--pen` bar
@@ -438,8 +439,10 @@ along its *top* edge, and has no bottom border. Inactive tabs sit on `--surface-
 1 px bottom line. A file with errors turns its extension `--error` and puts the count after
 the label, as a number rather than a coloured dot, because the number says the same thing
 without depending on being able to see the colour. Middle-click closes. Overflow scrolls
-horizontally with a hidden scrollbar plus a 24 px chevron at the right carrying the hidden
-count.
+horizontally with a hidden scrollbar, under a wheel turned over the strip as well as by
+trackpad, plus a 24 px count at the right of the tabs out of sight; pressing it lists them
+and choosing one brings it in front, and the strip follows the tab in front (§32). The
+preview strip is the same object, with the same count, list and wheel.
 
 **There is no dirty state on a tab**, and this section described one for two rewrites after
 it stopped being true. It said the close × was replaced by a hollow `--ink-2` ring while a
@@ -460,9 +463,17 @@ is the same bug the file tree's row menu hit inside its own.
 
 The menu does not claim `role="menu"`, and the reasoning is the file tree's: the role
 promises arrow-key navigation between items, this is a column of buttons, and saying
-otherwise tells a screen reader something untrue. Three other menus in the app do claim it
+otherwise tells a screen reader something untrue. Two other menus in the app still claim it
 without implementing it, which is a real inconsistency and is in `TRACKER.md` rather than
-fixed here, because the answer is roving focus in all of them.
+fixed here; the handler that keeps the promise is `menu-keys.ts` now, and the menus §32
+added took it.
+
+**The preview strip's tab in front has the same menu**, minus *Duplicate*, which is about a
+file and not a build, plus *Download PDF*, which is about a build and not a file: *Stop
+previewing the others*, *Stop previewing all*, a rule, *Download PDF*. The main document is
+never stopped, so *all* means every tab but the main and is disabled when only the main is
+open. *Download PDF* fetches that document's own PDF, named after its file, through the
+same route the downloads menu uses with `document` naming which.
 
 *Duplicate* copies the file beside itself as `name (copy).ext`, the same naming rule the
 trash and the upload chooser use, so there is one implementation of it and no second one
@@ -5758,4 +5769,54 @@ completion source is asked 100 ms after a keystroke, and an Escape inside
 that window closes the pending query rather than the carets, which is
 CodeMirror's own rule and not one worth changing for a press nobody makes
 that fast.
+
+### The preview strip showed three tabs where the header had room for seven
+
+There was no cap anywhere. The strip is `flex-1`, and beside it in the
+header sat a `<span className="flex-1" />` put there to push the fold
+chevron to the right, and two `flex-1` siblings share the free space
+equally, so the strip had half the header and showed three tabs at
+96 px. The spacer is gone; the chevron sits at the right because the
+strip fills what is left.
+
+What the strip did with the tabs it could not show was the second half of
+the report. The source strip had, for a year, counted the tabs scrolled
+out of sight and hidden its scrollbar; the preview strip, written as "the
+same object", had neither, so the rest scrolled away in silence under a
+9 px bar. The two now share `tab-overflow.tsx`: the same measurement, once
+per frame; the same hidden bar; a tab that squeezes from 200 px to 72 px
+before anything overflows, the way a browser's do, so eight files are
+eight names shortened rather than four names and a count; the count when
+even that is not room, which lists what it hides rather than only
+scrolling to the end, because a count answers "how many" and the writer
+wants "which"; a strip that follows the tab in front, its own scroll and
+nobody else's, because `scrollIntoView` walks every scrolling ancestor and
+a tab brought into the strip must not drag the pane; and, at the writer's
+asking, a vertical wheel over either strip that scrolls it sideways,
+attached with `passive: false` in an effect because React's `onWheel`
+cannot prevent the page under the header from scrolling instead.
+
+Two bugs the shared measurement turned up in its own first run. The old
+arithmetic read `offsetLeft` as if it were measured from the strip, and it
+is measured from the nearest positioned ancestor; the source strip
+happened to sit at the left edge of its positioned wrapper, so it worked
+there and reported every preview tab hidden. And an effect keyed on a ref
+object alone never looks again, and the preview strip is not drawn at all
+for a project with one document, so a listener attached at mount was
+attached to nothing.
+
+The preview tabs got the source tabs' right-click menu too, on the tab in
+front only and for the same reason, with *Duplicate* left out and
+*Download PDF* put in; the download route learned `document`, a registry
+key and never a path, and names the file after the document rather than
+the project, because a supplementary document sent to a supervisor under
+the thesis's name is the wrong attachment. Three menus now share
+`menu-keys.ts`, which is the spelling menu's keyboard handler pulled out:
+the hidden-tabs list, the preview tab menu, and the document chooser,
+which had claimed `role="menu"` without keeping the promise. TRACKER.md's
+count of those went from three to two.
+
+One more: a click in a preview tab's padding folded the pane, because the
+header's click handler excused only buttons. It excuses tabs now, which
+is the rule the source strip already had.
 

@@ -29,6 +29,7 @@ import {
   useSpelling,
 } from "../use-editor-theme";
 import { toShell } from "../viewport";
+import { focusFirst, walkMenu } from "./menu-keys";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
 import { locateWord } from "./locate-word";
@@ -1009,7 +1010,7 @@ export default function Editor({
   const placeMenu = useCallback(
     (node: HTMLDivElement | null) => {
       if (!node || !offer) return;
-      node.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+      focusFirst(node);
       const room = (host.current?.clientHeight ?? 0) - offer.y;
       if (node.offsetHeight > room) {
         node.style.top = `${Math.max(0, offer.y - node.offsetHeight)}px`;
@@ -1106,28 +1107,14 @@ export default function Editor({
             }}
             role="menu"
             data-testid="spelling-menu"
-            onKeyDown={(event) => {
-              const items = Array.from(
-                event.currentTarget.querySelectorAll<HTMLElement>("[role=menuitem]"),
-              );
-              const at = items.indexOf(document.activeElement as HTMLElement);
-              if (event.key === "Escape") {
-                event.preventDefault();
+            // The arrow keys, Home, End and Escape: what the role promises,
+            // shared with the other menus that keep the promise.
+            onKeyDown={(event) =>
+              walkMenu(event, () => {
                 setOffer(null);
                 view.current?.focus();
-              } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                event.preventDefault();
-                const step = event.key === "ArrowDown" ? 1 : -1;
-                const next = (at + step + items.length) % items.length;
-                items[next]?.focus();
-              } else if (event.key === "Home") {
-                event.preventDefault();
-                items[0]?.focus();
-              } else if (event.key === "End") {
-                event.preventDefault();
-                items[items.length - 1]?.focus();
-              }
-            }}
+              })
+            }
           >
             {/* The guesses first, because a typo is the common case and
                 adding a typo to the dictionary is the one outcome nobody

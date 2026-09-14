@@ -139,3 +139,97 @@ def test_a_failed_build_with_no_parsed_log_still_answers_422(
     )
     assert answer.status_code == 422
     assert "produced no PDF" in answer.json()["detail"]
+
+
+# --- a previewed document's PDF, not the main one's ------------------------
+
+
+def _register_esi(client, project_dir, opened):
+    (project_dir / "esi.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nSupplementary.\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    body = client.post(
+        f"/api/projects/{opened['id']}/previews", json={"path": "esi.tex"}
+    ).json()
+    assert "esi.tex" in body["previews"]
+
+
+def test_a_previewed_document_downloads_as_its_own_pdf(
+    client, opened, project_dir, monkeypatch
+):
+    """`/download?format=pdf&document=esi.tex` is the second document's PDF,
+    under the second document's name.
+
+    The route only ever knew the main document, so the preview tab's
+    "Download PDF" would have handed the supplementary information's reader
+    the thesis.  The build is stubbed to write the document's own PDF where
+    its scheduler would, because what is under test is which paths the
+    route reaches for, not LaTeX.
+    """
+    import server.main as server_main
+    from nexttex.compile import CompileResult, CompileScheduler, Outcome
+
+    _register_esi(client, project_dir, opened)
+    state = server_main.SESSIONS[opened["id"]].document_for("esi.tex")
+    assert state.path == "esi.tex"
+
+    async def stub_build(self, *args, **kwargs):
+        self.paths.pdf.parent.mkdir(parents=True, exist_ok=True)
+        self.paths.pdf.write_bytes(b"%PDF supplementary")
+        self._note_pdf_scope("")
+        return CompileResult(
+            outcome=Outcome.OK, log=None, pdf=self.paths.pdf,
+            duration=0.1, scope="full", engine_pass="full",
+        )
+
+    monkeypatch.setattr(CompileScheduler, "build", stub_build)
+    for stale in project_dir.rglob("*.pdf"):
+        stale.unlink()
+
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download",
+        params={"format": "pdf", "document": "esi.tex"},
+    )
+    assert answer.status_code == 200
+    assert answer.content == b"%PDF supplementary"
+    assert answer.headers["content-disposition"].endswith('esi.pdf"')
+    # And it was that document's file that was built, not the main one's.
+    assert state.paths.pdf.read_bytes() == b"%PDF supplementary"
+
+
+def test_a_document_name_is_a_registry_key_and_never_a_path(
+    client, opened, project_dir, monkeypatch
+):
+    """`document` is looked up in the session's registry.  A name the
+    registry does not know, including one dressed as a path out of the
+    project, means the main document, which is what an empty name always
+    meant; nothing on disk is touched by it."""
+    import server.main as server_main
+    from nexttex.compile import CompileResult, CompileScheduler, Outcome
+
+    async def stub_build(self, *args, **kwargs):
+        self.paths.pdf.parent.mkdir(parents=True, exist_ok=True)
+        self.paths.pdf.write_bytes(b"%PDF main")
+        self._note_pdf_scope("")
+        return CompileResult(
+            outcome=Outcome.OK, log=None, pdf=self.paths.pdf,
+            duration=0.1, scope="full", engine_pass="full",
+        )
+
+    monkeypatch.setattr(CompileScheduler, "build", stub_build)
+    for stale in project_dir.rglob("*.pdf"):
+        stale.unlink()
+
+    session = server_main.SESSIONS[opened["id"]]
+    for escape in ["../../etc/passwd", "/etc/passwd", "..\\..\\x.tex"]:
+        answer = client.get(
+            f"/api/projects/{opened['id']}/download",
+            params={"format": "pdf", "document": escape},
+        )
+        assert answer.status_code == 200, escape
+        assert answer.content == b"%PDF main"
+        assert answer.headers["content-disposition"].endswith(
+            f'{session.project.config.name}.pdf"'
+        )

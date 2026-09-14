@@ -130,11 +130,12 @@ export function DownloadMenu({
 
 /** A PDF download can fail -- the document may not typeset -- and a plain
  *  link would save the error as a .pdf.  Fetching first lets it say why. */
-export async function downloadPdf(projectId: string, name: string) {
+export async function downloadPdf(projectId: string, name: string, document = "") {
   try {
-    const response = await fetch(api.downloadUrl(projectId, { format: "pdf" }), {
-      credentials: "same-origin",
-    });
+    const response = await fetch(
+      api.downloadUrl(projectId, { format: "pdf", document }),
+      { credentials: "same-origin" },
+    );
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.detail || "the project did not typeset");
