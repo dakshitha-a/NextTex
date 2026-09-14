@@ -178,6 +178,11 @@ def test_a_machine_with_nothing_to_do_says_so(tmp_path):
     result.claude = "/usr/bin/claude"
     result.venv_ready = True
     result.interface_present = True
+    # The survey reads `ensurepip` off the interpreter running the test, and
+    # a Debian Python without the venv package has none, which the installer
+    # answers by fetching uv: fifteen megabytes on a machine this test says
+    # has nothing to fetch.  The premise is stated rather than inherited.
+    result.has_ensurepip = True
     plan = build_plan(result, interactive=True, answers={"service": "no"})
     assert plan.item("python").fixed.startswith(".venv is here")
     assert plan.item("tex").fixed
