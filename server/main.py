@@ -2180,6 +2180,15 @@ async def delete_file(project_id: str, path: str):
         raise HTTPException(404, "no such file")
     entry = session.trash.delete(target)
     await session.events.publish({"type": "trash_changed"})
+    # Structural: a name has gone from the tree, which every open tab has
+    # to redraw, and the document re-scan behind `files_changed` has to
+    # learn that a `.tex` nothing reads any more is not a candidate.  Until
+    # this the tree learned of a deletion only from `trash_changed`, which
+    # the trash panel reads and nothing else does, and the strip's `+`
+    # offered a file that was in the trash until the watcher caught up.
+    await session.events.publish(
+        {"type": "files_changed", "paths": [path], "structural": True}
+    )
     return {"ok": True, "entry": entry.as_dict()}
 
 
