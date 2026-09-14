@@ -1800,7 +1800,10 @@ class ProjectAgent:
                 "problems:"
             ]
             for problem in result["problems"]:
-                lines.append(f"- {problem['key']}: {'; '.join(problem['issues'])}")
+                lines.append(
+                    f"- {problem['key']} ({problem.get('status', 'FAIL')}): "
+                    f"{'; '.join(problem['issues'])}"
+                )
             return self._text("\n".join(lines))
 
         @tool(

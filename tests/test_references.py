@@ -46,6 +46,44 @@ def test_verifying_a_missing_bibliography_is_not_an_error(tmp_path):
     assert result["problems"] == []
 
 
+def test_verifying_reads_the_checkers_verdict_not_its_shape(tmp_path, monkeypatch):
+    """`verify_bib.check` answers `(status, messages)`.  The caller read that
+    pair as a list of issues, so every entry was a problem, including one
+    marked ok, and the agent's join over `("ok", [...])` raised "sequence
+    item 1: expected str instance, list found": the one tool that would
+    have caught a wrong DOI in a shared bibliography could not run."""
+    bib = tmp_path / "references.bib"
+    bib.write_text(
+        "@article{good2020,\n  doi = {10.1/good},\n}\n"
+        "@article{bad2021,\n  doi = {10.1/bad},\n}\n"
+        "@book{hand2019,\n  verified = {manual},\n}\n",
+        encoding="utf-8",
+    )
+    checker = references._load("verify_bib")
+
+    def fake_check(entry):
+        key = entry["key"]
+        if key == "good2020":
+            return "ok", []
+        if key == "hand2019":
+            return "ok", ["marked manually verified"]
+        return "FAIL", ["DOI resolves to a different title", "year differs"]
+
+    monkeypatch.setattr(checker, "check", fake_check)
+    result = references.verify(bib)
+    assert result["checked"] == 3
+    assert result["problems"] == [
+        {
+            "key": "bad2021",
+            "status": "FAIL",
+            "issues": ["DOI resolves to a different title", "year differs"],
+        }
+    ]
+    # And the text the agent builds from it joins strings, which is the
+    # line that raised.
+    assert "; ".join(result["problems"][0]["issues"]).startswith("DOI resolves")
+
+
 def test_a_fetched_entry_is_appended_without_reading_the_file_first(tmp_path):
     """`entry_for` writes nothing.  Splitting the network half from the write
     is what lets the caller re-read the .bib after the lookup returns -- the
