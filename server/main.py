@@ -2073,6 +2073,16 @@ async def create_entry(
     else:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.touch()
+        # Into the shared document now, not when the watcher gets round to
+        # it.  The browser opens the file it just made the moment this
+        # answers, and waits eight seconds for the manifest to name it; on
+        # a busy machine the watcher's poll, its debounce and the socket
+        # round trip were exceeding that, and the writer was handed their
+        # new file read-only with a toast telling them to reload.  The
+        # watcher's own ingest, when it comes, diffs and finds nothing.
+        relative = session.relative_or_none(str(target))
+        if relative:
+            session.collab.ingest(relative, "", by="create")
     return {"ok": True}
 
 
