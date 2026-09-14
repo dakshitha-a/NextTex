@@ -65,6 +65,12 @@ things go to be forgotten rather than a list anybody reads.
       `venv` and `__pycache__` are. A project with a bare environment
       folder inside it would adopt every `.py` in it as a text file, up to
       the two megabyte bound each. Add them when such a project turns up.
+- [ ] **`password.spec.ts` "setting a password says so and closes itself"
+      timed out once in four full runs**, waiting on the done card for the
+      five second default, and passed on its retry in three seconds. The
+      hash it waits on takes fifty milliseconds here, so the wait was
+      somewhere else, on a machine running five browsers. Not reproduced
+      in isolation; if it recurs, trace it before widening the timeout.
 
 - [ ] **The server prints its token URL to stdout at every start**, so
       `server.log` on macOS and Windows, and the journal on Linux, hold the
