@@ -242,3 +242,40 @@ test("the source strip counts what it hides, lists it, and scrolls under a wheel
   await tab.mouse.wheel(0, 300);
   await expect.poll(async () => (await first.boundingBox())!.x).toBeLessThan(before.x - 20);
 });
+
+test("a menu on the preview strip keeps its focus through a build", async ({
+  app, project, page,
+}) => {
+  // The strip re-renders on every build tick, and a menu whose ref put
+  // focus on its first row re-did that on every re-render, so a writer
+  // walking down the list with the arrow keys was thrown back to the top
+  // the moment a build started.
+  await withPreviews({ app, project, page }, 2);
+  const front = ALL[1];
+  await page.locator(`[data-preview-tab][data-path="${front}"]`).click({ button: "right" });
+  const menu = page.getByTestId("preview-tab-menu");
+  await expect(menu.getByRole("menuitem").first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem").nth(1)).toBeFocused();
+
+  // A build, started behind the menu.
+  await page.evaluate(
+    async ({ base, token, id, name }) => {
+      await fetch(`${base}/api/projects/${id}/file`, {
+        method: "PUT",
+        headers: { "content-type": "application/json", "x-nexttex-token": token },
+        body: JSON.stringify({
+          path: name,
+          text: "\\documentclass{article}\\begin{document}Changed.\\end{document}\n",
+          compile: true,
+        }),
+      });
+    },
+    { base: app.base, token: app.token, id: project.id, name: front },
+  );
+  await expect(page.locator(`[data-preview-tab][data-path="${front}"] .bg-hint`).first())
+    .toBeVisible({ timeout: 15_000 });
+  await expect(menu.getByRole("menuitem").nth(1)).toBeFocused();
+  await page.waitForTimeout(600);
+  await expect(menu.getByRole("menuitem").nth(1)).toBeFocused();
+});

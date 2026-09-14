@@ -74,6 +74,17 @@ export default function PreviewTabs({
   useEffect(() => {
     if (tabMenu && !previews.includes(tabMenu.path)) setTabMenu(null);
   }, [tabMenu, previews]);
+  // Focus goes into a menu once, when it opens, and from an effect keyed
+  // on the opening rather than from the ref: an inline ref is a new
+  // function on every render, React calls a new ref with the node again,
+  // and this strip re-renders on every build tick, which put focus back
+  // on the first row while the writer was walking down the list.
+  useEffect(() => {
+    if (tabMenu) focusFirst(tabMenuRef.current);
+  }, [tabMenu]);
+  useEffect(() => {
+    if (open) focusFirst(menu.current);
+  }, [open]);
   const main = previews[0];
   const others = previews.filter((path) => path !== main && path !== tabMenu?.path);
   const extras = previews.filter((path) => path !== main);
@@ -180,10 +191,7 @@ export default function PreviewTabs({
       )}
       {tabMenu ? (
         <div
-          ref={(node) => {
-            tabMenuRef.current = node;
-            focusFirst(node);
-          }}
+          ref={tabMenuRef}
           role="menu"
           data-testid="preview-tab-menu"
           // Fixed, not absolute: the strip is `overflow-x-auto`, and an
@@ -249,10 +257,7 @@ export default function PreviewTabs({
           </button>
           {open ? (
             <div
-              ref={(node) => {
-                menu.current = node;
-                focusFirst(node);
-              }}
+              ref={menu}
               role="menu"
               data-testid="preview-menu"
               // Furniture, like the other menus, and it keeps the role's

@@ -153,6 +153,12 @@ export function HiddenTabs({
   useEffect(() => {
     if (!hidden.length) setOpen(false);
   }, [hidden.length]);
+  // Focus goes in once, when the list opens.  Not from the ref: an inline
+  // ref is a new function on every render, React calls a new ref with the
+  // node again, and this strip re-renders on every build tick.
+  useEffect(() => {
+    if (open) focusFirst(menu.current);
+  }, [open]);
   if (!hidden.length) return null;
   return (
     <div className="relative flex shrink-0">
@@ -169,10 +175,7 @@ export function HiddenTabs({
       </button>
       {open ? (
         <div
-          ref={(node) => {
-            menu.current = node;
-            focusFirst(node);
-          }}
+          ref={menu}
           role="menu"
           data-testid={`${testId}-menu`}
           // Fixed, not absolute: the strip is `overflow-x-auto`, and an

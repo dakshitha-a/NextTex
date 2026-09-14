@@ -5715,7 +5715,7 @@ things came with the change:
   opened on the last visible line put its one useful item below the pane.
   Measured after mount rather than guessed.
 
-Two bugs the browser tests turned up while they were being written, both
+Three bugs the browser tests turned up while they were being written, all
 fixed in the same commit:
 
 - **Every re-render put focus back on the first row.** The menu's `ref`
@@ -5820,6 +5820,14 @@ the thesis's name is the wrong attachment. Three menus now share
 the hidden-tabs list, the preview tab menu, and the document chooser,
 which had claimed `role="menu"` without keeping the promise. TRACKER.md's
 count of those went from three to two.
+
+Those three menus carried the spelling menu's first bug for one commit:
+each focused its first row from an inline `ref`, and a strip that
+re-renders on every build tick re-focused the first row while the writer
+was arrow-keying down the list. The focus moved into an effect keyed on
+the menu opening, which runs once, and a browser test opens the tab menu,
+moves to the second row, starts a build behind it and asserts the row is
+still the second when the compiling dot appears.
 
 One more: a click in a preview tab's padding folded the pane, because the
 header's click handler excused only buttons. It excuses tabs now, which
