@@ -42,8 +42,13 @@ close the tab. No database, no Docker, no nginx.
   fresh chat without teaching it your work again.
 - **Fill a bibliography from a folder of papers**, checked against each PDF so
   a wrong DOI is refused rather than added.
-- **Reading and writing modes**: double-click a pane header to give it the
-  window, and again to get your layout back.
+- **Reading and writing modes**: double-click the tab in front of either pane
+  to give it the window, and again to get your layout back; one click on it
+  folds the pane away.
+- **Every document in the folder has its own page.** There is no main file:
+  a resume and its variations, a thesis and its supplementary information,
+  each build and download on their own, and the page follows whatever you
+  are writing, a chapter showing the document that includes it.
 - **The editor is lit on its own terms.** Six pages to choose from,
   matching the interface, the proofing grey, white, warm white, cool white,
   or dark, so a dark shell can hold a white page. The syntax colours, the
