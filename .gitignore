@@ -47,3 +47,7 @@ bench/report/
 # Local test caches.
 .hypothesis/
 .pytest_cache/
+
+# Claude Code's own worktrees for parallel sessions; the skills beside them
+# are committed, these are not.
+.claude/worktrees/

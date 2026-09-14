@@ -30,6 +30,7 @@ DOCUMENTS = [
     "docs/first-session.md",
     "docs/project-context.md",
     "docs/bug-reports.md",
+    "CLAUDE.md",
 ]
 
 # Paths that are real and are not in this repository, each for its own
@@ -52,8 +53,10 @@ NOT_OURS = {
     ".claude/settings.json",
 }
 
+# `yml` joined the list late: the four workflows had been named in the
+# documents for weeks with nothing checking the names.
 NAMED_FILE = re.compile(
-    r"`([A-Za-z0-9_./-]+\.(?:py|ts|tsx|css|json|sh|ps1|md|html|svg|ico|png|txt))`"
+    r"`([A-Za-z0-9_./-]+\.(?:py|ts|tsx|css|json|sh|ps1|md|html|svg|ico|png|txt|yml|yaml))`"
 )
 NAMED_ROUTE = re.compile(r"`(/api/[A-Za-z0-9_/{}.-]+)`")
 NAMED_VARIABLE = re.compile(r"\bNEXTTEX_[A-Z0-9_]+")

@@ -446,6 +446,8 @@ The sweep that prompted it found nothing else: every path, route and variable th
 
 Four paths are exempt and each says why, in the file rather than here. They are paths inside a writer's own project, which is gitignored precisely so that none of it is in this repository.
 
+Two documents joined the list when the bug report system landed: `docs/bug-reports.md`, the runbook a fixing session follows, and `CLAUDE.md`, the standing rules an agent session reads first. Both name commands, paths and routes by the dozen, which is exactly the kind of prose that goes stale in silence. The same change taught the name pattern about `.yml`, so the workflows the documents had been naming for weeks are checked too.
+
 ## The suite used to sign the developer out of Claude Code
 
 `nexttex/claude_auth.py` looks for the CLI at `NEXTTEX_CLAUDE_BINARY`, then on `PATH`, then at `~/.local/bin/claude`, because a self-hosted install genuinely does sign in with the machine's own `claude`. `tests/api/conftest.py` redirects `XDG_DATA_HOME` and `XDG_CONFIG_HOME` but not `HOME`, so for one day nothing stood between a test and the developer's own login.

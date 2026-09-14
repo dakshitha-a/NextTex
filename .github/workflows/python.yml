@@ -1,6 +1,6 @@
 # Run the Python suite on every push and every pull request.
 #
-# It had never run anywhere but a laptop.  720 tests, four tiers of care
+# It had never run anywhere but a laptop.  Over a thousand tests, four tiers of care
 # behind them, and the only workflow in this repository built the frontend
 # bundle -- so a change that broke a route stayed broken until somebody
 # happened to run `scripts/check.sh` by hand.

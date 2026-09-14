@@ -4,7 +4,7 @@
 # Neither had ever run anywhere but a laptop.  `scripts/check.sh` runs both,
 # and the only other interface workflow builds the bundle -- but `vite build`
 # strips types with esbuild and does not check them, so a type error reached
-# master as a green build, and 491 vitest cases ran only when somebody
+# master as a green build, and several hundred vitest cases ran only when somebody
 # remembered to.  A component referenced exactly once, by its own definition,
 # survived that way until an audit read the file.
 #
