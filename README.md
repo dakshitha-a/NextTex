@@ -998,6 +998,9 @@ there, and somebody would have to invite you back.
 | `⌘`-click / `Ctrl`-click, on a `\ref` or `\input` | Go to the label, or open the file |
 | Typing, in the file tree | Jump to a file |
 | `↹` or `↵`, in the completion list | Take the suggestion |
+| `⌥`-drag / `Alt`-drag | Select a column, for editing a table; some Linux desktops take Alt-drag for moving windows, so the two rows below do the same by keyboard |
+| `⌘⌥↑` `⌘⌥↓` / `Ctrl-Alt-↑` `Ctrl-Alt-↓`, or with `⇧` / `Shift` added | Add a caret on the row above or below |
+| `Esc` | Back to one caret |
 | `F2`, `Delete`, in the file tree | Rename, move to trash |
 | `Esc`, in the agent panel | Stop the turn if one is running, otherwise close the panel |
 | `A`, `⇧A`, `C`, `D`, in a permission card | Allow, allow always, allow for this conversation, deny |

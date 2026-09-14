@@ -16,6 +16,7 @@ import {
   EditorView,
   ViewPlugin,
   type ViewUpdate,
+  crosshairCursor,
   drawSelection,
   highlightActiveLine,
   highlightActiveLineGutter,
@@ -25,6 +26,8 @@ import {
   rectangularSelection,
 } from "@codemirror/view";
 import {
+  addCursorAbove,
+  addCursorBelow,
   defaultKeymap,
   history,
   historyKeymap,
@@ -441,12 +444,11 @@ const LATEX = StreamLanguage.define(stex);
  *
  *  The modifier is Ctrl on Linux and Windows and Cmd on a Mac, which is
  *  what every editor with a go-to-definition uses. CodeMirror reads the
- *  same one for a second cursor, so this could have cost multi-cursor on
- *  a `\ref` token; it costs nothing, because this editor never installed
- *  `allowMultipleSelections` and has no second cursor to lose. The
- *  handler still claims the event only when there is a link under the
- *  pointer, so an ordinary modifier-click stays an ordinary click and
- *  will go on doing whatever CodeMirror decides it means.
+ *  same one for a second cursor, and since the editor allows several
+ *  selections a modifier-click that is *not* on a link adds one, which is
+ *  CodeMirror's meaning for it and is left alone. The handler claims the
+ *  event only when there is a link under the pointer, so a `\ref` costs
+ *  one place a second cursor cannot be put by mouse, and nothing else.
  */
 function followLinks(
   symbols: () => Symbols | null,
@@ -492,7 +494,14 @@ function base(
     highlightActiveLine(),
     highlightActiveLineGutter(),
     highlightSelectionMatches(),
+    // Several selections at once, which is what a column is.
+    // `rectangularSelection()` had been installed for a year and did
+    // nothing: without this facet every multi-range selection is reduced
+    // to its main range before it is drawn, so an Alt-drag collapsed to a
+    // single caret. The crosshair is the cue that Alt is held.
+    EditorState.allowMultipleSelections.of(true),
     rectangularSelection(),
+    crosshairCursor(),
     bracketMatching(),
     ...(follow ? [followLinks(symbols, follow)] : []),
     // Ahead of `closeBrackets`, which is the extension it overrules: a
@@ -537,6 +546,13 @@ function base(
       // front of the half-typed command.
       { key: "Tab", run: acceptCompletion },
       indentWithTab,
+      // A second chord for the two cursor commands `defaultKeymap` binds
+      // to Ctrl-Alt-Up and Ctrl-Alt-Down: GNOME takes those for switching
+      // workspaces on many installs, and some window managers take
+      // Alt-drag before the browser sees it, so a table needs a route to
+      // a column that no desktop is sitting on.
+      { key: "Mod-Shift-Alt-ArrowUp", run: addCursorAbove },
+      { key: "Mod-Shift-Alt-ArrowDown", run: addCursorBelow },
     ]),
     LATEX,
     // `$` is the character a LaTeX writer types most after a letter, and
