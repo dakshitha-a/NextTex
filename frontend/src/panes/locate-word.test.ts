@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { locateWord, normaliseWord } from "./locate-word";
+import { locateWord, normaliseWord, stripKeys } from "./locate-word";
 
 const SOURCE = [
   "\\section{Writing}",                                          // 1
@@ -97,5 +97,79 @@ describe("locateWord", () => {
   it("honours the radius, so a huge file is not scanned twice over", () => {
     expect(near(1, "efficient", 2)).toBeNull();
     expect(near(1, "efficient", 6)?.line).toBe(7);
+  });
+});
+
+/** The heading case, which is the one the writer reported.
+ *
+ *  A heading's synctex box ends at its baseline, so a click in the lower
+ *  part of the heading is answered with the paragraph beneath it, and that
+ *  paragraph very often opens with the heading's own word, while the line
+ *  between them is a `\label{sec:results}` that holds the word too.
+ */
+const HEADED = [
+  "\\section{Introduction}",                                     // 1
+  "\\label{sec:intro}",                                           // 2
+  "Introduction to the problem, see Section~\\ref{sec:results}.", // 3
+  "",                                                             // 4
+  "\\section{Results}",                                           // 5
+  "\\label{sec:results}",                                         // 6
+  "Results are shown below. % results, again, in a comment",      // 7
+  "",                                                             // 8
+  "\\subsection{Discussion of the results}",                      // 9
+  "\\label{sec:discussion}",                                      // 10
+  "Discussion of the results follows here.",                      // 11
+];
+const readHeaded = (line: number) => HEADED[line - 1] ?? "";
+
+describe("stripKeys", () => {
+  it("blanks a key's argument at the same length, and a comment to the end", () => {
+    expect(stripKeys("\\label{sec:results}")).toBe("\\label{           }");
+    expect(stripKeys("see~\\ref{sec:results} now")).toBe("see~\\ref{           } now");
+    expect(stripKeys("Results. % results")).toBe("Results.          ");
+    expect(stripKeys("a \\% is not a comment")).toBe("a \\% is not a comment");
+  });
+
+  it("leaves a heading's argument alone, because a heading is prose", () => {
+    expect(stripKeys("\\section{Results}")).toBe("\\section{Results}");
+  });
+});
+
+describe("locateWord, on a heading", () => {
+  const near = (line: number, hint: Parameters<typeof locateWord>[3]) =>
+    locateWord(readHeaded, HEADED.length, line, hint);
+
+  it("does not match the heading's word inside a \\label", () => {
+    // From the body line synctex named, the old search went +1, -1, and
+    // -1 is the label.
+    const found = near(7, "Results");
+    expect(found?.line).not.toBe(6);
+  });
+
+  it("does not match inside a comment", () => {
+    expect(near(7, "again")).toBeNull();
+  });
+
+  it("prefers the \\section line when the click said it was a heading", () => {
+    // The body paragraph opens with the same word and is the line synctex
+    // named, so without the hint it wins on distance.
+    expect(near(7, "Results")?.line).toBe(7);
+    expect(near(7, { word: "Results", heading: true })).toEqual({ line: 5, column: 10 });
+    expect(near(11, { word: "Discussion", heading: true })).toEqual({ line: 9, column: 13 });
+  });
+
+  it("lets the typeset line around the word break a tie", () => {
+    // "of the results" is on the subsection line and on the paragraph
+    // under it; the paragraph is nearer to the line synctex named, and the
+    // context is what the heading's span says.
+    expect(near(11, { word: "results", context: "2.1 Discussion of the results" })?.line).toBe(11);
+    expect(near(10, { word: "results", context: "2.1 Discussion of the results" })?.line).toBe(11);
+    expect(near(10, { word: "results", context: "Discussion of the results follows here." })?.line)
+      .toBe(11);
+  });
+
+  it("stands the nearest heading in for a number, which is no word", () => {
+    expect(near(7, { word: "2", heading: true })).toEqual({ line: 5, column: 1 });
+    expect(near(7, { word: "2" })).toBeNull();
   });
 });

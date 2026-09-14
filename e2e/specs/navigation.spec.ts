@@ -374,3 +374,153 @@ test("the caret readout belongs to the file on screen", async ({ tab }) => {
   await tab.locator('[data-tab][data-path="main.tex"]').click();
   await expect(caret).toHaveText(parked);
 });
+
+/** Headings, on a page after the first.
+ *
+ *  Body text landed on the right word and headings did not, and only on
+ *  later pages, which is the shape of a bug in the page arithmetic and was
+ *  not one.  Measured with `synctex edit` on a built document: a heading's
+ *  synctex box ends at its baseline, so the lower part of the glyph box
+ *  already belongs to the paragraph beneath it, and the word search that
+ *  repairs a near miss then found the heading's word inside the
+ *  `\label{sec:results}` on the next line, or at the start of the paragraph
+ *  below, before it reached the `\section` line above.  Page one looked
+ *  fine because "Introduction" rarely recurs in its own first paragraph.
+ */
+const HEADED = String.raw`\documentclass{article}
+\begin{document}
+\section{Introduction}
+\label{sec:intro}
+Introduction to the problem, which is set out over a page so that the
+sections that follow land on the second page of the document.
+\newpage
+\section{Results}
+\label{sec:results}
+Results are shown below, and the word results recurs at once so that a
+search that starts from this line finds it here first.
+
+\subsection{Discussion of the results}
+\label{sec:discussion}
+Discussion of the results follows, and this paragraph too begins with the
+word that heads it.
+\end{document}
+`;
+const SECTION_LINE = HEADED.split("\n").findIndex((l) => l.startsWith("\\section{Results}")) + 1;
+const SUBSECTION_LINE = HEADED.split("\n").findIndex((l) => l.startsWith("\\subsection{")) + 1;
+
+async function withHeaded({ app, project, page }: any) {
+  writeFileSync(join(project.root, "main.tex"), HEADED);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const { openProject } = await import("../fixtures");
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".nx-page")).toHaveCount(2, { timeout: 60_000 });
+  // The second page's text layer is built only once it is on screen.
+  await page.locator(".nx-page").nth(1).scrollIntoViewIfNeeded();
+  await expect(
+    page.locator(".nx-page").nth(1).locator(".nx-text-layer span", { hasText: "Results" }).first(),
+  ).toBeAttached({ timeout: 30_000 });
+}
+
+/** The point at a fraction of the way down a heading's text-layer span,
+ *  where `fraction` near 1 is the descender zone that reproduced the
+ *  report. */
+async function onHeading(page: any, text: string, fraction: number) {
+  const span = page
+    .locator(".nx-page").nth(1)
+    .locator(".nx-text-layer span", { hasText: text }).first();
+  const box = (await span.boundingBox())!;
+  return { x: box.x + box.width * 0.6, y: box.y + box.height * fraction };
+}
+
+const caretLine = async (page: any) =>
+  Number((await page.getByText(/^Ln \d+, Col \d+$/).innerText()).match(/Ln (\d+)/)?.[1] ?? 0);
+
+test("double-clicking a section heading on the second page lands on its \\section line", async ({
+  app, project, page,
+}) => {
+  await withHeaded({ app, project, page });
+  const at = await onHeading(page, "Results", 0.85);
+  await page.mouse.dblclick(at.x, at.y);
+  await expect.poll(() => caretLine(page), { timeout: 20_000 }).toBe(SECTION_LINE);
+});
+
+test("double-clicking a subsection heading lands on its \\subsection line", async ({
+  app, project, page,
+}) => {
+  await withHeaded({ app, project, page });
+  const at = await onHeading(page, "Discussion", 0.85);
+  await page.mouse.dblclick(at.x, at.y);
+  await expect.poll(() => caretLine(page), { timeout: 20_000 }).toBe(SUBSECTION_LINE);
+});
+
+test("double-clicking a heading's number, which is no word to search for, still lands on the heading", async ({
+  app, project, page,
+}) => {
+  await withHeaded({ app, project, page });
+  // The number is set in its own span before the title, or at the start
+  // of the title's span; either way the click goes at the left edge.
+  const span = page
+    .locator(".nx-page").nth(1)
+    .locator(".nx-text-layer span", { hasText: /^2\s*$|^2\s+Results/ }).first();
+  const box = (await span.boundingBox())!;
+  await page.mouse.dblclick(box.x + 4, box.y + box.height * 0.85);
+  await expect.poll(() => caretLine(page), { timeout: 20_000 }).toBe(SECTION_LINE);
+});
+
+test("with several documents previewed, a double-click opens the source of the one on screen", async ({
+  app, project, page,
+}) => {
+  // The writer's own check: two documents, neither including the other,
+  // and the page under the pointer belongs to the second.  The inverse
+  // search has to be asked about that document, not the main one, or the
+  // caret lands in main.tex on a line that set nothing here.
+  const ESI = String.raw`\documentclass{article}
+\begin{document}
+Supplementary information, kept apart from the thesis.
+
+The supplementary tables follow on this page.
+\end{document}
+`;
+  writeFileSync(join(project.root, "esi.tex"), ESI);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const { openProject } = await import("../fixtures");
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("add-preview").click();
+  await page.getByRole("menuitem", { name: "esi.tex" }).click();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveAttribute("aria-current", "true");
+  // Something else in the editor, so the jump has somewhere to come from
+  // that is not already the right file.  Not main.tex: the preview follows
+  // the document you open, so opening it would put its page on screen.
+  await page.locator('[role="tree"] [data-path="references.bib"]').click();
+  await expect(
+    page.locator('[data-tab][data-path="references.bib"] button[aria-current="true"]'),
+  ).toBeVisible();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveAttribute("aria-current", "true");
+
+  const span = page.locator(".nx-text-layer span", { hasText: "tables" }).first();
+  await expect(span).toBeAttached({ timeout: 60_000 });
+  const picked = await span.evaluate((el) => {
+    const node = el.firstChild!;
+    const index = (el.textContent ?? "").indexOf("tables");
+    const range = document.createRange();
+    range.setStart(node, index);
+    range.setEnd(node, index + "tables".length);
+    const box = range.getBoundingClientRect();
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  });
+  await page.mouse.dblclick(picked.x, picked.y);
+
+  await expect(
+    page.locator('[data-tab][data-path="esi.tex"] button[aria-current="true"]'),
+  ).toBeVisible({ timeout: 20_000 });
+  const line = ESI.split("\n").findIndex((l) => l.includes("supplementary tables")) + 1;
+  await expect.poll(() => caretLine(page), { timeout: 20_000 }).toBe(line);
+  const under = await page.evaluate(() =>
+    document.querySelector(".cm-activeLine")?.textContent ?? "",
+  );
+  expect(under).toContain("supplementary tables");
+});

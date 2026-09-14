@@ -5,6 +5,7 @@ import api from "../api";
 import { get, useStore } from "../store";
 import { uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
+import type { WordHint } from "./locate-word";
 import { findIn, spanFor, textOf, type PageHit } from "./pdf-find";
 import { APPEARANCE_CHANGED } from "../appearance";
 import {
@@ -53,6 +54,43 @@ const MAX_ZOOM = 3;
  *  moment where fingers reset -- committed the zoom, relaid the document
  *  out and redrew every visible canvas, and the gesture then resumed
  *  against a page that had just jumped under it. */
+
+/** What the double-click can tell the editor beyond the word.
+ *
+ *  Whether the span is a heading is read off the page rather than asked
+ *  of synctex, which does not know: a heading's span is set larger than
+ *  the page's running text, or begins with its number.  The running size
+ *  is the most common span size on the page, which on a page of prose is
+ *  the body face.  A `\paragraph{}` heading set at body size and unnumbered
+ *  is missed by both readings and gets the ordinary search, which is no
+ *  worse than before.
+ */
+export function headingHint(
+  page: HTMLElement,
+  span: HTMLElement | null,
+  word: string,
+): WordHint {
+  if (!span) return { word };
+  const context = span.textContent ?? "";
+  // pdf.js writes the size as `calc(var(--scale-factor) * 9.96px)`, so the
+  // number is fished out rather than parsed off the front.
+  const size = (el: HTMLElement) =>
+    Number(/([\d.]+)px/.exec(el.style.fontSize)?.[1] ?? 0);
+  const counts = new Map<number, number>();
+  for (const other of page.querySelectorAll<HTMLElement>(".nx-text-layer span")) {
+    const px = Math.round(size(other) * 10) / 10;
+    if (px > 0) counts.set(px, (counts.get(px) ?? 0) + 1);
+  }
+  let body = 0;
+  let most = 0;
+  for (const [px, count] of counts) {
+    if (count > most) { body = px; most = count; }
+  }
+  const larger = body > 0 && size(span) >= body * 1.15;
+  const numbered = /^\s*(?:\d+|[A-Z])(?:\.\d+)*\.?\s+\S/.test(context);
+  return { word, context, heading: larger || numbered };
+}
+
 const ZOOM_SETTLE = 260;
 
 /** How often pages may be drawn *during* a pinch.
@@ -133,7 +171,7 @@ export default function Pdf({
   document: showing = "",
   source,
 }: {
-  onNavigate: (file: string, line: number, word?: string) => void;
+  onNavigate: (file: string, line: number, hint?: WordHint) => void;
   onLoadTemplate?: () => void;
   handleRef: (handle: PdfHandle) => void;
   /** Which document's PDF this pane is showing.  Empty means the main one,
@@ -907,7 +945,7 @@ export default function Pdf({
       // to.  Asking anyway would run an inverse search against the main
       // document and land the caret on an unrelated line.
       if (source) return;
-      const target = (event.target as HTMLElement).closest(".nx-page");
+      const target = (event.target as HTMLElement).closest(".nx-page") as HTMLElement | null;
       if (!target) return;
       const index = pages.current.findIndex((view) => view.container === target);
       if (index < 0) return;
@@ -917,15 +955,29 @@ export default function Pdf({
       // jump land on the word rather than at the start of its line --
       // synctex reports `Column:-1` and never anything else.
       const word = String(window.getSelection() ?? "");
+      const span = (event.target as HTMLElement).closest(".nx-text-layer span") as
+        | HTMLElement
+        | null;
+      const hint = headingHint(target, span, word);
       const box = target.getBoundingClientRect();
       // SyncTeX works in PDF points from the top-left corner, and so does
       // the canvas, so the conversion is the scale factor and nothing else.
-      const x = (event.clientX - box.left) / drawn.current;
-      const y = (event.clientY - box.top) / drawn.current;
+      // Less the page's one pixel border, which the rectangle includes and
+      // the canvas does not.
+      const x = (event.clientX - box.left - target.clientLeft) / drawn.current;
+      // Asked at the middle of the span the click landed in rather than at
+      // the pointer.  A heading's synctex box ends at its baseline, so a
+      // click in the lower part of its glyphs, which is where a pointer
+      // aimed at a big word lands, was answered with the paragraph beneath
+      // it; the middle of the span is inside the box for a heading and for
+      // a body line alike.
+      const middle = span ? span.getBoundingClientRect() : null;
+      const clientY = middle ? middle.top + middle.height / 2 : event.clientY;
+      const y = (clientY - box.top - target.clientTop) / drawn.current;
       try {
         const result = await api.inverse(projectId, index + 1, x, y, showing);
         if (result.found && result.file && result.line) {
-          onNavigate(result.file, result.line, word);
+          onNavigate(result.file, result.line, hint);
         }
       } catch {
         /* a click that lands on nothing is not an error worth reporting */

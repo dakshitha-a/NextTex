@@ -32,7 +32,7 @@ import { toShell } from "../viewport";
 import { focusFirst, walkMenu } from "./menu-keys";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
-import { locateWord } from "./locate-word";
+import { locateWord, type WordHint } from "./locate-word";
 import { noteTyping } from "../timing";
 
 /** Fetched when a writer first selects something rather than before
@@ -62,7 +62,7 @@ export type EditorHandle = {
   open(
     path: string,
     line?: number,
-    word?: string,
+    word?: string | WordHint,
     /** False when the agent is saying where it is about to write. */
     steal?: boolean,
   ): Promise<void>;
@@ -177,7 +177,7 @@ export default function Editor({
     | ((
         path: string,
         line?: number,
-        word?: string,
+        word?: string | WordHint,
         steal?: boolean,
       ) => Promise<void>)
     | null
@@ -467,7 +467,7 @@ export default function Editor({
     const jump = (
       line: number,
       endLine?: number,
-      word?: string,
+      word?: string | WordHint,
       steal = true,
       hold = 700,
     ) => {
@@ -567,7 +567,7 @@ export default function Editor({
     const openBuffer = async (
       path: string,
       line?: number,
-      word?: string,
+      word?: string | WordHint,
       /** False when the agent is saying where it is about to write. The
        *  pane scrolls and the range flashes; the caret is left alone. */
       steal = true,

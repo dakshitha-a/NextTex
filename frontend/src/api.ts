@@ -688,8 +688,11 @@ const api = {
     request<{ diagnostics: Diagnostic[] }>(
       `/projects/${id}/lint?path=${encodeURIComponent(path)}`,
     ),
+  /** `column` is what the server sends and synctex never fills: `-1` on
+   *  every engine, which arrives as null.  Named here so the shape is the
+   *  route's rather than a subset of it. */
   inverse: (id: string, page: number, x: number, y: number, document = "") =>
-    request<{ found: boolean; file?: string; line?: number }>(
+    request<{ found: boolean; file?: string; line?: number; column?: number | null }>(
       `/projects/${id}/synctex/inverse?page=${page}&x=${x}&y=${y}` +
         `&document=${encodeURIComponent(document)}`,
     ),
