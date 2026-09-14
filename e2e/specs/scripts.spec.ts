@@ -215,3 +215,106 @@ test("what a script draws is in the pane", async ({ app, project, page }) => {
   await expect(figure).toBeVisible();
   await expect.poll(async () => figure.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(100);
 });
+
+/** Colour for a script.
+ *
+ *  The Highlighting setting used to reach only the control sequences: a
+ *  `.py` stayed near-monochrome whatever it said, on the argument that a
+ *  script should read with the prose's weights.  The writer asked for
+ *  colour there too.  The five families are reused rather than a second
+ *  palette, so what these check is that each kind of token took the family
+ *  it maps to, measured on the innermost span, and that with the setting
+ *  off nothing did.
+ */
+
+const COLOURED = `@decorator
+def f(n):
+    return "s", 12  # c
+`;
+
+const spanColour = (page: import("@playwright/test").Page, text: string) =>
+  page.evaluate((wanted) => {
+    const all = [...document.querySelectorAll(".cm-content span")];
+    const exact = all.filter((el) => el.textContent === wanted && el.children.length === 0);
+    const node = exact[exact.length - 1];
+    if (!node) return null;
+    const style = getComputedStyle(node);
+    return { colour: style.color, weight: Number(style.fontWeight) };
+  }, text);
+
+/** A family token as the page resolves it, in the `rgb(r, g, b)` form a
+ *  computed colour comes back in. */
+const familyColour = (page: import("@playwright/test").Page, token: string) =>
+  page.evaluate((name) => {
+    const hex = getComputedStyle(document.querySelector(".cm-editor")!)
+      .getPropertyValue(name).trim();
+    const n = parseInt(hex.slice(1), 16);
+    return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+  }, token);
+
+async function colourOn(page: import("@playwright/test").Page) {
+  await page.getByTestId("appearance").click();
+  await page.getByTestId("syntax-colour").click();
+  await page.keyboard.press("Escape");
+}
+
+const FAMILIES: [string, string][] = [
+  ["def", "--syn-structure"],
+  ["f", "--syn-env"],
+  ['"s"', "--syn-cite"],
+  ["12", "--syn-math"],
+  // The mode gives `@` and the name the same token, and the highlighter
+  // merges adjacent spans of one class, so the decorator is one span.
+  ["@decorator", "--syn-preamble"],
+];
+
+test("a script is subtle until the setting says otherwise", async ({ app, project, page }) => {
+  await withScript({ app, project, page }, COLOURED);
+  const ink = await page.locator(".cm-content").evaluate((el) => getComputedStyle(el).color);
+  const keyword = await spanColour(page, "def");
+  expect(keyword?.colour).toBe(ink);
+  // Weight still tells `def` from a word, as it does `\section`.
+  const body = await page.locator(".cm-content").evaluate((el) => Number(getComputedStyle(el).fontWeight));
+  expect(keyword?.weight).toBeGreaterThan(body);
+  expect((await spanColour(page, '"s"'))?.colour).not.toBe(await familyColour(page, "--syn-cite"));
+});
+
+test("colour gives each kind of token its family", async ({ app, project, page }) => {
+  await withScript({ app, project, page }, COLOURED);
+  await colourOn(page);
+  const seen = new Set<string>();
+  for (const [text, token] of FAMILIES) {
+    const expected = await familyColour(page, token);
+    expect((await spanColour(page, text))?.colour, `${text} is not ${token}`).toBe(expected);
+    seen.add(expected);
+  }
+  // Five kinds, five colours: two that resolved to the same value would
+  // make the mapping decorative rather than useful.
+  expect(seen.size).toBe(5);
+});
+
+test("the colours follow the page, on a script as on a chapter", async ({ app, project, page }) => {
+  await withScript({ app, project, page }, COLOURED);
+  await colourOn(page);
+  const before = (await spanColour(page, "def"))!.colour;
+  await page.getByTestId("appearance").click();
+  await page.getByTestId("editor-theme-light").click();
+  await page.keyboard.press("Escape");
+  // A different page is a different palette, and every token follows it.
+  expect((await spanColour(page, "def"))!.colour).not.toBe(before);
+  for (const [text, token] of FAMILIES) {
+    expect((await spanColour(page, text))?.colour, `${text} is not ${token} on the light page`)
+      .toBe(await familyColour(page, token));
+  }
+});
+
+test("a plain script keyword keeps the quiet colour, as a plain command does", async ({ app, project, page }) => {
+  await withScript({ app, project, page }, COLOURED);
+  await page.getByTestId("appearance").click();
+  await page.getByTestId("emphasis-plain").click();
+  await page.keyboard.press("Escape");
+  const body = await page.locator(".cm-content").evaluate((el) => Number(getComputedStyle(el).fontWeight));
+  const keyword = await spanColour(page, "def");
+  expect(keyword?.weight).toBe(body);
+  expect(keyword?.colour).toBe(await familyColour(page, "--syn-command"));
+});

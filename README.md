@@ -745,7 +745,11 @@ environments, mathematics, citations and the preamble a hue each, which is
 what makes a long chapter skimmable for its shape rather than its words.
 Highlighting has a second half, Emphasis: commands are set a step heavier
 than the prose unless you choose Plain, and a plain command takes a quiet
-slate instead so that `\textbf` never looks like the word after it.
+slate instead so that `\textbf` never looks like the word after it. The
+same switch reaches a script: a `.py` open in the editor takes the same
+five hues, keywords in the sectioning colour, strings in the citation
+colour, numbers in the mathematics colour, and so on, so a figure script
+never reads as a second palette beside the chapter it draws for.
 
 <img alt="A white page inside a dark shell, with the command families coloured: the file list and agent panel stay dark while the editor is white." src="docs/screenshot-white-page.png">
 

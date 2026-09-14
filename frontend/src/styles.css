@@ -877,6 +877,19 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   --nx-weight-strong: var(--nx-weight);
   --nx-syn-keyword: var(--syn-command);
 }
+/* A script under the same switch.  The Python mode tells its tokens apart
+   on its own, so its colour mode is five variables the HighlightStyle in
+   editor-setup.ts reads with the ink as the fallback, filled here from the
+   five family tokens and nowhere else: with the setting off the variables
+   are undefined and every token falls back to its subtle colour.  The
+   mapping is in the style's own comment. */
+.nx-syntax-colour .cm-editor {
+  --nx-py-keyword: var(--syn-structure);
+  --nx-py-name: var(--syn-env);
+  --nx-py-string: var(--syn-cite);
+  --nx-py-number: var(--syn-math);
+  --nx-py-builtin: var(--syn-preamble);
+}
 /* The one size the writer sets directly.  Line height is unitless so it
    tracks the size -- a fixed 22px under 21px text is unreadable -- and the
    gutter follows at the same ratio it had at the default size. */

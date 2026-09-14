@@ -6228,12 +6228,14 @@ a `.py` opened in it had `def` as prose and a backslash offering
 `editor-setup.ts`, filled per state by `languageFor(path)`: the LaTeX
 mode with its completions, its `\ref` links, its command families and its
 maths hover, or the Python mode with a four space indent and none of
-those. The highlight style is the same near-monochrome one, because it
-is written against the generic tags and a script should read with the
-prose's weights rather than in a second palette a pane away. The spell
-checker stays off code: `isCode` in `file-kinds.ts` names the suffixes,
-and `applySpelling` in `Editor.tsx` clears the compartment for them, since
-every identifier in a script is a word the dictionary has never heard of.
+those. The highlight style was at first the same near-monochrome one, on
+the argument that a script should read with the prose's weights rather
+than in a second palette a pane away; the writer asked for colour there
+too, and §36 records how the Highlighting setting now reaches a script.
+The spell checker stays off code: `isCode` in `file-kinds.ts` names the
+suffixes, and `applySpelling` in `Editor.tsx` clears the compartment for
+them, since every identifier in a script is a word the dictionary has
+never heard of.
 
 The file tree draws a script with a play mark on the sheet, the same mark
 the run control carries below, and nothing else in the tree has a
@@ -6379,3 +6381,54 @@ reason above. Figures as SVG beside the PNG. A `run_script` tool for the
 agent that reruns by name without rewriting, and OpenAI-provider parity
 for the plot tools, which was already absent. All four are in
 `TRACKER.md` with their reasons.
+
+## 36. The backlog, worked
+
+`TRACKER.md` had held thirty-six backlog lines since the script run, each
+with its reason. The writer asked for a plan that addressed them, and
+for colour in the editor for Python. This section records what that run
+changed in the interface, one subsection per change, in the order the
+work went; the mechanics are in `docs/architecture.md` and the lines
+that stay are still in the tracker with their reasons.
+
+### A script takes the same colours as a chapter
+
+§35 left a `.py` near-monochrome whatever the Highlighting setting said,
+on the argument that a script should read with the prose's weights rather
+than in a second palette a pane away. The writer's view was that the
+setting is one setting, and a script under it should be lit as the
+chapter beside it is. So there is no second palette: the five family
+tokens are reused, and the mapping is by kind. A keyword is structure,
+so `def`, `return` and `import` take the sectioning colour; the name
+after `def` or `class` is what an environment's name is to LaTeX and
+takes the environment colour; a string is a literal the way a citation
+key is and takes the citation colour; a number is mathematics; and a
+builtin or a decorator is something the environment provides, which is
+what the preamble does, so both take the preamble colour. Comments stay
+in the third ink, italic, as they do in a chapter.
+
+The mechanism differs from the chapter's because the problem does. The
+LaTeX mode calls every control sequence the same token, which is why the
+families are a decoration pass keyed on the command's name; the Python
+mode already tells a keyword from a string from a decorator, so a script
+needs no pass, only a HighlightStyle whose colours are variables with
+the ink as the fallback. `.nx-syntax-colour .cm-editor` in `styles.css`
+fills the five variables from the five family tokens and nothing else
+does, so with the setting off every token falls back to the subtle
+colour it always had and the switch stays two CSS variables rather than
+a reconfiguration. Each style is scoped to its language now, the LaTeX
+one to the LaTeX mode and the Python one to the Python mode, where
+before the LaTeX style was installed once for every buffer and a script
+took whatever its generic tags happened to match.
+
+Emphasis reaches a script the same way. A keyword is set a step heavier
+than the prose and the name after `def` with it; Plain takes the weight
+off and hands the keyword the quiet slate through the same variable a
+plain `\textbf` reads, so `def` never looks like the word after it. The
+contrast test gained no pairs, because no colour was added: the five
+hues the writer chose against rendered candidates are the five hues a
+script gets. One tangent on the way: the Python mode names `self` as a
+token type of its own, which is not a tag the highlighter knows, and the
+console had been warning "Unknown highlighting tag self" once per page
+with the word taking no style; it is a special variable now, set in the
+second ink like any other name.

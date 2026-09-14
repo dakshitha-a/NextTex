@@ -63,6 +63,22 @@ import {
   TITLED,
 } from "./latex-families";
 
+/** One language instance, because the closing-bracket set is attached to
+ *  it: a second `StreamLanguage.define(stex)` would be a different
+ *  language and would not carry it.  Defined ahead of the highlight styles
+ *  because each style is scoped to its language. */
+const LATEX = StreamLanguage.define(stex);
+
+/** The figure scripts the agent writes, and any other `.py` in the
+ *  project.  The legacy mode names `self` as a token type of its own, and
+ *  that is not a tag `@lezer/highlight` knows, so without the table here
+ *  the console warned "Unknown highlighting tag self" once per page and
+ *  the word took no style at all. */
+const PYTHON = StreamLanguage.define({
+  ...python,
+  tokenTable: { self: tags.special(tags.variableName) },
+});
+
 /** Near-monochrome by default.  The rendered page is two panes away, and a
  *  rainbow of token colours beside it makes the source look like the louder
  *  object, so weight and italics carry the structure here and the reserved
@@ -93,7 +109,42 @@ const latexHighlight = HighlightStyle.define([
   { tag: tags.typeName, color: "var(--ink-2)" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strong, fontWeight: "var(--nx-weight-strong, 600)" },
-]);
+], { scope: LATEX });
+
+/** The same near-monochrome look for a script, and the same switch.
+ *
+ *  A script's tokens can be told apart by the mode, which a control
+ *  sequence's cannot, so here the colour mode is a HighlightStyle rather
+ *  than a decoration pass: every colour is a variable with the ink as its
+ *  fallback, and `.nx-syntax-colour .cm-editor` in styles.css fills the
+ *  five variables from the five family tokens.  Nothing new is mixed: a
+ *  keyword is structure, a defined name is what an environment's name is
+ *  to LaTeX, a string is a literal the way a citation key is, a number is
+ *  maths, and a builtin or a decorator is something the environment
+ *  provides, which is what the preamble does.  The keyword's inner
+ *  fallback is the plain-emphasis colour, so a script with the weight
+ *  turned off reads its `def` the way a chapter reads its `\textbf`. */
+const pythonHighlight = HighlightStyle.define([
+  { tag: tags.comment, color: "var(--ink-3)", fontStyle: "italic" },
+  {
+    tag: tags.keyword,
+    color: "var(--nx-py-keyword, var(--nx-syn-keyword, var(--ink)))",
+    fontWeight: "var(--nx-weight-strong, 600)",
+  },
+  {
+    tag: tags.definition(tags.variableName),
+    color: "var(--nx-py-name, var(--ink))",
+    fontWeight: "var(--nx-weight-strong, 600)",
+  },
+  { tag: tags.standard(tags.variableName), color: "var(--nx-py-builtin, var(--ink-2))" },
+  { tag: tags.meta, color: "var(--nx-py-builtin, var(--ink-2))" },
+  { tag: tags.string, color: "var(--nx-py-string, var(--ink-2))" },
+  { tag: tags.number, color: "var(--nx-py-number, var(--ink-2))" },
+  { tag: tags.variableName, color: "var(--ink-2)" },
+  { tag: tags.propertyName, color: "var(--ink-2)" },
+  { tag: tags.special(tags.variableName), color: "var(--ink-2)" },
+  { tag: tags.operator, color: "var(--ink)" },
+], { scope: PYTHON });
 
 /** Colour by family, over the lines actually on screen.
  *
@@ -438,18 +489,6 @@ function closeEnvironment(view: EditorView): boolean {
   return true;
 }
 
-/** One language instance, because the closing-bracket set is attached to
- *  it: a second `StreamLanguage.define(stex)` would be a different
- *  language and would not carry it. */
-const LATEX = StreamLanguage.define(stex);
-
-/** The figure scripts the agent writes, and any other `.py` in the
- *  project.  The same near-monochrome highlight style: `latexHighlight`
- *  is written against the generic tags, comment, keyword, string, number,
- *  so a script reads with the same weights the prose does rather than in
- *  a second palette a pane away. */
-const PYTHON = StreamLanguage.define(python);
-
 /** Which language a buffer speaks.
  *
  *  A compartment, because the view is one object swapped between files
@@ -597,6 +636,7 @@ export function languageFor(
   if (isScript(path)) {
     return [
       PYTHON,
+      syntaxHighlighting(pythonHighlight),
       // Four spaces, which is what the seeded helper and every script the
       // agent writes use, and what Tab inserts.
       indentUnit.of("    "),
