@@ -242,13 +242,21 @@
    block by searching for the literal string `.nx-theme-dark {`, and a
    selector appended after that one would take the brace with it.
 
+   It is the bare class, not `:root[data-theme="light"] .nx-furniture`,
+   which it was.  Furniture is dark in every shell, and the case the keyed
+   selector missed was a card inside an editor host carrying
+   `.nx-theme-light` under a dark root, a white page in a dark shell: the
+   root did not match, the host's class won, and the spelling menu came out
+   as a pale card on a pale page.  Under a dark root the bare class changes
+   nothing, since the root already handed the subtree this palette.
+
    The screens with no document on them -- the project list, signing in,
    waiting to reconnect, and the error boundary -- take it whole rather than
    in parts.  There is no page being written on any of them, so all four are
    chrome from edge to edge, and leaving them out made the project list the
    one pale field in a light theme that had gone dark everywhere else. */
 :root[data-theme="dark"],
-:root[data-theme="light"] .nx-furniture,
+.nx-furniture,
 .nx-theme-dark {
   --surround: #0A0C0B;
   --surface: #121614;

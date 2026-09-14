@@ -21,24 +21,37 @@ the excited-state population decays on a picosecond timescale.
 \end{document}
 `;
 
-for (const theme of ["light", "dark"]) {
-  test(`spelling ${theme}`, async ({ app, project, page }) => {
+for (const shot of [
+  { name: "light", theme: "light", editor: "match", menu: false },
+  { name: "dark", theme: "dark", editor: "match", menu: false },
+  // The menu itself, which is furniture on every ground: the writer's
+  // report was that it blended into a light page.
+  { name: "menu-white", theme: "light", editor: "white", menu: true },
+  { name: "menu-light", theme: "light", editor: "match", menu: true },
+  { name: "menu-dark", theme: "dark", editor: "match", menu: true },
+]) {
+  test(`spelling ${shot.name}`, async ({ app, project, page }) => {
     writeFileSync(join(project.root, "main.tex"), SAMPLE);
     await page.goto(`${app.base}/?token=${app.token}`);
-    await page.evaluate((t) => {
-      window.localStorage.setItem("nexttex.theme", t);
+    await page.evaluate((s) => {
+      window.localStorage.setItem("nexttex.theme", s.theme);
+      window.localStorage.setItem("nexttex.editor.theme", s.editor);
       window.localStorage.setItem("nexttex.editor.syntax", "colour");
       window.localStorage.setItem("nexttex.editor.spelling", "on");
-    }, theme);
+    }, shot);
     await page.reload();
     await page.getByText("Projects", { exact: false }).first().waitFor();
     await openProject(page, project.root);
     await expect(page.locator(".nx-misspelled").first()).toBeVisible({
       timeout: 30_000,
     });
+    if (shot.menu) {
+      await page.locator(".nx-misspelled").nth(1).click({ button: "right" });
+      await page.getByTestId("spelling-menu").waitFor();
+    }
     await page.waitForTimeout(1200);
     await page.locator(".cm-editor").screenshot({
-      path: `shots/out-spelling-${theme}.png`,
+      path: `shots/out-spelling-${shot.name}.png`,
     });
   });
 }

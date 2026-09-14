@@ -69,11 +69,11 @@ export default function SelectionActions({
       aria-label={`${span} selected`}
       data-testid="selection-actions"
       // 5px radius, because this is a card rather than a row, and the one
-      // shadow the design allows a floating surface. Painted on
-      // `--surface-2` rather than `--surface`, since section 23 records
-      // what happens when a floating thing takes the colour of the page it
-      // floats over.
-      className="nx-arrive absolute z-20 flex items-center gap-[2px] rounded-[5px] border border-line bg-surface-2 p-1 shadow-float"
+      // shadow the design allows a floating surface. Furniture, like the
+      // spelling menu beside it: the two things that float over the page
+      // used to follow the page, and on a white page that made them a
+      // pale card one step from the paper. See section 32.
+      className="nx-furniture nx-arrive absolute z-20 flex items-center gap-[2px] rounded-[5px] border border-line bg-surface p-1 shadow-float"
       style={{ left: at.left, top: at.top }}
       onMouseDown={(event) => {
         // The selection is the whole point of this control, and a press
@@ -86,7 +86,7 @@ export default function SelectionActions({
       {VERBS.map((verb) => (
         <button
           key={verb.label}
-          className="quiet h-[22px] rounded-[3px] px-2 t-micro hover:bg-surface-3"
+          className="quiet h-[22px] rounded-[3px] px-2 t-micro hover:bg-surface-2"
           data-testid={`selection-${verb.label.toLowerCase()}`}
           title={verb.hint}
           onClick={() => onPick(verb.prompt)}
@@ -95,7 +95,7 @@ export default function SelectionActions({
         </button>
       ))}
       <button
-        className="quiet flex h-[22px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3"
+        className="quiet flex h-[22px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-2"
         aria-label="Put this away"
         title="Put this away"
         data-testid="selection-dismiss"

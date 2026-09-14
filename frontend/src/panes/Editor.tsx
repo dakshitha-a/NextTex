@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   EDITOR_SIZES,
   applyAppearance,
@@ -28,6 +28,7 @@ import {
   useEditorSyntax,
   useSpelling,
 } from "../use-editor-theme";
+import { toShell } from "../viewport";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
 import { locateWord } from "./locate-word";
@@ -109,6 +110,37 @@ export default function Editor({
   // Changed by the settings sheet as well as by this pane, and the two are
   // in different trees.
   const dictionaryStamp = useStore((s) => s.dictionaryStamp);
+  // The checker arrives with its word list, on demand.  Nothing about it
+  // is in the interface bundle until the setting is turned on, which is
+  // most of the reason it can be turned on at all: it is a hundred
+  // kilobytes and a pass over every visible line.
+  const speller = useRef<typeof import("./spellcheck") | null>(null);
+  // Read by the buffer swap below, which is a closure made once.
+  const spellingRef = useRef(spelling);
+  spellingRef.current = spelling;
+  const acceptedRef = useRef(accepted);
+  acceptedRef.current = accepted;
+  /** Put the checker into whatever state the view holds now.
+   *
+   *  Every fresh `EditorState` starts with `spellCompartment.of([])`, so a
+   *  document that arrives after the checker was configured has no
+   *  checker in it.  The effect below only runs when the setting or the
+   *  word list changes, and after a reload both had settled before the
+   *  file finished opening, so spell checking said it was on and marked
+   *  nothing until it was switched off and on again.  Asked of the state,
+   *  not of a ref: `speller.current` is one value for the whole module. */
+  const applySpelling = useCallback((now: EditorView) => {
+    const module = speller.current;
+    if (!module || !spellingRef.current) return;
+    const configured = spellCompartment.get(now.state);
+    const alreadyOn = Array.isArray(configured) && configured.length > 0;
+    if (!alreadyOn) {
+      now.dispatch({ effects: spellCompartment.reconfigure(module.spellchecking()) });
+    }
+    now.dispatch({
+      effects: module.setSpelling.of({ on: true, custom: acceptedRef.current }),
+    });
+  }, []);
   const [offer, setOffer] = useState<{
     word: string;
     x: number;
@@ -502,6 +534,7 @@ export default function Editor({
     const afterSwap = () => {
       setActions((open) => (open === null ? open : null));
       setOffer((open) => (open === null ? open : null));
+      if (view.current) applySpelling(view.current);
       const state = view.current?.state;
       if (!state) return;
       const head = state.selection.main.head;
@@ -816,11 +849,6 @@ export default function Editor({
     return () => { live = false; };
   }, [spelling, activePath, dictionaryStamp]);
 
-  // The checker arrives with its word list, on demand.  Nothing about it
-  // is in the interface bundle until the setting is turned on, which is
-  // most of the reason it can be turned on at all: it is a hundred
-  // kilobytes and a pass over every visible line.
-  const speller = useRef<typeof import("./spellcheck") | null>(null);
   useEffect(() => {
     const editor = view.current;
     if (!editor) return;
@@ -832,27 +860,13 @@ export default function Editor({
     const tell = (module: typeof import("./spellcheck")) => {
       const now = view.current;
       if (!live || !now) return;
-      // Asked of the state, not of a ref. `speller.current` is one value
-      // for the whole module, and every fresh `EditorState` starts with
-      // `spellCompartment.of([])`: opening a second file after spelling
-      // was switched on found the ref already set, skipped the
-      // reconfigure, and sent `setSpelling` into a state with no spelling
-      // field in it. Spell checking reached one tab and never came back,
-      // for the life of the session.
-      const configured = spellCompartment.get(now.state);
-      const alreadyOn = Array.isArray(configured) && configured.length > 0;
-      if (!alreadyOn) {
-        now.dispatch({ effects: spellCompartment.reconfigure(module.spellchecking()) });
-      }
       speller.current = module;
-      now.dispatch({
-        effects: module.setSpelling.of({ on: true, custom: accepted }),
-      });
+      applySpelling(now);
     };
     if (speller.current) tell(speller.current);
     else import("./spellcheck").then(tell).catch(() => undefined);
     return () => { live = false; };
-  }, [spelling, accepted]);
+  }, [spelling, accepted, applySpelling]);
 
   /** Open the menu on the misspelled word the caret is in.
    *
@@ -886,7 +900,11 @@ export default function Editor({
     if (!word?.dataset.word) return false;
     const box = root.getBoundingClientRect();
     const where = word.getBoundingClientRect();
-    setOffer(offerFor(now, word, where.left - box.left, where.bottom - box.top + 2));
+    // Read in viewport pixels, written as a style inside the zoomed shell:
+    // see viewport.ts for why the two are not the same number.
+    setOffer(
+      offerFor(now, word, toShell(where.left - box.left), toShell(where.bottom - box.top) + 2),
+    );
     return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- offerFor is
     // declared just below and is stable for the same accepted list.
@@ -951,8 +969,8 @@ export default function Editor({
         offerFor(
           view.current,
           target,
-          event.clientX - box.left,
-          event.clientY - box.top,
+          toShell(event.clientX - box.left),
+          toShell(event.clientY - box.top),
         ),
       );
     };
@@ -970,6 +988,45 @@ export default function Editor({
       root.removeEventListener("keydown", onKey);
     };
   }, [spelling, offerAtCaret, offerFor]);
+
+  /** Where the menu goes, and where focus goes, the moment it mounts.
+   *
+   *  Focus goes into the menu when it opens. Without this the arrow keys
+   *  moved the caret in the document behind the backdrop, so the page
+   *  scrolled underneath a menu that stayed put, and nothing about the
+   *  menu could be reached or dismissed without a mouse.
+   *
+   *  Opened near the foot of the pane it went below it, and the host
+   *  clips, so the item that matters was the one nobody could see. It
+   *  opens upwards instead when there is no room below; measured rather
+   *  than guessed, because the number of guesses is the number of rows.
+   *
+   *  A stable callback, keyed on the offer. An inline ref is a new
+   *  function on every render, and React calls a new ref with the node
+   *  again, so every re-render of this pane while the menu was open (the
+   *  word list arriving, a cursor readout) put focus back on the first
+   *  row a beat after an arrow key had moved it. */
+  const placeMenu = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node || !offer) return;
+      node.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+      const room = (host.current?.clientHeight ?? 0) - offer.y;
+      if (node.offsetHeight > room) {
+        node.style.top = `${Math.max(0, offer.y - node.offsetHeight)}px`;
+      }
+    },
+    [offer],
+  );
+
+  /** The pointer moves the menu's focus, so hover and the keyboard row are
+   *  one highlight.  Only a pointer that moved: the browser replays a move
+   *  at the resting position after layout settles, and with the menu open
+   *  under the pointer that replay put focus back on the first row a beat
+   *  after an arrow key had moved it. */
+  const moveFocus = useCallback((event: PointerEvent<HTMLElement>) => {
+    if (event.movementX === 0 && event.movementY === 0) return;
+    event.currentTarget.focus();
+  }, []);
 
   const accept = useCallback(async (word: string) => {
     setOffer(null);
@@ -1036,17 +1093,15 @@ export default function Editor({
             }}
           />
           <div
-            ref={(node) => {
-              // Focus goes into the menu when it opens. Without this the
-              // arrow keys moved the caret in the document behind the
-              // backdrop, so the page scrolled underneath a menu that
-              // stayed put, and nothing about the menu could be reached
-              // or dismissed without a mouse.
-              node?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
-            }}
-            className="absolute z-50 rounded-[3px] border border-line bg-surface-2 py-1 shadow-[var(--float)]"
+            ref={placeMenu}
+            // A furniture card, like every other menu in the app.  It used
+            // to follow the page, on the argument that a dark card on a
+            // lit page reads as a hole punched in it; on a white page the
+            // pale card was the hole, one step from the page with a row
+            // nobody could see, and the writer asked for the furniture.
+            className="nx-furniture nx-arrive absolute z-50 w-[220px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
             style={{
-              left: Math.min(offer.x, (host.current?.clientWidth ?? 0) - 210),
+              left: Math.min(offer.x, (host.current?.clientWidth ?? 0) - 220),
               top: offer.y,
             }}
             role="menu"
@@ -1083,7 +1138,15 @@ export default function Editor({
               <button
                 key={guess}
                 role="menuitem"
-                className="t-micro block w-full px-3 py-[3px] text-left text-ink hover:bg-surface-3"
+                // `focus:` and not only `focus-visible:`: the first row is
+                // focused by script after a mouse gesture, which no browser
+                // paints as visible focus, so the row paints itself. No
+                // `hover:` beside it: the pointer moves the same focus, so
+                // hover and the keyboard row are one highlight rather than
+                // two, which they were the moment the menu opened under a
+                // pointer resting on its second row.
+                className="t-ui block w-full px-3 py-[3px] text-left text-ink focus:bg-hint-wash"
+                onPointerMove={moveFocus}
                 onClick={() => {
                   const now = view.current;
                   setOffer(null);
@@ -1102,7 +1165,8 @@ export default function Editor({
             ) : null}
             <button
               role="menuitem"
-              className="t-micro block w-full px-3 py-[3px] text-left text-ink-2 hover:bg-surface-3 hover:text-ink"
+              className="t-ui block w-full px-3 py-[3px] text-left text-ink-2 focus:bg-hint-wash focus:text-ink"
+              onPointerMove={moveFocus}
               onClick={() => {
                 accept(offer.word);
                 view.current?.focus();
