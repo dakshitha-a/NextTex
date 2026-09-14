@@ -1,10 +1,12 @@
 """Writing projects: what NextTex knows about a directory of LaTeX.
 
-A project is any directory containing a main .tex file. NextTex does not own
-it, does not move it, and does not require it to be laid out in any
-particular way -- the dissertation this was built alongside is a git
-repository with its own Makefile, and it must keep working exactly as it did
-before it was ever opened here.
+A project is any directory of LaTeX. Every `.tex` file in it that has a
+`\\documentclass` and a `\\begin{document}` of its own, and that no other
+file reads, is a document with its own PDF; there is no "main" one. NextTex
+does not own the directory, does not move it, and does not require it to be
+laid out in any particular way: the dissertation this was built alongside is
+a git repository with its own Makefile, and it must keep working exactly as
+it did before it was ever opened here.
 
 Everything NextTex adds lives in two places: an optional `nexttex.toml` at
 the project root, which the user may commit, and a `.nexttex/` directory for
@@ -169,20 +171,21 @@ class ProjectConfig:
     """The contents of nexttex.toml, with defaults for everything."""
 
     name: str = ""
-    main: str = "main.tex"
     build_dir: str = "build"
     # A command the project defines for its own correctness checks -- the
     # dissertation uses this for its margin and reference verification.
     check_command: str = ""
     # Directories excluded from the tree beyond the built-in list.
     exclude: list[str] = field(default_factory=list)
-    #: Documents previewed alongside the main one, as project-relative
-    #: paths.  A dissertation and its supplementary information are two
-    #: documents in one folder, and neither includes the other; before this
-    #: the only way to build the second was to make it the main file and
-    #: then change it back.  `main` is always previewable and is never
-    #: listed here.
-    previews: list[str] = field(default_factory=list)
+    #: What an older `nexttex.toml` said the documents were: its `main` and
+    #: then its `previews`, in that order.  Read once and never written.
+    #: Which documents are on the preview strip is viewer state now, kept
+    #: per install in `.nexttex/previews.json` (see `PreviewList`), because
+    #: this file is shared with collaborators and a preview that follows one
+    #: writer's editor must not grow the strip on another's screen.  The
+    #: session seeds its list from this the first time it opens a project
+    #: that has no list of its own, so nobody loses the document they had.
+    inherited_documents: list[str] = field(default_factory=list, repr=False)
 
     # Three switches the writer sets from the settings card.  Per project
     # rather than per browser: whether a document compiles as you type is a
@@ -200,23 +203,23 @@ class ProjectConfig:
     def load(cls, root: Path) -> "ProjectConfig":
         path = root / CONFIG_NAME
         if not path.exists():
-            return cls(name=root.name, main=cls._guess_main(root))
+            return cls(name=root.name)
         try:
             data = tomllib.loads(path.read_text(encoding="utf-8"))
         except Exception:
             # A malformed config must not make the project unopenable.
-            return cls(name=root.name, main=cls._guess_main(root))
+            return cls(name=root.name)
         section = data.get("project", data)
+        inherited = [
+            kept for raw in [section.get("main"), *section.get("previews", [])]
+            if (kept := cls._inside(raw))
+        ]
         return cls(
             name=section.get("name") or root.name,
-            main=cls._inside(section.get("main")) or cls._guess_main(root),
             build_dir=cls._inside(section.get("build_dir")) or "build",
             check_command=section.get("check_command", ""),
             exclude=list(section.get("exclude", [])),
-            previews=[
-                kept for raw in section.get("previews", [])
-                if (kept := cls._inside(raw))
-            ],
+            inherited_documents=list(dict.fromkeys(inherited)),
             autocompile=bool(section.get("autocompile", True)),
             mark_errors=bool(section.get("mark_errors", True)),
             mark_warnings=bool(section.get("mark_warnings", False)),
@@ -232,10 +235,11 @@ class ProjectConfig:
         this file is deliberately shared rather than refused.
 
         What that reached: `build_dir` becomes `latexmk -outdir=`, so
-        `../../` aims a build at somewhere outside the project, and `main` is
-        read straight off the disk, so `../../../etc/passwd` is opened as the
-        document.  Both are refused here rather than at each use, because
-        every later reader takes these as ordinary relative paths.
+        `../../` aims a build at somewhere outside the project, and a
+        document name is read straight off the disk, so `../../../etc/passwd`
+        is opened as the document.  Both are refused here rather than at
+        each use, because every later reader takes these as ordinary
+        relative paths.
 
         Absolute paths, parent segments, and anything that is not a string
         all fail the same way: by falling back to the default, which is what
@@ -249,37 +253,6 @@ class ProjectConfig:
         if PureWindowsPath(value).is_absolute():
             return ""
         return value
-
-    @staticmethod
-    def _guess_main(root: Path) -> str:
-        """Find the main file when the project has not said which it is.
-
-        The main file is the one with `\\documentclass` and `\\begin{document}`;
-        a project can contain many .tex files and only one of them compiles.
-        Conventional names win ties.
-        """
-        candidates: list[tuple[int, str]] = []
-        for path in sorted(root.rglob("*.tex")):
-            if any(part in IGNORED_DIRS for part in path.parts):
-                continue
-            try:
-                head = path.read_text(encoding="utf-8", errors="replace")[:4000]
-            except OSError:
-                continue
-            if "\\documentclass" not in head:
-                continue
-            score = 0
-            if "\\begin{document}" in head:
-                score += 10
-            if path.parent == root:
-                score += 5
-            if path.stem in {"main", "thesis", "dissertation", "paper", "report"}:
-                score += 5
-            candidates.append((score, str(path.relative_to(root))))
-        if not candidates:
-            return "main.tex"
-        return max(candidates)[1]
-
 
     def save(self, root: Path) -> None:
         """Write nexttex.toml.
@@ -295,7 +268,6 @@ class ProjectConfig:
             "# NextTex reads this when the project is opened.",
             "[project]",
             f"name = {_toml(self.name)}",
-            f"main = {_toml(self.main)}",
             f"build_dir = {_toml(self.build_dir)}",
             # Written whether or not they are true.  The optional fields
             # below are omitted when falsy, which is right for a string or a
@@ -310,9 +282,9 @@ class ProjectConfig:
         if self.exclude:
             listed = ", ".join(_toml(item) for item in self.exclude)
             lines.append(f"exclude = [{listed}]")
-        if self.previews:
-            listed = ", ".join(_toml(item) for item in self.previews)
-            lines.append(f"previews = [{listed}]")
+        # `main` and `previews` are not written.  A toml that still has them
+        # loses them on its first save, after the session has read them
+        # into `.nexttex/previews.json`; see `inherited_documents`.
         target = root / CONFIG_NAME
         temp = target.with_name(target.name + ".tmp")
         temp.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -335,10 +307,6 @@ class Project:
     def id(self) -> str:
         """A stable, filesystem-safe identifier derived from the path."""
         return id_for(self.root)
-
-    @property
-    def main(self) -> Path:
-        return self.root / self.config.main
 
     @property
     def build_dir(self) -> Path:
@@ -468,7 +436,6 @@ class Project:
             "id": self.id,
             "name": self.config.name,
             "root": str(self.root),
-            "main": self.config.main,
             "buildDir": self.config.build_dir,
             "checkCommand": self.config.check_command,
             "autocompile": self.config.autocompile,
@@ -491,11 +458,11 @@ class RegistryEntry:
 def id_for(root: Path | str) -> str:
     """The identifier of the project at a path, without opening it.
 
-    Opening one reads its config, and a project with no `nexttex.toml` then
-    guesses its main file -- which walks the whole tree reading the first
-    four kilobytes of every .tex it finds.  The project list did that for
-    every project on the screen, and again for every entry it stepped past
-    while looking one up by id.
+    Opening one reads its config, and a session opening a project with no
+    preview list then guesses its document, which walks the whole tree
+    reading the first four kilobytes of every .tex it finds.  The project
+    list did that for every project on the screen, and again for every
+    entry it stepped past while looking one up by id.
     """
     import hashlib
 
@@ -648,3 +615,81 @@ class Registry:
             if id_for(root) == project_id:
                 return Project.open(root)
         return None
+
+
+# ---------------------------------------------------------------------------
+# Documents: which files are previewed, and which one to start with.
+
+
+def guess_document(root: Path) -> str | None:
+    """The best file to preview when nothing has said which.
+
+    A document is a `.tex` with `\\documentclass` and `\\begin{document}`;
+    a project can contain many .tex files and only some of them compile.
+    Conventional names and a place at the root win ties.  None when the
+    folder has no document at all, which is what a brand new project is
+    until the template is loaded: guessing `main.tex` for it, as this used
+    to, meant registering a file that was not there.
+    """
+    candidates: list[tuple[int, str]] = []
+    for path in sorted(root.rglob("*.tex")):
+        if any(part in IGNORED_DIRS for part in path.parts):
+            continue
+        if is_ours(path.name):
+            continue
+        try:
+            head = path.read_text(encoding="utf-8", errors="replace")[:4000]
+        except OSError:
+            continue
+        if "\\documentclass" not in head:
+            continue
+        score = 0
+        if "\\begin{document}" in head:
+            score += 10
+        if path.parent == root:
+            score += 5
+        if path.stem in {"main", "thesis", "dissertation", "paper", "report"}:
+            score += 5
+        candidates.append((score, str(path.relative_to(root))))
+    if not candidates:
+        return None
+    return max(candidates)[1]
+
+
+class PreviewList:
+    """The documents on the preview strip, in order, for this install.
+
+    Kept in `.nexttex/previews.json` rather than `nexttex.toml` because it is
+    viewer state, like the editor's open tabs: the toml is shared with
+    collaborators, and the preview follows whichever file is being written,
+    so a list kept there would grow on every screen the project is open on
+    whenever one writer changed tabs.  `.nexttex/` is never synced.
+
+    `load` distinguishes a list that was never written (None) from an empty
+    one, because the first is the cue to inherit what an older toml said.
+    """
+
+    NAME = "previews.json"
+
+    def __init__(self, state_dir: Path):
+        self.path = state_dir / self.NAME
+
+    def load(self) -> list[str] | None:
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError):
+            return []
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, str) and item]
+
+    def save(self, names: list[str]) -> None:
+        temp = self.path.with_name(self.path.name + ".tmp")
+        try:
+            temp.write_text(json.dumps(list(names)), encoding="utf-8")
+            temp.replace(self.path)
+        except OSError:
+            # Losing the list costs a guess at the next open, not the work.
+            pass

@@ -136,20 +136,16 @@ test("the preview tab in front has a menu, and the others keep the browser's", a
   const menu = page.getByTestId("preview-tab-menu");
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("menuitem")).toHaveText([
-    "Stop previewing the others", "Stop previewing all", "Download PDF",
+    "Stop previewing the others", "Download PDF",
   ]);
   await expect(menu.getByRole("menuitem").first()).toBeFocused();
   // Duplicate is a file's affair, and this is a build.
   await expect(menu.getByRole("menuitem", { name: "Duplicate" })).toHaveCount(0);
 
+  // "The others" leaves the tab the menu was opened on and nothing else:
+  // there is no main document that stays regardless, and the last one on
+  // the strip cannot go.
   await menu.getByRole("menuitem", { name: "Stop previewing the others" }).click();
-  await expect(page.locator(PREVIEW_TABS)).toHaveCount(2);
-  await expect(page.getByTestId(`preview-tab-${front}`)).toHaveAttribute("aria-current", "true");
-  await expect(page.getByTestId("preview-tab-main.tex")).toBeVisible();
-
-  await page.locator(`[data-preview-tab][data-path="${front}"]`).click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Stop previewing all" }).click();
-  // Down to the main document alone, which is a label rather than a strip.
   await expect(page.locator(PREVIEW_TABS)).toHaveCount(0);
   await expect(page.getByText("Preview", { exact: true })).toBeVisible();
 });

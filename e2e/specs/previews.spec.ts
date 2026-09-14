@@ -1,12 +1,13 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, expect, openProject } from "../fixtures";
+import { test, expect, openFolders, openProject } from "../fixtures";
 
 /** Previewing more than one document.
  *
  *  A dissertation and its supplementary information are two documents in
- *  one folder and neither includes the other. Before this the only way to
- *  build the second was to make it the main file and change it back.
+ *  one folder and neither includes the other.  There is no main document:
+ *  every root .tex is one, and the page follows the file being written to
+ *  the document that reads it.
  */
 
 const STANDALONE = `\\documentclass{article}
@@ -72,7 +73,9 @@ test("both documents build, and each keeps its own page", async ({
       { timeout: 60_000 },
     )
     .toBe(200);
-  const main = await page.request.get(`${app.base}/api/projects/${project.id}/pdf`);
+  const main = await page.request.get(
+    `${app.base}/api/projects/${project.id}/pdf?document=main.tex`,
+  );
   const esi = await page.request.get(
     `${app.base}/api/projects/${project.id}/pdf?document=esi.tex`,
   );
@@ -120,7 +123,7 @@ test("the shortcut cycles the previewed documents", async ({
   );
 });
 
-test("a document can be taken off the strip, and the main one cannot", async ({
+test("any document can be taken off the strip, but not the last one", async ({
   app, project, page,
 }) => {
   await withEsi({ app, project, page });
@@ -128,14 +131,68 @@ test("a document can be taken off the strip, and the main one cannot", async ({
   await page.getByRole("menuitem", { name: "esi.tex" }).click();
   await expect(page.getByTestId("preview-tab-esi.tex")).toBeVisible();
 
-  // The main document has no close button at all -- a control that is
-  // always refused is worse than no control.
+  // The document that used to be "main" is a document like any other.
+  await page.getByRole("button", { name: "Stop previewing main.tex" }).click();
+  await expect(page.getByTestId("preview-tab-main.tex")).toHaveCount(0);
+  // The last one has no close button at all: a control that is always
+  // refused is worse than no control.
   await expect(
-    page.getByRole("button", { name: "Stop previewing main.tex" }),
+    page.getByRole("button", { name: "Stop previewing esi.tex" }),
   ).toHaveCount(0);
+});
 
-  await page.getByRole("button", { name: "Stop previewing esi.tex" }).click();
-  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveCount(0);
+test("opening a chapter previews the document that reads it, however deep", async ({
+  app, project, page,
+}) => {
+  // esi.tex reads parts/one.tex, which reads parts/two.tex.  Opening the
+  // deepest file puts esi on the strip and in front, without opening
+  // esi.tex itself on the source strip.
+  mkdirSync(join(project.root, "parts"), { recursive: true });
+  writeFileSync(
+    join(project.root, "esi.tex"),
+    "\\documentclass{article}\n\\begin{document}\n\\input{parts/one}\n\\end{document}\n",
+  );
+  writeFileSync(join(project.root, "parts", "one.tex"), "\\input{two}\nOne.\n");
+  writeFileSync(join(project.root, "parts", "two.tex"), "Two.\n");
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+
+  await openFolders(page, "parts/two.tex");
+  await page.locator('[role="tree"] [data-path="parts/two.tex"]').click();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveAttribute(
+    "aria-current", "true", { timeout: 15_000 },
+  );
+  await expect(page.locator('[data-tab][data-path="esi.tex"]')).toHaveCount(0);
+  await expect(
+    page.locator('[data-tab][data-path="parts/two.tex"] button[aria-current="true"]'),
+  ).toBeVisible();
+
+  // Back to a file of the other document, and the page follows again.
+  await page.locator('[role="tree"] [data-path="main.tex"]').click();
+  await expect(page.getByTestId("preview-tab-main.tex")).toHaveAttribute(
+    "aria-current", "true",
+  );
+});
+
+test("a fragment nothing reads leaves the preview where it was", async ({
+  app, project, page,
+}) => {
+  writeFileSync(join(project.root, "scratch.tex"), "Notes, not part of anything.\n");
+  await withEsi({ app, project, page });
+  await page.getByTestId("add-preview").click();
+  await page.getByRole("menuitem", { name: "esi.tex" }).click();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveAttribute(
+    "aria-current", "true",
+  );
+  await page.locator('[role="tree"] [data-path="scratch.tex"]').click();
+  await expect(
+    page.locator('[data-tab][data-path="scratch.tex"] button[aria-current="true"]'),
+  ).toBeVisible();
+  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveAttribute(
+    "aria-current", "true",
+  );
 });
 
 test("the choice survives a reload", async ({ app, project, page }) => {
@@ -146,7 +203,7 @@ test("the choice survives a reload", async ({ app, project, page }) => {
 
   await page.reload();
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
-  // It is in nexttex.toml, not in this tab's memory.
+  // It is in .nexttex/previews.json, not in this tab's memory.
   await expect(page.getByTestId("preview-tab-esi.tex")).toBeVisible({
     timeout: 20_000,
   });

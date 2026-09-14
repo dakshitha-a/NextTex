@@ -947,7 +947,6 @@ Point NextTex at any folder containing a LaTeX document.
 ```toml
 [project]
 name = "My Thesis"
-main = "main.tex"
 build_dir = "build"
 
 # Written by the settings sheet and yours to edit. Per project rather than
@@ -958,8 +957,13 @@ mark_errors = true      # mark compile errors in the text itself
 mark_warnings = false   # and chktex warnings, which are noisier
 ```
 
-Without one, NextTex finds the file containing `\documentclass` and
-`\begin{document}` and uses that.
+There is no main file to name. Every `.tex` with a `\documentclass` and a
+`\begin{document}` of its own that no other file reads is a document with
+its own PDF, the way a folder of notebooks is a folder of notebooks, and the
+preview shows whichever one you are writing: open a chapter and the page is
+the document that includes it. Which documents are on the preview strip is
+remembered in `.nexttex/`, not here, because it is yours rather than the
+project's.
 
 Everything NextTex adds lives in one directory beside your files, and none of
 it is needed to compile:

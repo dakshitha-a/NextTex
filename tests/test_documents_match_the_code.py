@@ -41,6 +41,7 @@ NOT_OURS = {
     # runtime. `.nexttex/` is gitignored precisely so none of this is here.
     ".nexttex/collab/share.json",
     ".nexttex/dictionary.txt",
+    ".nexttex/previews.json",
     # Examples of what a writer's project holds, in the passage about the
     # agent drawing a figure from a dataset.
     "figures/plot.png",

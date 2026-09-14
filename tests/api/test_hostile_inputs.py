@@ -152,7 +152,8 @@ def test_a_config_nobody_can_parse_opens_anyway(client, project_dir):
     from nexttex.project import Project
 
     opened = Project.open(project_dir)
-    assert opened.config.main.endswith(".tex")
+    assert opened.config.name == project_dir.name
+    assert opened.config.build_dir == "build"
 
 
 def test_a_registry_from_a_later_version_does_not_take_the_list_down(client,

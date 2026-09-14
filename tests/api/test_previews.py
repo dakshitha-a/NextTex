@@ -4,7 +4,13 @@ A dissertation and the supplementary information beside it are two
 documents in one folder, and neither includes the other. The risk this
 whole feature carries is serving one document's PDF for the other, so most
 of what is checked here is that the two stay apart.
+
+There is no main document. Every root `.tex` is a document, the one on the
+screen is what an unqualified request means, and the preview follows the
+file being written to the document that reads it.
 """
+
+import json
 
 import server.main as server_main
 
@@ -18,10 +24,11 @@ STANDALONE = (
 )
 
 
-def test_a_project_previews_its_main_document_and_nothing_else(client, opened):
+def test_a_project_previews_its_guessed_document_and_nothing_else(client, opened):
     body = client.get(f"/api/projects/{opened['id']}/documents").json()
     assert body["previews"] == ["main.tex"]
-    assert body["main"] == "main.tex"
+    assert body["visible"] == "main.tex"
+    assert "main" not in body
 
 
 def test_a_standalone_document_is_offered_but_not_previewed(
@@ -34,6 +41,27 @@ def test_a_standalone_document_is_offered_but_not_previewed(
     assert "esi.tex" not in body["previews"]
 
 
+def test_a_new_document_is_found_without_reopening(client, project_dir, opened):
+    """A file the writer makes is offered as soon as it exists.  The scan
+    is debounced behind the `files_changed` event the write publishes, so
+    this waits on the event stream rather than on a clock."""
+    import time
+
+    project_id = opened["id"]
+    response = client.put(
+        f"/api/projects/{project_id}/file",
+        json={"path": "variant.tex", "text": STANDALONE, "compile": False, "create": True},
+    )
+    assert response.status_code == 200, response.text
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        body = client.get(f"/api/projects/{project_id}/documents").json()
+        if "variant.tex" in body["candidates"]:
+            break
+        time.sleep(0.05)
+    assert "variant.tex" in body["candidates"]
+
+
 def test_a_fragment_is_not_offered(client, project_dir, opened):
     # No \documentclass of its own, so it cannot be built by itself.
     add(client, project_dir, "chapter.tex", "A chapter with no preamble.\n")
@@ -42,31 +70,127 @@ def test_a_fragment_is_not_offered(client, project_dir, opened):
     assert "chapter.tex" not in body["candidates"]
 
 
-def test_previewing_a_second_document_keeps_it_across_a_settings_change(
+def test_previewing_a_second_document_is_remembered_by_this_install(
     client, project_dir, opened
 ):
+    """The strip is viewer state, so it lives in `.nexttex/`, which is never
+    synced, and not in the toml, which is shared with collaborators."""
     project_id = opened["id"]
     add(client, project_dir, "esi.tex", STANDALONE)
     body = client.post(
         f"/api/projects/{project_id}/previews", json={"path": "esi.tex"}
     ).json()
     assert body["previews"] == ["main.tex", "esi.tex"]
-    assert "previews = [\"esi.tex\"]" in (project_dir / "nexttex.toml").read_text()
-
-    # The switch route rewrites nexttex.toml.  Before `save` was taught
-    # about this field, that is where a registered preview was silently
-    # lost.
+    assert body["document"] == "esi.tex"
+    assert body["visible"] == "esi.tex"
+    remembered = json.loads(
+        (project_dir / ".nexttex" / "previews.json").read_text(encoding="utf-8")
+    )
+    assert remembered == ["main.tex", "esi.tex"]
     client.post(f"/api/projects/{project_id}/settings", json={"markWarnings": True})
-    assert "esi.tex" in (project_dir / "nexttex.toml").read_text()
+    toml = (project_dir / "nexttex.toml").read_text(encoding="utf-8")
+    assert "previews" not in toml and "main" not in toml
 
 
-def test_a_fragment_cannot_be_previewed(client, project_dir, opened):
+def test_an_older_toml_seeds_the_list_once(client, project_dir):
+    """A project last opened by a NextTex that kept `main` and `previews`
+    in the toml keeps the documents it had, in that order."""
+    add(client, project_dir, "esi.tex", STANDALONE)
+    (project_dir / "nexttex.toml").write_text(
+        '[project]\nname = "T"\nmain = "esi.tex"\nprevews = 0\n'
+        'previews = ["main.tex"]\n',
+        encoding="utf-8",
+    )
+    project = client.post("/api/projects", json={"path": str(project_dir)}).json()
+    body = client.post(f"/api/projects/{project['id']}/open").json()
+    assert body["previews"] == ["esi.tex", "main.tex"]
+    remembered = json.loads(
+        (project_dir / ".nexttex" / "previews.json").read_text(encoding="utf-8")
+    )
+    assert remembered == ["esi.tex", "main.tex"]
+
+
+def test_a_folder_with_no_document_opens_and_says_so(client, tmp_path):
+    """A brand new project has no document until its template is loaded.
+    Its PDF is a 404 that says why, not a 500 from an empty registry."""
+    root = tmp_path / "blank"
+    root.mkdir()
+    (root / "notes.md").write_text("soon\n", encoding="utf-8")
+    project = client.post("/api/projects", json={"path": str(root)}).json()
+    body = client.post(f"/api/projects/{project['id']}/open").json()
+    assert body["previews"] == []
+    assert body["visible"] == ""
+    answer = client.get(f"/api/projects/{project['id']}/pdf")
+    assert answer.status_code == 404
+    assert "no document" in answer.text
+    # The template goes into a fresh main.tex, which becomes the document.
+    loaded = client.post(f"/api/projects/{project['id']}/template", json={"name": "basic"})
+    assert loaded.status_code == 200, loaded.text
+    assert loaded.json()["document"] == "main.tex"
+    body = client.get(f"/api/projects/{project['id']}/documents").json()
+    assert body["previews"] == ["main.tex"]
+
+
+def test_a_fragment_nothing_reads_has_nothing_to_preview(client, project_dir, opened):
     add(client, project_dir, "chapter.tex", "No preamble here.\n")
     response = client.post(
         f"/api/projects/{opened['id']}/previews", json={"path": "chapter.tex"}
     )
-    assert response.status_code == 400
+    assert response.status_code == 404
     assert "documentclass" in response.text
+
+
+def test_a_chapter_previews_the_document_that_reads_it(client, project_dir, opened):
+    """The preview follows the file being written, up the whole chain of
+    parts, to the document at the top."""
+    project_id = opened["id"]
+    (project_dir / "parts").mkdir(exist_ok=True)
+    add(client, project_dir, "esi.tex",
+        "\\documentclass{article}\n\\begin{document}\n\\input{parts/one}\n\\end{document}\n")
+    add(client, project_dir, "parts/one.tex", "\\input{two}\nOne.\n")
+    add(client, project_dir, "parts/two.tex", "Two.\n")
+    server_main.SESSIONS[project_id].deps.invalidate()
+    body = client.post(
+        f"/api/projects/{project_id}/previews", json={"path": "parts/two.tex"}
+    ).json()
+    assert body["document"] == "esi.tex"
+    assert body["previews"] == ["main.tex", "esi.tex"]
+    assert body["visible"] == "esi.tex"
+
+
+def test_a_shared_part_stays_with_the_document_on_screen(client, project_dir, opened):
+    """A block of text two variants both read previews whichever of them is
+    in front, so the page never changes under the writer."""
+    project_id = opened["id"]
+    add(client, project_dir, "shared.tex", "Skills.\n")
+    add(client, project_dir, "acme.tex",
+        "\\documentclass{article}\n\\begin{document}\n\\input{shared}\n\\end{document}\n")
+    add(client, project_dir, "globex.tex",
+        "\\documentclass{article}\n\\begin{document}\n\\input{shared}\n\\end{document}\n")
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "globex.tex"})
+    server_main.SESSIONS[project_id].deps.invalidate()
+    body = client.post(
+        f"/api/projects/{project_id}/previews", json={"path": "shared.tex"}
+    ).json()
+    assert body["document"] == "globex.tex"
+    # Nothing previewed reads it: the first by path, the same on every open.
+    session = server_main.SESSIONS[project_id]
+    assert session.deps.root_of("shared.tex", prefer=["main.tex"]) == "acme.tex"
+
+
+def test_a_subfile_chapter_previews_its_parent(client, project_dir, opened):
+    """A `\\subfile` chapter has a documentclass of its own and is still a
+    part of the document that reads it."""
+    project_id = opened["id"]
+    add(client, project_dir, "thesis.tex",
+        "\\documentclass{report}\n\\begin{document}\n\\subfile{ch1}\n\\end{document}\n")
+    add(client, project_dir, "ch1.tex",
+        "\\documentclass[thesis]{subfiles}\n\\begin{document}\nOne.\n\\end{document}\n")
+    server_main.SESSIONS[project_id].deps.invalidate()
+    body = client.post(
+        f"/api/projects/{project_id}/previews", json={"path": "ch1.tex"}
+    ).json()
+    assert body["document"] == "thesis.tex"
 
 
 def test_two_documents_cannot_share_one_jobname(client, project_dir, opened):
@@ -75,6 +199,18 @@ def test_two_documents_cannot_share_one_jobname(client, project_dir, opened):
     (project_dir / "parts" / "main.tex").write_text(STANDALONE, encoding="utf-8")
     response = client.post(
         f"/api/projects/{opened['id']}/previews", json={"path": "parts/main.tex"}
+    )
+    assert response.status_code == 409
+    assert "main.pdf" in response.text
+    # Following a chapter of the colliding document says the same thing,
+    # rather than leaving the preview where it was without a word.
+    add(client, project_dir, "parts/ch.tex", "A chapter.\n")
+    (project_dir / "parts" / "main.tex").write_text(
+        STANDALONE.replace("Supplementary.", "\\input{ch}"), encoding="utf-8"
+    )
+    server_main.SESSIONS[opened["id"]].deps.invalidate()
+    response = client.post(
+        f"/api/projects/{opened['id']}/previews", json={"path": "parts/ch.tex"}
     )
     assert response.status_code == 409
     assert "main.pdf" in response.text
@@ -89,7 +225,7 @@ def test_each_document_has_its_own_pdf_and_its_own_etag(client, project_dir, ope
     (session.project.build_dir / "main.pdf").write_bytes(b"%PDF-main\n")
     (session.project.build_dir / "esi.pdf").write_bytes(b"%PDF-esi-longer\n")
 
-    main = client.get(f"/api/projects/{project_id}/pdf")
+    main = client.get(f"/api/projects/{project_id}/pdf?document=main.tex")
     esi = client.get(f"/api/projects/{project_id}/pdf?document=esi.tex")
     assert main.content == b"%PDF-main\n"
     assert esi.content == b"%PDF-esi-longer\n"
@@ -104,11 +240,19 @@ def test_each_document_has_its_own_pdf_and_its_own_etag(client, project_dir, ope
     assert crossed.status_code == 200
 
 
-def test_an_unknown_document_falls_back_to_the_main_one(client, opened):
+def test_an_unknown_document_falls_back_to_the_one_on_screen(
+    client, project_dir, opened
+):
     # Every caller written before a project could have several sends
-    # nothing, and must keep working.
-    session = server_main.SESSIONS[opened["id"]]
+    # nothing, and must keep working: it gets the document in front.
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
     assert session.document_for("").path == "main.tex"
+    assert session.document_for("nosuch.tex").path == "main.tex"
+    add(client, project_dir, "esi.tex", STANDALONE)
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
+    assert session.document_for("").path == "esi.tex"
+    client.post(f"/api/projects/{project_id}/editor", json={"preview": "main.tex"})
     assert session.document_for("nosuch.tex").path == "main.tex"
 
 
@@ -120,14 +264,30 @@ def test_a_preview_can_be_taken_away(client, project_dir, opened):
         "DELETE", f"/api/projects/{project_id}/previews", params={"path": "esi.tex"}
     ).json()
     assert body["previews"] == ["main.tex"]
-    assert "esi.tex" not in (project_dir / "nexttex.toml").read_text()
-
-
-def test_the_main_document_cannot_be_unpreviewed(client, opened):
-    response = client.request(
-        "DELETE", f"/api/projects/{opened['id']}/previews", params={"path": "main.tex"}
+    # It was in front, so the neighbour is now.
+    assert body["visible"] == "main.tex"
+    remembered = json.loads(
+        (project_dir / ".nexttex" / "previews.json").read_text(encoding="utf-8")
     )
-    assert response.status_code == 400
+    assert remembered == ["main.tex"]
+
+
+def test_the_last_document_cannot_be_unpreviewed(client, project_dir, opened):
+    """Any document can go, including the one that used to be main, but not
+    the last: a strip with nothing on it has no way to get anything back."""
+    project_id = opened["id"]
+    add(client, project_dir, "esi.tex", STANDALONE)
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
+    gone = client.request(
+        "DELETE", f"/api/projects/{project_id}/previews", params={"path": "main.tex"}
+    )
+    assert gone.status_code == 200
+    assert gone.json()["previews"] == ["esi.tex"]
+    response = client.request(
+        "DELETE", f"/api/projects/{project_id}/previews", params={"path": "esi.tex"}
+    )
+    assert response.status_code == 409
+    assert "last document" in response.text
 
 
 def test_an_edit_rebuilds_only_the_documents_that_read_it(client, project_dir, opened):

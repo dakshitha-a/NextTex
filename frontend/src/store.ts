@@ -724,7 +724,6 @@ function setStale() {
 
 export type EventHandlers = {
   onReveal?: (path: string, line: number) => void;
-  onProjectChanged?: (main?: string) => void;
   onFilesChanged?: (paths: string[], structural?: boolean) => void;
   onCompileDone?: (result: CompileResult) => void;
   /** A build has started. Read rather than acted on: the shell uses it to
@@ -888,7 +887,7 @@ function receive(event: any) {
         owners: event.owners ?? {},
         activePreview: (event.previews ?? []).includes(state.activePreview)
           ? state.activePreview
-          : event.main ?? state.activePreview,
+          : event.visible ?? state.activePreview,
       });
       handlers.onPreviewsChanged?.(event.previews ?? []);
       break;
@@ -1052,9 +1051,9 @@ function receive(event: any) {
       if (state.projectId) refreshTrash(state.projectId);
       break;
     case "project_changed":
-      // Changing the main document invalidates the preview, and the three
-      // switches ride on the same event so that nothing has to re-read the
-      // whole project to learn one boolean.
+      // A settings change invalidates the preview, and the three switches
+      // ride on the same event so that nothing has to re-read the whole
+      // project to learn one boolean.
       setStale();
       if (typeof event.autocompile === "boolean") {
         set({
@@ -1065,7 +1064,6 @@ function receive(event: any) {
           },
         });
       }
-      handlers.onProjectChanged?.(event.main);
       break;
     case "turn_start": {
       // A new turn has no plan and no activity yet.  The plan is the

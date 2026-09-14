@@ -9,6 +9,7 @@ watch the same project.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
 import re
@@ -33,7 +34,9 @@ from server.collab.peers import PeerNetwork
 from server.collab.store import CollabStore
 from server.collab.sync import SyncHub
 from server.transcript import Transcript
-from nexttex.project import IGNORED_DIRS, Project, is_ours
+from nexttex.project import (
+    IGNORED_DIRS, PreviewList, Project, guess_document, is_ours,
+)
 
 log = logging.getLogger("nexttex.session")
 
@@ -118,8 +121,12 @@ CLOSED = object()
 class Broadcaster:
     """Fan out one event stream to every connected browser tab."""
 
-    def __init__(self) -> None:
+    def __init__(self, after: Callable[[dict], None] | None = None) -> None:
         self._subscribers: set[asyncio.Queue] = set()
+        #: Told about every event after it has gone out, so the session can
+        #: react to what its own routes publish without each route having
+        #: to remember to.
+        self._after = after
 
     def subscribe(self) -> asyncio.Queue:
         queue: asyncio.Queue = asyncio.Queue(maxsize=512)
@@ -135,6 +142,8 @@ class Broadcaster:
         return len(self._subscribers)
 
     async def publish(self, event: dict) -> None:
+        if self._after is not None:
+            self._after(event)
         for queue in list(self._subscribers):
             try:
                 queue.put_nowait(event)
@@ -241,7 +250,9 @@ class ProjectSession:
         )
         self.library = Library(project.state_dir / "library")
         self.dictionary = ProjectDictionary(project.state_dir)
-        self.events = Broadcaster()
+        self.events = Broadcaster(after=self._after_publish)
+        #: The pending re-scan of the document graph, see `_after_publish`.
+        self._rescan: asyncio.TimerHandle | None = None
 
         # One build at a time across the project, the document on screen
         # first -- see BuildQueue.
@@ -251,17 +262,35 @@ class ProjectSession:
         # a .tex under build/ is output, not a document.
         self.deps = DependencyGraph(project.root, skip=self._not_the_writers)
         self.documents: dict[str, DocumentState] = {}
-        main = self._register(project.config.main)
-        #: Which document the writer is looking at.  It goes first in the
-        #: queue and waits the shorter debounce.
-        self.visible = main.path
-        for extra in list(project.config.previews):
+        # The strip as this install last had it.  A project opened here for
+        # the first time inherits what an older toml called `main` and
+        # `previews`; one with neither gets the best guess, which is nothing
+        # at all for a folder with no document in it yet.
+        self.previews = PreviewList(project.state_dir)
+        remembered = self.previews.load()
+        never_written = remembered is None
+        if remembered is None:
+            remembered = list(project.config.inherited_documents)
+        for name in remembered:
             try:
-                self._register(extra)
+                self._register(name)
             except (ValueError, OSError):
-                # A previews entry pointing at a file that has since been
-                # deleted or renamed must not stop the project opening.
+                # An entry pointing at a file that has since been deleted or
+                # renamed must not stop the project opening.
                 continue
+        if not self.documents:
+            guess = guess_document(project.root)
+            if guess is not None:
+                try:
+                    self._register(guess)
+                except (ValueError, OSError):
+                    pass
+        #: Which document the writer is looking at.  It goes first in the
+        #: queue and waits the shorter debounce.  Empty while the project has
+        #: no document.
+        self.visible = next(iter(self.documents), "")
+        if never_written or remembered != list(self.documents):
+            self.previews.save(list(self.documents))
 
         # Which agent -- Claude, OpenAI, or none at all -- and a scripted
         # stand-in ahead of all three when a test asks for one, so the whole
@@ -356,39 +385,53 @@ class ProjectSession:
         return state
 
     def document_for(self, name: str | None) -> DocumentState:
-        """The named document, or the main one when nothing is named.
+        """The named document, or the visible one when nothing is named.
 
-        An empty name is what every caller written before this existed
-        sends, and it means what it always meant.
+        An empty name is what every caller written before several documents
+        existed sends, and it used to mean the main document; the document
+        on screen is what those callers were reaching for.  Raises
+        `LookupError` when the project has no document at all, which the
+        routes turn into a 404 that says so.
         """
         if name:
             state = self.documents.get(name)
             if state is not None:
                 return state
-        return self.main_document
+        state = self.visible_document
+        if state is None:
+            raise LookupError("this project has no document to typeset yet")
+        return state
 
     @property
-    def main_document(self) -> DocumentState:
-        # Insertion order: main is registered first and stays first, which
-        # is also the order the preview tabs are drawn in.
-        return next(iter(self.documents.values()))
+    def visible_document(self) -> DocumentState | None:
+        """The document in front, or the first registered, or None.
+
+        There is no main document.  Every root `.tex` is a document, the one
+        on screen is the one every unqualified request means, and a project
+        with nothing in it yet has none.
+        """
+        state = self.documents.get(self.visible)
+        if state is not None:
+            return state
+        return next(iter(self.documents.values()), None)
 
     @property
     def paths(self) -> ProjectPaths:
-        """The main document's, for the routes that only ever meant that."""
-        return self.main_document.paths
+        """The visible document's, for the routes that only ever meant one."""
+        return self.document_for(None).paths
 
     @property
     def compiler(self) -> CompileScheduler:
-        return self.main_document.compiler
+        return self.document_for(None).compiler
 
     @property
     def last_result(self) -> CompileResult | None:
-        return self.main_document.last_result
+        state = self.visible_document
+        return state.last_result if state is not None else None
 
     @property
     def _diagnostics(self) -> list[dict]:
-        """Everything wrong with the project, not just with its main file.
+        """Everything wrong with the project, across every document.
 
         The agent asks for this, and an error in the supplementary
         information is an error in the project. Visible document first, so
@@ -413,28 +456,63 @@ class ProjectSession:
 
     async def register_preview(self, relative: str) -> DocumentState:
         """Start previewing another document in this project."""
+        before = set(self.documents)
         state = self._register(relative)
-        if state.path != self.main_document.path:
-            listed = self.project.config.previews
-            if state.path not in listed:
-                listed.append(state.path)
-                self.project.config.save(self.project.root)
+        if state.path not in before:
+            if not self.visible:
+                self.visible = state.path
+            self.previews.save(list(self.documents))
         await self._publish_documents()
+        return state
+
+    async def follow(self, relative: str) -> DocumentState:
+        """The document a file belongs to, previewed and brought in front.
+
+        This is what the editor calls when a `.tex` file comes to the front
+        of its own strip.  A part previews the document that reads it, up
+        the whole chain; a root previews itself, registering it if it was
+        not on the strip.  Raises `LookupError` for a fragment nothing reads
+        that cannot build on its own, and `ValueError` when the root would
+        share a jobname with a document already registered.
+        """
+        name = str(self.project.resolve(relative).relative_to(self.project.root.resolve()))
+        # A registered document is its own answer, however many other roots
+        # happen to read it too: a writer who opened it wants to see it.
+        if name in self.documents:
+            self.visible = name
+            return self.documents[name]
+        prefer = self._visible_first(self.documents)
+        root = self.deps.root_of(name, prefer=prefer)
+        if root is None:
+            raise LookupError(
+                f"nothing reads {name} and it has no \\documentclass and "
+                "\\begin{document} of its own, so there is nothing to preview"
+            )
+        if root in self.documents:
+            self.visible = root
+            return self.documents[root]
+        state = await self.register_preview(root)
+        self.visible = root
         return state
 
     async def unregister_preview(self, relative: str) -> None:
         name = str(self.project.resolve(relative).relative_to(self.project.root.resolve()))
-        if name == self.main_document.path:
-            raise ValueError("the main document is always previewed")
-        state = self.documents.pop(name, None)
-        if state is None:
+        if name not in self.documents:
             return
+        if len(self.documents) == 1:
+            raise ValueError(
+                "the last document stays on the strip; a preview with "
+                "nothing in it would have no way to get anything back"
+            )
+        order = list(self.documents)
+        state = self.documents.pop(name)
         await self._retire(state)
-        if name in self.project.config.previews:
-            self.project.config.previews.remove(name)
-            self.project.config.save(self.project.root)
+        self.previews.save(list(self.documents))
         if self.visible == name:
-            self.visible = self.main_document.path
+            # The neighbour on the left, the way a browser lands after
+            # closing a tab, and the first when the first was closed.
+            at = order.index(name)
+            self.visible = order[at - 1] if at > 0 else order[1]
         await self._publish_documents()
 
     async def _retire(self, state: DocumentState) -> None:
@@ -444,6 +522,31 @@ class ProjectSession:
         await state.compiler.cancel()
         state.compiler.cleanup()
 
+    def _after_publish(self, event: dict) -> None:
+        """Re-scan the documents when the files they are found among change.
+
+        A `.tex` file made, uploaded, renamed, restored or written by the
+        agent can be a new document, or can start or stop reading another,
+        and until this the strip's `+` and the row menus learned that only
+        when the project was next opened: the tutorial said NextTex finds
+        documents for you, and it found them once.  Debounced, because a
+        template load publishes one event per file and the scan reads every
+        `.tex` nothing reads.
+        """
+        if event.get("type") != "files_changed":
+            return
+        paths = event.get("paths") or []
+        if paths and not event.get("structural") and not any(
+            str(path).lower().endswith((".tex", ".ltx")) for path in paths
+        ):
+            return
+        loop = asyncio.get_running_loop()
+        if self._rescan is not None:
+            self._rescan.cancel()
+        self._rescan = loop.call_later(
+            0.3, lambda: spawn(self._publish_documents(), "re-scanning the documents")
+        )
+
     def documents_payload(self) -> dict:
         """What can be previewed, what already is, and who reads what."""
         names = list(self.documents)
@@ -451,7 +554,7 @@ class ProjectSession:
             "previews": names,
             "candidates": self.deps.standalone_candidates(names),
             "owners": self.deps.reverse(names),
-            "main": self.main_document.path,
+            "visible": self.visible,
         }
 
     async def _publish_documents(self) -> None:
@@ -532,7 +635,7 @@ class ProjectSession:
         never appear beside the line that caused them.
         """
         payload = result.as_dict()
-        payload["document"] = document or self.main_document.path
+        payload["document"] = document or self.visible
         # Stamped on each diagnostic as well as on the payload: the client
         # merges the documents' diagnostics into one list, and without this
         # it could not tell whose a given error was when replacing them.
@@ -671,7 +774,9 @@ class ProjectSession:
         relative = self.relative_or_none(str(path))
         if relative:
             self.deps.note_changed(relative)
-            owners = self.deps.owners(relative, list(self.documents))
+            # Visible first, so the fallback for a `.tex` nobody reads yet,
+            # which is the first document listed, is the one on screen.
+            owners = self.deps.owners(relative, self._visible_first(self.documents))
         else:
             # Outside the project, so nothing can be said about who reads
             # it.  Rebuilding everything is the safe direction.
@@ -694,40 +799,6 @@ class ProjectSession:
             else:
                 state.unsettled = text is not None and mid_construct(text)
                 state.compiler.note_edit(path, text, previous)
-
-    async def set_main(self, relative_path: str) -> None:
-        """Point the project at a different main document.
-
-        This used to tear the one scheduler down and build another, because
-        the jobname comes from the main file's stem and a compiler writing
-        chapter.pdf while the PDF route served main.pdf was the hazard to
-        avoid. Every document has its own scheduler and its own PDF now, and
-        the route names which one it wants, so the swap is a reordering
-        rather than a rebuild.
-        """
-        outgoing = self.main_document.path
-        self.project.config.main = relative_path
-        state = self._register(relative_path)
-        # Main is first, and first is the order the preview tabs are drawn
-        # in.
-        self.documents = {
-            state.path: state,
-            **{k: v for k, v in self.documents.items() if k != state.path},
-        }
-        # Main is previewed by definition, so it does not also need listing.
-        if state.path in self.project.config.previews:
-            self.project.config.previews.remove(state.path)
-        # The document that was main stays only if somebody asked for it.
-        # Anything else would make `previews` mean something other than
-        # "explicitly requested", and leave tabs accumulating quietly.
-        if outgoing != state.path and outgoing not in self.project.config.previews:
-            leaving = self.documents.pop(outgoing, None)
-            if leaving is not None:
-                await self._retire(leaving)
-        self.project.config.save(self.project.root)
-        if self.visible not in self.documents:
-            self.visible = state.path
-        await self._publish_documents()
 
     # -- version history ---------------------------------------------------
     def _agent_context(self) -> str:

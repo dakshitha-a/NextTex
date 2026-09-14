@@ -5910,3 +5910,81 @@ already asks synctex about the document under the pointer. The browser
 test that says so previews a second document, opens something else in the
 editor, and double-clicks the second document's page.
 
+
+## 33. One document model, and the headers built once
+
+The writer keeps a resume project: one base document and a variation per
+job listing, each a root `.tex` with its own PDF, a dozen of them open at
+once. That project put a dozen tabs in both pane headers and showed what
+was wrong with them, and with the idea underneath them. Their words were
+that the click-to-fold and double-click-to-expand behaviour was "janky as
+ever" once the header was full of tabs, that the two headers did not react
+to the mouse the same way, that the `+` was off centre, that the download
+menu offered one PDF where the project had twelve, and that "main" was a
+concept they did not need. This section records the run that answered all
+of it, in the order the work went.
+
+### There is no main document
+
+`nexttex.toml` carried `main = "main.tex"`, the file tree showed a `main`
+badge, the row menu offered *Set as main document*, the first preview tab
+could not be closed, and every route that took no document name meant that
+one. The backend had already outgrown it: §19 made a project build several
+root documents, each with its own scheduler and PDF, and `nexttex/deps.py`
+already knew who read what. What remained of "main" was a name for the
+document that gets typeset when nobody says which, and the honest name for
+that is the one on screen.
+
+So it went. Every root `.tex`, meaning a file with `\documentclass` and
+`\begin{document}` of its own that nothing else reads, is a document. The
+session's `visible_document` is the tab in front, falling back to the first
+on the strip, and `document_for("")` means that; a project with no document
+at all, which a new folder is until its template loads, opens with an empty
+strip and answers a request for its PDF with a 404 that says so rather than
+a 500 from an empty registry. The last document on the strip cannot be
+closed, for the reason the main one could not: a preview with nothing in it
+has no way to get anything back. Any other can, including the one that used
+to be main.
+
+**The preview follows the file being written.** Opening a document brings
+its page forward, as before. Opening a chapter brings the document that
+reads it, however many parts deep, which is `DependencyGraph.root_of`: it
+climbs from the file through every reader to one nobody reads, and a
+`\subfile` chapter, standalone by the letter of it, still belongs to its
+parent. A file two documents both read, a block of skills both resume
+variants `\input`, stays with the document on screen, then with one already
+on the strip, then goes to the first by path, so the page never changes
+under the writer for a file both show and the answer is the same on every
+open. The browser decides what it can from the `owners` map it already had,
+and asks `POST /api/projects/{id}/previews` about a `.tex` it cannot place;
+the route resolves the root, registers it if it was not on the strip, and
+answers with `document`, which is what ends up in front. A fragment nothing
+reads gets a 404 and is not asked about again until the graph changes, so
+switching between a scratch file and a chapter does not send a request per
+switch. A root whose stem collides with a document already on the strip
+gets the 409 the `+` menu always got, and the browser shows it as a notice:
+the preview staying where it was without a word is exactly the failure a
+writer cannot work out the cause of. Following a chapter does not open its
+document's own file on the source strip; the writer opened the chapter.
+
+**The strip is viewer state.** It was `previews` in `nexttex.toml`, which
+is synced to collaborators on purpose. With the preview following the
+editor, one writer changing tabs would have grown the strip on the other's
+screen. It is `.nexttex/previews.json` now, per install, like the editor's
+own tabs; a toml that still says `main` and `previews` is read once to seed
+it, in that order, and the keys are not written back.
+
+**A new document is found when it is made.** The `+` menu and the row menus
+learned about a standalone file only when the project was next opened; the
+tutorial said NextTex finds documents for you, and it found them once. The
+session now re-scans the graph, debounced, after any `files_changed` that
+names a `.tex` or is structural.
+
+The row menu lost *Set as main document* and gained *Download PDF* on every
+document, on the strip or not; a chapter's row does not offer it, because a
+chapter's PDF is its parent's and an item that explains itself by failing
+is worse than none. The download route accepts any root's path and, for one
+not on the strip, builds it with a scheduler of its own under the project's
+queue and throws that away afterwards, so downloading twenty variants does
+not put twenty tabs on the strip. The file is named after the document,
+never the project.

@@ -2,5 +2,4 @@
 # without the file NextTex guesses, and usually guesses right.
 [project]
 name = "Minimal Article"
-main = "main.tex"
 build_dir = "build"

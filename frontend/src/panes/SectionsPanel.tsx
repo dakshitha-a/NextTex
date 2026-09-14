@@ -211,14 +211,16 @@ export default function SectionsPanel({
 /** Kept here so the panel and its caller agree on what a row points at. */
 export function includePath(
   tree: Parameters<typeof findNode>[0] | null,
-  mainFile: string,
+  document: string,
   path: string,
 ): string | undefined {
-  // LaTeX resolves an included path against the main file's directory, not
-  // against the file doing the including, so a project whose main.tex sits
-  // in a subfolder still opens the right file.
-  const cut = mainFile.lastIndexOf("/");
-  const base = cut === -1 ? "" : mainFile.slice(0, cut + 1);
+  // LaTeX resolves an included path against the document's directory, not
+  // against the file doing the including, so a project whose document sits
+  // in a subfolder still opens the right file.  The document is the one
+  // on the preview strip in front, which is the one the open file is a
+  // part of.
+  const cut = document.lastIndexOf("/");
+  const base = cut === -1 ? "" : document.slice(0, cut + 1);
   if (!tree) return undefined;
   return [base + path, path].find((candidate) => findNode(tree, candidate));
 }

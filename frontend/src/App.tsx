@@ -17,6 +17,7 @@ import {
 } from "./chrome";
 import { busyTyping, onFrame } from "./timing";
 import { afterClosing, neighbour, pushClosed, viewingClosed } from "./tabs";
+import { followDecision } from "./follow-preview";
 import { orderRows, rowKey } from "./panes/diagnostic-rows";
 import {
   BREAKPOINTS,
@@ -190,7 +191,6 @@ export default function App() {
    *  the version and the live file, or between it and a second version
    *  chosen with Compare. Null when there is none. */
   const [patchView, setPatchView] = useState<{ title: string; text: string } | null>(null);
-  const [mainFile, setMainFile] = useState("main.tex");
   /** Which of the rail's folding panels are open.  Kept apart from
    *  `folded`, which is the pane layout the focus modes save and restore:
    *  these are sections inside one pane and have nothing to do with it. */
@@ -395,7 +395,6 @@ export default function App() {
   // ---- opening a project ------------------------------------------------
   const openProject = useCallback(async (id: string) => {
     const project = await api.open(id);
-    setMainFile(project.main ?? "main.tex");
     set({
       projectId: id,
       projectName: project.name ?? "",
@@ -452,9 +451,15 @@ export default function App() {
       ? (open.tabs as string[]).filter((t) => typeof t === "string").slice(0, 12)
       : [];
     const front = typeof open.active === "string" ? open.active : "";
-    const main = project.main ?? "main.tex";
+    // The previewed documents arrive with the project rather than in a
+    // second round trip, because the strip is drawn on the first frame.
+    // There is no main document: the file to put in front when nothing is
+    // remembered is the one the server has in front, and a folder with no
+    // document yet has neither.
+    const previewed: string[] = (project as any).previews ?? [];
+    const visible: string = (project as any).visible || previewed[0] || "";
     const inTree = new Set(pathsIn(project.tree));
-    const active = inTree.has(front) ? front : main;
+    const active = inTree.has(front) ? front : visible;
     // The strip comes back whole and in the order it was left in -- adding
     // the tabs one at a time and the active one last reordered the strip
     // under the writer on every reload, moving whatever they were working
@@ -468,21 +473,18 @@ export default function App() {
     // them.  Six remembered tabs must not cost six reads before the window
     // can be used, so say what happens.
     const strip = reopened.filter((path) => inTree.has(path));
-    if (!strip.includes(active)) strip.push(active);
-    // The previewed documents arrive with the project rather than in a
-    // second round trip, because the strip is drawn on the first frame.
-    const previewed: string[] = (project as any).previews ?? [main];
+    if (active && !strip.includes(active)) strip.push(active);
     set({
       tabs: strip.map((path): Tab => ({ path })),
       previews: previewed,
-      activePreview: previewed.includes(active) ? active : previewed[0] ?? main,
+      activePreview: previewed.includes(active) ? active : visible,
       candidates: (project as any).candidates ?? [],
       owners: (project as any).owners ?? {},
     });
-    openFile(active).catch(() => undefined);
-    // Every previewed document, not just the main one: a second preview
-    // opening on a stale page from the last session is the thing the tab
-    // strip most obviously must not do.
+    if (active) openFile(active).catch(() => undefined);
+    // Every previewed document, not only the one in front: a second
+    // preview opening on a stale page from the last session is the thing
+    // the tab strip most obviously must not do.
     for (const name of previewed) {
       api.compile(id, false, name).catch(() => undefined);
     }
@@ -555,8 +557,8 @@ export default function App() {
    *  `\include` opens the file it names; every other row moves the caret
    *  inside the document already in front. */
   const resolveInclude = useCallback(
-    (path: string) => includePath(get().tree, mainFile, path),
-    [mainFile],
+    (path: string) => includePath(get().tree, get().activePreview, path),
+    [],
   );
 
   const jumpToHeading = useCallback(
@@ -564,14 +566,14 @@ export default function App() {
       if (heading.path) {
         // A row whose file is not in the project is drawn as unavailable
         // and cannot be clicked, so this only ever has somewhere to go.
-        const target = includePath(get().tree, mainFile, heading.path);
+        const target = includePath(get().tree, get().activePreview, heading.path);
         if (target) openFile(target);
         return;
       }
       const path = get().activePath;
       if (path) openFile(path, heading.line);
     },
-    [mainFile, openFile],
+    [openFile],
   );
 
   const closeFile = useCallback(async (path: string) => {
@@ -813,13 +815,6 @@ export default function App() {
       if (busyTyping()) return;
       await openFile(path, line, undefined, false);
     };
-    handlers.onProjectChanged = (main) => {
-      // The event carries what changed, so this no longer re-reads the
-      // whole project -- tree, transcript and all -- to learn one filename.
-      // The store has already taken the three switches out of the same
-      // payload.
-      if (main) setMainFile(main);
-    };
     // The drawer is never opened for you.  A build fires while you are
     // still typing an equation, and having the error list jump up over the
     // document at that moment is the most irritating thing this app can do.
@@ -875,7 +870,6 @@ export default function App() {
       handlers.onReveal = undefined;
       handlers.onAgentEdit = undefined;
       handlers.onAgentFocus = undefined;
-      handlers.onProjectChanged = undefined;
       handlers.onCompileDone = undefined;
       handlers.onCompileStart = undefined;
     };
@@ -1209,8 +1203,15 @@ export default function App() {
    *
    *  Both directions are automatic and neither moves the keyboard: a tab
    *  click that stole focus from the composer or the editor would make the
-   *  strip unusable while typing. */
-  const showPreview = useCallback((path: string) => {
+   *  strip unusable while typing.  The server is told which document is in
+   *  front every time, because that document builds first and waits the
+   *  shorter debounce.
+   *
+   *  `withSource` is false when the preview is following the editor: a
+   *  chapter coming to the front shows the document that reads it, and
+   *  opening that document's own file as well would put a tab on the
+   *  source strip the writer did not ask for. */
+  const showPreview = useCallback((path: string, withSource = true) => {
     if (!path || path === get().activePreview) return;
     set({ activePreview: path });
     const id = get().projectId;
@@ -1219,7 +1220,7 @@ export default function App() {
         .setFocus(id, get().activePath ?? "", undefined, undefined, undefined, path)
         .catch(() => undefined);
     }
-    if (get().activePath !== path) openFile(path);
+    if (withSource && get().activePath !== path) openFile(path);
   }, [openFile]);
 
   const startPreviewing = useCallback(async (path: string) => {
@@ -1228,7 +1229,7 @@ export default function App() {
     try {
       const body = await api.addPreview(id, path);
       set({ previews: body.previews, candidates: body.candidates, owners: body.owners });
-      showPreview(path);
+      showPreview(body.document);
     } catch (problem: any) {
       set({ error: problem.message });
     }
@@ -1239,7 +1240,7 @@ export default function App() {
     if (!id) return;
     try {
       const body = await api.removePreview(id, path);
-      const next = get().activePreview === path ? body.main : get().activePreview;
+      const next = get().activePreview === path ? body.visible : get().activePreview;
       set({
         previews: body.previews, candidates: body.candidates,
         owners: body.owners, activePreview: next,
@@ -1263,7 +1264,7 @@ export default function App() {
       const active = get().activePreview;
       set({
         previews: body.previews, candidates: body.candidates, owners: body.owners,
-        activePreview: active && body.previews.includes(active) ? active : body.main,
+        activePreview: active && body.previews.includes(active) ? active : body.visible,
       });
     } catch (problem: any) {
       set({ error: problem.message });
@@ -1279,15 +1280,49 @@ export default function App() {
     void downloadPdf(id, stem, path);
   }, []);
 
-  /** The preview follows the file you open, when that file is a document
-   *  in its own right.  A chapter is not: its preview is the document that
-   *  includes it, which is already showing. */
+  /** The preview follows the file you open.  A document in its own right
+   *  comes to the front; a chapter brings the document that reads it, up
+   *  the whole chain of parts; a root nobody has previewed yet is put on
+   *  the strip by the server, which knows the graph.  A fragment nothing
+   *  reads has nothing to preview and is left alone, and is not asked
+   *  about again until the graph changes, because a writer switching
+   *  between a scratch file and a chapter must not send a request per
+   *  switch. */
+  const orphans = useRef(new Set<string>());
+  const owners = useStore((s) => s.owners);
   useEffect(() => {
-    if (!activePath) return;
-    if (previews.includes(activePath) && activePath !== activePreview) {
-      set({ activePreview: activePath });
+    orphans.current.clear();
+  }, [owners]);
+  useEffect(() => {
+    const decision = followDecision(activePath, previews, activePreview, owners);
+    if (decision.kind === "show") {
+      showPreview(decision.document, false);
+      return;
     }
-  }, [activePath, previews, activePreview]);
+    if (decision.kind !== "ask" || !activePath || orphans.current.has(activePath)) return;
+    const id = get().projectId;
+    if (!id) return;
+    const asked = activePath;
+    api.addPreview(id, asked).then(
+      (body) => {
+        // The writer has moved on; the answer is about a file no longer in
+        // front, and the switch that follows will ask its own question.
+        if (get().activePath !== asked) return;
+        set({ previews: body.previews, candidates: body.candidates, owners: body.owners });
+        showPreview(body.document, false);
+      },
+      (problem: any) => {
+        if (problem?.status === 404) {
+          orphans.current.add(asked);
+          return;
+        }
+        // A jobname collision, said rather than swallowed: the preview
+        // silently staying where it was is exactly what a writer cannot
+        // work out the cause of.
+        set({ error: problem.message });
+      },
+    );
+  }, [activePath, previews, activePreview, owners, showPreview]);
 
   // ---- keyboard ---------------------------------------------------------
   useEffect(() => {
@@ -1833,7 +1868,6 @@ export default function App() {
                   onRename={renameOpenFile}
                   onHistory={() => setHistoryOpen(true)}
                   onAskAbout={noAgent ? undefined : askAboutSelection}
-                  mainFile={mainFile}
                 />
               ) : null}
               {/* Under Files, because it answers the same question the

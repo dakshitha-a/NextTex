@@ -169,5 +169,5 @@ def test_the_download_check_does_not_walk_the_repository(project_dir):
 
     # And a real source file still counts, or the pruning would have gone
     # too far and a download would hand over a stale PDF.
-    age(opened.main, stamp + 5000)
+    age(opened.root / "main.tex", stamp + 5000)
     assert server_main._source_newer_than(opened, stamp) is True

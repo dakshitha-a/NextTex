@@ -129,10 +129,10 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
     )
     assert response.status_code == 200, response.text
     assert response.json() == {
-        "main": "main.tex",
-        # Every previewed document, main first.  A project that has not
-        # asked for a second one still reports the one it has.
+        # Every previewed document, and the one in front.  A project that
+        # has not asked for a second one still reports the one it has.
         "previews": ["main.tex"],
+        "visible": "main.tex",
         "autocompile": False,
         "markErrors": True,
         "markWarnings": True,

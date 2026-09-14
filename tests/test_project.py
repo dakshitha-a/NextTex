@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from nexttex.project import Project, ProjectConfig
+from nexttex.project import Project, ProjectConfig, guess_document
 
 
 def project(tmp_path):
@@ -38,23 +38,36 @@ def test_refuses_a_symlink_pointing_outside(tmp_path):
         p.resolve("link.tex")
 
 
-def test_the_main_file_is_guessed_from_the_document_itself(tmp_path):
+def test_the_document_is_guessed_from_the_document_itself(tmp_path):
     (tmp_path / "helper.tex").write_text("\\section{x}", encoding="utf-8")
     (tmp_path / "thesis.tex").write_text(
         "\\documentclass{report}\n\\begin{document}\n\\end{document}", encoding="utf-8"
     )
-    assert ProjectConfig.load(tmp_path).main == "thesis.tex"
+    assert guess_document(tmp_path) == "thesis.tex"
 
 
-def test_a_config_file_wins_over_the_guess(tmp_path):
-    (tmp_path / "thesis.tex").write_text(
-        "\\documentclass{report}\\begin{document}\\end{document}", encoding="utf-8"
-    )
-    (tmp_path / "other.tex").write_text("x", encoding="utf-8")
+def test_a_folder_with_no_document_guesses_nothing(tmp_path):
+    """A brand new project has no document until its template is loaded,
+    and guessing `main.tex` for it registered a file that was not there."""
+    (tmp_path / "helper.tex").write_text("\\section{x}", encoding="utf-8")
+    assert guess_document(tmp_path) is None
+
+
+def test_an_older_toml_hands_over_its_main_and_previews_once(tmp_path):
+    """`main` and `previews` are viewer state now, kept per install in
+    `.nexttex/previews.json`.  A toml that still has them is read once, in
+    order, and the keys are not written back."""
     (tmp_path / "nexttex.toml").write_text(
-        '[project]\nname = "T"\nmain = "other.tex"\n', encoding="utf-8"
+        '[project]\nname = "T"\nmain = "other.tex"\nprevious = 1\n'
+        'previews = ["si.tex", "other.tex"]\n',
+        encoding="utf-8",
     )
-    assert ProjectConfig.load(tmp_path).main == "other.tex"
+    config = ProjectConfig.load(tmp_path)
+    assert config.inherited_documents == ["other.tex", "si.tex"]
+    config.save(tmp_path)
+    text = (tmp_path / "nexttex.toml").read_text(encoding="utf-8")
+    assert "main" not in text and "previews" not in text
+    assert ProjectConfig.load(tmp_path).inherited_documents == []
 
 
 # --- what nexttex.toml is allowed to say -----------------------------------
@@ -71,15 +84,16 @@ def test_a_config_file_wins_over_the_guess(tmp_path):
     "../../etc/passwd", "..", "../out", "/etc/passwd", "/tmp/anywhere",
     "C:\\Windows\\system32", "\\\\server\\share",
 ])
-def test_a_main_file_outside_the_project_is_refused(tmp_path, escape):
-    """`main` is opened and read straight off the disk by the compiler."""
+def test_a_document_outside_the_project_is_refused(tmp_path, escape):
+    """An inherited document name is opened and read straight off the disk
+    by the compiler, so an escaping one is dropped rather than kept."""
     (tmp_path / "thesis.tex").write_text(
         "\\documentclass{report}\\begin{document}\\end{document}", encoding="utf-8"
     )
     (tmp_path / "nexttex.toml").write_text(
         f'[project]\nmain = "{escape}"\n', encoding="utf-8"
     )
-    assert ProjectConfig.load(tmp_path).main == "thesis.tex"
+    assert ProjectConfig.load(tmp_path).inherited_documents == []
 
 
 @pytest.mark.parametrize("escape", [
@@ -113,7 +127,7 @@ def test_an_escaping_preview_is_dropped_and_the_rest_are_kept(tmp_path):
         '[project]\npreviews = ["si.tex", "../../secrets.tex", "notes/x.tex"]\n',
         encoding="utf-8",
     )
-    assert ProjectConfig.load(tmp_path).previews == ["si.tex", "notes/x.tex"]
+    assert ProjectConfig.load(tmp_path).inherited_documents == ["si.tex", "notes/x.tex"]
 
 
 @pytest.mark.parametrize("fine", [
@@ -124,7 +138,7 @@ def test_an_ordinary_relative_path_is_untouched(tmp_path, fine):
     (tmp_path / "nexttex.toml").write_text(
         f'[project]\nmain = "{fine}"\n', encoding="utf-8"
     )
-    assert ProjectConfig.load(tmp_path).main == fine
+    assert ProjectConfig.load(tmp_path).inherited_documents == [fine]
 
 
 def test_the_tree_hides_build_output_and_our_own_files(tmp_path):

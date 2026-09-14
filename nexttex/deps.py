@@ -187,17 +187,20 @@ class DependencyGraph:
         self._skip = skip or (lambda _: False)
         self._edges: dict[str, tuple[tuple[int, int], list[str]]] = {}
         self._walked: dict[tuple[str, ...], dict[str, set[str]]] = {}
+        self._parented: dict[str, list[str]] | None = None
 
     # -- cache maintenance --------------------------------------------------
 
     def note_changed(self, relative: str) -> None:
         self._edges.pop(relative, None)
         self._walked.clear()
+        self._parented = None
 
     def invalidate(self) -> None:
         """Everything. For a rename, a delete, or an upload."""
         self._edges.clear()
         self._walked.clear()
+        self._parented = None
 
     # -- the graph ----------------------------------------------------------
 
@@ -350,6 +353,91 @@ class DependencyGraph:
         """Every file any of these documents reads."""
         reach = self._walk(documents)
         return {name for files in reach.values() for name in files}
+
+    # -- climbing -----------------------------------------------------------
+
+    def _parents(self) -> dict[str, list[str]]:
+        """Every file mapped to the source files that read it, project-wide.
+
+        The forward walk starts from the documents already registered, so it
+        cannot answer "who reads this file" for a document nobody has
+        previewed yet.  This inverts every source file's edges instead, and
+        is cached until an edge changes: the per-file edges are already
+        cached against size and mtime, so rebuilding it after a save is a
+        stat per file and one parse.
+        """
+        cached = self._parented
+        if cached is not None:
+            return cached
+        out: dict[str, list[str]] = {}
+        for path in self._source_files():
+            name = self._relative(path)
+            if name is None:
+                continue
+            for edge in self._edges_for(name):
+                readers = out.setdefault(edge, [])
+                if name not in readers:
+                    readers.append(name)
+        self._parented = out
+        return out
+
+    def root_of(self, relative: str, prefer: Sequence[str] = ()) -> str | None:
+        """The document a file belongs to, climbing to the top of the chain.
+
+        A file nothing reads is its own root, and is a document if it stands
+        alone.  A file something reads belongs to whatever reads it, and if
+        that is itself read by another, to that one, until a file nobody
+        reads: a chapter `\\input` by a part `\\input` by the thesis previews
+        the thesis.  A `\\subfile` chapter has a documentclass of its own and
+        is still read by its parent, so the parent wins, which is what a
+        writer opening the chapter wants on the page.
+
+        Several roots can read one file, a shared block of text between two
+        variants of a resume being the case.  `prefer` breaks the tie: the
+        first root listed there that is reachable wins, so a caller passes
+        the document on screen and then the others already previewed, and
+        the preview never changes under the writer for a file both show.
+        After that the tie goes to the first root by path, so the answer is
+        the same on every open.  None for a fragment nothing reads and that
+        cannot stand alone: there is nothing to preview for it.
+        """
+        parents = self._parents()
+        roots: list[str] = []
+        seen = {relative}
+        stack = [relative]
+        while stack:
+            current = stack.pop()
+            above = [name for name in parents.get(current, []) if name not in seen]
+            if not above and not parents.get(current):
+                roots.append(current)
+                continue
+            if not above:
+                # Every reader is already on the path: a cycle with no way
+                # out, which the writer's TeX would loop on too.  The file
+                # itself is the best answer there is.
+                roots.append(current)
+            for name in above:
+                seen.add(name)
+                stack.append(name)
+        rank = {name: index for index, name in enumerate(prefer)}
+        roots.sort(key=lambda name: (rank.get(name, len(rank)), name))
+        if relative not in roots:
+            # Tried last.  A file whose only readers loop back to it is as
+            # much a root as anything on the loop, and the one that can
+            # build is the answer.
+            roots.append(relative)
+        for name in roots:
+            # A preferred root is a registered document, so it stands alone
+            # by construction and need not be read again.
+            if name in rank:
+                return name
+            try:
+                text = (self.root / name).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if is_standalone(text):
+                return name
+        return None
 
     # -- finding documents --------------------------------------------------
 

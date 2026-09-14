@@ -113,34 +113,38 @@ test("the source can send the reader to its place on the page", async ({ tab }) 
   await expect(tab.locator(".nx-flash").first()).toBeVisible({ timeout: 20_000 });
 });
 
-test("a chapter can be made the document that gets typeset", async ({
+test("a document's row menu offers its PDF, and a chapter's does not", async ({
   app, project, tab,
 }) => {
-  // A dissertation is one main file including many; the writer switches
-  // which one is built when they want a chapter on its own.
-  await fetch(`${app.base}/api/projects/${project.id}/file`, {
-    method: "PUT",
-    headers: {
-      "content-type": "application/json",
-      "x-nexttex-token": app.token,
-    },
-    body: JSON.stringify({
-      path: "chapter.tex",
-      text: "\\documentclass{article}\n\\begin{document}\nA chapter on its own.\n\\end{document}\n",
-      compile: false,
-      create: true,
-    }),
-  });
+  // There is no main document to set.  A standalone file is a document
+  // with a PDF of its own the moment it exists; a chapter's PDF is its
+  // parent's, so the item is not there to fail.
+  for (const [path, text] of [
+    ["standalone.tex", "\\documentclass{article}\n\\begin{document}\nOn its own.\n\\end{document}\n"],
+    ["chapter.tex", "A chapter with no preamble.\n"],
+  ]) {
+    await fetch(`${app.base}/api/projects/${project.id}/file`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+      body: JSON.stringify({ path, text, compile: false, create: true }),
+    });
+  }
 
-  const row = tab.getByLabel("Actions for chapter.tex");
+  const row = tab.getByLabel("Actions for standalone.tex");
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.click();
-  await tab.getByRole("button", { name: "Set as main document" }).click();
+  const requests: string[] = [];
+  tab.on("request", (request) => {
+    if (request.url().includes("/download")) requests.push(request.url());
+  });
+  await tab.getByRole("button", { name: "Download PDF" }).click();
+  await expect.poll(() => requests.length).toBeGreaterThan(0);
+  expect(requests[0]).toContain("format=pdf");
+  expect(requests[0]).toContain(`document=${encodeURIComponent("standalone.tex")}`);
 
-  // The tree says which one it is, so nobody has to remember.
-  await expect(
-    tab.getByRole("treeitem", { name: /chapter\.tex/ }).getByText("main"),
-  ).toBeVisible({ timeout: 15_000 });
+  await tab.getByLabel("Actions for chapter.tex").click();
+  await expect(tab.getByTestId("file-menu")).toBeVisible();
+  await expect(tab.getByRole("button", { name: "Download PDF" })).toHaveCount(0);
 });
 
 test("a document that typesets nothing offers something that works", async ({
