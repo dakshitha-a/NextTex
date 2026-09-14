@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { worthReloading } from "./boundary-cause";
+import { record } from "./errors";
 import { get } from "./store";
 
 /** What is on screen when part of the interface cannot be loaded.
@@ -46,9 +47,11 @@ export default class Boundary extends Component<Props, State> {
     // open" for both, so a writer whose server had simply stopped was told
     // a confident and false explanation and pointed at a Reload that could
     // not work.
+    const message = String((error as Error)?.message ?? error);
+    record("boundary", message, (error as Error)?.stack ?? "");
     return {
       failed: true,
-      message: String((error as Error)?.message ?? error),
+      message,
       serverGone: get().connection === "offline",
     };
   }

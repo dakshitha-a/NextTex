@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import api, { type Instance, type UpdateReport } from "../api";
+import api, { type Instance, type Report, type UpdateReport } from "../api";
+import { snapshot } from "../errors";
 import { standingOf } from "./update-standing";
 
 /** Whether this install is behind the repository it came from.
@@ -35,6 +36,19 @@ type Phase =
   | { kind: "failed"; message: string }
   | { kind: "error"; message: string };
 
+/** Report a problem, from the press to the text on the clipboard.
+ *
+ *  `ready` holds the report and whether the automatic copy worked. It is
+ *  attempted right after the fetch because Chrome allows a clipboard write
+ *  within the moment of the click; Safari and Firefox do not once an await
+ *  has passed, so the card that follows has its own Copy, on its own
+ *  press, which every browser honours. */
+type Trouble =
+  | null
+  | { kind: "fetching" }
+  | { kind: "ready"; report: Report; copied: boolean; shown: boolean }
+  | { kind: "error"; message: string };
+
 function remember(key: string, value: string) {
   try {
     window.localStorage.setItem(key, value);
@@ -57,6 +71,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   const [step, setStep] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [showCommits, setShowCommits] = useState(false);
+  const [trouble, setTrouble] = useState<Trouble>(null);
   /** Who this server is, asked once on mount. What is wanted from it is the
    *  pair of commits: the one this process loaded and the one on disk. */
   const [self, setSelf] = useState<Instance | null>(null);
@@ -262,12 +277,52 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     }
   };
 
+  /** Ask for the report, try the clipboard while the click is still warm,
+   *  then show the card whatever the clipboard said. */
+  const reportProblem = async () => {
+    setTrouble({ kind: "fetching" });
+    let report: Report;
+    try {
+      report = await api.report(snapshot(), navigator.userAgent);
+    } catch (problem) {
+      setTrouble({ kind: "error", message: String((problem as Error)?.message ?? problem) });
+      return;
+    }
+    let copied = false;
+    try {
+      await navigator.clipboard?.writeText(report.text);
+      copied = true;
+    } catch {
+      /* the card's own Copy is the way then */
+    }
+    setTrouble({ kind: "ready", report, copied, shown: false });
+  };
+
+  const troubleControl = (
+    <Trouble
+      busy={trouble?.kind === "fetching"}
+      onReport={reportProblem}
+    />
+  );
+
   return (
     // The projects screen's ground is --surround, which is a darker plane
     // than the surfaces the inks were certified against.  Everything dim in
     // here steps up one; see the rule in styles.css.
     <div className="nx-arrive nx-on-surround mt-8 min-h-[20px]">
       {render()}
+      {trouble && trouble.kind !== "fetching" ? (
+        <ReportCard
+          trouble={trouble}
+          onCopied={(copied) =>
+            setTrouble((t) => (t?.kind === "ready" ? { ...t, copied } : t))
+          }
+          onShow={() =>
+            setTrouble((t) => (t?.kind === "ready" ? { ...t, shown: !t.shown } : t))
+          }
+          onClose={() => setTrouble(null)}
+        />
+      ) : null}
     </div>
   );
 
@@ -284,7 +339,17 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
       );
     }
 
-    if (phase.kind === "resting") return <Resting onCheck={() => check(true)} />;
+    if (phase.kind === "resting") {
+      return (
+        <Line>
+          <button className="quiet t-micro" onClick={() => check(true)}>
+            Check for updates
+          </button>
+          <span className="flex-1" />
+          {troubleControl}
+        </Line>
+      );
+    }
 
     if (phase.kind === "error") {
       return (
@@ -293,10 +358,12 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
           <p className="t-meta mt-1 text-ink-2">
             This machine may be offline. Nothing here has changed. ({phase.message})
           </p>
-          <div className="mt-3">
+          <div className="mt-3 flex items-center gap-2">
             <button className="ghost-button h-[28px] px-3 t-ui" onClick={() => check(true)}>
               Try again
             </button>
+            <span className="flex-1" />
+            {troubleControl}
           </div>
         </Card>
       );
@@ -401,11 +468,21 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
               Restart now
             </button>
           ) : null}
+          {troubleControl}
         </Line>
       );
     }
 
-    if (!report.checkout) return null;      // nothing it could ever do
+    // Nothing it could ever do about updating; a problem can still be
+    // reported from a folder that is not a checkout.
+    if (!report.checkout) {
+      return (
+        <Line>
+          <span className="flex-1" />
+          {troubleControl}
+        </Line>
+      );
+    }
 
     // Asked before anything is read off the numbers, because when the fetch
     // failed there are no numbers: `behind` keeps its default of zero and
@@ -438,6 +515,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
           <button className="quiet t-micro shrink-0" onClick={() => check(true)}>
             Try again
           </button>
+          {troubleControl}
         </Line>
       );
     }
@@ -450,6 +528,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
           <button className="quiet t-micro" onClick={() => check(true)}>
             Check again
           </button>
+          {troubleControl}
         </Line>
       );
     }
@@ -473,6 +552,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
           <button className="quiet t-micro" onClick={() => check(true)}>
             Show it
           </button>
+          {troubleControl}
         </Line>
       );
     }
@@ -495,6 +575,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             <button className="quiet t-micro" onClick={start}>
               Update
             </button>
+            {troubleControl}
           </Line>
           {showCommits ? <Commits commits={report.commits} /> : null}
         </>
@@ -588,13 +669,126 @@ function headline(report: UpdateReport): string {
 
 const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-function Resting({ onCheck }: { onCheck: () => void }) {
+/** The control, after a hairline so it reads as a second thing on the
+ *  line rather than part of the update sentence.  On every quiet line and
+ *  never inside a card: while an update runs there is nothing to report
+ *  yet, and a failed one has its own card with the log in it. */
+function Trouble({ busy, onReport }: { busy: boolean; onReport: () => void }) {
   return (
-    <Line>
-      <button className="quiet t-micro" onClick={onCheck}>
-        Check for updates
+    <>
+      <span className="h-[10px] w-px shrink-0 bg-line" />
+      <button
+        className="quiet t-micro shrink-0"
+        data-testid="report-problem"
+        disabled={busy}
+        onClick={onReport}
+      >
+        {busy ? "Gathering" : "Report a problem"}
       </button>
-    </Line>
+    </>
+  );
+}
+
+/** What the writer gets after pressing it.
+ *
+ *  A card rather than a popup, for two reasons the browsers decide. A
+ *  `window.open` after the report has been fetched is a popup with no click
+ *  behind it, and Safari and Firefox block it; a link is never blocked. And
+ *  the writer is meant to read the report before it goes anywhere, which a
+ *  page that opened itself would not have given them the chance to do. The
+ *  text is behind a toggle because eighty lines of log on the first screen
+ *  of a session is not what anybody came for. */
+function ReportCard({
+  trouble,
+  onCopied,
+  onShow,
+  onClose,
+}: {
+  trouble: Exclude<Trouble, null | { kind: "fetching" }>;
+  onCopied: (copied: boolean) => void;
+  onShow: () => void;
+  onClose: () => void;
+}) {
+  const [said, setSaid] = useState("");
+  if (trouble.kind === "error") {
+    return (
+      <div className="mt-3">
+        <Card>
+          <div className="t-ui text-ink">Could not put the report together.</div>
+          <p className="t-meta mt-1 text-ink-2">
+            {trouble.message}. From a terminal, <code>python server/run.py --report</code> prints
+            the same text.
+          </p>
+          <div className="mt-3">
+            <button className="quiet t-micro" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+  const { report, copied, shown } = trouble;
+  const copy = () => {
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      setSaid("Could not copy; select the text below");
+      onCopied(false);
+      return;
+    }
+    clipboard
+      .writeText(report.text)
+      .then(() => {
+        setSaid("Copied");
+        onCopied(true);
+      })
+      .catch(() => {
+        setSaid("Could not copy; select the text below");
+        onCopied(false);
+      });
+    window.setTimeout(() => setSaid(""), 1500);
+  };
+  return (
+    <div className="mt-3" data-testid="report-card">
+      <Card>
+        <div className="t-ui text-ink">
+          {copied ? "The report is on your clipboard." : "Copy the report, then open the issue."}
+        </div>
+        <p className="t-meta mt-1 text-ink-2">
+          It holds the commit, the settings without their secrets, the tools NextTex found
+          and the last lines of its logs. Read it before you paste it: it names this machine.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <a
+            className="ghost-button inline-flex h-[28px] items-center px-3 t-ui"
+            data-testid="report-open"
+            href={report.newIssue}
+            target="_blank"
+            rel="noopener"
+          >
+            Open a new issue
+          </a>
+          <button className="quiet t-micro h-[28px] px-2" data-testid="report-copy" onClick={copy}>
+            {said || "Copy"}
+          </button>
+          <button className="quiet t-micro h-[28px] px-2" onClick={onShow}>
+            {shown ? "Hide the report" : "Show the report"}
+          </button>
+          <span className="flex-1" />
+          <button className="quiet t-micro h-[28px] px-2" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        {shown ? (
+          <pre
+            className="t-code-sm mt-3 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-[3px] bg-surface-2 p-3 text-ink-2"
+            data-testid="report-text"
+          >
+            {report.text}
+          </pre>
+        ) : null}
+      </Card>
+    </div>
   );
 }
 

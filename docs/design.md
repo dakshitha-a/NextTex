@@ -5549,3 +5549,54 @@ on a project without one the dismissal was permanent: the route to init was
 gone for the life of the project short of clearing the browser's storage.
 That state now draws one quiet line with the two controls the card
 offered.
+
+## 31. Report a problem, at the foot of the project list
+
+The projects screen's footer carried the update affordance and nothing
+else, and the README's advice to somebody with a problem was to send the
+last block of `update.log`. That asked a writer to find a file, read it for
+the access token it might contain, and describe by hand which commit they
+were on, which tools the install had found and what the server had logged.
+Every one of those would otherwise have come back as a question on the
+issue.
+
+**Where it sits.** A `quiet t-micro` control reading *Report a problem*,
+after a hairline, on every quiet line the footer draws: up to date, an
+update waiting, the docs-only line, the unrestarted line, the unchecked
+line, the resting line, and the line a folder that is not a checkout gets
+(which used to draw nothing at all). It is also on the error card, since
+"could not reach the repository" is a moment to report from. It is never
+on the update card or the progress card: while an update runs there is
+nothing to report yet, and a failed update has its own card with the log in
+it. The footer's first draft put it only on the resting line, which is
+reached only after an unasked check fails, so a healthy install would never
+have seen it.
+
+**What a press does.** It asks `POST /api/report` for the text, with the
+interface's own record of its last errors and the browser's user agent, and
+tries the clipboard while the click is still warm; then it draws a card.
+The card says one of two sentences, *The report is on your clipboard.* or
+*Copy the report, then open the issue.*, and offers **Open a new issue**, a
+link to the form on GitHub with the platform, service, Python and commit
+pair already filled in; **Copy**, on its own press; **Show the report**;
+and **Close**.
+
+**Why a card rather than a page that opens itself.** Two browsers decide
+it. A `window.open` after the fetch has returned is a popup with no click
+behind it, which Safari and Firefox block, and a clipboard write after an
+`await` is refused in Safari; a link is never blocked and a Copy button on
+its own gesture is honoured everywhere. Chrome allows the write within the
+moment of the click, so there one press does everything. The other reason
+is the rule the whole thing turns on: the writer sees the report before it
+goes anywhere. The card says in one line what the text holds and asks them
+to read it, because it names their machine, and the text is behind a toggle
+because eighty lines of log on the first screen of a session is not what
+anybody came for.
+
+**What the page records.** Nothing on the client side recorded anything
+before this. `errors.ts` keeps a ring of twenty: uncaught errors and
+unhandled rejections from the window, what the error boundary catches, and
+every answer of 500 or worse from the server, whose message carries the
+eight-hex reference the server logged under. That reference is the join
+between what the writer saw and the line the report quotes from the log.
+Nothing here calls `preventDefault`, so the console still shows all of it.
