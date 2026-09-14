@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { ScriptResult } from "./api";
 import {
-  agentChangedScript, lastLine, outcomeLabel, tailOf, troubleshootPrompt,
+  agentChangedScript, lastLine, outcomeLabel, resultFrom, tailOf, troubleshootPrompt,
 } from "./script-run";
 
 const ran = (over: Partial<ScriptResult> = {}): ScriptResult => ({
@@ -62,5 +62,18 @@ describe("when the agent has changed a script that failed here", () => {
     expect(agentChangedScript({ ...failed, result: ran() }, ["scripts/fig.py"], true)).toBe(false);
     expect(agentChangedScript({ ...failed, running: true }, ["scripts/fig.py"], true)).toBe(false);
     expect(agentChangedScript(null, ["scripts/fig.py"], true)).toBe(false);
+  });
+});
+
+describe("what the last-run route answered", () => {
+  test("a finished run is a result, without the running flag", () => {
+    const result = resultFrom({ ...ran(), running: false }, null);
+    expect(result).toEqual(ran());
+    expect(result && "running" in result).toBe(false);
+  });
+  test("a first run still going is no result, and keeps what was held", () => {
+    expect(resultFrom({ script: "scripts/fig.py", running: true }, null)).toBeNull();
+    const held = ran({ run: 3 });
+    expect(resultFrom({ script: "scripts/fig.py", running: true }, held)).toBe(held);
   });
 });

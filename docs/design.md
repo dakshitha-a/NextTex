@@ -6321,7 +6321,11 @@ script at a time; a different `.py` replaces it. A chapter coming to the
 front puts the page back and leaves the tab, so a writer moves between
 the figure's script and the paragraph that describes it with the output
 one click away; clicking the tab brings the run back; running always
-brings it forward.
+brings it forward. The page is behind the run, not replaced by it: the
+same hidden-not-unmounted treatment a folded pane gets, so coming back
+finds the page at the scroll and zoom it was left at rather than
+fetched again from the top, and a build that lands while the run is in
+front still has a live page to reveal its line on.
 
 **What the pane shows, top to bottom.** The same furniture row the image
 viewer's footer uses, with the path, Run or Stop, and the outcome in four

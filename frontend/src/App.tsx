@@ -17,7 +17,7 @@ import {
   Segmented,
   Handle,
 } from "./chrome";
-import { troubleshootPrompt } from "./script-run";
+import { resultFrom, troubleshootPrompt } from "./script-run";
 import { busyTyping, onFrame } from "./timing";
 import {
   afterClosing, movedPath, neighbour, orphanedBy, pushClosed, renamePaths,
@@ -1459,8 +1459,9 @@ export default function App() {
             (last) => {
               const now = get().script;
               if (now?.path !== path) return;
-              const { running, ...result } = last;
-              set({ script: { ...now, running, result: result as ScriptResult } });
+              // A first run still going answers no result; the pane
+              // shows it running and `script_done` brings the rest.
+              set({ script: { ...now, running: last.running, result: resultFrom(last, now.result) } });
             },
             () => undefined,
           );
@@ -2475,14 +2476,25 @@ export default function App() {
               losing the window. */}
           <Boundary>
           <Suspense fallback={<div className="h-full bg-surface-2" />}>
-          {previewShowing === "script" && script ? (
-            <Script
-              onRun={(path) => void runScript(path)}
-              onStop={stopScript}
-              onOpen={(path) => openFile(path)}
-              onAsk={noAgent ? undefined : askAboutScript}
-            />
-          ) : (
+          {/* The script pane in front of the page, not instead of it: the
+              page stays mounted and hidden, the way a folded pane does,
+              so coming back finds it at the same scroll and zoom rather
+              than fetching it again, and the reveal handle the build
+              reaches for is a live one throughout. */}
+          {script ? (
+            <div className={previewShowing === "script" ? "contents" : "hidden"}>
+              <Script
+                onRun={(path) => void runScript(path)}
+                onStop={stopScript}
+                onOpen={(path) => openFile(path)}
+                onAsk={noAgent ? undefined : askAboutScript}
+              />
+            </div>
+          ) : null}
+          <div
+            className={previewShowing === "script" && script ? "hidden" : "contents"}
+            data-testid="page-behind-script"
+          >
           <Pdf
             document={activePreview}
             handleRef={(handle) => (pdf.current = handle)}
@@ -2498,7 +2510,7 @@ export default function App() {
               }
             }}
           />
-          )}
+          </div>
           </Suspense>
           </Boundary>
         </div>

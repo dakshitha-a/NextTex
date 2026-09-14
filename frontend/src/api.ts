@@ -548,7 +548,9 @@ const api = {
     request<{ ok: true; stopped: boolean }>(`/projects/${id}/scripts/stop`, json({ path })),
   /** What the script did the last time it ran here; 404 when it never has. */
   lastScriptRun: (id: string, path: string) =>
-    request<ScriptResult & { running: boolean }>(
+    // Partial: a script running for the first time has a name and a
+    // `running` flag and nothing else yet.
+    request<Partial<ScriptResult> & { script: string; running: boolean }>(
       `/projects/${id}/scripts/last?path=${encodeURIComponent(path)}`,
     ),
   /** One figure the last run drew.  Stamped with the run so a rerun that

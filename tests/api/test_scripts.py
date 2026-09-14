@@ -109,6 +109,30 @@ def test_the_last_run_is_remembered(client, opened, project_dir):
     assert last.json()["running"] is False
 
 
+def test_a_first_run_still_going_answers_its_name_and_nothing_it_did_yet(
+    client, opened, project_dir,
+):
+    """A second window opening the script mid-run asks `last` before any
+    `result.json` exists.  The answer says it is running and carries no
+    result, rather than a half result the pane would try to draw."""
+    path = script(project_dir, "midway.py", "import time\ntime.sleep(30)\n")
+    session = server_main.SESSIONS[opened["id"]]
+    future = client.portal.start_task_soon(session.scripts.run, path)
+    deadline = time.monotonic() + 5
+    while not session.scripts.running(path) and time.monotonic() < deadline:
+        time.sleep(0.02)
+    try:
+        last = client.get(
+            f"/api/projects/{opened['id']}/scripts/last", params={"path": path}
+        )
+        assert last.status_code == 200
+        assert last.json() == {"script": path, "running": True}
+    finally:
+        client.post(f"/api/projects/{opened['id']}/scripts/stop", json={"path": path})
+        with pytest.raises(BaseException):
+            future.result(timeout=5)
+
+
 def test_a_figure_is_served_only_under_the_name_the_runner_gave_it(
     client, opened, project_dir,
 ):
