@@ -155,9 +155,18 @@ def verify(bib_path: Path) -> dict:
     buffer = io.StringIO()
     with redirect_stdout(buffer):
         for entry in entries:
-            issues = checker.check(entry)
-            if issues:
-                problems.append({"key": entry.get("key", "?"), "issues": issues})
+            # `check` answers a status and its messages, and the status is
+            # the verdict: a manually verified entry comes back "ok" with a
+            # message saying so, and an entry whose record was reached and
+            # matched comes back "ok" with none.  Reading the pair as a
+            # list made every entry a problem and the join over it fail.
+            status, messages = checker.check(entry)
+            if status != "ok":
+                problems.append({
+                    "key": entry.get("key", "?"),
+                    "status": status,
+                    "issues": list(messages),
+                })
     return {
         "checked": len(entries),
         "problems": problems,
