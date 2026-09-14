@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How a report is handled
+    url: https://github.com/dakshitha-a/NextTex/blob/master/docs/bug-reports.md
+    about: What happens after you open one, and what "fixed in master" means for your install.

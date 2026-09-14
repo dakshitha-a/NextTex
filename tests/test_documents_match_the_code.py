@@ -29,6 +29,7 @@ DOCUMENTS = [
     "docs/testing.md",
     "docs/first-session.md",
     "docs/project-context.md",
+    "docs/bug-reports.md",
 ]
 
 # Paths that are real and are not in this repository, each for its own

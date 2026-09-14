@@ -1,0 +1,56 @@
+# What happens to an issue without anybody at the keyboard.
+#
+# Two things, both small.  A new issue is labelled and answered once, so the
+# person who opened it hears within a minute that it will be read by a
+# person and what to add if the report is missing.  And an issue waiting on
+# its reporter is closed after a fortnight of silence, since the label that
+# says "waiting on the reporter" promises that, and a promise with no
+# mechanism behind it is the kind that goes stale.  No model runs here: the
+# fixing is done in a session somebody starts by hand, which docs/bug-reports.md
+# describes.
+name: issue intake
+
+on:
+  issues:
+    types: [opened]
+  schedule:
+    - cron: "23 6 * * 1"     # Monday, after the install lane
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  acknowledge:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label it and say it has arrived
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue edit "$NUMBER" --repo "$REPO" --add-label triage
+          gh issue comment "$NUMBER" --repo "$REPO" --body-file - <<'EOF_COMMENT'
+          Thank you. A person reads every issue here and fixes it in a session they run by hand; nothing automatic acts on it beyond this label. If the report from the footer's **Report a problem** (or `python server/run.py --report`) is not pasted in yet, please add it: it is what makes the difference between a fix and a question back.
+          EOF_COMMENT
+
+  stale:
+    if: github.event_name != 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close what has waited a fortnight for its reporter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          cutoff="$(date -u -d '14 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+          gh issue list --repo "$REPO" --label needs-info --state open \
+            --json number,updatedAt --jq ".[] | select(.updatedAt < \"$cutoff\") | .number" |
+          while read -r number; do
+            gh issue comment "$number" --repo "$REPO" --body-file - <<'EOF_COMMENT'
+          Closing this for want of the information asked for above. It is not forgotten: reply with the report and it can be reopened, or open a new issue and mention this one.
+          EOF_COMMENT
+            gh issue close "$number" --repo "$REPO" --reason "not planned"
+          done
