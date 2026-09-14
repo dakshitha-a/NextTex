@@ -79,6 +79,15 @@ const CASES = [
   // A white page inside a dark frame, which is the arrangement most likely
   // to expose furniture that was only ever checked against its own theme.
   { name: "dark-whitepage-colour", theme: "dark", editor: "white", syntax: "colour" },
+  // Emphasis off.  The subtle look with the weight gone has only the quiet
+  // command colour to say what is a command; the colour look with it gone
+  // has to show the families still apart from one another and from the
+  // quiet sixth.  On both grounds, because the sixth is one colour on each.
+  { name: "dark-match-subtle-plain",  theme: "dark",  editor: "match", syntax: "subtle", emphasis: "plain" },
+  { name: "light-match-subtle-plain", theme: "light", editor: "match", syntax: "subtle", emphasis: "plain" },
+  { name: "dark-match-colour-plain",  theme: "dark",  editor: "match", syntax: "colour", emphasis: "plain" },
+  { name: "white-colour-plain",       theme: "light", editor: "white", syntax: "colour", emphasis: "plain" },
+  { name: "white-subtle-plain",       theme: "light", editor: "white", syntax: "subtle", emphasis: "plain" },
 ];
 
 for (const shot of CASES) {
@@ -89,6 +98,7 @@ for (const shot of CASES) {
       window.localStorage.setItem("nexttex.theme", s.theme);
       window.localStorage.setItem("nexttex.editor.theme", s.editor);
       window.localStorage.setItem("nexttex.editor.syntax", s.syntax);
+      window.localStorage.setItem("nexttex.editor.emphasis", s.emphasis ?? "bold");
     }, shot);
     await page.reload();
     await page.getByText("Projects", { exact: false }).first().waitFor();

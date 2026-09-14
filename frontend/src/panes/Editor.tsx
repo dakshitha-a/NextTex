@@ -24,6 +24,7 @@ import {
 import { outline as sectionsOf, sameOutline } from "../outline";
 import {
   useEditorTheme,
+  useEditorEmphasis,
   useEditorSyntax,
   useSpelling,
 } from "../use-editor-theme";
@@ -100,6 +101,7 @@ export default function Editor({
   opener.current = onOpen;
   const editorTheme = useEditorTheme();
   const syntax = useEditorSyntax();
+  const emphasis = useEditorEmphasis();
   const spelling = useSpelling();
   // The writer's own words, and the offer to add one.  Held here rather
   // than in the store: nothing outside this pane has any use for either.
@@ -999,10 +1001,13 @@ export default function Editor({
   // Nothing is styled when this is absent: the subtle look is the absence
   // of a rule rather than a reproduction of one.
   const colour = syntax === "colour" ? " nx-syntax-colour" : "";
+  // Likewise: the class takes the lift off one variable, and every command
+  // weight in the pane resolves through that variable.
+  const plain = emphasis === "plain" ? " nx-syntax-plain" : "";
   return (
     <div
       ref={host}
-      className={`relative h-full min-h-0 overflow-hidden${skin}${colour}`}
+      className={`relative h-full min-h-0 overflow-hidden${skin}${colour}${plain}`}
     >
       {actions ? (
         <Suspense fallback={null}>

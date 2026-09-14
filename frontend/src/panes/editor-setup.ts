@@ -70,11 +70,15 @@ import {
  *  The weights are the editor's own `--nx-weight-strong` rather than a flat
  *  600, because the prose is a setting now and a light page sets it a step
  *  heavier again.  A command has to stay a step above whatever the prose
- *  around it is, and in this mode weight is the only thing saying so. */
+ *  around it is, and in this mode weight is the only thing saying so.
+ *
+ *  The keyword colour is a variable with the ink as its fallback, so that
+ *  the pane can hand a command a colour when the writer has turned the
+ *  weight off: see `.nx-syntax-plain` in styles.css. */
 const latexHighlight = HighlightStyle.define([
   { tag: tags.comment, color: "var(--ink-3)", fontStyle: "italic" },
-  { tag: tags.keyword, color: "var(--ink)", fontWeight: "var(--nx-weight-strong, 600)" },
-  { tag: tags.tagName, color: "var(--ink)", fontWeight: "var(--nx-weight-strong, 600)" },
+  { tag: tags.keyword, color: "var(--nx-syn-keyword, var(--ink))", fontWeight: "var(--nx-weight-strong, 600)" },
+  { tag: tags.tagName, color: "var(--nx-syn-keyword, var(--ink))", fontWeight: "var(--nx-weight-strong, 600)" },
   { tag: tags.atom, color: "var(--ink-2)" },
   { tag: tags.string, color: "var(--ink-2)" },
   { tag: tags.bracket, color: "var(--ink-3)" },

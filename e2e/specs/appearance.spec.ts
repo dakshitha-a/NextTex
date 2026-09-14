@@ -387,10 +387,13 @@ test("an editor lit on its own terms survives a reload", async ({ tab }) => {
 async function typeSomeLaTeX(tab: import("@playwright/test").Page) {
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+Home");
-  await tab.keyboard.type("\\section{Heading} \\cite{key} \\usepackage{amsmath}\n");
+  await tab.keyboard.type(
+    "\\section{Heading} \\cite{key} \\usepackage{amsmath} \\textbf{loud}\n",
+  );
 }
 
 const colourOf = (node: Element) => getComputedStyle(node).color;
+const weightOf = (node: Element) => Number(getComputedStyle(node).fontWeight);
 
 test("the subtle look is what an editor opens with", async ({ tab }) => {
   await typeSomeLaTeX(tab);
@@ -452,6 +455,76 @@ test("the colours follow the page, not the frame", async ({ tab }) => {
   await tab.getByTestId("editor-theme-light").click();
   const onLight = await tab.locator(".nx-syn-structure").first().evaluate(colourOf);
   expect(lightness(onLight)).toBeLessThan(lightness(onDark));
+});
+
+/** Emphasis: whether a command is set heavier than the prose.
+ *
+ *  Weight is what the subtle look runs on, so with it off a command has to
+ *  take a colour instead, in either look, or `\textbf` is a word. */
+const tokenWeight = (tab: import("@playwright/test").Page, text: string) =>
+  tab.evaluate((wanted) => {
+    const all = [...document.querySelectorAll(".cm-content span")];
+    const exact = all.filter((el) => el.textContent === wanted);
+    const node = exact[exact.length - 1];
+    if (!node) return null;
+    const style = getComputedStyle(node);
+    return { weight: Number(style.fontWeight), colour: style.color };
+  }, text);
+
+test("commands are set heavier than the prose until asked otherwise", async ({ tab }) => {
+  await typeSomeLaTeX(tab);
+  const body = await tab.locator(".cm-content").evaluate(weightOf);
+  const section = await tokenWeight(tab, "\\section");
+  const bold = await tokenWeight(tab, "\\textbf");
+  expect(section?.weight).toBeGreaterThan(body);
+  expect(bold?.weight).toBeGreaterThan(body);
+});
+
+test("emphasis can be turned off, and a plain command keeps a colour", async ({ tab }) => {
+  await typeSomeLaTeX(tab);
+  const body = await tab.locator(".cm-content").evaluate(weightOf);
+  const ink = await tab.locator(".cm-content").evaluate(colourOf);
+
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("emphasis-plain").click();
+  await tab.keyboard.press("Escape");
+
+  // Subtle plus plain: every command at the prose's weight, and every one
+  // of them in the quiet colour rather than the ink.
+  const section = await tokenWeight(tab, "\\section");
+  const bold = await tokenWeight(tab, "\\textbf");
+  expect(section?.weight).toBe(body);
+  expect(bold?.weight).toBe(body);
+  expect(section?.colour).not.toBe(ink);
+  expect(bold?.colour).not.toBe(ink);
+  expect(bold?.colour).toBe(section?.colour);
+
+  // Colour plus plain: the families keep their hues, \textbf keeps the
+  // quiet one, and nothing gets its weight back.
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("syntax-colour").click();
+  await tab.keyboard.press("Escape");
+  const sectionLit = await tokenWeight(tab, "\\section");
+  const boldLit = await tokenWeight(tab, "\\textbf");
+  expect(sectionLit?.weight).toBe(body);
+  expect(boldLit?.weight).toBe(body);
+  expect(sectionLit?.colour).not.toBe(ink);
+  expect(boldLit?.colour).not.toBe(ink);
+  expect(sectionLit?.colour).not.toBe(boldLit?.colour);
+  expect(boldLit?.colour).toBe(bold?.colour);
+});
+
+test("plain emphasis survives a reload", async ({ tab }) => {
+  await typeSomeLaTeX(tab);
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("emphasis-plain").click();
+  await tab.keyboard.press("Escape");
+  const body = await tab.locator(".cm-content").evaluate(weightOf);
+
+  await tab.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
+  await expect(tab.locator(".nx-syn-structure").first()).toBeVisible();
+  expect((await tokenWeight(tab, "\\section"))?.weight).toBe(body);
 });
 
 test("colouring survives a reload", async ({ tab }) => {

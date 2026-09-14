@@ -143,6 +143,12 @@
   --syn-math: #00801F;
   --syn-preamble: #8E5D00;
   --syn-cite: #C40040;
+  /* The quiet sixth: what a command outside the five families is set in
+     when the writer has turned the weight off.  Weight was the only thing
+     telling \textbf from a word, so plain needs a colour, and it is a
+     low-chroma slate at the families' lightness rather than a sixth hue,
+     because it has to read as "a command" and never as "which kind". */
+  --syn-command: #4F5B75;
 
   /* How much heavier the editor sets its text on this palette than the
      weight the writer chose.  Dark type on a light ground looks thinner
@@ -275,6 +281,7 @@
   --syn-math: #85D088;
   --syn-preamble: #E9AE57;
   --syn-cite: #FF99A1;
+  --syn-command: #A9B3CC;
   /* Nothing to compensate: this is the weight the face was chosen at, and
      the ground is doing the opposite of thinning the strokes. */
   --nx-editor-weight-lift: 0;
@@ -850,6 +857,17 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
      comments in a sheared upright without anybody seeing a reason to
      look. */
   font-synthesis: none;
+}
+/* Emphasis off.  Every command weight in the pane, the HighlightStyle's
+   keywords and the family rules above, resolves through the one variable,
+   so plain is the absence of the lift rather than a second set of rules,
+   the same shape the subtle look has.  A plain command then takes the quiet
+   colour, or \textbf would be indistinguishable from the word after it;
+   the family rules still win over it for the five families, since they
+   colour the inner span through `*`. */
+.nx-syntax-plain .cm-editor {
+  --nx-weight-strong: var(--nx-weight);
+  --nx-syn-keyword: var(--syn-command);
 }
 /* The one size the writer sets directly.  Line height is unitless so it
    tracks the size -- a fixed 22px under 21px text is unreadable -- and the

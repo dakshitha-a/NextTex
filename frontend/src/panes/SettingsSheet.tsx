@@ -189,6 +189,21 @@ export default function SettingsSheet({
                 ] as const}
                 onPick={(syntax) => change({ syntax })}
               />
+              {/* The other half of highlighting: whether a command is set
+                  heavier than the prose.  Weight is what the subtle look
+                  runs on, so with it off a command takes a quiet colour
+                  instead, in either look; the two controls read as one
+                  pair, colour and weight, which is what highlighting is. */}
+              <Choice
+                label="Emphasis"
+                name="Command emphasis"
+                value={look.emphasis}
+                options={[
+                  { value: "bold", text: "Bold commands", id: "emphasis-bold" },
+                  { value: "plain", text: "Plain", id: "emphasis-plain" },
+                ] as const}
+                onPick={(emphasis) => change({ emphasis })}
+              />
             </Group>
           </div>
 

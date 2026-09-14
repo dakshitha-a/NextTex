@@ -716,6 +716,9 @@ Colouring the commands is off by default, because the typeset page two panes
 away has to stay the loudest thing on screen. Turned on, it gives sectioning,
 environments, mathematics, citations and the preamble a hue each, which is
 what makes a long chapter skimmable for its shape rather than its words.
+Highlighting has a second half, Emphasis: commands are set a step heavier
+than the prose unless you choose Plain, and a plain command takes a quiet
+slate instead so that `\textbf` never looks like the word after it.
 
 <img alt="A white page inside a dark shell, with the command families coloured: the file list and agent panel stay dark while the editor is white." src="docs/screenshot-white-page.png">
 

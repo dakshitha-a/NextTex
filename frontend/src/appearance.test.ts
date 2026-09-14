@@ -82,11 +82,13 @@ describe("what is remembered", () => {
   it("reads back what was applied", () => {
     applyAppearance({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
-      weight: 500, syntax: "colour", preview: "sharper", spelling: true,
+      weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
+      spelling: true,
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
-      weight: 500, syntax: "colour", preview: "sharper", spelling: true,
+      weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
+      spelling: true,
     });
   });
 
@@ -99,7 +101,8 @@ describe("what is remembered", () => {
   it("stamps the document so CSS can use it", () => {
     applyAppearance({
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
-      weight: 300, syntax: "colour", preview: "sharper", spelling: true,
+      weight: 300, syntax: "colour", emphasis: "plain", preview: "sharper",
+      spelling: true,
     });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");
@@ -107,6 +110,7 @@ describe("what is remembered", () => {
     expect(root.style.getPropertyValue("--nx-editor-size")).toBe("21px");
     expect(root.style.getPropertyValue("--nx-editor-weight")).toBe("300");
     expect(root.dataset.syntax).toBe("colour");
+    expect(root.dataset.emphasis).toBe("plain");
     expect(root.dataset.spelling).toBe("on");
   });
 
@@ -122,6 +126,17 @@ describe("what is remembered", () => {
     expect(storedAppearance().syntax).toBe("subtle");
     window.localStorage.setItem("nexttex.editor.syntax", "rainbow");
     expect(storedAppearance().syntax).toBe("subtle");
+  });
+
+  it("keeps the commands bold until plain is asked for by name", () => {
+    // Weight is what the subtle look runs on, so the default has to stay
+    // bold, and a stored value nobody recognises must not quietly turn it
+    // off.
+    expect(storedAppearance().emphasis).toBe("bold");
+    window.localStorage.setItem("nexttex.editor.emphasis", "thin");
+    expect(storedAppearance().emphasis).toBe("bold");
+    window.localStorage.setItem("nexttex.editor.emphasis", "plain");
+    expect(storedAppearance().emphasis).toBe("plain");
   });
 
   it("survives a localStorage that throws", () => {

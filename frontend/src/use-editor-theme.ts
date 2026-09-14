@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   APPEARANCE_CHANGED,
   type EditorTheme,
+  type Emphasis,
   type SyntaxMode,
 } from "./appearance";
 
@@ -43,7 +44,21 @@ export function useEditorSyntax(): SyntaxMode {
   return mode;
 }
 
-/** Whether the prose is spell checked, live.  Read like the other two. */
+/** Whether commands are set heavier than the prose, live.  Read like the
+ *  syntax mode, for the same reasons. */
+export function useEditorEmphasis(): Emphasis {
+  const read = (): Emphasis =>
+    (document.documentElement.dataset.emphasis as Emphasis) ?? "bold";
+  const [mode, setMode] = useState(read);
+  useEffect(() => {
+    const onChange = () => setMode(read());
+    window.addEventListener(APPEARANCE_CHANGED, onChange);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
+  }, []);
+  return mode;
+}
+
+/** Whether the prose is spell checked, live.  Read like the others. */
 export function useSpelling(): boolean {
   const read = () => document.documentElement.dataset.spelling === "on";
   const [on, setOn] = useState(read);
