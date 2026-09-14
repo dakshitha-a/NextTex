@@ -221,21 +221,36 @@ def tools_section(root: Path, environ) -> list:
     rows += [
         f"tex_dir     {result.tex_dir or '(none)'}",
         f"tex extras  {', '.join(result.missing_tex_extras) or 'all present'}" if result.tex_dir else "",
-        f"service     {result.service or '(none)'}  running={result.service_running}",
+        f"service     {result.service or '(none)'}",
         f"interface   {'present' if result.interface_present else 'absent'}",
         f"node        {result.node_major or '(none)'}",
     ]
     return [row for row in rows if row]
 
 
-def service_section() -> list:
+def service_section(instance: str) -> list:
     from . import updates
 
-    return [
+    rows = [
         f"supervised     {updates.supervised()}",
         f"INVOCATION_ID  {'set' if os.environ.get('INVOCATION_ID') else 'unset'}",
         f"XPC_SERVICE    {'set' if os.environ.get('XPC_SERVICE_NAME') else 'unset'}",
     ]
+    # What systemd says about the unit, where there is a systemd to ask.
+    # The survey knows whether a unit file exists and not whether it is
+    # running, which is the half a report needs.
+    binary = shutil.which("systemctl") if sys.platform.startswith("linux") else None
+    if binary:
+        unit = "nexttex" + ("-" + instance if instance else "")
+        try:
+            result = subprocess.run(
+                [binary, "--user", "is-active", unit], capture_output=True,
+                text=True, errors="replace", timeout=10,
+            )
+            rows.append(f"systemd unit   {unit}: {result.stdout.strip() or result.stderr.strip() or 'unknown'}")
+        except (OSError, subprocess.SubprocessError) as error:
+            rows.append(f"systemd unit   {unit}: (systemctl failed: {error})")
+    return rows
 
 
 def agent_section(config: dict) -> list:
@@ -358,7 +373,7 @@ def compose(*, root: Path, environ=None, client=None, source: str,
         ("Install", install_section(facts)),
         ("Settings", settings_section(config)),
         ("Tools", tools_section(root, environ)),
-        ("Service", service_section()),
+        ("Service", service_section(facts["instance"])),
         ("Agent", agent_section(config)),
         ("Projects", projects_section(state, open_projects)),
     ]
