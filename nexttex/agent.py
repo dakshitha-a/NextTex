@@ -43,7 +43,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 from .claude_auth import claude_binary
 from .lines import document_ends_at, first_changed_line
@@ -385,6 +385,7 @@ class ProjectAgent:
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
+        run_script: Callable[[Path], Awaitable[dict]] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
@@ -404,6 +405,11 @@ class ProjectAgent:
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
+        # Runs a script the way the source pane does, announced on the
+        # event stream and remembered, so a figure the agent drew is in the
+        # script pane too.  Bare `plots.run` when nothing is wired, which
+        # is what the tests that construct an agent alone get.
+        self.run_script = run_script
         # Writes a file the way the HTTP layer does -- atomically, marking it
         # as ours so the watcher does not echo it back, and scheduling the
         # rebuild.  Without this an MCP tool would leave the editor stale.
@@ -1984,7 +1990,10 @@ class ProjectAgent:
             expected = (self.root / wanted).resolve()
         stamp = expected.stat().st_mtime if expected and expected.exists() else 0.0
 
-        result = await plots.run(self.root, self.state_dir, target)
+        if self.run_script is not None:
+            result = await self.run_script(target)
+        else:
+            result = await plots.run(self.root, self.state_dir, target)
 
         note = ""
         if seeded:

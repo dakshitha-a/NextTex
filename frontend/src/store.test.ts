@@ -182,6 +182,45 @@ describe("a renamed document moves the tabs and the strip in one write", () => {
   });
 });
 
+describe("a script's run reaches the window looking at it", () => {
+  const done = (script: string) => ({
+    type: "script_done", script, run: 2, by: "agent", ok: false, code: 1,
+    out: "", err: "boom", figures: [], saved: [],
+  });
+
+  test("a run of the script on the strip fills its tab, whoever ran it", () => {
+    set({
+      script: { path: "scripts/fig.py", running: false, result: null, changedByAgent: false },
+      previewShowing: "document",
+    });
+    __receive({ type: "script_start", script: "scripts/fig.py", run: 2, by: "agent" });
+    expect(get().script?.running).toBe(true);
+    expect(get().previewShowing).toBe("script");
+    __receive(done("scripts/fig.py"));
+    expect(get().script?.running).toBe(false);
+    expect(get().script?.result?.err).toBe("boom");
+  });
+
+  test("a run of any other script is not this window's news", () => {
+    set({
+      script: { path: "scripts/fig.py", running: false, result: null, changedByAgent: false },
+    });
+    __receive(done("scripts/other.py"));
+    expect(get().script?.result).toBeNull();
+  });
+
+  test("the agent rewriting a script that failed here offers a rerun", () => {
+    set({
+      script: {
+        path: "scripts/fig.py", running: false, changedByAgent: false,
+        result: { ...done("scripts/fig.py"), type: undefined } as any,
+      },
+    });
+    __receive({ type: "files_changed", paths: ["scripts/fig.py"], byAgent: true });
+    expect(get().script?.changedByAgent).toBe(true);
+  });
+});
+
 // --- collaboration ----------------------------------------------------------
 
 describe("what the interface is told about collaboration", () => {

@@ -441,7 +441,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 834.7 kB | 860 kB |
+| Interface bundle | 840.9 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -619,6 +619,18 @@ micrograph or a heatmap with a million cells.
 
 If a plot needs a package this install does not have, it says which one and
 asks. Installing it is your press.
+
+**And the script is yours to run.** Open it from the file list, change the
+axis label or the width, and press Run at the end of the tab strip, or
+`Ctrl-Enter` in the editor. A tab for the script joins the preview strip
+beside your documents, and it shows what the run printed, every figure the
+script drew, whether it saved it or only called `plt.show()`, and the
+files it wrote into the project, each a click from opening. When a run
+fails, the traceback is there with its last line set apart, and one press
+hands it to the agent with the script's name and what it said, ready for
+you to send. A missing package is offered as an install, after a second
+press that says what it reaches. The output stays with the script: open
+it tomorrow and the pane shows the last run.
 
 ### You can show it something
 
@@ -906,7 +918,8 @@ Six things go out, all of them things you asked for:
    figure needs a Python package this install does not have. The agent
    reports the missing package and asks; installing it is a press of yours
    and a card you answer, and nothing about your documents goes with the
-   request.
+   request. The script pane's Install button is the same request, behind a
+   second press that says so.
 6. **Only once you share a project**, and not before: iroh's discovery at
    `dns.iroh.link` and its relays at `relay.n0.iroh.link`, so two
    collaborators can find each other through whatever home routers and
@@ -1017,7 +1030,7 @@ there, and somebody would have to invite you back.
 | `⌘S` / `Ctrl-S` | Put the file on disk this instant; builds instead when compile-as-you-type is off |
 | `⌘B` / `Ctrl-B` | Hide the file list |
 | `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
-| `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on |
+| `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on; in a script, run it |
 | `⌘F` / `Ctrl-F` | Find and replace in the file you are in |
 | `⌘F` / `Ctrl-F`, on the page | Find on the typeset page |
 | `⌘⇧F` / `Ctrl-Shift-F` | Find and replace across every file in the project |

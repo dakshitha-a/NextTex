@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PlusIcon } from "../chrome";
-import { useStore } from "../store";
+import { set, useStore } from "../store";
 import { useDismiss } from "../useDismiss";
 import { focusFirst, walkMenu } from "./menu-keys";
 import PaneHeader from "./PaneHeader";
@@ -30,6 +30,8 @@ export default function PreviewHeader({
   onCloseMany,
   onDownload,
   onAdd,
+  onRunScript,
+  onStopScript,
   onHeaderClick,
   trailing,
 }: {
@@ -40,6 +42,10 @@ export default function PreviewHeader({
   onCloseMany: (paths: string[]) => void;
   onDownload: (path: string) => void;
   onAdd: (path: string) => void;
+  /** The script tab's menu.  The tab itself is this window's: selecting
+   *  it and closing it are store writes and need nobody's help. */
+  onRunScript: (path: string) => void;
+  onStopScript: (path: string) => void;
   /** A click on the tab in front or the empty run: fold, or double-click
    *  for reading mode.  Absent below 900px, where nothing folds. */
   onHeaderClick?: () => void;
@@ -47,6 +53,8 @@ export default function PreviewHeader({
 }) {
   const previews = useStore((s) => s.previews);
   const active = useStore((s) => s.activePreview);
+  const script = useStore((s) => s.script);
+  const showing = useStore((s) => s.previewShowing);
   const candidates = useStore((s) => s.candidates);
   const builds = useStore((s) => s.builds);
   const activePath = useStore((s) => s.activePath);
@@ -68,7 +76,7 @@ export default function PreviewHeader({
       path,
       label: middleTruncate(stem(path), 18),
       title: path,
-      active: path === active,
+      active: showing === "document" && path === active,
       closeLabel: previews.length > 1 ? `Stop previewing ${path.split("/").pop() ?? path}` : undefined,
       testId: `preview-tab-${path}`,
       // Building, or behind the source.  Without this a background
@@ -81,8 +89,54 @@ export default function PreviewHeader({
       ) : undefined,
     };
   });
+  // After the documents, the script this window is looking at, if one:
+  // its name with the extension a source tab carries, closeable, and
+  // breathing while it runs.  It never reaches the server's strip.
+  if (script) {
+    const name = script.path.split("/").pop() ?? script.path;
+    const dot = name.lastIndexOf(".");
+    tabs.push({
+      path: script.path,
+      label: middleTruncate(dot > 0 ? name.slice(0, dot) : name, 18),
+      extension: dot > 0 ? name.slice(dot) : "",
+      title: script.path,
+      active: showing === "script",
+      closeLabel: `Close ${name}`,
+      testId: `script-tab-${script.path}`,
+      badge: script.running ? (
+        <span className="ml-[5px] h-[5px] w-[5px] shrink-0 rounded-full bg-hint" />
+      ) : script.result && !script.result.ok ? (
+        <span className="ml-[5px] h-[5px] w-[5px] shrink-0 rounded-full bg-error" />
+      ) : undefined,
+    });
+  }
+
+  const select = (path: string) => {
+    if (script && path === script.path) {
+      set({ previewShowing: "script" });
+      return;
+    }
+    set({ previewShowing: "document" });
+    onSelect(path);
+  };
+  const close = (path: string) => {
+    if (script && path === script.path) {
+      set({ script: null, previewShowing: "document" });
+      return;
+    }
+    onClose(path);
+  };
 
   const menuFor = (path: string): MenuItem[] => {
+    if (script && path === script.path) {
+      return [
+        script.running
+          ? { key: "stop", label: "Stop", run: () => onStopScript(path) }
+          : { key: "run", label: "Run", run: () => onRunScript(path) },
+        { key: "rule", rule: true },
+        { key: "close", label: "Close", run: () => close(path) },
+      ];
+    }
     const others = previews.filter((other) => other !== path);
     return [
       // The source strip's menu, minus Duplicate, which is about a file and
@@ -165,8 +219,8 @@ export default function PreviewHeader({
         ariaLabel="Previewed documents"
         hiddenLabel="previewed"
         hiddenName={stem}
-        onSelect={onSelect}
-        onClose={onClose}
+        onSelect={select}
+        onClose={close}
         menuFor={menuFor}
         menuTestId="preview-tab-menu"
         onHeaderClick={onHeaderClick}

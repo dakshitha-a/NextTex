@@ -73,6 +73,9 @@ def test_an_uncaught_exception_is_the_scripts_traceback_and_exit_one(tmp_path):
     assert result["code"] == 1
     assert "ValueError: boom" in result["err"]
     assert "line 2" in result["err"]
+    # By the name the rest of the screen uses, not the machine's.
+    assert 'File "scripts/script.py"' in result["err"]
+    assert str(tmp_path) not in result["err"]
     # The runner's own frames are not the writer's problem.
     assert "script_runner" not in result["err"]
     assert "runpy" not in result["err"]

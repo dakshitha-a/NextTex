@@ -6286,3 +6286,90 @@ only as the watcher's `files_changed`, and the re-scan behind that event
 now checks each registered document against the disk before it publishes.
 A collaborator's rename lands through the shared manifest and takes the
 same path a rename made here does.
+
+### A script runs from the source pane, and its output is a tab on the preview strip
+
+The writer's second request was the feature: the figure scripts should be
+visible in the source pane and runnable from it, so that a manual change
+to a figure is a change to the script and a rerun rather than another
+conversation; the output, what the script prints and what `plt.show()`
+would have shown, goes in the preview pane; and a failure should have a
+path to the agent. What follows is what was built, and the decisions it
+took.
+
+**Run is where the file is.** A Run control sits at the end of the source
+strip while the tab in front is a `.py`, in the same 26 px quiet button
+the fold chevron uses, with the play mark the file tree draws on a
+script's sheet; it becomes Stop while the run is going. `Ctrl-Enter`,
+which on a chapter scrolls the page to the caret, runs a script, because
+that is the key every notebook and every editor with a run command uses
+and the two meanings never meet on one file. The tree's row menu offers
+*Run* on a script, beside *Plot this…* on a dataset, since a script's
+reason to have a menu opened on it is that somebody wants to see what it
+does; from there the script opens and runs in one gesture.
+
+**The output is a tab, not a pane.** The preview strip is the place a
+writer reads the result of what they typed, and a script's result is
+that. So a script in front of the editor puts a tab for it after the
+documents on the preview strip, the way a chapter puts its document
+there, drawn by the same `TabStrip` with the extension a source tab
+carries, a dot that breathes while it runs and turns to the error colour
+after a failure, and a close button. It is this window's own: store state
+and never the server's strip, because a run's output is read beside the
+script and another window's script is not this window's reading. One
+script at a time; a different `.py` replaces it. A chapter coming to the
+front puts the page back and leaves the tab, so a writer moves between
+the figure's script and the paragraph that describes it with the output
+one click away; clicking the tab brings the run back; running always
+brings it forward.
+
+**What the pane shows, top to bottom.** The same furniture row the image
+viewer's footer uses, with the path, Run or Stop, and the outcome in four
+words: *Ran in 1.3 s*, *Exit 1*, *Stopped after 120 s*, *Stopped*,
+*Running*, *Not run yet*. Then the figures the run drew, each on the
+`.nx-page` paper the image viewer puts a figure on, because a plot with a
+transparent background is judged against white on the page; every
+`plt.show()` is one, and so is a figure left open at the end, so a script
+written for a screen shows its plots here instead of in a window that
+will never open. Then *Wrote figures/runs.pdf* for each file the run
+saved into the project, a button that opens the file in the editor's
+viewer. Then what it printed, in the code face, and what it wrote to
+stderr, which on a failure has its last line set in the ink and the
+frames above it a step back, since the last line is the sentence that
+says what went wrong. The empty state says what Run will show.
+
+**The two ways forward from a failure.** Under the traceback, *Ask the
+agent* seeds the composer, never sends, with the `Fix` button's rule from
+§28: *Fix scripts/fig.py. I ran it from the editor and it failed with
+exit 1:*, a fenced block of the last forty lines of what the script said,
+clipped to four kilobytes, and *When it runs, say what you changed*, so
+the answer is something to read rather than a silent rewrite. The button
+is not drawn on an install with no agent, the way the selection verbs are
+not. *Install seaborn* appears when the traceback named a missing module,
+and it takes two presses: the first turns it into *Yes, install seaborn*
+and says beside it that this downloads from PyPI and runs the package's
+installer, then runs the script again. The README's list of what leaves
+this machine names the button as the second press that reaches
+`pypi.org`. When the agent rewrites a script whose failed run is on
+screen, a line says so and offers *Run again*; the pane never reruns on
+its own, because the agent's runs pass the permission fence with the
+script as the card's text and a rerun from here of code the agent just
+wrote would not.
+
+**The run itself is the agent's run.** Both go through `ScriptRuns` on
+the session, so a figure the agent drew appears in the pane too, and the
+mechanics, the runner that captures figures, the flush before the run,
+the events and the kept result, are in `docs/architecture.md`. One thing
+is worth saying here: the shared documents are flushed before every run,
+because the disk trails the editor by the debounce and a writer who
+changes an axis label and presses Run within a tenth of a second would
+otherwise have run the old script and read the old figure with no way to
+tell.
+
+**Deliberately not done.** Streaming stdout while a script runs, since
+the compile does not stream its log either and a result at the end fits
+the two minute bound. Running on save or on an agent edit, for the fence
+reason above. Figures as SVG beside the PNG. A `run_script` tool for the
+agent that reruns by name without rewriting, and OpenAI-provider parity
+for the plot tools, which was already absent. All four are in
+`TRACKER.md` with their reasons.

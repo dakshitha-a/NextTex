@@ -250,6 +250,24 @@ export function PlusIcon() {
   );
 }
 
+/** A run mark, and its stop.  The same triangle the file tree draws on a
+ *  script's sheet, so the row, the control and the tab say one thing. */
+export function RunIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M2 1.2v7.6L8.4 5z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function StopIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** One chevron drawing, so the app speaks one language of arrows. */
 export function Chevron({
   direction = "left",

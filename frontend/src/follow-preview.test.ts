@@ -64,3 +64,13 @@ describe("followDecision", () => {
     expect(followDecision(null, previews, "esi.tex", owners)).toEqual({ kind: "none" });
   });
 });
+
+test("a script is its own answer: the pane shows its last run", () => {
+  expect(followDecision("scripts/fig.py", ["main.tex"], "main.tex", {})).toEqual({
+    kind: "script", path: "scripts/fig.py",
+  });
+  // A style sheet or a dataset beside it is nothing to preview.
+  expect(followDecision("scripts/plotstyle.mplstyle", ["main.tex"], "main.tex", {})).toEqual({
+    kind: "none",
+  });
+});

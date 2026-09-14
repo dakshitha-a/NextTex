@@ -207,6 +207,27 @@ export type UpdateReport = {
 };
 
 /** What can be previewed in a project, and which document reads what. */
+/** What one run of a script did.  `stopped` is a run the writer ended or
+ *  a later run replaced; `missing` names the package a bad import wanted,
+ *  when it did. */
+export type ScriptResult = {
+  script: string;
+  run: number;
+  by: "writer" | "agent";
+  ok: boolean;
+  code: number;
+  out: string;
+  err: string;
+  clipped?: boolean;
+  missing?: string;
+  timeout?: boolean;
+  stopped?: boolean;
+  duration_ms?: number;
+  figures: string[];
+  saved: string[];
+  started?: number;
+};
+
 export type DocumentsPayload = {
   previews: string[];
   candidates: string[];
@@ -517,6 +538,28 @@ const api = {
       json({ file, line, column, selection, preview }),
     ),
   symbols: (id: string) => request<Symbols>(`/projects/${id}/symbols`),
+
+  /** Run a script from the source pane.  The answer is the same shape the
+   *  `script_done` event carries, so a window that asked and one that
+   *  only listened hold the same thing. */
+  runScript: (id: string, path: string) =>
+    request<ScriptResult>(`/projects/${id}/scripts/run`, json({ path })),
+  stopScript: (id: string, path: string) =>
+    request<{ ok: true; stopped: boolean }>(`/projects/${id}/scripts/stop`, json({ path })),
+  /** What the script did the last time it ran here; 404 when it never has. */
+  lastScriptRun: (id: string, path: string) =>
+    request<ScriptResult & { running: boolean }>(
+      `/projects/${id}/scripts/last?path=${encodeURIComponent(path)}`,
+    ),
+  /** One figure the last run drew.  Stamped with the run so a rerun that
+   *  writes the same name is fetched again. */
+  scriptFigureUrl: (id: string, path: string, name: string, run: number) =>
+    `/api/projects/${id}/scripts/figure?path=${encodeURIComponent(path)}` +
+    `&name=${encodeURIComponent(name)}&run=${run}`,
+  /** Install the package a failed run said was missing.  Reaches PyPI,
+   *  which is why the pane asks first. */
+  installForScript: (id: string, name: string) =>
+    request<{ ok: boolean; err: string }>(`/projects/${id}/scripts/install`, json({ name })),
 
   history: (id: string, path: string) =>
     request<{ path: string; versions: Version[] }>(
