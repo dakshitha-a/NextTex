@@ -1011,10 +1011,16 @@ const api = {
     ),
   signOut: () => request<{ ok: true }>("/logout", { method: "POST" }),
 
-  downloadUrl: (id: string, options: { path?: string; format?: string } = {}) => {
+  downloadUrl: (
+    id: string,
+    options: { path?: string; format?: string; document?: string } = {},
+  ) => {
     const params = new URLSearchParams();
     if (options.path) params.set("path", options.path);
     if (options.format) params.set("format", options.format);
+    // Which previewed document's PDF; empty is the main one, which is what
+    // every caller written before there were several sent.
+    if (options.document) params.set("document", options.document);
     const query = params.toString();
     return `/api/projects/${id}/download${query ? `?${query}` : ""}`;
   },

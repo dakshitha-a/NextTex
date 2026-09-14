@@ -1,6 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { useDismiss } from "../useDismiss";
+import { toShell, viewportHeight, viewportWidth } from "../viewport";
+import { focusFirst, walkMenu } from "./menu-keys";
+import {
+  HiddenTabs, useFollowActive, useHiddenTabs, useWheelScroll,
+} from "./tab-overflow";
 
 /** The documents being previewed, as tabs.
  *
@@ -12,6 +17,10 @@ import { useDismiss } from "../useDismiss";
  *  What is different is that one tab cannot be closed. The main document is
  *  what the project is, and a preview strip with nothing in it would be a
  *  pane with no way to get anything back into it.
+ *
+ *  The right-click menu is the source strip's too, minus Duplicate, which
+ *  is about a file and not a build, plus Download PDF, which is about a
+ *  build and not a file.
  */
 
 const stem = (path: string) => path.split("/").pop() ?? path;
@@ -25,10 +34,16 @@ function middleTruncate(name: string, limit: number): string {
 export default function PreviewTabs({
   onSelect,
   onClose,
+  onCloseMany,
+  onDownload,
   onAdd,
 }: {
   onSelect: (path: string) => void;
   onClose: (path: string) => void;
+  /** Stop previewing several at once: "the others" or "all", never the
+   *  main document, which the caller keeps out of the list. */
+  onCloseMany: (paths: string[]) => void;
+  onDownload: (path: string) => void;
   onAdd: (path: string) => void;
 }) {
   const previews = useStore((s) => s.previews);
@@ -41,6 +56,27 @@ export default function PreviewTabs({
   const menu = useRef<HTMLDivElement | null>(null);
   const plus = useRef<HTMLButtonElement | null>(null);
   useDismiss(menu, open, () => setOpen(false), plus);
+
+  const strip = useRef<HTMLDivElement | null>(null);
+  const hidden = useHiddenTabs(strip, previews.length);
+  useWheelScroll(strip, previews.length);
+  useFollowActive(strip, active);
+
+  // The right-click menu, on the tab in front only, for the reason the
+  // source strip gives: its items are about the document being read, and
+  // a menu on a tab that is not in front would have to say which one.
+  const [tabMenu, setTabMenu] = useState<{ path: string; x: number; y: number } | null>(
+    null,
+  );
+  const tabMenuRef = useRef<HTMLDivElement | null>(null);
+  const closeTabMenu = useCallback(() => setTabMenu(null), []);
+  useDismiss(tabMenuRef, tabMenu !== null, closeTabMenu);
+  useEffect(() => {
+    if (tabMenu && !previews.includes(tabMenu.path)) setTabMenu(null);
+  }, [tabMenu, previews]);
+  const main = previews[0];
+  const others = previews.filter((path) => path !== main && path !== tabMenu?.path);
+  const extras = previews.filter((path) => path !== main);
 
   // Nothing to draw for a project with one document: a strip of one tab is
   // a label pretending to be a control.
@@ -55,7 +91,11 @@ export default function PreviewTabs({
       {solo ? (
         <span className="t-ui-lg shrink-0 select-none pl-1 font-serif text-ink">Preview</span>
       ) : (
-        <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
+        <div
+          ref={strip}
+          data-testid="preview-strip"
+          className="no-scrollbar flex min-w-0 flex-1 items-center overflow-x-auto"
+        >
           {previews.map((path) => {
             const showing = path === active;
             const build = builds[path];
@@ -65,7 +105,7 @@ export default function PreviewTabs({
                 data-preview-tab="1"
                 data-path={path}
                 className={[
-                  "relative flex h-[32px] min-w-[96px] max-w-[200px] shrink-0 items-center",
+                  "relative flex h-[32px] min-w-[72px] max-w-[200px] basis-[200px] shrink items-center",
                   "gap-2 border-r border-line pr-[10px]",
                   showing
                     ? "bg-surface"
@@ -76,6 +116,15 @@ export default function PreviewTabs({
                     event.preventDefault();
                     onClose(path);
                   }
+                }}
+                onContextMenu={(event) => {
+                  if (!showing) return;
+                  event.preventDefault();
+                  setTabMenu({
+                    path,
+                    x: Math.min(toShell(event.clientX), viewportWidth() - 224),
+                    y: Math.min(toShell(event.clientY), viewportHeight() - 120),
+                  });
                 }}
               >
                 {showing ? (
@@ -120,6 +169,64 @@ export default function PreviewTabs({
           })}
         </div>
       )}
+      {solo ? null : (
+        <HiddenTabs
+          hidden={hidden}
+          label="previewed"
+          name={(path) => stem(path).replace(/\.(tex|ltx)$/i, "")}
+          testId="preview-hidden"
+          onPick={onSelect}
+        />
+      )}
+      {tabMenu ? (
+        <div
+          ref={(node) => {
+            tabMenuRef.current = node;
+            focusFirst(node);
+          }}
+          role="menu"
+          data-testid="preview-tab-menu"
+          // Fixed, not absolute: the strip is `overflow-x-auto`, and an
+          // absolute menu would be clipped by it.
+          className="nx-furniture nx-arrive fixed z-40 w-[220px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
+          style={{ left: tabMenu.x, top: tabMenu.y }}
+          onKeyDown={(event) => walkMenu(event, closeTabMenu)}
+        >
+          {[
+            // "The others" with nothing else to stop, and "all" with only
+            // the main document open, can have nothing to do, and an item
+            // that explains itself by doing nothing is worse than one that
+            // says so first.
+            { key: "others", label: "Stop previewing the others", off: others.length === 0,
+              run: () => onCloseMany(others) },
+            { key: "all", label: "Stop previewing all", off: extras.length === 0,
+              run: () => onCloseMany(extras) },
+            { key: "rule", label: "", off: false, run: () => undefined },
+            { key: "download", label: "Download PDF", off: false,
+              run: () => onDownload(tabMenu.path) },
+          ].map((item) =>
+            item.key === "rule" ? (
+              <div key={item.key} className="my-1 border-t border-line" />
+            ) : (
+              <button
+                key={item.key}
+                role="menuitem"
+                className="t-ui block w-full px-3 py-[3px] text-left text-ink focus:bg-hint-wash disabled:opacity-40"
+                disabled={item.off}
+                onPointerMove={(event) => {
+                  if (event.movementX || event.movementY) event.currentTarget.focus();
+                }}
+                onClick={() => {
+                  setTabMenu(null);
+                  item.run();
+                }}
+              >
+                {item.label}
+              </button>
+            ),
+          )}
+        </div>
+      ) : null}
 
       {candidates.length ? (
         <div className="relative shrink-0">
@@ -142,17 +249,31 @@ export default function PreviewTabs({
           </button>
           {open ? (
             <div
-              ref={menu}
+              ref={(node) => {
+                menu.current = node;
+                focusFirst(node);
+              }}
               role="menu"
               data-testid="preview-menu"
-              className="absolute right-0 top-[24px] z-40 w-[200px] rounded-[3px] border border-line bg-surface-2 py-1 shadow-[var(--float)]"
+              // Furniture, like the other menus, and it keeps the role's
+              // promise now: focus on open, arrow keys, Escape back to
+              // the button.
+              className="nx-furniture nx-arrive absolute right-0 top-[24px] z-40 w-[220px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
+              onKeyDown={(event) => {
+                if (walkMenu(event, () => setOpen(false)) && event.key === "Escape") {
+                  plus.current?.focus();
+                }
+              }}
             >
               {candidates.map((path) => (
                 <button
                   key={path}
                   role="menuitem"
                   title={path}
-                  className="t-ui block w-full truncate px-3 py-[3px] text-left text-ink-2 hover:bg-surface-3 hover:text-ink"
+                  className="t-ui block w-full truncate px-3 py-[3px] text-left text-ink focus:bg-hint-wash"
+                  onPointerMove={(event) => {
+                    if (event.movementX || event.movementY) event.currentTarget.focus();
+                  }}
                   onClick={() => {
                     setOpen(false);
                     onAdd(path);

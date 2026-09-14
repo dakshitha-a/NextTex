@@ -67,7 +67,7 @@ from nexttex.project import (
 from nexttex.symbols import walk_project
 from nexttex import deps, lint_explain, search, updates
 from nexttex.install.ui import child_env
-from server.session import CLOSED, ProjectSession, spawn
+from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
 log = logging.getLogger("nexttex.server")
 
@@ -3126,13 +3126,22 @@ async def distill_context(project_id: str, kind: str = Body(..., embed=True)):
 
 
 @app.get("/api/projects/{project_id}/download")
-async def download(project_id: str, path: str = "", format: str = "auto"):
+async def download(
+    project_id: str, path: str = "", format: str = "auto", document: str = "",
+):
     """Take a copy away: one file, a folder, the whole project, or its PDF.
 
     This works whether or not the project is open, because the moment a user
     most wants a copy is often from the project list -- about to archive
     something, or to send the PDF to a supervisor -- and having to open a
     project first would be a step for nothing.
+
+    `document` names one of the previewed documents when the PDF wanted is
+    not the main one; it is a name in the session's registry, never a path
+    on disk, and a name the registry does not know means the main document,
+    which is what an empty name always meant.  The file is then named after
+    the document rather than the project, because a supplementary document
+    sent to a supervisor under the thesis's name is the wrong attachment.
     """
     session = SESSIONS.get(project_id)
     project = session.project if session else REGISTRY.find(project_id)
@@ -3140,11 +3149,14 @@ async def download(project_id: str, path: str = "", format: str = "auto"):
         raise HTTPException(404, "unknown project")
 
     if format == "pdf":
-        pdf = await _project_pdf(project, session)
-        return FileResponse(
-            pdf, media_type="application/pdf",
-            filename=f"{project.config.name}.pdf",
+        state = session.document_for(document) if session and document else None
+        secondary = state is not None and state is not session.main_document
+        pdf = await _project_pdf(project, session, state if secondary else None)
+        name = (
+            Path(state.path).stem if secondary and state is not None
+            else project.config.name
         )
+        return FileResponse(pdf, media_type="application/pdf", filename=f"{name}.pdf")
 
     try:
         target = project.resolve(path) if path else project.root
@@ -3240,20 +3252,33 @@ def _source_newer_than(project: Project, stamp: float) -> bool:
     return False
 
 
-async def _project_pdf(project: Project, session: ProjectSession | None) -> Path:
+async def _project_pdf(
+    project: Project,
+    session: ProjectSession | None,
+    document: DocumentState | None = None,
+) -> Path:
     """The project's rendered PDF, built first if it is missing or stale.
 
     A download has to be the current document.  The preview PDF on disk may
     have been produced by a scoped fast build covering one chapter, so any
     build done here is a full one.
-    """
-    paths = ProjectPaths(
-        root=project.root, main=project.main, build_dir=project.build_dir
-    )
-    if not project.main.is_file():
-        raise HTTPException(400, f"no main file at {project.config.main}")
 
-    scheduler = session.compiler if session else CompileScheduler(paths)
+    `document` is a previewed document other than the main one; its paths
+    and its scheduler are the ones to use, since each document builds into
+    its own jobname and keeps its own idea of whether the PDF is whole.
+    """
+    if document is not None:
+        paths = document.paths
+        if not paths.main.is_file():
+            raise HTTPException(400, f"no document at {document.path}")
+        scheduler = document.compiler
+    else:
+        paths = ProjectPaths(
+            root=project.root, main=project.main, build_dir=project.build_dir
+        )
+        if not project.main.is_file():
+            raise HTTPException(400, f"no main file at {project.config.main}")
+        scheduler = session.compiler if session else CompileScheduler(paths)
     # Only a full build produces a PDF worth handing over; the preview on
     # disk is often one chapter.
     fresh = paths.pdf.is_file() and scheduler.pdf_is_complete()
