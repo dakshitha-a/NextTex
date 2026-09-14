@@ -201,6 +201,24 @@ def test_a_new_file_and_a_new_folder(client, opened, project_dir):
     assert again.status_code == 409
 
 
+def test_a_new_file_is_in_the_shared_manifest_before_the_route_answers(client, opened):
+    """The browser opens a file it just created straight away, and gives up
+    after eight seconds if the manifest does not name it, falling back to a
+    read-only pane.  The manifest used to learn of the file from the disk
+    watcher, whose poll and debounce and socket round trip exceeded that
+    on a loaded machine; now the route puts it there itself."""
+    from server import main as server_main
+
+    client.post(f"/api/projects/{opened['id']}/file/new",
+                json={"path": "chapters/two.tex"})
+    session = server_main.SESSIONS[opened["id"]]
+    assert session.collab.file_id_for("chapters/two.tex") is not None
+
+    client.post(f"/api/projects/{opened['id']}/file/new",
+                json={"path": "figures", "directory": True})
+    assert session.collab.file_id_for("figures") is None
+
+
 def test_the_tree_hides_what_it_should(client, opened, project_dir):
     (project_dir / "build").mkdir(exist_ok=True)
     (project_dir / "build" / "main.pdf").write_bytes(b"%PDF")

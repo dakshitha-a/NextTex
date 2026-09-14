@@ -112,6 +112,8 @@ An edit reaching the disk measures at 3.1 ms on a thesis-shaped project, of whic
 
 **Copying a file is a fourth path, and it has to start by closing the second one.** `POST /api/projects/{id}/file/duplicate` flushes every dirty shared document before it copies anything, because the file on disk trails the document by the 120 millisecond debounce and a copy taken without that would hold the chapter as it was rather than as it is, with nothing on screen to say which of the two the writer had got. The name is chosen on the server by `unique_name`, the same rule the trash restores through and the upload chooser quotes back, and the route answers with the name it picked rather than accepting one. It publishes its own `files_changed`; the watcher would find the new file eventually and in a batch, so this is what makes the copy appear in the same beat the menu item was clicked in, for every tab and every collaborator.
 
+**Creating a file is the same shape.** `POST /api/projects/{id}/file/new` touches the file and then ingests it into the manifest itself, before it answers. The browser opens a file it just made the moment the route returns, and `waitForFile` in `collab.ts` gives it eight seconds to appear in the manifest before falling back to a read-only pane and a toast about reloading. The manifest used to learn of the file only from the watcher, whose poll, debounce and socket round trip were exceeding that on a loaded machine; a Playwright spec that types into a new file was flaky for exactly this reason. The watcher's own ingest, when it comes, diffs and finds nothing to do.
+
 ## Compiling
 
 Every subscriber is told the state before it is told the news. The event
