@@ -85,6 +85,23 @@ test("a word the writer accepts stops being underlined, for good", async ({
   await expect(marked(tab)).toHaveCount(0);
 });
 
+test("spell checking comes back after a reload without being asked again", async ({ tab }) => {
+  // The setting survived a reload and the checker did not.  Every fresh
+  // editor state starts with an empty spelling compartment, and after a
+  // reload the setting and the word list had both settled before the file
+  // finished opening, so nothing re-ran the effect that fills it: the
+  // sheet said on, the page marked nothing, and only switching it off and
+  // on again brought the underlines back.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await type(tab, "The results are wiht the calculation.");
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+
+  await tab.reload();
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(marked(tab)).toHaveText(["wiht"], { timeout: 20_000 });
+});
+
 test("turning it off takes every mark away", async ({ tab }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
   await turnOn(tab);
@@ -231,3 +248,130 @@ test("a word added by mistake can be taken back", async ({ tab }) => {
 
   await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
 });
+
+/** The menu's look, which is a furniture card like every other menu.
+ *
+ *  It used to follow the page: painted in the editor's own --surface-2,
+ *  which on a white page is one step from white.  The writer's report was
+ *  that on every light ground it blended into the page, its hovered and
+ *  focused row could not be seen, and it did not look like the app's other
+ *  menus.  So now it is the dark card those menus are, on every ground.
+ */
+const luminance = (colour: string) => {
+  const [r, g, b] = colour.match(/[\d.]+/g)!.slice(0, 3).map(Number);
+  const lin = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+};
+const settled = (el: Element) =>
+  Promise.all(el.getAnimations().map((a) => a.finished)).then(() => undefined);
+const background = (el: Element) => getComputedStyle(el).backgroundColor;
+
+async function openMenuOn(tab: Page, sentence: string) {
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await type(tab, sentence);
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+  await marked(tab).first().click({ button: "right" });
+  const menu = tab.getByTestId("spelling-menu");
+  await menu.waitFor();
+  await menu.evaluate(settled);
+  return menu;
+}
+
+for (const ground of [
+  { theme: "light", editor: "white" },
+  { theme: "light", editor: "match" },
+  { theme: "dark", editor: "white" },
+]) {
+  test(`the menu is a dark card on a light page (${ground.theme} shell, ${ground.editor} page)`, async ({
+    tab,
+  }) => {
+    await tab.getByTestId("appearance").first().click();
+    await tab.getByTestId(`theme-${ground.theme}`).click();
+    await tab.getByTestId(`editor-theme-${ground.editor}`).click();
+    await tab.keyboard.press("Escape");
+    const menu = await openMenuOn(tab, "The results are recieved today.");
+
+    const card = luminance(await menu.evaluate(background));
+    const text = luminance(
+      await menu.getByRole("menuitem").first().evaluate((el) => getComputedStyle(el).color),
+    );
+    expect(card, "the card is not dark").toBeLessThan(0.2);
+    expect(text, "the text is not light").toBeGreaterThan(0.5);
+    // And the page behind it is light, which is the whole point.
+    const page = luminance(await tab.locator(".cm-editor").evaluate(background));
+    expect(page).toBeGreaterThan(0.5);
+  });
+}
+
+test("the current row is visible from the moment the menu opens", async ({ tab }) => {
+  await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("theme-light").click();
+  await tab.keyboard.press("Escape");
+  const menu = await openMenuOn(tab, "The results are recieved today.");
+  const items = menu.getByRole("menuitem");
+  // A row at rest paints nothing of its own; the card shows through.
+  const rest = "rgba(0, 0, 0, 0)";
+
+  // Focus is placed programmatically after a mouse gesture, which no
+  // browser paints as focus-visible, so the row has to paint itself.
+  await expect(items.first()).toBeFocused();
+  expect(await items.first().evaluate(background)).not.toBe(rest);
+  expect(await items.nth(1).evaluate(background)).toBe(rest);
+
+  await tab.keyboard.press("ArrowDown");
+  expect(await items.first().evaluate(background)).toBe(rest);
+  expect(await items.nth(1).evaluate(background)).not.toBe(rest);
+
+  // The pointer and the keyboard move the same highlight: hovering the
+  // last item is what a person does before clicking it, and two lit rows
+  // would say two things are about to happen.
+  await items.last().hover();
+  await expect(items.last()).toBeFocused();
+  expect(await items.nth(1).evaluate(background)).toBe(rest);
+  expect(await items.last().evaluate(background)).not.toBe(rest);
+});
+
+test("the menu opens upwards near the foot of the pane", async ({ tab }) => {
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  // Enough lines that the last one sits at the foot of the pane, and a
+  // misspelling on it.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+a");
+  await tab.keyboard.type("A line.\n".repeat(60) + "The results are recieved today.\n");
+  await tab.keyboard.press("Control+End");
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+  // Scroll so the misspelled line is the last visible one.
+  await marked(tab).first().evaluate((el) => el.scrollIntoView({ block: "end" }));
+  await marked(tab).first().click({ button: "right" });
+  const menu = tab.getByTestId("spelling-menu");
+  await menu.waitFor();
+  await menu.evaluate(settled);
+  const box = (await menu.boundingBox())!;
+  const host = (await tab.locator(".cm-editor").boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(host.y + host.height + 1);
+  expect(box.y).toBeGreaterThanOrEqual(host.y - 1);
+});
+
+test("the menu opens beside the word at a larger interface size", async ({ tab }) => {
+  // The pointer position is read in viewport pixels and the menu's `left`
+  // is written inside the zoomed shell, and at 100% nobody can tell the two
+  // apart.  At 150% a menu placed from the raw reading opened half again
+  // as far from the word as the pointer was.
+  await tab.evaluate(() => window.localStorage.setItem("nexttex.ui.scale", "150"));
+  await tab.reload();
+  const menu = await openMenuOn(tab, "The results are recieved today.");
+  const word = (await marked(tab).first().boundingBox())!;
+  const box = (await menu.boundingBox())!;
+  // Within the word's own width to the right of where it starts, and just
+  // below it: the pointer landed in its middle.
+  expect(box.x).toBeGreaterThanOrEqual(word.x - 2);
+  expect(box.x).toBeLessThanOrEqual(word.x + word.width + 2);
+  expect(box.y).toBeGreaterThanOrEqual(word.y - 2);
+  expect(box.y).toBeLessThanOrEqual(word.y + word.height + 2);
+});
+

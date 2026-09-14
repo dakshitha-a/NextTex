@@ -3149,11 +3149,14 @@ The mechanism is one selector added to the dark block:
 
 ```css
 :root[data-theme="dark"],
-:root[data-theme="light"] .nx-furniture,
+.nx-furniture,
 .nx-theme-dark { ... }
 ```
 
-and nothing else. This works because `@theme inline` keeps the `var()`
+and nothing else. The furniture selector was keyed on the light root at
+first; §32 made it the bare class, because furniture is dark in every
+shell and the keyed form missed a card inside a lit editor under a dark
+root. This works because `@theme inline` keeps the `var()`
 indirection inside every compiled Tailwind utility, `bg-surface` in the
 bundle is `background-color: var(--surface)`, so a container that
 redeclares the palette repaints everything inside it with no component
@@ -4005,6 +4008,8 @@ The suite was green, the browser tier was green, and then the interface was phot
 The verb row over a selection takes the editor's palette rather than the furniture's, so in the light theme it is a light card on a lit page. Section 23 says every floating card takes the dark palette while the theme is light, and by the letter of that this is a deviation.
 
 It is deliberate, and the precedent is already in the build: the spelling menu is the only other thing that floats *inside* the editor pane, and it is light there too. The rule in section 23 is about the furniture, and the argument under it is that the page must stay the brightest object on screen. A dark card dropped on a lit page does not serve that argument, it reads as a hole punched in the page, which is the same complaint section 23 makes about the dark theme's PDF needing a shadow. So the rule holds for everything floating over the chrome, and the two things that float over the page follow the page.
+
+Reversed in §32, at the writer's request: on a white page the light card was the hole, and the two are furniture now.
 
 ### The worst thing in the run, found by reading the record rather than testing it
 
@@ -5656,4 +5661,65 @@ The browser tests measure the innermost span, which is a detail worth
 writing down: a family mark and the token inside it are two nested spans
 over the same characters, and the weight and colour that show are the inner
 one's, so a computed style read off the mark says nothing.
+
+### The spelling menu is furniture after all
+
+§28 recorded, under "One thing looking found and left alone", that the
+spelling menu and the selection verb row were the two things floating over
+the page that deliberately followed the page: a dark card dropped on a lit
+page would read as a hole punched in it. The writer's report was the
+opposite, and it was about every light ground at once: the menu blended
+into the page, the hovered and focused row could not be seen, the text
+read faint, and it did not look like the app's other menus. On a white
+page the argument had inverted itself. `--surface-2` is one step from the
+paper there, so the pale card was the hole, and a menu that is the only
+pale card in an app whose every other menu is dark furniture reads as
+unfinished rather than as considered.
+
+Both cards are furniture now, with the downloads menu's recipe. Three
+things came with the change:
+
+- **The furniture selector is the bare class.** It was keyed on the light
+  root, `:root[data-theme="light"] .nx-furniture`, and that missed one
+  case: a card inside an editor host carrying `.nx-theme-light` under a
+  dark root, a white page in a dark shell. The root did not match, the
+  host's class won, and the menu came out pale on pale. Under a dark root
+  the bare class changes nothing. `contrast.test.ts` measures the block by
+  its selectors, so the list there moved with it.
+- **The current row paints itself.** The first item is focused by script
+  the moment the menu opens, after a mouse gesture, and no browser paints
+  that as visible focus. So the row is lit on `:focus` rather than only
+  `:focus-visible`, in `--hint-wash`, the wash the completion list already
+  uses for the same reason. There is no `:hover` beside it: the pointer
+  moves the same focus, so hover and the keyboard row are one highlight,
+  which they were not the moment the menu opened under a pointer resting
+  on its second row. Only a pointer that moved, because Chrome replays a
+  move at the resting position after layout settles.
+- **It opens upwards at the foot of the pane.** The host clips, and a menu
+  opened on the last visible line put its one useful item below the pane.
+  Measured after mount rather than guessed.
+
+Two bugs the browser tests turned up while they were being written, both
+fixed in the same commit:
+
+- **Every re-render put focus back on the first row.** The menu's `ref`
+  was an inline arrow, which is a new function on every render, and React
+  calls a new ref with the node again. The word list arriving, or the
+  cursor readout changing, re-focused the first item a beat after an arrow
+  key had moved to the second. The ref is a callback keyed on the offer.
+- **Spell checking did not come back after a reload.** The setting
+  survived and the checker did not: every fresh editor state starts with
+  an empty spelling compartment, and after a reload the setting and the
+  word list had both settled before the file finished opening, so nothing
+  re-ran the effect that fills it. The sheet said on, the page marked
+  nothing, and only off-and-on brought the underlines back. The checker
+  is now re-applied after every buffer swap, from the same function the
+  effect uses. The screenshot spec for the underlines had been failing on
+  exactly this for some time, unnoticed because it is a look and not a
+  check.
+- **The menu opened away from the word at a larger interface size.** The
+  pointer position is read in viewport pixels and written as a style
+  inside the zoomed shell; at 150% the menu opened half again as far from
+  the word as the pointer was. Both routes go through `toShell` now, as
+  the tab strip's menu already did.
 

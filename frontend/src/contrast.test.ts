@@ -176,7 +176,7 @@ const MEASURED = [
   ":root",
   ".nx-theme-light",
   ':root[data-theme="dark"]',
-  ':root[data-theme="light"] .nx-furniture',
+  ".nx-furniture",
   ".nx-theme-dark",
   ".nx-theme-white",
   ".nx-theme-warm",
