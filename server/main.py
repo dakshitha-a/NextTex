@@ -3680,6 +3680,21 @@ async def synctex_forward(
         synctex.source_to_pdf,
         state.paths.pdf, target, line, session.project.root, column,
     )
+    # A scoped build compiled the stand-in main file, and its .synctex.gz
+    # names that and never the real one, so asking about main.tex answered
+    # nothing for the whole of a chapter-scoped session.  Asked first and
+    # fallen back to rather than decided by the shadow's presence: the
+    # shadow stays on disk after a later full build whose map does not
+    # know it.  The line moves down past the directive the shadow inserted.
+    shadow = state.paths.shadow
+    if not positions and target == state.paths.main and shadow.is_file():
+        shifted = synctex.to_shadow_line(
+            line, synctex.shadow_shift(shadow, state.paths.main)
+        )
+        positions = await asyncio.to_thread(
+            synctex.source_to_pdf,
+            state.paths.pdf, shadow, shifted, session.project.root, column,
+        )
     return {"positions": [
         {"page": p.page, "x": p.x, "y": p.y, "width": p.width, "height": p.height}
         for p in positions

@@ -112,6 +112,60 @@ def _normalise(raw: str, project_root: Path) -> Path:
 # is overwritten on the next compile.
 GENERATED_SUFFIXES = {".toc", ".lof", ".lot", ".aux", ".bbl", ".out", ".ind", ".nav"}
 
+_INCLUDEONLY = re.compile(r"^%?\s*\\includeonly\{[^}]*\}\s*$")
+
+
+def shadow_shift(shadow: Path, main: Path) -> int | None:
+    """The line the stand-in main file has that the real one does not.
+
+    `compile.write_shadow` scopes a build by writing a copy of the main file
+    with an `\includeonly` directive.  When the main file already has one
+    the directive is replaced in place and every line keeps its number; when
+    it does not, the directive is inserted on its own line after
+    `\documentclass`, and every line after it is one further down in the
+    shadow than in the file the writer has open.  synctex only ever saw the
+    shadow, so its line numbers for the main file were one too high in that
+    case, for both directions of the search.
+
+    Returns the 1-based line of the inserted directive, or None when nothing
+    was inserted, decided by comparing the two files rather than by
+    remembering what the last build did: the shadow stays on disk after a
+    later full build, and a build made outside NextTex never wrote one.
+    """
+    try:
+        ours = shadow.read_text(encoding="utf-8", errors="replace").split("\n")
+        theirs = main.read_text(encoding="utf-8", errors="replace").split("\n")
+    except OSError:
+        return None
+    if len(ours) != len(theirs) + 1:
+        return None
+    for index, (mine, real) in enumerate(zip(ours, theirs)):
+        if mine != real:
+            break
+    else:
+        index = len(theirs)
+    if not _INCLUDEONLY.match(ours[index]):
+        return None
+    if ours[:index] + ours[index + 1:] != theirs:
+        return None
+    return index + 1
+
+
+def to_main_line(line: int, shift: int | None) -> int:
+    """A shadow line as a main-file line: one up past the inserted directive.
+    The directive's own line, which nothing the writer typed produced, maps
+    to the line before it."""
+    if shift is None or line < shift:
+        return line
+    return max(1, line - 1)
+
+
+def to_shadow_line(line: int, shift: int | None) -> int:
+    """A main-file line as a shadow line, the other way round."""
+    if shift is None or line < shift:
+        return line
+    return line + 1
+
 
 def pdf_to_source(
     pdf: Path,
@@ -151,11 +205,12 @@ def pdf_to_source(
             return None
         if shadow_main is not None and main_file is not None:
             try:
-                if path.samefile(shadow_main):
-                    path = main_file
+                is_shadow = path.samefile(shadow_main)
             except OSError:
-                if path == shadow_main:
-                    path = main_file
+                is_shadow = path == shadow_main
+            if is_shadow:
+                path = main_file
+                line = to_main_line(line, shadow_shift(shadow_main, main_file))
 
         column = block.get("Column")
         return SourcePosition(
