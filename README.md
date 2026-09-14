@@ -426,7 +426,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 823.8 kB | 860 kB |
+| Interface bundle | 824.3 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -995,6 +995,8 @@ there, and somebody would have to invite you back.
 | Wheel, over either tab strip | Scroll across the tabs; the count at the end lists the ones out of sight |
 | Right-click, on the preview tab in front | Stop previewing the others or all, or download that document's PDF |
 | `⌘⌥W` / `Ctrl-Alt-W` | Close the tab in front |
+| `⌘⌥R` / `Ctrl-Alt-R` | Reading mode: the page fills the window; again puts your layout back |
+| `⌘⌥E` / `Ctrl-Alt-E` | Writing mode: the source and the file list fill the window; again puts it back |
 | `⌘⌥⇧T` / `Ctrl-Alt-Shift-T` | Reopen the tab you just closed |
 | `F8`, `Shift-F8` | Next and previous error |
 | `⌘`-click / `Ctrl`-click, on a `\ref` or `\input` | Go to the label, or open the file |

@@ -199,6 +199,12 @@ export default function Tutorial({
             tab. Writing mode keeps the file list open, because somebody
             writing is still moving between chapters.
           </P>
+          <P>
+            Both modes have a key as well, for when the strip is full of
+            tabs and there is nothing left to double-click: <C>⌘⌥R</C> for
+            reading and <C>⌘⌥E</C> for writing, and the same key again puts
+            your layout back.
+          </P>
           <Figure
             light={tabStripLight}
             dark={tabStripDark}
