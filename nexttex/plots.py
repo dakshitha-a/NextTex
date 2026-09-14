@@ -110,6 +110,17 @@ def environment(state_dir: Path) -> dict[str, str]:
     return env
 
 
+def _kill(process: asyncio.subprocess.Process) -> None:
+    """End the run and everything it started."""
+    try:
+        os.killpg(os.getpgid(process.pid), 9)
+    except (OSError, ProcessLookupError):
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
+
+
 def _clip(raw: bytes) -> tuple[str, bool]:
     text = raw.decode("utf-8", errors="replace")
     if len(text) <= OUTPUT_LIMIT:
@@ -126,6 +137,11 @@ async def run(root: Path, state_dir: Path, path: Path) -> dict:
             str(path),
             cwd=str(root),
             env=environment(state_dir),
+            # Nothing to read.  Left to inherit, stdin was the server's
+            # own, so an `input()` in a script sat waiting on a terminal
+            # nobody was at until the timeout stopped it two minutes later.
+            # Closed, it raises EOFError at once, which is an answer.
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             # So the whole group can be killed: a script that starts a child
@@ -137,11 +153,16 @@ async def run(root: Path, state_dir: Path, path: Path) -> dict:
 
     try:
         out, err = await asyncio.wait_for(process.communicate(), TIMEOUT)
+    except asyncio.CancelledError:
+        # The task awaiting this run was cancelled, which is what a stop
+        # button and a rerun of the same script both do.  Without this the
+        # interpreter kept running to its timeout as an orphan of nobody,
+        # holding whatever file it was writing.
+        _kill(process)
+        await process.wait()
+        raise
     except asyncio.TimeoutError:
-        try:
-            os.killpg(os.getpgid(process.pid), 9)
-        except (OSError, ProcessLookupError):
-            process.kill()
+        _kill(process)
         await process.wait()
         return {
             "ok": False,

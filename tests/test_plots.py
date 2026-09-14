@@ -171,6 +171,71 @@ def test_a_script_that_never_returns_is_stopped(tmp_path, monkeypatch):
     assert "still running" in said(result)
 
 
+def test_a_script_that_asks_for_input_is_answered_at_once(tmp_path, monkeypatch):
+    """Left to inherit, stdin was the server's own, and an `input()` sat
+    waiting on a terminal nobody was at until the timeout stopped it two
+    minutes later.  Closed, it raises EOFError in the script at once."""
+    monkeypatch.setattr(plots, "TIMEOUT", 3.0)
+    subject = agent(tmp_path)
+    # Under pytest stdin is already closed, so the fault would not show.
+    # Give this process a stdin somebody could type into, held open and
+    # never written, which is what a server started from a terminal has.
+    reader, writer = os.pipe()
+    saved = os.dup(0)
+    os.dup2(reader, 0)
+    try:
+        result = plot(subject, name="asks", script="input('name? ')\n")
+    finally:
+        os.dup2(saved, 0)
+        os.close(saved)
+        os.close(reader)
+        os.close(writer)
+    assert "EOFError" in said(result)
+    assert "still running" not in said(result)
+
+
+def test_cancelling_a_run_ends_the_interpreter(tmp_path):
+    """A stop button and a rerun of the same script both cancel the task
+    awaiting the run.  The interpreter used to keep running to its timeout
+    as an orphan; now the cancellation kills the process group, and the
+    assertion is on the pid, not on the task having returned."""
+    script = tmp_path / "forever.py"
+    script.write_text(
+        "import os, sys, time\n"
+        "print(os.getpid(), flush=True)\n"
+        "time.sleep(30)\n",
+        encoding="utf-8",
+    )
+
+    async def scenario() -> int:
+        started: list[int] = []
+        original = asyncio.create_subprocess_exec
+
+        async def noting(*args, **kwargs):
+            process = await original(*args, **kwargs)
+            started.append(process.pid)
+            return process
+
+        asyncio.create_subprocess_exec = noting  # type: ignore[assignment]
+        try:
+            task = asyncio.ensure_future(plots.run(tmp_path, tmp_path / ".nexttex", script))
+            while not started:
+                await asyncio.sleep(0.02)
+            await asyncio.sleep(0.2)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        finally:
+            asyncio.create_subprocess_exec = original  # type: ignore[assignment]
+        return started[0]
+
+    pid = asyncio.run(scenario())
+    # The kill is delivered before the cancellation propagates, and the
+    # wait after it reaps the process, so by here the pid is gone.
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+
+
 # -- installing on demand ----------------------------------------------------
 @pytest.mark.parametrize("name", [
     "--index-url", "seaborn; curl evil", "../../etc", "", "-U", "a b",
