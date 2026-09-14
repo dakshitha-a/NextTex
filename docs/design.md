@@ -972,7 +972,9 @@ italic, arguments and literals `--ink-2`, and no hue is introduced: the
 rendered page sits two panes away and must stay the loudest object on screen.
 "A step above" was a flat 600 until the prose weight became a setting; it is
 `--nx-weight-strong` now, and in this mode weight is the only thing saying
-which of two words is a command.
+which of two words is a command. The weight is itself a setting since §32
+(Settings → Emphasis → Plain), and when it is off a command takes
+`--syn-command`, a quiet slate, so that the sentence above stays true.
 
 A per-machine setting (Settings → Highlighting → Colour) gives five families of
 control sequence a hue each: sectioning, environments, mathematics, citations
@@ -5622,4 +5624,36 @@ younger than 75 ms, and that clock restarts each time the list is refilled,
 which the last keystroke's query does after the list is already on screen.
 A person is slower than that. The test waits, with the reason beside it,
 because nothing in the DOM says the clock has run.
+
+### Emphasis is the other half of highlighting
+
+The writer asked for bolding to be its own setting, so that highlighting is
+two controls: colour (subtle or colour) and weight (bold commands or plain).
+Every command weight in the pane already resolved through one variable,
+`--nx-weight-strong`, derived on `.cm-editor` from the prose weight and the
+page's lift, so plain is one override on the editor host's class,
+`--nx-weight-strong: var(--nx-weight)`, and no second set of rules. The
+subtle look has the same shape, an absence rather than a reproduction.
+
+What plain could not be is only an absence. In the subtle look weight was
+the one thing telling `\section` from a word, and in the colour look it was
+what `\textbf`, `\label`, `\centering` and every other command outside the
+five families still had. So the writer's second instruction, that a plain
+command outside the families needs a fallback colour, is what makes the
+setting usable rather than a way to make the source unreadable. The colour
+is `--syn-command`, a low-chroma slate at the families' lightness on each
+palette: quiet enough to say "a command" and never "which kind", which is
+what a sixth hue would have said. `contrast.test.ts` holds it to the same
+4:1 floor against the page and the same fourteen L* from the prose as the
+families, and deliberately *below* their chroma floor, because low chroma is
+the point, with a floor of its own so it does not become a grey that reads
+as a disabled word. The HighlightStyle's keyword colour became a variable
+with the ink as its fallback so the pane can hand it that colour; the
+family rules still win over it for the five families because they colour
+the inner span.
+
+The browser tests measure the innermost span, which is a detail worth
+writing down: a family mark and the token inside it are two nested spans
+over the same characters, and the weight and colour that show are the inner
+one's, so a computed style read off the mark says nothing.
 

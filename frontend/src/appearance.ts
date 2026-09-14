@@ -43,6 +43,15 @@ export const EDITOR_GROUNDS: EditorTheme[] = [
  *  skimmable for the shape of the document rather than its words. */
 export type SyntaxMode = "subtle" | "colour";
 
+/** Whether a control sequence is set heavier than the prose around it.
+ *
+ *  `bold` is what the editor always did and stays the default: in the
+ *  subtle look weight is the one thing that tells `\section` from a word.
+ *  `plain` sets commands at the prose's own weight, for a writer who finds
+ *  a page of bold backslashes loud; a plain command then takes a quiet
+ *  colour instead, or it would vanish into the sentence. */
+export type Emphasis = "bold" | "plain";
+
 /** How many device pixels the preview draws a page with.
  *
  *  The page is rasterised at the device ratio times the interface scale, so
@@ -73,6 +82,8 @@ export type Appearance = {
   editorTheme: EditorTheme;
   /** Whether control sequences are coloured by family. */
   syntax: SyntaxMode;
+  /** Whether control sequences are set heavier than the prose. */
+  emphasis: Emphasis;
   /** How many device pixels the preview draws a page with. */
   preview: import("./panes/pdf-raster").PreviewQuality;
   /** Whether the prose is spell checked.
@@ -113,7 +124,8 @@ export const WEIGHT_NAMES: Record<number, string> = {
 
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
-  weight: 400, syntax: "subtle", preview: "balanced", spelling: false,
+  weight: 400, syntax: "subtle", emphasis: "bold", preview: "balanced",
+  spelling: false,
 };
 
 const KEYS = {
@@ -123,6 +135,7 @@ const KEYS = {
   editorTheme: "nexttex.editor.theme",
   weight: "nexttex.editor.weight",
   syntax: "nexttex.editor.syntax",
+  emphasis: "nexttex.editor.emphasis",
   preview: "nexttex.preview.quality",
   spelling: "nexttex.editor.spelling",
 };
@@ -173,6 +186,7 @@ export function storedAppearance(): Appearance {
   const editorTheme = read(KEYS.editorTheme);
   const weight = Number(read(KEYS.weight));
   const syntax = read(KEYS.syntax);
+  const emphasis = read(KEYS.emphasis);
   const preview = read(KEYS.preview);
   const spelling = read(KEYS.spelling);
   return {
@@ -186,6 +200,7 @@ export function storedAppearance(): Appearance {
       : DEFAULTS.editorTheme,
     weight: weight ? nearest(weight, EDITOR_WEIGHTS) : DEFAULTS.weight,
     syntax: syntax === "colour" || syntax === "subtle" ? syntax : DEFAULTS.syntax,
+    emphasis: emphasis === "plain" ? "plain" : DEFAULTS.emphasis,
     preview:
       preview === "faster" || preview === "sharper" || preview === "balanced"
         ? preview
@@ -228,6 +243,7 @@ export function applyAppearance(appearance: Appearance): void {
   // paint rather than one frame after it.
   root.dataset.editorTheme = appearance.editorTheme;
   root.dataset.syntax = appearance.syntax;
+  root.dataset.emphasis = appearance.emphasis;
   // On the root so the preview can read it without a prop, the same way the
   // editor reads its theme.  Deliberately not in the pre-paint script in
   // index.html: that script exists because a theme applied one frame late is
@@ -242,6 +258,7 @@ export function applyAppearance(appearance: Appearance): void {
   write(KEYS.editorTheme, appearance.editorTheme);
   write(KEYS.weight, String(appearance.weight));
   write(KEYS.syntax, appearance.syntax);
+  write(KEYS.emphasis, appearance.emphasis);
   write(KEYS.preview, appearance.preview);
   write(KEYS.spelling, appearance.spelling ? "on" : "off");
 
@@ -263,6 +280,7 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.editorTheme === DEFAULTS.editorTheme &&
     appearance.weight === DEFAULTS.weight &&
     appearance.syntax === DEFAULTS.syntax &&
+    appearance.emphasis === DEFAULTS.emphasis &&
     appearance.preview === DEFAULTS.preview &&
     appearance.spelling === DEFAULTS.spelling
   );

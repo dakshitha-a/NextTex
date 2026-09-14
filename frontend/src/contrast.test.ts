@@ -114,6 +114,14 @@ const BODY_TEXT: [string, string][] = [
  *  as well as read against the page. */
 const SYNTAX = ["syn-structure", "syn-env", "syn-math", "syn-preamble", "syn-cite"];
 
+/** The quiet sixth: what a command outside the five families is set in when
+ *  the writer has turned the weight off.  Held to the same floor against the
+ *  page and the same distance from the prose, but deliberately *below* the
+ *  families' chroma floor, because it has to say "a command" and never
+ *  "which kind"; it still needs enough chroma to not be a grey, or it would
+ *  read as a disabled word rather than a coloured one. */
+const COMMAND = "syn-command";
+
 /** The one pairing in this file that is deliberately held to 4:1 rather than
  *  4.5:1, and the reasoning has to survive being read by somebody who did not
  *  agree to it.
@@ -447,6 +455,24 @@ describe.each(PALETTES)("%s theme syntax families", (_name, tokens) => {
         `--${name} is ${gap.toFixed(1)} L* from the prose`,
       ).toBeGreaterThanOrEqual(14);
     }
+  });
+
+  test("the quiet command colour is readable, distinct from the prose, and quiet", () => {
+    const ratio = contrast(tokens[COMMAND], tokens["surface"]);
+    expect(Number(ratio.toFixed(2)), `--${COMMAND} on --surface is ${ratio.toFixed(2)}:1`)
+      .toBeGreaterThanOrEqual(SYNTAX_ON_PAGE);
+    const gap = Math.abs(lightness(tokens[COMMAND]) - lightness(tokens["ink"]));
+    expect(Number(gap.toFixed(1)), `--${COMMAND} is ${gap.toFixed(1)} L* from the prose`)
+      .toBeGreaterThanOrEqual(14);
+    const { chroma, hue } = oklch(tokens[COMMAND]);
+    expect(Number(chroma.toFixed(3)), `--${COMMAND} chroma is ${chroma.toFixed(3)}`)
+      .toBeGreaterThanOrEqual(0.025);
+    expect(Number(chroma.toFixed(3)), `--${COMMAND} chroma is ${chroma.toFixed(3)}`)
+      .toBeLessThan(0.06);
+    const pen = oklch(tokens["pen"]).hue;
+    const fromPen = Math.min(Math.abs(hue - pen), 360 - Math.abs(hue - pen));
+    expect(Number(fromPen.toFixed(1)), `--${COMMAND} is ${fromPen.toFixed(1)}° from --pen`)
+      .toBeGreaterThanOrEqual(35);
   });
 
   test("no family is so grey that its hue cannot be read", () => {
