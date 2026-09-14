@@ -35,8 +35,16 @@ const PDF = new Set([".pdf"]);
  *  beside this file asserts the containment rather than the equality. */
 const TEXT = new Set([
   ".tex", ".ltx", ".sty", ".cls", ".bib", ".bst", ".bbl", ".txt", ".md",
-  ".json", ".yml", ".yaml", ".csv", ".tsv", ".toml", ".cfg", ".ini", ".log",
-  ".py", ".sh", ".r", ".m", ".gitignore", ".gitattributes", ".env",
+  ".json", ".yml", ".yaml", ".csv", ".tsv", ".dat", ".toml", ".cfg", ".ini",
+  ".log", ".py", ".sh", ".r", ".m", ".mplstyle", ".gitignore",
+  ".gitattributes", ".env",
+]);
+
+/** Text that is code rather than prose.  The spell checker stays off it
+ *  and the editor picks a language for it; nothing else asks. */
+const CODE = new Set([
+  ".py", ".sh", ".r", ".m", ".json", ".yml", ".yaml", ".toml", ".cfg",
+  ".ini", ".mplstyle", ".csv", ".tsv", ".dat",
 ]);
 
 export type FileKind = "text" | "image" | "pdf" | "other";
@@ -78,6 +86,15 @@ export function isText(path: string): boolean {
   return kindOf(path) === "text";
 }
 
+export function isCode(path: string): boolean {
+  return CODE.has(extensionOf(path));
+}
+
+/** A Python script, which is the one kind of file the editor can run. */
+export function isScript(path: string): boolean {
+  return extensionOf(path) === ".py";
+}
+
 export function isBib(path: string): boolean {
   return extensionOf(path) === ".bib";
 }
@@ -117,6 +134,7 @@ export type IconName =
   | "pdf"
   | "style"
   | "data"
+  | "script"
   | "file";
 
 export function iconFor(path: string): IconName {
@@ -126,6 +144,7 @@ export function iconFor(path: string): IconName {
   if (extension === ".sty" || extension === ".cls") return "style";
   if (kindOf(path) === "image") return "image";
   if (kindOf(path) === "pdf") return "pdf";
+  if (extension === ".py" || extension === ".sh") return "script";
   if (
     extension === ".csv" || extension === ".tsv" || extension === ".json" ||
     extension === ".toml" || extension === ".yml" || extension === ".yaml"

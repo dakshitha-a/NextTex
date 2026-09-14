@@ -38,16 +38,19 @@ import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/sea
 import {
   HighlightStyle,
   bracketMatching,
+  indentUnit,
   StreamLanguage,
   syntaxHighlighting,
 } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
+import { python } from "@codemirror/legacy-modes/mode/python";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import type { Diagnostic, Symbols } from "../api";
 import { latexCompletions } from "./latex-complete";
 import { environmentToClose, indentOf, opensEnvironment } from "./close-environment";
 import { isEscaped } from "./escaping";
+import { isScript } from "./file-kinds";
 import { inputTarget, labelTarget, linkAt } from "./latex-links";
 import { mac } from "./math-hover";
 import { mathHover } from "./math-hover";
@@ -440,6 +443,23 @@ function closeEnvironment(view: EditorView): boolean {
  *  language and would not carry it. */
 const LATEX = StreamLanguage.define(stex);
 
+/** The figure scripts the agent writes, and any other `.py` in the
+ *  project.  The same near-monochrome highlight style: `latexHighlight`
+ *  is written against the generic tags, comment, keyword, string, number,
+ *  so a script reads with the same weights the prose does rather than in
+ *  a second palette a pane away. */
+const PYTHON = StreamLanguage.define(python);
+
+/** Which language a buffer speaks.
+ *
+ *  A compartment, because the view is one object swapped between files
+ *  with `setState`, and every state carries its own language: a chapter
+ *  and a script are open at once and each has to keep its own.  The
+ *  LaTeX extensions that make no sense over Python live here too, so a
+ *  script does not offer `\section` completions on a backslash, follow
+ *  `\ref` links, colour command families or float maths on hover. */
+export const languageCompartment = new Compartment();
+
 /** Follow a cross reference under the pointer.
  *
  *  The modifier is Ctrl on Linux and Windows and Cmd on a Mac, which is
@@ -483,10 +503,7 @@ function followLinks(
   });
 }
 
-function base(
-  symbols: () => Symbols | null,
-  follow?: (path: string, line?: number) => void,
-): Extension[] {
+function base(): Extension[] {
   return [
     lineNumbers(),
     drawSelection(),
@@ -503,7 +520,6 @@ function base(
     rectangularSelection(),
     crosshairCursor(),
     bracketMatching(),
-    ...(follow ? [followLinks(symbols, follow)] : []),
     // Ahead of `closeBrackets`, which is the extension it overrules: a
     // dollar with a backslash in front of it is a currency sign and must
     // not be given a closer.  `closeBrackets` decides by what follows the
@@ -554,16 +570,7 @@ function base(
       { key: "Mod-Shift-Alt-ArrowUp", run: addCursorAbove },
       { key: "Mod-Shift-Alt-ArrowDown", run: addCursorBelow },
     ]),
-    LATEX,
-    // `$` is the character a LaTeX writer types most after a letter, and
-    // `closeBrackets()` reads its set from the language rather than from
-    // its own options, so a stock stex mode pairs ( [ { ' " and leaves
-    // maths out. The language's own data is where that answer belongs.
-    LATEX.data.of({
-      closeBrackets: { brackets: ["(", "[", "{", "'", '"', "$"] },
-    }),
     syntaxHighlighting(latexHighlight),
-    familyHighlight,
     // Empty until the writer asks for spell checking, and filled by a
     // dynamic import when they do: the checker and its word list are a
     // hundred kilobytes that an editor with the setting off should never
@@ -574,7 +581,40 @@ function base(
     // unlabelled input, which is the least useful thing to hear about the
     // one region of this app that holds the writing.
     EditorView.contentAttributes.of({ "aria-label": "The document source" }),
+  ];
+}
+
+/** What the language compartment holds for a file at `path`.
+ *
+ *  `complete` is false for the read-only panes, which never offered
+ *  completions; `follow` is absent there too, since following a reference
+ *  out of a version being read is a jump with no way back. */
+export function languageFor(
+  path: string,
+  symbols: () => Symbols | null,
+  options: { follow?: (path: string, line?: number) => void; complete?: boolean } = {},
+): Extension[] {
+  if (isScript(path)) {
+    return [
+      PYTHON,
+      // Four spaces, which is what the seeded helper and every script the
+      // agent writes use, and what Tab inserts.
+      indentUnit.of("    "),
+    ];
+  }
+  return [
+    LATEX,
+    // `$` is the character a LaTeX writer types most after a letter, and
+    // `closeBrackets()` reads its set from the language rather than from
+    // its own options, so a stock stex mode pairs ( [ { ' " and leaves
+    // maths out. The language's own data is where that answer belongs.
+    LATEX.data.of({
+      closeBrackets: { brackets: ["(", "[", "{", "'", '"', "$"] },
+    }),
+    familyHighlight,
     mathHover(symbols),
+    ...(options.follow ? [followLinks(symbols, options.follow)] : []),
+    ...(options.complete ? [latexCompletions(symbols)] : []),
   ];
 }
 
@@ -594,19 +634,13 @@ export function extensions(
      *  where it is. Null when nothing is selected. */
     span: { fromLine: number; toLine: number } | null,
   ) => void,
-  symbols: () => Symbols | null,
   /** The annotation the Yjs binding marks its own transactions with. A ref
    *  rather than a value: the binding is imported on demand, long after
    *  these extensions are built. */
   remote?: { current: unknown },
-  /** Open another file, for a Ctrl-click on a `\ref` or an `\input`.
-   *  Absent in the read-only view of an old version, where following a
-   *  reference out of the version being read is a jump with no way back. */
-  follow?: (path: string, line?: number) => void,
 ): Extension[] {
   return [
-    ...base(symbols, follow),
-    latexCompletions(symbols),
+    ...base(),
     markField,
     flashField,
     EditorView.updateListener.of((update) => {
@@ -645,9 +679,9 @@ export function extensions(
  *  dispatch of any kind can start a save.  readOnly and editable are the
  *  second and third locks on the same door.
  */
-export function viewExtensions(symbols: () => Symbols | null): Extension[] {
+export function viewExtensions(): Extension[] {
   return [
-    ...base(symbols),
+    ...base(),
     ...withHistory(),
     diffField,
     EditorState.readOnly.of(true),
@@ -668,6 +702,13 @@ function withHistory(): Extension[] {
   return [history(), keymap.of(historyKeymap)];
 }
 
-export function freshState(text: string, ext: Extension[]): EditorState {
-  return EditorState.create({ doc: text, extensions: ext });
+export function freshState(
+  text: string,
+  ext: Extension[],
+  language: Extension[] = [],
+): EditorState {
+  return EditorState.create({
+    doc: text,
+    extensions: [...ext, languageCompartment.of(language)],
+  });
 }

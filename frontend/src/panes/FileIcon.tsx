@@ -114,6 +114,15 @@ function Mark({ name }: { name: IconName }) {
           <path d="M8 8.6v4.2" />
         </Sheet>
       );
+    case "script":
+      // A page that runs: a small play mark where the prose would be,
+      // which is the same mark the Run control carries.  Nothing else in
+      // the tree has a triangle on it.
+      return (
+        <Sheet>
+          <path d="M6.3 8.2v4.4l3.6-2.2z" fill="currentColor" stroke="none" />
+        </Sheet>
+      );
     case "pdf":
       // The one glyph that is not a sheet with marks on it, because a PDF
       // in this application is not a source file: it is a typeset page, and

@@ -54,7 +54,6 @@ function liveEditor() {
       ...extensions(
         () => undefined,
         () => undefined,
-        () => null,
         { current: remoteMarker },
       ),
       yCollab(text, null, { undoManager: undo }),

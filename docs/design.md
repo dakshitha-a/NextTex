@@ -6189,3 +6189,52 @@ empty, so every document then on the strip reads as asked for, and a
 chapter opened before the reload can be closed after it without its
 document following. That errs the safe way, and the alternative was the
 format change above.
+
+## 35. Scripts run from the source pane, and previews that follow a rename
+
+Two requests in one message, and a bug found while reading for them. The
+writer asked for a preview that is reconciled or closed when its source
+file is moved, renamed or deleted, and for the figure scripts the agent
+writes to be visible and runnable from the source pane, with what they
+print and draw shown in the preview pane and a way to hand a failure to
+the agent. This section records the run, in the order the work went.
+
+### A script is a file the editor opens
+
+The README had said for a year that the two files the plot tool seeds,
+`scripts/figure.py` and `scripts/plotstyle.mplstyle`, were the writer's to
+open and change. Neither could be opened. `.py` and `.mplstyle` were not
+in the server's `TEXT_SUFFIXES`, so the file route answered 415, the
+collaboration store gave the file no shared document, and the editor
+showed the download card it shows a binary. The browser's own list called
+`.py` text, which is why the row looked openable and the click did
+nothing useful.
+
+Both lists now name `.py`, `.mplstyle`, `.csv`, `.tsv` and `.dat`. The
+data formats are there because a script reads them and a writer who is
+editing the script wants to look at the columns beside it; a dataset too
+large for a shared document becomes a blob at the store's two megabyte
+bound, which is where that decision already lived. A project opened by
+an older NextTex carries its scripts in the manifest as blobs, and a
+manifest record is left alone on every later open by design, so `adopt`
+gained one exception: a record the tree now calls text is promoted in
+place, under the same id, and its document is seeded from disk the way
+any text record with no log yet is. Never the other direction, since a
+text record is a document somebody may be editing.
+
+**A script reads as Python.** The editor was one LaTeX configuration, and
+a `.py` opened in it had `def` as prose and a backslash offering
+`\section`. The language is a compartment now, `languageCompartment` in
+`editor-setup.ts`, filled per state by `languageFor(path)`: the LaTeX
+mode with its completions, its `\ref` links, its command families and its
+maths hover, or the Python mode with a four space indent and none of
+those. The highlight style is the same near-monochrome one, because it
+is written against the generic tags and a script should read with the
+prose's weights rather than in a second palette a pane away. The spell
+checker stays off code: `isCode` in `file-kinds.ts` names the suffixes,
+and `applySpelling` in `Editor.tsx` clears the compartment for them, since
+every identifier in a script is a word the dictionary has never heard of.
+
+The file tree draws a script with a play mark on the sheet, the same mark
+the run control carries below, and nothing else in the tree has a
+triangle on it.

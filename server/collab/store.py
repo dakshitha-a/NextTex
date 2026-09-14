@@ -568,27 +568,46 @@ class CollabStore:
         # index on every iteration, because each file adopted changes the
         # manifest -- which is the quadratic cost this is here to avoid.
         known = {
-            record.get("path")
+            record.get("path"): record
             for record in self.files.values()
             if not record.get("trashed")
         }
         for relative, kind, size in self._walk():
             seen.add(relative)
             if relative in known:
+                # Left as it is, with one exception.  A project opened by a
+                # NextTex that called `.py` binary carries its scripts as
+                # blobs, and a blob has no document for the editor to bind
+                # to: the browser waited eight seconds for one and fell
+                # back to a read-only pane.  A record whose kind the tree
+                # now disagrees with is promoted in place, keeping its id;
+                # `body()` then opens a fresh document and seeds it from
+                # disk, the way any text record with no log yet is opened.
+                # Never the other way: a text record is a document somebody
+                # may be editing, and a suffix leaving the list must not
+                # take that away.
+                record = known[relative]
+                if (
+                    kind == "text"
+                    and size <= MAX_TEXT_BYTES
+                    and record.get("kind") != "text"
+                ):
+                    record["kind"] = "text"
                 continue
-            known.add(relative)
             # The tree has already decided what is editable text, using the
             # same rule the file list draws with. Asking it rather than
             # re-deriving from the suffix keeps the two from disagreeing
             # about a file -- which would show as an openable file with no
             # shared document behind it.
             textual = kind == "text" and size <= MAX_TEXT_BYTES
-            self.files[self._new_id(relative, adopting=True)] = Map({
+            record = Map({
                 "path": relative,
                 "kind": "text" if textual else "blob",
                 "size": size,
                 "trashed": False,
             })
+            self.files[self._new_id(relative, adopting=True)] = record
+            known[relative] = record
 
         # A file listed but no longer on disk was deleted while this peer was
         # not looking.  Marked rather than removed: a map delete concurrent
