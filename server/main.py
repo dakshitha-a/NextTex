@@ -1575,6 +1575,20 @@ def _safe(session: ProjectSession, relative: str) -> Path:
         raise HTTPException(400, "bad path")
 
 
+def _document(session: ProjectSession, name: str = "") -> DocumentState:
+    """The named document, or the one on screen, or a 404 that says why.
+
+    Every route that once meant "the main document" goes through here. A
+    project with no document yet is a real state now, a folder before its
+    template is loaded, and the honest answer to a request about its PDF is
+    that there is nothing to typeset rather than a 500.
+    """
+    try:
+        return session.document_for(name or None)
+    except LookupError as error:
+        raise HTTPException(404, str(error))
+
+
 def _safe_rel(session: ProjectSession, relative: str) -> tuple[Path, str]:
     """The resolved path, and the canonical name the history files it under.
 
@@ -1647,7 +1661,7 @@ async def create_project(
     (root / "references.bib").write_text("", encoding="utf-8")
     (root / "figures").mkdir(exist_ok=True)
     title = name.strip() or root.name
-    ProjectConfig(name=title, main="main.tex", build_dir="build").save(root)
+    ProjectConfig(name=title, build_dir="build").save(root)
     project = REGISTRY.add(root)
     _restart_watch()
     return project.as_dict()
@@ -2861,7 +2875,7 @@ async def build_log(project_id: str, document: str = ""):
     # another's would be told nothing about the substitution.
     if document and document not in session.documents:
         raise HTTPException(404, "no such document")
-    state = session.document_for(document or None)
+    state = _document(session, document)
 
     def read() -> str:
         path = state.paths.log
@@ -3136,27 +3150,52 @@ async def download(
     something, or to send the PDF to a supervisor -- and having to open a
     project first would be a step for nothing.
 
-    `document` names one of the previewed documents when the PDF wanted is
-    not the main one; it is a name in the session's registry, never a path
-    on disk, and a name the registry does not know means the main document,
-    which is what an empty name always meant.  The file is then named after
-    the document rather than the project, because a supplementary document
-    sent to a supervisor under the thesis's name is the wrong attachment.
+    `document` names the document whose PDF is wanted, as a project-relative
+    path; empty means the one on screen.  A document on the strip builds
+    with its own scheduler.  One that is not, a root the writer has never
+    previewed, is built on the spot with a scheduler of its own that is
+    thrown away afterwards, so downloading every variant of a resume does
+    not put every variant on the strip.  The file is named after the
+    document, never the project, because a supplementary document sent to a
+    supervisor under the thesis's name is the wrong attachment.
     """
+    if format == "pdf":
+        session = session_for(project_id)
+        state = session.documents.get(document) if document else None
+        if state is None and document:
+            target = _safe(session, document)
+            if not target.is_file() or target.suffix.lower() not in {".tex", ".ltx"}:
+                raise HTTPException(404, "no such document")
+            text = await asyncio.to_thread(read_text, target)
+            if not deps.is_standalone(text or ""):
+                raise HTTPException(
+                    400, f"{document} cannot be built by itself; it has no "
+                    "\\documentclass and \\begin{document} of its own",
+                )
+            paths = ProjectPaths(
+                root=session.project.root, main=target,
+                build_dir=session.project.build_dir,
+            )
+            transient = DocumentState(
+                path=session.project.relative(target), paths=paths,
+                compiler=CompileScheduler(paths, allow_rc=Settings.load().latexmk_rc),
+            )
+            try:
+                pdf = await _project_pdf(session, transient)
+            finally:
+                transient.compiler.cleanup()
+        else:
+            if state is None:
+                state = _document(session)
+            pdf = await _project_pdf(session, state)
+            transient = state
+        name = Path(transient.path).stem
+        return FileResponse(pdf, media_type="application/pdf", filename=f"{name}.pdf")
+
     session = SESSIONS.get(project_id)
     project = session.project if session else REGISTRY.find(project_id)
     if project is None:
         raise HTTPException(404, "unknown project")
-
-    if format == "pdf":
-        state = session.document_for(document) if session and document else None
-        secondary = state is not None and state is not session.main_document
-        pdf = await _project_pdf(project, session, state if secondary else None)
-        name = (
-            Path(state.path).stem if secondary and state is not None
-            else project.config.name
-        )
-        return FileResponse(pdf, media_type="application/pdf", filename=f"{name}.pdf")
 
     try:
         target = project.resolve(path) if path else project.root
@@ -3252,33 +3291,22 @@ def _source_newer_than(project: Project, stamp: float) -> bool:
     return False
 
 
-async def _project_pdf(
-    project: Project,
-    session: ProjectSession | None,
-    document: DocumentState | None = None,
-) -> Path:
-    """The project's rendered PDF, built first if it is missing or stale.
+async def _project_pdf(session: ProjectSession, document: DocumentState) -> Path:
+    """A document's rendered PDF, built first if it is missing or stale.
 
     A download has to be the current document.  The preview PDF on disk may
     have been produced by a scoped fast build covering one chapter, so any
-    build done here is a full one.
-
-    `document` is a previewed document other than the main one; its paths
-    and its scheduler are the ones to use, since each document builds into
-    its own jobname and keeps its own idea of whether the PDF is whole.
+    build done here is a full one.  Each document builds into its own
+    jobname and keeps its own idea of whether the PDF is whole, so its own
+    paths and scheduler are the ones to ask.  The build takes a slot in the
+    project's queue like any other, because two latexmk runs in one build
+    directory write over each other's temporaries.
     """
-    if document is not None:
-        paths = document.paths
-        if not paths.main.is_file():
-            raise HTTPException(400, f"no document at {document.path}")
-        scheduler = document.compiler
-    else:
-        paths = ProjectPaths(
-            root=project.root, main=project.main, build_dir=project.build_dir
-        )
-        if not project.main.is_file():
-            raise HTTPException(400, f"no main file at {project.config.main}")
-        scheduler = session.compiler if session else CompileScheduler(paths)
+    project = session.project
+    paths = document.paths
+    if not paths.main.is_file():
+        raise HTTPException(400, f"no document at {document.path}")
+    scheduler = document.compiler
     # Only a full build produces a PDF worth handing over; the preview on
     # disk is often one chapter.
     fresh = paths.pdf.is_file() and scheduler.pdf_is_complete()
@@ -3288,7 +3316,8 @@ async def _project_pdf(
     if fresh:
         return paths.pdf
 
-    result = await scheduler.build(force_full=True)
+    async with session.queue.slot(priority=False):
+        result = await scheduler.build(force_full=True)
     if not paths.pdf.is_file():
         message = "compilation produced no PDF"
         # `result.diagnostics` does not exist.  `CompileResult` carries the
@@ -3436,7 +3465,11 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
     if not source.is_dir() or ".." in name or "/" in name:
         raise HTTPException(404, "no such template")
 
-    main = session.paths.main
+    # Into the document on screen when there is one, and into a fresh
+    # `main.tex` when the folder has no document yet, which is the state a
+    # project made from the New button is in until this runs.
+    document = session.visible_document
+    main = document.paths.main if document else session.project.root / "main.tex"
     if main.exists():
         body = main.read_text(encoding="utf-8", errors="replace")
         body = body.split("\\begin{document}", 1)[-1]
@@ -3472,29 +3505,13 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
         written.append(session.project.relative(target))
 
     (session.project.root / "figures").mkdir(exist_ok=True)
+    if document is None:
+        # The file the template wrote is the project's first document.
+        await session.register_preview(session.project.relative(main))
     session.note_edit(main, read_text(main), None)
     session.schedule_compile()
     await session.events.publish({"type": "files_changed", "paths": written})
-    return {"ok": True, "written": written, "main": session.project.config.main}
-
-
-@app.post("/api/projects/{project_id}/main")
-async def set_main_document(project_id: str, path: str = Body(..., embed=True)):
-    """Typeset a different file as the document.
-
-    A thesis is not always rooted at main.tex, and a writer working on one
-    chapter may want that chapter to be the document for a while.
-    """
-    session = session_for(project_id)
-    target = _safe(session, path)
-    if not target.is_file() or target.suffix.lower() not in {".tex", ".ltx"}:
-        raise HTTPException(400, "the main document has to be a .tex file")
-    await session.set_main(path)
-    await session.events.publish(
-        {"type": "project_changed", **_project_settings(session)}
-    )
-    session.schedule_compile()
-    return {"ok": True, "main": path}
+    return {"ok": True, "written": written, "document": session.project.relative(main)}
 
 
 def _project_settings(session) -> dict:
@@ -3508,8 +3525,8 @@ def _project_settings(session) -> dict:
     """
     config = session.project.config
     return {
-        "main": config.main,
         "previews": list(session.documents),
+        "visible": session.visible,
         "autocompile": config.autocompile,
         "markErrors": config.mark_errors,
         "markWarnings": config.mark_warnings,
@@ -3577,29 +3594,30 @@ async def list_documents(project_id: str):
 
 @app.post("/api/projects/{project_id}/previews")
 async def add_preview(project_id: str, path: str = Body(..., embed=True)):
-    """Start previewing another document in this project."""
+    """Preview the document a file belongs to, and bring it in front.
+
+    Any `.tex` in the project: a root previews itself, a chapter previews
+    the document that reads it, all the way up a chain of parts.  The
+    answer carries `document`, which is what ended up in front, so the
+    editor can follow a file to its page without knowing the graph.  A new
+    document on the strip gets its first build at once.
+    """
     session = session_for(project_id)
     target = _safe(session, path)
-    if target.suffix.lower() not in (".tex", ".ltx"):
-        raise HTTPException(400, "only a .tex file can be previewed")
+    if target.suffix.lower() not in (".tex", ".ltx") or not target.is_file():
+        raise HTTPException(400, "only a .tex file in the project can be previewed")
+    before = set(session.documents)
     try:
-        text = target.read_text(encoding="utf-8", errors="replace")
-    except OSError as error:
-        raise HTTPException(400, f"could not read {path}: {error}")
-    if not deps.is_standalone(text):
-        raise HTTPException(
-            400,
-            f"{path} has no \\documentclass and \\begin{{document}} of its own, "
-            "so it cannot be built by itself",
-        )
-    try:
-        await session.register_preview(path)
+        state = await session.follow(path)
+    except LookupError as error:
+        raise HTTPException(404, str(error))
     except ValueError as error:
         # A jobname already spoken for: two documents cannot both build to
         # one PDF, and renaming is the writer's call rather than ours.
         raise HTTPException(409, str(error))
-    spawn(session.compile(document=path), "the first build of a new preview")
-    return session.documents_payload()
+    if state.path not in before:
+        spawn(session.compile(document=state.path), "the first build of a new preview")
+    return {**session.documents_payload(), "document": state.path}
 
 
 @app.delete("/api/projects/{project_id}/previews")
@@ -3608,7 +3626,7 @@ async def remove_preview(project_id: str, path: str):
     try:
         await session.unregister_preview(path)
     except ValueError as error:
-        raise HTTPException(400, str(error))
+        raise HTTPException(409, str(error))
     return session.documents_payload()
 
 
@@ -3621,7 +3639,7 @@ async def editor_state(project_id: str, state: dict = Body(...)):
 @app.get("/api/projects/{project_id}/pdf")
 async def get_pdf(project_id: str, request: Request, document: str = ""):
     session = session_for(project_id)
-    state = session.document_for(document)
+    state = _document(session, document)
     pdf = state.paths.pdf
     if not pdf.exists():
         raise HTTPException(404, "nothing has been built yet")
@@ -3650,7 +3668,7 @@ async def synctex_inverse(
 ):
     """PDF click to source position."""
     session = session_for(project_id)
-    state = session.document_for(document)
+    state = _document(session, document)
     # A synctex query on a thesis-sized .synctex.gz is not free, and this
     # runs on every double-click in the preview.
     position = await asyncio.to_thread(
@@ -3674,7 +3692,7 @@ async def synctex_forward(
 ):
     """Source position to places on the page."""
     session = session_for(project_id)
-    state = session.document_for(document)
+    state = _document(session, document)
     target = _safe(session, path)
     positions = await asyncio.to_thread(
         synctex.source_to_pdf,
@@ -3746,7 +3764,7 @@ async def words(
         slice_file.write_text("\n".join(chosen) + "\n", encoding="utf-8")
         argv.append(str(slice_file))
     elif scope == "document":
-        argv += ["-inc", str(session.paths.main)]
+        argv += ["-inc", str(_document(session).paths.main)]
     else:
         if not path:
             return {"words": None, "scope": scope}

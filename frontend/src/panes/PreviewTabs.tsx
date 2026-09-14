@@ -14,9 +14,9 @@ import {
  *  above the other on a wide screen and reading them as two different kinds
  *  of thing would be work the writer should not have to do.
  *
- *  What is different is that one tab cannot be closed. The main document is
- *  what the project is, and a preview strip with nothing in it would be a
- *  pane with no way to get anything back into it.
+ *  What is different is that the last tab cannot be closed: a preview
+ *  strip with nothing in it would be a pane with no way to get anything
+ *  back into it.
  *
  *  The right-click menu is the source strip's too, minus Duplicate, which
  *  is about a file and not a build, plus Download PDF, which is about a
@@ -40,8 +40,8 @@ export default function PreviewTabs({
 }: {
   onSelect: (path: string) => void;
   onClose: (path: string) => void;
-  /** Stop previewing several at once: "the others" or "all", never the
-   *  main document, which the caller keeps out of the list. */
+  /** Stop previewing several at once: "the others", which leaves the tab
+   *  the menu was opened on, so the strip is never emptied. */
   onCloseMany: (paths: string[]) => void;
   onDownload: (path: string) => void;
   onAdd: (path: string) => void;
@@ -85,9 +85,7 @@ export default function PreviewTabs({
   useEffect(() => {
     if (open) focusFirst(menu.current);
   }, [open]);
-  const main = previews[0];
-  const others = previews.filter((path) => path !== main && path !== tabMenu?.path);
-  const extras = previews.filter((path) => path !== main);
+  const others = previews.filter((path) => path !== tabMenu?.path);
 
   // Nothing to draw for a project with one document: a strip of one tab is
   // a label pretending to be a control.
@@ -123,7 +121,7 @@ export default function PreviewTabs({
                     : "border-b border-line hover:bg-surface-3",
                 ].join(" ")}
                 onMouseDown={(event) => {
-                  if (event.button === 1 && previews[0] !== path) {
+                  if (event.button === 1 && previews.length > 1) {
                     event.preventDefault();
                     onClose(path);
                   }
@@ -160,10 +158,10 @@ export default function PreviewTabs({
                     <span className="ml-[5px] h-[5px] w-[5px] shrink-0 rounded-full border border-ink-3" />
                   ) : null}
                 </button>
-                {/* The main document has no close button rather than a
+                {/* The last document has no close button rather than a
                     disabled one: a control that is always refused is worse
                     than no control. */}
-                {previews[0] === path ? null : (
+                {previews.length < 2 ? null : (
                   <button
                     className="quiet flex h-4 w-4 shrink-0 items-center justify-center"
                     aria-label={`Stop previewing ${stem(path)}`}
@@ -207,8 +205,6 @@ export default function PreviewTabs({
             // says so first.
             { key: "others", label: "Stop previewing the others", off: others.length === 0,
               run: () => onCloseMany(others) },
-            { key: "all", label: "Stop previewing all", off: extras.length === 0,
-              run: () => onCloseMany(extras) },
             { key: "rule", label: "", off: false, run: () => undefined },
             { key: "download", label: "Download PDF", off: false,
               run: () => onDownload(tabMenu.path) },

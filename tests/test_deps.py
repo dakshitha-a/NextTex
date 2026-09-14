@@ -166,6 +166,72 @@ class TestCacheAndDiscovery:
         assert graph.standalone_candidates(["main.tex"]) == ["esi.tex"]
 
 
+DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
+
+
+class TestRootOf:
+    """The document a file belongs to, climbing to the top of the chain."""
+
+    def test_a_root_is_its_own_document(self, tmp_path):
+        write(tmp_path, "main.tex", DOC % "Hello.")
+        assert DependencyGraph(tmp_path).root_of("main.tex") == "main.tex"
+
+    def test_a_chain_of_parts_climbs_to_the_top(self, tmp_path):
+        write(tmp_path, "thesis.tex", DOC % "\\input{parts/one}")
+        write(tmp_path, "parts/one.tex", "\\input{two}\n")
+        write(tmp_path, "parts/two.tex", "Two.\n")
+        graph = DependencyGraph(tmp_path)
+        assert graph.root_of("parts/two.tex") == "thesis.tex"
+        assert graph.root_of("parts/one.tex") == "thesis.tex"
+
+    def test_a_subfile_chapter_belongs_to_its_parent(self, tmp_path):
+        # Standalone by the letter of it, and read by the thesis, so the
+        # thesis is what the writer opening the chapter wants on the page.
+        write(tmp_path, "main.tex", DOC % "\\subfile{ch1}")
+        write(tmp_path, "ch1.tex", "\\documentclass[main]{subfiles}\n"
+              "\\begin{document}\nA chapter.\n\\end{document}\n")
+        assert DependencyGraph(tmp_path).root_of("ch1.tex") == "main.tex"
+
+    def test_a_fragment_nothing_reads_has_no_document(self, tmp_path):
+        write(tmp_path, "main.tex", DOC % "Hello.")
+        write(tmp_path, "scratch.tex", "Not included anywhere.\n")
+        assert DependencyGraph(tmp_path).root_of("scratch.tex") is None
+
+    def test_two_readers_break_the_tie_by_preference_then_by_path(self, tmp_path):
+        write(tmp_path, "acme.tex", DOC % "\\input{shared}")
+        write(tmp_path, "globex.tex", DOC % "\\input{shared}")
+        write(tmp_path, "shared.tex", "Skills.\n")
+        graph = DependencyGraph(tmp_path)
+        assert graph.root_of("shared.tex") == "acme.tex"
+        assert graph.root_of("shared.tex", prefer=["globex.tex"]) == "globex.tex"
+        # A preference for something that does not read it changes nothing.
+        assert graph.root_of("shared.tex", prefer=["other.tex"]) == "acme.tex"
+
+    def test_a_reader_that_is_not_a_document_is_passed_over(self, tmp_path):
+        # `notes.tex` reads the shared block too, but nothing reads notes
+        # and it cannot build, so the resume is the answer.
+        write(tmp_path, "notes.tex", "\\input{shared}\n")
+        write(tmp_path, "resume.tex", DOC % "\\input{shared}")
+        write(tmp_path, "shared.tex", "Skills.\n")
+        assert DependencyGraph(tmp_path).root_of("shared.tex") == "resume.tex"
+
+    def test_a_cycle_does_not_hang(self, tmp_path):
+        write(tmp_path, "a.tex", DOC % "\\input{b}")
+        write(tmp_path, "b.tex", "\\input{a}\n")
+        graph = DependencyGraph(tmp_path)
+        assert graph.root_of("b.tex") == "a.tex"
+        assert graph.root_of("a.tex") == "a.tex"
+
+    def test_a_new_reader_is_noticed(self, tmp_path):
+        write(tmp_path, "main.tex", DOC % "Hello.")
+        write(tmp_path, "later.tex", "Later.\n")
+        graph = DependencyGraph(tmp_path)
+        assert graph.root_of("later.tex") is None
+        write(tmp_path, "main.tex", DOC % "\\input{later}")
+        graph.note_changed("main.tex")
+        assert graph.root_of("later.tex") == "main.tex"
+
+
 def test_our_own_stand_in_is_never_offered_as_a_document(tmp_path):
     """Caught against a real dissertation.
 

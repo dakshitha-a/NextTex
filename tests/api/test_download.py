@@ -199,13 +199,64 @@ def test_a_previewed_document_downloads_as_its_own_pdf(
     assert state.paths.pdf.read_bytes() == b"%PDF supplementary"
 
 
-def test_a_document_name_is_a_registry_key_and_never_a_path(
+def test_a_root_nobody_previews_downloads_without_joining_the_strip(
     client, opened, project_dir, monkeypatch
 ):
-    """`document` is looked up in the session's registry.  A name the
-    registry does not know, including one dressed as a path out of the
-    project, means the main document, which is what an empty name always
-    meant; nothing on disk is touched by it."""
+    """The download menu lists every document in the project, on the strip
+    or not.  One that is not gets a scheduler of its own for the build and
+    is gone again afterwards: downloading twenty resume variants must not
+    put twenty tabs on the strip."""
+    import server.main as server_main
+    from nexttex.compile import CompileResult, CompileScheduler, Outcome
+
+    (project_dir / "variants").mkdir(exist_ok=True)
+    (project_dir / "variants" / "acme.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nAcme.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (project_dir / "variants" / "part.tex").write_text("A part.\n", encoding="utf-8")
+
+    async def stub_build(self, *args, **kwargs):
+        self.paths.pdf.parent.mkdir(parents=True, exist_ok=True)
+        self.paths.pdf.write_bytes(b"%PDF " + self.paths.jobname.encode())
+        self._note_pdf_scope("")
+        return CompileResult(
+            outcome=Outcome.OK, log=None, pdf=self.paths.pdf,
+            duration=0.1, scope="full", engine_pass="full",
+        )
+
+    monkeypatch.setattr(CompileScheduler, "build", stub_build)
+    for stale in project_dir.rglob("*.pdf"):
+        stale.unlink()
+
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download",
+        params={"format": "pdf", "document": "variants/acme.tex"},
+    )
+    assert answer.status_code == 200, answer.text
+    assert answer.content == b"%PDF acme"
+    assert answer.headers["content-disposition"].endswith('acme.pdf"')
+    session = server_main.SESSIONS[opened["id"]]
+    assert list(session.documents) == ["main.tex"]
+    # The stand-in a scoped build would write beside it is not left behind.
+    assert not (project_dir / "variants" / ".nexttex-preview-acme.tex").exists()
+    # A part cannot be downloaded as a PDF; it says why.
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download",
+        params={"format": "pdf", "document": "variants/part.tex"},
+    )
+    assert answer.status_code == 400
+    assert "documentclass" in answer.text
+
+
+def test_a_document_name_that_leaves_the_project_is_refused(
+    client, opened, project_dir, monkeypatch
+):
+    """`document` is looked up in the session's registry first, and a name
+    the registry does not know is resolved as a path inside the project,
+    because a root the writer has never previewed can be downloaded too.
+    One dressed as a path out of the project is refused at the fence, and
+    nothing on disk is touched by it."""
     import server.main as server_main
     from nexttex.compile import CompileResult, CompileScheduler, Outcome
 
@@ -222,14 +273,16 @@ def test_a_document_name_is_a_registry_key_and_never_a_path(
     for stale in project_dir.rglob("*.pdf"):
         stale.unlink()
 
-    session = server_main.SESSIONS[opened["id"]]
     for escape in ["../../etc/passwd", "/etc/passwd", "..\\..\\x.tex"]:
         answer = client.get(
             f"/api/projects/{opened['id']}/download",
             params={"format": "pdf", "document": escape},
         )
-        assert answer.status_code == 200, escape
-        assert answer.content == b"%PDF main"
-        assert answer.headers["content-disposition"].endswith(
-            f'{session.project.config.name}.pdf"'
-        )
+        assert answer.status_code in (403, 404), escape
+    # And an empty name is the document on screen, named after itself.
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download", params={"format": "pdf"},
+    )
+    assert answer.status_code == 200
+    assert answer.content == b"%PDF main"
+    assert answer.headers["content-disposition"].endswith('main.pdf"')

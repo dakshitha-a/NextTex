@@ -4,8 +4,9 @@ import {
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
-import { iconFor, isBib, isData, isTeX } from "./file-kinds";
+import { iconFor, isBib, isData } from "./file-kinds";
 import api, { startDownload, type TreeNode } from "../api";
+import { downloadPdf } from "../chrome";
 import { get, set, useStore } from "../store";
 import { sizeOf } from "../size";
 import {
@@ -55,7 +56,6 @@ export default function FileTree({
   onPreview,
   onUnpreview,
   onAskAbout,
-  mainFile,
 }: {
   onOpen: (path: string) => void;
   onRefresh: () => void;
@@ -70,7 +70,6 @@ export default function FileTree({
    *  forward and opens its source. */
   onPreview?: (path: string) => Promise<void> | void;
   onUnpreview?: (path: string) => Promise<void> | void;
-  mainFile?: string;
 }) {
   const tree = useStore((s) => s.tree);
   const activePath = useStore((s) => s.activePath);
@@ -289,9 +288,11 @@ export default function FileTree({
           return next;
         });
         setCreating({ parent, directory: action === "newfolder" });
-      } else if (action === "main") {
-        await api.setMain(projectId, node.path);
-        onRefresh();
+      } else if (action === "pdf") {
+        // Named after the file, never the project: twenty resume variants
+        // downloaded under one name would be twenty copies of one name.
+        const stem = node.name.replace(/\.(tex|ltx)$/i, "");
+        void downloadPdf(projectId, stem, node.path);
       } else if (action === "preview") {
         await onPreview?.(node.path);
       } else if (action === "unpreview") {
@@ -616,14 +617,6 @@ export default function FileTree({
             <span className="text-ink-3">{extension}</span>
           </span>
         )}
-        {node.path === mainFile ? (
-          <span
-            className="t-micro mr-2 shrink-0 text-ink-2"
-            title="This is the document that gets typeset"
-          >
-            main
-          </span>
-        ) : null}
         <span className="flex w-4 shrink-0 items-center justify-end">
           {errors > 0 ? (
             <span className="t-micro text-error group-hover:hidden">{errors}</span>
@@ -753,9 +746,9 @@ export default function FileTree({
               ["rename", "Rename"],
               ["move", "Move to…"],
               // A .bib file's reason to have a menu opened on it at all is
-              // its contents, which is why this sits with "set as main
-              // document" rather than at the bottom with the file
-              // operations every row has.
+              // its contents, which is why this sits with the document
+              // items rather than at the bottom with the file operations
+              // every row has.
               ...(!isDirectory && isBib(node.name)
                 ? [["papers", "Add papers from a folder…"]]
                 : []),
@@ -766,19 +759,19 @@ export default function FileTree({
               ...(!isDirectory && isData(node.name) && onAskAbout
                 ? [["plot", "Plot this…"]]
                 : []),
-              ...(!isDirectory && isTeX(node.name) &&
-              node.path !== mainFile
-                ? [["main", "Set as main document"]]
-                : []),
               // Offered only where it can work: a document already on the
-              // preview strip can come off it, and one the project has
-              // recognised as standing on its own can go on.  A chapter is
-              // neither, and an item that explains itself by failing is
-              // worse than no item.
-              ...(previews.includes(node.path) && node.path !== previews[0]
-                ? [["unpreview", "Stop previewing"]]
+              // preview strip can come off it, unless it is the last one
+              // there, and one the project has recognised as standing on
+              // its own can go on.  A chapter is neither, and an item that
+              // explains itself by failing is worse than no item.  Every
+              // document, on the strip or not, has a PDF to download.
+              ...(previews.includes(node.path)
+                ? [
+                    ...(previews.length > 1 ? [["unpreview", "Stop previewing"]] : []),
+                    ["pdf", "Download PDF"],
+                  ]
                 : candidates.includes(node.path)
-                  ? [["preview", "Preview this document"]]
+                  ? [["preview", "Preview this document"], ["pdf", "Download PDF"]]
                   : []),
               // Everything about this file's past, kept together: looking
               // at it and throwing it away are the same subject, and the

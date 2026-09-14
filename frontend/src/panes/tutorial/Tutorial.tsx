@@ -162,12 +162,13 @@ export default function Tutorial({
             to look at.
           </Lead>
           <P>
-            Any <C>.tex</C> file with its own <C>\documentclass</C> can be
-            previewed alongside the main one. NextTex finds them for you:
-            the <C>+</C> on the preview tabs lists them, and each file's
-            <C>⋯</C> menu offers the same thing. A file that is
-            <C>\include</C>d by something else is not offered, because its
-            preview is the document that includes it.
+            There is no main document. Any <C>.tex</C> file with its own{" "}
+            <C>\documentclass</C> that nothing else reads is a document, and
+            the page follows whatever you are writing: open a document and it
+            comes to the front, open a chapter and the document that{" "}
+            <C>\include</C>s it does, however many files deep. The <C>+</C> on
+            the preview tabs lists the documents not yet on the strip, and each
+            file's <C>⋯</C> menu offers the same thing, along with its PDF.
           </P>
           <P>
             Each document builds on its own and keeps its own page, its own

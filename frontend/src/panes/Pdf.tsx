@@ -174,8 +174,9 @@ export default function Pdf({
   onNavigate: (file: string, line: number, hint?: WordHint) => void;
   onLoadTemplate?: () => void;
   handleRef: (handle: PdfHandle) => void;
-  /** Which document's PDF this pane is showing.  Empty means the main one,
-   *  which is what a project with a single document has always meant. */
+  /** Which document's PDF this pane is showing.  Empty means whichever the
+   *  server has in front, which is what a project with a single document
+   *  has always meant. */
   document?: string;
   /** A PDF that is not build output.
    *

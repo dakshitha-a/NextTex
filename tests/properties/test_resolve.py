@@ -29,7 +29,7 @@ def project(tmp_path) -> Project:
     root = tmp_path / "project"
     if root.is_dir():
         return Project(root=root.resolve(),
-                       config=ProjectConfig(name="p", main="main.tex"))
+                       config=ProjectConfig(name="p"))
     (root / "chapters").mkdir(parents=True)
     (root / "main.tex").write_text("x", encoding="utf-8")
     (tmp_path / "outside").mkdir()
@@ -37,7 +37,7 @@ def project(tmp_path) -> Project:
     # A symlink pointing out of the project: the escape that is easy to
     # forget, because the path itself looks perfectly ordinary.
     (root / "escape").symlink_to(tmp_path / "outside")
-    return Project(root=root.resolve(), config=ProjectConfig(name="p", main="main.tex"))
+    return Project(root=root.resolve(), config=ProjectConfig(name="p"))
 
 
 @settings(max_examples=300, deadline=None,

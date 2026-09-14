@@ -72,7 +72,9 @@ def test_a_corrupt_registry_is_survivable(client):
 
 def test_opening_a_project_returns_what_the_app_needs(client, project):
     body = client.post(f"/api/projects/{project['id']}/open").json()
-    assert body["main"] == "main.tex"
+    assert "main" not in body
+    assert body["previews"] == ["main.tex"]
+    assert body["visible"] == "main.tex"
     assert body["tree"]["children"]
     assert body["transcript"] == []
 
@@ -85,7 +87,7 @@ def test_opening_is_idempotent(client, project):
 
 def test_a_name_with_a_quote_in_it_does_not_break_the_config(client, tmp_path):
     """The name is interpolated into TOML; a quote would make it unparseable
-    and the project would silently forget its own main file."""
+    and the project would silently forget its own name and build directory."""
     root = tmp_path / "quoted"
     client.post("/api/projects/create",
                 json={"path": str(root), "name": 'Bob"s "Thesis"'})

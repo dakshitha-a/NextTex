@@ -204,7 +204,8 @@ export type DocumentsPayload = {
   previews: string[];
   candidates: string[];
   owners: Record<string, string[]>;
-  main: string;
+  /** The document in front on the server's side of things. */
+  visible: string;
 };
 
 export type ProjectSummary = {
@@ -481,8 +482,14 @@ const api = {
   /** Which documents are previewed, which could be, and who reads what. */
   documents: (id: string) =>
     request<DocumentsPayload>(`/projects/${id}/documents`),
+  /** Preview the document a `.tex` file belongs to: itself when it is a
+   *  root, the document that reads it when it is a part.  `document` is
+   *  what ended up in front.  404 for a fragment nothing reads; 409 when
+   *  the root would share a jobname with a document already on the strip. */
   addPreview: (id: string, path: string) =>
-    request<DocumentsPayload>(`/projects/${id}/previews`, json({ path })),
+    request<DocumentsPayload & { document: string }>(
+      `/projects/${id}/previews`, json({ path }),
+    ),
   removePreview: (id: string, path: string) =>
     request<DocumentsPayload>(
       `/projects/${id}/previews?path=${encodeURIComponent(path)}`,
@@ -581,9 +588,6 @@ const api = {
       `/projects/${id}/template`,
       json({ name }),
     ),
-  setMain: (id: string, path: string) =>
-    request<{ ok: boolean; main: string }>(`/projects/${id}/main`, json({ path })),
-
   /** One or more of the three per-project switches. */
   setProjectSettings: (
     id: string,
@@ -594,7 +598,8 @@ const api = {
     }>,
   ) =>
     request<{
-      main: string;
+      previews: string[];
+      visible: string;
       autocompile: boolean;
       markErrors: boolean;
       markWarnings: boolean;
@@ -1021,14 +1026,15 @@ const api = {
     const params = new URLSearchParams();
     if (options.path) params.set("path", options.path);
     if (options.format) params.set("format", options.format);
-    // Which previewed document's PDF; empty is the main one, which is what
-    // every caller written before there were several sent.
+    // Which document's PDF, by project-relative path; empty is the one on
+    // screen, which is what every caller written before there were several
+    // sent.
     if (options.document) params.set("document", options.document);
     const query = params.toString();
     return `/api/projects/${id}/download${query ? `?${query}` : ""}`;
   },
-  /** One route, several documents.  `document` is empty for the main one,
-   *  which is what every caller written before this sent. */
+  /** One route, several documents.  `document` is empty for the one on
+   *  screen, which is what every caller written before this sent. */
   pdfUrl: (id: string, document: string, stamp: number) =>
     `/api/projects/${id}/pdf?document=${encodeURIComponent(document)}&v=${stamp}`,
   /** One version's bytes.  No cache-busting stamp, and deliberately: the

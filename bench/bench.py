@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT))
 
 from nexttex.history import History                    # noqa: E402
 from nexttex.deps import DependencyGraph
-from nexttex.project import Project, Registry, id_for   # noqa: E402
+from nexttex.project import Project, Registry, guess_document, id_for   # noqa: E402
 from nexttex.symbols import SymbolCache, scan           # noqa: E402
 from server.transcript import Transcript                # noqa: E402
 
@@ -224,7 +224,7 @@ def measure(root: Path) -> list[dict]:
     def open_work() -> None:
         project.tree()
         deps = DependencyGraph(root)
-        names = [project.config.main]
+        names = [guess_document(root) or "main.tex"]
         deps.standalone_candidates(names)
         deps.reverse(names)
 
