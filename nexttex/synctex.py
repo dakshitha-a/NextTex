@@ -119,10 +119,10 @@ def shadow_shift(shadow: Path, main: Path) -> int | None:
     """The line the stand-in main file has that the real one does not.
 
     `compile.write_shadow` scopes a build by writing a copy of the main file
-    with an `\includeonly` directive.  When the main file already has one
+    with an `\\includeonly` directive.  When the main file already has one
     the directive is replaced in place and every line keeps its number; when
     it does not, the directive is inserted on its own line after
-    `\documentclass`, and every line after it is one further down in the
+    `\\documentclass`, and every line after it is one further down in the
     shadow than in the file the writer has open.  synctex only ever saw the
     shadow, so its line numbers for the main file were one too high in that
     case, for both directions of the search.
