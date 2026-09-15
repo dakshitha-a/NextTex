@@ -6645,3 +6645,26 @@ The accepted-word list stays per project and shared, as it was, since
 that decision was already made; what a shared project with two writers
 in two settings does is that each is held to their own choice, and to
 the document's when neither has chosen.
+
+### The verb row clears the selection it is about
+
+The writer reported the row of verbs over a selection, Reword, Shorten
+and the rest, covering the first line of what was selected. Two things
+were wrong in the placement. It was put thirty pixels above the first
+selected line and it is taller than thirty pixels, so its bottom edge
+sat on that line with room to spare above; and when there was no room
+above, which is whenever a selection starts at the top of the view, as a
+selection made after scrolling to a paragraph does, it was clamped to
+the top of the pane, which is squarely over the first line. The comment
+beside the clamp said the row was pushed below the selection in that
+case, and the code did not do it.
+
+The row is measured once it is drawn and placed with its real size:
+above the first selected line by preference, since below is where the
+rest of the paragraph is; below the last selected line when there is no
+room above; and only when the last line is off the bottom of the view
+does it sit at the foot of the pane, over whichever line is there, which
+is the one case with no clear ground. `verb-row.ts` holds the
+arithmetic with its own tests, and `agent.spec.ts` selects at the top of
+the document and in its middle and measures the row against the
+selection's own boxes.

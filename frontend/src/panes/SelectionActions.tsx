@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef } from "react";
+
 /** What to do with something you have selected.
  *
  *  A writer who has highlighted a paragraph has already said what they mean
@@ -51,6 +53,7 @@ export default function SelectionActions({
   at,
   onPick,
   onDismiss,
+  onMeasure,
 }: {
   /** Which lines are selected, for the label. Inclusive and 1-based. */
   lines: { from: number; to: number };
@@ -58,13 +61,23 @@ export default function SelectionActions({
   at: { left: number; top: number };
   onPick: (prompt: string) => void;
   onDismiss: () => void;
+  /** The row's real size once it is drawn, so the pane can place it
+   *  clear of the text rather than by a guess. */
+  onMeasure?: (size: { width: number; height: number }) => void;
 }) {
+  const box = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const element = box.current;
+    if (!element || !onMeasure) return;
+    onMeasure({ width: element.offsetWidth, height: element.offsetHeight });
+  }, [onMeasure, lines.from, lines.to]);
   const span =
     lines.from === lines.to
       ? `Line ${lines.from}`
       : `Lines ${lines.from} to ${lines.to}`;
   return (
     <div
+      ref={box}
       role="group"
       aria-label={`${span} selected`}
       data-testid="selection-actions"

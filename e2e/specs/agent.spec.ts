@@ -880,3 +880,54 @@ test("a distillation the agent writes clears the read-these-now marker", async (
   await expect(tab.getByText(/written up what I found/)).toBeVisible({ timeout: 20_000 });
   await expect(tab.getByRole("button", { name: "Read these now" })).toHaveCount(0, { timeout: 15_000 });
 });
+
+/** The row covers no selected text, wherever the selection is. */
+async function selectedLineBoxes(tab: Page): Promise<{ first: DOMRect; last: DOMRect }> {
+  return tab.evaluate(() => {
+    const layers = [...document.querySelectorAll(".cm-selectionBackground")] as HTMLElement[];
+    const boxes = layers.map((el) => el.getBoundingClientRect()).filter((b) => b.height > 0);
+    boxes.sort((a, b) => a.top - b.top);
+    return { first: boxes[0].toJSON(), last: boxes[boxes.length - 1].toJSON() };
+  });
+}
+
+test("the verb row sits above the selection, not on its first line", async ({ tab }) => {
+  // The row was placed thirty pixels above the first selected line and it
+  // is taller than that, so its bottom edge sat on the line it was meant
+  // to clear.
+  const content = tab.locator(".cm-editor .cm-content");
+  await content.click();
+  await tab.keyboard.press("Control+Home");
+  for (let i = 0; i < 6; i += 1) await tab.keyboard.press("ArrowDown");
+  await tab.keyboard.press("Home");
+  await tab.keyboard.press("Shift+End");
+  await tab.keyboard.press("Shift+ArrowDown");
+  const row = tab.getByTestId("selection-actions");
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await expect.poll(async () => {
+    const box = (await row.boundingBox())!;
+    const { first } = await selectedLineBoxes(tab);
+    return box.y + box.height <= first.top + 0.5;
+  }, { timeout: 5_000 }).toBe(true);
+});
+
+test("a selection that starts at the top of the view gets its row below, not over it", async ({ tab }) => {
+  // The clamp used to hold the row at the top of the pane, which is over
+  // the first selected line whenever the selection starts where the view
+  // starts: the case the writer reported.
+  const content = tab.locator(".cm-editor .cm-content");
+  await content.click();
+  await tab.keyboard.press("Control+Home");
+  await tab.keyboard.press("Shift+ArrowDown");
+  await tab.keyboard.press("Shift+ArrowDown");
+  await tab.keyboard.press("Shift+End");
+  const row = tab.getByTestId("selection-actions");
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await expect.poll(async () => {
+    const box = (await row.boundingBox())!;
+    const { first, last } = await selectedLineBoxes(tab);
+    const clearAbove = box.y + box.height <= first.top + 0.5;
+    const clearBelow = box.y >= last.bottom - 0.5;
+    return clearAbove || clearBelow;
+  }, { timeout: 5_000 }).toBe(true);
+});

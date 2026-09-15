@@ -43,6 +43,7 @@ import { noteTyping } from "../timing";
  *  is: `bundle.initial_kb` counts only what a first visit has to
  *  download. */
 const SelectionActions = lazy(() => import("./SelectionActions"));
+import { placeVerbRow } from "./verb-row";
 
 
 /** How long the outline waits behind the keyboard.
@@ -123,6 +124,9 @@ export default function Editor({
   // kilobytes and a pass over every visible line.
   const speller = useRef<typeof import("./spellcheck") | null>(null);
   // Read by the buffer swap below, which is a closure made once.
+  /** The verb row's measured size, once it has been drawn, so the next
+   *  placement can use it rather than a guess. */
+  const actionsSize = useRef<{ width: number; height: number } | null>(null);
   const spellingRef = useRef(spelling);
   spellingRef.current = spelling;
   const varietyRef = useRef(spellingVariety);
@@ -437,22 +441,28 @@ export default function Editor({
         return;
       }
       const range = editor.state.selection.main;
-      const box = editor.coordsAtPos(Math.min(range.from, range.to));
+      const first = editor.coordsAtPos(Math.min(range.from, range.to));
+      const last = editor.coordsAtPos(Math.max(range.from, range.to));
       const frame = host.current?.getBoundingClientRect();
-      if (!box || !frame) {
+      if (!first || !last || !frame) {
         setActions(null);
         return;
       }
-      const width = 300;
+      // Above the first selected line, or below the last when the first
+      // is at the top of the view; never over selected text.  The row is
+      // measured once it exists and the placement is re-run with its real
+      // size: see `placeVerbRow` for the two ways the old arithmetic put
+      // it on top of the first line.
+      const toPane = (box: { top: number; bottom: number; left: number }) => ({
+        top: box.top - frame.top, bottom: box.bottom - frame.top, left: box.left - frame.left,
+      });
+      const rowSize = actionsSize.current ?? { width: 300, height: 32 };
+      const at = placeVerbRow(
+        toPane(first), toPane(last), { width: frame.width, height: frame.height }, rowSize,
+      );
       setActions({
-        left: Math.max(
-          8,
-          Math.min(box.left - frame.left, frame.width - width - 8),
-        ),
-        // 30px is the row's height plus its gap: above the first selected
-        // line, and pushed below it when the selection starts at the very
-        // top of the pane and there is nowhere above to go.
-        top: Math.max(4, box.top - frame.top - 30),
+        left: at.left,
+        top: at.top,
         from: span.fromLine,
         to: span.toLine,
       });
@@ -1130,6 +1140,28 @@ export default function Editor({
           <SelectionActions
             lines={{ from: actions.from, to: actions.to }}
             at={{ left: actions.left, top: actions.top }}
+            onMeasure={(size) => {
+              // The first placement guessed the size; with the real one,
+              // move the row if the guess would have it over the text.
+              const before = actionsSize.current;
+              actionsSize.current = size;
+              if (!before || before.height !== size.height || before.width !== size.width) {
+                const editor = view.current;
+                const frame = host.current?.getBoundingClientRect();
+                if (!editor || !frame) return;
+                const range = editor.state.selection.main;
+                const first = editor.coordsAtPos(Math.min(range.from, range.to));
+                const last = editor.coordsAtPos(Math.max(range.from, range.to));
+                if (!first || !last) return;
+                const toPane = (box: { top: number; bottom: number; left: number }) => ({
+                  top: box.top - frame.top, bottom: box.bottom - frame.top, left: box.left - frame.left,
+                });
+                const at = placeVerbRow(
+                  toPane(first), toPane(last), { width: frame.width, height: frame.height }, size,
+                );
+                setActions((open) => (open ? { ...open, left: at.left, top: at.top } : open));
+              }
+            }}
             onDismiss={() => setActions(null)}
             onPick={(prompt) => {
               setActions(null);
