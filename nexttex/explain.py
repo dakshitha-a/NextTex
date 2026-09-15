@@ -270,3 +270,40 @@ def summarise(diagnostics: list[dict]) -> dict | None:
             "fix this one and rebuild before reading the rest."
         ) if rest else "",
     }
+
+
+def compile_report(document: str, payload: dict) -> str:
+    """One line saying what a build did, and the errors under it.
+
+    The agent used to hear "Built cleanly" whenever the error count was
+    zero, while the log held every citation as undefined: warnings were
+    never mentioned, so a build that produced a PDF full of question marks
+    read as finished.  The counts are the answer now, and the name of the
+    document, since a project can hold several and the tool builds one.
+    """
+    name = document or str(payload.get("document") or "") or "the document"
+    if payload.get("outcome") not in (None, "ok", "errors"):
+        return f"{name}: the build did not finish ({payload.get('outcome')})."
+    counts = [f"{payload.get('errorCount', 0)} errors",
+              f"{payload.get('warningCount', 0)} warnings"]
+    cited = payload.get("undefinedCitations") or []
+    referred = payload.get("undefinedReferences") or []
+    if cited:
+        counts.append(f"{len(cited)} undefined citations ({', '.join(cited[:5])}"
+                      + (", ..." if len(cited) > 5 else "") + ")")
+    if referred:
+        counts.append(f"{len(referred)} undefined references")
+    if payload.get("overfull"):
+        counts.append(f"{payload['overfull']} overfull boxes")
+    pages = payload.get("pages")
+    head = f"{name}: " + (f"{pages} pages, " if pages else "")
+    seconds = (payload.get("durationMs") or 0) / 1000
+    line = head + ", ".join(counts) + f", {seconds:.1f} s"
+    if payload.get("bibliographyStale"):
+        line += ". The engine asked for the bibliography to be rerun; the next build will."
+    errors = [d for d in payload.get("diagnostics", []) if d.get("severity") == "error"]
+    if errors:
+        line += "\n" + "\n".join(
+            f"{d.get('file')}:{d.get('line')}, {d.get('message')}" for d in errors
+        )
+    return line

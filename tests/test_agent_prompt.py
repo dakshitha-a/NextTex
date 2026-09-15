@@ -121,3 +121,57 @@ def test_a_project_cannot_add_tool_servers_of_its_own(tmp_path):
     options = agent(tmp_path, voice=False)._options()
 
     assert options.strict_mcp_config is True
+
+
+def test_the_compile_tool_reports_the_counts_and_refuses_an_unknown_document(tmp_path):
+    """The agent heard "Built cleanly" while every citation was a question
+    mark, and it could only ever build the document on screen."""
+    import asyncio
+
+    from nexttex.compile import CompileResult, Outcome
+    from nexttex.latexlog import Diagnostic, ParsedLog
+
+    built: list[str | None] = []
+
+    async def compile_now(document=None):
+        built.append(document)
+        log = ParsedLog(pages=12)
+        log.diagnostics.append(Diagnostic(
+            severity="warning",
+            message="Citation `smith2020' on page 1 undefined on input line 4.",
+        ))
+        return CompileResult(Outcome.OK, log, None, 1.2, "full", "full")
+
+    subject = ProjectAgent(
+        tmp_path, tmp_path / ".nexttex", compile_now=compile_now,
+        documents=lambda: ["main.tex", "esi.tex"],
+        diagnostics=lambda: [
+            {"severity": "error", "file": "main.tex", "line": 3,
+             "message": "Missing $ inserted.", "document": "main.tex"},
+            {"severity": "warning", "file": "esi.tex", "line": 9,
+             "message": "Overfull \\hbox (3pt too wide)", "document": "esi.tex"},
+        ],
+    )
+    found = {"compile": subject.compile_tool,
+             "compile_diagnostics": lambda args: _sync(subject.diagnostics_tool(args))}
+
+    answer = asyncio.run(found["compile"]({"document": "esi.tex"}))
+    assert built == ["esi.tex"]
+    assert answer["content"][0]["text"] == (
+        "esi.tex: 12 pages, 0 errors, 1 warnings, 1 undefined citations (smith2020), 1.2 s"
+    )
+    refused = asyncio.run(found["compile"]({"document": "nope.tex"}))
+    assert built == ["esi.tex"]
+    assert "nope.tex is not a document this project builds" in refused["content"][0]["text"]
+
+    grouped = asyncio.run(found["compile_diagnostics"]({}))["content"][0]["text"]
+    assert grouped.splitlines() == [
+        "main.tex:",
+        "  error: main.tex:3, Missing $ inserted.",
+        "esi.tex:",
+        "  warning: esi.tex:9, Overfull \\hbox (3pt too wide)",
+    ]
+
+
+async def _sync(value):
+    return value

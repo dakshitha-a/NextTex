@@ -40,6 +40,7 @@ from typing import Any, AsyncIterator, Callable, Iterator
 import requests
 
 from .atomic import read_text
+from .explain import compile_report
 from .references import appended, entry_for
 from .lines import first_changed_line
 from .writing import PROSE
@@ -232,8 +233,19 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "compile_document",
-            "description": "Typeset the document and report any errors.",
-            "parameters": {"type": "object", "properties": {}},
+            "description": (
+                "Typeset a document and report what the build said: pages, "
+                "errors, warnings, undefined citations and references, "
+                "overfull boxes. A project can hold several documents; name "
+                "one with `document` (a root .tex path relative to the "
+                "project), or leave it out for the one on screen."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document": {"type": "string", "description": "A root .tex file, relative to the project."},
+                },
+            },
         },
     },
 ]
@@ -253,6 +265,7 @@ class OpenAIAgent:
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
+        documents: Callable[[], list[str]] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
@@ -270,6 +283,7 @@ class OpenAIAgent:
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
+        self.documents = documents or (lambda: [])
         self.apply_edit = apply_edit
         self.on_edit = on_edit
         self.reveal = reveal
@@ -712,13 +726,18 @@ class OpenAIAgent:
         if name == "compile_document":
             if self.compile_now is None:
                 return "Typesetting is not available."
-            await self._maybe(self.compile_now())
-            problems = [
-                f"{item.get('file')}:{item.get('line')}: {item.get('message')}"
-                for item in self.diagnostics()
-                if item.get("severity") == "error"
-            ]
-            return "\n".join(problems) if problems else "It typeset with no errors."
+            named = str(args.get("document") or "").strip()
+            if named and named not in self.documents():
+                known = ", ".join(self.documents()) or "none yet"
+                return (f"{named} is not a document this project builds. "
+                        f"The documents are: {known}.")
+            result = await self._maybe(
+                self.compile_now(document=named) if named else self.compile_now()
+            )
+            payload = result.as_dict() if hasattr(result, "as_dict") else (result or {})
+            if not isinstance(payload, dict):
+                payload = {}
+            return compile_report(named, payload)
 
         return f"There is no tool called {name}."
 

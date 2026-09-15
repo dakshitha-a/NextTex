@@ -185,3 +185,47 @@ def test_a_warning_is_never_the_place_to_start():
     assert summarise([
         {"severity": "warning", "file": "a.tex", "line": 1, "message": "Overfull"},
     ]) is None
+
+
+def test_a_build_report_names_the_document_and_counts_what_the_log_said():
+    """The agent used to hear "Built cleanly" whenever the error count was
+    zero, while every citation in the PDF was a question mark: warnings
+    were never mentioned.  The counts are the answer now."""
+    from nexttex.explain import compile_report
+
+    payload = {
+        "outcome": "ok", "durationMs": 1900, "pages": 28,
+        "errorCount": 0, "warningCount": 3,
+        "undefinedCitations": ["smith2020", "jones2021"],
+        "undefinedReferences": [], "overfull": 1,
+        "bibliographyStale": False, "diagnostics": [],
+    }
+    line = compile_report("cas_paper/x.tex", payload)
+    assert line == (
+        "cas_paper/x.tex: 28 pages, 0 errors, 3 warnings, "
+        "2 undefined citations (smith2020, jones2021), 1 overfull boxes, 1.9 s"
+    )
+    assert "Built cleanly" not in line
+
+
+def test_a_build_report_puts_the_errors_under_the_line():
+    from nexttex.explain import compile_report
+
+    payload = {
+        "outcome": "errors", "durationMs": 400, "pages": None,
+        "errorCount": 1, "warningCount": 0,
+        "diagnostics": [
+            {"severity": "error", "file": "main.tex", "line": 4, "message": "Missing $ inserted."},
+        ],
+    }
+    assert compile_report("", payload) == (
+        "the document: 1 errors, 0 warnings, 0.4 s\nmain.tex:4, Missing $ inserted."
+    )
+
+
+def test_a_build_that_did_not_finish_says_so():
+    from nexttex.explain import compile_report
+
+    assert compile_report("main.tex", {"outcome": "timeout"}) == (
+        "main.tex: the build did not finish (timeout)."
+    )

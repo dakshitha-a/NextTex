@@ -74,6 +74,7 @@ class ScriptedAgent:
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
+        documents: Callable[[], list[str]] | None = None,
         run_script: Callable[[Path], Any] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
@@ -90,6 +91,7 @@ class ScriptedAgent:
         self.mode = "ask"
         self._conversation_allow: set[str] = set()
         self.compile_now = compile_now
+        self.documents = documents or (lambda: [])
         self.apply_edit = apply_edit
         self.on_edit = on_edit
         self.reveal = reveal

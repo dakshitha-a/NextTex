@@ -6432,3 +6432,32 @@ token type of its own, which is not a tag the highlighter knows, and the
 console had been warning "Unknown highlighting tag self" once per page
 with the word taking no style; it is a special variable now, set in the
 second ink like any other name.
+
+### A build says what the log said
+
+The in-app agent, working on a real paper, reported that `compile`
+answered "built cleanly" while every citation in the PDF was a question
+mark, and that it stayed that way across repeated builds until it ran
+bibtex by hand. Two things were true. The tool's text mentioned only
+errors, and an undefined citation is a warning; and every build after
+the first is a fast pass, one pdflatex with no bibliography step, unless
+an edit touched a citation key, a label, the preamble or a `.bib`, so a
+document whose bibliography the fast pass could not reach was rebuilt
+the same way each time and reported the same way each time.
+
+The tool answers a line now, `cas_paper/x.tex: 28 pages, 0 errors, 3
+warnings, 2 undefined citations (smith2020, jones2021), 1 overfull
+boxes, 1.9 s`, with the errors under it when there are any, and it takes
+a `document`, because a project can hold several and the tool could
+only ever build the one on screen. A name the project does not build is
+refused with the list, since the session would otherwise build the
+visible document and the report would carry the wrong name over the
+right counts. `compile_diagnostics` groups what it lists under each
+document's name, where before a supplement's error read as the paper's,
+and the system prompt now says that a project can hold several documents
+and that the counts are the thing to read. The scheduler's half is in
+`docs/architecture.md`: after a fast pass the keys the log left
+undefined are compared with those the last full pass left, and a
+difference earns the next build a full one. A difference and not a
+presence, because a misspelled key survives every full pass and would
+otherwise make every keystroke a latexmk run.
