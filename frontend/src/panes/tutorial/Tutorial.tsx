@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from "react";
 import {
-  C, Contents, Figure, Keys, Lead, P, Section, useCurrentSection, type Entry,
+  C, Contents, Figure, Key, Keys, Lead, P, Section, useCurrentSection, type Entry,
 } from "./parts";
 
 import tabStripLight from "./shots/tab-strip-light.png";
@@ -21,13 +21,13 @@ const ENTRIES: Entry[] = [
   { id: "sync", label: "The page and the source" },
   { id: "documents", label: "More than one document" },
   { id: "folding", label: "Folding, reading, writing" },
-  { id: "errors", label: "When it does not compile" },
-  { id: "keys", label: "Keyboard" },
+  { id: "errors", label: "Errors and spelling" },
   { id: "agent", label: "The agent" },
   { id: "context", label: "Your template and your voice" },
   { id: "references", label: "References" },
   { id: "sharing", label: "Writing it with somebody" },
   { id: "safety", label: "Nothing is lost" },
+  { id: "keys", label: "Keyboard" },
 ];
 
 const IDS = ENTRIES.map((entry) => entry.id);
@@ -124,15 +124,18 @@ export default function Tutorial({
             them folds away, and the app remembers which.
           </Lead>
           <P>
-            There is no save button. What you type is written about a quarter
-            of a second after you stop, and the page rebuilds about a second
-            after that, and only the section you are in, which is why it is
-            quick. The strip along the bottom says how long the last build
-            took and whether the page is behind the source.
+            There is no save button. What you type is written as you type
+            it, and with <C>Compile as you type</C> on, which it is to begin
+            with, the page rebuilds about a second after you pause, and only
+            the section you are in, which is why it is quick. The strip along
+            the bottom says how long the last build took and whether the page
+            is behind the source.
           </P>
           <P>
-            <C>⌘S</C> does not save, because saving already happened. It
-            skips the wait and builds now.
+            <Key spec="Mod-S" /> does not save, because saving already
+            happened. It skips the wait and builds now. With{" "}
+            <C>Compile as you type</C> off, under the cog, nothing builds
+            until you press it or <C>Compile</C> in the strip.
           </P>
         </Section>
 
@@ -144,13 +147,14 @@ export default function Tutorial({
             or an equation.
           </Lead>
           <P>
-            <C>⌘↵</C> goes the other way: it scrolls the page to whatever line
-            your caret is on.
+            <Key spec="Mod-Enter" /> goes the other way: it scrolls the page
+            to whatever line your caret is on.
           </P>
           <P>
             The text on the page can be selected and copied, so a quotation
             or a number can come straight out of the typeset document rather
-            than being retyped from the source.
+            than being retyped from the source, and <Key spec="Mod-F" /> with
+            the page in front finds on the page rather than in the source.
           </P>
         </Section>
 
@@ -166,8 +170,9 @@ export default function Tutorial({
             <C>\documentclass</C> that nothing else reads is a document, and
             the page follows whatever you are writing: open a document and it
             comes to the front, open a chapter and the document that{" "}
-            <C>\include</C>s it does, however many files deep. The <C>+</C> on
-            the preview tabs lists the documents not yet on the strip, and each
+            <C>\include</C>s it does, however many files deep. The{" "}
+            <C>+</C> at the end of the preview tabs, <C>Preview another
+            document</C>, lists the documents not yet on the strip, and each
             file's <C>⋯</C> menu offers the same thing, along with its PDF.
           </P>
           <P>
@@ -179,7 +184,15 @@ export default function Tutorial({
           <P>
             The tabs and the source follow each other. Opening a document
             brings its page forward; clicking a tab opens its source.{" "}
-            <C>⌘⌥P</C> moves between them.
+            <Key spec="Mod-Alt-P" /> moves between them.
+          </P>
+          <P>
+            A Python script in the project opens in the source pane like a
+            chapter. <C>Run</C> at the end of its tab strip runs it, and{" "}
+            <Key spec="Mod-Enter" /> does the same on a script rather than
+            scrolling the page; it reads <C>Stop</C> while the run is going.
+            What the script prints, and the figure it would have shown, is a
+            tab on the preview strip beside the documents.
           </P>
         </Section>
 
@@ -204,22 +217,24 @@ export default function Tutorial({
             nothing.
           </P>
           <P>
-            Both modes have a key as well: <C>⌘⌥R</C> for reading and{" "}
-            <C>⌘⌥E</C> for writing, and the same key again puts your layout
-            back.
+            Both modes have a key as well: <Key spec="Mod-Alt-R" /> for
+            reading and <Key spec="Mod-Alt-E" /> for writing, and the same
+            key again puts your layout back.
           </P>
           <Figure
             light={tabStripLight}
             dark={tabStripDark}
-            width={712}
-            height={34}
+            width={916}
+            height={68}
             eager
             alt="The editor tab strip with two files open and empty space to the right of them."
             caption="The empty run to the right of the last tab. Double-click there."
           />
           <P>
-            In the file list, the <C>Files</C> and <C>Sections</C> headers
-            fold too. <C>⌘B</C> hides the whole left column.
+            The left column is a stack of panels, <C>Files</C>,{" "}
+            <C>Sections</C>, <C>Search</C>, <C>Trash</C>, <C>Papers</C>, what
+            the agent reads, and <C>Git</C>, and each header folds its panel.{" "}
+            <Key spec="Mod-B" /> hides the whole column.
           </P>
           <P>
             Below 900 pixels of width the source and the page share one view
@@ -227,7 +242,7 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="errors" n={5} title="When it does not compile">
+        <Section id="errors" n={5} title="When it does not compile, and when it is misspelt">
           <Lead>
             A bar appears in the margin next to the line LaTeX complained
             about, and the status strip counts the errors. The list itself
@@ -235,16 +250,19 @@ export default function Tutorial({
             while you are typing takes the page you were reading away.
           </Lead>
           <P>
-            Click the count to open it. The strip along the top explains the
-            first error in plain English and names the one to start from.
-            Start there: LaTeX reports the consequences of a mistake as well
-            as the mistake, so the last error is usually the least useful.
+            Click the count to open it, or press <C>F8</C>, which steps to the
+            next error from anywhere and opens the drawer on the way;{" "}
+            <Key spec="Shift-F8" /> steps back. The strip along the top
+            explains the first error in plain English and names the one to
+            start from. Start there: LaTeX reports the consequences of a
+            mistake as well as the mistake, so the last error is usually the
+            least useful.
           </P>
           <Figure
             light={errorsLight}
             dark={errorsDark}
-            width={968}
-            height={498}
+            width={976}
+            height={496}
             alt="The error list, with an explanation of the first error above it."
             caption="Start here names the error to begin with, and what to try."
           />
@@ -252,26 +270,17 @@ export default function Tutorial({
             No model is involved in any of that. The explanations are the
             app's own reading of the log.
           </P>
+          <P>
+            Spelling is checked in the source when <C>Spelling</C> is on,
+            under <C>While you write</C> in the cog, in the language your
+            document declares. A word it does not know is underlined;
+            right-click it, or press <Key spec="Mod-." /> with the caret on
+            it, to add it to the project's dictionary, which travels with the
+            project and with anybody you share it with.
+          </P>
         </Section>
 
-        <Section id="keys" n={6} title="Keyboard">
-          <Keys
-            rows={[
-              ["⌘S", "Save now rather than waiting for the pause"],
-              ["⌘B", "Hide the file list"],
-              ["⌘⌥A", "Show or hide the agent, ready to type"],
-              ["⌘⌥P", "Move between the previewed documents"],
-              ["⌘↵", "Scroll the page to the line you are on"],
-              ["Ctrl-F", "Find and replace"],
-              ["Typing", "In the file list, jumps to a file"],
-              ["F2, Delete", "In the file list, rename and move to trash"],
-              ["A, ⇧A, D", "In a permission card: allow, allow always, deny"],
-              ["Esc", "Closes whatever you opened, the agent panel last"],
-            ]}
-          />
-        </Section>
-
-        <Section id="agent" n={7} title="The agent">
+        <Section id="agent" n={6} title="The agent">
           <Lead>
             It edits the files in this project directly. Each edit arrives in
             the panel as a chip you can open to see the diff, and undo without
@@ -280,11 +289,19 @@ export default function Tutorial({
           <Figure
             light={chipLight}
             dark={chipDark}
-            width={712}
-            height={260}
+            width={744}
+            height={364}
             alt="An edit chip in the agent panel, opened to show a unified diff."
             caption="Open the chip for the diff. Undo puts the file back."
           />
+          <P>
+            Select a sentence or a paragraph in the source and a row of verbs
+            appears over it: <C>Reword</C>, <C>Shorten</C>, <C>Expand</C>,{" "}
+            <C>Ask</C>. Each one writes the question into the box with the
+            selection attached and leaves you to finish the sentence and
+            press Send, because the second half of the instruction is usually
+            the part that matters: reword this, and keep the citation.
+          </P>
           <P>
             Anything else asks first: a shell command, or a write to a file
             outside this project. The buttons ignore clicks for a third of a
@@ -294,64 +311,70 @@ export default function Tutorial({
           <Figure
             light={cardLight}
             dark={cardDark}
-            width={712}
-            height={300}
-            alt="A permission card showing a shell command and three buttons."
-            caption="Allow always remembers a scope, not the button. For a command that is its first word; for a file it is that file."
+            width={744}
+            height={448}
+            alt="A permission card showing a shell command and four buttons."
+            caption="Allow always remembers a scope, not the button: a command by its first word, or by its exact text when it has pipes or redirects; a file by that file. For this conversation forgets it when the conversation ends."
           />
           <P>
-            Turning on <C>Approve everything automatically</C> stops the cards.
-            What it does not stop is the record: every action still appears in
-            the conversation saying it was approved automatically, and a write
-            outside the project still asks either way.
+            <C>What to ask about</C>, under the box, has three positions.{" "}
+            <C>Ask before acting</C> is the cards above. <C>Run the work
+            without asking</C> lets commands and edits inside the project run
+            silently and still asks about a write outside it or anything that
+            reaches the internet. <C>Never ask about anything</C> stops the
+            cards altogether. None of them stops the record: every action
+            still appears in the conversation, saying it ran without asking.
           </P>
           <P>
-            The buttons under the box are, left to right: start a new
-            conversation, choose the model, approve everything automatically,
-            and add a template or a writing sample. None of them is labelled,
-            so hover for a name.
+            The buttons under the box are, left to right: new conversation,
+            past conversations, which model answers, what to ask about,
+            attach an image, and your template and voice. None of them is
+            labelled, so hover for a name.
           </P>
           <Figure
             light={composerLight}
             dark={composerDark}
-            width={712}
-            height={34}
-            alt="The row of small buttons beneath the agent's message box."
+            width={760}
+            height={68}
+            alt="The row of six small buttons beneath the agent's message box."
             caption="Under the box, beside Send."
           />
           <P>
             Starting a new conversation clears the panel and the model's
             memory of the chat, but keeps what it has been told to remember
             about the project, and keeps the tally of what this project has
-            cost. The old conversation is filed away on disk rather than
-            deleted.
+            cost. The old conversation is filed away rather than deleted, and
+            past conversations reopens any of them.
           </P>
           <P>
-            <C>⌘⌥A</C> shows and hides the panel and leaves the caret in the
-            box.
+            <Key spec="Mod-Alt-A" /> shows and hides the panel and leaves the
+            caret in the box. <C>Esc</C> in the panel stops a turn that is
+            running, and closes the panel when nothing is.
           </P>
           <P>
-            Which agent answers is under <C>Agent</C> in the cog: Claude,
-            an OpenAI key, or nobody at all. Working on your own removes the
-            chat column rather than greying it out, and everything else in
-            the app is unchanged. Changing it closes whatever conversations
-            are open, because each one belongs to the agent that was
-            answering.
+            Which agent answers is the <C>Writing agent</C> row under{" "}
+            <C>This install</C> in the cog: Claude, an OpenAI key, or nobody
+            at all. Working on your own removes the chat column rather than
+            greying it out, and everything else in the app is unchanged.
+            Changing it closes whatever conversations are open, because each
+            one belongs to the agent that was answering.
           </P>
         </Section>
 
-        <Section id="context" n={8} title="Teaching it your template and your voice">
+        <Section id="context" n={7} title="Teaching it your template and your voice">
           <Lead>
-            The last button under the box takes a document you have to
-            follow, such as a department handbook, a journal's author
-            instructions or a class file, and a piece of writing that sounds
-            like you, usually a paper you have already published.
+            The last button under the box, <C>Template and voice</C>, takes a
+            document you have to follow, such as a department handbook, a
+            journal's author instructions or a class file, and a piece of
+            writing that sounds like you, usually a paper you have already
+            published.
           </Lead>
           <P>
             It reads each one once and keeps a distilled summary rather than
             the whole document, so the rules travel with every question
             without costing the length of a handbook each time. You can read
-            and correct what it kept in the panel that says what it reads.
+            and correct what it kept in the left column's panel headed with
+            what the agent reads.
           </P>
           <P>
             The same panel holds what it has been told to remember. Ask it to
@@ -360,7 +383,7 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="references" n={9} title="References it cannot invent">
+        <Section id="references" n={8} title="References it cannot invent">
           <Lead>
             Ask for a citation and it searches real catalogues, then fetches
             the entry from the publisher's own record by DOI. It never
@@ -371,11 +394,12 @@ export default function Tutorial({
             It can also check a bibliography you already have, entry by entry
             against those records, and fill one from a folder of PDFs, each
             checked against the paper it came from, so a wrong DOI is refused
-            rather than added.
+            rather than added. The <C>Papers</C> panel in the left column is
+            where those PDFs live.
           </P>
         </Section>
 
-        <Section id="sharing" n={10} title="Writing it with somebody else">
+        <Section id="sharing" n={9} title="Writing it with somebody else">
           <Lead>
             <strong>Share</strong>, beside the project's name, gives you an invite to
             send. Whoever opens it gets the whole project, every file and
@@ -419,7 +443,7 @@ export default function Tutorial({
           </P>
         </Section>
 
-        <Section id="safety" n={11} title="Nothing is lost">
+        <Section id="safety" n={10} title="Nothing is lost">
           <Lead>
             Every pause is a version. Open a file's history from the menu on
             its row in the file list, read any earlier version, and put it
@@ -427,8 +451,9 @@ export default function Tutorial({
             into. Give one a name and it is kept for good.
           </Lead>
           <P>
-            Deleted files go to a trash that never empties itself, and a
-            deleted folder comes back whole.
+            The same menu duplicates a file, and can clear a file's history
+            when you are sure. Deleted files go to a trash that never empties
+            itself, and a deleted folder comes back whole.
           </P>
           <P>
             The git panel at the foot of the file list offers a repository to
@@ -440,9 +465,9 @@ export default function Tutorial({
           <Figure
             light={gitLight}
             dark={gitDark}
-            width={712}
-            height={110}
-            alt="A card in the file list footer offering to back the project up to GitHub."
+            width={480}
+            height={472}
+            alt="A card in the file list footer offering to keep versions of the project with git."
             caption="Offered once. Dismiss it and the panel's four buttons are still there."
           />
           <P>
@@ -450,9 +475,77 @@ export default function Tutorial({
             files. Delete that folder and you have exactly the LaTeX project
             you started with.
           </P>
+        </Section>
+
+        <Section id="keys" n={11} title="Keyboard">
+          <P>
+            Every chord is written for both keyboards. The app reads the Mac's{" "}
+            <C>⌘</C> and everybody else's <C>Ctrl</C> as the same key, so
+            either line is true wherever you are.
+          </P>
+          <Keys
+            groups={[
+              {
+                where: "Anywhere",
+                rows: [
+                  { spec: "Mod-S", does: "Save this instant; compile instead when Compile as you type is off" },
+                  { spec: "Mod-B", does: "Hide the left column" },
+                  { spec: "Mod-Alt-A", does: "Show or hide the agent, ready to type" },
+                  { spec: "Mod-Alt-P", does: "Move between the previewed documents" },
+                  { spec: "Mod-Shift-F", does: "Find and replace across every file" },
+                  { spec: "Mod-Alt-O", does: "Open a file by typing its name" },
+                  { spec: "Mod-Alt-]", does: "Next tab; [ for the previous" },
+                  { spec: "Mod-Alt-W", does: "Close the tab in front" },
+                  { spec: "Mod-Alt-Shift-T", does: "Reopen the tab you just closed" },
+                  { spec: "Mod-Alt-R", does: "Reading mode; again puts your layout back" },
+                  { spec: "Mod-Alt-E", does: "Writing mode; again puts it back" },
+                  { key: "F8, ⇧F8", does: "Next and previous error" },
+                ],
+              },
+              {
+                where: "In the source",
+                rows: [
+                  { spec: "Mod-Enter", does: "Scroll the page to the line you are on; in a script, run it" },
+                  { spec: "Mod-F", does: "Find and replace in this file" },
+                  { spec: "Mod-.", does: "The menu for the word under the caret" },
+                  { spec: "Mod-click", does: "Follow a \\ref to its label or an \\input to its file" },
+                  { spec: "Alt-drag", does: "Select a column, for editing a table" },
+                  { spec: "Mod-Alt-ArrowDown", does: "A caret on the row below; ↑ for above" },
+                  { key: "↹ or ↵", does: "In the completion list, take the suggestion" },
+                  { key: "Esc", does: "Back to one caret" },
+                ],
+              },
+              {
+                where: "On the page",
+                rows: [
+                  { spec: "Mod-F", does: "Find on the typeset page" },
+                  { key: "Double-click", does: "Go to the line that set this" },
+                ],
+              },
+              {
+                where: "In the file list",
+                rows: [
+                  { key: "Typing", does: "Jumps to a file" },
+                  { key: "F2, Delete", does: "Rename, move to trash" },
+                ],
+              },
+              {
+                where: "In the agent panel",
+                rows: [
+                  { key: "↵, ⇧↵", does: "Send; a new line" },
+                  { key: "A, ⇧A, C, D", does: "In a permission card: allow, allow always, for this conversation, deny" },
+                  { key: "Esc", does: "Stop the turn if one is running, otherwise close the panel" },
+                ],
+              },
+            ]}
+          />
+          <P>
+            <C>Esc</C> closes this tutorial too, unless you are typing into
+            something.
+          </P>
           <p className="t-micro text-ink-3">
-            Installing, choosing an agent and a longer walkthrough are in the
-            project's README and <C>docs/first-session.md</C>.
+            Installing and a longer walkthrough are in the project's README
+            and <C>docs/first-session.md</C>.
           </p>
         </Section>
       </div>

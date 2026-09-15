@@ -163,13 +163,12 @@ after all, one confirmation each.
       unique across their folders, and `main.pdf` is what every Makefile
       pointed at a project expects to find. Revisit if somebody reports the
       notice rather than renaming.
-- [ ] **The README's screenshots and the tutorial's tab-strip figure show
-      the headers as they were.** The preview header had a serif "Preview"
-      label for a single document and the `+` was a glyph; both are tabs and
-      an icon now. `e2e/shots/` regenerates them and is never run by a check,
-      and the photographs are the one part of the documents this run did not
-      remake, because the headers were photographed at one and two on a
-      machine this session does not have.
+- [ ] **The README's screenshots show the headers as they were.** The
+      preview header had a serif "Preview" label for a single document and
+      the `+` was a glyph; both are tabs and an icon now. `e2e/shots/`
+      regenerates them and is never run by a check. The tutorial's figures,
+      which were on this item too, were regenerated on 15 September 2026;
+      the README's are `e2e/shots/hero.spec.ts` and still wait.
 - [ ] **Another window's removal of a preview closes no tabs here.**
       `previews_changed` from elsewhere moves the strip and nothing else,
       by design: the strip is shared and the tabs are each window's own.

@@ -40,5 +40,10 @@ for (const shot of CASES) {
     await sheet.locator("[data-section='errors']").scrollIntoViewIfNeeded();
     await page.waitForTimeout(500);
     await sheet.screenshot({ path: `shots/out-tutorial-${shot.name}-mid.png` });
+
+    // And the keyboard, at the end, where both forms of every chord are.
+    await sheet.locator("[data-section='keys']").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+    await sheet.screenshot({ path: `shots/out-tutorial-${shot.name}-keys.png` });
   });
 }
