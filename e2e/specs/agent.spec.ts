@@ -858,3 +858,25 @@ test("the agent can turn the preview to a page", async ({ tab }) => {
   // And the record says what the tool did, in words.
   await expect(tab.getByText("Turned the preview to a page")).toBeVisible();
 });
+
+test("a distillation the agent writes clears the read-these-now marker", async ({ tab, project }) => {
+  // The summary lands under .nexttex/, which the watcher ignores by design,
+  // so nothing told the panel and the marker stayed as it had been
+  // computed when the panel last looked.  A voice document uploaded
+  // through the panel's own route makes the marker appear; the scripted
+  // agent then writes the summary the way a real distillation does.
+  await tab.getByRole("button", { name: /What .* reads/ }).click();
+  await tab.evaluate(async (projectId) => {
+    const form = new FormData();
+    form.append("kind", "voice");
+    form.append("note", "");
+    form.append("files", new File(["I write in short sentences."], "voice.txt", { type: "text/plain" }));
+    const answer = await fetch(`/api/projects/${projectId}/context`, { method: "POST", body: form });
+    if (!answer.ok) throw new Error(`upload refused: ${answer.status}`);
+  }, project.id);
+  await expect(tab.getByRole("button", { name: "Read these now" })).toBeVisible({ timeout: 15_000 });
+
+  await ask(tab, "distill", "Read the voice sample.");
+  await expect(tab.getByText(/written up what I found/)).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByRole("button", { name: "Read these now" })).toHaveCount(0, { timeout: 15_000 });
+});

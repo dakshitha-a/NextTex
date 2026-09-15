@@ -1,0 +1,7 @@
+[
+  {"kind": "tool", "name": "Read", "input": {"file_path": ".nexttex/context/voice/voice.txt"}},
+  {"kind": "text", "text": "I have read the voice sample and written up what I found.", "pieces": 2},
+  {"kind": "tool", "name": "Write", "input": {"file_path": ".nexttex/context/voice.md"}},
+  {"kind": "edit", "path": ".nexttex/context/voice.md",
+   "text": "# The author's writing voice\n\nShort sentences. Concrete nouns.\n"}
+]

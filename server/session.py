@@ -1047,6 +1047,7 @@ class ProjectSession:
         self._into_the_document(path, text)
         self.note_edit(path, text, previous)
         self.schedule_compile()
+        self._note_context_written(path)
         spawn(
             self.events.publish({
                 "type": "files_changed",
@@ -1069,6 +1070,30 @@ class ProjectSession:
         self._into_the_document(path, after)
         self.note_edit(path, after, before)
         self.schedule_compile()
+        self._note_context_written(path)
+
+    def _note_context_written(self, path: Path) -> None:
+        """A distillation the agent wrote is news the context panel needs.
+
+        `voice.md` and `style.md` land under `.nexttex/`, which the file
+        watcher ignores by design, so nothing published `context_changed`
+        and the panel's "read these now" marker stayed as it was computed
+        when the panel last looked, on a summary that had just been
+        rewritten.  Both agent write paths end here.
+        """
+        try:
+            written = path.resolve()
+            summaries = {
+                self.context.style_summary.resolve(),
+                self.context.voice_summary.resolve(),
+            }
+        except OSError:
+            return
+        if written in summaries:
+            spawn(
+                self.events.publish({"type": "context_changed"}),
+                "announcing a rewritten summary",
+            )
 
     def _into_the_document(self, path: Path, text: str | None) -> None:
         """Fold an agent's write into the shared document.
