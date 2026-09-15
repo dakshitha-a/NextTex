@@ -92,7 +92,17 @@ export type Appearance = {
    *  a writer has told it about the vocabulary of their own subject it has
    *  something to say about a great many correctly spelled words. */
   spelling: boolean;
+  /** Which English the checker holds the prose to.  `follow` is the
+   *  default and means what the open document's own preamble says, from
+   *  its babel or polyglossia options, and when it says nothing, both
+   *  spellings of every word: half the literature a thesis cites is
+   *  American, and an underline under every `colour` teaches people to
+   *  ignore underlines.  Choosing a variety tightens it, so the other
+   *  spelling is flagged. */
+  spellingVariety: SpellingVariety;
 };
+
+export type SpellingVariety = "follow" | "american" | "british";
 
 /** The steps the two size controls offer.  Discrete stops rather than a
  *  continuous range: there is no useful difference between 112% and 114%,
@@ -125,7 +135,7 @@ export const WEIGHT_NAMES: Record<number, string> = {
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
   weight: 400, syntax: "subtle", emphasis: "bold", preview: "balanced",
-  spelling: false,
+  spelling: false, spellingVariety: "follow",
 };
 
 const KEYS = {
@@ -138,6 +148,7 @@ const KEYS = {
   emphasis: "nexttex.editor.emphasis",
   preview: "nexttex.preview.quality",
   spelling: "nexttex.editor.spelling",
+  spellingVariety: "nexttex.editor.spelling.variety",
 };
 
 /** localStorage throws rather than returning null in a private window, or
@@ -189,6 +200,7 @@ export function storedAppearance(): Appearance {
   const emphasis = read(KEYS.emphasis);
   const preview = read(KEYS.preview);
   const spelling = read(KEYS.spelling);
+  const spellingVariety = read(KEYS.spellingVariety);
   return {
     // Dark by default: this is an instrument you sit in front of for hours,
     // beside a white page that supplies all the brightness the eye needs.
@@ -206,6 +218,10 @@ export function storedAppearance(): Appearance {
         ? preview
         : DEFAULTS.preview,
     spelling: spelling === "on",
+    spellingVariety:
+      spellingVariety === "american" || spellingVariety === "british"
+        ? spellingVariety
+        : DEFAULTS.spellingVariety,
   };
 }
 
@@ -251,6 +267,7 @@ export function applyAppearance(appearance: Appearance): void {
   // third blocking read on the boot path would buy nothing and can throw.
   root.dataset.previewQuality = appearance.preview;
   root.dataset.spelling = appearance.spelling ? "on" : "off";
+  root.dataset.spellingVariety = appearance.spellingVariety;
 
   write(KEYS.theme, appearance.theme);
   write(KEYS.scale, String(appearance.scale));
@@ -261,6 +278,7 @@ export function applyAppearance(appearance: Appearance): void {
   write(KEYS.emphasis, appearance.emphasis);
   write(KEYS.preview, appearance.preview);
   write(KEYS.spelling, appearance.spelling ? "on" : "off");
+  write(KEYS.spellingVariety, appearance.spellingVariety);
 
   // The preview draws to a canvas whose backing store is sized for the
   // scale in force when it was drawn, so it has to be told rather than left
@@ -282,6 +300,7 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.syntax === DEFAULTS.syntax &&
     appearance.emphasis === DEFAULTS.emphasis &&
     appearance.preview === DEFAULTS.preview &&
-    appearance.spelling === DEFAULTS.spelling
+    appearance.spelling === DEFAULTS.spelling &&
+    appearance.spellingVariety === DEFAULTS.spellingVariety
   );
 }

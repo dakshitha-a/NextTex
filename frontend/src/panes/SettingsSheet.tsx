@@ -224,7 +224,32 @@ export default function SettingsSheet({
                 ] as const}
                 onPick={(spelling) => change({ spelling })}
               />
-              {look.spelling ? <AddedWords /> : null}
+              {look.spelling ? (
+                <>
+                  {/* Which English.  "Document" is the default and means
+                      what the open document's own preamble says, from its
+                      babel or polyglossia options, and both spellings of
+                      every word when it says nothing: half the literature
+                      a thesis cites is American, and an underline under
+                      every "colour" teaches people to ignore underlines.
+                      Choosing a variety tightens it.  The document's answer
+                      arrives with the symbol table, on open and after a
+                      build, rather than on the keystroke that typed the
+                      babel line. */}
+                  <Choice
+                    label="Variety"
+                    name="English variety"
+                    value={look.spellingVariety}
+                    options={[
+                      { value: "follow", text: "Document", id: "variety-follow" },
+                      { value: "british", text: "British", id: "variety-british" },
+                      { value: "american", text: "American", id: "variety-american" },
+                    ] as const}
+                    onPick={(spellingVariety) => change({ spellingVariety })}
+                  />
+                  <AddedWords />
+                </>
+              ) : null}
               {/* What the preview spends on a page.  The page is rasterised
                   at the device ratio times the interface scale, so a retina
                   screen or a scaled-up interface already costs several

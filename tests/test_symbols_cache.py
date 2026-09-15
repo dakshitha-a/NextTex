@@ -74,3 +74,40 @@ def test_a_scan_still_finds_what_it_used_to(tmp_path):
     assert sorted(label["name"] for label in found.labels) == ["fig:one", "sec:one"]
     assert found.images == ["figures/plot.pdf"]
     assert sorted(found.texfiles) == ["chapters/one.tex", "main.tex"]
+
+
+def test_the_english_a_preamble_declares_is_read_off_it():
+    """The spell checker follows the document: a British thesis is checked
+    as British for everyone who opens it, with nobody setting anything.
+    babel's main language is the last one listed, and its plain `english`
+    is American, as polyglossia's is."""
+    from nexttex.symbols import english_of
+
+    assert english_of("\\usepackage[french,british]{babel}\n\\begin{document}") == "british"
+    # The last language listed is babel's main one; French says nothing
+    # about which English, so the British before it stands.
+    assert english_of("\\usepackage[british,french]{babel}") == "british"
+    assert english_of("\\usepackage[english]{babel}") == "american"
+    assert english_of("\\usepackage[UKenglish]{babel}") == "british"
+    assert english_of("\\usepackage{babel}") is None
+    assert english_of("\\setmainlanguage[variant=british]{english}") == "british"
+    assert english_of("\\setdefaultlanguage[variant=us]{english}") == "american"
+    assert english_of("\\setmainlanguage{english}") == "american"
+    assert english_of("\\setmainlanguage{french}") is None
+    # Only the preamble: a chapter has none, and a package loaded after
+    # \begin{document} is not a declaration.
+    assert english_of("\\begin{document}\\usepackage[british]{babel}") is None
+    assert english_of("\\section{One}\nSome prose.") is None
+
+
+def test_the_scan_carries_each_documents_english(tmp_path):
+    from nexttex.symbols import scan
+
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\usepackage[british]{babel}\\begin{document}x\\end{document}",
+        encoding="utf-8",
+    )
+    (tmp_path / "notes.tex").write_text("\\section{Notes}", encoding="utf-8")
+    found = scan(tmp_path)
+    assert found.english == {"main.tex": "british"}
+    assert found.as_dict()["english"] == {"main.tex": "british"}

@@ -1,4 +1,6 @@
-import { test, expect } from "../fixtures";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { test, expect, openProject } from "../fixtures";
 import type { Page } from "@playwright/test";
 
 /** Spell checking the prose, and only the prose.
@@ -375,3 +377,53 @@ test("the menu opens beside the word at a larger interface size", async ({ tab }
   expect(box.y).toBeLessThanOrEqual(word.y + word.height + 2);
 });
 
+
+/** Which English.
+ *
+ *  The one list accepted both spellings of every word, so a thesis written
+ *  in British English was underlined from end to end before the fix and
+ *  never told `color` from `colour` after it.  The variety is a setting
+ *  now, and the default follows the document's own preamble.
+ */
+async function pickVariety(tab: Page, id: "variety-follow" | "variety-british" | "variety-american") {
+  await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId(id).click();
+  await tab.keyboard.press("Escape");
+}
+
+test("colour is British and color is American, and the setting says which", async ({ tab }) => {
+  await turnOn(tab);
+  await type(tab, "The colour of the color.");
+  // With nothing chosen and a template that declares no English, both
+  // spellings pass: half the literature a thesis cites is American.
+  await expect(marked(tab)).toHaveCount(0, { timeout: 15_000 });
+  await pickVariety(tab, "variety-british");
+  await expect(marked(tab)).toHaveText(["color"], { timeout: 15_000 });
+  await pickVariety(tab, "variety-american");
+  await expect(marked(tab)).toHaveText(["colour"], { timeout: 15_000 });
+  await pickVariety(tab, "variety-follow");
+  await expect(marked(tab)).toHaveCount(0, { timeout: 15_000 });
+});
+
+test("the document's own preamble chooses the variety", async ({ app, project, page }) => {
+  // A thesis that says \usepackage[british]{babel} is checked as British
+  // for everyone who opens it, with nobody setting anything.  Written
+  // before the project opens, since the answer travels with the symbol
+  // table on open; the sentence is typed below the preamble rather than
+  // over it.
+  writeFileSync(
+    join(project.root, "main.tex"),
+    "\\documentclass{article}\n\\usepackage[british]{babel}\n\\begin{document}\nA start.\n\\end{document}\n",
+  );
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(page);
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("End");
+  await page.keyboard.type("\nThe colour of the color.");
+  await expect(marked(page)).toHaveText(["color"], { timeout: 15_000 });
+});

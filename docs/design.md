@@ -1106,7 +1106,8 @@ Three constraints shaped the rest:
 
 - **Nothing ships until it is asked for.** The checker sits in a
   `Compartment` that is empty until the setting is turned on, so neither it
-  nor its word list is in the interface bundle. The list is 98 kB brotli'd
+  nor its word list is in the interface bundle. The list is 98 kB brotli'd,
+  and since §36 carries the British delta beside it for another seven,
   and is fetched once, on first use. `bundle.initial_kb` still rose about
   four kilobytes for the switch and the editor's side of it, and the budget
   was raised deliberately rather than quietly, see `bench/thresholds.json`,
@@ -6611,3 +6612,36 @@ was shown and nothing shown later. OpenAI's provider gets neither
 script tool: it puts no card up at all, because everything it can do is
 confined by construction, and a tool that runs Python needs the card
 before it can have the tool. That is in the tracker with its reason.
+
+### Which English
+
+The tracker had the checker down as knowing one variety of English, and
+the first fix for that, in the run that shipped it, added British forms
+to the American list by hand, so the checker then accepted both
+spellings of every word and told `color` from `colour` nowhere. That was
+the right default for a checker that must not underline what a writer
+wrote correctly, and the wrong ceiling for a thesis that is written in
+one English and would like the other flagged.
+
+The British forms come from the real `wbritish` list now, as a
+difference on the American one, what British English adds and what it
+takes away, nineteen kilobytes of text and seven after brotli in the
+same lazy chunk, decoded into a second set on first use; the American
+list is the American list again. Beside the spelling switch is a
+Variety control, Document, British or American. The last two are what
+they say. Document is the default and means what the open document's
+own preamble says, from its babel or polyglossia options, read by the
+symbol scan that already opens every file and carried in the symbol
+table the editor already fetches, so a British thesis is British for
+everyone who opens it with nobody setting anything, and a chapter is
+held to the English of the document that reads it, since a chapter has
+no preamble of its own. A document that says nothing gets both
+spellings, which is exactly what the checker did yesterday, so no
+upgrade underlines a word it did not underline before. The document's
+answer travels with the symbol table, on open and after a build, rather
+than on the keystroke that typed the babel line; the sheet's comment
+says so, and the cost is a regex over a file the scan already reads.
+The accepted-word list stays per project and shared, as it was, since
+that decision was already made; what a shared project with two writers
+in two settings does is that each is held to their own choice, and to
+the document's when neither has chosen.

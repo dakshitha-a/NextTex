@@ -17,6 +17,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { normalise, proseWords, skippedLines } from "./spell-scan";
+import type { Variety } from "../dictionary/words";
 
 export type Spelling = {
   on: boolean;
@@ -24,6 +25,10 @@ export type Spelling = {
    *  that the one place that decides what two spellings have in common is
    *  the same place that does the looking up. */
   custom: string[];
+  /** Which English: American, British, or either.  The editor resolves
+   *  the writer's setting and the document's own preamble to one of the
+   *  three; `either` is what a document that says nothing gets. */
+  variety?: Variety;
 };
 
 /** Turn checking on or off, or hand it a new list of accepted words. */
@@ -38,6 +43,9 @@ const spelling = StateField.define<Resolved>({
   update(value, tr) {
     for (const effect of tr.effects) {
       if (effect.is(setSpelling)) {
+        // The variety is module state rather than field state: one page,
+        // one list in use, and the lookup below reads it without a view.
+        use(effect.value.variety ?? "either");
         return {
           on: effect.value.on,
           custom: new Set(effect.value.custom.map(normalise).filter(Boolean)),
@@ -48,17 +56,27 @@ const spelling = StateField.define<Resolved>({
   },
 });
 
-// Module scope rather than editor scope: one page, one copy of the list,
+// Module scope rather than editor scope: one page, one copy of each list,
 // however many editors are built over the life of the tab.
+let lists: typeof import("../dictionary/words") | null = null;
 let words: Set<string> | null = null;
+let variety: Variety = "either";
 let loading = false;
+
+/** Hold the prose to this English from now on.  Synchronous once the
+ *  chunk is here, since every variety is decoded from the same text. */
+function use(wanted: Variety): void {
+  variety = wanted;
+  if (lists) words = lists.dictionary(wanted);
+}
 
 function load(view: EditorView): void {
   if (words || loading) return;
   loading = true;
   import("../dictionary/words")
     .then((module) => {
-      words = module.dictionary();
+      lists = module;
+      words = module.dictionary(variety);
       // The editor is already mounted and showing nothing; tell it the
       // ground has moved rather than waiting for the next keystroke.
       view.dispatch({ effects: dictionaryReady.of(null) });
@@ -74,6 +92,7 @@ function load(view: EditorView): void {
  *  chunk: the search is only useful once the word list is here, and the
  *  word list is only here because this module was loaded. */
 export { suggest as suggestions } from "./spell-suggest";
+export type { Variety } from "../dictionary/words";
 
 /** The shipped list, once it has loaded, for anything that needs to ask it
  *  a question the underlines do not answer.

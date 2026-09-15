@@ -1,7 +1,8 @@
-The word list in this directory (words.txt) is derived from SCOWL
-(Spell Checker Oriented Word Lists) by Kevin Atkinson, as packaged by
-Debian in `wamerican`.  It is included under the terms below, which
-require this notice to travel with the list.
+The word lists in this directory (words.txt, the American list, and
+british.txt, the difference between it and the British one) are derived
+from SCOWL (Spell Checker Oriented Word Lists) by Kevin Atkinson, as
+packaged by Debian in `wamerican` and `wbritish`.  They are included under
+the terms below, which require this notice to travel with them.
 
 Regenerate it with scripts/make-wordlist.py.
 
