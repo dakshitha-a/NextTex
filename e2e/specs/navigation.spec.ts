@@ -529,3 +529,56 @@ The supplementary tables follow on this page.
   );
   expect(under).toContain("supplementary tables");
 });
+
+test("a double-click into a chapter that is not open yet lands on its line", async ({
+  app, project, page,
+}) => {
+  // Every earlier double-click test landed in a file that was already
+  // open.  A chapter opened by the click itself was handed back before
+  // the server's first sync had filled it, so the jump to line 3 was
+  // clamped against a one-line document and the caret sat at the top of
+  // the right file.
+  const MAIN = String.raw`\documentclass{article}
+\begin{document}
+Hello from the main file.
+\input{sec/one}
+\end{document}
+`;
+  const ONE = String.raw`A sibling paragraph.
+
+The keyword bravado appears only in the chapter file.
+`;
+  mkdirSync(join(project.root, "sec"), { recursive: true });
+  writeFileSync(join(project.root, "main.tex"), MAIN);
+  writeFileSync(join(project.root, "sec", "one.tex"), ONE);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const { openProject } = await import("../fixtures");
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await page.mouse.dblclick(...(await wordOnPage(page, "bravado")));
+  await expect(
+    page.locator('[data-tab][data-path="sec/one.tex"] button[aria-current="true"]'),
+  ).toBeVisible({ timeout: 20_000 });
+  const line = ONE.split("\n").findIndex((l) => l.includes("bravado")) + 1;
+  await expect.poll(() => caretLine(page), { timeout: 20_000 }).toBe(line);
+  expect(await page.evaluate(() => document.querySelector(".cm-activeLine")?.textContent))
+    .toContain("bravado");
+});
+
+/** The centre of one word on the rendered page, once its text layer is
+ *  there. */
+async function wordOnPage(page: any, word: string): Promise<[number, number]> {
+  const span = page.locator(".nx-text-layer span", { hasText: word }).first();
+  await expect(span).toBeAttached({ timeout: 60_000 });
+  const picked = await span.evaluate((el: Element, wanted: string) => {
+    const node = el.firstChild!;
+    const index = (el.textContent ?? "").indexOf(wanted);
+    const range = document.createRange();
+    range.setStart(node, index);
+    range.setEnd(node, index + wanted.length);
+    const box = range.getBoundingClientRect();
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }, word);
+  return [picked.x, picked.y];
+}
