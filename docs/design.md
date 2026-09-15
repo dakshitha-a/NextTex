@@ -6686,6 +6686,17 @@ which is one visual row and was clear while the paragraph was covered;
 it selects inside a wrapped paragraph with the keyboard and by dragging
 with the mouse, which is how the writer selects and which no test did.
 
+The row also stayed where it was placed while the page scrolled under
+it, so a selection followed by a turn of the wheel put it over whatever
+had scrolled to that spot, often the selection. It follows the page now,
+re-placed from a `scroll` listener on the editor's scroller and a
+`ResizeObserver` on the pane, and rendered only when its position
+changed. A listener rather than the view's update flags, because a
+scroll inside the rendered viewport changes neither the viewport nor
+the geometry, and the block heights and `documentTop` the placement
+reads are already right when the event fires. The same spec scrolls
+after selecting and checks the row moved by the same amount.
+
 ### History is keyed by the file, not by its name
 
 Three keyspaces met in the history: the path slug the log was filed
