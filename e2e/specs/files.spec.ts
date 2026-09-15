@@ -399,3 +399,18 @@ test("a renamed file is still connected to the disk", async ({
 
   await landed(app, project, "typed after the rename", "paper.tex");
 });
+
+test("a file can be duplicated from its row in the tree", async ({ tab }) => {
+  // The tab strip had Duplicate and the tree did not, on the argument that
+  // a row menu holding twelve items is not somewhere to add a thirteenth
+  // without being asked.  It was asked.  Same route, same naming rule.
+  await tab.getByLabel("Actions for main.tex").click();
+  await tab.getByRole("button", { name: "Duplicate" }).click();
+  await expect(tab.locator('[role="tree"] [data-path="main (copy).tex"]')).toBeVisible({
+    timeout: 10_000,
+  });
+  // A folder offers no such thing.
+  await tab.getByLabel("Actions for figures").click();
+  await expect(tab.getByRole("button", { name: "Duplicate" })).toHaveCount(0);
+  await tab.keyboard.press("Escape");
+});
