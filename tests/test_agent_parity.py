@@ -311,3 +311,27 @@ def test_a_turn_cancelled_from_outside_still_ends(kind, tmp_path, monkeypatch):
     seen = asyncio.run(scenario())
     endings = [event for event in seen if event["type"] == "done"]
     assert len(endings) == 1, f"{kind.__name__} ended {len(endings)} times: {seen}"
+
+
+#: What the session hands every provider at construction, by keyword.  A
+#: provider that accepts one of these and drops it is the shape of the
+#: stand-in that took `run_script` and kept no attribute for it: its
+#: script step then raised inside the scripted turn, which the browser
+#: tier saw as an error row where a run should have been.
+CALLBACKS = ("compile_now", "documents", "run_script", "apply_edit", "on_edit",
+             "reveal", "show_page", "diagnostics", "editor_state", "remember")
+
+
+@pytest.mark.parametrize("kind", [ScriptedAgent, OpenAIAgent, ProjectAgent])
+def test_every_callback_the_session_hands_over_is_kept(kind, tmp_path):
+    if kind is None:
+        pytest.skip("no SDK here")
+    project = tmp_path / "project"
+    state = project / ".nexttex"
+    state.mkdir(parents=True, exist_ok=True)
+    (project / "main.tex").write_text("x", encoding="utf-8")
+    handed = {name: (lambda *a, **k: None) for name in CALLBACKS}
+    made = kind(project, state, **handed) if kind is not OpenAIAgent else kind(project, state, api_key="", **handed)
+    for name in CALLBACKS:
+        kept = getattr(made, name, None) if name != "remember" else getattr(made, "remember_note", None)
+        assert kept is not None, f"{kind.__name__} accepted {name} and kept nothing"

@@ -596,7 +596,9 @@ runs it, and puts the figure in your document.
 worth caring about. A figure a model drew and threw the script away for is a
 figure you cannot change next year when a referee asks for the same plot on
 a log axis, so the script is a file in your project with a version history
-like any other, and re-drawing is running it again rather than asking again.
+like any other, and re-drawing is running it again rather than asking again:
+from the source pane with Run, or by the agent, which can run a script by
+name without touching it and is asked first, with the code on the card.
 
 **The first attempt is already the right shape for a paper**, which is the
 difference between a figure you keep and one you redraw by hand. The first

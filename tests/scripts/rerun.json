@@ -1,0 +1,4 @@
+[
+  {"kind": "text", "text": "Running the figure script again for you.", "pieces": 2},
+  {"kind": "run_script", "name": "hello"}
+]

@@ -93,10 +93,12 @@ class ScriptedAgent:
         self._conversation_allow: set[str] = set()
         self.compile_now = compile_now
         self.documents = documents or (lambda: [])
+        self.diagnostics = diagnostics or (lambda: [])
         self.apply_edit = apply_edit
         self.on_edit = on_edit
         self.reveal = reveal
         self.show_page = show_page
+        self.run_script = run_script
         self.model = model
         self.script_name = script or scripted_name()
 
@@ -309,6 +311,14 @@ class ScriptedAgent:
             decision = await self._permission(step)
             if decision == "deny" and step.get("stop_if_denied", True):
                 raise asyncio.CancelledError
+
+        elif kind == "run_script":
+            # Through the session's runner, as the real tool goes, so the
+            # pane in the browser follows the agent's run.
+            name = str(step.get("name", ""))
+            await self._tool("mcp__nexttex__run_script", {"name": name}, 12, True)
+            if self.run_script is not None:
+                await self.run_script(self.root / "scripts" / f"{name}.py")
 
         elif kind == "show_page":
             # Through the same callback the model's tool uses, so the
