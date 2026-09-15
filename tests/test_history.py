@@ -104,6 +104,22 @@ def test_a_rename_carries_the_past_with_it(tmp_path):
     assert store.versions("draft.tex") == []
 
 
+def test_a_new_file_under_a_renamed_away_name_has_a_past_of_its_own(tmp_path):
+    # Unbound, the old name's slug is the renamed file's key for good, so
+    # a new file born under that name is filed under a key of its own; it
+    # must still be findable by its path, and listed, and the renamed
+    # file's past must stay where it is.
+    store = history(tmp_path)
+    store.record("draft.tex", "early words")
+    store.note_rename("draft.tex", "final.tex")
+    store.record("draft.tex", "a fresh start")
+    fresh = store.versions("draft.tex")
+    assert len(fresh) == 1
+    assert store.content("draft.tex", fresh[0].sha) == "a fresh start"
+    assert [v.sha for v in store.versions("final.tex")] != [v.sha for v in fresh]
+    assert {entry["path"] for entry in store.timeline()} == {"draft.tex", "final.tex"}
+
+
 def test_moving_a_folder_carries_the_history_of_everything_in_it(tmp_path):
     # A folder move re-slugs the folder, which has no log of its own, so
     # every file underneath used to keep its history filed under a path

@@ -155,6 +155,49 @@ def test_running_it_twice_changes_nothing_and_an_interruption_restarts_cleanly(t
     assert history.migrate(records) is False
     after = {p.name: p.read_bytes() for p in (root / "log").iterdir()}
     assert before == after
+    assert not (root / "paths.json").exists()
+    assert not (root / "log" / ".migrating").exists()
+
+
+def test_an_interruption_between_the_moves_loses_neither_past(tmp_path, monkeypatch):
+    """The dangerous moment: one target has overwritten another record's
+    source and the second target is not in place yet.  The staged copies
+    of the sources are what the rerun reads, so neither past is lost."""
+    old_id = slug_for("main.tex")
+    new_id = "abcdefabcdefabcd"
+    records = [(old_id, "old.tex", False), (new_id, "main.tex", False)]
+    root = v1_store(
+        tmp_path / "history",
+        logs={"old.tex": line(1, "a1") + line(2, "a2"), "main.tex": line(3, "b1")},
+        paths={
+            slug_for("old.tex"): {"path": "old.tex", "aliases": ["main.tex"], "purged_before": {}},
+            slug_for("main.tex"): {"path": "main.tex", "aliases": [], "purged_before": {}},
+        },
+    )
+    history = History(root)
+    real = Path.replace
+    moved = {"n": 0}
+
+    def failing(self, target):
+        if str(target).startswith(str(root / "log")) and ".migrating" not in str(target):
+            moved["n"] += 1
+            if moved["n"] == 2:
+                raise OSError("pulled the plug")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", failing)
+    with pytest.raises(OSError):
+        history.migrate(records)
+    monkeypatch.setattr(Path, "replace", real)
+    assert moved["n"] == 2
+    assert not history.migrated
+    # Exactly one target landed, over a source another target still needs.
+    assert (root / "log" / ".migrating" / "src").exists()
+
+    assert history.migrate(records) is True
+    assert shas(history.versions_of(old_id)) == ["a1", "a2"]
+    assert shas(history.versions_of(new_id)) == ["b1"]
+    assert not (root / "log" / ".migrating").exists()
 
 
 def test_an_unbound_history_still_reads_and_writes_the_old_layout(tmp_path):

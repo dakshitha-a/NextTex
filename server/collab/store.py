@@ -73,6 +73,7 @@ import difflib
 import logging
 import re
 import secrets
+import threading
 from pathlib import Path
 from typing import Callable
 
@@ -310,6 +311,16 @@ class CollabStore:
         # the peers syncing with it both need to hear, and neither should
         # have to know the other exists.
         self.listeners: list[Callable[[str, bytes], None]] = []
+        # The thread that built the CRDT objects, and its loop.  pycrdt
+        # objects belong to that thread (see `docs/architecture.md`), and
+        # `key_for` is the one entry point the history reaches from a
+        # worker thread, so it hops back here rather than touching the
+        # manifest where it stands.
+        self._thread = threading.get_ident()
+        try:
+            self._loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
 
         self._load_manifest()
 
@@ -703,7 +714,30 @@ class CollabStore:
         one, and its trashed record's id is the answer, which is what a
         purge of a deleted file's history, or a restore from an old trash
         entry, needs.  None only when the manifest has never heard of it.
+
+        Safe from a worker thread: the history records versions off the
+        loop, and this is where it asks for a key, so a call from any
+        thread but the manifest's own is run on the loop and waited for.
+        Adopting from a worker would write the manifest map from a thread
+        pycrdt does not allow, and the loop may be inside a transaction
+        of its own at that moment.
         """
+        if threading.get_ident() != self._thread and self._loop is not None:
+            try:
+                return asyncio.run_coroutine_threadsafe(
+                    self._key_for_on_loop(relative), self._loop,
+                ).result(timeout=30)
+            except RuntimeError:
+                # The loop is gone: the session is closing under this
+                # thread.  Nothing can be adopted any more; answer from
+                # the index alone and never touch the manifest.
+                return self._by_path.get(relative) if self._by_path else None
+        return self._key_for_here(relative)
+
+    async def _key_for_on_loop(self, relative: str) -> str | None:
+        return self._key_for_here(relative)
+
+    def _key_for_here(self, relative: str) -> str | None:
         file_id = self.file_id_for(relative)
         if file_id:
             return file_id
