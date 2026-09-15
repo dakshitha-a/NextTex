@@ -216,6 +216,8 @@ The runner writes `capture.json` beside the images, and `plots.captured` reads i
 
 **Content addressing.** A version is a sha256 of the file's bytes, stored once under that name, zlib compressed. Saving a file back to a state it has been in before costs nothing.
 
+**Keyed by the file id.** Each file's log is a `<id>.jsonl` under the history's `log` directory, where the id is the collaboration manifest's, and `files.json` beside the logs maps id to path, former names and per-author purge floors; a `format` file there holds `2` once a store is keyed this way. The session binds the history to the store after adopting the project, and a history still keyed by path slug, which every store was until the backlog run, is migrated onto the ids then, once, through a staging directory so an interruption restarts cleanly. The store answers the key for a path: the live record's id, a fresh one after adopting a file the manifest has not seen, or the trashed record's id for a path with no file, which is what a purge of a deleted file's history and a restore from an old trash entry need. A history nothing binds, the bench's and a bare test's, keeps slug keys and `paths.json`. The wire speaks in ids and the history now listens in them, so a deletion's version reaches a peer through the same nudge as any other, where looking the file up by path had skipped its trashed record. The delete route flags the record itself rather than waiting for the watcher, so a file made under the same name in the next moment gets its own id and not the old file's past.
+
 Every write NextTex knows about is recorded before the new text lands. This is not a replacement for git: it is what you want when you deleted a paragraph forty minutes ago and cannot remember what it said, at a moment when committing was the last thing on your mind.
 
 Deleting is not a delete. An entry is written to the trash and the file is moved aside rather than removed, and moved rather than copied, so a folder of figures does not have to be compressed before it can be deleted. A file the watcher saw missing is not yet a file that was deleted: the collaboration store holds the sighting until its next flush and flags the record only if the file is still absent then, because a tool that rewrites by unlinking and recreating leaves exactly that gap, and the flag is shared state. Flagged at the sighting, it published a deletion to every peer and, at the flush, moved the file it found back on disk into this machine's own trash without a word. A file a peer really did delete still goes into the trash here, and the tree and the trash panel are told. A text file also gets a final version recorded in its own history on the way out; a figure or a dataset does not, so for those the moved-aside payload is the only copy and it is what protects them. Nothing is cleaned up on a timer, because a trash that empties itself after thirty days loses the thing you go looking for on day thirty-one.
@@ -228,7 +230,7 @@ Inside the project, in `.nexttex/`:
 
 | | |
 |---|---|
-| `history/` | content-addressed blobs and the version index |
+| `history/` | content-addressed blobs, one log per file id, `files.json` and `format` |
 | `trash/` | deleted entries, with a directory deleted as one entry |
 | `collab/` | `share.json`, the document logs, cursors |
 | `context/` | templates and style guides the agent is given |

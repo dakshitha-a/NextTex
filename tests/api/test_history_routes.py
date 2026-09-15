@@ -341,3 +341,73 @@ def test_raw_will_not_serve_a_version_of_another_file(client, opened, project_di
     answer = client.get(f"/api/projects/{opened['id']}/history/blob",
                         params={"path": "main.tex", "sha": sha, "raw": True})
     assert answer.status_code == 404
+
+
+# --- history keyed by the file's id --------------------------------------------
+#
+# Three keyspaces used to meet here: the path slug the history was filed
+# under, the collaboration file id, and the trash entry id.  The history is
+# keyed by the file id now, so a file keeps its past through a rename, a
+# deletion and a restore under a taken name, and the file that took the
+# name keeps its own.
+
+def test_a_file_restored_beside_the_one_that_took_its_name_keeps_only_its_own_past(client, opened):
+    project_id = opened["id"]
+    client.post(f"/api/projects/{project_id}/file/new", json={"path": "notes.tex"})
+    client.put(f"/api/projects/{project_id}/file",
+               json={"path": "notes.tex", "text": "months of work", "compile": False})
+    gone = client.delete(f"/api/projects/{project_id}/file", params={"path": "notes.tex"})
+    assert gone.status_code == 200, gone.text
+    entry = client.get(f"/api/projects/{project_id}/trash").json()["entries"][0]
+
+    # Something else takes the name while it is in the trash.
+    client.post(f"/api/projects/{project_id}/file/new", json={"path": "notes.tex"})
+    client.put(f"/api/projects/{project_id}/file",
+               json={"path": "notes.tex", "text": "a different file", "compile": False})
+
+    back = client.post(f"/api/projects/{project_id}/trash/{entry['id']}/restore")
+    assert back.status_code == 200, back.text
+    renamed = back.json().get("renamed") or ""
+    assert renamed and renamed != "notes.tex"
+
+    came_back = client.get(f"/api/projects/{project_id}/history",
+                           params={"path": renamed}).json()["versions"]
+    assert [v["op"] for v in reversed(came_back)][-2:] == ["delete", "restore"]
+    other = client.get(f"/api/projects/{project_id}/history",
+                       params={"path": "notes.tex"}).json()["versions"]
+    assert other and all(v["op"] != "delete" for v in other), (
+        "the file that took the name inherited the deleted one's past"
+    )
+
+
+def test_a_trashed_files_history_is_still_reachable_by_its_old_name(client, opened):
+    """`file_id_for` skips trashed records, so a question about a deleted
+    file's past used to find nothing; the key is the trashed record's id."""
+    project_id = opened["id"]
+    client.post(f"/api/projects/{project_id}/file/new", json={"path": "draft.tex"})
+    client.put(f"/api/projects/{project_id}/file",
+               json={"path": "draft.tex", "text": "words", "compile": False})
+    client.delete(f"/api/projects/{project_id}/file", params={"path": "draft.tex"})
+    past = client.get(f"/api/projects/{project_id}/history",
+                      params={"path": "draft.tex"}).json()["versions"]
+    assert past and past[0]["op"] == "delete"
+
+
+def test_a_rename_leaves_the_log_file_where_it_was(client, opened):
+    """With the key the file's own, a rename is a map update and no log
+    moves: the id is stable across it."""
+    from server import main as server_main
+
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
+    client.put(f"/api/projects/{project_id}/file",
+               json={"path": "main.tex", "text": "early words", "compile": False})
+    key = session.collab.file_id_for("main.tex")
+    log = session.history.log_dir / f"{key}.jsonl"
+    assert log.exists()
+    client.post(f"/api/projects/{project_id}/file/rename",
+                json={"path": "main.tex", "to": "thesis.tex"})
+    assert log.exists()
+    assert session.collab.file_id_for("thesis.tex") == key
+    assert session.history.path_of(key) == "thesis.tex"
+    assert (session.history.root / "format").read_text(encoding="utf-8").strip() == "2"

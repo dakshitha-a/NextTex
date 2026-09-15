@@ -70,9 +70,18 @@ _IS_ENTRY_ID = re.compile(r"t[0-9a-f]{1,20}")
 class TrashedFile:
     path: str
     bytes: int
+    #: The key the file's history is filed under, taken as it went: the
+    #: collaboration file id, so a restore records under the same key
+    #: whatever the file is called when it comes back and whatever has
+    #: taken its name meanwhile.  Empty for an entry written before the
+    #: history was keyed this way; those resolve by path on the way back.
+    file_id: str = ""
 
     def as_dict(self) -> dict:
-        return {"path": self.path, "bytes": self.bytes}
+        data = {"path": self.path, "bytes": self.bytes}
+        if self.file_id:
+            data["file_id"] = self.file_id
+        return data
 
 
 @dataclass
@@ -111,6 +120,7 @@ class TrashEntry:
                 TrashedFile(
                     path=str(item.get("path") or ""),
                     bytes=int(item.get("bytes") or 0),
+                    file_id=str(item.get("file_id") or ""),
                 )
                 for item in (data.get("files") or [])
             ],
@@ -258,13 +268,17 @@ class Trash:
             except OSError:
                 continue
             member_relative = str(member.resolve().relative_to(root))
-            files.append(TrashedFile(member_relative, size))
+            # Resolved while the file is still there and its record live,
+            # so the key is the file's own and not whatever a later file
+            # under this name is given.
+            key = self.history.key_of(member_relative)
+            files.append(TrashedFile(member_relative, size, key))
             # A deletion is a version in its own right, so a text file's own
             # history ends with the state it was in when it went.
             if size <= MAX_TEXT_VERSION_BYTES:
                 try:
-                    self.history.record(
-                        member_relative,
+                    self.history.record_of(
+                        key, member_relative,
                         member.read_text(encoding="utf-8"),
                         by=by, why="deleted", op="delete", **self._who(),
                     )
@@ -320,6 +334,11 @@ class Trash:
             raise FileNotFoundError("what was deleted is no longer in the trash")
 
         target = self._restore_target(entry.path)
+        # Each file's key, resolved before anything moves: an entry written
+        # before keys travelled with it resolves by path, and while the
+        # file is still absent that answers the trashed record's id rather
+        # than a fresh one minted for a file that has just reappeared.
+        keys = [file.file_id or self.history.key_of(file.path) for file in entry.files]
         renamed = ""
         if target.exists():
             # Something is there now.  Put the old one beside it rather than
@@ -336,26 +355,32 @@ class Trash:
             else str(target.relative_to(self.project_root))
             for file in entry.files
         ]
-        # The past comes back with it, even under another name.
-        #
-        # Not by renaming the log.  History is keyed by path, so the log at
-        # the old name holds this file's past *and* the past of whatever
-        # took the name after it was deleted -- which is exactly why
-        # `_forget` checks whether anything lives there before forgetting.
-        # Moving it wholesale would hand one file's history to another.  It
-        # is cut at the deletion instead, which is always there to cut at
-        # because a deletion is never thinned away.
+        # The past comes back with it, even under another name.  The log
+        # is the file's own, keyed by its id, so a file that comes back
+        # beside whatever took its name keeps its whole past and the other
+        # file keeps its own: history used to be keyed by path, and one
+        # log held both, cut at the deletion on the way back.
         if renamed:
-            for file, now_called in zip(entry.files, restored):
-                if file.path != now_called:
+            for index, (file, key, now_called) in enumerate(zip(entry.files, keys, restored)):
+                if file.path == now_called:
+                    continue
+                if self.history.key_for is None:
+                    # A history nobody has bound to a store is still keyed
+                    # by path slug, so the log at the old name holds this
+                    # file's past and the past of whatever took the name,
+                    # and it is cut at the deletion as it always was; the
+                    # restore below then records under the new name's key.
                     self.history.split_at_delete(file.path, now_called)
+                    keys[index] = self.history.key_of(now_called)
+                else:
+                    self.history.rename_key(key, file.path, now_called)
 
-        for relative in restored:
+        for relative, key in zip(restored, keys):
             back = self.project_root / relative
             try:
                 if back.stat().st_size <= MAX_TEXT_VERSION_BYTES:
-                    self.history.record(
-                        relative, back.read_text(encoding="utf-8"),
+                    self.history.record_of(
+                        key, relative, back.read_text(encoding="utf-8"),
                         by="you", why="restored from the trash", op="restore",
                         **self._who(),
                     )
@@ -373,6 +398,7 @@ class Trash:
         return {
             "restored": restored,
             "was": [file.path for file in entry.files],
+            "ids": keys,
             "renamed": renamed,
             "path": entry.path,
         }

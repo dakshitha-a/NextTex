@@ -51,7 +51,7 @@ def test_an_unstamped_line_is_stamped_on_the_way_out(tmp_path):
     history.record("main.tex", "two\n")
 
     lines, reached = history_sync.offer(
-        history, "main.tex", "a" * 64, "b" * 64, {},
+        history, history.key_of("main.tex"), "a" * 64, "b" * 64, {},
     )
     assert lines
     assert {line["peer"] for line in lines} == {"a" * 64}
@@ -77,7 +77,7 @@ def test_a_relaying_peer_offers_what_it_holds_for_others(tmp_path):
     ])
 
     lines, reached = history_sync.offer(
-        history, "main.tex", "a" * 64, "b" * 64, {},
+        history, history.key_of("main.tex"), "a" * 64, "b" * 64, {},
     )
     assert {line["peer"] for line in lines} == {"a" * 64, "c" * 64}
     assert set(reached) == {"a" * 64, "c" * 64}
@@ -98,7 +98,7 @@ def test_a_peer_is_never_offered_its_own_records(tmp_path):
     ])
 
     lines, _ = history_sync.offer(
-        history, "main.tex", "a" * 64, "c" * 64, {},
+        history, history.key_of("main.tex"), "a" * 64, "c" * 64, {},
     )
     assert {line["peer"] for line in lines} == {"a" * 64}
 
@@ -175,7 +175,7 @@ def test_thinning_does_not_make_a_record_come_back(tmp_path):
 
     for _ in range(3):
         lines, reached = history_sync.offer(
-            history, "main.tex", "a" * 64, "b" * 64, marks.since("file1"),
+            history, history.key_of("main.tex"), "a" * 64, "b" * 64, marks.since("file1"),
         )
         assert lines == [], "a thinned record was offered again"
         for author, at in reached.items():
@@ -196,7 +196,7 @@ def test_a_batch_never_splits_two_records_sharing_a_moment(tmp_path):
         for n in range(history_sync.BATCH + 4)
     ])
     lines, reached = history_sync.offer(
-        history, "main.tex", "a" * 64, "b" * 64, {},
+        history, history.key_of("main.tex"), "a" * 64, "b" * 64, {},
     )
     assert len(lines) == history_sync.BATCH + 4
     assert reached == {"c" * 64: at}

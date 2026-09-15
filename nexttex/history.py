@@ -86,8 +86,18 @@ def now_ms() -> float:
 
 
 def slug_for(relative_path: str) -> str:
-    """A filesystem-safe name for a project-relative path."""
+    """A filesystem-safe name for a project-relative path.
+
+    The key a file's log is filed under when nothing better is known:
+    an unshared History with no store bound, and the id the collaboration
+    manifest mints for a path whose slug is free, so the two agree on
+    every file that was never renamed onto a trashed name.
+    """
     return hashlib.sha256(relative_path.encode("utf-8")).hexdigest()[:16]
+
+
+#: What the store writes into `format` once a history is keyed by file id.
+FORMAT = "2"
 
 
 @dataclass
@@ -243,7 +253,19 @@ class History:
         self.blobs = BlobStore(self.root / "blobs")
         self.log_dir = self.root / "log"
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        #: The map from key to path, aliases and purge floors.  `paths.json`
+        #: keyed it by path slug; `files.json` keys it by the collaboration
+        #: file id, which is what every log is named after once `format`
+        #: says so.  A history nobody has migrated still reads and writes
+        #: the old file under slug keys, so the bench and a bare test see
+        #: exactly what they saw.
         self.paths_file = self.root / "paths.json"
+        self.files_file = self.root / "files.json"
+        self.format_file = self.root / "format"
+        #: Answers the key a path is filed under, when a store is bound:
+        #: the live record's id, the trashed one's, or a fresh mint.  None
+        #: until `bind`, and then the map and the slug stand in.
+        self.key_for: Callable[[str], str | None] | None = None
         # A file's log, parsed, kept against the log's own mtime and size.
         # `record` runs on every autosave -- a quarter second after typing
         # stops -- and it reads the whole log, thins it and rewrites it.  On
@@ -272,12 +294,60 @@ class History:
         #: the project through it syncing on reconnection alone.
         self.on_change: Callable[[str], None] | None = None
 
-    def _changed(self, relative_path: str) -> None:
+    # -- keys --------------------------------------------------------------
+    @property
+    def migrated(self) -> bool:
+        try:
+            return self.format_file.read_text(encoding="utf-8").strip() == FORMAT
+        except OSError:
+            return False
+
+    @property
+    def _map_file(self) -> Path:
+        return self.files_file if self.migrated else self.paths_file
+
+    def key_of(self, relative_path: str) -> str:
+        """The key a path's log is filed under.
+
+        The bound store first, which knows the file id and can mint one
+        for a path it has not adopted yet; then this history's own map,
+        which knows the key of a path that has since been renamed away
+        under it; then the path's slug, which is the key an unbound
+        history has always used and what the store mints for a free path.
+        """
+        resolver = self.key_for
+        if resolver is not None:
+            key = resolver(relative_path)
+            if key:
+                return key
+        paths = self._paths()
+        for key, entry in paths.items():
+            if entry.get("path") == relative_path:
+                return key
+        slug = slug_for(relative_path)
+        held = paths.get(slug)
+        if held is not None and held.get("path") not in ("", relative_path):
+            # The slug is another file's key now: the file that was born
+            # under this name and has since been renamed away.  A question
+            # about the old name is a question about nothing, and must not
+            # answer with that file's past.
+            return hashlib.sha256(f"gone:{relative_path}".encode("utf-8")).hexdigest()[:16]
+        return slug
+
+    def bind(self, key_for: Callable[[str], str | None],
+             records: "list[tuple[str, str, bool]] | None" = None) -> None:
+        """Take the store's idea of what a file is called, and migrate
+        a history still keyed by path slug to its ids."""
+        self.key_for = key_for
+        if records is not None:
+            self.migrate(records)
+
+    def _changed(self, key: str) -> None:
         listener = self.on_change
         if listener is None:
             return
         try:
-            listener(relative_path)
+            listener(key)
         except Exception:
             # Failing to tell anybody must never cost the version that was
             # just written, which is on disk by the time this runs.
@@ -297,19 +367,21 @@ class History:
         return (stat.st_mtime_ns, stat.st_size)
 
     def _paths(self) -> dict:
-        stamp = self._stamp(self.paths_file)
-        if self._paths_cache is not None and self._paths_cache[0] == stamp:
+        target = self._map_file
+        stamp = self._stamp(target)
+        if self._paths_cache is not None and self._paths_cache[0] == (target.name, stamp):
             return self._paths_cache[1]
         try:
-            data = json.loads(self.paths_file.read_text(encoding="utf-8"))
+            data = json.loads(target.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             data = {}
-        self._paths_cache = (stamp, data)
+        self._paths_cache = ((target.name, stamp), data)
         return data
 
     def _write_paths(self, data: dict) -> None:
+        target = self._map_file
         try:
-            write_atomically(self.paths_file, json.dumps(data, indent=2))
+            write_atomically(target, json.dumps(data, indent=2))
         except OSError:
             # The cache is not updated on failure.  It used to be, which
             # paired the new data with the old file's stamp and left the
@@ -317,15 +389,14 @@ class History:
             # to notice.
             self._paths_cache = None
             return
-        self._paths_cache = (self._stamp(self.paths_file), data)
+        self._paths_cache = ((target.name, self._stamp(target)), data)
 
-    def _remember_path(self, relative_path: str) -> str:
-        slug = slug_for(relative_path)
+    def _remember(self, key: str, relative_path: str) -> str:
         paths = self._paths()
-        entry = paths.get(slug)
+        entry = paths.get(key)
         if entry is None or entry.get("path") != relative_path:
             kept = entry or {}
-            paths[slug] = {
+            paths[key] = {
                 "path": relative_path,
                 "aliases": kept.get("aliases", []),
                 # Carried, not dropped.  This is the floor a purge left
@@ -334,7 +405,10 @@ class History:
                 "purged_before": kept.get("purged_before", {}),
             }
             self._write_paths(paths)
-        return slug
+        return key
+
+    def _remember_path(self, relative_path: str) -> str:
+        return self._remember(self.key_of(relative_path), relative_path)
 
     def purged_before(self, relative_path: str) -> dict:
         """Per author, the moment before which this file's past was cleared.
@@ -346,7 +420,10 @@ class History:
         a collaborator with an accurate clock would then have their next
         records dropped on arrival until real time caught up.
         """
-        entry = self._paths().get(slug_for(relative_path)) or {}
+        return self.purged_before_of(self.key_of(relative_path))
+
+    def purged_before_of(self, key: str) -> dict:
+        entry = self._paths().get(key) or {}
         floors = entry.get("purged_before")
         return dict(floors) if isinstance(floors, dict) else {}
 
@@ -357,10 +434,15 @@ class History:
         of its own the log file is simply renamed and the old name kept as
         an alias -- a rename costs one small JSON write and no blobs.
         """
-        old_slug, new_slug = slug_for(old_path), slug_for(new_path)
-        if old_slug == new_slug:
-            return
         with self._lock:
+            old_key = self.key_of(old_path)
+            new_key = self.key_of(new_path)
+            if old_key == new_key:
+                # The key is the file's own, as it is once a store is
+                # bound, so a rename is a path update and no log moves.
+                self.rename_key(old_key, old_path, new_path)
+                return
+            old_slug, new_slug = old_key, new_key
             source = self.log_dir / f"{old_slug}.jsonl"
             if not source.exists():
                 return
@@ -374,9 +456,9 @@ class History:
                     # a sequence.  A source log left without a trailing
                     # newline by an earlier crash also used to take two
                     # records with it, by joining them onto one line.
-                    merged = self.versions(old_path) + self.versions(new_path)
+                    merged = self.versions_of(old_key) + self.versions_of(new_key)
                     merged.sort(key=lambda version: version.at)
-                    self._write_log(new_path, self._thin(merged))
+                    self._write_log_of(new_key, self._thin(merged))
                     self._log_cache.pop(source.name, None)
                     source.unlink()
                 else:
@@ -405,6 +487,21 @@ class History:
             }
             self._write_paths(paths)
 
+    def rename_key(self, key: str, old_path: str, new_path: str) -> None:
+        """A file is now called something else; its log stays where it is."""
+        with self._lock:
+            paths = self._paths()
+            entry = dict(paths.get(key) or {})
+            aliases = list(entry.get("aliases", []))
+            if old_path and old_path != new_path and old_path not in aliases:
+                aliases.append(old_path)
+            paths[key] = {
+                "path": new_path,
+                "aliases": sorted(set(aliases)),
+                "purged_before": entry.get("purged_before", {}),
+            }
+            self._write_paths(paths)
+
     def note_move(self, old_path: str, new_path: str) -> None:
         """Carry history across a rename that may be of a whole folder.
 
@@ -428,16 +525,23 @@ class History:
             for path in inside:
                 self.note_rename(path, f"{new_path}/{path[len(prefix):]}")
 
-    def path_of(self, slug: str) -> str:
-        return (self._paths().get(slug) or {}).get("path", "")
+    def path_of(self, key: str) -> str:
+        return (self._paths().get(key) or {}).get("path", "")
 
     # -- reading -----------------------------------------------------------
     def _log_path(self, relative_path: str) -> Path:
-        return self.log_dir / f"{slug_for(relative_path)}.jsonl"
+        return self._log_path_of(self.key_of(relative_path))
+
+    def _log_path_of(self, key: str) -> Path:
+        return self.log_dir / f"{key}.jsonl"
 
     def versions(self, relative_path: str) -> list[Version]:
         """Every kept version of one file, oldest first."""
-        log = self._log_path(relative_path)
+        return self.versions_of(self.key_of(relative_path))
+
+    def versions_of(self, key: str) -> list[Version]:
+        """Every kept version of the file filed under `key`, oldest first."""
+        log = self._log_path_of(key)
         stamp = self._stamp(log)
         cached = self._log_cache.get(log.name)
         if cached is not None and cached[0] == stamp:
@@ -519,9 +623,11 @@ class History:
         entries: list[dict] = []
         paths = self._paths()
         for log in self.log_dir.glob("*.jsonl"):
-            slug = log.stem
-            path = (paths.get(slug) or {}).get("path", slug)
-            for version in self.versions(path) if path != slug else []:
+            key = log.stem
+            path = (paths.get(key) or {}).get("path", "")
+            if not path:
+                continue
+            for version in self.versions_of(key):
                 entries.append({"path": path, **version.as_dict()})
         entries.sort(key=lambda item: item["at"], reverse=True)
         return entries[:limit]
@@ -529,7 +635,10 @@ class History:
     # -- writing -----------------------------------------------------------
     def _write_log(self, relative_path: str, versions: list[Version]) -> None:
         """Replace one file's log. Callers hold `_lock` across read and write."""
-        target = self._log_path(relative_path)
+        self._write_log_of(self.key_of(relative_path), versions)
+
+    def _write_log_of(self, key: str, versions: list[Version]) -> None:
+        target = self._log_path_of(key)
         try:
             write_atomically(
                 target,
@@ -558,18 +667,39 @@ class History:
         None means there was nothing to record: identical content, or no
         content at all.
         """
+        return self.record_of(
+            self.key_of(relative_path), relative_path, text,
+            by=by, why=why, op=op, label=label, source=source, peer=peer, who=who,
+        )
+
+    def record_of(
+        self,
+        key: str,
+        relative_path: str,
+        text: str | bytes | None,
+        *,
+        by: str = "you",
+        why: str = "",
+        op: str = "edit",
+        label: str | None = None,
+        source: str = "",
+        peer: str = "",
+        who: str = "",
+    ) -> Version | None:
+        """`record`, for a caller that already knows the file's key: the
+        trash, restoring a file whose name has since been taken."""
         if text is None:
             return None
         data = text.encode("utf-8") if isinstance(text, str) else text
         sha = hashlib.sha256(data).hexdigest()
 
         with self._lock:
-            existing = self.versions(relative_path)
+            existing = self.versions_of(key)
             if existing and existing[-1].sha == sha and op in ("edit", "replace", "import"):
                 return None   # nothing changed since the last version
 
             self.blobs.put(data)
-            self._remember_path(relative_path)
+            self._remember(key, relative_path)
             # Strictly above the newest record by this same author, so that
             # "everything of yours after this moment" is always a real
             # boundary.  Two saves inside one millisecond used to land on
@@ -627,8 +757,8 @@ class History:
             )
             kept = existing[:-1] if coalesce else existing
             kept.append(version)
-            self._write_log(relative_path, self._thin(kept))
-            self._changed(relative_path)
+            self._write_log_of(key, self._thin(kept))
+            self._changed(key)
             return version
 
     def absorb(
@@ -646,10 +776,16 @@ class History:
         peer's whole past would otherwise be a download before the first
         keystroke.
         """
+        return self.absorb_into(self.key_of(relative_path), relative_path, lines, me=me)
+
+    def absorb_into(
+        self, key: str, relative_path: str, lines: list[dict], *, me: str = "",
+    ) -> list[Version]:
+        """`absorb`, for the wire, which speaks in file ids."""
         me = me or self.me
         with self._lock:
-            floors = self.purged_before(relative_path)
-            existing = self.versions(relative_path)
+            floors = self.purged_before_of(key)
+            existing = self.versions_of(key)
             known = {(v.sha, round(v.at), self.author_of(v)) for v in existing}
             added: list[Version] = []
             for raw in lines:
@@ -675,11 +811,11 @@ class History:
                 # machine's clock against its own.
                 if version.at <= floors.get(author, 0.0):
                     continue
-                key = (version.sha, round(version.at), author)
-                if key in known:
+                seen = (version.sha, round(version.at), author)
+                if seen in known:
                     continue
                 existing.append(version)
-                known.add(key)
+                known.add(seen)
                 added.append(version)
             if not added:
                 return []
@@ -692,9 +828,9 @@ class History:
             # disk for ever.  Safe now in a way it was not before: a mark
             # that only moves forward means that once these are thinned
             # away the author will not offer them again.
-            self._remember_path(relative_path)
-            self._write_log(relative_path, kept)
-            self._changed(relative_path)
+            self._remember(key, relative_path)
+            self._write_log_of(key, kept)
+            self._changed(key)
             return [version for version in added if version in kept]
 
     def split_at_delete(self, old_path: str, new_path: str) -> int:
@@ -821,25 +957,196 @@ class History:
         else's -- so refusing them on the way in is the whole mechanism.
         """
         with self._lock:
-            floors = self.purged_before(relative_path)
-            for version in self.versions(relative_path):
+            key = self.key_of(relative_path)
+            floors = self.purged_before_of(key)
+            for version in self.versions_of(key):
                 author = self.author_of(version)
                 if version.at > floors.get(author, 0.0):
                     floors[author] = version.at
-            log = self._log_path(relative_path)
+            log = self._log_path_of(key)
             self._log_cache.pop(log.name, None)
             try:
                 log.unlink(missing_ok=True)
             except OSError:
                 pass
             paths = self._paths()
-            entry = paths.get(slug_for(relative_path)) or {}
-            paths[slug_for(relative_path)] = {
+            entry = paths.get(key) or {}
+            paths[key] = {
                 "path": relative_path,
                 "aliases": entry.get("aliases", []),
                 "purged_before": floors,
             }
             self._write_paths(paths)
+
+    # -- migration -----------------------------------------------------------
+    def migrate(self, records: "list[tuple[str, str, bool]]") -> bool:
+        """Move a history keyed by path slug onto the manifest's file ids.
+
+        `records` is every manifest record as `(id, path, trashed)`, the
+        trashed ones in the order they were trashed where that is known.
+        Returns True when a migration ran.
+
+        The invariant this rests on: under the old scheme every record's
+        log lives at the slug of its *current* path, because `note_move`
+        kept it there, and the target is the record's id.  So the move is
+        "every record's log, from its path slug to its id", and not, as it
+        first looked, "only the records whose id is not their slug": a file
+        renamed to `old.tex` has its log at `slug("old.tex")` while a new
+        `main.tex`, minted a random id because the old file still held
+        `slug("main.tex")`, writes its versions there, and the naive rule
+        would have handed the first file the second file's past.
+
+        Two phases through `log/.migrating/`, because of that cycle: one
+        record's target is another's source.  Every source is copied
+        aside first, every target is built from the copies, the targets
+        are moved into place, stale sources go, and only then are
+        `files.json` and `format` written and `paths.json` and the
+        staging directory removed.  Interrupted anywhere, a rerun starts
+        from the copies it finds and ends in the same place; run on a
+        migrated store it does nothing.
+
+        Where several records share one path, one live and any number
+        trashed, the shared source log is cut at its `delete` lines, the
+        cut `split_at_delete` made, and the segments go to the trashed
+        records in the order given with the tail to the live one.
+        """
+        if self.migrated:
+            return False
+        with self._lock:
+            legacy = {}
+            try:
+                legacy = json.loads(self.paths_file.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                legacy = {}
+            if not isinstance(legacy, dict):
+                legacy = {}
+
+            staging = self.log_dir / ".migrating"
+            sources = staging / "src"
+            sources.mkdir(parents=True, exist_ok=True)
+
+            by_path: dict[str, list[tuple[str, bool]]] = {}
+            for file_id, path, trashed in records:
+                if file_id and path:
+                    by_path.setdefault(path, []).append((file_id, bool(trashed)))
+
+            def read_lines(log: Path) -> list[Version]:
+                try:
+                    raw = log.read_text(encoding="utf-8").splitlines()
+                except OSError:
+                    return []
+                out: list[Version] = []
+                for line in raw:
+                    try:
+                        out.append(Version.from_dict(json.loads(line)))
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        continue
+                out.sort(key=lambda version: version.at)
+                return out
+
+            def staged_source(slug: str) -> Path | None:
+                copy = sources / f"{slug}.jsonl"
+                if copy.exists():
+                    return copy
+                original = self.log_dir / f"{slug}.jsonl"
+                if not original.exists():
+                    return None
+                try:
+                    copy.write_bytes(original.read_bytes())
+                except OSError:
+                    return None
+                return copy
+
+            # Phase one: every target, built from copies of the sources.
+            new_map: dict[str, dict] = {}
+            targets: dict[str, list[Version]] = {}
+            handled: set[str] = set()
+            for path, recs in by_path.items():
+                slug = slug_for(path)
+                handled.add(slug)
+                entry = legacy.get(slug) if isinstance(legacy.get(slug), dict) else {}
+                copy = staged_source(slug)
+                versions = read_lines(copy) if copy else []
+                trashed = [file_id for file_id, gone in recs if gone]
+                live = [file_id for file_id, gone in recs if not gone]
+                segments: dict[str, list[Version]] = {}
+                if len(recs) == 1:
+                    segments[recs[0][0]] = versions
+                else:
+                    pieces: list[list[Version]] = []
+                    current: list[Version] = []
+                    for version in versions:
+                        current.append(version)
+                        if version.op == "delete":
+                            pieces.append(current)
+                            current = []
+                    tail = current
+                    for index, file_id in enumerate(trashed):
+                        segments[file_id] = pieces[index] if index < len(pieces) else []
+                    leftover = [v for piece in pieces[len(trashed):] for v in piece] + tail
+                    if live:
+                        segments[live[0]] = leftover
+                        for extra in live[1:]:
+                            segments[extra] = []
+                    elif trashed:
+                        segments[trashed[-1]] = segments.get(trashed[-1], []) + leftover
+                for file_id, lines in segments.items():
+                    targets[file_id] = lines
+                    new_map[file_id] = {
+                        "path": path,
+                        "aliases": list(entry.get("aliases", [])),
+                        "purged_before": dict(entry.get("purged_before", {})),
+                    }
+            # Entries with no record: a forgotten file carrying its floors,
+            # or a log for a path the manifest never adopted.  Kept under
+            # their slug, which is what their key was and still is.
+            for slug, entry in legacy.items():
+                if slug in handled or not isinstance(entry, dict):
+                    continue
+                new_map[slug] = entry
+                copy = staged_source(slug)
+                if copy is not None:
+                    targets[slug] = read_lines(copy)
+            for log in self.log_dir.glob("*.jsonl"):
+                if log.stem not in handled and log.stem not in targets:
+                    copy = staged_source(log.stem)
+                    if copy is not None:
+                        targets[log.stem] = read_lines(copy)
+
+            # Phase two: targets into place, stale sources away, then the
+            # map and the marker, and only then the old files.
+            for file_id, lines in targets.items():
+                staged = staging / f"{file_id}.jsonl"
+                staged.write_text(
+                    "".join(json.dumps(v.as_dict()) + "\n" for v in lines), encoding="utf-8",
+                )
+            for file_id in targets:
+                (staging / f"{file_id}.jsonl").replace(self.log_dir / f"{file_id}.jsonl")
+            for slug in handled:
+                if slug not in targets:
+                    try:
+                        (self.log_dir / f"{slug}.jsonl").unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            self._log_cache.clear()
+            write_atomically(self.files_file, json.dumps(new_map, indent=2))
+            write_atomically(self.format_file, FORMAT)
+            self._paths_cache = None
+            try:
+                self.paths_file.unlink(missing_ok=True)
+            except OSError:
+                pass
+            for copy in sources.glob("*.jsonl"):
+                try:
+                    copy.unlink()
+                except OSError:
+                    pass
+            for leftover in (sources, staging):
+                try:
+                    leftover.rmdir()
+                except OSError:
+                    pass
+            return True
 
     def collect(self, also_keep: set[str] | None = None) -> int:
         return self.blobs.collect(self.referenced() | (also_keep or set()))

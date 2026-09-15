@@ -3043,11 +3043,9 @@ Rename a chapter on one machine while somebody is typing into it on another,
 and the text has to land in the same document regardless. So the manifest is
 keyed by an id and a path is a *property* of a file.
 
-For a project NextTex has seen before, that id is `history.slug_for(path)` --
-the sha16 the version log has always been keyed by. That is not a
-coincidence being exploited so much as the same question having the same
-answer twice, and it means an existing project keeps its entire history
-attached with no migration step at all.
+For a path the manifest has never seen, that id is `history.slug_for(path)`,
+the sha16 the version log was keyed by until the backlog run, and is keyed
+by the file id since; §36 records the rekey and the one migration it took.
 
 ### Presence for display, focus for the agent
 
@@ -6668,3 +6666,42 @@ is the one case with no clear ground. `verb-row.ts` holds the
 arithmetic with its own tests, and `agent.spec.ts` selects at the top of
 the document and in its middle and measures the row against the
 selection's own boxes.
+
+### History is keyed by the file, not by its name
+
+Three keyspaces met in the history: the path slug the log was filed
+under, the collaboration file id, and the trash entry id, and the
+tracker named that meeting as the root cause behind two findings already
+fixed by narrower means, a rename on the other machine and a restore
+under a taken name. The rekey is done: every log is named after the
+manifest's file id, the map beside the logs is `files.json` keyed the
+same way, and `format` under `.nexttex/history/` says so. A rename is a
+map update and no log moves; a deletion's version is announced to peers
+through the id, where looking the file up by path had skipped its
+trashed record and dropped the news until the next reconnect; a file
+restored beside whatever took its name keeps its own past and the other
+file keeps its own, since each has its own log, where before one log held
+both and was cut at the deletion; and a trash entry carries the id it
+took the file under, so a restore records under the same key whatever
+the file is called when it comes back.
+
+The migration runs once, when a session binds a history still keyed by
+slug to its store, and the rule it rests on is the one that first looked
+wrong: every record's log is at the slug of its *current* path, because
+`note_move` kept it there, and the target is the record's id. The rule
+that first looked right, moving only the records whose id was not their
+slug, would have handed a file renamed away the past of the new file
+born under its old name. Two phases through a staging directory, with
+every source copied aside first, so an interruption anywhere restarts
+from the copies and ends in the same place. An older NextTex opening a
+migrated store finds no `paths.json` and reads an empty timeline: that
+is what makes this the major version, and it is the only change in it.
+
+The delete route tells the shared manifest about a deletion itself now
+rather than waiting for the watcher, three or four hundred milliseconds
+behind, because in that window a new file made under the same name found
+the old record live and took its id, and with it the old file's past;
+the agent deleting and recreating a file in one turn fits inside that
+window easily. A history nobody binds to a store, which is what the
+bench and a bare test build, keeps its slug keys and its `paths.json`
+exactly as they were.

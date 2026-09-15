@@ -364,3 +364,28 @@ async def test_three_of_them_in_a_ring_do_not_talk_forever(tmp_path):
     await alice.close()
     await bob.close()
     await carol.close()
+
+
+@pytest.mark.asyncio
+async def test_a_deletions_version_reaches_the_other_machine_without_a_reconnect(tmp_path):
+    """The delete version is written and the record is trashed in the same
+    breath, and the nudge that announced new history looked the file up by
+    path through `file_id_for`, which skips trashed records: the nudge was
+    dropped and the version arrived only on the next reconnect.  The
+    history is keyed by the file id now and the nudge carries it."""
+    alice = Peer(tmp_path / "alice").be("a" * 64)
+    bob = Peer(tmp_path / "bob", {"main.tex": ""}).be("b" * 64)
+    await join_up(alice, bob)
+    assert await until(
+        lambda: (bob.project.root / "main.tex").read_text() == "The chapter.\n"
+    )
+    file_id = alice.store.file_id_for("main.tex")
+
+    alice.trash.delete(alice.project.root / "main.tex")   # records the delete version
+    alice.store.note_gone("main.tex")                      # what the route does
+    assert await until(
+        lambda: any(v.op == "delete" for v in bob.history.versions_of(file_id)), 8.0
+    ), "the deletion's version waited for a reconnect"
+
+    await alice.close()
+    await bob.close()
