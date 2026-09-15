@@ -41,10 +41,14 @@ ALPN = b"nexttex/sync/1"
 LENGTH = 4
 MAX_MESSAGE = 64 * 1024 * 1024
 
-#: How long a stream may say nothing at all before it is treated as gone.
-#: The QUIC connection under this has its own keepalives, so silence for a
-#: whole minute is not a slow network.
-READ_TIMEOUT = 60.0
+#: How long a stream may say nothing at all before it is treated as gone,
+#: a backstop behind the link's own rule.  `PeerLink` pings after twenty
+#: seconds of sending nothing and drops a link silent for sixty, at the
+#: layer the loopback shares, so this is longer than that on purpose:
+#: with two timers on one link the link's is the one authority and this
+#: one is for a transport whose reader has wedged.  At sixty it tore down
+#: every healthy idle link once a minute and redialled.
+READ_TIMEOUT = 90.0
 
 
 class IrohStream:

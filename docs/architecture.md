@@ -172,6 +172,8 @@ A held join is state the server would not otherwise have, so it is bounded: disc
 
 **What a peer may write is fenced.** A peer-supplied path goes through `resolve_for_write`, which refuses control files. Staying inside the project was never the whole question: `.git/config` is inside the project, and a `core.fsmonitor` entry in it is a command that runs on the next `git status`, which happens after every build.
 
+**The wire has fifteen frame kinds, and an unknown kind is ignored.** `PeerLink.handle` is a chain with no else, so an install that predates a kind lets it fall through without a word, which is what lets a newer install talk to an older one and is what the five kinds added by the backlog run rely on. A link pings after twenty seconds of sending nothing and drops a link it has heard nothing from for sixty, at `PeerLink` rather than in the transport, because the loopback transport never times out and it is the one the test tier can sever without closing; the iroh transport's own read timeout stays as a backstop at ninety, having at sixty torn down every healthy idle link once a minute. A peer that connects and never says hello is let go under the same deadline. An ask for a blob or a file stands for thirty seconds and is then made again, and a `BLOB_MISS` or `FILE_MISS` is the other side saying it does not have the thing, which clears a blob ask at once and refreshes a file ask, since the file ask is automatic on every manifest sync and forgetting it would ask a sender whose record is there and whose file is not once per sync. A joiner, and any peer whose manifest names a binary its disk lacks, asks for it with `FILE_WANT`; the bytes go through the same `resolve_for_write` fence as text, are refused when nobody asked, when the path disagrees with the record, or when a file is already there, are parked in the store under a 512 MB bound and written by its flush rather than on receipt, and the session is told through `note_arrived` so the tree draws the file. A binary the watcher sees appear is adopted into the manifest at once rather than at the next open, since otherwise neither its past nor its bytes would travel until then.
+
 **What a browser knows about the other end.** `PeerNetwork.state()` answers, per member, whether that peer's link is up, and `collab_peers` is published when a link is adopted or dropped so the browser hears the two ends of a connection rather than sampling for them. This is a different question from `connection` in the browser, which is that tab's own WebSocket to this server; both are drawn, separately, because a machine can have either one without the other and a writer who reads the wrong one believes their typing is arriving when it is not.
 
 ## The agent
@@ -278,6 +280,8 @@ A single process with no database means nothing is bounded unless something boun
 | Build | 120 second timeout, then the process group is killed |
 | A figure script, from the agent or from the source pane | 120 second timeout, then the process group is killed; 64 kB of output per stream; one run per script at a time |
 | Installing a package | 300 second timeout |
+| A file sent by a peer | 64 MB each, 512 MB parked in memory in all, held until the flush that writes it |
+| A peer link | pinged after 20 s of send silence, dropped after 60 s of hearing nothing |
 | A project search | 200 characters of pattern, 500 hits, and the regular expression runs in a thread |
 
 ## Security posture

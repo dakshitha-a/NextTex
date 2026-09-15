@@ -385,3 +385,93 @@ async def test_a_recent_version_arrives_ready_to_open(tmp_path):
     await bob.network.close()
     alice.store.close()
     bob.store.close()
+
+
+@pytest.mark.asyncio
+async def test_a_blob_a_peer_does_not_have_is_asked_for_again_once_it_does(tmp_path):
+    """`_send_blob` said nothing for a blob it did not hold, and `wanted`
+    held the ask for ever, so a peer asked while it happened not to have
+    the bytes was never asked again and the version stayed unopenable.  A
+    miss is answered now and clears the ask; the next request goes out."""
+    alice = Peer(tmp_path / "alice", "The chapter.\n")
+    bob = Peer(tmp_path / "bob", "")
+    alice.network._me = "a" * 64
+    bob.network._me = "b" * 64
+    alice.history.record("main.tex", "an early draft nobody kept\n", who="Alice")
+    aged = alice.history.versions("main.tex")
+    aged[0].at = now_ms() - 5 * 24 * 3600 * 1000
+    alice.history._write_log("main.tex", aged)
+    sha = aged[0].sha
+    data = alice.history.blobs.path_for(sha).read_bytes()
+
+    alice.network.begin_sharing("Alice")
+    await alice.network.start()
+    for file_id, record in alice.store.files.items():
+        if record.get("kind") == "text":
+            alice.store.body(file_id)
+    await bob.network.join(alice.network.invite(), "Bob")
+    await asyncio.sleep(1.0)
+
+    # Alice's copy of the bytes is gone for the moment.
+    alice.history.blobs.path_for(sha).unlink()
+    link = next(iter(bob.network.links.values()))
+    await bob.network.fetch_blob(sha)
+    await asyncio.sleep(0.6)
+    assert bob.history.blobs.get(sha) is None
+    assert sha not in link.wanted, "the miss did not clear the ask"
+
+    # Back, and asked once more: it arrives.
+    alice.history.blobs.path_for(sha).write_bytes(data)
+    await bob.network.fetch_blob(sha)
+    await asyncio.sleep(0.6)
+    assert bob.history.blobs.get(sha) is not None
+
+    await alice.network.close()
+    await bob.network.close()
+    alice.store.close()
+    bob.store.close()
+
+
+@pytest.mark.asyncio
+async def test_an_ask_that_was_never_answered_is_asked_again_after_a_while(tmp_path, monkeypatch):
+    """An install without the miss frame answers nothing; the age on the
+    ask is what keeps a request from standing for ever against it."""
+    from server.collab import peers as peers_module
+
+    monkeypatch.setattr(peers_module, "WANT_AGAIN", 0.2)
+    alice = Peer(tmp_path / "alice", "The chapter.\n")
+    bob = Peer(tmp_path / "bob", "")
+    alice.network._me = "a" * 64
+    bob.network._me = "b" * 64
+    alice.network.begin_sharing("Alice")
+    await alice.network.start()
+    await bob.network.join(alice.network.invite(), "Bob")
+    await asyncio.sleep(0.6)
+
+    # Alice never answers.
+    for link in alice.network.links.values():
+        async def silent(sha, link=link):
+            return None
+        link._send_blob = silent
+    link = next(iter(bob.network.links.values()))
+    sent: list[bytes] = []
+    original = link.send
+
+    async def counting(frame):
+        sent.append(frame)
+        await original(frame)
+
+    link.send = counting
+    sha = "0" * 64
+    await bob.network.fetch_blob(sha)
+    await bob.network.fetch_blob(sha)
+    asked = lambda: sum(1 for f in sent if f[0] == 6)
+    assert asked() == 1, "a standing ask was repeated at once"
+    await asyncio.sleep(0.3)
+    await bob.network.fetch_blob(sha)
+    assert asked() == 2, "an aged ask was not made again"
+
+    await alice.network.close()
+    await bob.network.close()
+    alice.store.close()
+    bob.store.close()

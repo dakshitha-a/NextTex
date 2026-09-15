@@ -35,12 +35,18 @@ def _clean_hub():
     transport.HUB.clear()
 
 
+#: Twenty kilobytes of nothing in particular, and not a text file.
+FIGURE = bytes(range(256)) * 80
+
+
 async def sharing_peer(tmp_path):
     root = tmp_path / "theirs"
     root.mkdir()
     (root / "main.tex").write_text(PAPER)
     (root / "chapters").mkdir()
     (root / "chapters" / "one.tex").write_text("The first chapter.\n")
+    (root / "figures").mkdir()
+    (root / "figures" / "plot.png").write_bytes(FIGURE)
 
     store = CollabStore(Project.open(root))
     store.adopt()
@@ -72,6 +78,10 @@ async def test_a_join_brings_the_whole_project(tmp_path):
 
     assert (mine / "main.tex").read_text() == PAPER
     assert (mine / "chapters" / "one.tex").read_text() == "The first chapter.\n"
+    # A figure arrived as a manifest entry and no file, once: the text
+    # path syncs documents and the history path syncs a figure's past,
+    # and nothing delivered its bytes.
+    assert (mine / "figures" / "plot.png").read_bytes() == FIGURE
 
     await network.close()
     store.close()

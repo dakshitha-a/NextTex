@@ -60,12 +60,28 @@ from nexttex.atomic import write_atomically
 from nexttex.history import now_ms
 
 from . import history_sync, identity, transport, wire
+from .store import ARRIVED_LIMIT, _WELL_FORMED_ID as _WELL_FORMED_ID_RE
 
 log = logging.getLogger("nexttex.collab")
 
 # How long to wait before dialling a peer again, growing to a resting rate.
 # The common failure is a laptop closing its lid, so the first few are quick.
 BACKOFF = [1, 2, 4, 8, 15, 30, 60]
+
+#: The heartbeat.  A link with nothing to send says so every PING_EVERY
+#: seconds, and a link that has heard nothing at all for SILENCE_LIMIT
+#: seconds is dropped, at this layer rather than in the transport, because
+#: the loopback transport never times out and it is the one the test tier
+#: can sever without closing.  Three pings fit in one limit, so a single
+#: lost frame is not a dropped link.  Class attributes on PeerLink below
+#: mirror these so a test can shorten them.
+PING_EVERY = 20.0
+SILENCE_LIMIT = 60.0
+#: How long an ask for a blob or a file stands before it is asked again.
+#: A peer that did not have the bytes when asked is asked once more after
+#: this, rather than never; a peer that answers with a miss clears the
+#: ask so the next request goes out at once.
+WANT_AGAIN = 30.0
 
 #: How long after a version is written before the other installs are told.
 #: An editing burst is already one version, so there is nothing to say more
@@ -200,6 +216,10 @@ class Share:
 class PeerLink:
     """One connection to one other install."""
 
+    #: The heartbeat's rates, per class so a test can shorten them.
+    ping_every = PING_EVERY
+    silence_limit = SILENCE_LIMIT
+
     def __init__(self, network: "PeerNetwork", stream, peer_id: str) -> None:
         self.network = network
         self.stream = stream
@@ -220,9 +240,15 @@ class PeerLink:
         #: Documents we have already opened the conversation about, so a
         #: manifest that changes twice does not re-offer everything twice.
         self.offered: set[str] = set()
-        #: Blobs asked for and not yet answered, so a figure referenced by
-        #: five versions is fetched once.
-        self.wanted: set[str] = set()
+        #: Blobs asked for and not yet answered, each with when it was
+        #: asked, so a figure referenced by five versions is fetched once
+        #: and an ask that was never answered is repeated after a while.
+        self.wanted: dict[str, float] = {}
+        #: Files asked for by manifest id, the same way.
+        self.wanted_files: dict[str, float] = {}
+        #: When something last went out, for the heartbeat's silence.
+        self._last_sent = 0.0
+        self._pinger: asyncio.Task | None = None
 
     def enqueue(self, frame: bytes) -> None:
         """Hand a frame to this peer without waiting for it.
@@ -255,6 +281,7 @@ class PeerLink:
                 return
             try:
                 await self.stream.send(frame)
+                self._last_sent = asyncio.get_running_loop().time()
             except Exception:
                 self.alive = False
                 return
@@ -264,8 +291,18 @@ class PeerLink:
             return
         try:
             await self.stream.send(frame)
+            self._last_sent = asyncio.get_running_loop().time()
         except Exception:
             self.alive = False
+
+    def _due(self, table: dict[str, float], key: str) -> bool:
+        """Whether an ask should go out now, and note it if so.  An ask
+        younger than WANT_AGAIN stands; an older one is made again."""
+        now = asyncio.get_running_loop().time()
+        if now - table.get(key, -WANT_AGAIN) < WANT_AGAIN:
+            return False
+        table[key] = now
+        return True
 
     async def send_documents(self) -> None:
         """Offer everything we have, and ask for everything we do not.
@@ -316,9 +353,55 @@ class PeerLink:
                 file_id, self.peer_id, self.network.marks.since(file_id),
             ))
 
+        await self.want_files()
+
+    async def want_files(self) -> None:
+        """Ask for every binary the manifest names that this disk lacks.
+
+        A joiner got a manifest entry for `figures/plot.png` and no file:
+        the text path syncs documents and the history path syncs a
+        figure's past, and nothing delivered its bytes.  One ask per file,
+        aged like a blob ask so a peer that never answers is asked again
+        after a while and not on every manifest sync; none while the parked
+        bytes have reached their bound, and none for a path the join
+        summary marks as one that will not be written.
+        """
+        store = self.network.store
+        if store.arrived_bytes() >= ARRIVED_LIMIT:
+            return
+        for file_id, record in list(store.files.items()):
+            if record.get("kind") != "blob" or record.get("trashed"):
+                continue
+            size = int(record.get("size") or 0)
+            if not 0 < size <= wire.MAX_FRAME:
+                continue
+            relative = str(record.get("path") or "")
+            try:
+                target = store.project.resolve_for_write(relative)
+            except (PermissionError, OSError, ValueError):
+                continue
+            if target.exists() or file_id in store.arrived:
+                continue
+            if self._due(self.wanted_files, file_id):
+                await self.send(wire.file_want(file_id))
+
     async def run(self) -> None:
+        # Every frame is waited for under the silence limit, and a link
+        # that keeps quiet for that long is dropped here.  The ping task
+        # is what keeps a healthy idle link under the limit; a peer that
+        # sends nothing else for an hour still says so three times a
+        # minute, and a path that stops carrying packets without closing,
+        # which is what the loopback's sever stages and what a QUIC path
+        # that has gone quiet looks like, ends in the same finally as a
+        # closed stream does.
+        messages = aiter(self.stream)
+        self._pinger = asyncio.create_task(self._keep_pinging())
         try:
-            async for raw in self.stream:
+            while True:
+                try:
+                    raw = await asyncio.wait_for(anext(messages), self.silence_limit)
+                except (StopAsyncIteration, asyncio.TimeoutError):
+                    break
                 try:
                     frame = wire.Frame.decode(raw)
                 except ValueError:
@@ -330,11 +413,23 @@ class PeerLink:
             pass
         finally:
             self.alive = False
+            if self._pinger is not None:
+                self._pinger.cancel()
             with contextlib.suppress(asyncio.QueueFull):
                 self.outbox.put_nowait(None)
             if self._pump is not None:
                 self._pump.cancel()
             self.network.dropped(self)
+
+    async def _keep_pinging(self) -> None:
+        """Say something after a stretch of sending nothing."""
+        loop = asyncio.get_running_loop()
+        while self.alive:
+            await asyncio.sleep(self.ping_every)
+            if not self.alive:
+                return
+            if loop.time() - self._last_sent >= self.ping_every:
+                await self.send(wire.ping())
 
     async def handle(self, frame: wire.Frame) -> None:
         store = self.network.store
@@ -417,6 +512,30 @@ class PeerLink:
             await self._send_blob(frame.header.get("sha", ""))
         elif frame.kind == wire.BLOB_HAVE:
             self.network.take_blob(frame.header.get("sha", ""), frame.payload)
+        elif frame.kind == wire.BLOB_MISS:
+            # The peer has no such bytes.  Forgetting the ask is what lets
+            # the next request for this version go out at once, to this
+            # peer or another, rather than after WANT_AGAIN.
+            self.wanted.pop(str(frame.header.get("sha", "")), None)
+        elif frame.kind == wire.PING:
+            # The frame's arrival was the whole message: it reset the
+            # silence deadline in `run`.
+            return
+        elif frame.kind == wire.FILE_WANT:
+            await self._send_file(str(frame.header.get("id", "")))
+        elif frame.kind == wire.FILE_HAVE:
+            self.network.take_file(
+                str(frame.header.get("id", "")), str(frame.header.get("path", "")),
+                frame.payload,
+            )
+        elif frame.kind == wire.FILE_MISS:
+            # Not forgotten, unlike a blob miss: the file ask is automatic
+            # on every manifest sync, and forgetting it would re-ask a
+            # sender whose record is there and whose file is not, once per
+            # sync.  Refreshed instead, so WANT_AGAIN governs the retry.
+            file_id = str(frame.header.get("id", ""))
+            if file_id in self.wanted_files:
+                self.wanted_files[file_id] = asyncio.get_running_loop().time()
         elif frame.kind == wire.DENIED:
             self.network.last_error = frame.header.get("reason", "refused")
             self.alive = False
@@ -511,22 +630,45 @@ class PeerLink:
             ))
 
     async def _send_blob(self, sha: str) -> None:
-        history = self.network.history()
-        if history is None or not _IS_SHA.fullmatch(sha or ""):
+        if not _IS_SHA.fullmatch(sha or ""):
             # `BlobStore.path_for` joins this straight onto a directory, so
             # an unchecked value from a peer is a path traversal -- a member
             # could ask for anything on the disk that happens to be
             # zlib-compressed.
             return
-        data = history.blobs.get(sha)
+        history = self.network.history()
+        data = history.blobs.get(sha) if history is not None else None
         if data is not None:
             await self.send(wire.blob_have(sha, data))
+        else:
+            # Said rather than left silent.  A peer asked while it did not
+            # have the bytes used to say nothing, and the asker, holding
+            # the ask for ever, never asked again: the version stayed
+            # unopenable.
+            await self.send(wire.blob_miss(sha))
 
     async def want_blob(self, sha: str) -> None:
-        if sha in self.wanted:
+        if self._due(self.wanted, sha):
+            await self.send(wire.blob_want(sha))
+
+    async def _send_file(self, file_id: str) -> None:
+        """A binary the manifest names, as this disk holds it, or a miss."""
+        store = self.network.store
+        record = store.files.get(file_id) if _WELL_FORMED_ID_RE.fullmatch(file_id or "") else None
+        if record is None or record.get("kind") != "blob" or record.get("trashed"):
+            await self.send(wire.file_miss(file_id))
             return
-        self.wanted.add(sha)
-        await self.send(wire.blob_want(sha))
+        relative = str(record.get("path") or "")
+        try:
+            target = store.project.resolve(relative)
+            if not target.is_file() or target.stat().st_size > wire.MAX_FRAME:
+                await self.send(wire.file_miss(file_id))
+                return
+            data = await asyncio.to_thread(target.read_bytes)
+        except (PermissionError, OSError, ValueError):
+            await self.send(wire.file_miss(file_id))
+            return
+        await self.send(wire.file_have(file_id, relative, data))
 
 
 class PeerNetwork:
@@ -782,7 +924,9 @@ class PeerNetwork:
         peer_id = getattr(stream, "peer_id", "")
         link = PeerLink(self, stream, peer_id)
         try:
-            first = await anext(aiter(stream))
+            # Under the same deadline a link's frames wait under: a peer
+            # that connects and never says hello held a stream for ever.
+            first = await asyncio.wait_for(anext(aiter(stream)), PeerLink.silence_limit)
         except Exception:
             return
         try:
@@ -1057,7 +1201,39 @@ class PeerNetwork:
             return
         history.blobs.put(data)
         for link in self.links.values():
-            link.wanted.discard(sha)
+            link.wanted.pop(sha, None)
+
+    def take_file(self, file_id: str, path: str, data: bytes) -> bool:
+        """A binary a peer sent, checked before it is parked.
+
+        The same order of questions `take_blob` asks.  Nobody asked for it:
+        dropped, since being a member is not a licence to fill the disk.
+        The record is not a live binary, or names a different path from
+        the frame: dropped, since the manifest is the authority on what a
+        file is called.  The path is one the fence refuses: dropped.  The
+        file is already here: dropped, since this install's copy is not
+        the sender's to replace.  What survives is parked in the store and
+        written by its next flush, never here, so a binary lands the way a
+        text document does.
+        """
+        if not any(file_id in link.wanted_files for link in self.links.values()):
+            return False
+        record = self.store.files.get(file_id)
+        if record is None or record.get("kind") != "blob" or record.get("trashed"):
+            return False
+        if str(record.get("path") or "") != path:
+            return False
+        try:
+            target = self.store.project.resolve_for_write(path)
+        except (PermissionError, OSError, ValueError):
+            return False
+        if target.exists():
+            return False
+        if not self.store.take_file(file_id, data):
+            return False
+        for link in self.links.values():
+            link.wanted_files.pop(file_id, None)
+        return True
 
     async def fetch_blob(self, sha: str) -> None:
         """Ask whoever is connected for a blob this install does not have."""

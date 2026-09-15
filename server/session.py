@@ -663,6 +663,21 @@ class ProjectSession:
 
         spawn(follow(), "following a peer's rename")
 
+    def note_arrived(self, relative: str) -> None:
+        """A file a peer sent has just been written here.
+
+        The tree draws from events, and the watcher skips this install's
+        own writes, so without this a figure that arrived from a
+        collaborator was on disk and nowhere on screen until the next
+        reload.
+        """
+        spawn(
+            self.events.publish(
+                {"type": "files_changed", "paths": [relative], "structural": True}
+            ),
+            "announcing a file a peer sent",
+        )
+
     def note_trashed(self, was: str) -> None:
         """A file a peer deleted has just been moved into this trash.
 

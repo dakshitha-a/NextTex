@@ -90,25 +90,6 @@ things go to be forgotten rather than a list anybody reads.
       fallback for real under both PowerShells; the middle way back, the
       Startup shortcut on a non-admin account, has run nowhere.
 
-- [ ] **A joiner gets a manifest entry for a binary file and no file.**
-      `figures/plot.png` arrives as a name with nothing behind it. Syncing a
-      figure's *past* is done; delivering its bytes is not. A file-sync gap
-      rather than a history one, which is why it was left when the history
-      work closed. The September review's Windows laptop joined a project
-      with no real binaries in it, so whether a figure added on one machine
-      arrives on another is still untested between two computers; the gap
-      is known in one process.
-- [ ] **A peer link that dies silently is not noticed until something is
-      sent.** `PeerLink.alive` in `server/collab/peers.py` flips on a send
-      failure, a closed stream, a denial or a removal, and on nothing else,
-      so a QUIC path that stops carrying packets without closing leaves both
-      ends drawn as connected until one of them types. The fix is a
-      heartbeat frame, and `server/collab/wire.py` has ten frame kinds and
-      no version number: adding a kind means both sides have to tolerate one
-      they do not know, which is a wire-version decision rather than a line,
-      and it was found by reading rather than by anybody meeting it. The
-      `collab_peers` event that pass 3 of the fix run added covers every
-      departure the link does notice.
 - [ ] **Rekey history on the collaboration file id rather than the path
       slug.** Three keyspaces meet here, the path slug, the file id and the
       trash entry id, and that is the root cause behind two findings already
@@ -228,18 +209,12 @@ things go to be forgotten rather than a list anybody reads.
 - [ ] **A collaborator's settled edit records its version from inside the
       flush.** `CollabStore._write` calls `session.record_version`, which is
       a sha256 and a zlib compression, on the event loop, once per settled
-      edit rather than once per burst. The bench measures the whole path,
-      `collab.edit_to_disk_ms`, at 3.39 ms against a 120 ms budget, so this
-      is thirty-five times inside its own limit and the queue it would take
-      to fix it properly, an ordered per-session queue consumed off the
-      loop, is more machinery than the measurement justifies. Worth doing
-      if that number ever moves.
+      edit rather than once per burst. The bench does not measure it:
+      `collab.edit_to_disk_ms` is taken on a store with no session, so the
+      version record is outside that number, and `history.record_ms`, the
+      nearest, is about two milliseconds on ten-byte strings. On a thesis
+      chapter the sha256 and the zlib pass are a fraction of a millisecond
+      each, and the queue it would take to move them off the loop, an
+      ordered per-session queue consumed off it, is more machinery than
+      that justifies. Worth doing if a measurement ever says otherwise.
 
-- [ ] **A blob asked for once is never asked for again.** `PeerLink.wanted`
-      in `server/collab/peers.py` is a set of content addresses with no time
-      in it, and `_send_blob` says nothing when it holds none, so a peer that
-      was asked while it happened not to have the blob is never asked again
-      and the version stays unopenable. Giving `wanted` an age and answering
-      a miss are both changes to what the wire says, which wants a frame kind
-      and a version thought rather than a line, and it was found by reading
-      rather than by anybody meeting it.
