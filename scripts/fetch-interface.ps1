@@ -16,6 +16,14 @@ param([string]$Sha = '')
 
 $ErrorActionPreference = 'Stop'
 
+# GitHub requires TLS 1.2, and Windows PowerShell on Windows 7 and 8.1
+# does not offer it by default: Invoke-WebRequest there fails the
+# handshake with a message about the underlying connection being closed.
+# Adding it to whatever the machine already offers is harmless everywhere
+# else, and a machine too old for 1.2 at all was never going to fetch.
+[Net.ServicePointManager]::SecurityProtocol = `
+  [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
 function Get-Sha256 {
   <#
     .SYNOPSIS
