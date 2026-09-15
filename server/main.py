@@ -2120,12 +2120,16 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
         source.rename(target)
     except OSError as error:
         raise HTTPException(400, f"could not rename: {error}")
-    session.history.note_move(path, to)
-    # And the shared document, or the manifest goes on naming the old path:
-    # the watcher then sees one file vanish and another appear, trashes the
-    # first and adopts the second, and every browser editing it carries on
-    # looking normal while nothing it types reaches disk again.
+    # The shared document first, or the manifest goes on naming the old
+    # path: the watcher then sees one file vanish and another appear,
+    # trashes the first and adopts the second, and every browser editing
+    # it carries on looking normal while nothing it types reaches disk
+    # again.  And before the history, whose key is the record's id: asked
+    # about the new name while the record still carried the old one, it
+    # would adopt the renamed file as a new record and file the past under
+    # a second id.
     session.collab.rename(path, to)
+    session.history.note_move(path, to)
     # The strip before the tabs.  A previewed document that moves is
     # re-registered under its new name and `previews_changed` carries the
     # mapping, and the browser moves its tabs and the strip in one store
@@ -2192,6 +2196,11 @@ async def delete_file(project_id: str, path: str):
     if not target.exists():
         raise HTTPException(404, "no such file")
     entry = session.trash.delete(target)
+    # The shared manifest hears it now rather than from the watcher, so a
+    # file made under the same name in the next moment is a new file with
+    # a new id rather than the old record and the old past.
+    for file in entry.files:
+        session.collab.note_gone(file.path)
     # A previewed document, or a folder holding one, leaves the strip.
     await session.reconcile_documents(gone=[session.project.relative(target)])
     await session.events.publish({"type": "trash_changed"})
@@ -2316,7 +2325,7 @@ async def restore_trash(project_id: str, entry_id: str):
     # Which build path a restore needs depends on what came back.  Without
     # this the scheduler reused whatever the last edit left set, so
     # restoring a .bib skipped the biber pass its citations needed.
-    for was, relative in zip(result["was"], result["restored"]):
+    for was, relative, file_id in zip(result["was"], result["restored"], result["ids"]):
         restored = session.project.root / relative
         # A file coming back out of the trash is a file coming back into the
         # project: it has to reach the shared document, and its record has to
@@ -2325,7 +2334,7 @@ async def restore_trash(project_id: str, entry_id: str):
         # Told what it *was* called as well as what it is called now.  Those
         # differ when the old name had been taken, and matching on the new
         # one alone found no trashed record at all.
-        session.collab.untrash(was, relative, read_text(restored))
+        session.collab.untrash(was, relative, read_text(restored), file_id)
         session.note_edit(restored, read_text(restored), None)
     session.schedule_compile()
     # A document coming back comes back onto the strip.  A chapter does not

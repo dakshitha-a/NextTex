@@ -139,7 +139,7 @@ class Marks:
 
 def offer(
     history: History,
-    relative: str,
+    key: str,
     me: str,
     requester: str,
     since: dict[str, float],
@@ -157,7 +157,7 @@ def offer(
     scheme on the wrong author.
     """
     candidates: list[tuple[float, str, object]] = []
-    for version in history.versions(relative):
+    for version in history.versions_of(key):
         author = version.peer or me
         if not author or author == requester:
             # Never their own records back.  Checked here rather than
@@ -192,7 +192,7 @@ def offer(
 
 
 def mine(
-    history: History, relative: str, me: str, after: int,
+    history: History, key: str, me: str, after: int,
 ) -> tuple[list[dict], int]:
     """The old shape: this install's own lines, counted from a position.
 
@@ -203,7 +203,7 @@ def mine(
     than the question allows.
     """
     lines: list[dict] = []
-    ours = [v for v in history.versions(relative) if (v.peer or me) == me]
+    ours = [v for v in history.versions_of(key) if (v.peer or me) == me]
     for version in ours[after:after + BATCH]:
         record = version.as_dict()
         record["peer"] = me

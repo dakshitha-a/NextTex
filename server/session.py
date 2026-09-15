@@ -353,6 +353,10 @@ class ProjectSession:
         # and all four have to exist first.
         self.collab = CollabStore(project, self)
         self.collab.adopt()
+        # The history is keyed by the manifest's file ids, and the store is
+        # what knows them: bound here, once the store exists, and a store
+        # still keyed by path slug is migrated on the way.
+        self.history.bind(self.collab.key_for, self.collab.records())
         self.sync = SyncHub(self.collab)
         #: The other installs this project is shared with, if any. Built
         #: here but not started: a project that has never been shared opens

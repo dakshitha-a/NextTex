@@ -25,10 +25,12 @@ requires and would otherwise have to be worked around.
 **Keyed by file id, never by path.**  Rename `intro.tex` to `ch1.tex` on one
 peer while somebody is typing into it on another, and the text has to land in
 the same document regardless.  Paths are a *property* of a file here, not its
-name.  For a project NextTex has seen before, that id is
-`history.slug_for(path)` -- the same sha16 the version log is already keyed by
--- so an existing project's whole history stays attached with no migration at
-all.
+name.  For a path the manifest has never seen, that id is
+`history.slug_for(path)` when nothing already holds it, and the version log
+is keyed by the file id as well since the backlog run, so a file's past
+follows its id through every rename, deletion and restore.  A history from
+before that is keyed by the slug of each file's path and is migrated once,
+onto the ids, when the session binds it to this store.
 
 **Text or binary is decided once, when the file is first seen.**  The
 tempting rule is to demote anything over a couple of megabytes to a blob, and
@@ -359,9 +361,10 @@ class CollabStore:
     def _new_id(self, relative: str, adopting: bool = False) -> str:
         """The id a file gets the first time it is seen.
 
-        Adopting a project NextTex already knows uses the slug its version
-        log is keyed by, so an existing history stays attached to the file it
-        belongs to with no migration step.
+        Adopting a path nothing holds uses its slug, which is what an
+        unbound history keys a log by, so the two agree on every file that
+        was never renamed onto a trashed name; a history from before the
+        rekey is migrated onto the ids once, when the session binds it.
 
         Everything else gets random bytes, and the distinction matters.  The
         first version of this used the slug whenever *this* peer had not seen
@@ -667,7 +670,66 @@ class CollabStore:
         except (OSError, ValueError):
             return ""
 
-    def untrash(self, original: str, relative: str, text: str | None) -> None:
+    def note_gone(self, relative: str) -> bool:
+        """A file this install has just moved to the trash.
+
+        Flagged at once, unlike a sighting from the watcher, because the
+        route that calls this did the deleting and there is no gap to
+        wait out.  Waiting for the watcher, three or four hundred
+        milliseconds behind, left a window in which a new file made under
+        the same name found the old record live and took its id, and with
+        it the old file's past: the agent deleting and recreating a file
+        in one turn fits inside that window easily.
+        """
+        file_id = self.file_id_for(relative)
+        if file_id is None:
+            return False
+        record = self.files.get(file_id)
+        if record is None or record.get("trashed"):
+            return False
+        record["trashed"] = True
+        self._gone_pending.discard(file_id)
+        return True
+
+    def key_for(self, relative: str) -> str | None:
+        """The key a path's history is filed under: the file's id.
+
+        The live record's, when there is one.  Failing that, a file that
+        is on disk is one the manifest has not adopted yet, so it is
+        adopted here and its fresh id answered, rather than guessed from
+        the path's slug: the slug may belong to a trashed file of the same
+        name, and a version filed under it would hand the new file the old
+        one's past.  A path with no file and no live record is a trashed
+        one, and its trashed record's id is the answer, which is what a
+        purge of a deleted file's history, or a restore from an old trash
+        entry, needs.  None only when the manifest has never heard of it.
+        """
+        file_id = self.file_id_for(relative)
+        if file_id:
+            return file_id
+        try:
+            if self.project.resolve(relative).is_file():
+                self.adopt()
+                file_id = self.file_id_for(relative)
+                if file_id:
+                    return file_id
+        except (PermissionError, OSError, ValueError):
+            pass
+        for file_id in sorted(self.files):
+            record = self.files[file_id]
+            if record.get("path") == relative and record.get("trashed"):
+                return file_id
+        return None
+
+    def records(self) -> list[tuple[str, str, bool]]:
+        """Every record as `(id, path, trashed)`, for the history's migration."""
+        return [
+            (file_id, str(record.get("path") or ""), bool(record.get("trashed")))
+            for file_id, record in self.files.items()
+        ]
+
+    def untrash(self, original: str, relative: str, text: str | None,
+                file_id: str = "") -> None:
         """A file coming back from the trash, under the id it had before.
 
         `file_id_for` skips trashed records, so an ordinary `ingest` would
@@ -682,10 +744,16 @@ class CollabStore:
         a collaborator's offline edits sealed inside it, and that peer went
         on holding a stale file it could no longer write to.
         """
-        for file_id, record in self.files.items():
-            if record.get("path") == original and record.get("trashed"):
+        # By id when the trash entry carried one, since two trashed
+        # records can share a path; by the original path otherwise.
+        for candidate, record in self.files.items():
+            if not record.get("trashed"):
+                continue
+            if (file_id and candidate == file_id) or (
+                not file_id and record.get("path") == original
+            ):
                 record["trashed"] = False
-                if relative != original:
+                if relative != record.get("path"):
                     record["path"] = relative
                 break
         if text is not None:

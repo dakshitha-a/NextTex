@@ -88,12 +88,6 @@ after all, one confirmation each.
       fallback for real under both PowerShells; the middle way back, the
       Startup shortcut on a non-admin account, has run nowhere.
 
-- [ ] **Rekey history on the collaboration file id rather than the path
-      slug.** Three keyspaces meet here, the path slug, the file id and the
-      trash entry id, and that is the root cause behind two findings already
-      fixed by narrower means. Following the manifest's path on the receiving
-      side was the minimal correct fix; rekeying is a migration and deserves
-      its own run.
 - [ ] **A request during a session's close is told to wait, not made to.**
       `_close_session` holds the project id in `CLOSING` while the close
       awaits, and `session_for` answers 503 for it, so the window in which

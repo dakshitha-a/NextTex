@@ -552,9 +552,11 @@ class PeerLink:
         history = network.history()
         if history is None:
             return
-        file_id = frame.header.get("file", "")
-        relative = network.store.path_for(file_id)
-        if not relative:
+        file_id = str(frame.header.get("file", ""))
+        # The wire speaks in file ids and so does the history now; the
+        # path is only checked to be one the manifest holds, so a peer
+        # cannot read a log for an id nobody shares.
+        if not _WELL_FORMED_ID_RE.fullmatch(file_id) or not network.store.path_for(file_id):
             return
 
         since = frame.header.get("since")
@@ -566,7 +568,7 @@ class PeerLink:
             # the defect this was rewritten to fix, and there is no better
             # answer to that question than the question allows.
             lines, reached = await asyncio.to_thread(
-                history_sync.mine, history, relative, network.peer_id,
+                history_sync.mine, history, file_id, network.peer_id,
                 int(frame.header.get("cursor") or 0),
             )
             if lines:
@@ -581,7 +583,7 @@ class PeerLink:
             if isinstance(at, (int, float))
         }
         lines, reached = await asyncio.to_thread(
-            history_sync.offer, history, relative,
+            history_sync.offer, history, file_id,
             network.peer_id, self.peer_id, floors,
         )
         if lines:
@@ -594,15 +596,17 @@ class PeerLink:
         history = network.history()
         if history is None:
             return
-        file_id = frame.header.get("file", "")
-        relative = network.store.path_for(file_id)
+        file_id = str(frame.header.get("file", ""))
+        relative = network.store.path_for(file_id) if _WELL_FORMED_ID_RE.fullmatch(file_id) else ""
         if not relative:
             return
         lines = frame.header.get("lines") or []
         # Off the loop: absorbing takes the history's lock and rewrites a
-        # whole log, at up to a batch of records a frame.
+        # whole log, at up to a batch of records a frame.  Into the log
+        # keyed by the id the wire named, which is the file's own whatever
+        # it is called on either disk; the path is for the map.
         added = await asyncio.to_thread(
-            history.absorb, relative, lines, me=network.peer_id,
+            history.absorb_into, file_id, relative, lines, me=network.peer_id,
         )
         await network.fetch_recent(added)
 
@@ -1097,8 +1101,13 @@ class PeerNetwork:
         history.me = self.peer_id if self.share.shared else ""
         history.on_change = self.note_history
 
-    def note_history(self, relative: str) -> None:
+    def note_history(self, key: str) -> None:
         """A file has a past it did not have a moment ago; say so.
+
+        Told the key, which is the file id, so a deletion's version, whose
+        record is trashed by the time this runs, is announced too: going
+        through `file_id_for`, which skips trashed records, dropped it
+        until the next reconnect.
 
         Hung off the history rather than off `record_version`, for two
         reasons.  The trash records its delete and restore versions straight
@@ -1111,17 +1120,17 @@ class PeerNetwork:
         Safe from a worker thread: recording runs off the loop.
         """
         loop = self._loop
-        if self._closed or loop is None or not relative:
+        if self._closed or loop is None or not key:
             return
         try:
-            loop.call_soon_threadsafe(self._history_changed, relative)
+            loop.call_soon_threadsafe(self._history_changed, key)
         except RuntimeError:
             pass
 
-    def _history_changed(self, relative: str) -> None:
+    def _history_changed(self, key: str) -> None:
         if self._closed or not self.links:
             return
-        self._nudging.add(relative)
+        self._nudging.add(key)
         if self._nudge is None or self._nudge.done():
             self._nudge = asyncio.create_task(self._say_what_changed())
 
@@ -1136,9 +1145,8 @@ class PeerNetwork:
         changed, self._nudging = self._nudging, set()
         if self._closed:
             return
-        for relative in changed:
-            file_id = self.store.file_id_for(relative)
-            if not file_id:
+        for file_id in changed:
+            if file_id not in self.store.files:
                 continue
             frame = wire.hist_new(file_id)
             for link in list(self.links.values()):
