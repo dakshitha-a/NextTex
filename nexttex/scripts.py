@@ -47,6 +47,73 @@ def slug(relative: str) -> str:
     return f"{flat[:60]}-{digest}"
 
 
+#: How output is batched on its way to the event stream: at most one
+#: frame per stream per this many seconds, or sooner once this many
+#: characters have gathered.  The reader stops handing chunks over at the
+#: 64 kB clip per stream, so a run publishes at most 128 kB in all; the
+#: timer bounds the frame rate for a script printing a line at a time, so
+#: ten thousand short lines in a second are ten or twenty frames and not
+#: ten thousand, which is what would fill a subscriber's queue.
+OUTPUT_EVERY = 0.1
+OUTPUT_BATCH = 4 * 1024
+
+
+class _Output:
+    """What a run has printed so far, and the batching of its announcement."""
+
+    def __init__(
+        self,
+        publish: Callable[[dict], Awaitable[None]],
+        relative: str,
+        run_id: int,
+        live: dict,
+    ) -> None:
+        self.publish = publish
+        self.relative = relative
+        self.run_id = run_id
+        #: The whole of it so far, shared with `last()` so a window that
+        #: opens the script mid-run sees what has been printed.
+        self.live = live
+        self.pending: dict[str, list[str]] = {"out": [], "err": []}
+        self.size = 0
+        self.timer: asyncio.TimerHandle | None = None
+        self.tasks: list[asyncio.Task] = []
+
+    def __call__(self, stream: str, text: str) -> None:
+        self.live[stream] += text
+        self.pending[stream].append(text)
+        self.size += len(text)
+        if self.size >= OUTPUT_BATCH:
+            self.flush()
+        elif self.timer is None:
+            self.timer = asyncio.get_running_loop().call_later(OUTPUT_EVERY, self.flush)
+
+    def flush(self) -> None:
+        if self.timer is not None:
+            self.timer.cancel()
+            self.timer = None
+        for stream in ("out", "err"):
+            text = "".join(self.pending[stream])
+            if not text:
+                continue
+            # Tasks made in order run in order on one loop, so the frames
+            # stay in the order the output arrived.
+            self.tasks.append(asyncio.ensure_future(self.publish({
+                "type": "script_output", "script": self.relative,
+                "run": self.run_id, "stream": stream, "text": text,
+            })))
+        self.pending = {"out": [], "err": []}
+        self.size = 0
+
+    async def close(self) -> None:
+        """Send what is left, and wait for it to have gone, so no output
+        frame trails the run's own done frame."""
+        self.flush()
+        if self.tasks:
+            await asyncio.gather(*self.tasks, return_exceptions=True)
+        self.tasks = []
+
+
 class ScriptRuns:
     """The runs of one project's scripts."""
 
@@ -66,6 +133,8 @@ class ScriptRuns:
         self.before_run = before_run
         self._running: dict[str, asyncio.Task] = {}
         self._run_ids: dict[str, int] = {}
+        #: What each run in flight has printed so far.
+        self._live: dict[str, dict] = {}
 
     def directory(self, relative: str) -> Path:
         return self.state_dir / RUNS / slug(relative)
@@ -105,15 +174,27 @@ class ScriptRuns:
         await self.publish({
             "type": "script_start", "script": relative, "run": run_id, "by": by,
         })
+        live = {"run": run_id, "out": "", "err": ""}
+        self._live[relative] = live
+        output = _Output(self.publish, relative, run_id, live)
         try:
-            result = await plots.run(
-                self.root, self.state_dir, self.root / relative, capture=directory,
-            )
+            try:
+                result = await plots.run(
+                    self.root, self.state_dir, self.root / relative,
+                    capture=directory, on_output=output,
+                )
+            finally:
+                # Before the done frame on either branch, so nothing printed
+                # arrives after the run has been announced as over.
+                await output.close()
+                if self._live.get(relative) is live:
+                    self._live.pop(relative, None)
         except asyncio.CancelledError:
             await self.publish({
                 "type": "script_done", "script": relative, "run": run_id, "by": by,
-                "ok": False, "code": -1, "out": "", "err": "Stopped.", "stopped": True,
-                "figures": [], "saved": [], "duration_ms": int((time.time() - started) * 1000),
+                "ok": False, "code": -1, "out": live["out"], "err": "Stopped.",
+                "stopped": True, "figures": [], "saved": [],
+                "duration_ms": int((time.time() - started) * 1000),
             })
             raise
         result = {
@@ -154,7 +235,14 @@ class ScriptRuns:
             if not self.running(relative):
                 return None
             data = {"script": relative}
-        return {**data, "running": self.running(relative)}
+        answer = {**data, "running": self.running(relative)}
+        # What the run in flight has printed so far, nested rather than in
+        # place of `out`, so a previous run's whole result still comes
+        # through beside it and the browser can tell the two apart.
+        live = self._live.get(relative)
+        if answer["running"] and live is not None:
+            answer["live"] = dict(live)
+        return answer
 
     def figure(self, relative: str, name: str) -> Path | None:
         """A captured figure of the last run, or None."""

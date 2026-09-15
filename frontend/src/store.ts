@@ -15,6 +15,7 @@ import api, {
   type Member,
   type ContextDocument,
   type Diagnostic,
+  type ScriptLive,
   type ScriptResult,
   type ProjectSummary,
   type TrashEntry,
@@ -200,6 +201,10 @@ export type State = {
     path: string;
     running: boolean;
     result: ScriptResult | null;
+    /** What the run in flight has printed so far, appended as it
+     *  arrives; null between runs.  The done frame replaces it with the
+     *  whole result. */
+    live: ScriptLive | null;
     /** The agent changed the script since its last failed run here, so
      *  the pane offers a rerun rather than running it on its own. */
     changedByAgent: boolean;
@@ -1090,9 +1095,21 @@ function receive(event: any) {
       const held = state.script;
       if (!held || held.path !== event.script) break;
       set({
-        script: { ...held, running: true },
+        script: { ...held, running: true, live: { run: event.run, out: "", err: "" } },
         previewShowing: "script",
       });
+      break;
+    }
+    // What the run has printed so far, a frame at a time.  Only for the
+    // run in flight: a superseded run's tail can arrive after the new
+    // run's start frame, and belongs to nothing on screen.
+    case "script_output": {
+      const held = state.script;
+      if (!held || held.path !== event.script || !held.live || held.live.run !== event.run) break;
+      const live = event.stream === "err"
+        ? { ...held.live, err: held.live.err + event.text }
+        : { ...held.live, out: held.live.out + event.text };
+      set({ script: { ...held, live } });
       break;
     }
     case "script_done": {
@@ -1104,6 +1121,7 @@ function receive(event: any) {
           ...held,
           running: false,
           result: result as ScriptResult,
+          live: null,
           changedByAgent: false,
         },
       });

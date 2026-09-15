@@ -79,10 +79,12 @@ export function agentChangedScript(
  *  Handed the result the window already holds, so a stale answer that
  *  arrives after `script_done` never replaces a real one with nothing. */
 export function resultFrom(
-  last: Partial<ScriptResult> & { running: boolean },
+  last: Partial<ScriptResult> & { running: boolean; live?: unknown },
   held: ScriptResult | null,
 ): ScriptResult | null {
-  const { running: _running, ...rest } = last;
+  // `live` is what a run in flight has printed and travels beside the
+  // last result; it is never part of one.
+  const { running: _running, live: _live, ...rest } = last;
   if (Array.isArray(rest.figures) && Array.isArray(rest.saved) && typeof rest.out === "string") {
     return rest as ScriptResult;
   }

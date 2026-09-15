@@ -6377,13 +6377,14 @@ changes an axis label and presses Run within a tenth of a second would
 otherwise have run the old script and read the old figure with no way to
 tell.
 
-**Deliberately not done.** Streaming stdout while a script runs, since
-the compile does not stream its log either and a result at the end fits
-the two minute bound. Running on save or on an agent edit, for the fence
-reason above. Figures as SVG beside the PNG. A `run_script` tool for the
-agent that reruns by name without rewriting, and OpenAI-provider parity
-for the plot tools, which was already absent. All four are in
-`TRACKER.md` with their reasons.
+**Deliberately not done, then.** Streaming stdout while a script runs
+was left on the argument that the compile does not stream its log either
+and a result at the end fits the two minute bound; §36 records it done.
+Running on save or on an agent edit stays out, for the fence reason
+above. Figures as SVG beside the PNG. A `run_script` tool for the agent
+that reruns by name without rewriting, and OpenAI-provider parity for
+the plot tools, which was already absent. What is still left is in
+`TRACKER.md` with its reason.
 
 ## 36. The backlog, worked
 
@@ -6569,3 +6570,21 @@ strip on every change as before. Nothing on the server changed, and
 `related-tabs.spec.ts` reloads a window with a followed document on the
 strip and watches the document leave when the chapter that brought it
 closes.
+
+### What a script prints arrives while it runs
+
+§35 left a script's output to arrive when the run ended, which fit the
+two minute bound and was what the compile does with its log; a script
+printing progress for ninety seconds showed nothing until then. The
+pane appends now. The child runs unbuffered, so a `print` leaves it as
+printed; the server reads both pipes as they fill and publishes
+`script_output` frames between the run's start and its end, a frame per
+stream at most every tenth of a second or sooner at four kilobytes, so
+the event stream is never flooded and the frame order is the output
+order; the pane draws the run so far under the same blocks the finished
+result uses and keeps the end in view unless the reader has scrolled up
+to read something earlier, in which case the view is theirs until the
+next run. A second window opening the script mid-run is handed what has
+been printed so far beside the last result, and the done frame replaces
+the live text with the whole. Nothing changed about what is kept: the
+result on disk is what it was.
