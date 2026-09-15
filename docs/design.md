@@ -6735,3 +6735,23 @@ the agent deleting and recreating a file in one turn fits inside that
 window easily. A history nobody binds to a store, which is what the
 bench and a bare test build, keeps its slug keys and its `paths.json`
 exactly as they were.
+
+## 37. The tab names the paper, and the tutorial reads on both keyboards
+
+### The browser tab says which project this is
+
+Every NextTex tab said "NextTex", or "NextTex · dev" on a named install,
+so a writer with a thesis and two papers open in three tabs had three
+tabs that read the same and had to click through them to find the one
+they wanted. The tab now reads `Thesis · NextTex` while the project is
+open, the project's name first because a browser truncates a tab's title
+from the end, and a row of tabs that all begin with the app's name says
+nothing about what is in them. The instance name stays at the end, where
+it was. On the project list, the sign-in screen and the offline screen
+the tab is the app alone.
+
+The title follows the screen, not the store's project: leaving a project
+for the list keeps its name in the store so the list can offer the way
+back, and the tab should not keep it. `page-title.ts` is the rule with
+its own tests, and `navigation.spec.ts` opens a project, reads the tab,
+goes back to the list and reads it again.
