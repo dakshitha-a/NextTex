@@ -112,11 +112,12 @@ test("the figures the tutorial shows", async ({ app, project, tab }) => {
     await shot(tab, "git-card", theme, '[data-testid="git-setup"]');
 
     // Two tabs, so the empty run writing mode is reached by is visible.
+    // Two and not three: the editor pane at this width holds three tabs
+    // exactly, and the figure whose subject is the empty run then showed
+    // a sliver of it.
     await tab.getByTestId("file-search-open").click();
     await tab.getByTestId("file-search").fill("results");
     await tab.locator('[role="tree"] [data-path="chapters/results.tex"]').click();
-    await tab.getByTestId("file-search").fill("theory");
-    await tab.locator('[role="tree"] [data-path="chapters/theory.tex"]').click();
     await tab.getByTestId("file-search").press("Escape");
     await tab.waitForTimeout(500);
     await span(tab, "tab-strip", theme, "[data-tab]", '[data-testid="tabs-blank"]', 34);
