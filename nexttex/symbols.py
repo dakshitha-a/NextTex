@@ -74,6 +74,12 @@ class Symbols:
     texfiles: list[str] = field(default_factory=list)
     commands: list[dict] = field(default_factory=list)
     environments: list[str] = field(default_factory=list)
+    #: Which English each document says it is written in, by file, from
+    #: its babel or polyglossia options: "british" or "american".  A file
+    #: that says nothing is absent.  The spell checker reads it so a
+    #: British thesis is checked as British for everyone who opens it
+    #: without anybody setting anything.
+    english: dict[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -83,7 +89,57 @@ class Symbols:
             "texfiles": self.texfiles,
             "commands": self.commands,
             "environments": self.environments,
+            "english": self.english,
         }
+
+
+# The language a preamble declares.  babel takes its options on
+# \usepackage and, since 3.9, on \babelprovide; polyglossia names a
+# variant.  The last language listed is babel's main one, which is why the
+# options are read in order and the last match wins.
+BABEL = re.compile(r"\\usepackage\s*\[([^\]]*)\]\s*\{babel\}")
+POLYGLOSSIA = re.compile(
+    r"\\set(?:main|default)language\s*(?:\[([^\]]*)\])?\s*\{([a-zA-Z]+)\}"
+)
+BRITISH_NAMES = {"british", "ukenglish", "australian", "newzealand", "uk", "en-gb", "en-au", "en-nz"}
+AMERICAN_NAMES = {"american", "usenglish", "english", "canadian", "us", "en-us", "en-ca"}
+
+
+def english_of(text: str) -> str | None:
+    """"british" or "american" as the preamble says, or None if it does not.
+
+    Only the preamble, since a chapter has none; and only English: a
+    document in French says nothing about which English its quotations
+    should be checked against.
+    """
+    head = text.split("\\begin{document}", 1)[0]
+    found: str | None = None
+    for match in BABEL.finditer(head):
+        for option in match.group(1).split(","):
+            name = option.strip().split("=")[-1].strip().lower()
+            if name in BRITISH_NAMES:
+                found = "british"
+            elif name in AMERICAN_NAMES:
+                found = "american"
+    for match in POLYGLOSSIA.finditer(head):
+        options, language = match.group(1) or "", match.group(2).lower()
+        if language not in {"english", "british", "american", "australian", "usenglish", "ukenglish"}:
+            continue
+        variant = ""
+        for option in options.split(","):
+            key, _, value = option.partition("=")
+            if key.strip().lower() == "variant":
+                variant = value.strip().lower()
+        if variant in BRITISH_NAMES or language in {"british", "australian", "ukenglish"}:
+            found = "british"
+        elif (
+            variant in AMERICAN_NAMES
+            or language in {"american", "usenglish"}
+            or (language == "english" and not variant)
+        ):
+            # polyglossia's plain `english` is American, as babel's is.
+            found = "american"
+    return found
 
 
 def _bib_entries(text: str) -> list[dict]:
@@ -179,6 +235,11 @@ def scan(
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+
+        if suffix in {".tex", ".ltx"}:
+            english = english_of(text)
+            if english:
+                found.english[relative] = english
 
         for line_number, line in enumerate(text.splitlines(), start=1):
             for name in LABEL.findall(line):

@@ -9,10 +9,12 @@ import { dictionary } from "./words";
  *  almost every line, which is the exact failure `spellcheck.ts` opens by
  *  saying it must avoid, because it teaches people to ignore the underlines.
  *
- *  Sixty-one of the eighty-two spellings below were flagged before this. */
+ *  The first fix added derived British forms to the one list by hand.  The
+ *  British forms come from the real `wbritish` list now, as a delta on the
+ *  American one, and a project can say which English it is written in. */
 const BRITISH = [
   "colour", "colours", "coloured", "colourful",
-  "behaviour", "behaviours", "favour", "favours", "favourite",
+  "behaviour", "behavioural", "favour", "favours", "favourite",
   "honour", "honours", "labour", "labours", "neighbour", "neighbours",
   "flavour", "flavoured", "humour", "rumour",
   "analyse", "analysed", "analyses", "analysing",
@@ -33,36 +35,58 @@ const BRITISH = [
   "programme", "programmes", "grey", "aluminium", "sulphur",
 ];
 
-/** Kept, because adding one spelling must not remove the other. Half the
- *  literature a thesis cites is written in American English. */
+/** The other spelling of some of the same words. */
 const AMERICAN = [
   "color", "analyze", "center", "organize", "defense", "traveled", "catalog",
 ];
 
-/** The point of having a list at all. */
+/** Words that are neither, and must stay caught whichever variety is on. */
 const MISSPELT = [
   "teh", "recieve", "seperate", "occured", "definately", "wierd", "colur",
-  // Near-misses of the rules that generated the British forms: `size` must
-  // not have produced `sise`, nor `prize` `prise`.
+  // Near-misses of the rules that once generated British forms by hand:
+  // `size` must not have produced `sise`, nor `prize` `prise`.
   "sise", "analize",
 ];
 
-describe("the word list", () => {
-  const words = dictionary();
+describe("the word lists", () => {
+  const american = dictionary("american");
+  const british = dictionary("british");
+  const either = dictionary("either");
 
-  it("holds enough words to be a dictionary", () => {
-    expect(words.size).toBeGreaterThan(70_000);
+  it("hold enough words to be dictionaries", () => {
+    expect(american.size).toBeGreaterThan(70_000);
+    expect(british.size).toBeGreaterThan(70_000);
+    // The delta is a few thousand words each way, not a second list.
+    expect(Math.abs(british.size - american.size)).toBeLessThan(3_000);
+    expect(either.size).toBeGreaterThan(american.size);
+    expect(either.size).toBeGreaterThan(british.size);
   });
 
-  it.each(BRITISH)("accepts %s", (word) => {
-    expect(words.has(word)).toBe(true);
+  it.each(BRITISH)("British and either accept %s", (word) => {
+    expect(british.has(word)).toBe(true);
+    expect(either.has(word)).toBe(true);
   });
 
-  it.each(AMERICAN)("still accepts %s", (word) => {
-    expect(words.has(word)).toBe(true);
+  it.each(AMERICAN)("American and either accept %s", (word) => {
+    expect(american.has(word)).toBe(true);
+    expect(either.has(word)).toBe(true);
   });
 
-  it.each(MISSPELT)("still catches %s", (word) => {
-    expect(words.has(word)).toBe(false);
+  it.each(["color", "analyze", "center"])("British does not accept %s", (word) => {
+    expect(british.has(word)).toBe(false);
+  });
+
+  it.each(["colour", "analyse", "centre"])("American does not accept %s", (word) => {
+    expect(american.has(word)).toBe(false);
+  });
+
+  it.each(MISSPELT)("every variety still catches %s", (word) => {
+    expect(american.has(word)).toBe(false);
+    expect(british.has(word)).toBe(false);
+    expect(either.has(word)).toBe(false);
+  });
+
+  it("answers the same set object twice", () => {
+    expect(dictionary("british")).toBe(british);
   });
 });

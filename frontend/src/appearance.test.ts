@@ -83,12 +83,12 @@ describe("what is remembered", () => {
     applyAppearance({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true,
+      spelling: true, spellingVariety: "british",
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true,
+      spelling: true, spellingVariety: "british",
     });
   });
 
@@ -102,7 +102,7 @@ describe("what is remembered", () => {
     applyAppearance({
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
       weight: 300, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true,
+      spelling: true, spellingVariety: "american",
     });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");
@@ -112,6 +112,18 @@ describe("what is remembered", () => {
     expect(root.dataset.syntax).toBe("colour");
     expect(root.dataset.emphasis).toBe("plain");
     expect(root.dataset.spelling).toBe("on");
+    expect(root.dataset.spellingVariety).toBe("american");
+  });
+
+  it("follows the document's English until a variety is chosen", () => {
+    // The default has to be the one that underlines nothing it did not
+    // underline yesterday: a project that says which English it is written
+    // in is held to that, and one that says nothing accepts both spellings.
+    expect(storedAppearance().spellingVariety).toBe("follow");
+    window.localStorage.setItem("nexttex.editor.spelling.variety", "australian");
+    expect(storedAppearance().spellingVariety).toBe("follow");
+    window.localStorage.setItem("nexttex.editor.spelling.variety", "british");
+    expect(storedAppearance().spellingVariety).toBe("british");
   });
 
   it("leaves spell checking off until it is asked for", () => {

@@ -3,6 +3,7 @@ import {
   APPEARANCE_CHANGED,
   type EditorTheme,
   type Emphasis,
+  type SpellingVariety,
   type SyntaxMode,
 } from "./appearance";
 
@@ -56,6 +57,21 @@ export function useEditorEmphasis(): Emphasis {
     return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
   }, []);
   return mode;
+}
+
+/** Which English the checker holds the prose to, live. */
+export function useSpellingVariety(): SpellingVariety {
+  const read = (): SpellingVariety => {
+    const value = document.documentElement.dataset.spellingVariety;
+    return value === "american" || value === "british" ? value : "follow";
+  };
+  const [variety, setVariety] = useState(read);
+  useEffect(() => {
+    const onChange = () => setVariety(read());
+    window.addEventListener(APPEARANCE_CHANGED, onChange);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
+  }, []);
+  return variety;
 }
 
 /** Whether the prose is spell checked, live.  Read like the others. */

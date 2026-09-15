@@ -29,6 +29,7 @@ import {
   useEditorEmphasis,
   useEditorSyntax,
   useSpelling,
+  useSpellingVariety,
 } from "../use-editor-theme";
 import { toShell } from "../viewport";
 import { focusFirst, walkMenu } from "./menu-keys";
@@ -107,6 +108,9 @@ export default function Editor({
   const syntax = useEditorSyntax();
   const emphasis = useEditorEmphasis();
   const spelling = useSpelling();
+  const spellingVariety = useSpellingVariety();
+  // The document in front decides which English a chapter is held to.
+  const activePreview = useStore((s) => s.activePreview);
   // The writer's own words, and the offer to add one.  Held here rather
   // than in the store: nothing outside this pane has any use for either.
   const [accepted, setAccepted] = useState<string[]>([]);
@@ -121,6 +125,8 @@ export default function Editor({
   // Read by the buffer swap below, which is a closure made once.
   const spellingRef = useRef(spelling);
   spellingRef.current = spelling;
+  const varietyRef = useRef(spellingVariety);
+  varietyRef.current = spellingVariety;
   const acceptedRef = useRef(accepted);
   acceptedRef.current = accepted;
   /** Put the checker into whatever state the view holds now.
@@ -132,6 +138,20 @@ export default function Editor({
    *  file finished opening, so spell checking said it was on and marked
    *  nothing until it was switched off and on again.  Asked of the state,
    *  not of a ref: `speller.current` is one value for the whole module. */
+  /** Which English this buffer is held to: the writer's choice, else what
+   *  the document that owns the open file declares in its preamble, else
+   *  both spellings.  The owner rather than the file, since a chapter has
+   *  no preamble of its own. */
+  const resolveVariety = useCallback((): "american" | "british" | "either" => {
+    const chosen = varietyRef.current;
+    if (chosen !== "follow") return chosen;
+    const path = current.current ?? "";
+    const state = get();
+    const owner = state.owners[path]?.[0] ?? (state.previews.includes(path) ? path : state.activePreview);
+    const declared = owner ? symbols.current?.english?.[owner] : undefined;
+    return declared ?? "either";
+  }, []);
+
   const applySpelling = useCallback((now: EditorView) => {
     const module = speller.current;
     if (!module || !spellingRef.current) return;
@@ -151,7 +171,9 @@ export default function Editor({
       now.dispatch({ effects: spellCompartment.reconfigure(module.spellchecking()) });
     }
     now.dispatch({
-      effects: module.setSpelling.of({ on: true, custom: acceptedRef.current }),
+      effects: module.setSpelling.of({
+        on: true, custom: acceptedRef.current, variety: resolveVariety(),
+      }),
     });
   }, []);
   const [offer, setOffer] = useState<{
@@ -900,7 +922,10 @@ export default function Editor({
     if (speller.current) tell(speller.current);
     else import("./spellcheck").then(tell).catch(() => undefined);
     return () => { live = false; };
-  }, [spelling, accepted, applySpelling]);
+    // `spellingVariety` and `builtAt` are read through refs inside
+    // `applySpelling`; they are here so a changed setting, or a symbol
+    // table refreshed by a build, re-applies the checker.
+  }, [spelling, accepted, applySpelling, spellingVariety, builtAt, activePreview]);
 
   /** Open the menu on the misspelled word the caret is in.
    *

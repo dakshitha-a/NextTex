@@ -72,6 +72,9 @@ export type Symbols = {
   texfiles: string[];
   commands: { name: string; args: number; file: string; definition?: string }[];
   environments: string[];
+  /** Which English each document's preamble declares, by file, when it
+   *  declares one: "british" or "american". */
+  english?: Record<string, "british" | "american">;
 };
 
 export type Version = {
