@@ -134,6 +134,15 @@ transport and runs everything above it for real: the streaming parser, the
 tool loop, the path fence, the edits, the usage accounting and the event
 vocabulary. Whether OpenAI still returns those shapes is unproven.
 
+The publishers have a check of the same kind. `tests/test_references.py`
+runs the DOI tool and the checker with the network stubbed, and
+`tests/test_papers_live.py`, under the same `NEXTTEX_LIVE`, asks Crossref
+and doi.org for one paper and one preprint and asserts the vocabulary the
+importer, the tool and the checker read: the title as a list, the first
+author's family name, the container title, a date. It needs no account,
+only a network, which is why it is the one live check a session can run
+by hand without spending anything.
+
 ## The installer had no tests at all, which is why it had so many bugs
 
 For a long time this repository had four tiers of tests and nothing
