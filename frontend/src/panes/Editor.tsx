@@ -641,6 +641,14 @@ export default function Editor({
               "so it is open for reading only. Reloading usually fixes it.",
           });
         } else {
+          // The document is handed back before the server's first answer
+          // has filled it.  Waiting here is what lets the jump below land
+          // on a line that exists: without it a double-click on the page
+          // opened the right chapter with the caret at the top, because
+          // the line it asked for was clamped against an empty document.
+          // The state is built after the wait so the pane never shows the
+          // empty document either.
+          await opened.synced;
           buffer = {
             state: freshState(
               opened.text.toString(), [...ext, opened.extension], languageOf(path),

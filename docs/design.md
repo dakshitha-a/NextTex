@@ -6461,3 +6461,15 @@ undefined are compared with those the last full pass left, and a
 difference earns the next build a full one. A difference and not a
 presence, because a misspelled key survives every full pass and would
 otherwise make every keystroke a latexmk run.
+
+### A double-click into a chapter that is not open lands where it should
+
+Every earlier double-click on the page had landed in a file that was
+already open. A chapter opened by the click itself was handed to the
+editor before the server's first sync had filled it, so the jump to the
+line synctex named was clamped against a one-line document and the
+caret sat at the top of the right file, which read as the inverse search
+being off by a page. The editor now waits for that first answer before it
+builds the buffer, so the line exists when the jump asks for it, and the
+pane never shows the empty document on the way. Found while writing the
+subfolder test below; `navigation.spec.ts` holds it as its own case.

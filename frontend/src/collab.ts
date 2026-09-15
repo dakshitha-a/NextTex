@@ -111,6 +111,16 @@ class DocSocket {
   /** What this one connection is doing, so the project can report the worst
    *  of them rather than only the first. */
   state: Connection = "connecting";
+  /** Settled once the server's first answer has landed in the document,
+   *  so a caller that opens a file to put the caret on line 40 can wait
+   *  for line 40 to exist.  The socket is opened and the document handed
+   *  back before that answer arrives, and a jump made on the empty
+   *  document in between clamped to line 1: a double-click on the page
+   *  opened the right chapter and left the caret at the top of it.  Also
+   *  settled after eight seconds with nothing heard, so a server that
+   *  never answers does not hold the editor shut. */
+  readonly synced: Promise<void>;
+  private settle: () => void = () => {};
   private socket: WebSocket | null = null;
   private attempt = 0;
   private closing = false;
@@ -121,6 +131,10 @@ class DocSocket {
     readonly awareness: Awareness,
     private onState: (state: Connection) => void,
   ) {
+    this.synced = new Promise<void>((resolve) => {
+      this.settle = resolve;
+      window.setTimeout(resolve, 8000);
+    });
     doc.on("update", this.documentChanged);
     awareness.on("update", this.awarenessChanged);
     this.connect();
@@ -194,7 +208,10 @@ class DocSocket {
         // `this` is the transaction origin, which is what stops the update
         // this produces being sent straight back where it came from: the
         // document listener returns early when it sees its own origin.
-        syncProtocol.readSyncMessage(decoder, encoder, this.doc, this);
+        const step = syncProtocol.readSyncMessage(decoder, encoder, this.doc, this);
+        // Step two is the server's state in answer to our step one; the
+        // document is whole from here on.
+        if (step === syncProtocol.messageYjsSyncStep2) this.settle();
         if (encoding.length(encoder) > 1) this.send(encoding.toUint8Array(encoder));
       } else if (kind === MESSAGE_AWARENESS) {
         applyAwarenessUpdate(
@@ -392,7 +409,7 @@ export class ProjectCollab {
 
   /** Open a file's shared document, and the CodeMirror extension for it. */
   async open(path: string): Promise<
-    { text: Y.Text; extension: Extension; undo: Y.UndoManager } | null
+    { text: Y.Text; extension: Extension; undo: Y.UndoManager; synced: Promise<void> } | null
   > {
     const fileId = await this.waitForFile(path);
     if (!fileId) return null;
@@ -404,6 +421,7 @@ export class ProjectCollab {
     return {
       text: file.text,
       undo: file.undo,
+      synced: file.socket.synced,
       // The keymap is the half that was missing. `yCollab` installs the
       // undo manager and a `beforeinput` handler for it, and binds no
       // keys, so Ctrl+Z went to CodeMirror's own history, which had the
