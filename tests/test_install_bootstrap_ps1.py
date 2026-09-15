@@ -266,3 +266,19 @@ def test_the_restart_helper_starts_the_server_from_the_command_line(tmp_path):
         time.sleep(0.2)
     assert marker.exists(), log
     assert marker.read_text() == f"--log-to-state --instance {instance}"
+
+
+def test_the_interface_fetch_offers_tls_12_before_it_asks_github():
+    """Windows PowerShell on Windows 7 and 8.1 does not offer TLS 1.2 by
+    default and GitHub requires it, so the fetch failed the handshake
+    there.  The statement is read out of the script rather than retyped,
+    and run, so a typo in it fails here rather than on that machine."""
+    text = (SCRIPTS / "fetch-interface.ps1").read_text(encoding="utf-8")
+    start = text.index("[Net.ServicePointManager]::SecurityProtocol =")
+    statement = text[start:text.index("\n", text.index("Tls12", start))]
+    first_call = next(i for i, line in enumerate(text.splitlines())
+                      if "Invoke-WebRequest" in line and not line.lstrip().startswith("#")
+                      and "ran Invoke-WebRequest" not in line)
+    assert text[:start].count("\n") < first_call, "the fetch comes before the protocol is set"
+    output = pwsh(statement + "\nWrite-Host ([Net.ServicePointManager]::SecurityProtocol)")
+    assert "Tls12" in output

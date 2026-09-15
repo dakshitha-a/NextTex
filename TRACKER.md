@@ -97,11 +97,6 @@ things go to be forgotten rather than a list anybody reads.
       the scheduled task and the per-push Windows job runs its command-line
       fallback for real under both PowerShells; the middle way back, the
       Startup shortcut on a non-admin account, has run nowhere.
-- [ ] **`fetch-interface.ps1` on Windows 7 or 8.1.** `Invoke-WebRequest`
-      there does not offer TLS 1.2 by default and GitHub requires it. Modern
-      Windows is fine and the lane runs on it; the fix is one line setting
-      `[Net.ServicePointManager]::SecurityProtocol`, left until somebody on
-      such a machine appears.
 
 - [ ] **A joiner gets a manifest entry for a binary file and no file.**
       `figures/plot.png` arrives as a name with nothing behind it. Syncing a
