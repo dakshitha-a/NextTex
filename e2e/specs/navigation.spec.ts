@@ -186,6 +186,17 @@ test("a document that typesets nothing offers something that works", async ({
   await expect(tab.getByText(/nothing has been typeset yet/i)).toHaveCount(0);
 });
 
+test("the browser tab names the project while it is open", async ({ project, tab }) => {
+  // Every tab said "NextTex", so a row of them told you nothing about
+  // which paper was in which.  The name goes first because a tab truncates
+  // from the end.
+  const name = project.root.split("/").pop()!;
+  await expect(tab).toHaveTitle(`${name} · NextTex`);
+  await tab.getByTestId("switch-project").click();
+  await expect(tab.getByText(name, { exact: false }).first()).toBeVisible();
+  await expect(tab).toHaveTitle("NextTex");
+});
+
 test("the page follows your typing to where you are writing", async ({ tab }) => {
   // Asked for after the first pass deliberately left it out. The rule that
   // makes it bearable is the gentle one: it moves only when the part of the

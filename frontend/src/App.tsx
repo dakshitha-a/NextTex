@@ -115,6 +115,7 @@ import Settings from "./panes/Settings";
 import InstanceBadge from "./panes/InstanceBadge";
 import { toShell, uiScale, viewportWidth } from "./viewport";
 import { APPEARANCE_CHANGED } from "./appearance";
+import { pageTitle } from "./page-title";
 import GitPanel from "./panes/GitPanel";
 import PapersPanel from "./panes/PapersPanel";
 import SectionsPanel, { includePath } from "./panes/SectionsPanel";
@@ -293,6 +294,13 @@ export default function App() {
 
   const projectId = useStore((s) => s.projectId);
   const projectName = useStore((s) => s.projectName);
+  const instance = useStore((s) => s.instance);
+  // The tab names the paper while one is open.  On `view` rather than on
+  // the project: leaving a project keeps its name in the store so the list
+  // can offer a way back, and the tab should not.
+  useEffect(() => {
+    document.title = pageTitle(view, projectName, instance);
+  }, [view, projectName, instance]);
   const tabs = useStore((s) => s.tabs);
   const activePath = useStore((s) => s.activePath);
   const notices = useStore((s) => s.notices);
@@ -353,7 +361,6 @@ export default function App() {
             api.instance().catch(() => null),
           ]);
           set({ agent: status, instance: self?.instance ?? "" });
-          if (self?.instance) document.title = `NextTex · ${self.instance}`;
           if (!status?.ready) setView("signin");
           else await resumeOrList();
           return;
