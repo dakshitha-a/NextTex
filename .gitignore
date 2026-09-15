@@ -48,6 +48,10 @@ bench/report/
 .hypothesis/
 .pytest_cache/
 
-# Claude Code's own worktrees for parallel sessions; the skills beside them
-# are committed, these are not.
+# Claude Code's own worktrees for parallel sessions; the skills, hooks and
+# settings beside them are committed, these are not.
 .claude/worktrees/
+# Plan files, and the per-session marker that says one is being executed;
+# see .claude/hooks/plan_amendment.py.
+.claude/plans/
+.claude/plan-in-progress/
