@@ -30,6 +30,17 @@ describe("where the verb row goes", () => {
     expect(at.top).toBe(600 - 32 - 8);
   });
 
+  it("goes below a wrapped paragraph whose top is off the screen", () => {
+    // The boxes are line blocks, whole logical lines however many rows
+    // they wrap to, so a paragraph scrolled half out of view is one tall
+    // box starting above the pane: the row goes under it, not over the
+    // rows still showing.
+    const paragraph = { top: -60, bottom: 150, left: 40 };
+    const at = placeVerbRow(paragraph, paragraph, pane, row);
+    expect(at.top).toBeGreaterThanOrEqual(paragraph.bottom);
+    expect(at).toEqual({ left: 40, top: 154 });
+  });
+
   it("keeps the row inside the pane sideways", () => {
     const first = { top: 200, bottom: 221, left: 700 };
     expect(placeVerbRow(first, first, pane, row).left).toBe(800 - 300 - 8);

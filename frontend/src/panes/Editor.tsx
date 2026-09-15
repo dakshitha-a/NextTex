@@ -211,6 +211,49 @@ export default function Editor({
   const [actions, setActions] = useState<
     { left: number; top: number; from: number; to: number } | null
   >(null);
+  /** Where the verb row goes for the selection the editor has now, in
+   *  pane pixels, or null when there is no editor to ask.
+   *
+   *  Anchored on line blocks rather than on the first selected character.
+   *  A block is the whole logical line, every visual row of a wrapped
+   *  paragraph and its leading, so "above the first selected line" means
+   *  above the paragraph: the row was anchored on the glyph once, and on a
+   *  paragraph wrapped over four rows a selection on the third put it
+   *  squarely over the second, which is the text it is about.  The
+   *  character still supplies the left edge, when it is in the rendered
+   *  viewport; the block always exists, so a selection whose end is off
+   *  the screen gets a row too, at the foot of the pane.  Reads only refs,
+   *  so the cursor listener, the measure callback and the scroll listener
+   *  share one copy of the arithmetic. */
+  const placeRow = useCallback(() => {
+    const editor = view.current;
+    const frame = host.current?.getBoundingClientRect();
+    if (!editor || !frame) return null;
+    const range = editor.state.selection.main;
+    const from = Math.min(range.from, range.to);
+    const to = Math.max(range.from, range.to);
+    const firstBlock = editor.lineBlockAt(from);
+    const lastBlock = editor.lineBlockAt(to);
+    const origin = editor.documentTop - frame.top;
+    const left = (editor.coordsAtPos(from)?.left ?? frame.left) - frame.left;
+    return placeVerbRow(
+      { top: firstBlock.top + origin, bottom: firstBlock.bottom + origin, left },
+      { top: lastBlock.top + origin, bottom: lastBlock.bottom + origin, left },
+      { width: frame.width, height: frame.height },
+      actionsSize.current ?? { width: 300, height: 32 },
+    );
+  }, []);
+  /** Move an open row to where the selection is now, and nothing when it
+   *  is closed or has not moved. */
+  const followRow = useCallback(() => {
+    const at = placeRow();
+    if (!at) return;
+    setActions((open) =>
+      open && (open.left !== at.left || open.top !== at.top)
+        ? { ...open, left: at.left, top: at.top }
+        : open,
+    );
+  }, [placeRow]);
   const openRef = useRef<
     | ((
         path: string,
@@ -428,44 +471,35 @@ export default function Editor({
       }
       // The verb row over a selection.  Placed from the document rather
       // than from the pointer, so a selection made with the keyboard gets
-      // one too, and above the selection rather than below it, because
-      // below is where the rest of the paragraph is.
+      // one too, and clear of every line the selection touches: above the
+      // first of them by preference, below the last when there is no room
+      // above.  See `placeRow` for why the anchor is the line block and
+      // `placeVerbRow` for the ladder.
       //
       // A few characters is not a selection worth acting on: a
       // double-click on one word happens constantly while reading, and a
       // row of verbs appearing over it every time would be the diagnostics
       // drawer's mistake in a third place.
-      const editor = view.current;
-      if (!editor || !span || selection.trim().length < 12 || viewing.current) {
+      if (!view.current || !span || selection.trim().length < 12 || viewing.current) {
         setActions((open) => (open === null ? open : null));
         return;
       }
-      const range = editor.state.selection.main;
-      const first = editor.coordsAtPos(Math.min(range.from, range.to));
-      const last = editor.coordsAtPos(Math.max(range.from, range.to));
-      const frame = host.current?.getBoundingClientRect();
-      if (!first || !last || !frame) {
+      const at = placeRow();
+      if (!at) {
         setActions(null);
         return;
       }
-      // Above the first selected line, or below the last when the first
-      // is at the top of the view; never over selected text.  The row is
-      // measured once it exists and the placement is re-run with its real
-      // size: see `placeVerbRow` for the two ways the old arithmetic put
-      // it on top of the first line.
-      const toPane = (box: { top: number; bottom: number; left: number }) => ({
-        top: box.top - frame.top, bottom: box.bottom - frame.top, left: box.left - frame.left,
-      });
-      const rowSize = actionsSize.current ?? { width: 300, height: 32 };
-      const at = placeVerbRow(
-        toPane(first), toPane(last), { width: frame.width, height: frame.height }, rowSize,
+      // The row is measured once it exists and re-placed with its real
+      // size; until then the guess is the size it has always had.
+      setActions((open) =>
+        open &&
+        open.left === at.left &&
+        open.top === at.top &&
+        open.from === span.fromLine &&
+        open.to === span.toLine
+          ? open
+          : { left: at.left, top: at.top, from: span.fromLine, to: span.toLine },
       );
-      setActions({
-        left: at.left,
-        top: at.top,
-        from: span.fromLine,
-        to: span.toLine,
-      });
       // Where this browser is, for the collaborator strip. Cheap, and not
       // debounced: awareness is designed to be written on every move, and
       // holding it back is what makes a remote caret look laggy.
@@ -1146,20 +1180,7 @@ export default function Editor({
               const before = actionsSize.current;
               actionsSize.current = size;
               if (!before || before.height !== size.height || before.width !== size.width) {
-                const editor = view.current;
-                const frame = host.current?.getBoundingClientRect();
-                if (!editor || !frame) return;
-                const range = editor.state.selection.main;
-                const first = editor.coordsAtPos(Math.min(range.from, range.to));
-                const last = editor.coordsAtPos(Math.max(range.from, range.to));
-                if (!first || !last) return;
-                const toPane = (box: { top: number; bottom: number; left: number }) => ({
-                  top: box.top - frame.top, bottom: box.bottom - frame.top, left: box.left - frame.left,
-                });
-                const at = placeVerbRow(
-                  toPane(first), toPane(last), { width: frame.width, height: frame.height }, size,
-                );
-                setActions((open) => (open ? { ...open, left: at.left, top: at.top } : open));
+                followRow();
               }
             }}
             onDismiss={() => setActions(null)}

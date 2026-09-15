@@ -6658,14 +6658,33 @@ beside the clamp said the row was pushed below the selection in that
 case, and the code did not do it.
 
 The row is measured once it is drawn and placed with its real size:
-above the first selected line by preference, since below is where the
-rest of the paragraph is; below the last selected line when there is no
-room above; and only when the last line is off the bottom of the view
-does it sit at the foot of the pane, over whichever line is there, which
-is the one case with no clear ground. `verb-row.ts` holds the
-arithmetic with its own tests, and `agent.spec.ts` selects at the top of
-the document and in its middle and measures the row against the
-selection's own boxes.
+above the first selected line by preference; below the last selected
+line when there is no room above; and only when the last line is off the
+bottom of the view does it sit at the foot of the pane, over whichever
+line is there, which is the one case with no clear ground.
+`verb-row.ts` holds the arithmetic with its own tests.
+
+That fix moved the row a few pixels and the writer reported it again,
+with a picture: the row on line 33, whose label it carried. Line 33 was
+a summary paragraph wrapped over four rows, and the selection was on the
+third. The row was anchored on the first selected character, so "above
+the first selected line" was true of the visual row and false of the
+line: the row sat on the second row of the paragraph it was about. It is
+anchored on line blocks now, `EditorView.lineBlockAt` for the first and
+last selected positions, which are whole logical lines however many rows
+they wrap to, plus their leading; clear of the block is over the blank
+line before the paragraph, or after it when the paragraph starts above
+the view, and a selection whose end is beyond what the editor has drawn,
+the whole of a long file, gets a row at the foot of the pane rather than
+none, since the block exists where the glyph does not. The cost is that
+a selection deep in a tall paragraph gets its row at the paragraph's
+edge rather than beside the selected rows, and that is the right cost:
+every row in between is the text the row is about. `agent.spec.ts`
+measures the row against the `.cm-line` element under the selection,
+the whole wrapped block, rather than against the selection's highlight,
+which is one visual row and was clear while the paragraph was covered;
+it selects inside a wrapped paragraph with the keyboard and by dragging
+with the mouse, which is how the writer selects and which no test did.
 
 ### History is keyed by the file, not by its name
 
