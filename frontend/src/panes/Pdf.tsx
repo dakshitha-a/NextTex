@@ -439,17 +439,37 @@ export default function Pdf({
     }
     const top = root.scrollTop - NEAR;
     const bottom = root.scrollTop + root.clientHeight + NEAR;
+    // The page being read is the one with the most of itself in view,
+    // not the first one worth drawing: the drawing window reaches 400 px
+    // above the view, so the first page in it was still the previous page
+    // for the first 400 px of every page, and the number in the control
+    // said so.  An agent turning the preview to page two landed the view
+    // exactly at its top and the control went on saying one.  The share
+    // of the page rather than the share of the view, so a short last page
+    // scrolled fully into view wins over the tail of the page before it;
+    // a tie, two pages both wholly in view, goes to the first.
+    const viewTop = root.scrollTop;
+    const viewBottom = root.scrollTop + root.clientHeight;
     let first = -1;
+    let reading = -1;
+    let mostShown = 0;
     for (let index = 0; index < pages.current.length; index += 1) {
       const element = pages.current[index].container;
       const start = element.offsetTop;
       const end = start + element.offsetHeight;
       if (end < top || start > bottom) continue;
       if (first < 0) first = index;
+      const shown = Math.max(0, Math.min(end, viewBottom) - Math.max(start, viewTop));
+      const share = element.offsetHeight ? shown / element.offsetHeight : 0;
+      if (share > mostShown) {
+        mostShown = share;
+        reading = index;
+      }
       renderPage(index);
       renderText(index);
     }
-    if (first >= 0 && first + 1 !== currentRef.current) setCurrent(first + 1);
+    const now = reading >= 0 ? reading : first;
+    if (now >= 0 && now + 1 !== currentRef.current) setCurrent(now + 1);
   }, [renderPage, renderText]);
 
   // Everything that changes how many device pixels a page needs, and
