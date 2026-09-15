@@ -2064,6 +2064,7 @@ export default function App() {
                   onOpen={openFile}
                   onRefresh={refreshTree}
                   onRename={renameOpenFile}
+                  onDuplicate={duplicateFile}
                   onHistory={() => setHistoryOpen(true)}
                   onAskAbout={noAgent ? undefined : askAboutSelection}
                   onRunScript={(path) => {

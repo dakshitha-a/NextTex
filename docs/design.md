@@ -495,7 +495,9 @@ trash and the upload chooser use, so there is one implementation of it and no se
 free to drift. It does not open the copy and does not move the view: a duplicate that
 steals the pane is a surprise in the middle of editing the original. What it does do is
 open the tree's folders as far as the copy and flash its row, because the tree opens
-collapsed and a file nobody can see is a menu item that appeared to do nothing.
+collapsed and a file nobody can see is a menu item that appeared to do nothing. The
+file tree's row menu offers it too, since the backlog run; §36 says why it took a
+second asking.
 
 ### Diagnostic row
 
@@ -6542,3 +6544,12 @@ view and the control went on saying one. It names the page with the
 most of itself in view now, as a share of the page rather than of the
 view, so a short last page scrolled fully in wins over the tail of the
 page before it, and a tie goes to the first.
+
+### Duplicate is in the file tree as well
+
+The tab strip had *Duplicate* and the tree did not, on the argument that
+the menu asked for was the strip's and a row menu already holding
+twelve items was not somewhere to add a thirteenth without being asked.
+The backlog was asked. It sits under *Rename*, the same route and the
+same naming rule, and only on a file's row: copying a folder has failure
+modes of its own and the route refuses it.

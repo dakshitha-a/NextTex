@@ -166,14 +166,10 @@ things go to be forgotten rather than a list anybody reads.
       a screenshot from a Windows machine at 125 percent is what would close
       this.
 
-- [ ] **Duplicate is on the tab strip and not in the file tree.** The route and
-      the naming rule are shared, so adding it to
-      `frontend/src/panes/FileTree.tsx`'s row menu is a line in the item list
-      and a branch in `act`. It was left because the menu asked for was the tab
-      strip's and a row menu that already holds twelve items is not somewhere
-      to add a thirteenth without being asked. A folder cannot be duplicated
-      either way: copying a tree has its own failure modes and deserves its own
-      decision.
+- [ ] **A folder cannot be duplicated.** Copying a tree has its own failure
+      modes and deserves its own decision; the route refuses it and neither
+      menu offers it. Duplicate for a file is on the tab strip and in the
+      tree since the backlog run.
 
 ### Deliberately not done, and worth revisiting only if something changes
 

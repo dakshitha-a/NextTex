@@ -52,6 +52,7 @@ export default function FileTree({
   onOpen,
   onRefresh,
   onRename,
+  onDuplicate,
   onHistory,
   onPreview,
   onUnpreview,
@@ -62,6 +63,9 @@ export default function FileTree({
   onRefresh: () => void;
   /** A file has a new name: whatever holds it open needs to know. */
   onRename?: (from: string, to: string) => void;
+  /** Copy a file beside itself.  Owned by the shell, which reveals the
+   *  copy once it exists; a folder cannot be copied this way. */
+  onDuplicate?: (path: string) => Promise<void> | void;
   onHistory?: () => void;
   /** Hand a question about a file to the agent, seeded into the composer.
    *  Used by "Plot this", which is how a writer points at a dataset. */
@@ -283,6 +287,8 @@ export default function FileTree({
         onRefresh();
       } else if (action === "rename") {
         setRenaming(node.path);
+      } else if (action === "duplicate") {
+        await onDuplicate?.(node.path);
       } else if (action === "newfile" || action === "newfolder") {
         const parent = isDir(node) ? node.path : dirname(node.path);
         if (parent) setExpanded((current) => {
@@ -748,6 +754,10 @@ export default function FileTree({
             ) : (
             [
               ["rename", "Rename"],
+              // The same verb the tab strip offers, for the same file.  A
+              // folder is left out: copying a tree has failure modes of
+              // its own and the route refuses it.
+              ...(!isDirectory && onDuplicate ? [["duplicate", "Duplicate"]] : []),
               ["move", "Move to…"],
               // A .bib file's reason to have a menu opened on it at all is
               // its contents, which is why this sits with the document
