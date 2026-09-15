@@ -24,12 +24,10 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-- [ ] Delete the superseded Artifact trackers from the gallery at
-      claude.ai/code/artifacts. Ten NextTex pages, from Reworking the Agent
-      Panel back to the Release Tracker. Nothing here can do it: publishing an
-      Artifact is a tool call and deleting one is not, so it has to be done by
-      hand. The working files they left outside the repository are gone, and
-      what was worth keeping from them is in this file.
+Nothing at the moment. The ten superseded tracker Artifacts, from
+Reworking the Agent Panel back to the Release Tracker, were deleted from
+the gallery during the backlog run: deleting an Artifact is a tool call
+after all, one confirmation each.
 
 ## Backlog
 
@@ -96,11 +94,15 @@ things go to be forgotten rather than a list anybody reads.
       fixed by narrower means. Following the manifest's path on the receiving
       side was the minimal correct fix; rekeying is a migration and deserves
       its own run.
-- [ ] **The session reaper's window.** It takes a session out of the table and
-      then awaits its close, so a request landing in that window builds a
-      second history on the same directory while the first is still writing to
-      it. Closing it properly needs `session_for` to be able to wait, and it is
-      called synchronously from most of the routes in `server/main.py`.
+- [ ] **A request during a session's close is told to wait, not made to.**
+      `_close_session` holds the project id in `CLOSING` while the close
+      awaits, and `session_for` answers 503 for it, so the window in which
+      a second session could be built over a project still flushing is
+      shut on every path since the backlog run put the provider change
+      through the same guard. What remains is that the browser is told to
+      try again in a moment rather than waited for, since `session_for` is
+      synchronous and called from most of the routes; a moment is all the
+      wait ever is.
 
 - [ ] **One small latch left standing on purpose, from the projects screen
       sweep.** `PasswordNudge`'s persisted dismissal has no interface to undo
