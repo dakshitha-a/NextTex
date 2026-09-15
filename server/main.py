@@ -3796,6 +3796,7 @@ async def synctex_inverse(
         synctex.pdf_to_source,
         state.paths.pdf, page, x, y, session.project.root,
         shadow_main=state.paths.shadow, main_file=state.paths.main,
+        base=state.paths.workdir,
     )
     if position is None:
         return {"found": False}
@@ -3818,6 +3819,7 @@ async def synctex_forward(
     positions = await asyncio.to_thread(
         synctex.source_to_pdf,
         state.paths.pdf, target, line, session.project.root, column,
+        base=state.paths.workdir,
     )
     # A scoped build compiled the stand-in main file, and its .synctex.gz
     # names that and never the real one, so asking about main.tex answered
@@ -3833,6 +3835,7 @@ async def synctex_forward(
         positions = await asyncio.to_thread(
             synctex.source_to_pdf,
             state.paths.pdf, shadow, shifted, session.project.root, column,
+            base=state.paths.workdir,
         )
     return {"positions": [
         {"page": p.page, "x": p.x, "y": p.y, "width": p.width, "height": p.height}

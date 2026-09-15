@@ -6473,3 +6473,24 @@ being off by a page. The editor now waits for that first answer before it
 builds the buffer, so the line exists when the jump asks for it, and the
 pane never shows the empty document on the way. Found while writing the
 subfolder test below; `navigation.spec.ts` holds it as its own case.
+
+### A document in a subfolder is built from its own folder
+
+The agent reported that a document at `cas_paper/x.tex` had its `\input`,
+`\graphicspath` and `\usepackage` resolved against the project root, so
+a figure beside it was not found and a root copy of a style shadowed the
+local one, and that nothing said so: the toml has no working-directory
+field and the error message named the path as written. Every document
+had been compiled from the root, which was only ever right by accident
+while every document sat there.
+
+The engine runs from the document's directory now, the way `pdflatex
+x.tex` run in that folder does, and the root stays on the search path so
+a path written from the root still resolves; the precedence is the
+folder first, which is the order the agent wanted. Output still lands in
+the project's one build directory under the document's jobname. The
+`nexttex.toml` section of the README says where a document is built
+from, which is the sentence that was missing, and `navigation.spec.ts`
+opens a document in a subfolder that `\input`s a file beside it and
+double-clicks into that file, which proves the build, the log's paths
+and the synctex map all moved together.

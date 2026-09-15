@@ -173,6 +173,27 @@ class ProjectPaths:
         return self.build_dir / f"{self.jobname}.log"
 
     @property
+    def workdir(self) -> Path:
+        """Where the engine runs: the document's own directory.
+
+        A document in a subfolder used to be compiled from the project
+        root, so its `\\input`, `\\graphicspath` and `\\usepackage` of a
+        local style resolved against the root, silently, and a root copy
+        of a style shadowed the one beside the document.  Running from the
+        document's directory is what `pdflatex x.tex` does by hand; the
+        root stays reachable through `search_env`, so a root-relative path
+        that worked before still works.
+        """
+        return self.main.parent
+
+    def search_env(self) -> dict[str, str]:
+        """TEXINPUTS, BIBINPUTS and BSTINPUTS naming the document's directory
+        and then the project root, with the trailing separator that keeps
+        the installation's own search path after them."""
+        both = f"{self.workdir}{os.pathsep}{self.root}{os.pathsep}"
+        return {"TEXINPUTS": both, "BIBINPUTS": both, "BSTINPUTS": both}
+
+    @property
     def shadow(self) -> Path:
         # Beside its own main file, not at the project root.  The module
         # docstring has always said the stand-in must sit beside the real
@@ -485,11 +506,11 @@ class CompileScheduler:
         self._mirror_build_tree(main_source)
 
         argv = self.full_argv(source_file) if full_pass else self.fast_argv(source_file)
-        env = {**os.environ, **LOG_ENV}
+        env = {**os.environ, **LOG_ENV, **self.paths.search_env()}
         try:
             proc = await asyncio.create_subprocess_exec(
                 *argv,
-                cwd=str(self.paths.root),
+                cwd=str(self.paths.workdir),
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
                 env=env,
@@ -595,7 +616,9 @@ class CompileScheduler:
             text = self.paths.log.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return None
-        return parse_log(text, self.paths.root, self.paths.main)
+        return parse_log(
+            text, self.paths.root, self.paths.main, base=self.paths.workdir
+        )
 
     def full_argv(self, source_file: Path) -> list[str]:
         """latexmk: citations through bibtex or biber, cross-references, the lot.
@@ -608,9 +631,10 @@ class CompileScheduler:
 
         `-norc` is the other thing on this line worth explaining.  latexmk
         reads `latexmkrc` and then `.latexmkrc` out of the directory it is
-        run in, and this is run in the project root: that file is arbitrary
-        Perl, executed by a build that the editor starts on its own a second
-        and a half after somebody stops typing.  A project is not always the
+        run in, and this is run in the document's own directory inside the
+        project: that file is arbitrary Perl, executed by a build that the
+        editor starts on its own a second and a half after somebody stops
+        typing.  A project is not always the
         writer's own work -- cloned, from a template, from a collaborator --
         so the file arriving is not a strange thing to imagine.
 

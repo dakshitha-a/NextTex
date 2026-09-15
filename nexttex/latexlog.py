@@ -193,9 +193,21 @@ class _FileStack:
 
     SOURCE_SUFFIXES = {".tex", ".ltx"}
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, base: Path | None = None):
         self.root = root
+        # Where a relative path in the log is relative to: the directory
+        # the engine ran in, which is the document's own.  The root is the
+        # fallback for a log written before that was so.
+        self.base = base or root
         self.stack: list[Path | None] = []
+
+    def resolve(self, path: Path) -> Path:
+        if path.is_absolute():
+            return path
+        against_base = self.base / path
+        if self.base != self.root and not against_base.exists() and (self.root / path).exists():
+            return self.root / path
+        return against_base
 
     def feed(self, line: str) -> None:
         i, n = 0, len(line)
@@ -204,10 +216,7 @@ class _FileStack:
             if char == "(":
                 match = FILE_OPEN_PATH.match(line, i + 1)
                 if match:
-                    path = Path(match.group(0))
-                    if not path.is_absolute():
-                        path = self.root / path
-                    self.stack.append(path)
+                    self.stack.append(self.resolve(Path(match.group(0))))
                     i = match.end()
                     continue
                 # A parenthesis that opens no file still has to be
@@ -235,10 +244,19 @@ class _FileStack:
         return None
 
 
-def parse(log_text: str, project_root: Path, main_file: Path | None = None) -> ParsedLog:
-    """Read a .log file into diagnostics."""
+def parse(
+    log_text: str,
+    project_root: Path,
+    main_file: Path | None = None,
+    base: Path | None = None,
+) -> ParsedLog:
+    """Read a .log file into diagnostics.
+
+    `base` is the directory the engine ran in, which is where its relative
+    paths point; the project root when not given.
+    """
     result = ParsedLog()
-    stack = _FileStack(project_root)
+    stack = _FileStack(project_root, base)
     seen: set[tuple] = set()
     lines = log_text.splitlines()
     # An error is reported before the `l.NN` line that says where it was, so
@@ -280,9 +298,7 @@ def parse(log_text: str, project_root: Path, main_file: Path | None = None) -> P
 
         match = FILE_LINE_ERROR.match(line)
         if match and not line.startswith("l."):
-            path = Path(match.group("file"))
-            if not path.is_absolute():
-                path = project_root / path
+            path = stack.resolve(Path(match.group("file")))
             pending = Diagnostic(
                 severity="error",
                 message=match.group("msg").strip(),
