@@ -262,3 +262,40 @@ def test_a_project_being_closed_does_not_get_a_second_session(client, opened):
         ) <= 1, "a second session was built beside the one going away"
     finally:
         may_finish.set()
+
+
+def test_changing_the_provider_closes_each_project_behind_the_same_guard(client, opened):
+    """The provider route closed every open session bare and cleared the
+    table afterwards, so a request arriving while one was still flushing
+    built a second session over the same project: the window the eviction
+    path had already closed, left open on the other path."""
+    import threading
+
+    from server import main as server_main
+
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
+    inside = threading.Event()
+    may_finish = threading.Event()
+    real = session.close
+
+    async def slow_close():
+        inside.set()
+        await asyncio.to_thread(may_finish.wait, 5)
+        return await real()
+
+    session.close = slow_close
+    try:
+        future = client.portal.start_task_soon(
+            server_main.agent_provider, "none", "", "",
+        )
+        assert inside.wait(timeout=5), "the close never started"
+        answer = client.get(f"/api/projects/{project_id}/tree")
+        assert answer.status_code == 503
+        assert "closing" in answer.json()["detail"]
+    finally:
+        may_finish.set()
+        try:
+            future.result(timeout=5)
+        except Exception:
+            pass

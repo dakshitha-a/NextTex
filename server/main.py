@@ -4756,8 +4756,13 @@ async def agent_provider(
         if session.agent.busy:
             await session.agent.interrupt()
     await asyncio.sleep(0)
-    for session in open_sessions:
-        await session.close()
+    # Through `_close_session`, so a request landing while a project is
+    # going away is told to wait rather than handed a fresh session beside
+    # the one still flushing: this path closed the sessions bare and
+    # cleared the table afterwards, which left the window the eviction
+    # path had already closed.
+    for project_id, session in [(i, s) for i, s in SESSIONS.items() if s in open_sessions]:
+        await _close_session(project_id, session)
     SESSIONS.clear()
     return await agent_status()
 
