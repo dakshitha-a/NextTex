@@ -1029,6 +1029,31 @@ test("a selection dragged with the mouse inside a wrapped paragraph gets the sam
   await expect.poll(() => rowClearsSelection(tab), { timeout: 5_000 }).toBe(true);
 });
 
+test("the verb row follows the page when it scrolls", async ({ app, project, tab }) => {
+  // It stayed where it was placed while the text scrolled underneath,
+  // which put it over the selection it had been placed to avoid.
+  await seedWrapped(tab, app, project);
+  await dragAcrossThirdRow(tab, "Second paragraph.");
+  const row = tab.getByTestId("selection-actions");
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await expect.poll(() => rowClearsSelection(tab), { timeout: 5_000 }).toBe(true);
+  const before = (await row.boundingBox())!;
+  const blockBefore = (await selectedLineBlocks(tab)).first;
+  // The scroller, not the content: the content is the whole document and
+  // its centre is well below the screen.
+  const scroller = (await tab.locator(".cm-scroller").boundingBox())!;
+  await tab.mouse.move(scroller.x + scroller.width / 2, scroller.y + scroller.height / 2);
+  await tab.mouse.wheel(0, 60);
+  await expect.poll(async () => (await selectedLineBlocks(tab)).first.top, { timeout: 5_000 })
+    .not.toBe(blockBefore.top);
+  const blockAfter = (await selectedLineBlocks(tab)).first;
+  await expect.poll(async () => {
+    const after = (await row.boundingBox())!;
+    return Math.abs((after.y - before.y) - (blockAfter.top - blockBefore.top)) <= 1;
+  }, { timeout: 5_000 }).toBe(true);
+  expect(await rowClearsSelection(tab)).toBe(true);
+});
+
 test("selecting the whole of a long file still shows a verb row", async ({ app, project, tab }) => {
   // The end of the selection is beyond what the editor has drawn, so it
   // has no glyph to measure; the line block always exists, and the row

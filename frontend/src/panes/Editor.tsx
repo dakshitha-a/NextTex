@@ -244,7 +244,7 @@ export default function Editor({
     );
   }, []);
   /** Move an open row to where the selection is now, and nothing when it
-   *  is closed or has not moved. */
+   *  is closed or has not moved: this runs on every scroll tick. */
   const followRow = useCallback(() => {
     const at = placeRow();
     if (!at) return;
@@ -538,6 +538,19 @@ export default function Editor({
     const readOnlyLanguageOf = (path: string) =>
       languageFor(path, () => symbols.current);
     view.current = new EditorView({ parent: host.current, state: freshState("", ext) });
+    // The verb row is furniture over the page, not part of it, so when the
+    // page moves it has to be moved too: it used to stay where it was
+    // placed while the text scrolled underneath, which put it over the
+    // selection it had been placed to avoid.  A scroll event rather than
+    // the view's update listener, because a scroll inside the rendered
+    // viewport changes neither the viewport nor the geometry flags, and
+    // the block heights and `documentTop` the placement reads are right
+    // the moment the event fires.  The observer covers the pane changing
+    // width, which moves the row's horizontal clamp.
+    const scroller = view.current.scrollDOM;
+    scroller.addEventListener("scroll", followRow, { passive: true });
+    const resized = new ResizeObserver(followRow);
+    resized.observe(host.current);
 
     /** Go and look at a line.
      *
@@ -863,6 +876,8 @@ export default function Editor({
     return () => {
       cancelTimer();
       if (focusTimer.current !== null) window.clearTimeout(focusTimer.current);
+      scroller.removeEventListener("scroll", followRow);
+      resized.disconnect();
       view.current?.destroy();
       view.current = null;
     };
