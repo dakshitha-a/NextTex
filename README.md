@@ -1053,7 +1053,9 @@ there, and somebody would have to invite you back.
 | `⌘B` / `Ctrl-B` | Hide the file list |
 | `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
 | `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on; in a script, run it |
+| `⌘⌥P` / `Ctrl-Alt-P` | Move between the previewed documents |
 | `⌘F` / `Ctrl-F` | Find and replace in the file you are in |
+| `⌘.` / `Ctrl-.` | The menu for the word under the caret, which is how a word joins the project's dictionary |
 | `⌘F` / `Ctrl-F`, on the page | Find on the typeset page |
 | `⌘⇧F` / `Ctrl-Shift-F` | Find and replace across every file in the project |
 | `⌘⌥O` / `Ctrl-Alt-O` | Open a file by typing its name |
