@@ -88,7 +88,7 @@ long that took.
 ## 4. Type something
 
 Put a sentence into the abstract. Do not press save: there is no save button,
-and `⌘S` only exists to skip the wait.
+and `⌘S` / `Ctrl-S` only exists to skip the wait.
 
 The page follows about two seconds later. That is 250 ms for the editor to
 decide you have stopped, 1.6 s for the server to agree, and then the build
@@ -101,7 +101,7 @@ reaches the page.*
 
 Double-click any paragraph in the PDF. The editor opens that file at that line.
 
-Press `⌘↵` (or `Ctrl-↵`) to go the other way: the page scrolls to where the
+Press `⌘↵` / `Ctrl-↵` to go the other way: the page scrolls to where the
 line you are on landed, and flashes it.
 
 This is the reason a preview beside the source is worth more than a PDF in

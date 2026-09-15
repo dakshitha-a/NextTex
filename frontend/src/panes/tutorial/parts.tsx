@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Chevron } from "../../chrome";
 import { APPEARANCE_CHANGED, type Theme } from "../../appearance";
+import { shortcut } from "../../keys";
 
 /** The theme, live.
  *
@@ -76,15 +77,54 @@ export function C({ children }: { children: ReactNode }) {
   return <code className="t-code-sm text-ink">{children}</code>;
 }
 
-/** The shortcut table.  Rows on the app's 26px grid, no borders, no header:
- *  it is a list of pairs rather than data with columns to compare. */
-export function Keys({ rows }: { rows: [string, string][] }) {
+/** A shortcut in running text, for both keyboards: `⌘S / Ctrl-S`. */
+export function Key({ spec }: { spec: string }) {
+  return <C>{shortcut(spec).both}</C>;
+}
+
+/** One row of the shortcut table: a key spec the way CodeMirror writes
+ *  one, `Mod-Alt-Shift-T`, rendered for both keyboards, or a literal such
+ *  as `Typing` that is not a chord and has no second form. */
+export type KeyRow = { spec?: string; key?: string; does: string };
+
+/** The shortcut table, grouped by where a key works.
+ *
+ *  Rows on the app's 26px grid, no borders, no header: it is a list of
+ *  pairs rather than data with columns to compare.  Every chord is shown
+ *  for both keyboards, the Mac glyphs on one line and the words beneath,
+ *  because the app reads Cmd and Ctrl as the same key and the reader may
+ *  not be on the machine they are reading about; the key column is wide
+ *  enough for `Ctrl-Alt-Shift-T` and no wider.  The group label says where
+ *  the key works, which used to be a clause inside each description. */
+export function Keys({ groups }: { groups: { where: string; rows: KeyRow[] }[] }) {
   return (
-    <div className="flex flex-col">
-      {rows.map(([key, does]) => (
-        <div key={key} className="flex h-[26px] items-center gap-3">
-          <span className="t-code-sm w-[92px] shrink-0 text-ink">{key}</span>
-          <span className="t-ui min-w-0 flex-1 text-ink-2">{does}</span>
+    <div className="flex flex-col gap-3">
+      {groups.map((group) => (
+        <div key={group.where} className="flex flex-col">
+          <div className="t-micro mb-[2px] uppercase tracking-[0.06em] text-ink-3">
+            {group.where}
+          </div>
+          {group.rows.map((row) => {
+            const keys = row.spec ? shortcut(row.spec) : null;
+            return (
+              <div
+                key={row.spec ?? row.key}
+                className="flex min-h-[26px] items-start gap-3 py-[3px]"
+              >
+                <span className="t-code-sm w-[118px] shrink-0 leading-[18px] text-ink">
+                  {keys ? (
+                    <>
+                      <span className="block">{keys.mac}</span>
+                      <span className="block">{keys.win}</span>
+                    </>
+                  ) : (
+                    row.key
+                  )}
+                </span>
+                <span className="t-ui min-w-0 flex-1 leading-[18px] text-ink-2">{row.does}</span>
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>

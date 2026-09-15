@@ -219,6 +219,32 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+test("the tutorial writes every chord for both keyboards", async ({ tab }) => {
+  // It wrote Mac glyphs whatever the machine, with one row in Ctrl; a
+  // reader on Windows had to translate.  Every chord now carries both,
+  // from the one helper the rest of the app reads.
+  await tab.getByTestId("appearance").click();
+  await tab.getByTestId("tutorial-open").click();
+  const sheet = tab.getByTestId("tutorial");
+  await expect(sheet).toBeVisible();
+  for (const [mac, win] of [
+    ["⌘S", "Ctrl-S"],
+    ["⌘⌥A", "Ctrl-Alt-A"],
+    ["⌘⌥⇧T", "Ctrl-Alt-Shift-T"],
+    ["⌘⇧F", "Ctrl-Shift-F"],
+    ["⌘⌥O", "Ctrl-Alt-O"],
+    ["⌘↵", "Ctrl-↵"],
+    ["⌘-click", "Ctrl-click"],
+  ]) {
+    await expect(sheet).toContainText(mac);
+    await expect(sheet).toContainText(win);
+  }
+  // And the keyboard is the last section, after the narrative.
+  await tab.getByTestId("tutorial-contents").click();
+  const rows = tab.getByTestId("tutorial-contents-row");
+  await expect(rows.last()).toContainText("Keyboard");
+});
+
 test("Escape closes the tutorial and gives focus back to the cog", async ({
   tab,
 }) => {
