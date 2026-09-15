@@ -16,6 +16,7 @@ import {
   type Appearance,
   type EditorTheme,
 } from "../appearance";
+import { shortcut } from "../keys";
 
 /** Everything the writer gets to choose, in one sheet.
  *
@@ -280,7 +281,7 @@ export default function SettingsSheet({
                 <Switch
                   label="Compile as you type"
                   on={project.autocompile}
-                  off="⌘S compiles. Or Compile in the strip."
+                  off={`${shortcut("Mod-S").both} compiles. Or Compile in the strip.`}
                   onChange={(autocompile) => toggle({ autocompile })}
                 />
                 <Switch

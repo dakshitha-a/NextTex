@@ -2,9 +2,9 @@ import { Suspense, lazy, useMemo, type ReactNode } from "react";
 import { RunIcon, StopIcon } from "../chrome";
 import { useStore } from "../store";
 import { isScript } from "./file-kinds";
-import { mac } from "./math-hover";
 import PaneHeader from "./PaneHeader";
 import TabStrip, { middleTruncate, type MenuItem, type StripTab } from "./TabStrip";
+import { shortcut } from "../keys";
 
 /** Fetched when somebody else turns up, which for most sessions is never.
  *  It draws nothing at all until then, so the parent decides whether to
@@ -132,7 +132,7 @@ export default function SourceHeader({
                 <button
                   className="quiet nx-tap [--nx-tap-y:26px] t-micro mr-1 flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3"
                   data-testid="run-script"
-                  title={`Run this script (${mac() ? "⌘↵" : "Ctrl-Enter"})`}
+                  title={`Run this script (${shortcut("Mod-Enter").both})`}
                   onClick={() => onRunScript(activePath)}
                 >
                   <RunIcon /> Run

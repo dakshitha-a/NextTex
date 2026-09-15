@@ -6755,3 +6755,23 @@ for the list keeps its name in the store so the list can offer the way
 back, and the tab should not keep it. `page-title.ts` is the rule with
 its own tests, and `navigation.spec.ts` opens a project, reads the tab,
 goes back to the list and reads it again.
+
+### Every key is written for both keyboards, from one place
+
+Shortcuts were spelt three ways. The tutorial and the strip's stale hint
+wrote Mac glyphs whatever the machine, `⌘S`; the run button and the link
+hover sniffed `navigator.platform` and showed one form or the other; and
+the agent button wrote `Ctrl/Cmd-Alt-A`. Every keydown handler in the app
+reads `metaKey || ctrlKey`, so Cmd on a Mac and Ctrl anywhere else are
+the same key to it and both spellings are true wherever it runs, and the
+sniff is wrong on an iPad, which Safari calls a Mac or not by version.
+
+`keys.ts` is the one implementation of the README's convention, the Mac
+glyphs and then the words: `⌘⌥⇧T / Ctrl-Alt-Shift-T`, `⌘↵ / Ctrl-↵`,
+`⌘-click / Ctrl-click`. A spec is written the way CodeMirror writes one,
+`Mod-Alt-Shift-T`, and the tutorial, the strip, the settings sheet, the
+run button, the link hover and the agent button all read from it, so
+they cannot drift from each other again. The choice to show both rather
+than detect is deliberate: a writer on Windows reading over a
+colleague's shoulder on a Mac wants both, and the cost is a few
+characters in a tooltip.
