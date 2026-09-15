@@ -6,6 +6,8 @@ closed, because an unclosed one does not throw -- it duplicates a writer's
 paragraphs and then converges every peer onto the result.
 """
 
+import asyncio
+
 import pytest
 
 from nexttex.project import Project
@@ -467,3 +469,39 @@ def test_a_text_record_is_never_demoted_by_adopt(store, project):
     store.files[file_id]["path"] = "main.bin"
     store.adopt()
     assert store.files[file_id]["kind"] == "text"
+
+
+# --- the key a version is filed under -----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_key_for_from_a_worker_thread_adopts_on_the_loop(project):
+    """The history records versions off the loop, and asks the store for
+    the key there.  A path the manifest has not seen yet is adopted on the
+    way, which writes the manifest map, and pycrdt objects belong to the
+    thread that built them: the resolver hops back to the loop rather
+    than touching the map from the worker."""
+    import threading
+
+    store = CollabStore(project)
+    store.adopt()
+    try:
+        (project.root / "chapters" / "two.tex").write_text("A late chapter.\n")
+        assert store.file_id_for("chapters/two.tex") is None
+        loop_thread = threading.get_ident()
+        ran_on: list[int] = []
+        here = store._key_for_here
+
+        def watched(relative):
+            ran_on.append(threading.get_ident())
+            return here(relative)
+
+        store._key_for_here = watched
+        file_id = await asyncio.to_thread(store.key_for, "chapters/two.tex")
+        assert file_id and store.file_id_for("chapters/two.tex") == file_id
+        assert ran_on == [loop_thread]
+        # And on the loop itself it answers in place, with no hop.
+        assert store.key_for("chapters/two.tex") == file_id
+        assert ran_on == [loop_thread, loop_thread]
+    finally:
+        store.close()

@@ -314,6 +314,11 @@ class History:
         which knows the key of a path that has since been renamed away
         under it; then the path's slug, which is the key an unbound
         history has always used and what the store mints for a free path.
+
+        Never called under `_lock` from a worker thread: the store's
+        resolver runs on the event loop, and the loop may be about to
+        take this lock itself.  Every path-facing method resolves its key
+        first and locks after.
         """
         resolver = self.key_for
         if resolver is not None:
@@ -955,9 +960,14 @@ class History:
         lie.  Nothing is sent to say the history was cleared -- one
         person's decision about their own disk must not reach into anybody
         else's -- so refusing them on the way in is the whole mechanism.
+
+        The key is resolved before the lock is taken.  Emptying the trash
+        runs this from a worker thread, and a bound resolver answers from
+        the event loop; holding the lock while waiting on the loop would
+        deadlock the moment the loop itself asked to record a version.
         """
+        key = self.key_of(relative_path)
         with self._lock:
-            key = self.key_of(relative_path)
             floors = self.purged_before_of(key)
             for version in self.versions_of(key):
                 author = self.author_of(version)
