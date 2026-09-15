@@ -745,6 +745,7 @@ function setStale() {
 
 export type EventHandlers = {
   onReveal?: (path: string, line: number) => void;
+  onShowPage?: (document: string, page: number) => void;
   onFilesChanged?: (paths: string[], structural?: boolean) => void;
   onCompileDone?: (result: CompileResult) => void;
   /** A build has started. Read rather than acted on: the shell uses it to
@@ -1111,6 +1112,14 @@ function receive(event: any) {
       break;
     case "reveal":
       handlers.onReveal?.(event.path, event.line);
+      break;
+    // The agent's half of a double-click on the page: the preview pane
+    // turns to a page of a document on the strip.  Store state for the
+    // strip, since the tab has to come to the front, and a handler for
+    // the page, which is the pane's to scroll to.
+    case "show_page":
+      set({ activePreview: event.document, previewShowing: "document" });
+      handlers.onShowPage?.(event.document, event.page);
       break;
     // Where the agent is *about* to write, emitted the moment the fence
     // approves the call rather than after the edit has landed. The editor

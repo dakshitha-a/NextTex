@@ -79,6 +79,7 @@ class ScriptedAgent:
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
+        show_page: Callable[[str, int], Any] | None = None,
         model: str | None = None,
         script: str | None = None,
     ):
@@ -95,6 +96,7 @@ class ScriptedAgent:
         self.apply_edit = apply_edit
         self.on_edit = on_edit
         self.reveal = reveal
+        self.show_page = show_page
         self.model = model
         self.script_name = script or scripted_name()
 
@@ -307,6 +309,17 @@ class ScriptedAgent:
             decision = await self._permission(step)
             if decision == "deny" and step.get("stop_if_denied", True):
                 raise asyncio.CancelledError
+
+        elif kind == "show_page":
+            # Through the same callback the model's tool uses, so the
+            # event, the strip and the pane are all exercised.
+            document = str(step.get("document", ""))
+            page = int(step.get("page", 1))
+            await self._tool(
+                "mcp__nexttex__show_page", {"document": document, "page": page}, 12, True,
+            )
+            if self.show_page is not None:
+                self.show_page(document, page)
 
         elif kind == "remember":
             # Writes for real, through the same callback the model's tool

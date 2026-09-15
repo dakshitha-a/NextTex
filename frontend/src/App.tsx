@@ -852,6 +852,9 @@ export default function App() {
     handlers.onReveal = (path, line) => {
       openFile(path, line);
     };
+    handlers.onShowPage = (_document, page) => {
+      pdf.current?.goTo(page);
+    };
     // Where the agent is *about* to write, from the moment the fence
     // approves the call. Never takes the caret: see `busyTyping`.
     handlers.onAgentFocus = (path, line) => {
@@ -929,6 +932,7 @@ export default function App() {
       handlers.onFilesChanged = undefined;
       handlers.onRenamed = undefined;
       handlers.onReveal = undefined;
+      handlers.onShowPage = undefined;
       handlers.onAgentEdit = undefined;
       handlers.onAgentFocus = undefined;
       handlers.onCompileDone = undefined;

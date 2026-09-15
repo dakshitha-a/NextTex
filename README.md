@@ -665,6 +665,11 @@ the page in front of you; *Check these against their records* re-reads the
 whole bibliography and lists every entry that disagrees with the record it
 came from. Neither writes anything the publisher did not say.
 
+The agent can also point. `goto` opens a file in your editor at a line,
+and `show_page` turns the preview to a page of a document on the strip,
+so "the table on page twelve overflows" arrives with page twelve in front
+of you. Neither changes anything.
+
 ### Point it at a folder of papers
 
 `⋯` on your `.bib` file, *Add papers from a folder*, and NextTex walks it,

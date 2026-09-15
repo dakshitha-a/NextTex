@@ -840,3 +840,21 @@ test("a conversation that was filed away can be read, and not acted on", async (
   await expect(tab.getByRole("button", { name: /voice/i }).first()).toBeVisible();
   await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
 });
+
+test("the agent can turn the preview to a page", async ({ tab }) => {
+  // `goto` moved the editor and nothing moved the preview, so an agent
+  // reviewing a long document could name a page and not show it.  The
+  // template builds to more than one page; the scripted stand-in asks for
+  // the second, and the pane's page control is what says it got there.
+  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  const pageBox = tab.getByTestId("page-number");
+  await expect.poll(async () => Number(await pageBox.getAttribute("max")), { timeout: 45_000 })
+    .toBeGreaterThan(1);
+  await expect(pageBox).toHaveValue("1");
+
+  await ask(tab, "show-page", "Show me the table.");
+  await expect(tab.getByText(/here it is/)).toBeVisible({ timeout: 20_000 });
+  await expect(pageBox).toHaveValue("2", { timeout: 20_000 });
+  // And the record says what the tool did, in words.
+  await expect(tab.getByText("Turned the preview to a page")).toBeVisible();
+});

@@ -313,3 +313,14 @@ def test_compiling_names_the_document_and_counts_what_the_build_said(tmp_path):
     assert built == ["esi.tex"], "a name the project does not build must not build the one on screen"
     assert "nope.tex is not a document this project builds" in refused
     assert "main.tex, esi.tex" in refused
+
+
+def test_the_preview_can_be_turned_to_a_page(tmp_path):
+    asked: list[tuple[str, int]] = []
+    made = agent(tmp_path, [], show_page=lambda d, p: asked.append((d, p)) or (d or "main.tex"),
+                 documents=lambda: ["main.tex"])
+    assert asyncio.run(made._dispatch("show_page", {"page": 2})) == "Showing page 2 of main.tex."
+    assert asked == [("", 2)]
+    refused = asyncio.run(made._dispatch("show_page", {"document": "nope.tex", "page": 1}))
+    assert "nope.tex is not a document on the preview strip" in refused
+    assert asked == [("", 2)]

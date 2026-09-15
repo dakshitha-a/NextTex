@@ -329,6 +329,7 @@ class ProjectSession:
             apply_edit=self.write_from_agent,
             on_edit=self.note_agent_edit,
             reveal=self.reveal_in_editor,
+            show_page=self.show_page,
             model=model or None,
             api_key=api_key,
         )
@@ -1097,6 +1098,27 @@ class ProjectSession:
             # genuinely changed nothing.
             log.warning("could not fold the agent's edit to %s into the "
                         "shared document", relative, exc_info=True)
+
+    def show_page(self, document: str, page: int) -> str:
+        """Ask every open window to put a document's page in front.
+
+        The agent's half of what a double-click on the page is for the
+        writer: `goto` moves the editor, and nothing moved the preview,
+        so an agent reviewing a long document could name a page and not
+        show it.  The document has to be one on the strip, because the
+        strip is what the pane can show; an empty name is the one in
+        front.  Returns the document's path, or raises `LookupError`.
+        """
+        if document and document not in self.documents:
+            raise LookupError(f"{document} is not a document on the preview strip")
+        state = self.document_for(document or None)
+        spawn(
+            self.events.publish(
+                {"type": "show_page", "document": state.path, "page": max(1, int(page))}
+            ),
+            "showing a page of the preview",
+        )
+        return state.path
 
     def reveal_in_editor(self, path: str, line: int) -> None:
         """Ask the open editor to show a line."""

@@ -6518,3 +6518,27 @@ belong, a bare ampersand is escaped, and a run of capitals in a title is
 braced. Nothing already written as a command is touched, so a record
 that says `\textit{o}-nitrophenol` still does. `doi.org` was already in
 the README's list of what leaves this machine; the list is unchanged.
+
+### The agent can turn the preview to a page
+
+The agent had `goto`, which opens a file in the editor at a line, and
+nothing for the preview, so an agent reviewing a long document could say
+"the table on page 12 overflows" and not show it, and the agent working
+on the real paper said the cursor was not the unit of work for a
+document of that size. `show_page` names a document on the strip, or the
+one in front, and a page; the browser brings the tab forward and turns
+the pane to the page, waiting for the page to exist when the switch and
+the page arrive together. The record row reads *Turned the preview to a
+page*, in the verb table beside *Moved your editor*; the two script
+tools, which had fallen to the default verb, got their lines in the same
+change.
+
+Writing the browser test found the page control wrong in scrolling
+mode. The number it showed was the first page inside the drawing
+window, and that window reaches four hundred pixels above the view, so
+for the first four hundred pixels of every page the control named the
+page before. Turning to page two put its top exactly at the top of the
+view and the control went on saying one. It names the page with the
+most of itself in view now, as a share of the page rather than of the
+view, so a short last page scrolled fully in wins over the tail of the
+page before it, and a tie goes to the first.

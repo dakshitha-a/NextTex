@@ -1,0 +1,4 @@
+[
+  {"kind": "text", "text": "The table is on the second page; here it is.", "pieces": 2},
+  {"kind": "show_page", "document": "", "page": 2}
+]
