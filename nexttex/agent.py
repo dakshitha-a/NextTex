@@ -397,6 +397,7 @@ class ProjectAgent:
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
+        show_page: Callable[[str, int], Any] | None = None,
         model: str | None = None,
     ):
         self.root = project_root.resolve()
@@ -432,6 +433,7 @@ class ProjectAgent:
         # they are versioned by nothing and rebuild nothing.
         self.on_edit = on_edit
         self.reveal = reveal
+        self.show_page = show_page
         # What the current turn was asked for, used to label the versions
         # this turn produces.
         self._why = ""
@@ -1655,6 +1657,18 @@ class ProjectAgent:
             return self._text("The editor is not connected.")
 
         @tool(
+            "show_page",
+            "Put a page of the typeset document in front of the user, in the "
+            "preview pane, so they can look at what you are describing: a "
+            "figure, a table, a page that is too long. `document` names a "
+            "root .tex file on the preview strip; left out, it is the one on "
+            "screen. Does not change anything.",
+            {"document": str, "page": int},
+        )
+        async def show_page(args: dict) -> dict:
+            return self.show_page_tool(args)
+
+        @tool(
             "search_library",
             "Search the papers the writer has already collected for this "
             "project. Every hit is a paper they have on disk, and most "
@@ -1828,6 +1842,7 @@ class ProjectAgent:
                 editor_state, compile_diagnostics, compile_document,
                 insert_at_cursor, insert_figure, insert_table,
                 replace_range, run_plot_script, install_package, goto,
+                show_page,
                 search_library, find_papers, add_reference, check_references,
                 remember,
             ],
@@ -1866,6 +1881,27 @@ class ProjectAgent:
                 for d in found
             )
         return self._text("\n".join(lines))
+
+    def show_page_tool(self, args: dict) -> dict:
+        """Move the preview to a page, the way `goto` moves the editor."""
+        if self.show_page is None:
+            return self._text("The preview is not connected.")
+        named = str(args.get("document") or "").strip()
+        try:
+            page = int(args.get("page") or 1)
+        except (TypeError, ValueError):
+            return self._text("Which page? Give a number.")
+        if named and named not in self.documents():
+            known = ", ".join(self.documents()) or "none yet"
+            return self._text(
+                f"{named} is not a document on the preview strip. "
+                f"The documents are: {known}."
+            )
+        try:
+            shown = self.show_page(named, page)
+        except LookupError as error:
+            return self._text(str(error))
+        return self._text(f"Showing page {max(1, page)} of {shown or named or 'the document'}.")
 
     async def compile_tool(self, args: dict) -> dict:
         """Build one document and say what the log said.

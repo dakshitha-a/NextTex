@@ -232,6 +232,26 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "show_page",
+            "description": (
+                "Put a page of the typeset document in front of the user in "
+                "the preview pane, so they can look at what you are "
+                "describing. Names a root .tex file on the preview strip, or "
+                "the one on screen when `document` is left out. Changes nothing."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document": {"type": "string", "description": "A root .tex file, relative to the project."},
+                    "page": {"type": "integer", "description": "The page, counted from 1."},
+                },
+                "required": ["page"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "compile_document",
             "description": (
                 "Typeset a document and report what the build said: pages, "
@@ -269,6 +289,7 @@ class OpenAIAgent:
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
+        show_page: Callable[[str, int], Any] | None = None,
         model: str | None = None,
         api_key: str = "",
         **_ignored: Any,
@@ -287,6 +308,7 @@ class OpenAIAgent:
         self.apply_edit = apply_edit
         self.on_edit = on_edit
         self.reveal = reveal
+        self.show_page = show_page
         self.model = model or DEFAULT_MODEL
         self.api_key = api_key
 
@@ -722,6 +744,24 @@ class OpenAIAgent:
                 if hit.get("snippet"):
                     lines.append(f'  "{hit["snippet"]}"')
             return "\n".join(lines)
+
+        if name == "show_page":
+            if self.show_page is None:
+                return "The preview is not connected."
+            named = str(args.get("document") or "").strip()
+            if named and named not in self.documents():
+                known = ", ".join(self.documents()) or "none yet"
+                return (f"{named} is not a document on the preview strip. "
+                        f"The documents are: {known}.")
+            try:
+                page = int(args.get("page") or 1)
+            except (TypeError, ValueError):
+                return "Which page? Give a number."
+            try:
+                shown = self.show_page(named, page)
+            except LookupError as error:
+                return str(error)
+            return f"Showing page {max(1, page)} of {shown or named or 'the document'}."
 
         if name == "compile_document":
             if self.compile_now is None:

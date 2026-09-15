@@ -104,6 +104,11 @@ const ZOOM_SETTLE = 260;
 const ZOOM_DRAW_INTERVAL = 200;
 
 export type PdfHandle = {
+  /** Turn to a page, once the document has that many.  The agent's
+   *  `show_page` arrives with the strip's switch to the document in the
+   *  same event, so the page it names may not be drawn yet; the request
+   *  is kept until the page count says it exists. */
+  goTo: (page: number) => void;
   /** Show where a source line ended up on the page.
    *
    *  `gentle` is what an agent's edit asks for rather than what a person
@@ -1015,8 +1020,33 @@ export default function Pdf({
     [onNavigate, showing, source],
   );
 
+  /** A page the agent asked for before the document had that many. */
+  const wantedPage = useRef<number | null>(null);
+
+  const goTo = useCallback(
+    (page: number) => {
+      const want = Math.min(Math.max(page, 1), pageCount || 1);
+      if (modeRef.current === "page") {
+        setCurrent(want);
+        return;
+      }
+      const element = pages.current[want - 1]?.container;
+      const root = scroller.current;
+      if (element && root) root.scrollTop = element.offsetTop;
+    },
+    [pageCount],
+  );
+
   useEffect(() => {
     handleRef({
+      goTo: (page: number) => {
+        if (pageCount >= page) {
+          wantedPage.current = null;
+          goTo(page);
+        } else {
+          wantedPage.current = page;
+        }
+      },
       reveal: async (path: string, line: number, gentle = false) => {
         const projectId = get().projectId;
         if (!projectId) return false;
@@ -1068,7 +1098,16 @@ export default function Pdf({
     // `showing` for the same reason as the handler above: forward search
     // would look up a line in whichever document was open when this was
     // last built.
-  }, [handleRef, renderPage, showing]);
+  }, [handleRef, renderPage, showing, pageCount, goTo]);
+
+  // A page asked for before the document had it: the count has moved.
+  useEffect(() => {
+    const want = wantedPage.current;
+    if (want !== null && pageCount >= want) {
+      wantedPage.current = null;
+      goTo(want);
+    }
+  }, [pageCount, goTo]);
 
   // ---- keyboard, in page mode ------------------------------------------
   /** Put page n on screen, in whichever mode is showing.
@@ -1079,20 +1118,6 @@ export default function Pdf({
    *  `current` from what it finds, which keeps one answer to "which page
    *  is this" rather than two that can disagree.
    */
-  const goTo = useCallback(
-    (page: number) => {
-      const want = Math.min(Math.max(page, 1), pageCount || 1);
-      if (modeRef.current === "page") {
-        setCurrent(want);
-        return;
-      }
-      const element = pages.current[want - 1]?.container;
-      const root = scroller.current;
-      if (element && root) root.scrollTop = element.offsetTop;
-    },
-    [pageCount],
-  );
-
   const step = useCallback(
     (delta: number) => goTo((currentRef.current || 1) + delta),
     [goTo],
