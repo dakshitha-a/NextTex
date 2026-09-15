@@ -96,6 +96,10 @@ PROJECT_DEBOUNCE = 0.12
 # file is first seen and never again -- see the note above about mode
 # switches.
 MAX_TEXT_BYTES = 2 * 1024 * 1024
+#: How many bytes of files sent by peers may wait in memory for a flush.
+#: The request-body bound the routes already use; a project with a
+#: gigabyte of figures does not arrive in one breath.
+ARRIVED_LIMIT = 512 * 1024 * 1024
 
 # What a file id may look like.  Hex, because that is what this writes, and
 # because anything that is not is a path waiting to happen -- these become
@@ -271,6 +275,12 @@ class CollabStore:
         self._named: dict[str, str] = {}
         #: Set when the manifest changes, cleared by the next flush.
         self._paths_moved = False
+        #: Bytes a peer sent for a binary record that is not on this disk,
+        #: by file id, written by the next flush and never on receipt, so
+        #: a binary lands the way a text document does, through the one
+        #: path that applies the fence, tells the session and can be told
+        #: to hold.  Bounded in total by ARRIVED_LIMIT.
+        self.arrived: dict[str, bytes] = {}
         #: Files this machine saw missing and has not yet called deleted.
         #: The flag goes on the record at the next flush, and only if the
         #: file is still absent then: see `_settle_gone`.
@@ -734,6 +744,20 @@ class CollabStore:
         gossiped to everybody else.
         """
         if after is None and not gone:
+            # Nothing to fold, but perhaps something to record: a figure a
+            # script just saved, an image that arrived in a git pull.  A
+            # binary the manifest does not know was never adopted until
+            # the next open, so its past did not travel and, now that a
+            # file's bytes do, neither would they.  The walk is the same
+            # idempotent one a new text file triggers, and only for a path
+            # the manifest lacks.
+            if self.file_id_for(relative) is None:
+                try:
+                    if self.project.resolve(relative).is_file():
+                        self.adopt()
+                        return self.file_id_for(relative) is not None
+                except (PermissionError, OSError, ValueError):
+                    return False
             return False
         if after is not None and not isinstance(after, str):
             # A figure, or a restored version of one. Binary files are
@@ -1031,6 +1055,26 @@ class CollabStore:
         for file_id, record in self.files.items():
             if not record.get("trashed") and record.get("kind") == "text":
                 self._dirty.add(file_id)
+        for file_id in self.arrived:
+            self._dirty.add(file_id)
+
+    def arrived_bytes(self) -> int:
+        return sum(len(data) for data in self.arrived.values())
+
+    def take_file(self, file_id: str, data: bytes) -> bool:
+        """Park a peer's bytes for a binary record until the next flush.
+
+        The checks that decide whether the bytes are wanted at all are the
+        network's; this is only the parking, refused when the parked total
+        has reached its bound, so a peer cannot fill this install's memory
+        with files nobody will write.
+        """
+        if self.arrived_bytes() + len(data) > ARRIVED_LIMIT:
+            return False
+        self.arrived[file_id] = data
+        self._dirty.add(file_id)
+        self._schedule()
+        return True
 
     def flush(self) -> None:
         """Write every changed document out, now.
@@ -1083,6 +1127,9 @@ class CollabStore:
         authored = file_id in self._authored
         self._authored.discard(file_id)
         record = self.files.get(file_id)
+        if record is not None and file_id in self.arrived:
+            self._write_file(file_id, record)
+            return
         text = self._body.get(file_id)
         if record is None or text is None or record.get("trashed"):
             return
@@ -1148,6 +1195,43 @@ class CollabStore:
                 session.schedule_compile()
         finally:
             self._projecting.discard(file_id)
+
+    def _write_file(self, file_id: str, record) -> None:
+        """Put a peer's binary file on disk, once, where its record says.
+
+        The same fence the text path applies, applied again here because
+        the path is a field the other end can change between the receipt
+        and the flush; never over a file that is already there, since this
+        install's copy is not the sender's to replace; and told to the
+        session the way a text write is, so the tree draws the file and the
+        history holds its bytes.
+        """
+        data = self.arrived.pop(file_id, None)
+        if data is None or record.get("trashed") or record.get("kind") != "blob":
+            return
+        relative = record.get("path") or ""
+        try:
+            path = self.project.resolve_for_write(relative)
+        except (PermissionError, OSError, ValueError):
+            self._refused[file_id] = relative
+            return
+        if path.exists():
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            write_atomically(path, data)
+        except OSError:
+            return
+        self._named[file_id] = relative
+        session = self.session
+        if session is not None:
+            session.mark_written(path)
+            session.history.blobs.put(data)
+            session.note_edit(path, data, None)
+            session.schedule_compile()
+            noted = getattr(session, "note_arrived", None)
+            if noted is not None:
+                noted(relative)
 
     # --- shutting down ----------------------------------------------------
 

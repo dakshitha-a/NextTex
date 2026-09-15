@@ -474,3 +474,143 @@ def test_an_ordinary_header_is_not_refused():
 
     frame = wire.Frame.decode(wire.hello("share", "Bob", "#fff", "addr"))
     assert frame.header["name"] == "Bob"
+
+
+# --- a file a peer sends ------------------------------------------------------
+#
+# The same order of questions `take_blob` asks, for the bytes of a binary
+# file the manifest names: nobody asked, the path disagrees with the
+# record, the path is one the fence refuses, the file is already here.
+
+def _network_with_a_blob_record(tmp_path, path: str, *, present: bytes | None = None):
+    from server.collab.peers import PeerLink, PeerNetwork
+
+    root = tmp_path / "paper"
+    root.mkdir()
+    (root / "main.tex").write_text("The chapter.\n")
+    project = Project.open(root)
+    made = CollabStore(project)
+    made.adopt()
+    network = PeerNetwork(made)
+    # A record a peer's manifest could carry, under a random id.
+    from pycrdt import Map
+    file_id = "feedfacefeedface"
+    made.files[file_id] = Map({"path": path, "kind": "blob", "size": 12, "trashed": False})
+    if present is not None:
+        (root / path).parent.mkdir(parents=True, exist_ok=True)
+        (root / path).write_bytes(present)
+    link = PeerLink(network, stream=None, peer_id="c" * 64)
+    network.links[link.peer_id] = link
+    return made, network, link, file_id, root
+
+
+def test_a_file_nobody_asked_for_is_dropped(tmp_path):
+    made, network, link, file_id, root = _network_with_a_blob_record(tmp_path, "figures/plot.png")
+    try:
+        assert network.take_file(file_id, "figures/plot.png", b"x" * 12) is False
+        assert made.arrived == {}
+    finally:
+        made.close()
+
+
+def test_a_file_whose_path_disagrees_with_the_record_is_refused(tmp_path):
+    made, network, link, file_id, root = _network_with_a_blob_record(tmp_path, "figures/plot.png")
+    try:
+        link.wanted_files[file_id] = 0.0
+        assert network.take_file(file_id, "figures/other.png", b"x" * 12) is False
+        assert made.arrived == {}
+    finally:
+        made.close()
+
+
+def test_a_file_whose_path_is_a_control_file_is_refused(tmp_path):
+    made, network, link, file_id, root = _network_with_a_blob_record(tmp_path, ".git/config")
+    try:
+        link.wanted_files[file_id] = 0.0
+        assert network.take_file(file_id, ".git/config", b"[core]\n") is False
+        made.flush()
+        assert not (root / ".git" / "config").exists()
+    finally:
+        made.close()
+
+
+def test_a_file_that_is_already_here_is_not_overwritten(tmp_path):
+    made, network, link, file_id, root = _network_with_a_blob_record(
+        tmp_path, "figures/plot.png", present=b"mine",
+    )
+    try:
+        link.wanted_files[file_id] = 0.0
+        assert network.take_file(file_id, "figures/plot.png", b"theirs") is False
+        made.flush()
+        assert (root / "figures" / "plot.png").read_bytes() == b"mine"
+    finally:
+        made.close()
+
+
+def test_a_file_that_was_asked_for_lands_at_the_flush_and_not_before(tmp_path):
+    made, network, link, file_id, root = _network_with_a_blob_record(tmp_path, "figures/plot.png")
+    try:
+        link.wanted_files[file_id] = 0.0
+        assert network.take_file(file_id, "figures/plot.png", b"x" * 12) is True
+        assert file_id not in link.wanted_files
+        assert not (root / "figures" / "plot.png").exists()
+        made.flush()
+        assert (root / "figures" / "plot.png").read_bytes() == b"x" * 12
+        assert made.arrived == {}
+    finally:
+        made.close()
+
+
+def test_parked_files_are_bounded(tmp_path, monkeypatch):
+    from server.collab import store as store_module
+
+    monkeypatch.setattr(store_module, "ARRIVED_LIMIT", 20)
+    made, network, link, file_id, root = _network_with_a_blob_record(tmp_path, "figures/plot.png")
+    try:
+        link.wanted_files[file_id] = 0.0
+        assert network.take_file(file_id, "figures/plot.png", b"x" * 21) is False
+        assert made.arrived == {}
+    finally:
+        made.close()
+
+
+@pytest.mark.asyncio
+async def test_a_peer_that_connects_and_never_says_hello_is_let_go(tmp_path, monkeypatch):
+    """The first frame was awaited with no deadline, so a connection that
+    opened and said nothing held a stream, and the task reading it, for
+    as long as the process lived."""
+    import asyncio
+
+    from server.collab import transport
+    from server.collab.peers import PeerLink, PeerNetwork
+
+    monkeypatch.setattr(PeerLink, "silence_limit", 0.3)
+    root = tmp_path / "paper"
+    root.mkdir()
+    (root / "main.tex").write_text("The chapter.\n")
+    made = CollabStore(Project.open(root))
+    made.adopt()
+    network = PeerNetwork(made)
+    network._me = "a" * 64
+    network.begin_sharing("Alice")
+    await network.start()
+    try:
+        # A stream that yields nothing, ever.
+        class Mute:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                await asyncio.sleep(3600)
+
+            async def send(self, frame):
+                pass
+
+            async def close(self):
+                pass
+
+        done = asyncio.ensure_future(network._accept(Mute()))
+        await asyncio.wait_for(done, 2.0)
+    finally:
+        await network.close()
+        made.close()

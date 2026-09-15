@@ -45,9 +45,20 @@ BLOB_HAVE = 7        # here they are
 HIST_WANT = 8        # what have you got for this file after these moments
 HIST_GIVE = 9        # these lines, and how far each author's past now reaches
 HIST_NEW = 10        # I have written new lines for this file
+PING = 11            # I am still here; answered by nothing
+BLOB_MISS = 12       # I do not have the bytes with this sha256
+FILE_WANT = 13       # send me the file the manifest lists under this id
+FILE_HAVE = 14       # here it is, with its path and its bytes
+FILE_MISS = 15       # I do not have that file
 
 #: An unknown kind falls off the end of the handler's chain without a word,
 #: so a frame added here is safe to send to an install that predates it.
+#: Kinds 11 to 15 rely on that: an install without them ignores a ping and
+#: never pings back, so the newer side drops the idle link after its
+#: silence limit and redials, which is what the transport's own timeout
+#: did before; a miss it never answers is re-asked after a while; and a
+#: file it is never asked for it never sends, which is where a joiner
+#: stood before.
 
 
 @dataclass
@@ -151,3 +162,23 @@ def hist_new(file_id: str) -> bytes:
     laptop closed.
     """
     return Frame(HIST_NEW, {"file": file_id}).encode()
+
+
+def ping() -> bytes:
+    return Frame(PING, {}).encode()
+
+
+def blob_miss(sha: str) -> bytes:
+    return Frame(BLOB_MISS, {"sha": sha}).encode()
+
+
+def file_want(file_id: str) -> bytes:
+    return Frame(FILE_WANT, {"id": file_id}).encode()
+
+
+def file_have(file_id: str, path: str, data: bytes) -> bytes:
+    return Frame(FILE_HAVE, {"id": file_id, "path": path, "size": len(data)}, data).encode()
+
+
+def file_miss(file_id: str) -> bytes:
+    return Frame(FILE_MISS, {"id": file_id}).encode()
