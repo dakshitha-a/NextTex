@@ -261,14 +261,6 @@ things go to be forgotten rather than a list anybody reads.
       and a version thought rather than a line, and it was found by reading
       rather than by anybody meeting it.
 
-- [ ] **What a distillation writes does not mark the context stale.** A
-      distilled `voice.md` or `style.md` is written under `.nexttex/`, which
-      the file watcher ignores by design, so nothing publishes
-      `context_changed` and the panel's "these have not been read since you
-      changed them" marker is computed from what it last saw. Noticed while
-      fixing the rest of R-066; the fix is one publish in the agent's
-      `on_edit`, and it wants a test that can drive a real distillation.
-
 - [ ] **The spell checker knows one variety of English.** The word list is
       `wamerican`, so a thesis written in British English is underlined from
       end to end: colour, analyse, centre, and every derived form. Left out of
