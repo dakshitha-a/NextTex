@@ -152,6 +152,35 @@ def test_the_tree_hides_build_output_and_our_own_files(tmp_path):
     assert ".nexttex-preview.tex" not in names
 
 
+def test_a_virtual_environment_is_hidden_whatever_it_is_called(tmp_path):
+    """The tracker had `env` and `site-packages` down as names to add to
+    the ignore list when a project with a bare environment inside it turned
+    up.  `env` is a plausible name for a folder of a writer's own, so the
+    rule is the marker every virtual environment carries, `pyvenv.cfg`,
+    and `site-packages` by name since it never holds anybody's writing."""
+    from nexttex.project import guess_document, ignored_directory
+
+    p = project(tmp_path)
+    (tmp_path / "env" / "lib").mkdir(parents=True)
+    (tmp_path / "env" / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf-8")
+    (tmp_path / "env" / "lib" / "helper.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "env" / "lib" / "stray.tex").write_text("\\documentclass{article}\\begin{document}x\\end{document}", encoding="utf-8")
+    (tmp_path / "site-packages").mkdir()
+    (tmp_path / "site-packages" / "mod.py").write_text("y = 2\n", encoding="utf-8")
+    (tmp_path / "environment").mkdir()          # a folder that merely sounds like one
+    (tmp_path / "environment" / "notes.tex").write_text("notes", encoding="utf-8")
+
+    names = [child["name"] for child in p.tree()["children"]]
+    assert "env" not in names
+    assert "site-packages" not in names
+    assert "environment" in names
+    assert ignored_directory(tmp_path / "env")
+    assert not ignored_directory(tmp_path / "environment")
+    # The first-open guess walks the whole tree and must not pick a .tex
+    # out of the environment either.
+    assert guess_document(tmp_path) != "env/lib/stray.tex"
+
+
 def test_our_own_state_directory_ignores_itself_in_git(tmp_path):
     """A project whose .gitignore predates NextTex would otherwise commit
     every version blob and every deleted file on its next `git add -A`."""

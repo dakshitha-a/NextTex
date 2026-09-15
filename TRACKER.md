@@ -61,10 +61,6 @@ things go to be forgotten rather than a list anybody reads.
       move it stayed. Recorded rather than fixed: the alternative is the
       `previews.json` format change section 34 of the design document
       declined.
-- [ ] **`site-packages` and `env` are not in `IGNORED_DIRS`**; `.venv`,
-      `venv` and `__pycache__` are. A project with a bare environment
-      folder inside it would adopt every `.py` in it as a text file, up to
-      the two megabyte bound each. Add them when such a project turns up.
 - [ ] **`password.spec.ts` "setting a password says so and closes itself"
       timed out once in four full runs**, waiting on the done card for the
       five second default, and passed on its retry in three seconds. The
