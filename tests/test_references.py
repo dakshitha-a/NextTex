@@ -159,3 +159,103 @@ def test_the_importer_never_folds_the_bibliography_from_a_worker_thread():
     assert "session.collab.ingest(" not in body, (
         "write_bib calls ingest directly, from inside to_thread(scan.run)"
     )
+
+
+def test_a_doi_crossref_does_not_hold_is_asked_of_doi_org(monkeypatch):
+    """arXiv, Zenodo and datasets are registered with DataCite, which
+    Crossref answers 404 for; the agent had to paste those entries in
+    from a curl by hand.  doi.org's content negotiation reaches whichever
+    agency holds the DOI."""
+    fetch = references._load("bib_from_doi")
+    asked: list[tuple[str, str]] = []
+
+    class Answer:
+        def __init__(self, status, text="", payload=None):
+            self.status_code, self.text, self._payload = status, text, payload
+            self.encoding = "utf-8"
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(self.status_code)
+
+        def json(self):
+            return self._payload
+
+    def fake_get(url, headers=None, timeout=None, allow_redirects=False):
+        asked.append((url, headers.get("Accept", "")))
+        if "api.crossref.org" in url:
+            return Answer(404)
+        if headers.get("Accept") == "application/x-bibtex":
+            return Answer(200, "@misc{x, title={A preprint}, author={Doe, Jane}, year={2024}, doi={10.48550/arXiv.2401.00001}}")
+        return Answer(200, payload={
+            "title": "A preprint", "author": [{"family": "Doe", "given": "Jane"}],
+            "issued": {"date-parts": [[2024]]}, "container-title": "arXiv",
+        })
+
+    monkeypatch.setattr(fetch.requests, "get", fake_get)
+    result = references.entry_for("10.48550/arXiv.2401.00001", "")
+    assert result["added"] is True
+    assert result["key"] == "Doe2024preprint"
+    assert "A preprint" in result["entry"]
+    hosts = [url.split("/")[2] for url, _ in asked]
+    assert hosts == ["api.crossref.org", "doi.org", "api.crossref.org", "doi.org"]
+
+
+def test_a_doi_nobody_holds_is_refused(monkeypatch):
+    fetch = references._load("bib_from_doi")
+
+    class Missing:
+        status_code = 404
+        text = ""
+
+    monkeypatch.setattr(fetch.requests, "get", lambda *a, **k: Missing())
+    with pytest.raises(LookupError):
+        references.entry_for("10.1/nothing", "")
+
+
+def test_the_key_comes_from_the_entry_when_there_is_no_record():
+    fetch = references._load("bib_from_doi")
+    fields = {"author": "Müller, Anna and Smith, Bob", "year": "2021",
+              "title": "A study of hydrogen bonding"}
+    assert fetch.make_key({}, fields) == "Muller2021hydrogen"
+    assert fetch.make_key({}, {"author": "Anna Müller", "date": "2021-05"}) == "Muller2021"
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("Σ-electron π bonding", "${\\Sigma}$-electron ${\\pi}$ bonding"),
+    ("Schrödinger", "Schr{\\\"{o}}dinger"),
+    ("Müller & Co", "M{\\\"{u}}ller \\& Co"),
+    ("naïve", "na{\\\"{\\i}}ve"),
+    ("Ångström", "\\AA{}ngstr{\\\"{o}}m"),
+    ("5 × 10", "5 $\\times$ 10"),
+    ("already \\textit{o}-nitro", "already \\textit{o}-nitro"),
+    ("plain ASCII stays", "plain ASCII stays"),
+])
+def test_what_a_record_carries_as_unicode_is_set_as_latex(raw, expected):
+    """A style that prints titles fails under pdflatex on a raw Greek
+    letter or accent, and the agent cleaned nine entries by hand."""
+    fetch = references._load("bib_from_doi")
+    assert fetch.latexify(raw) == expected
+
+
+def test_acronyms_in_a_title_are_braced_once():
+    fetch = references._load("bib_from_doi")
+    assert fetch.protect_acronyms("CASSCF and DFT for H2O in {NMR} spectra of Na") == (
+        "{CASSCF} and {DFT} for {H2O} in {NMR} spectra of Na"
+    )
+
+
+def test_an_unmatched_small_caps_tag_is_stripped_and_a_matched_one_kept():
+    fetch = references._load("bib_from_doi")
+    assert fetch.clean_title("The <scp>dft</scp> study") == "The \\textsc{dft} study"
+    assert fetch.clean_title("The <scp>dft study") == "The dft study"
+
+
+def test_a_tidied_entry_is_latex_safe_in_every_field():
+    fetch = references._load("bib_from_doi")
+    raw = ("@article{x, title={Σ bonding in H2O}, author={Müller, Anna}, "
+           "journal={Ångström Letters}, year={2020}, doi={10.1/x}}")
+    entry = fetch.tidy(raw, "Muller2020bonding", {})
+    assert "${\\Sigma}$ bonding in {H2O}" in entry
+    assert "M{\\\"{u}}ller" in entry
+    assert "\\AA{}ngstr{\\\"{o}}m Letters" in entry

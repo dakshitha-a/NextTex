@@ -649,7 +649,11 @@ not already going.
 
 The agent searches Crossref, OpenAlex or Semantic Scholar and gets back real
 DOIs. It adds an entry by DOI, and the BibTeX comes from the publisher's own
-record rather than from the model. It can then re-check every entry in your
+record rather than from the model: from Crossref, or, for a preprint or a
+dataset registered elsewhere, from `doi.org`, which hands the request to
+whichever agency holds the DOI. What arrives is made safe for pdflatex on
+the way in, Greek letters and accents set as LaTeX and acronyms braced so a
+title-casing style keeps them. It can then re-check every entry in your
 bibliography against the record it claims to come from. A fabricated reference
 is an academic integrity failure, so the defence is structural rather than a
 matter of care: there is no path from the model's memory to your `.bib` file.

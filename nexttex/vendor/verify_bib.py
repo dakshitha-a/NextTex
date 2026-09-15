@@ -145,12 +145,25 @@ def first_surname(author_field):
 
 
 def crossref(doi):
+    """The record behind a DOI: Crossref's, or, for a DOI Crossref does
+    not hold (arXiv, Zenodo, a dataset), the CSL JSON doi.org negotiates
+    from whichever agency does, folded into Crossref's shape."""
     url = f"https://api.crossref.org/works/{quote(doi, safe='')}"
     r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+    if r.status_code != 404:
+        r.raise_for_status()
+        return r.json()["message"]
+    r = requests.get(f"https://doi.org/{quote(doi, safe='/')}",
+                     headers={"User-Agent": UA, "Accept": "application/vnd.citationstyles.csl+json"},
+                     timeout=TIMEOUT, allow_redirects=True)
     if r.status_code == 404:
         return None
     r.raise_for_status()
-    return r.json()["message"]
+    record = dict(r.json() or {})
+    for field in ("title", "container-title"):
+        if isinstance(record.get(field), str):
+            record[field] = [record[field]]
+    return record
 
 
 def arxiv(arxiv_id):
@@ -194,7 +207,7 @@ def check(entry):
         except Exception as exc:
             return "FAIL", [f"Crossref lookup failed: {exc}"]
         if meta is None:
-            return "FAIL", [f"DOI does not resolve in Crossref: {doi}"]
+            return "FAIL", [f"DOI does not resolve at Crossref or doi.org: {doi}"]
         source = f"doi:{doi}"
     elif eprint and "arxiv" in archive:
         try:
