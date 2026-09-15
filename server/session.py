@@ -322,6 +322,7 @@ class ProjectSession:
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
             compile_now=self.compile,
+            documents=lambda: list(self.documents),
             run_script=lambda path: self.scripts.run(
                 self.project.relative(path), by="agent",
             ),

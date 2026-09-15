@@ -68,3 +68,43 @@ def test_overfull_box_carries_its_line():
     result = parse_log(log, ROOT, MAIN)
     assert result.warnings
     assert any(w.line == 40 for w in result.warnings)
+
+
+def test_the_keys_left_undefined_are_named_once_each():
+    """The compile tool reports "3 undefined citations" from these, and the
+    scheduler compares the set across passes, so a key cited on ten lines
+    is one key."""
+    log = (
+        "(./main.tex\n"
+        "LaTeX Warning: Citation `smith2020' on page 1 undefined on input line 4.\n"
+        "LaTeX Warning: Citation `smith2020' on page 2 undefined on input line 9.\n"
+        "LaTeX Warning: Citation 'jones2021' undefined on input line 14.\n"
+        "LaTeX Warning: Reference `fig:one' on page 3 undefined on input line 12.\n"
+        "LaTeX Warning: There were undefined references.\n"
+        "Overfull \\hbox (12.5pt too wide) in paragraph at lines 40--42\n"
+        "Output written on build/main.pdf (28 pages, 431920 bytes).\n"
+        ")\n"
+    )
+    result = parse_log(log, ROOT, MAIN)
+    assert result.undefined_citations == ["smith2020", "jones2021"]
+    assert result.undefined_references == ["fig:one"]
+    assert result.overfull == 1
+    assert result.pages == 28
+    assert result.bibliography_stale is False
+    payload = result.as_dict()
+    assert payload["undefinedCitations"] == ["smith2020", "jones2021"]
+    assert payload["pages"] == 28
+
+
+def test_the_engine_asking_for_bibtex_is_remembered_though_the_line_is_hidden():
+    """The rerun hints are noise in a gutter and are suppressed as
+    diagnostics; this one is the fact a fast pass needs, so it is kept
+    as a flag on the way past."""
+    log = (
+        "(./main.tex\n"
+        "LaTeX Warning: Please (re)run BibTeX.\n"
+        ")\n"
+    )
+    result = parse_log(log, ROOT, MAIN)
+    assert result.bibliography_stale is True
+    assert not result.warnings

@@ -8,9 +8,12 @@ compiled one chapter at a time with `\\includeonly`, which on a
 seven-chapter dissertation halves the work. Whether that applies is
 detected from the source, never assumed.
 
-**Only run biber when citations changed.** Biber dominates a full build.
-Reference resolution matters when the bibliography moves, not on every
-keystroke, so the expensive path is triggered by what the edit touched.
+**Only run the bibliography when citations changed.** bibtex or biber,
+whichever the document asks for, and latexmk's reruns after it, dominate a
+full build. Reference resolution matters when the bibliography moves, not
+on every keystroke, so the expensive path is triggered by what the edit
+touched, and by a fast pass whose log says a key it could not resolve is
+one the last full pass could.
 
 **Never let two runs share a build directory.** A new keystroke kills the
 run in flight -- the whole process group, because latexmk spawns children
@@ -137,7 +140,7 @@ class CompileResult:
     pdf: Path | None
     duration: float
     scope: str          # "full" or the chapter stem the build was limited to
-    engine_pass: str    # "fast" (one pdflatex) or "full" (latexmk + biber)
+    engine_pass: str    # "fast" (one pdflatex) or "full" (latexmk, which runs bibtex or biber as the document asks)
 
     def as_dict(self) -> dict:
         return {
@@ -376,6 +379,17 @@ class CompileScheduler:
         # twenty-page document -- not worth showing the writer a fragment --
         # so it only starts once a whole-document pass stops being quick.
         self._full_fast_ms: float | None = None
+        # The citation and reference keys left undefined by the last full
+        # pass.  A fast pass runs no bibtex, so a key it cannot resolve is
+        # either one the bibliography does not hold, which a full pass
+        # would leave undefined too, or one it does hold and the fast pass
+        # simply could not reach: the difference between the two sets is
+        # the second case, and it is what earns the next build a full
+        # pass.  Comparing sets rather than asking "was anything
+        # undefined" matters, because a genuinely misspelled key survives
+        # every full pass and would otherwise make every keystroke a
+        # latexmk run.
+        self._unresolved_after_full: frozenset[str] | None = None
 
     def note_edit(
         self, path: Path, text: str | None = None, previous: str | None = None
@@ -535,6 +549,7 @@ class CompileScheduler:
         log = await asyncio.to_thread(self._read_log)
         if log is not None:
             self._remap_shadow(log)
+            self._note_unresolved(log, full_pass)
 
         # A PDF from a previous good build is better than none: the preview
         # keeps showing the last thing that compiled rather than going blank.
@@ -544,6 +559,29 @@ class CompileScheduler:
             outcome, log, pdf, time.monotonic() - started, scope,
             "full" if full_pass else "fast",
         )
+
+    def _note_unresolved(self, log: ParsedLog, full_pass: bool) -> None:
+        """Decide from the log whether the next build must be a full one.
+
+        The agent reported "built cleanly" with every citation a question
+        mark, and it stayed that way across repeated builds: each was a
+        fast pass, which runs no bibtex, and nothing read the log for the
+        one fact that would have said so.
+        """
+        unresolved = frozenset(log.undefined_citations) | frozenset(
+            log.undefined_references
+        )
+        if full_pass:
+            self._unresolved_after_full = unresolved
+            return
+        if log.bibliography_stale:
+            self._require_full()
+            return
+        if (
+            self._unresolved_after_full is not None
+            and unresolved != self._unresolved_after_full
+        ):
+            self._require_full()
 
     def _read_log(self) -> ParsedLog | None:
         """Read and parse the engine's log, off the loop.
@@ -560,7 +598,7 @@ class CompileScheduler:
         return parse_log(text, self.paths.root, self.paths.main)
 
     def full_argv(self, source_file: Path) -> list[str]:
-        """latexmk with biber: citations, cross-references, the lot.
+        """latexmk: citations through bibtex or biber, cross-references, the lot.
 
         latexmk accepts `-synctex=1` and then does not pass it on to the
         engine, so a full build produced a PDF carrying no synctex data and

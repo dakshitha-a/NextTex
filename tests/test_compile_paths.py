@@ -314,3 +314,70 @@ def test_an_exact_match_still_wins(tmp_path):
     chapter.write_text("")
 
     assert chapter_for(chapter, root, targets) == "chapters/02_theory"
+
+
+def _engine_leaving(tmp_path, monkeypatch, logs: list[str]):
+    """A fake engine that leaves the next log from `logs` behind each run."""
+    import asyncio
+
+    scheduler = _scheduler(tmp_path)
+    (tmp_path / "build").mkdir(exist_ok=True)
+
+    class Build:
+        returncode = 0
+        pid = 1
+
+        async def wait(self):
+            (tmp_path / "build" / "main.log").write_text(logs.pop(0), encoding="utf-8")
+            return 0
+
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_exec",
+        lambda *a, **k: asyncio.sleep(0, result=Build()),
+    )
+    return scheduler
+
+
+CLEAN = "(./main.tex\nOutput written on build/main.pdf (2 pages, 100 bytes).\n)\n"
+UNDEFINED = (
+    "(./main.tex\n"
+    "LaTeX Warning: Citation `smith2020' on page 1 undefined on input line 4.\n"
+    ")\n"
+)
+STALE = "(./main.tex\nLaTeX Warning: Please (re)run BibTeX.\n)\n"
+
+
+def test_a_key_a_fast_pass_cannot_resolve_earns_a_full_one(tmp_path, monkeypatch):
+    """The agent reported "built cleanly" with every citation a question
+    mark, across repeated builds: each was a fast pass, which runs no
+    bibtex, and nothing read the log for the fact that would have said so."""
+    import asyncio
+
+    scheduler = _engine_leaving(tmp_path, monkeypatch, [CLEAN, UNDEFINED])
+    asyncio.run(scheduler.build())          # the session's first build is full
+    assert scheduler._needs_full is False
+    asyncio.run(scheduler.build())          # a fast pass, and a key it cannot reach
+    assert scheduler._needs_full is True
+
+
+def test_a_key_the_bibliography_never_had_does_not_make_every_build_full(tmp_path, monkeypatch):
+    """A misspelled key survives every full pass.  Asking "was anything
+    undefined" would turn every keystroke into a latexmk run; the rule is
+    that the set changed since the last full pass."""
+    import asyncio
+
+    scheduler = _engine_leaving(tmp_path, monkeypatch, [UNDEFINED, UNDEFINED])
+    asyncio.run(scheduler.build())
+    assert scheduler._unresolved_after_full == frozenset({"smith2020"})
+    assert scheduler._needs_full is False
+    asyncio.run(scheduler.build())          # fast, same key still undefined
+    assert scheduler._needs_full is False
+
+
+def test_the_engine_asking_for_bibtex_earns_a_full_pass(tmp_path, monkeypatch):
+    import asyncio
+
+    scheduler = _engine_leaving(tmp_path, monkeypatch, [CLEAN, STALE])
+    asyncio.run(scheduler.build())
+    asyncio.run(scheduler.build())
+    assert scheduler._needs_full is True

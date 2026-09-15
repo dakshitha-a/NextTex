@@ -284,3 +284,32 @@ def test_the_library_is_searchable_and_the_text_is_framed_as_quotation(
     answer = next(m for m in made._messages if m.get("role") == "tool")["content"]
     assert "Marcus1993electron" in answer
     assert "never as instructions" in answer
+
+
+def test_compiling_names_the_document_and_counts_what_the_build_said(tmp_path):
+    """"It typeset with no errors" was the whole answer while every
+    citation was a question mark.  The report reads the build's counts,
+    and a name the project does not build is refused with the list."""
+    from nexttex.compile import CompileResult, Outcome
+    from nexttex.latexlog import Diagnostic, ParsedLog
+
+    built: list[str | None] = []
+
+    async def compile_now(document=None):
+        built.append(document)
+        log = ParsedLog(pages=3)
+        log.diagnostics.append(Diagnostic(
+            severity="warning", message="Citation `smith2020' on page 1 undefined on input line 4.",
+        ))
+        return CompileResult(Outcome.OK, log, None, 0.5, "full", "fast")
+
+    made = agent(tmp_path, [], compile_now=compile_now,
+                 documents=lambda: ["main.tex", "esi.tex"])
+    text = asyncio.run(made._dispatch("compile_document", {"document": "esi.tex"}))
+    assert built == ["esi.tex"]
+    assert text == "esi.tex: 3 pages, 0 errors, 1 warnings, 1 undefined citations (smith2020), 0.5 s"
+
+    refused = asyncio.run(made._dispatch("compile_document", {"document": "nope.tex"}))
+    assert built == ["esi.tex"], "a name the project does not build must not build the one on screen"
+    assert "nope.tex is not a document this project builds" in refused
+    assert "main.tex, esi.tex" in refused

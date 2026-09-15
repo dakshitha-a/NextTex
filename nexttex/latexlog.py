@@ -55,6 +55,22 @@ BOX_WARNING = re.compile(
 # A file TeX opens looks like `(/abs/path.tex` or `(./rel/path.tex`.
 FILE_OPEN_PATH = re.compile(r"(?:/|\.\.?/)[^\s(){}]*")
 
+# Which key an undefined citation or reference was for, so the count the
+# compile tool reports can be a set of keys rather than a tally of lines.
+# TeX quotes the key with a backtick and an apostrophe; biblatex with two
+# apostrophes.
+UNDEFINED_CITATION = re.compile(r"^Citation [`']([^'`]*)'{1,2} .*undefined")
+UNDEFINED_REFERENCE = re.compile(r"^Reference [`']([^'`]*)'{1,2} .*undefined")
+
+# The last line of a run that produced a PDF:
+# Output written on build/main.pdf (28 pages, 431920 bytes).
+OUTPUT_WRITTEN = re.compile(r"^Output written on .*\((?P<pages>\d+) pages?, ")
+
+# The engine saying the bibliography it read is behind the citations it
+# saw.  A fast pass runs no bibtex, so this is the one hint worth a full
+# pass on its own.
+BIBLIOGRAPHY_STALE = ("Please (re)run Biber", "Please (re)run BibTeX")
+
 # Messages that are noise in an editor gutter: they repeat what the
 # individual warnings already said, or they are about the run, not the source.
 SUPPRESSED = (
@@ -109,6 +125,11 @@ class ParsedLog:
     # A run can fail without producing a parseable error (a missing file, a
     # killed process).  Keep the raw tail so the UI can show something true.
     raw_tail: str = ""
+    # How many pages the run wrote, when it said.
+    pages: int | None = None
+    # The engine asked for bibtex or biber to be run: the citations it saw
+    # are not the ones the bibliography it read was built from.
+    bibliography_stale: bool = False
 
     @property
     def errors(self) -> list[Diagnostic]:
@@ -118,13 +139,40 @@ class ParsedLog:
     def warnings(self) -> list[Diagnostic]:
         return [d for d in self.diagnostics if d.severity == "warning"]
 
+    @property
+    def undefined_citations(self) -> list[str]:
+        """The keys cited and not resolved, each once, in order of appearance."""
+        return _keys(UNDEFINED_CITATION, self.warnings)
+
+    @property
+    def undefined_references(self) -> list[str]:
+        return _keys(UNDEFINED_REFERENCE, self.warnings)
+
+    @property
+    def overfull(self) -> int:
+        return sum(1 for d in self.warnings if d.message.startswith("Overfull"))
+
     def as_dict(self) -> dict:
         return {
             "diagnostics": [d.as_dict() for d in self.diagnostics],
             "errorCount": len(self.errors),
             "warningCount": len(self.warnings),
+            "undefinedCitations": self.undefined_citations,
+            "undefinedReferences": self.undefined_references,
+            "overfull": self.overfull,
+            "pages": self.pages,
+            "bibliographyStale": self.bibliography_stale,
             "rawTail": self.raw_tail,
         }
+
+
+def _keys(pattern: re.Pattern, warnings: list[Diagnostic]) -> list[str]:
+    found: list[str] = []
+    for warning in warnings:
+        match = pattern.match(warning.message)
+        if match and match.group(1) not in found:
+            found.append(match.group(1))
+    return found
 
 
 class _FileStack:
@@ -198,6 +246,8 @@ def parse(log_text: str, project_root: Path, main_file: Path | None = None) -> P
     pending: Diagnostic | None = None
 
     def emit(diag: Diagnostic) -> None:
+        if any(s in diag.message for s in BIBLIOGRAPHY_STALE):
+            result.bibliography_stale = True
         if any(s in diag.message for s in SUPPRESSED):
             return
         if diag.file is None:
@@ -244,6 +294,11 @@ def parse(log_text: str, project_root: Path, main_file: Path | None = None) -> P
         match = BARE_ERROR.match(line)
         if match:
             pending = Diagnostic(severity="error", message=match.group("msg").strip())
+            continue
+
+        match = OUTPUT_WRITTEN.match(line)
+        if match:
+            result.pages = int(match.group("pages"))
             continue
 
         match = BOX_WARNING.match(line)

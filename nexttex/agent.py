@@ -49,6 +49,7 @@ from .claude_auth import claude_binary
 from .lines import document_ends_at, first_changed_line
 from .modes import DEFAULT_MODE, MODES
 from .project import is_control_path
+from .explain import compile_report
 from .writing import PROSE
 
 from claude_agent_sdk import (
@@ -302,6 +303,12 @@ How to work here:
   verify a source exists, say so rather than producing a plausible key.
 - Keep the document compiling. If you are unsure a construct is valid,
   compile and check rather than leaving it for the user to discover.
+- A project can hold several documents: every root .tex file that nothing
+  else reads is one, and a subfolder can hold one too. `compile` builds the
+  one on screen unless you name another with `document`, and
+  `compile_diagnostics` lists every document's problems under its name.
+  Read the counts a build reports, not only the errors: undefined
+  citations mean the PDF has question marks in it.
 
 Explain what you changed in a sentence or two. The user can see the diff, so
 do not restate it line by line.
@@ -385,6 +392,7 @@ class ProjectAgent:
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
+        documents: Callable[[], list[str]] | None = None,
         run_script: Callable[[Path], Awaitable[dict]] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
@@ -405,6 +413,11 @@ class ProjectAgent:
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
+        #: The root .tex files the project builds, by project-relative
+        #: path.  A name the compile tool is given has to be one of them,
+        #: because the session builds the document on screen for any name
+        #: it does not know, and the tool would then report the wrong one.
+        self.documents = documents or (lambda: [])
         # Runs a script the way the source pane does, announced on the
         # event stream and remembered, so a figure the agent drew is in the
         # script pane too.  Bare `plots.run` when nothing is wired, which
@@ -1505,43 +1518,28 @@ class ProjectAgent:
 
         @tool(
             "compile_diagnostics",
-            "Errors and warnings from the most recent LaTeX build, with file "
-            "and line numbers.",
+            "Errors and warnings from the most recent build of every document "
+            "in the project, grouped by document, with file and line numbers. "
+            "A document that has not been built since the project was opened "
+            "has nothing here; compile it first.",
             {},
         )
         async def compile_diagnostics(args: dict) -> dict:
-            items = self.diagnostics()
-            if not items:
-                return {"content": [{"type": "text",
-                                     "text": "The last build produced no errors or warnings."}]}
-            lines = [
-                f"{d.get('severity')}: {d.get('file')}:{d.get('line')}, {d.get('message')}"
-                for d in items
-            ]
-            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+            return self.diagnostics_tool(args)
 
         @tool(
             "compile",
-            "Rebuild the document now and report whether it succeeded. Use this "
-            "to check your own work before saying you are done.",
-            {},
+            "Rebuild a document now and report what the build said: pages, "
+            "errors, warnings, undefined citations and references, overfull "
+            "boxes. `document` names a root .tex file relative to the "
+            "project, for a project with several; left out, it is the one on "
+            "screen. Use this to check your own work before saying you are "
+            "done, and read the counts, not only the errors: a build with no "
+            "errors and three undefined citations is not finished.",
+            {"document": str},
         )
         async def compile_document(args: dict) -> dict:
-            if self.compile_now is None:
-                return {"content": [{"type": "text", "text": "Compiling is unavailable."}],
-                        "is_error": True}
-            result = await self.compile_now()
-            payload = result.as_dict() if hasattr(result, "as_dict") else result
-            errors = payload.get("errorCount", 0)
-            if errors:
-                detail = "\n".join(
-                    f"{d['file']}:{d['line']}, {d['message']}"
-                    for d in payload.get("diagnostics", []) if d["severity"] == "error"
-                )
-                return {"content": [{"type": "text",
-                                     "text": f"Build failed with {errors} error(s):\n{detail}"}]}
-            return {"content": [{"type": "text",
-                                 "text": f"Built cleanly in {payload.get('durationMs')} ms."}]}
+            return await self.compile_tool(args)
 
         @tool(
             "insert_at_cursor",
@@ -1845,6 +1843,53 @@ class ProjectAgent:
             return str(path.resolve().relative_to(self.root))
         except (ValueError, OSError):
             return str(path)
+
+    def diagnostics_tool(self, args: dict) -> dict:
+        """Every document's problems, grouped and named.
+
+        Lifted out of the MCP closure like the other tools whose checks
+        are worth exercising without a live agent.  The list the session
+        answers is every document's diagnostics in one sequence, and
+        without the name a supplement's error read as the paper's.
+        """
+        items = self.diagnostics()
+        if not items:
+            return self._text("The last build produced no errors or warnings.")
+        by_document: dict[str, list[dict]] = {}
+        for d in items:
+            by_document.setdefault(str(d.get("document") or ""), []).append(d)
+        lines: list[str] = []
+        for document, found in by_document.items():
+            lines.append(f"{document or 'the document'}:")
+            lines.extend(
+                f"  {d.get('severity')}: {d.get('file')}:{d.get('line')}, {d.get('message')}"
+                for d in found
+            )
+        return self._text("\n".join(lines))
+
+    async def compile_tool(self, args: dict) -> dict:
+        """Build one document and say what the log said.
+
+        A name the project does not build is refused with the list rather
+        than passed on: the session builds the document on screen for any
+        name it does not know, and the report would then carry the wrong
+        name over the right counts.
+        """
+        if self.compile_now is None:
+            return {"content": [{"type": "text", "text": "Compiling is unavailable."}],
+                    "is_error": True}
+        named = str(args.get("document") or "").strip()
+        if named and named not in self.documents():
+            known = ", ".join(self.documents()) or "none yet"
+            return self._text(
+                f"{named} is not a document this project builds. "
+                f"The documents are: {known}."
+            )
+        result = await (
+            self.compile_now(document=named) if named else self.compile_now()
+        )
+        payload = result.as_dict() if hasattr(result, "as_dict") else result
+        return self._text(compile_report(named, payload))
 
     def _bib_path(self, named: str) -> Path | None:
         if named:
