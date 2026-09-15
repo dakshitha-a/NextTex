@@ -14,7 +14,7 @@ def _recorder(monkeypatch, answers):
     from `answers`, keyed by the source path's name."""
     calls = []
 
-    def fake(pdf, source, line, project_root, column=0):
+    def fake(pdf, source, line, project_root, column=0, base=None):
         calls.append((source, line))
         return answers.get(source.name, [])
 

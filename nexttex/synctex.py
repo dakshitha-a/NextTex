@@ -84,7 +84,7 @@ def _blocks(output: str) -> list[dict[str, str]]:
     return blocks
 
 
-def _normalise(raw: str, project_root: Path) -> Path:
+def _normalise(raw: str, project_root: Path, base: Path | None = None) -> Path:
     """Clean up the path synctex reports.
 
     It echoes the path as the engine recorded it, which keeps the `./`
@@ -92,6 +92,12 @@ def _normalise(raw: str, project_root: Path) -> Path:
     `/home/you/thesis/./chapters/02_theory/02_theory.tex`.
     Left alone, that string compares unequal to the same file opened any
     other way, and the editor opens a second tab for it.
+
+    `base` is the directory the engine ran in, the document's own, which
+    is what a relative path it recorded is relative to.  The engine's
+    search path names that directory and the root in full, so nearly
+    every path arrives absolute; the fallback to the root is for a map
+    written by an older build.
     """
     path = Path(raw)
     # A relative path belongs to the project, not to whatever directory the
@@ -99,7 +105,11 @@ def _normalise(raw: str, project_root: Path) -> Path:
     # source tree, so resolving it there would produce a path outside the
     # project and the click would silently do nothing.
     if not path.is_absolute():
-        path = project_root / path
+        against_base = (base or project_root) / path
+        if base is not None and not against_base.exists() and (project_root / path).exists():
+            path = project_root / path
+        else:
+            path = against_base
     try:
         return path.resolve()
     except OSError:
@@ -175,6 +185,7 @@ def pdf_to_source(
     project_root: Path,
     shadow_main: Path | None = None,
     main_file: Path | None = None,
+    base: Path | None = None,
 ) -> SourcePosition | None:
     """Inverse search: where in the source did this spot on the page come from?
 
@@ -188,7 +199,7 @@ def pdf_to_source(
     one; see compile.py for why that stand-in exists.
     """
     output = _run(
-        ["edit", "-o", f"{page}:{x:.2f}:{y:.2f}:{pdf}"], cwd=project_root
+        ["edit", "-o", f"{page}:{x:.2f}:{y:.2f}:{pdf}"], cwd=base or project_root
     )
     for block in _blocks(output):
         if "Input" not in block:
@@ -200,7 +211,7 @@ def pdf_to_source(
         if line <= 0:
             continue
 
-        path = _normalise(block["Input"], project_root)
+        path = _normalise(block["Input"], project_root, base)
         if path.suffix.lower() in GENERATED_SUFFIXES:
             return None
         if shadow_main is not None and main_file is not None:
@@ -223,7 +234,8 @@ def pdf_to_source(
 
 
 def source_to_pdf(
-    pdf: Path, source: Path, line: int, project_root: Path, column: int = 0
+    pdf: Path, source: Path, line: int, project_root: Path, column: int = 0,
+    base: Path | None = None,
 ) -> list[PdfPosition]:
     """Forward search: where on the page did this source line end up?
 
@@ -233,7 +245,7 @@ def source_to_pdf(
     """
     output = _run(
         ["view", "-i", f"{line}:{column}:{source}", "-o", str(pdf)],
-        cwd=project_root,
+        cwd=base or project_root,
     )
     positions = []
     for block in _blocks(output):

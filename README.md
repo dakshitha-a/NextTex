@@ -1002,7 +1002,13 @@ There is no main file to name. Every `.tex` with a `\documentclass` and a
 `\begin{document}` of its own that no other file reads is a document with
 its own PDF, the way a folder of notebooks is a folder of notebooks, and the
 preview shows whichever one you are writing: open a chapter and the page is
-the document that includes it. Which documents are on the preview strip is
+the document that includes it. A document in a subfolder is built from
+that folder, the way `pdflatex paper.tex` run there would build it, so
+its `\input`, `\graphicspath` and a style file beside it resolve against
+the folder; the project root stays on the search path, so a path written
+from the root still resolves too. Every document's PDF and log land in
+the one `build_dir`, named after the file, which is why two documents
+cannot share a stem. Which documents are on the preview strip is
 remembered in `.nexttex/`, not here, because it is yours rather than the
 project's.
 

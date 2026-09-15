@@ -582,3 +582,46 @@ async function wordOnPage(page: any, word: string): Promise<[number, number]> {
   }, word);
   return [picked.x, picked.y];
 }
+
+test("a document in a subfolder finds the file beside it, and a double-click opens that file", async ({
+  app, project, page,
+}) => {
+  // The in-app agent found that a document at papers/a/paper.tex had its
+  // \input resolved against the project root, so a file beside it was not
+  // found and the build failed silently as far as the pane could tell.
+  // The engine runs from the document's own directory now.  The page
+  // existing at all is the first half of the claim; the double-click
+  // landing in the sibling file is the second, because the log and the
+  // synctex map now carry paths from that directory too.  Not main.tex,
+  // because the jobname is the stem and the root document already builds
+  // to main.pdf.
+  const MAIN = String.raw`\documentclass{article}
+\begin{document}
+Hello from the subfolder.
+\input{sec/one}
+\end{document}
+`;
+  const ONE = String.raw`A sibling paragraph.
+
+The keyword bravado appears only in the sibling file.
+`;
+  mkdirSync(join(project.root, "papers", "a", "sec"), { recursive: true });
+  writeFileSync(join(project.root, "papers", "a", "paper.tex"), MAIN);
+  writeFileSync(join(project.root, "papers", "a", "sec", "one.tex"), ONE);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const { openProject } = await import("../fixtures");
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("add-preview").click();
+  await page.getByRole("menuitem", { name: "papers/a/paper.tex" }).click();
+  await expect(page.getByTestId("preview-tab-papers/a/paper.tex")).toHaveAttribute("aria-current", "true");
+
+  await page.mouse.dblclick(...(await wordOnPage(page, "bravado")));
+
+  await expect(
+    page.locator('[data-tab][data-path="papers/a/sec/one.tex"] button[aria-current="true"]'),
+  ).toBeVisible({ timeout: 20_000 });
+  const line = ONE.split("\n").findIndex((l) => l.includes("bravado")) + 1;
+  await expect.poll(() => caretLine(page), { timeout: 20_000 }).toBe(line);
+});
