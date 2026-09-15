@@ -210,6 +210,9 @@ export type UpdateReport = {
 /** What one run of a script did.  `stopped` is a run the writer ended or
  *  a later run replaced; `missing` names the package a bad import wanted,
  *  when it did. */
+/** What a run in flight has printed so far. */
+export type ScriptLive = { run: number; out: string; err: string };
+
 export type ScriptResult = {
   script: string;
   run: number;
@@ -549,8 +552,9 @@ const api = {
   /** What the script did the last time it ran here; 404 when it never has. */
   lastScriptRun: (id: string, path: string) =>
     // Partial: a script running for the first time has a name and a
-    // `running` flag and nothing else yet.
-    request<Partial<ScriptResult> & { script: string; running: boolean }>(
+    // `running` flag and nothing else yet, plus `live`, what it has
+    // printed so far, while it runs.
+    request<Partial<ScriptResult> & { script: string; running: boolean; live?: ScriptLive }>(
       `/projects/${id}/scripts/last?path=${encodeURIComponent(path)}`,
     ),
   /** One figure the last run drew.  Stamped with the run so a rerun that

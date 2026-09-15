@@ -25,6 +25,7 @@ per plot is not the hundreds of cards this rework exists to remove.
 from __future__ import annotations
 
 import asyncio
+import codecs
 import json
 import os
 import re
@@ -32,6 +33,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from typing import Callable
 
 #: Where a script lives, and where its figure goes.  Both inside the
 #: project, both ordinary directories the writer can open.
@@ -115,6 +117,11 @@ def environment(state_dir: Path) -> dict[str, str]:
     env["MPLBACKEND"] = "Agg"
     # So a first run does not write a font cache into the writer's home.
     env["MPLCONFIGDIR"] = str(state_dir / "matplotlib")
+    # A Python child block-buffers stdout when it is a pipe, so a print
+    # followed by a long computation did not leave the child until it
+    # exited, and nothing could be shown while it ran.  The variable
+    # covers the script, the runner, and any Python the script starts.
+    env["PYTHONUNBUFFERED"] = "1"
     return env
 
 
@@ -142,8 +149,50 @@ def _clip(raw: bytes) -> tuple[str, bool]:
 RUNNER = Path(__file__).resolve().with_name("script_runner.py")
 
 
+async def _pump(
+    process: asyncio.subprocess.Process,
+    on_output: Callable[[str, str], None] | None,
+) -> tuple[bytes, bytes]:
+    """Read both pipes as they fill, and say what arrives while it does.
+
+    What `communicate()` did in one go at exit, done a chunk at a time:
+    each chunk under the clip is kept and handed to `on_output`, and past
+    the clip the reader keeps reading and throws away, because stopping
+    would fill the pipe and block the child until the timeout.  Chunks
+    rather than lines, since a script can print one line longer than the
+    reader's line limit; an incremental decoder per stream keeps a
+    multibyte character split across two chunks whole.
+    """
+    async def read(stream: asyncio.StreamReader | None, name: str) -> bytes:
+        if stream is None:
+            return b""
+        kept = bytearray()
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        while True:
+            chunk = await stream.read(8192)
+            if not chunk:
+                break
+            # One chunk past the clip is kept, so `_clip` can see that
+            # there was more and say so.
+            if len(kept) > OUTPUT_LIMIT:
+                continue
+            kept.extend(chunk)
+            if on_output is not None:
+                text = decoder.decode(chunk)
+                if text:
+                    on_output(name, text)
+        return bytes(kept)
+
+    out, err = await asyncio.gather(
+        read(process.stdout, "out"), read(process.stderr, "err"),
+    )
+    await process.wait()
+    return out, err
+
+
 async def run(
     root: Path, state_dir: Path, path: Path, capture: Path | None = None,
+    *, on_output: Callable[[str, str], None] | None = None,
 ) -> dict:
     """Run one script and say what happened, in a shape a model can act on.
 
@@ -152,6 +201,10 @@ async def run(
     directory and notes every `savefig`; the result then carries `figures`
     (their names, in order) and `saved` (the project-relative paths the
     script wrote, with anything outside the project left out).
+
+    `on_output(stream, text)` is called with each chunk of output as it
+    arrives, "out" or "err", up to the same clip the result carries, so
+    a pane can show what a script prints while it is still running.
     """
     (state_dir / "matplotlib").mkdir(parents=True, exist_ok=True)
     env = environment(state_dir)
@@ -181,7 +234,7 @@ async def run(
         return {"ok": False, "code": -1, "out": "", "err": str(error)}
 
     try:
-        out, err = await asyncio.wait_for(process.communicate(), TIMEOUT)
+        out, err = await asyncio.wait_for(_pump(process, on_output), TIMEOUT)
     except asyncio.CancelledError:
         # The task awaiting this run was cancelled, which is what a stop
         # button and a rerun of the same script both do.  Without this the

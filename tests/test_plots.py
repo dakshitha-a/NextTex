@@ -11,6 +11,7 @@ import asyncio
 import importlib.util
 import os
 import sys
+import time
 
 import pytest
 
@@ -334,3 +335,71 @@ def test_the_baseline_really_draws_a_pdf(tmp_path):
     assert "Drew figures/line.pdf" in said(result), said(result)
     drawn = subject.root / "figures" / "line.pdf"
     assert drawn.read_bytes().startswith(b"%PDF")
+
+
+# --- what a script prints reaches the caller while it runs ------------------
+
+def _stream(tmp_path, source: str, **kwargs):
+    script = tmp_path / "talker.py"
+    script.write_text(source, encoding="utf-8")
+    seen: list[tuple[str, str, float]] = []
+    started = time.monotonic()
+
+    def on_output(stream: str, text: str) -> None:
+        seen.append((stream, text, time.monotonic() - started))
+
+    result = asyncio.run(
+        plots.run(tmp_path, tmp_path / ".nexttex", script, on_output=on_output, **kwargs)
+    )
+    return result, seen, time.monotonic() - started
+
+
+def test_output_reaches_the_callback_in_order_and_whole(tmp_path):
+    result, seen, _ = _stream(tmp_path, "for i in range(50):\n    print(i)\n")
+    out = "".join(text for stream, text, _ in seen if stream == "out")
+    assert out == result["out"]
+    assert [int(n) for n in out.split()] == list(range(50))
+
+
+def test_a_line_arrives_before_the_script_ends(tmp_path):
+    """The child block-buffers stdout when it is a pipe, so a print followed
+    by a sleep did not leave it until exit.  PYTHONUNBUFFERED in the
+    environment is what makes this hold, and the print here has no flush
+    of its own on purpose."""
+    result, seen, total = _stream(
+        tmp_path, "import time\nprint('one')\ntime.sleep(1.0)\nprint('two')\n"
+    )
+    assert result["ok"] is True
+    first = next(at for stream, text, at in seen if "one" in text)
+    assert first < total - 0.8, "the first line waited for the script to end"
+
+
+def test_the_environment_says_unbuffered(tmp_path):
+    assert plots.environment(tmp_path)["PYTHONUNBUFFERED"] == "1"
+
+
+def test_the_callback_stops_at_the_clip_and_the_child_is_not_blocked(tmp_path):
+    """Past the clip the reader keeps reading and discards, because a full
+    pipe would block the child until the timeout; and the callback is
+    handed no more than the result carries."""
+    result, seen, _ = _stream(tmp_path, "print('x' * 200000)\n")
+    assert result["ok"] is True
+    assert result["clipped"] is True
+    assert len(result["out"]) == plots.OUTPUT_LIMIT
+    handed = sum(len(text) for stream, text, _ in seen if stream == "out")
+    assert handed <= plots.OUTPUT_LIMIT + 8192
+
+
+def test_a_script_that_never_returns_is_stopped_while_streaming(tmp_path, monkeypatch):
+    monkeypatch.setattr(plots, "TIMEOUT", 0.6)
+    result, seen, _ = _stream(tmp_path, "import time\nprint('going')\ntime.sleep(30)\n")
+    assert result["timeout"] is True
+    assert any("going" in text for _, text, _ in seen)
+
+
+def test_stderr_streams_apart_from_stdout(tmp_path):
+    result, seen, _ = _stream(
+        tmp_path, "import sys\nprint('out')\nprint('err', file=sys.stderr)\n"
+    )
+    assert [s for s, _, _ in seen if s == "err"]
+    assert result["err"].strip() == "err"

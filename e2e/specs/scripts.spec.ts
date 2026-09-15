@@ -216,6 +216,19 @@ test("what a script draws is in the pane", async ({ app, project, page }) => {
   await expect.poll(async () => figure.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(100);
 });
 
+test("what a script prints arrives while it is still running", async ({ app, project, page }) => {
+  // A script printing progress for ninety seconds showed nothing until it
+  // ended.  The first line is on screen while the sleep is still going,
+  // with no flush in the script: the child runs unbuffered.
+  await withScript({ app, project, page }, "import time\nprint('one')\ntime.sleep(2)\nprint('two')\n");
+  await page.getByTestId("run-script").click();
+  await expect(page.getByTestId("script-stdout")).toContainText("one", { timeout: 20_000 });
+  await expect(page.getByTestId("script-stdout")).not.toContainText("two");
+  await expect(page.getByTestId("script-outcome")).toHaveText("Running");
+  await expect(page.getByTestId("script-stdout")).toContainText("two", { timeout: 20_000 });
+  await expect(page.getByTestId("script-outcome")).toHaveText(/Ran in/, { timeout: 20_000 });
+});
+
 /** Colour for a script.
  *
  *  The Highlighting setting used to reach only the control sequences: a

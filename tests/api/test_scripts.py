@@ -126,7 +126,12 @@ def test_a_first_run_still_going_answers_its_name_and_nothing_it_did_yet(
             f"/api/projects/{opened['id']}/scripts/last", params={"path": path}
         )
         assert last.status_code == 200
-        assert last.json() == {"script": path, "running": True}
+        # `live` is what the run has printed so far, nested so a previous
+        # run's result can still travel beside it; empty here, since the
+        # script has printed nothing.
+        assert last.json() == {
+            "script": path, "running": True, "live": {"run": 1, "out": "", "err": ""},
+        }
     finally:
         client.post(f"/api/projects/{opened['id']}/scripts/stop", json={"path": path})
         with pytest.raises(BaseException):
@@ -259,3 +264,54 @@ def test_a_figure_outside_the_project_is_refused(client, opened, path):
         params={"path": path, "name": "figure-1.png"},
     )
     assert response.status_code in (400, 403)
+
+
+def test_output_is_streamed_between_start_and_done(client, opened, project_dir):
+    """A script that printed progress for ninety seconds showed nothing until
+    it ended.  What it prints is published as it arrives, between the two
+    frames that bracket the run, and the done frame carries the whole."""
+    path = script(project_dir, "talks.py",
+                  "import time\nprint('first')\ntime.sleep(0.4)\nprint('second')\n")
+    session, seen, original = spy_on(opened["id"])
+    try:
+        answer = client.post(f"/api/projects/{opened['id']}/scripts/run", json={"path": path})
+    finally:
+        session.events.publish = original
+    assert answer.status_code == 200
+    kinds = [e["type"] for e in seen if e["type"].startswith("script_")]
+    assert kinds[0] == "script_start"
+    assert kinds[-1] == "script_done"
+    outputs = [e for e in seen if e["type"] == "script_output"]
+    assert outputs, "nothing was streamed"
+    assert kinds.index("script_output") < kinds.index("script_done")
+    assert all(e["script"] == path and e["run"] == 1 for e in outputs)
+    streamed = "".join(e["text"] for e in outputs if e["stream"] == "out")
+    assert streamed == answer.json()["out"] == "first\nsecond\n"
+    # And the two prints arrived in two frames: the sleep between them is
+    # longer than the batching window, so streaming really happened.
+    assert len([e for e in outputs if e["stream"] == "out"]) >= 2
+
+
+def test_last_carries_what_has_been_printed_so_far(client, opened, project_dir):
+    path = script(project_dir, "partial.py",
+                  "import time\nprint('partial')\ntime.sleep(30)\n")
+    session, seen, original = spy_on(opened["id"])
+    future = client.portal.start_task_soon(session.scripts.run, path)
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not any(
+            e["type"] == "script_output" for e in seen
+        ):
+            time.sleep(0.02)
+        last = client.get(
+            f"/api/projects/{opened['id']}/scripts/last", params={"path": path}
+        )
+        assert last.json()["running"] is True
+        assert last.json()["live"] == {"run": 1, "out": "partial\n", "err": ""}
+    finally:
+        session.events.publish = original
+        client.portal.call(session.scripts.stop, path)
+        try:
+            future.result(timeout=5)
+        except Exception:
+            pass

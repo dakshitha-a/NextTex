@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import api from "../api";
 import type { ScriptResult } from "../api";
 import { RunIcon, StopIcon } from "../chrome";
@@ -48,7 +48,23 @@ export default function Script({
 
   const result = script?.result ?? null;
   const running = script?.running ?? false;
+  const live = script?.live ?? null;
   const label = useMemo(() => outcomeLabel(result, running), [result, running]);
+
+  // What the run has printed so far is appended as it arrives, and the
+  // body keeps the end in view unless the reader has scrolled up to read
+  // something earlier, in which case it is theirs.  A new run starts
+  // stuck to the end again.
+  const body = useRef<HTMLDivElement | null>(null);
+  const stuck = useRef(true);
+  useEffect(() => {
+    if (running) stuck.current = true;
+  }, [running, script?.path]);
+  useLayoutEffect(() => {
+    const element = body.current;
+    if (!element || !running || !stuck.current) return;
+    element.scrollTop = element.scrollHeight;
+  }, [live?.out, live?.err, running]);
 
   if (!script || !projectId) return null;
   const path = script.path;
@@ -109,7 +125,14 @@ export default function Script({
           {label}
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto bg-surround">
+      <div
+        className="min-h-0 flex-1 overflow-auto bg-surround"
+        ref={body}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          stuck.current = element.scrollHeight - element.scrollTop - element.clientHeight < 8;
+        }}
+      >
         {!result && !running ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">
@@ -127,10 +150,27 @@ export default function Script({
             </div>
           </div>
         ) : null}
-        {running && !result ? (
+        {running && !(live && (live.out || live.err)) ? (
           <p className="t-meta px-4 py-3 text-ink-3" role="status">Running {name}.</p>
         ) : null}
-        {result ? (
+        {running && live && (live.out || live.err) ? (
+          // The run so far.  The same test ids as the finished output, so
+          // a reader, or a spec, finds the text in the one place; the
+          // finished result's blocks below are held back while this is
+          // drawn so the two never show at once.
+          <div className="flex flex-col gap-4 px-4 py-4">
+            {live.out ? (
+              <pre
+                className="t-code-sm m-0 whitespace-pre-wrap break-words rounded-[3px] border border-line bg-surface px-3 py-2 text-ink"
+                data-testid="script-stdout"
+              >
+                {live.out.trimEnd()}
+              </pre>
+            ) : null}
+            {live.err ? <Stderr text={live.err} failed={false} /> : null}
+          </div>
+        ) : null}
+        {result && !running ? (
           <div className="flex flex-col gap-4 px-4 py-4">
             {script.changedByAgent ? (
               <div className="flex items-center gap-3 rounded-[3px] border border-line bg-surface px-3 py-2">

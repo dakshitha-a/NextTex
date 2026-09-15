@@ -1294,6 +1294,9 @@ export default function App() {
         path,
         running: true,
         result: held?.path === path ? held.result : null,
+        // The start frame brings the run's own number; until then an
+        // empty buffer, so the pane shows the run rather than the past.
+        live: held?.path === path && held.live ? held.live : { run: 0, out: "", err: "" },
         changedByAgent: false,
       },
       previewShowing: "script",
@@ -1302,10 +1305,10 @@ export default function App() {
       const result = await api.runScript(id, path);
       const now = get().script;
       if (now?.path !== path) return;
-      set({ script: { ...now, running: false, result, changedByAgent: false } });
+      set({ script: { ...now, running: false, result, live: null, changedByAgent: false } });
     } catch (problem: any) {
       const now = get().script;
-      if (now?.path === path) set({ script: { ...now, running: false } });
+      if (now?.path === path) set({ script: { ...now, running: false, live: null } });
       set({ error: problem.message });
     }
   }, []);
@@ -1454,7 +1457,7 @@ export default function App() {
       const held = get().script;
       if (held?.path !== path) {
         set({
-          script: { path, running: false, result: null, changedByAgent: false },
+          script: { path, running: false, result: null, live: null, changedByAgent: false },
           previewShowing: "script",
         });
         const id = get().projectId;
@@ -1465,7 +1468,12 @@ export default function App() {
               if (now?.path !== path) return;
               // A first run still going answers no result; the pane
               // shows it running and `script_done` brings the rest.
-              set({ script: { ...now, running: last.running, result: resultFrom(last, now.result) } });
+              set({ script: {
+                ...now,
+                running: last.running,
+                result: resultFrom(last, now.result),
+                live: last.running ? (last.live ?? null) : null,
+              } });
             },
             () => undefined,
           );

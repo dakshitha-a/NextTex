@@ -35,12 +35,6 @@ things go to be forgotten rather than a list anybody reads.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **A script's output is not streamed while it runs.** The pane shows
-      the result when the run ends, which fits the two minute bound and is
-      what the compile does with its log; a script printing progress for
-      ninety seconds shows nothing until then. Streaming needs a second
-      channel per run and a pane that appends, left until somebody's
-      script is that slow.
 - [ ] **A script never runs on its own.** Not on save and not after the
       agent edits it; the pane says the agent changed it and offers Run
       again. The agent's runs pass the permission fence with the script as

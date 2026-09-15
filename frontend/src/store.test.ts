@@ -190,7 +190,7 @@ describe("a script's run reaches the window looking at it", () => {
 
   test("a run of the script on the strip fills its tab, whoever ran it", () => {
     set({
-      script: { path: "scripts/fig.py", running: false, result: null, changedByAgent: false },
+      script: { path: "scripts/fig.py", running: false, result: null, live: null, changedByAgent: false },
       previewShowing: "document",
     });
     __receive({ type: "script_start", script: "scripts/fig.py", run: 2, by: "agent" });
@@ -203,16 +203,43 @@ describe("a script's run reaches the window looking at it", () => {
 
   test("a run of any other script is not this window's news", () => {
     set({
-      script: { path: "scripts/fig.py", running: false, result: null, changedByAgent: false },
+      script: { path: "scripts/fig.py", running: false, result: null, live: null, changedByAgent: false },
     });
     __receive(done("scripts/other.py"));
     expect(get().script?.result).toBeNull();
   });
 
+  test("output appends to the live run while it goes, and the done frame replaces it", () => {
+    // A script printing progress for ninety seconds showed nothing until
+    // it ended.  Frames append as they arrive; the done frame carries the
+    // whole result and clears the live buffer.
+    set({
+      script: { path: "scripts/fig.py", running: false, result: null, live: null, changedByAgent: false },
+    });
+    __receive({ type: "script_start", script: "scripts/fig.py", run: 2, by: "writer" });
+    __receive({ type: "script_output", script: "scripts/fig.py", run: 2, stream: "out", text: "one\n" });
+    __receive({ type: "script_output", script: "scripts/fig.py", run: 2, stream: "out", text: "two\n" });
+    __receive({ type: "script_output", script: "scripts/fig.py", run: 2, stream: "err", text: "warn\n" });
+    expect(get().script?.live).toEqual({ run: 2, out: "one\ntwo\n", err: "warn\n" });
+    __receive(done("scripts/fig.py"));
+    expect(get().script?.live).toBeNull();
+    expect(get().script?.result?.err).toBe("boom");
+  });
+
+  test("output for another script, or an older run, is not appended", () => {
+    set({
+      script: { path: "scripts/fig.py", running: false, result: null, live: null, changedByAgent: false },
+    });
+    __receive({ type: "script_start", script: "scripts/fig.py", run: 3, by: "writer" });
+    __receive({ type: "script_output", script: "scripts/other.py", run: 3, stream: "out", text: "no\n" });
+    __receive({ type: "script_output", script: "scripts/fig.py", run: 2, stream: "out", text: "late\n" });
+    expect(get().script?.live).toEqual({ run: 3, out: "", err: "" });
+  });
+
   test("the agent rewriting a script that failed here offers a rerun", () => {
     set({
       script: {
-        path: "scripts/fig.py", running: false, changedByAgent: false,
+        path: "scripts/fig.py", running: false, changedByAgent: false, live: null,
         result: { ...done("scripts/fig.py"), type: undefined } as any,
       },
     });
