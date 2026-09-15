@@ -68,7 +68,9 @@ things go to be forgotten rather than a list anybody reads.
       five second default, and passed on its retry in three seconds. The
       hash it waits on takes fifty milliseconds here, so the wait was
       somewhere else, on a machine running five browsers. Not reproduced
-      in isolation; if it recurs, trace it before widening the timeout.
+      in isolation, and not in five consecutive runs of the spec with
+      retries off during the backlog run; if it recurs, trace it before
+      widening the timeout.
 
 - [ ] **The bug report has no Windows event log section.** `server.err.log`
       covers a server that started; a launcher that never got that far
@@ -139,9 +141,12 @@ things go to be forgotten rather than a list anybody reads.
       loop, the path fence, the edits, the usage accounting. Whether OpenAI
       still returns these shapes is unproven, and there is no account here to
       find out with.
-- [ ] **The papers importer has never spoken to Crossref.** Fifty-four tests
-      cover the pipeline with the network and `pdftotext` stubbed. What no test
-      here can say is how a real Zotero library behaves.
+- [ ] **The papers importer has not been run over a real Zotero library.**
+      Fifty-four tests cover the pipeline with the network and `pdftotext`
+      stubbed. Crossref and doi.org were asked by hand during the backlog
+      run and answered in the shapes the code reads, and
+      `tests/test_papers_live.py` asks them again under `NEXTTEX_LIVE`;
+      what no test here can say is how a real library of PDFs behaves.
 - [ ] **Windows: no clean install on current master is on the record.** Four
       failures were found on a real Windows machine and fixed, the last in
       `db8c332`, but the verification run afterwards was never written down.
