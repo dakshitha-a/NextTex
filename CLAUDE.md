@@ -104,3 +104,28 @@ is room. A run that spans several issues or several commits publishes a
 tracker Artifact before its first commit and republishes it after every push,
 because sessions get interrupted and a current tracker is what makes the next
 one cheap.
+
+## A task given while a plan is running is an amendment to the plan
+
+Work here usually starts in plan mode, and the user usually gives new tasks
+while the plan is being executed. Those are the tasks that get dropped, so
+they are not side tasks. When a message asking for work arrives mid-plan:
+finish the tool call in flight, call `EnterPlanMode`, add the request to the
+plan file as its own item with an acceptance criterion and a note that the
+user raised it mid-run, re-validate the plan's order and dependencies
+against what is already done, `ExitPlanMode` for approval, then resume the
+item you were on. A message that only asks a question is answered inline
+and the plan continues; if the answer exposes a defect, the defect is an
+amendment.
+
+The plan file is the ledger. Every item carries a state, and a plan is
+reported finished only after its items have been checked against the git
+log, with nothing left unmarked. `.claude/hooks/plan_amendment.py` enforces
+the timing: `ExitPlanMode` writes a per-session marker under
+`.claude/plan-in-progress/`, every later message the user sends arrives
+with a reminder of the rule while the marker exists, a new session is told
+about any plan an earlier one left running, and
+`python3 .claude/hooks/plan_amendment.py done <session id>` removes the
+marker when the plan is complete. Plans are written to `.claude/plans/` in
+this checkout rather than the home directory, so the ledger sits beside the
+code it describes. Both directories are gitignored.
