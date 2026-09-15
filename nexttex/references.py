@@ -113,7 +113,9 @@ def entry_for(doi: str, existing: str) -> dict:
 
     raw = fetch.fetch_bibtex(clean)
     meta = fetch.fetch_metadata(clean)
-    key = fetch.make_key(meta)
+    parsed = fetch.parse_bib(raw)
+    fields = parsed[0]["fields"] if parsed else {}
+    key = fetch.make_key(meta, fields)
     taken = fetch.existing_keys(existing)
     if key in taken:
         suffix = ord("a")
@@ -124,7 +126,7 @@ def entry_for(doi: str, existing: str) -> dict:
         "added": True,
         "key": key,
         "doi": clean,
-        "title": (meta.get("title") or [""])[0] if meta else "",
+        "title": (meta.get("title") or [fields.get("title", "")])[0] if meta else fields.get("title", ""),
         "entry": fetch.tidy(raw, key, meta),
     }
 

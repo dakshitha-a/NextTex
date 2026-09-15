@@ -6494,3 +6494,27 @@ from, which is the sentence that was missing, and `navigation.spec.ts`
 opens a document in a subfolder that `\input`s a file beside it and
 double-clicks into that file, which proves the build, the log's paths
 and the synctex map all moved together.
+
+### A reference arrives from whoever holds its DOI, set for pdflatex
+
+`add_reference` asked Crossref and nothing else, so a DOI registered
+with DataCite, which is every arXiv preprint, every Zenodo record and
+most datasets, was refused, and the agent pasted two preprints in from a
+`curl` against `doi.org` by hand. And what Crossref did return carried a
+record's Unicode as it was: a Greek letter or an accented name in a
+title breaks pdflatex under any style that prints titles, and an
+acronym in a title is lowercased by a title-casing style. The agent
+cleaned nine entries by hand.
+
+Crossref is still asked first, because its record is the one the
+citation key and the checker are built on; on a 404 the request goes to
+`doi.org`, whose content negotiation forwards it to whichever agency
+holds the DOI, for the BibTeX and for a CSL JSON record folded into
+Crossref's shape, so the key, the title the panel shows and
+`check_references` all work for a preprint as for a paper. The entry is
+made safe on the way in: Greek letters become maths, accented Latin
+letters become the accent commands with the dotless i and j where they
+belong, a bare ampersand is escaped, and a run of capitals in a title is
+braced. Nothing already written as a command is touched, so a record
+that says `\textit{o}-nitrophenol` still does. `doi.org` was already in
+the README's list of what leaves this machine; the list is unchanged.
