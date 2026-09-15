@@ -31,8 +31,16 @@ export default function SignIn({
    *  and the only escape is to choose something. */
   onCancel?: () => void;
 }) {
-  const [choice, setChoice] = useState<Choice>(null);
+  const [choice, setChoiceOnly] = useState<Choice>(null);
   const [error, setError] = useState<string | null>(null);
+  // A move between the chooser and a provider's own panel takes the
+  // chooser's error with it: it belonged to the attempt just left, and
+  // it used to stay under whichever panel came next until another attempt
+  // overwrote it.
+  const setChoice = (next: Choice) => {
+    setError(null);
+    setChoiceOnly(next);
+  };
 
   // Escape, because somebody who opened this screen to look at the options
   // and decided to keep what they had should not have to choose something

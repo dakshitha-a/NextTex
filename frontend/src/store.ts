@@ -430,10 +430,15 @@ export function set(patch: Partial<State>) {
   commit();
 }
 
-/** Take one notice off the stack, leaving the others. */
+/** Take one notice off the stack, leaving the others.
+ *
+ *  `error` follows the stack: the last notice still standing, or nothing.
+ *  It used to keep the text of the notice just dismissed while others
+ *  remained, which nothing rendered, but a reader of `s.error` would have
+ *  been told about a failure the writer had already put away. */
 export function dismissNotice(id: number) {
   const left = state.notices.filter((notice) => notice.id !== id);
-  set({ notices: left, error: left.length ? state.error : null });
+  set({ notices: left, error: left.length ? left[left.length - 1].text : null });
 }
 
 export function get(): State {

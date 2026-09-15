@@ -44,6 +44,19 @@ describe("what the writer is told when something goes wrong", () => {
     expect(get().notices).toEqual([]);
   });
 
+  it("dismissing one leaves error saying what still stands", () => {
+    // `error` used to keep the dismissed text while other notices
+    // remained: nothing rendered it, but it was a latch on a failure the
+    // writer had put away.
+    set({ error: "first" });
+    set({ error: "second" });
+    const [first, second] = get().notices;
+    dismissNotice(second.id);
+    expect(get().error).toBe("first");
+    dismissNotice(first.id);
+    expect(get().error).toBeNull();
+  });
+
   it("clearing the error clears the stack", () => {
     set({ error: "a" });
     set({ error: "b" });

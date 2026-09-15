@@ -74,6 +74,29 @@ test("choosing to work alone gets straight to the projects", async ({ page }) =>
   await expect(page.getByText("How would you like to work?")).toHaveCount(0);
 });
 
+test("a refusal on the chooser does not follow the writer into a provider's panel", async ({
+  page,
+}) => {
+  // The chooser's own error, the one "On my own" can raise, stayed under
+  // whichever panel came next until another attempt overwrote it.  A
+  // refused route stands in for the failure, since the real one needs a
+  // server that cannot write its config.
+  await page.route("**/api/agent/provider", (route) =>
+    route.fulfill({ status: 500, contentType: "application/json",
+                    body: JSON.stringify({ detail: "the config could not be written" }) }),
+  );
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByRole("button", { name: /On my own/ }).click();
+  await expect(page.getByText(/could not be written/)).toBeVisible();
+  await page.getByRole("button", { name: /With ChatGPT/ }).click();
+  await expect(page.getByTestId("openai-key")).toBeVisible();
+  await expect(page.getByText(/could not be written/)).toHaveCount(0);
+  // And back out with Escape, still without it.
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("How would you like to work?")).toBeVisible();
+  await expect(page.getByText(/could not be written/)).toHaveCount(0);
+});
+
 test("an OpenAI key is asked for as a key, not dressed up as a sign-in", async ({
   page,
 }) => {

@@ -132,17 +132,14 @@ things go to be forgotten rather than a list anybody reads.
       it. Closing it properly needs `session_for` to be able to wait, and it is
       called synchronously from most of the routes in `server/main.py`.
 
-- [ ] **Three small latches left standing on purpose, from the projects screen
-      sweep.** `dismissNotice` in `frontend/src/store.ts` leaves `state.error`
-      holding the text of the notice just dismissed, which is harmless because
-      nothing in the app reads `s.error` directly and the notice list is the
-      thing that gets rendered; fixing it means deciding what `error` means
-      once the list exists, which is a larger question than the symptom.
-      `frontend/src/panes/SignIn.tsx` keeps its top-level error across a move
-      from the provider chooser into a provider's own panel, which is cosmetic
-      and overwritten by the next attempt. And `PasswordNudge`'s persisted
-      dismissal has no interface to undo it, which is deliberate and argued in
-      that file's own header, with the action still reachable behind the cog.
+- [ ] **One small latch left standing on purpose, from the projects screen
+      sweep.** `PasswordNudge`'s persisted dismissal has no interface to undo
+      it, which is deliberate and argued in that file's own header, with the
+      action still reachable behind the cog. The two beside it, `error`
+      keeping a dismissed notice's text and the sign-in screen carrying its
+      chooser error into a provider's panel, are fixed: `error` now names
+      the last notice still standing, which is what it means once a list
+      exists.
 
 ### Never run against the real thing
 
