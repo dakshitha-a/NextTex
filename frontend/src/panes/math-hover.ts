@@ -12,6 +12,7 @@ import { hoverTooltip, type EditorView, type Tooltip } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
 import { citationFor, inputTarget, labelTarget, linkAt } from "./latex-links";
+import { shortcut } from "../keys";
 
 type Katex = typeof import("katex");
 let katex: Katex | null = null;
@@ -314,7 +315,7 @@ function linkTooltip(
       if (follow) {
         const how = document.createElement("div");
         how.className = "nx-link-hint";
-        how.textContent = mac() ? "Cmd-click to go there" : "Ctrl-click to go there";
+        how.textContent = `${shortcut("Mod-click").both} to go there`;
         dom.append(how);
       }
       return { dom };

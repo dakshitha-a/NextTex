@@ -1,5 +1,6 @@
 import { useStore } from "../store";
 import { agentName, type Provider } from "../agent-name";
+import { shortcut } from "../keys";
 
 /** The way to the agent, in one place at every width.
  *
@@ -80,8 +81,8 @@ export default function AgentButton({
       style={{ right, bottom: 34 }}
       data-testid={`agent-button-${name.toLowerCase()}`}
       aria-expanded={open}
-      aria-label={open ? `Hide ${name}` : `Show ${name} (Ctrl/Cmd-Alt-A)`}
-      title={open ? `Hide ${name}` : `Show ${name} (Ctrl/Cmd-Alt-A)`}
+      aria-label={open ? `Hide ${name}` : `Show ${name} (${shortcut("Mod-Alt-A").both})`}
+      title={open ? `Hide ${name}` : `Show ${name} (${shortcut("Mod-Alt-A").both})`}
       onClick={onToggle}
     >
       <span className="relative flex items-center text-pen">
