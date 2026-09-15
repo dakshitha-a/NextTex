@@ -1396,3 +1396,27 @@ def test_the_windows_update_log_keeps_what_the_programs_said():
     run = text[text.index("function Run"):text.index("function Get-ServerPort")]
     assert "Write-Host" in run, "native output never reaches the transcript"
     assert "ForEach-Object" in run
+
+
+def test_the_token_is_printed_to_a_terminal_and_never_to_a_log():
+    """The server printed its token URL at every start, so server.log on
+    macOS and Windows and the journal on Linux held it in clear for the
+    life of the log, and the bug report had to redact it.  A person at a
+    terminal still gets the link; a log gets the address and the command
+    that prints the link on request."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("nexttex_run", ROOT / "server" / "run.py")
+    run = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run)
+
+    urls = ["http://127.0.0.1:8450", "https://100.64.0.1:8450"]
+    at_terminal = run.banner(urls, "SECRET", to_terminal=True)
+    assert at_terminal == [
+        "  http://127.0.0.1:8450/?token=SECRET",
+        "  https://100.64.0.1:8450/?token=SECRET",
+    ]
+    logged = run.banner(urls, "SECRET", to_terminal=False)
+    assert all("SECRET" not in line for line in logged)
+    assert all("--print-url" in line for line in logged)
+    assert logged[0].startswith("  http://127.0.0.1:8450/")

@@ -240,7 +240,8 @@ beside the install log, so a server that will not start has left its last
 words there whichever way it was started.
 
 **Any platform.** To print the URL and token again, which is the way back in
-if you have forgotten the password:
+if you have forgotten the password (a server started as a service prints
+its address to its log and never the token, which is what this is for):
 
 ```bash
 .venv/bin/python server/run.py --print-url

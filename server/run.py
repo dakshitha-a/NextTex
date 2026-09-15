@@ -120,14 +120,32 @@ async def serve(settings: Settings) -> None:
         raise SystemExit(2)
 
     print("\nNextTex")
-    for url in urls:
-        print(f"  {url}/?token={settings.token}")
+    for line in banner(urls, settings.token, sys.stdout.isatty()):
+        print(line)
     print()
 
     # One loop, both sockets.  If either fails to bind, the whole thing
     # stops: a half-started server that silently drops the address the user
     # actually types is worse than not starting.
     await asyncio.gather(*(server.serve() for server in servers))
+
+
+def banner(urls: list[str], token: str, to_terminal: bool) -> list[str]:
+    """What a starting server says about where it is.
+
+    The token goes to a terminal and nowhere else.  A service's stdout is
+    server.log on macOS and Windows and the journal on Linux, and the
+    token printed there sat in clear for the life of the log, which the
+    bug report then had to redact.  A person at a terminal still gets the
+    link; a log gets the address and the command that prints the link on
+    request.
+    """
+    if to_terminal:
+        return [f"  {url}/?token={token}" for url in urls]
+    return [
+        f"  {url}/  (run server/run.py --print-url for the link with its token)"
+        for url in urls
+    ]
 
 
 def _log_to_state() -> None:
