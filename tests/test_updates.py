@@ -57,6 +57,14 @@ def test_a_commit_touching_only_docs_changes_nothing():
     assert updates.classify(["docs/design.md", "README.md"]) == ("neither", False)
 
 
+def test_a_commit_touching_the_agents_configuration_changes_nothing():
+    """`CLAUDE.md` and `.claude/` are read by the agent that develops NextTex
+    and by nothing a writer runs, so a commit to them used to earn an "app"
+    line in the update footer for a program that had not changed."""
+    assert updates.classify(["CLAUDE.md", ".claude/settings.json"]) == ("neither", False)
+    assert updates.classify([".claude/hooks/plan_amendment.py"]) == ("neither", False)
+
+
 def test_a_commit_touching_the_server_changes_the_app():
     assert updates.classify(["server/main.py"]) == ("app", False)
     assert updates.classify(["nexttex/compile.py", "docs/x.md"]) == ("app", False)
