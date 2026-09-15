@@ -229,6 +229,21 @@ test("what a script prints arrives while it is still running", async ({ app, pro
   await expect(page.getByTestId("script-outcome")).toHaveText(/Ran in/, { timeout: 20_000 });
 });
 
+test("the agent can run a script by name, and the pane follows its run", async ({ app, project, page }) => {
+  // The pane's Run was the writer's; the agent could only rewrite a script
+  // to run it.  The scripted stand-in runs hello.py through the session's
+  // runner the way the real tool does, so the tab and the output arrive
+  // here as they do for a run from the source pane.
+  await withScript({ app, project, page });
+  const composer = page.locator("textarea");
+  await composer.click();
+  await composer.fill("#script:rerun\nDraw it again.");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("Ran a script")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("script-tab-scripts/hello.py")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("script-stdout")).toContainText("hello world", { timeout: 20_000 });
+});
+
 /** Colour for a script.
  *
  *  The Highlighting setting used to reach only the control sequences: a

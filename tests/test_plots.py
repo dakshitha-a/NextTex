@@ -403,3 +403,53 @@ def test_stderr_streams_apart_from_stdout(tmp_path):
     )
     assert [s for s, _, _ in seen if s == "err"]
     assert result["err"].strip() == "err"
+
+
+# --- rerunning a script by name -----------------------------------------------
+
+def rerun(subject, **args):
+    return asyncio.run(subject.run_script_tool(args))
+
+
+def test_a_script_already_there_can_be_rerun_by_name_without_being_rewritten(tmp_path):
+    """The writer's Run button had this and the agent did not: re-drawing
+    a figure after the data changed meant rewriting the script to run it."""
+    subject = agent(tmp_path)
+    plot(subject, name="counts", script="print('drawn once')\n")
+    script = subject.root / "scripts" / "counts.py"
+    before = script.read_text(encoding="utf-8")
+    script.write_text("print('edited by the writer')\n", encoding="utf-8")
+    result = rerun(subject, name="counts")
+    assert "Ran scripts/counts.py" in said(result)
+    assert "edited by the writer" in said(result)
+    assert script.read_text(encoding="utf-8") != before, "the tool rewrote the file"
+
+
+def test_rerunning_goes_through_the_sessions_runner_when_there_is_one(tmp_path):
+    subject = agent(tmp_path)
+    plot(subject, name="counts", script="print(1)\n")
+    ran: list = []
+
+    async def runner(target):
+        ran.append(target)
+        return {"ok": True, "code": 0, "out": "", "err": "", "figures": ["figure-1.png"], "saved": ["figures/a.pdf"]}
+
+    subject.run_script = runner
+    result = rerun(subject, name="counts")
+    assert ran == [subject.root / "scripts" / "counts.py"]
+    assert "1 figure(s)" in said(result) and "figures/a.pdf" in said(result)
+
+
+@pytest.mark.parametrize("name", ["../../evil", "/etc/passwd", "a/b", "", "nosuch"])
+def test_a_rerun_refuses_a_bad_or_missing_name(tmp_path, name):
+    subject = agent(tmp_path)
+    text = said(rerun(subject, name=name))
+    assert "Ran " not in text
+    if name == "nosuch":
+        assert "There is no scripts/nosuch.py" in text
+
+
+def test_a_failing_rerun_reports_the_failure(tmp_path):
+    subject = agent(tmp_path)
+    plot(subject, name="bad", script="raise SystemExit(3)\n")
+    assert "failed (exit 3)" in said(rerun(subject, name="bad"))

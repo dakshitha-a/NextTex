@@ -34,6 +34,7 @@ racing it through a side channel.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -298,6 +299,10 @@ How to work here:
 - Match the document's existing conventions -- its macros, its citation
   commands, how its figures and tables are set up. Read a neighbouring
   section before adding to one.
+- A figure is a script in scripts/ that draws it. run_plot_script writes
+  one and runs it; run_script runs one that is already there, by name,
+  without changing it, which is how a figure is re-drawn after the data
+  or the style sheet changed, or after the writer edited the script.
 - Never invent a citation. Use find_papers to get real ones and
   add_reference to add them from the publisher's own record. If you cannot
   verify a source exists, say so rather than producing a plausible key.
@@ -704,7 +709,36 @@ class ProjectAgent:
             except (OSError, ValueError, TypeError):
                 return ""
             return f"{self._PATH_VERB.get(tool_name, 'use')}:{target}"
+        if tool_name in ("mcp__nexttex__run_plot_script", "mcp__nexttex__run_script"):
+            # The script's text, not the verb.  The bare tool name was the
+            # rule, so one "always" on a card showing one script let every
+            # later script run silently, while the agent's Write into
+            # scripts/ passed the middle position without a card: the hole
+            # was the whole of it.  The digest of what the card showed is
+            # what the writer agreed to, and exactly that.
+            text = self._script_text(tool_name, data)
+            if not text:
+                return ""
+            return f"{tool_name}:{hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]}"
+        if tool_name == "mcp__nexttex__install_package":
+            name = str(data.get("name") or "").strip()
+            return f"install:{name}" if name else ""
         return tool_name
+
+    def _script_text(self, tool_name: str, data: dict) -> str:
+        """The Python a script tool would run, as the card shows it."""
+        if tool_name == "mcp__nexttex__run_plot_script":
+            return str(data.get("script") or "")
+        from . import plots
+
+        name = str(data.get("name") or "").strip()
+        target = plots.script_path(self.root, name) if name else None
+        if target is None or not self._inside_project(str(target)):
+            return ""
+        try:
+            return target.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return ""
 
     def _memo_for(self, tool_name: str, data: dict) -> str:
         """What an "always" answer remembers, which is not always the rule.
@@ -770,7 +804,7 @@ class ProjectAgent:
             # pip fetches from PyPI and runs what it fetches, so this asks
             # wherever the network asks.
             return "network"
-        if tool_name == "mcp__nexttex__run_plot_script":
+        if tool_name in ("mcp__nexttex__run_plot_script", "mcp__nexttex__run_script"):
             # Not "network", because a plot script usually reaches nothing.
             # "script" is its own answer so the card can say what it is:
             # this is the tool that runs code, and the honest thing to put
@@ -887,6 +921,20 @@ class ProjectAgent:
                                "can: read files, write them, and reach the "
                                "network. It is saved in scripts/ either way, "
                                "so you can read it again afterwards.",
+                "reason": self._reason(why, ""),
+            }
+        if tool_name == "mcp__nexttex__run_script":
+            name = str(data.get("name") or "")
+            return {
+                "headline": f"Run scripts/{name}.py",
+                # What is on disk now, since that is what runs: the card
+                # shows the code and not a name for it.
+                "detail": self._script_text(tool_name, data)
+                          or "(the script could not be read)",
+                "consequence": "This is Python, so it can do anything Python "
+                               "can: read files, write them, and reach the "
+                               "network. Nothing is rewritten; the file runs "
+                               "as it is.",
                 "reason": self._reason(why, ""),
             }
         if tool_name == "mcp__nexttex__install_package":
@@ -1029,6 +1077,7 @@ class ProjectAgent:
 
     _SCRIPT_TOOLS = frozenset({
         "mcp__nexttex__run_plot_script",
+        "mcp__nexttex__run_script",
         "mcp__nexttex__install_package",
     })
     _WRITE_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
@@ -1626,6 +1675,18 @@ class ProjectAgent:
             return await self.plot_tool(args)
 
         @tool(
+            "run_script",
+            "Run a script already in the project's scripts/ folder, by name "
+            "and without changing it, and report what it printed, drew and "
+            "saved. Use it to re-draw a figure after the data or the style "
+            "sheet changed, or to run a script the writer edited; use "
+            "run_plot_script when the script itself needs writing.",
+            {"name": str},
+        )
+        async def run_script(args: dict) -> dict:
+            return await self.run_script_tool(args)
+
+        @tool(
             "install_package",
             "Install one Python package, when run_plot_script has said a "
             "module is missing. Ask the writer in your reply before you call "
@@ -1841,7 +1902,7 @@ class ProjectAgent:
             tools=[
                 editor_state, compile_diagnostics, compile_document,
                 insert_at_cursor, insert_figure, insert_table,
-                replace_range, run_plot_script, install_package, goto,
+                replace_range, run_plot_script, run_script, install_package, goto,
                 show_page,
                 search_library, find_papers, add_reference, check_references,
                 remember,
@@ -2120,6 +2181,57 @@ class ProjectAgent:
             + (f"\n\n{said}" if said else "")
             + note
         )
+
+    async def run_script_tool(self, args: dict) -> dict:
+        """Run a script that is already there, by name, and say what it did.
+
+        The half of `plot_tool` after the write, on its own: the writer's
+        Run button had this and the agent did not, so re-drawing a figure
+        meant rewriting the script to run it.
+        """
+        from . import plots
+
+        name = str(args.get("name", "")).strip()
+        if not name:
+            return self._text("Which script? Give its name, without the .py.")
+        target = plots.script_path(self.root, name)
+        if target is None:
+            return self._text(
+                f"{name} is not a script name: letters, digits, dashes and "
+                "underscores, without the .py."
+            )
+        if not self._inside_project(str(target)):
+            return self._text(f"{name} is outside this project.")
+        if not target.is_file():
+            return self._text(
+                f"There is no {self._display(target)}. run_plot_script writes "
+                "a new one."
+            )
+        if self.run_script is not None:
+            result = await self.run_script(target)
+        else:
+            result = await plots.run(self.root, self.state_dir, target)
+        if result.get("missing"):
+            return self._text(
+                f"{result['missing']} is not installed, so the script could "
+                f"not run. Ask the writer whether to install it, and use "
+                f"install_package if they say yes."
+            )
+        if not result["ok"]:
+            tail = (result.get("err") or result.get("out") or "").strip()
+            return self._text(f"The script failed (exit {result['code']}).\n\n{tail}")
+        lines = [f"Ran {self._display(target)}."]
+        figures = result.get("figures") or []
+        saved = result.get("saved") or []
+        if figures:
+            lines.append(f"It drew {len(figures)} figure(s), shown in the writer's pane.")
+        if saved:
+            lines.append("It wrote " + ", ".join(saved) + ".")
+        said = (result.get("out") or "").strip()
+        if said:
+            lines.append("")
+            lines.append(said)
+        return self._text("\n".join(lines))
 
     async def install_tool(self, args: dict) -> dict:
         """Install one package, when a plot has said one is missing."""

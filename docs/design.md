@@ -6588,3 +6588,26 @@ next run. A second window opening the script mid-run is handed what has
 been printed so far beside the last result, and the done frame replaces
 the live text with the whole. Nothing changed about what is kept: the
 result on disk is what it was.
+
+### The agent can run a script by name
+
+The pane's Run was the writer's and the agent could only rewrite a
+script to run it, so re-drawing a figure after the data changed meant
+`run_plot_script` writing the same file again. `run_script` runs a
+script already in `scripts/` by name and reports what it printed, drew
+and saved, and the pane follows the run as it follows any other. It is
+fenced exactly as writing one is, asked at the first position and the
+middle one with the code on disk as the card's text, silent only at
+the last, and the record row reads *Ran a script*.
+
+Looking at the fence for it found a hole older than the tool. An
+"always" on a script card was remembered as the bare tool name, so one
+yes on one script let every later script run silently, while the
+agent's own `Write` into `scripts/` passes the middle position without
+a card: the two together were a way to run anything unasked. A script
+tool's rule is the digest of the code the card showed now, and a
+package install's is the package's name, so a yes covers exactly what
+was shown and nothing shown later. OpenAI's provider gets neither
+script tool: it puts no card up at all, because everything it can do is
+confined by construction, and a tool that runs Python needs the card
+before it can have the tool. That is in the tracker with its reason.

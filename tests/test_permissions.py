@@ -1071,3 +1071,64 @@ def test_installing_a_package_keeps_the_sentence_that_matters(tmp_path):
 
     assert "PyPI" in card["consequence"]
     assert card["reason"]
+
+
+def test_rerunning_a_script_by_name_is_fenced_like_writing_one(tmp_path):
+    """`run_script` runs Python already in scripts/ without rewriting it.
+    It has the reach `run_plot_script` has, so it is asked about at the
+    first position and at the middle one, and silent only at the last."""
+    fence = agent(tmp_path)
+    (fence.root / "scripts").mkdir()
+    (fence.root / "scripts" / "fig.py").write_text("print(1)\n", encoding="utf-8")
+    fence._ask_user = _refuse
+    assert decision(hook(fence, "mcp__nexttex__run_script", {"name": "fig"})) == "deny"
+    fence.set_mode("project")
+    assert decision(hook(fence, "mcp__nexttex__run_script", {"name": "fig"})) == "deny"
+    fence.set_mode("all")
+    assert decision(hook(fence, "mcp__nexttex__run_script", {"name": "fig"})) == "allow"
+
+
+def test_an_always_on_one_script_does_not_cover_a_different_script(tmp_path):
+    """The bare tool name used to be the rule, so one "always" on a card
+    showing one script let every later script run silently, while the
+    agent's Write into scripts/ passed the middle position without a card.
+    The rule is the digest of the code the card showed."""
+    fence = agent(tmp_path)
+    first = fence._rule_for("mcp__nexttex__run_plot_script", {"script": "print(1)\n"})
+    second = fence._rule_for("mcp__nexttex__run_plot_script", {"script": "import os; os.remove('x')\n"})
+    assert first.startswith("mcp__nexttex__run_plot_script:") and first != second
+    assert fence._rule_for("mcp__nexttex__run_plot_script", {"script": ""}) == ""
+    # And remembering the first covers exactly the first, through the
+    # question the card path asks before it draws anything.
+    fence._always_allow.add(first)
+    assert fence.already_answered("mcp__nexttex__run_plot_script", {"script": "print(1)\n"}) == "always"
+    assert fence.already_answered("mcp__nexttex__run_plot_script",
+                                  {"script": "import os; os.remove('x')\n"}) == ""
+
+    # The same for a script run by name: the rule is what is on disk, so a
+    # rewrite between two runs is a different agreement.
+    (fence.root / "scripts").mkdir()
+    script = fence.root / "scripts" / "fig.py"
+    script.write_text("print(1)\n", encoding="utf-8")
+    rule = fence._rule_for("mcp__nexttex__run_script", {"name": "fig"})
+    assert rule.startswith("mcp__nexttex__run_script:")
+    fence._always_allow.add(rule)
+    assert fence.already_answered("mcp__nexttex__run_script", {"name": "fig"}) == "always"
+    script.write_text("import os\n", encoding="utf-8")
+    assert fence.already_answered("mcp__nexttex__run_script", {"name": "fig"}) == ""
+
+
+def test_an_always_on_installing_one_package_does_not_cover_another(tmp_path):
+    fence = agent(tmp_path)
+    assert fence._rule_for("mcp__nexttex__install_package", {"name": "seaborn"}) == "install:seaborn"
+    assert fence._rule_for("mcp__nexttex__install_package", {"name": "numpy"}) == "install:numpy"
+    assert fence._rule_for("mcp__nexttex__install_package", {}) == ""
+
+
+def test_the_card_for_a_named_script_shows_the_code_on_disk(tmp_path):
+    fence = agent(tmp_path)
+    (fence.root / "scripts").mkdir()
+    (fence.root / "scripts" / "fig.py").write_text("print('the code')\n", encoding="utf-8")
+    card = fence._card_for("mcp__nexttex__run_script", {"name": "fig"})
+    assert card["headline"] == "Run scripts/fig.py"
+    assert card["detail"] == "print('the code')\n"

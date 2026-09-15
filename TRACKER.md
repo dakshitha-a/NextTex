@@ -41,10 +41,12 @@ things go to be forgotten rather than a list anybody reads.
       the card's text, and a rerun from the pane of code the agent just
       wrote would not, so an automatic rerun would be the fence's one
       hole. Left deliberately.
-- [ ] **The agent has no `run_script` tool** that reruns a script by name
-      without rewriting it, and the OpenAI provider has no plot tools at
-      all, which predates this run. The pane's Run is the writer's; the
-      agent rewrites and reruns through `run_plot_script`.
+- [ ] **The OpenAI provider has no script tools.** It puts no permission
+      card up at all: everything it can do is confined by construction, and
+      a tool that runs Python needs the card before it can have the tool.
+      Parity is the card machinery on that provider, not a tool entry, and
+      it is a piece of work with a design in it. The Claude provider has
+      `run_script` since the backlog run.
 - [ ] **Captured figures are PNG only.** `plt.show()` is kept at 150 dpi;
       a figure saved through the seeded helper is a PDF in `figures/` and
       opens in the viewer, so the vector copy exists where it matters.

@@ -290,9 +290,9 @@ class OpenAIAgent:
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
         show_page: Callable[[str, int], Any] | None = None,
+        run_script: Callable[[Path], Any] | None = None,
         model: str | None = None,
         api_key: str = "",
-        **_ignored: Any,
     ):
         self.root = project_root.resolve()
         self.state_dir = state_dir
@@ -309,6 +309,10 @@ class OpenAIAgent:
         self.on_edit = on_edit
         self.reveal = reveal
         self.show_page = show_page
+        #: Accepted so the session can hand every provider the same
+        #: callbacks, and unused: this provider puts no card up, and a tool
+        #: that runs Python needs one.  See the tracker.
+        self.run_script = run_script
         self.model = model or DEFAULT_MODEL
         self.api_key = api_key
 
