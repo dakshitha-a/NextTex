@@ -37,6 +37,7 @@ from server.collab.sync import SyncHub
 from server.transcript import Transcript
 from nexttex.project import (
     IGNORED_DIRS, PreviewList, Project, guess_document, is_ours,
+    under_ignored_directory,
 )
 
 log = logging.getLogger("nexttex.session")
@@ -366,7 +367,9 @@ class ProjectSession:
             return True
         if self.project.build_dir.name in parts:
             return True
-        return any(part in IGNORED_DIRS or is_ours(part) for part in parts)
+        if any(part in IGNORED_DIRS or is_ours(part) for part in parts):
+            return True
+        return under_ignored_directory(self.project.root, Path(*parts))
 
     # -- documents ---------------------------------------------------------
     def _register(self, relative: str) -> DocumentState:

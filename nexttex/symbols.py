@@ -17,6 +17,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .project import ignored_directory
+
 LABEL = re.compile(r"\\label\s*\{([^}]{1,120})\}")
 NEWCOMMAND = re.compile(
     r"\\(?:new|renew|provide)command\*?\s*\{?\\([a-zA-Z@]+)\}?\s*"
@@ -30,11 +32,11 @@ BIB_FIELD = re.compile(r"^\s*(\w+)\s*=\s*[{\"](.*?)[}\"]\s*,?\s*$", re.MULTILINE
 TEX_SUFFIXES = {".tex", ".ltx", ".sty", ".cls"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".pdf", ".eps", ".svg"}
 
-# Directories worth neither walking into nor completing from.  Pruned during
-# the walk rather than filtered afterwards: on a thesis with a .git and a
-# node_modules, descending into them and discarding the results is most of
-# the cost of a scan.
-IGNORED_DIRS = {".git", ".nexttex", "__pycache__", "node_modules", ".venv"}
+# Directories worth neither walking into nor completing from are pruned
+# during the walk rather than filtered afterwards: on a thesis with a .git
+# and a node_modules, descending into them and discarding the results is
+# most of the cost of a scan.  The rule is the project's own, so the scan
+# and the file tree agree about what is machinery.
 
 # What a change to actually means the completions are out of date.  The
 # build directory is excluded from the walk entirely, which is why this can
@@ -53,7 +55,7 @@ def walk_project(
         here = Path(parent)
         dirnames[:] = sorted(
             name for name in dirnames
-            if name not in IGNORED_DIRS
+            if not ignored_directory(here / name)
             and not (build_dir is not None and here / name == build_dir)
         )
         for name in sorted(filenames):

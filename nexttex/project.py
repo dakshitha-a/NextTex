@@ -85,8 +85,40 @@ def kind_of(name: str) -> str:
 # one: a LaTeX build directory mirrors the whole chapter tree in .aux files.
 IGNORED_DIRS = {
     ".git", ".svn", "__pycache__", "node_modules", ".venv", "venv",
-    ".ipynb_checkpoints", ".nexttex", ".DS_Store",
+    "site-packages", ".ipynb_checkpoints", ".nexttex", ".DS_Store",
 }
+
+#: The file every Python virtual environment carries at its top, whatever
+#: the environment is called.  `env`, `.env`, `myenv` are all plausible
+#: names for a folder of a writer's own, so the name is not the rule; the
+#: marker is.
+VENV_MARKER = "pyvenv.cfg"
+
+
+def ignored_directory(path: Path) -> bool:
+    """Whether a directory is machinery rather than the writer's work.
+
+    By name for the well known ones, and by the `pyvenv.cfg` marker for a
+    virtual environment under any name: a project with a bare environment
+    folder inside it would otherwise adopt every `.py` in it as a text
+    file, up to the two megabyte bound each, and watch them all.
+    """
+    if path.name in IGNORED_DIRS:
+        return True
+    try:
+        return (path / VENV_MARKER).is_file()
+    except OSError:
+        return False
+
+
+def under_ignored_directory(root: Path, relative: Path) -> bool:
+    """Whether any directory above a project-relative path is ignored."""
+    here = root
+    for part in relative.parts[:-1]:
+        here = here / part
+        if ignored_directory(here):
+            return True
+    return False
 
 # Individual files that are NextTex's own machinery rather than the user's
 # work. The preview stand-in in particular is written and rewritten on every
@@ -382,7 +414,7 @@ class Project:
     # -- the file tree --------------------------------------------------
     def _excluded(self, path: Path) -> bool:
         name = path.name
-        if name in IGNORED_DIRS or is_ours(name):
+        if ignored_directory(path) or is_ours(name):
             return True
         if name in set(self.config.exclude):
             return True
@@ -640,7 +672,7 @@ def guess_document(root: Path) -> str | None:
     """
     candidates: list[tuple[int, str]] = []
     for path in sorted(root.rglob("*.tex")):
-        if any(part in IGNORED_DIRS for part in path.parts):
+        if under_ignored_directory(root, path.relative_to(root)):
             continue
         if is_ours(path.name):
             continue

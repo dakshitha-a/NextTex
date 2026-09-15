@@ -63,7 +63,7 @@ from nexttex.context import KINDS, MEMORY_MAX_CHARS
 from nexttex.paths import state_home
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
-    is_ours, kind_of,
+    is_ours, kind_of, under_ignored_directory,
 )
 from nexttex.symbols import walk_project
 from nexttex import deps, lint_explain, search, updates
@@ -247,6 +247,11 @@ async def _watch_projects() -> None:
                         if rel.parts and rel.parts[0] in {
                             session.project.config.build_dir, ".nexttex", ".git"
                         }:
+                            continue
+                        # And whatever the tree would not show: a virtual
+                        # environment inside the project churns thousands
+                        # of files that are nobody's writing.
+                        if under_ignored_directory(root, rel):
                             continue
                         if is_ours(path.name) or path.suffix in {
                             ".nexttex-tmp", ".part", ".swp"
