@@ -1,5 +1,7 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
+import type { Instance } from "../server";
+import { landed } from "../typing";
 
 /** The conversation panel, driven by a scripted stand-in.
  *
@@ -881,14 +883,72 @@ test("a distillation the agent writes clears the read-these-now marker", async (
   await expect(tab.getByRole("button", { name: "Read these now" })).toHaveCount(0, { timeout: 15_000 });
 });
 
-/** The row covers no selected text, wherever the selection is. */
-async function selectedLineBoxes(tab: Page): Promise<{ first: DOMRect; last: DOMRect }> {
+/** The row covers no selected text, wherever the selection is.
+ *
+ *  The oracle is the `.cm-line` element under the selection, which is the
+ *  whole logical line however many rows it wraps to, rather than the
+ *  selection's own highlight, which is one visual row: the row was clear
+ *  of the highlight and on the paragraph it belonged to. */
+async function selectedLineBlocks(tab: Page): Promise<{ first: DOMRect; last: DOMRect }> {
   return tab.evaluate(() => {
-    const layers = [...document.querySelectorAll(".cm-selectionBackground")] as HTMLElement[];
-    const boxes = layers.map((el) => el.getBoundingClientRect()).filter((b) => b.height > 0);
-    boxes.sort((a, b) => a.top - b.top);
-    return { first: boxes[0].toJSON(), last: boxes[boxes.length - 1].toJSON() };
+    const marks = [...document.querySelectorAll(".cm-selectionBackground")]
+      .map((el) => el.getBoundingClientRect())
+      .filter((b) => b.height > 0);
+    const lines = [...document.querySelectorAll(".cm-line")]
+      .map((el) => el.getBoundingClientRect())
+      .filter((line) => marks.some((m) => m.bottom > line.top + 1 && m.top < line.bottom - 1));
+    lines.sort((a, b) => a.top - b.top);
+    return { first: lines[0].toJSON(), last: lines[lines.length - 1].toJSON() };
   });
+}
+
+/** True when the row's box covers none of the selected lines. */
+async function rowClearsSelection(tab: Page): Promise<boolean> {
+  const box = (await tab.getByTestId("selection-actions").boundingBox())!;
+  const { first, last } = await selectedLineBlocks(tab);
+  return box.y + box.height <= first.top + 0.5 || box.y >= last.bottom - 0.5;
+}
+
+/** A document with a paragraph that wraps and enough below it to scroll.
+ *  Put in with one input event rather than typed, since it is long. */
+async function seedWrapped(
+  tab: Page,
+  app: Instance,
+  project: { id: string },
+): Promise<void> {
+  const sentence =
+    "Computational chemist finishing a doctorate who maps reaction pathways, barriers and transition states with multireference and density functional methods and tests them against time resolved experiments from two collaborating laboratories. ";
+  const text = [
+    "\\section{Summary}",
+    "",
+    `First paragraph. ${sentence.repeat(3)}`,
+    ...Array.from({ length: 30 }, (_, i) => `Line ${i + 4} of the filler.`),
+    "",
+    `Second paragraph. ${sentence.repeat(3)}`,
+    ...Array.from({ length: 170 }, (_, i) => `Line ${i + 36} of the filler.`),
+  ].join("\n");
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+a");
+  await tab.keyboard.insertText(text);
+  await landed(app, project, "Line 205 of the filler.");
+  await tab.keyboard.press("Control+Home");
+}
+
+/** Drag across the third visual row of the paragraph that starts with
+ *  `opening`, which is how the writer who reported it selects. */
+async function dragAcrossThirdRow(tab: Page, opening: string): Promise<void> {
+  const line = tab.locator(".cm-line", { hasText: opening });
+  await line.scrollIntoViewIfNeeded();
+  const block = (await line.boundingBox())!;
+  const rowHeight = await tab.evaluate(
+    () => parseFloat(getComputedStyle(document.querySelector(".cm-line")!).lineHeight),
+  );
+  const y = block.y + rowHeight * 2.5;
+  await tab.mouse.move(block.x + 12, y);
+  await tab.mouse.down();
+  await tab.mouse.move(block.x + 200, y, { steps: 6 });
+  await tab.mouse.move(block.x + 360, y, { steps: 6 });
+  await tab.mouse.up();
 }
 
 test("the verb row sits above the selection, not on its first line", async ({ tab }) => {
@@ -906,7 +966,7 @@ test("the verb row sits above the selection, not on its first line", async ({ ta
   await expect(row).toBeVisible({ timeout: 10_000 });
   await expect.poll(async () => {
     const box = (await row.boundingBox())!;
-    const { first } = await selectedLineBoxes(tab);
+    const { first } = await selectedLineBlocks(tab);
     return box.y + box.height <= first.top + 0.5;
   }, { timeout: 5_000 }).toBe(true);
 });
@@ -923,11 +983,59 @@ test("a selection that starts at the top of the view gets its row below, not ove
   await tab.keyboard.press("Shift+End");
   const row = tab.getByTestId("selection-actions");
   await expect(row).toBeVisible({ timeout: 10_000 });
-  await expect.poll(async () => {
-    const box = (await row.boundingBox())!;
-    const { first, last } = await selectedLineBoxes(tab);
-    const clearAbove = box.y + box.height <= first.top + 0.5;
-    const clearBelow = box.y >= last.bottom - 0.5;
-    return clearAbove || clearBelow;
-  }, { timeout: 5_000 }).toBe(true);
+  await expect.poll(() => rowClearsSelection(tab), { timeout: 5_000 }).toBe(true);
+});
+
+test("a selection inside a wrapped paragraph gets its row clear of the whole paragraph", async ({
+  app, project, tab,
+}) => {
+  // Anchored on the first selected character, the row went "above the
+  // first selected line" in the visual sense: on a paragraph wrapped over
+  // four rows, a selection on the third row put it over the second, which
+  // is the same line and the text the row is about.  The writer selected
+  // inside a summary paragraph and got the row on top of it.
+  await seedWrapped(tab, app, project);
+  await tab.keyboard.press("ArrowDown");
+  await tab.keyboard.press("ArrowDown");
+  // Down again moves by visual row inside the wrapped line, keeping the
+  // column, so the caret is at the start of the third row.
+  await tab.keyboard.press("ArrowDown");
+  await tab.keyboard.press("ArrowDown");
+  await tab.keyboard.press("Shift+End");
+  const row = tab.getByTestId("selection-actions");
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await expect(row).toContainText("Line 3");
+  // The selection really is inside the paragraph, rows below its first.
+  const { first } = await selectedLineBlocks(tab);
+  expect(first.height).toBeGreaterThan(60);
+  const markTop = await tab.evaluate(() =>
+    Math.min(...[...document.querySelectorAll(".cm-selectionBackground")]
+      .map((el) => el.getBoundingClientRect())
+      .filter((b) => b.height > 0)
+      .map((b) => b.top)),
+  );
+  expect(markTop).toBeGreaterThan(first.top + 30);
+  await expect.poll(() => rowClearsSelection(tab), { timeout: 5_000 }).toBe(true);
+});
+
+test("a selection dragged with the mouse inside a wrapped paragraph gets the same clearance", async ({
+  app, project, tab,
+}) => {
+  await seedWrapped(tab, app, project);
+  await dragAcrossThirdRow(tab, "First paragraph.");
+  const row = tab.getByTestId("selection-actions");
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await expect(row).toContainText("Line 3");
+  await expect.poll(() => rowClearsSelection(tab), { timeout: 5_000 }).toBe(true);
+});
+
+test("selecting the whole of a long file still shows a verb row", async ({ app, project, tab }) => {
+  // The end of the selection is beyond what the editor has drawn, so it
+  // has no glyph to measure; the line block always exists, and the row
+  // sits at the foot of the pane, the one place with no clear ground.
+  await seedWrapped(tab, app, project);
+  await tab.keyboard.press("Control+a");
+  const row = tab.getByTestId("selection-actions");
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await expect(row).toContainText("Lines 1 to 205");
 });
