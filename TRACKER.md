@@ -58,9 +58,11 @@ things go to be forgotten rather than a list anybody reads.
       one.** The watcher's re-scan drops a document whose file moved; the
       open tab's follow effect asks for it under the new name and marks it
       followed, so it can now leave with its last file where before the
-      move it stayed. Recorded rather than fixed: the alternative is the
-      `previews.json` format change section 34 of the design document
-      declined.
+      move it stayed. Recorded rather than fixed: telling "asked for" from
+      "followed" for a document the strip lost and regained needs the
+      origin the strip itself does not keep, and the `previews.json`
+      format change section 34 declined is still the only place it could
+      live; the followed set surviving a reload does not change that.
 - [ ] **`password.spec.ts` "setting a password says so and closes itself"
       timed out once in four full runs**, waiting on the done card for the
       five second default, and passed on its retry in three seconds. The
@@ -208,13 +210,6 @@ things go to be forgotten rather than a list anybody reads.
       and the photographs are the one part of the documents this run did not
       remake, because the headers were photographed at one and two on a
       machine this session does not have.
-- [ ] **A document followed onto the strip before a reload is not
-      followed after it.** The `followed` set in `frontend/src/App.tsx` is
-      browser memory, so after a reload every document on the strip reads
-      as asked for and closing the chapter that brought one there leaves
-      it. Persisting the origin would be a field in `.nexttex/previews.json`,
-      a stored format change and so a major version by the rule in
-      `CLAUDE.md`, for a per-window question; left until somebody misses it.
 - [ ] **Another window's removal of a preview closes no tabs here.**
       `previews_changed` from elsewhere moves the strip and nothing else,
       by design: the strip is shared and the tabs are each window's own.
