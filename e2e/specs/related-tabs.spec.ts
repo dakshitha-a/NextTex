@@ -149,6 +149,33 @@ test("a document the strip got by following a file leaves with it", async ({
   );
 });
 
+test("a followed document is still followed after a reload", async ({
+  app, project, page,
+}) => {
+  // The memory of what this window followed was browser memory, empty
+  // after a reload, so every document on the strip then read as asked
+  // for and closing the chapter that brought one there left it.  It is
+  // the window's session storage now: a reload keeps it, another window
+  // never sees it, and no stored format changed.
+  await withParts({ app, project, page });
+  await openFromTree(page, "parts/two.tex");
+  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveAttribute(
+    "aria-current", "true", { timeout: 15_000 },
+  );
+  await openFromTree(page, "main.tex");
+  await expect(page.getByTestId("preview-tab-main.tex")).toHaveAttribute(
+    "aria-current", "true",
+  );
+
+  await page.reload();
+  await expect(sourceTab(page, "parts/two.tex")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("preview-tab-esi.tex")).toBeVisible({ timeout: 15_000 });
+
+  await page.getByRole("button", { name: "Close two.tex" }).click();
+  await expect(sourceTab(page, "parts/two.tex")).toHaveCount(0);
+  await expect(page.getByTestId("preview-tab-esi.tex")).toHaveCount(0, { timeout: 10_000 });
+});
+
 test("a document added by name stays when its file closes", async ({
   app, project, page,
 }) => {

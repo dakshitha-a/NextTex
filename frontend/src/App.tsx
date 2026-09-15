@@ -3,6 +3,7 @@ import type { WordHint } from "./panes/locate-word";
 import api, {
   captureToken, landingAfter, startDownload, type ScriptResult, type WordScope,
 } from "./api";
+import { Followed } from "./followed";
 import { forget, keep, recall, recallText } from "./remember";
 import { rangeFor, scopesFor } from "./words";
 import { createTwoFilesPatch } from "diff";
@@ -271,9 +272,10 @@ export default function App() {
    *  one added with `+`, restored on load, or touched on the strip may
    *  not. A ref for the reason `closed` is one, and per window on
    *  purpose: the strip is shared between windows and this is a memory of
-   *  what *this* one did. Empty after a reload, so every document then
-   *  reads as asked for, which errs the safe way. */
-  const followed = useRef(new Set<string>());
+   *  what *this* one did. Kept in the window's own session storage, so a
+   *  reload does not turn every followed document into one asked for; see
+   *  `followed.ts`. */
+  const followed = useRef(new Followed());
   /** `stopPreviewingMany`, reachable from `closeMany`, which is defined
    *  first because the preview removals close tabs through it. */
   const dropPreviews = useRef<((paths: string[], quiet: boolean) => Promise<void>) | null>(null);
@@ -782,10 +784,7 @@ export default function App() {
     // under its new name.
     for (const document of [...followed.current]) {
       const next = movedPath(document, from, to);
-      if (next !== null) {
-        followed.current.delete(document);
-        followed.current.add(next);
-      }
+      if (next !== null) followed.current.rename(document, next);
     }
     // The store's own fields.  When the rename reached this window as a
     // `previews_changed` carrying the mapping, the store has already moved
@@ -1434,14 +1433,15 @@ export default function App() {
   // A followed document that left the strip some other way, another
   // window's removal or a project switch, is forgotten rather than kept
   // for a strip it is no longer on.
+  // Declared ahead of the prune below so that on a project switch the
+  // new project's memory is loaded before the strip of the old one is
+  // measured against it.
   useEffect(() => {
-    for (const document of followed.current) {
-      if (!previews.includes(document)) followed.current.delete(document);
-    }
-  }, [previews]);
-  useEffect(() => {
-    followed.current.clear();
+    followed.current.load(projectId);
   }, [projectId]);
+  useEffect(() => {
+    followed.current.retain(previews);
+  }, [previews]);
   useEffect(() => {
     if (removing) return;
     const decision = followDecision(activePath, previews, activePreview, owners);

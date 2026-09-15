@@ -6186,11 +6186,12 @@ touching it is asking for it.
 The removal is quiet: a refusal or a network failure on a removal the
 writer never asked for is not theirs to read.
 
-The known gap is stated rather than hidden. After a reload the set is
-empty, so every document then on the strip reads as asked for, and a
-chapter opened before the reload can be closed after it without its
-document following. That errs the safe way, and the alternative was the
-format change above.
+The known gap was stated rather than hidden. After a reload the set was
+empty, so every document then on the strip read as asked for, and a
+chapter opened before the reload could be closed after it without its
+document following. That erred the safe way, and the alternative was
+the format change above; §36 records the third way, the window's own
+session storage, which closed it.
 
 ## 35. Scripts run from the source pane, and previews that follow a rename
 
@@ -6553,3 +6554,18 @@ twelve items was not somewhere to add a thirteenth without being asked.
 The backlog was asked. It sits under *Rename*, the same route and the
 same naming rule, and only on a file's row: copying a folder has failure
 modes of its own and the route refuses it.
+
+### What this window followed survives its reload
+
+§34 left the `followed` set as browser memory, because persisting it
+in `.nexttex/previews.json` was a stored format change and so a major
+version, for a per-window question. The third way was in front of the
+question all along: `sessionStorage` is exactly a window's own memory
+that survives its reload and reaches no other tab, which is the shape
+the set wants, since the strip is shared between windows and this is a
+memory of what one of them did. `followed.ts` holds it, keyed by
+project, guarded against storage that throws, and pruned against the
+strip on every change as before. Nothing on the server changed, and
+`related-tabs.spec.ts` reloads a window with a followed document on the
+strip and watches the document leave when the chapter that brought it
+closes.
