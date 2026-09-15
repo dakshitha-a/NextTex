@@ -320,3 +320,33 @@ test("deleting the only document leaves a strip that says so", async ({
   await expect(page.getByText("No document to preview.")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Load a basic document" })).toHaveCount(0);
 });
+
+test("a folder with no document opens with an empty strip that offers one", async ({
+  app, page,
+}, info) => {
+  // The tracker had this down as a state only the API tests covered: a
+  // project is in it for its first minute and never again.  The pane keys
+  // its offer on the status and not the message, so this is the check
+  // that the offer is drawn and that taking it puts a document on the
+  // strip.
+  const root = join(app.projects, `bare-${info.workerIndex}-${Date.now()}`);
+  mkdirSync(root, { recursive: true });
+  writeFileSync(join(root, "notes.md"), "Not a document.\n");
+  const made = await fetch(`${app.base}/api/projects`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({ path: root }),
+  });
+  expect(made.ok).toBe(true);
+
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, root);
+  await expect(page.getByText("No document to preview.")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("[data-testid^='preview-tab-']")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Start a basic document" }).click();
+  await expect(page.getByTestId("preview-tab-main.tex")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("No document to preview.")).toHaveCount(0);
+  await expect(page.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+});

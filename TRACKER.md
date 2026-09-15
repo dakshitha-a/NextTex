@@ -196,13 +196,6 @@ things go to be forgotten rather than a list anybody reads.
       unique across their folders, and `main.pdf` is what every Makefile
       pointed at a project expects to find. Revisit if somebody reports the
       notice rather than renaming.
-- [ ] **A folder with no `.tex` in it opens with an empty preview strip, and
-      only the API says so.** `tests/api/test_previews.py` covers the 404 and
-      the template load that gives the folder its first document; the pane
-      shows its "nothing typeset yet" offer through `pdf-absence.ts`, which
-      keys on the status and not the message, but no browser test opens such
-      a folder. It is a state a project is in for the first minute and never
-      again.
 - [ ] **The README's screenshots and the tutorial's tab-strip figure show
       the headers as they were.** The preview header had a serif "Preview"
       label for a single document and the `+` was a glyph; both are tabs and
