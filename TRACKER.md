@@ -70,12 +70,6 @@ things go to be forgotten rather than a list anybody reads.
       somewhere else, on a machine running five browsers. Not reproduced
       in isolation; if it recurs, trace it before widening the timeout.
 
-- [ ] **The server prints its token URL to stdout at every start**, so
-      `server.log` on macOS and Windows, and the journal on Linux, hold the
-      token in clear for the life of the log. The bug report redacts it,
-      and `update.sh` prints it too. Printing it once, to a terminal, and
-      telling a service to ask `--print-url` would close it; left because
-      the log is 0600 and the fix touches every launcher.
 - [ ] **The bug report has no Windows event log section.** `server.err.log`
       covers a server that started; a launcher that never got that far
       leaves its trace in the task's history, which `Get-WinEvent` can read.

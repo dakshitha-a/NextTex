@@ -175,8 +175,13 @@ main() {
   fi
 
   say "Done"
-  .venv/bin/python server/run.py --print-url | sed 's/^/  /'
-  echo
+  # The link with its token is for a person at a terminal.  Run from the
+  # app's update button this output is update.log, and a token in a log
+  # sits there in clear for the life of the log.
+  if [ -t 1 ]; then
+    .venv/bin/python server/run.py --print-url | sed 's/^/  /'
+    echo
+  fi
 }
 
 # Passed through, because the hand-over above re-execs with them: without

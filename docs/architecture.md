@@ -36,6 +36,8 @@ That constraint drives most of what follows. A single process means anything syn
 
 `server/run.py` builds the FastAPI app and serves it on one address or two. uvicorn binds one socket per server object, so "reachable on localhost and over Tailscale" is two server objects sharing one event loop and one application. Loopback is plain HTTP because nothing leaves the machine; anything reachable from another machine is TLS.
 
+**The token is printed to a terminal and nowhere else.** The banner a starting server prints carried the token URL wherever stdout went, and a service's stdout is `server.log` on macOS and Windows and the journal on Linux, so the token sat in clear for the life of the log and the bug report had to redact it. `banner` in `server/run.py` prints the link with its token only when stdout is a terminal; a log gets the address and the command that prints the link on request, `server/run.py --print-url`, which is unchanged and is what the lane and the README use. `update.sh` prints the link at the end only when it too is on a terminal, since run from the update button its output is `update.log`.
+
 The lifespan starts four background tasks and cancels them on the way out.
 
 **The file watcher** tells browsers when files change underneath them. An external edit, a `git pull`, a checkout, somebody's own editor, has to reach the open tab or it will save over a change it never saw. NextTex's own writes must not, or the browser would be told to reload the buffer it just sent.
