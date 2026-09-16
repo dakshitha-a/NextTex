@@ -122,6 +122,8 @@ class Pending:
         self.at = 0.0
         self.rejoining = False
         self.previous = ""
+        self.made = None
+        self.plan = []
 
     # what the route calls on the store
     def project_everything(self):

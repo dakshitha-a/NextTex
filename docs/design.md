@@ -6943,3 +6943,32 @@ follows is the join's own offer card. A private project's row offers only
 since a rejoin there would be refused after thirty seconds of waiting;
 the share panel says what happened once the copy is opened from wherever
 it went.
+
+### A join may land in a folder that already has files
+
+"Joining needs an empty folder" was true and unhelpful: a collaborator
+with a git clone of the paper, or a backup of their copy, had to accept
+the project into a second folder beside the one they already had. The
+reason was real. Two documents built independently from the same text
+merge into every line twice, so a folder with files could not be allowed
+to build documents of its own.
+
+It still cannot, and now it does not have to. A join or a rejoin into a
+folder with files lets the shared documents arrive first, into memory,
+and reads the disk only against them. The offer card then says, for each
+file, what accepting would do: same as yours; replaces yours, with yours
+kept in its history; only here, so it goes to everybody; new from the
+others; deleted by the others, so yours goes to the trash. The shared
+project wins where the two disagree, and nothing of the writer's is
+lost: a text file that loses is a labelled version in its own timeline,
+where restoring it is the per-file "use mine", and a binary that loses
+is a trash entry. A folder that lacks a file the others have is not an
+instruction to delete it. Discarding leaves the folder byte for byte as
+it was, including a `.nexttex/collab` of its own that was set aside for
+the duration. A folder that already carries this share's own records is
+opened as it is, with nothing to offer, because the document logs are the
+sync state; a folder carrying another share's is refused.
+
+The card is honest about one limit: a binary can only be compared by
+size, since a record carries no hash, so a figure rewritten to the same
+number of bytes reads as the same.

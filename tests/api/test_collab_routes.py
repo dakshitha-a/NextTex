@@ -104,24 +104,23 @@ def test_inviting_shares_the_project_if_it_was_not_already(client, opened):
     assert client.get(f"/api/projects/{project_id}/collab").json()["shared"] is True
 
 
-def test_joining_refuses_a_folder_with_something_in_it(client, opened, tmp_path):
-    """Two documents built independently from the same text merge into both
-    copies -- every line twice -- and nothing raises.  So a join lands in an
-    empty folder or it does not happen."""
-    project_id = opened["id"]
-    client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
-    invite = client.post(f"/api/projects/{project_id}/collab/invite").json()["invite"]
-
+def test_a_join_into_a_folder_with_files_leaves_them_alone_when_it_fails(client, tmp_path):
+    """A join may now land in a folder that already has files, which are
+    reconciled against the shared project on accept.  Whatever takes the
+    join down must then remove only what the join made: every path that
+    took a join down used to remove the whole folder."""
     occupied = tmp_path / "already-mine"
     occupied.mkdir()
     (occupied / "main.tex").write_text("my own work\n")
+    (occupied / "figures").mkdir()
+    (occupied / "figures" / "plot.png").write_bytes(b"\x89PNG\r\n\x1a\n")
 
     response = client.post("/api/collab/join",
-                           json={"invite": invite, "path": str(occupied)})
+                           json={"invite": "not an invite", "path": str(occupied)})
     assert response.status_code == 400
-    assert "empty" in response.json()["detail"].lower()
-    # And nothing was touched.
     assert (occupied / "main.tex").read_text() == "my own work\n"
+    assert (occupied / "figures" / "plot.png").read_bytes() == b"\x89PNG\r\n\x1a\n"
+    assert not (occupied / ".nexttex").exists(), "the join left its state behind"
 
 
 def test_a_join_that_fails_leaves_no_project_behind(client, opened, tmp_path):

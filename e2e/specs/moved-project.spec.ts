@@ -139,3 +139,49 @@ test("a private project whose folder is gone is not offered a rejoin", async ({
   await expect(page.getByTestId("find-project")).toBeVisible();
   await expect(page.getByTestId("rejoin-project")).toHaveCount(0);
 });
+
+test("the offer card says what accepting does to a folder that already has files", async ({
+  app,
+  project,
+  page,
+}) => {
+  // A second NextTex is not available inside one spec, so the answer the
+  // server gives for a rejoin into a copy is played back here; what is
+  // under test is the card that reads it.
+  await page.goto(`${app.base}/?token=${app.token}`);
+  const shared = await page.request.post(
+    `${app.base}/api/projects/${project.id}/collab/share`,
+    { data: { name: "Wilhelmina" } },
+  );
+  expect(shared.ok()).toBeTruthy();
+  rmSync(project.root, { recursive: true, force: true });
+  await page.route("**/api/collab/rejoin", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        token: "played-back",
+        path: project.root,
+        existing: true,
+        files: [
+          { path: "main.tex", kind: "text", size: 900, refused: false, outcome: "same" },
+          { path: "notes.tex", kind: "text", size: 40, refused: false, outcome: "differs" },
+          { path: "extra.tex", kind: "text", size: 12, refused: false, outcome: "new here" },
+          { path: "chapters/two.tex", kind: "text", size: 300, refused: false, outcome: "new from peers" },
+          { path: "old.tex", kind: "text", size: 20, refused: false, outcome: "deleted elsewhere" },
+        ],
+      },
+    }),
+  );
+
+  await page.reload();
+  await page.getByTestId("rejoin-project").click({ timeout: 20_000 });
+  await page.getByTestId("confirm-rejoin").click();
+  const card = page.getByTestId("join-offer");
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  await expect(card).toContainText("already has files");
+  await expect(card.locator('[data-outcome="same"]')).toContainText("same as yours");
+  await expect(card.locator('[data-outcome="differs"]')).toContainText("kept in its history");
+  await expect(card.locator('[data-outcome="new here"]')).toContainText("goes to everybody");
+  await expect(card.locator('[data-outcome="new from peers"]')).toContainText("new from the others");
+  await expect(card.locator('[data-outcome="deleted elsewhere"]')).toContainText("goes to the trash");
+});

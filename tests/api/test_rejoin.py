@@ -145,12 +145,154 @@ def test_a_removed_install_is_told_to_ask_for_an_invite(client, them, tmp_path):
     assert not (tmp_path / "x").exists()
 
 
-def test_a_rejoin_needs_an_empty_folder_too(client, them, tmp_path):
+def _hashes(root) -> dict:
+    import hashlib
+
+    return {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(root.rglob("*")) if path.is_file()
+    }
+
+
+@pytest.fixture
+def copy(tmp_path):
+    """A copy of the shared files made some time ago: one edited here, one
+    added here, one missing here, and no `.nexttex` at all."""
+    root = tmp_path / "my-clone"
+    root.mkdir()
+    (root / "main.tex").write_text("\\documentclass{article}\n\\begin{document}\nTheirs.\n\\end{document}\n")
+    (root / "extra.tex").write_text("Only here.\n")
+    (root / "notes.tex").write_text("Notes.\nAnd a line of mine.\n")
+    return root
+
+
+def test_a_rejoin_into_a_copy_reconciles_it(client, them, copy, tmp_path):
     _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
-    full = tmp_path / "full"
-    full.mkdir()
-    (full / "main.tex").write_text("mine")
+
+    offer = client.post("/api/collab/rejoin",
+                        json={"share": them["share"], "path": str(copy)})
+    assert offer.status_code == 200, offer.text
+    body = offer.json()
+    assert body["existing"] is True
+    outcomes = {f["path"]: f["outcome"] for f in body["files"]}
+    assert outcomes == {
+        "main.tex": "same",
+        "notes.tex": "differs",
+        "extra.tex": "new here",
+    }
+    # Held: the copy is untouched, and only the join's state is new.
+    assert (copy / "notes.tex").read_text() == "Notes.\nAnd a line of mine.\n"
+
+    accepted = client.post("/api/collab/join/accept", json={"token": body["token"]}).json()
+    project_id = accepted["project"]["id"]
+    # The document wins on disk; the local text is a labelled version.
+    assert (copy / "notes.tex").read_text() == "Notes.\n"
+    versions = client.get(f"/api/projects/{project_id}/history",
+                          params={"path": "notes.tex"}).json()
+    labels = [v.get("label") for v in versions.get("versions", versions)]
+    assert "Before rejoining" in labels
+    # The identical file is single-lined on both sides once the new
+    # session has synced, which is the doubling test.
+    import time
+
+    store = them["store"]
+
+    def theirs() -> dict:
+        extra = store.file_id_for("extra.tex")
+        return {
+            "main": str(store.body(store.file_id_for("main.tex"))),
+            "extra": str(store.body(extra)) if extra else None,
+            "trashed": any(r.get("trashed") for r in store.files.values()),
+        }
+
+    deadline = time.monotonic() + 10
+    seen = client.portal.call(theirs)
+    while time.monotonic() < deadline and seen["extra"] != "Only here.\n":
+        time.sleep(0.1)
+        seen = client.portal.call(theirs)
+    assert (copy / "main.tex").read_text().count("Theirs.") == 1
+    assert seen["main"].count("Theirs.") == 1
+    # The file only here reached them.
+    assert seen["extra"] == "Only here.\n"
+    # And nothing of theirs was called deleted by a copy that lacked it.
+    assert seen["trashed"] is False
+
+
+def test_discarding_a_rejoin_into_a_copy_leaves_it_byte_for_byte(client, them, copy, tmp_path):
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+    before = _hashes(copy)
+    body = client.post("/api/collab/rejoin",
+                       json={"share": them["share"], "path": str(copy)}).json()
+    client.post("/api/collab/join/discard", json={"token": body["token"]})
+    assert _hashes(copy) == before
+    assert not (copy / ".nexttex").exists()
+
+
+def test_a_copy_that_was_a_project_of_its_own_keeps_its_records_aside(client, them, copy, tmp_path):
+    """Its own `.nexttex/collab` has ids of its own; it is moved aside
+    rather than loaded, and put back if the join is discarded."""
+    own = copy / ".nexttex" / "collab" / "docs"
+    own.mkdir(parents=True)
+    (own / "manifest.y").write_bytes(b"old")
+    (copy / ".nexttex" / "history").mkdir()
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+
+    body = client.post("/api/collab/rejoin",
+                       json={"share": them["share"], "path": str(copy)}).json()
+    assert (copy / ".nexttex" / "collab.before-rejoin" / "docs" / "manifest.y").read_bytes() == b"old"
+    client.post("/api/collab/join/discard", json={"token": body["token"]})
+    assert (own / "manifest.y").read_bytes() == b"old"
+    assert not (copy / ".nexttex" / "collab.before-rejoin").exists()
+    assert (copy / ".nexttex" / "history").is_dir()
+
+
+def test_a_file_the_others_deleted_goes_to_the_trash_here(client, them, copy, tmp_path):
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+    # They deleted notes.tex; the copy still has it.
+    store = them["store"]
+
+    def trash_theirs():
+        store.files[store.file_id_for("notes.tex")]["trashed"] = True
+
+    client.portal.call(trash_theirs)
+
+    body = client.post("/api/collab/rejoin",
+                       json={"share": them["share"], "path": str(copy)}).json()
+    outcomes = {f["path"]: f["outcome"] for f in body["files"]}
+    assert outcomes["notes.tex"] == "deleted elsewhere"
+    accepted = client.post("/api/collab/join/accept", json={"token": body["token"]}).json()
+    assert not (copy / "notes.tex").exists()
+    entries = client.get(f"/api/projects/{accepted['project']['id']}/trash").json()
+    listed = entries.get("entries", entries)
+    assert any("notes.tex" in json.dumps(entry) for entry in listed)
+    # And it was not brought back for them: still one record, still trashed.
+    records = [r for r in store.files.values() if r.get("path") == "notes.tex"]
+    assert len(records) == 1 and records[0].get("trashed") is True
+
+
+def test_a_whole_copy_is_opened_rather_than_offered(client, them, tmp_path):
+    """The `.y` logs are the sync state: a copy carrying them reconnects
+    with nothing to reconcile."""
+    import shutil
+
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+    whole = tmp_path / "whole"
+    shutil.copytree(them["root"], whole)
     answer = client.post("/api/collab/rejoin",
-                         json={"share": them["share"], "path": str(full)})
-    assert answer.status_code == 400
-    assert (full / "main.tex").read_text() == "mine"
+                         json={"share": them["share"], "path": str(whole)}).json()
+    assert answer.get("opened") is True
+    project_id = answer["project"]["id"]
+    assert client.get(f"/api/projects/{project_id}/collab").json()["shared"] is True
+
+
+def test_a_copy_of_another_share_is_refused(client, them, tmp_path):
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+    other = tmp_path / "other"
+    (other / ".nexttex" / "collab" / "docs").mkdir(parents=True)
+    (other / ".nexttex" / "collab" / "share.json").write_text(json.dumps({
+        "share_id": "ab" * 16, "members": {}, "invites": {}, "joined_at": 1.0,
+    }))
+    (other / "main.tex").write_text("x")
+    answer = client.post("/api/collab/rejoin",
+                         json={"share": them["share"], "path": str(other)})
+    assert answer.status_code == 409

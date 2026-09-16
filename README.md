@@ -442,7 +442,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 845.7 kB | 860 kB |
+| Interface bundle | 850.0 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -695,8 +695,12 @@ than instruction, because the text came out of files you downloaded.
 ### Writing it with somebody else
 
 Share a project and you get an invite to send. Whoever opens it gets the
-whole project, every file and what those files used to say, into an empty
-folder of their own, and from then on the two copies stay in step.
+whole project, every file and what those files used to say, into a folder
+of their own, and from then on the two copies stay in step. The folder can
+already hold a copy of the files, a git clone say: NextTex shows what
+accepting would do to each file before it does it, the shared project wins
+where they disagree, and whatever it replaces goes to that file's history
+or to the trash rather than anywhere it cannot be got back from.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg">

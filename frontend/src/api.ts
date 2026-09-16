@@ -316,14 +316,24 @@ export type OfferedFile = {
    *  rather than omitted, because what was offered is the more interesting
    *  fact of the two. */
   refused: boolean;
+  /** What accepting does to this file. "new from peers" for every file
+   *  of a join into an empty folder; the others only for a folder that
+   *  already had files, reconciled against the shared project. */
+  outcome: "same" | "differs" | "new here" | "new from peers" | "deleted elsewhere";
 };
 
 export type JoinOffer = {
   ok: true;
   token: string;
   path: string;
+  /** The folder already had files, so `files` carries outcomes. */
+  existing: boolean;
   files: OfferedFile[];
 };
+
+/** A join or rejoin into a folder that already held this share's own
+ *  records: opened as it is, nothing to offer. */
+export type JoinOpened = { ok: true; opened: true; project: { id: string; path: string } };
 
 export type CollabState = {
   shared: boolean;
@@ -488,12 +498,12 @@ const api = {
   /** Accept an invite as far as *looking* at it. Nothing is written to
    *  disk: the documents are held open on the server until the answer. */
   joinShare: (invite: string, path: string) =>
-    request<JoinOffer>("/collab/join", json({ invite, path })),
+    request<JoinOffer | JoinOpened>("/collab/join", json({ invite, path })),
   /** Back into a share this install is a member of, from the note it
    *  keeps outside the project, with no invite. The answer is an offer,
    *  as for a join. */
   rejoinShare: (share: string, path: string) =>
-    request<JoinOffer>("/collab/rejoin", json({ share, path })),
+    request<JoinOffer | JoinOpened>("/collab/rejoin", json({ share, path })),
   acceptJoin: (token: string) =>
     request<{ ok: true; project: { id: string; path: string } }>(
       "/collab/join/accept", json({ token }),

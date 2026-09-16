@@ -307,6 +307,13 @@ class CollabStore:
         #: exist elsewhere and are on their way, and a document built here
         #: from the same text would merge into every line twice.
         self.seed_from_disk = True
+        #: While a join is held for an answer, nothing reaches the disk:
+        #: not the documents as they arrive, not a deletion, not a rename.
+        #: The logs are still appended, and are what a discard removes.
+        #: A document opened before a late update landed was otherwise
+        #: written by the store's own timer, over a file the writer had
+        #: not yet agreed to replace.
+        self.holding = False
         #: Set when `_settle_gone` has held a batch back once to look at
         #: the root again before calling any of it deleted.
         self._gone_deferred = False
@@ -823,6 +830,122 @@ class CollabStore:
                     self._gone_pending.add(file_id)
             if self._gone_pending:
                 self._schedule()
+
+    # --- a copy that already has files ------------------------------------
+
+    def reconcile_plan(self) -> list[dict]:
+        """What accepting a join into this folder would do to each file.
+
+        For a folder that already held files when the share arrived: a
+        git clone, a backup, a copy made before sharing.  The shared
+        document is the truth and has been synced into memory; the disk
+        is a proposal.  Read-only, so the offer card can show it before
+        anything is done.  Five outcomes:
+
+        - `same`: the file matches the document, or a binary matches its
+          record's size, which is all a binary can be compared by here;
+        - `differs`: both exist and disagree.  The document wins on disk;
+          a text file's local text goes into the history as a labelled
+          version and a binary's local bytes into the trash;
+        - `new here`: on disk and not in the manifest.  Added as a new
+          file, which reaches everybody;
+        - `new from peers`: in the manifest and not on disk.  Written.  A
+          copy that lacks a file is not an instruction to delete it;
+        - `deleted elsewhere`: on disk, and the manifest says the others
+          deleted it.  Into the trash here too, rather than brought back
+          for everybody by being adopted as a new file.
+        """
+        on_disk = {path: (kind, size) for path, kind, size in self._walk()}
+        live: dict[str, str] = {}
+        trashed: dict[str, str] = {}
+        for file_id, record in self.files.items():
+            path = str(record.get("path") or "")
+            if not path:
+                continue
+            if record.get("trashed"):
+                trashed.setdefault(path, file_id)
+            else:
+                live[path] = file_id
+        plan: list[dict] = []
+        for path, (kind, size) in on_disk.items():
+            if path in live:
+                file_id = live[path]
+                record = self.files[file_id]
+                if record.get("kind") == "text":
+                    text = self.body(file_id)
+                    same = text is not None and self._read(path) == str(text)
+                else:
+                    same = int(record.get("size") or 0) == size
+                outcome = "same" if same else "differs"
+                plan.append({"path": path, "kind": str(record.get("kind") or kind),
+                             "outcome": outcome, "id": file_id})
+            elif path in trashed:
+                plan.append({"path": path, "kind": kind,
+                             "outcome": "deleted elsewhere", "id": trashed[path]})
+            else:
+                plan.append({"path": path, "kind": kind, "outcome": "new here", "id": ""})
+        for path, file_id in live.items():
+            if path not in on_disk:
+                record = self.files[file_id]
+                plan.append({"path": path, "kind": str(record.get("kind") or "text"),
+                             "outcome": "new from peers", "id": file_id})
+        plan.sort(key=lambda item: item["path"])
+        return plan
+
+    def reconcile_apply(self, plan: list[dict], *, history, trash,
+                        peer: str = "", who: str = "") -> None:
+        """Do what the plan says, and only then let the disk seed anything.
+
+        Order matters throughout.  Local text that loses is recorded
+        before the projection overwrites it.  `last_projected` is dropped
+        for every file the projection must rewrite, because `body()` left
+        it holding the document's text and `_write` skips a file whose
+        content it believes it already wrote.  Files the others deleted go
+        into the trash before `adopt()` runs, or `adopt()` would mint them
+        fresh ids and bring them back for everybody.  Every text document
+        is opened while seeding from disk is still off, so that no record
+        is left to be seeded from a local file later, which is the
+        doubling; and only then is seeding turned on for the files that
+        are new here, which have no document anywhere else.
+        """
+        # The history is bound here, with the plan's ids first: `key_for`
+        # adopts a path that has a file and no live record, which is
+        # exactly what a file the others deleted looks like, and a version
+        # filed under a fresh id would be a new file bringing the old one
+        # back.  The plan knows the trashed record's id.
+        ids = {item["path"]: item["id"] for item in plan if item.get("id")}
+        history.bind(
+            lambda relative: ids.get(relative) or self.key_for(relative),
+            self.records(),
+        )
+        for item in plan:
+            path, outcome, file_id = item["path"], item["outcome"], item.get("id") or ""
+            if outcome == "differs" and item["kind"] == "text":
+                local = self._read(path)
+                if local:
+                    history.record_of(
+                        history.key_of(path), path, local, by="you",
+                        why="your copy before rejoining", op="import",
+                        label="Before rejoining", peer=peer, who=who,
+                    )
+                self.last_projected.pop(file_id, None)
+            elif outcome in ("differs", "deleted elsewhere"):
+                try:
+                    trash.delete(self.project.resolve(path))
+                except Exception:
+                    log.warning("could not move %s into the trash before rejoining", path)
+            elif outcome == "new from peers":
+                self.last_projected.pop(file_id, None)
+        for file_id, record in list(self.files.items()):
+            if record.get("kind") == "text" and not record.get("trashed"):
+                self.body(file_id)
+        self.seed_from_disk = True
+        self.adopt()
+        for item in plan:
+            if item["outcome"] == "new here":
+                file_id = self.file_id_for(item["path"])
+                if file_id is not None and self.files[file_id].get("kind") == "text":
+                    self.body(file_id)
 
     def _walk(self) -> list[tuple[str, str, int]]:
         """Every file in the project, as (path, kind, size)."""
@@ -1375,7 +1498,7 @@ class CollabStore:
         would be every file, not the writes, which would recreate the
         folder, and not the logs.
         """
-        if not self._root_present():
+        if self.holding or not self._root_present():
             return
         self._settle_gone()
         if self._paths_moved:

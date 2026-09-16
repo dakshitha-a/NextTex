@@ -3,6 +3,8 @@ import api, {
   saveBlob,
   startDownload,
   type JoinOffer,
+  type JoinOpened,
+  type OfferedFile,
   type ProjectSummary,
 } from "../api";
 import Logo from "../Logo";
@@ -141,7 +143,17 @@ export default function Projects({
         // nothing disabled. Pressing it again started a second join into
         // the same folder, which the second one then refuses because the
         // first has put `.nexttex` in it.
-        setOffer(await api.joinShare(invite.trim(), path.trim()));
+        const answer = await api.joinShare(invite.trim(), path.trim());
+        if (isOpened(answer)) {
+          // A folder that already held this share's own records: nothing
+          // to offer, it is the project, reconnected.
+          setPath("");
+          setInvite("");
+          await refresh();
+          onOpen(answer.project.id);
+          return;
+        }
+        setOffer(answer);
         return;
       }
       const project =
@@ -217,9 +229,15 @@ export default function Projects({
     try {
       // The same offer card a join shows, drawn under the form; nothing
       // is written until it is accepted.
-      setOffer(await api.rejoinShare(project.shareId, where));
+      const answer = await api.rejoinShare(project.shareId, where);
       setRejoining(null);
       setRejoinTo("");
+      if (isOpened(answer)) {
+        await refresh();
+        onOpen(answer.project.id);
+        return;
+      }
+      setOffer(answer);
     } catch (problem: any) {
       setRowError(problem.message);
     } finally {
@@ -649,7 +667,7 @@ export default function Projects({
                 ? "Where to put it, e.g. ~/writing/my-paper"
                 : mode === "add"
                 ? "/path/to/your/writing/project"
-                : "An empty folder to put it in, e.g. ~/writing/their-paper"
+                : "A folder to put it in, e.g. ~/writing/their-paper"
             }
             // `flex-1` only where the row is a row.  Joining stacks this
             // under the invite box, and in a column `flex: 1 1 0%` is a
@@ -797,8 +815,19 @@ function JoinOfferCard({
           {landing.length} {landing.length === 1 ? "file" : "files"}, {size(total)}
         </p>
         <p className="t-meta mt-[2px] text-ink-2">
-          Nothing has been written yet. This is what would arrive in{" "}
-          <span className="t-code-sm">{offer.path}</span>.
+          {offer.existing ? (
+            <>
+              Nothing has been written yet. <span className="t-code-sm">{offer.path}</span>{" "}
+              already has files, and this is what accepting would do to each.
+              The shared project wins where they disagree; nothing of yours is
+              lost, it goes to the file's history or to the trash.
+            </>
+          ) : (
+            <>
+              Nothing has been written yet. This is what would arrive in{" "}
+              <span className="t-code-sm">{offer.path}</span>.
+            </>
+          )}
         </p>
       </div>
       <div className="max-h-[220px] overflow-y-auto">
@@ -806,9 +835,20 @@ function JoinOfferCard({
           <div
             key={file.path}
             className="flex items-baseline justify-between gap-3 px-3 py-[3px]"
+            data-outcome={offer.existing ? file.outcome : undefined}
           >
             <span className="t-code-sm truncate text-ink">{file.path}</span>
-            <span className="t-micro shrink-0 text-ink-3">{size(file.size)}</span>
+            <span className="t-micro shrink-0 text-ink-3">
+              {offer.existing ? (
+                <>
+                  <span className={file.outcome === "same" ? "" : "text-ink-2"}>
+                    {outcomeWords(file.outcome)}
+                  </span>
+                  {" · "}
+                </>
+              ) : null}
+              {size(file.size)}
+            </span>
           </div>
         ))}
       </div>
@@ -843,6 +883,27 @@ function JoinOfferCard({
       </div>
     </div>
   );
+}
+
+function isOpened(answer: JoinOffer | JoinOpened): answer is JoinOpened {
+  return (answer as JoinOpened).opened === true;
+}
+
+/** What accepting does to a file of a folder that already had files, in
+ *  the words of the person whose files they are. */
+function outcomeWords(outcome: OfferedFile["outcome"]): string {
+  switch (outcome) {
+    case "same":
+      return "same as yours";
+    case "differs":
+      return "replaces yours; yours kept in its history";
+    case "new here":
+      return "only here; goes to everybody";
+    case "deleted elsewhere":
+      return "deleted by the others; yours goes to the trash";
+    default:
+      return "new from the others";
+  }
 }
 
 /** A size a person reads. */

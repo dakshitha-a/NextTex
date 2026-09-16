@@ -25,7 +25,7 @@ import uuid
 import zipfile
 from functools import partial
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlsplit
@@ -61,7 +61,9 @@ from nexttex.library import (
 from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
+from nexttex.history import History
 from nexttex.paths import shares_home, state_home
+from nexttex.trash import Trash
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
     is_ours, kind_of, under_ignored_directory,
@@ -1034,7 +1036,11 @@ async def join_share(
     if not collab_transport.available():
         raise HTTPException(501, "Not available on this platform.")
 
-    target = _empty_folder_for_joining(path)
+    share = str(_unwrap_invite(invite).get("share") or "")
+    whole = _whole_copy(Path(path), share)
+    if whole is not None:
+        return whole
+    target, made = _folder_for_joining(path)
     # Joined *before* the project is opened, because an empty folder is not
     # yet a project: `ProjectSession` needs a main document, and the joiner
     # has no files at all until the first sync brings them.  So this is a
@@ -1045,7 +1051,7 @@ async def join_share(
     network = PeerNetwork(store)
     return await _hold_join(
         target, project, store, network,
-        network.join(invite, SETTINGS.display_name or "Unnamed"),
+        network.join(invite, SETTINGS.display_name or "Unnamed"), made=made,
     )
 
 
@@ -1075,7 +1081,11 @@ async def rejoin_share(
     if not isinstance(card, dict) or card.get("share_id") != share:
         raise HTTPException(404, "That is not a share this install knows.")
 
-    target = _empty_folder_for_joining(path)
+    whole = _whole_copy(Path(path), share)
+    if whole is not None:
+        _card_points_at(share, card, Path(whole["project"]["path"]))
+        return whole
+    target, made = _folder_for_joining(path)
     project = Project.open(target)
     store = CollabStore(project)
     network = PeerNetwork(store)
@@ -1085,41 +1095,108 @@ async def rejoin_share(
     network.share.card_dir = None
     return await _hold_join(
         target, project, store, network, network.rejoin(card),
-        rejoining=True, previous=str(card.get("path") or ""),
+        rejoining=True, previous=str(card.get("path") or ""), made=made,
     )
 
 
-def _empty_folder_for_joining(path: str) -> Path:
-    """The folder a join or a rejoin writes into, made if need be.
+def _card_points_at(share: str, card: dict, target: Path) -> None:
+    """A rejoin into a whole copy: the card follows it there."""
+    from server.collab.peers import Share
 
-    It must be empty or new.  Two documents built independently from
-    identical text merge into *both* copies -- every line twice -- and
-    nothing raises, so a joiner has to start from nothing and be sent the
-    whole state.
+    held = Share(target / ".nexttex" / "collab", card_dir=shares_home(),
+                 project_root=target)
+    held.save_card()
+    previous = str(card.get("path") or "")
+    old_root = Path(previous) if previous else None
+    if (
+        old_root is not None and REGISTRY.path_for(id_for(old_root)) is not None
+        and old_root.resolve() != target.resolve()
+    ):
+        REGISTRY.relocate(old_root, target)
+
+
+def _folder_for_joining(path: str) -> tuple[Path, "JoinMade | None"]:
+    """The folder a join or a rejoin arrives in, and what the join made.
+
+    Three kinds of folder. An empty or new one is the ordinary case, and
+    the join owns everything in it. One that already has files is a copy:
+    a git clone, a backup, a copy made before sharing. The join then owns
+    only `.nexttex/collab`, or all of `.nexttex/` if that was not there,
+    and the files are reconciled against the shared document at accept.
+    A copy that carries its own `.nexttex/collab/docs` was a project of
+    its own with ids of its own, so that directory is moved aside before
+    the store is built, or the store would load its manifest. A copy that
+    already holds `share.json` is answered elsewhere: see `_whole_copy`.
     """
     target = Path(path).expanduser()
-    if target.exists() and any(target.iterdir()):
+    if not target.exists() or not any(target.iterdir()):
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise HTTPException(400, f"Could not make that folder: {error}")
+        return target, None
+    state = target / ".nexttex"
+    collab = state / "collab"
+    made = JoinMade(state_dir=not state.exists())
+    if (collab / "docs").exists() or (collab / "share.json").exists():
+        aside = state / "collab.before-rejoin"
+        if aside.exists():
+            aside = state / f"collab.before-rejoin-{int(time.time())}"
+        try:
+            collab.rename(aside)
+        except OSError as error:
+            raise HTTPException(400, f"Could not set aside that folder's own records: {error}")
+        made.aside = aside
+    return target, made
+
+
+def _whole_copy(target: Path, share: str) -> dict | None:
+    """A folder that already holds this share's record and document logs.
+
+    The `.y` logs are the sync state, so such a copy reconnects with
+    nothing to reconcile: it is registered and opened, and the answer is
+    the project rather than an offer. A copy of a different share is
+    refused, since two shares' documents must never be merged.
+    """
+    target = Path(target).expanduser()
+    record = target / ".nexttex" / "collab" / "share.json"
+    if not record.is_file():
+        return None
+    from server.collab.peers import Share
+
+    held = Share(target / ".nexttex" / "collab")
+    if held.share_id != share:
         raise HTTPException(
-            400,
-            "That folder already has something in it. Joining needs an empty "
-            "one, so the project can arrive as it is rather than being merged "
-            "with whatever is there.",
+            409, "That folder holds a copy of a different shared project.",
         )
-    try:
-        target.mkdir(parents=True, exist_ok=True)
-    except OSError as error:
-        raise HTTPException(400, f"Could not make that folder: {error}")
-    return target
+    if not (target / ".nexttex" / "collab" / "docs").is_dir():
+        return None
+    project = REGISTRY.add(str(target))
+    session_for(project.id)
+    _restart_watch()
+    return {"ok": True, "opened": True, "project": {"id": project.id, "path": str(target)}}
 
 
 async def _hold_join(target: Path, project: Project, store, network, opening,
-                     *, rejoining: bool = False, previous: str = "") -> dict:
+                     *, rejoining: bool = False, previous: str = "",
+                     made: "JoinMade | None" = None) -> dict:
     """Let a project arrive into memory, and hold it for an answer.
 
     `opening` is the coroutine that dials: a join with an invite or a
-    rejoin from the card.  Whatever fails on the way leaves no folder
-    behind, since the folder was empty or new when this began.
+    rejoin from the card.  Whatever fails on the way leaves nothing of
+    the join's behind, and nothing of the writer's touched.
+
+    Into a folder that already has files, the store must build no
+    document from the disk: those documents exist elsewhere and are on
+    their way, and one built here from the same text merges into every
+    line twice.  So seeding is off for the whole hold, every text
+    document is opened from what arrived, and the plan for the disk is
+    made read-only, for the offer card.
     """
+    if made is not None:
+        store.seed_from_disk = False
+    store.holding = True
+    plan: list = []
     try:
         reason = await opening
         if not reason:
@@ -1128,16 +1205,21 @@ async def _hold_join(target: Path, project: Project, store, network, opening,
                 # Why nothing came, when a peer said: being refused as not
                 # a member is the case worth naming.
                 reason = f"{reason} The other end said: {network.last_error}."
+        if not reason and made is not None:
+            for file_id, record in list(store.files.items()):
+                if record.get("kind") == "text" and not record.get("trashed"):
+                    store.body(file_id)
+            plan = store.reconcile_plan()
     except Exception:
         await network.close()
         store.close()
-        shutil.rmtree(target, ignore_errors=True)
+        _undo_join(target, made)
         raise
 
     if reason:
         await network.close()
         store.close()
-        shutil.rmtree(target, ignore_errors=True)
+        _undo_join(target, made)
         raise HTTPException(400, reason)
 
     # Nothing is written here, which is what the card below says. It used
@@ -1161,13 +1243,14 @@ async def _hold_join(target: Path, project: Project, store, network, opening,
     PENDING_JOINS[token] = PendingJoin(
         token=token, target=target, project=project, store=store,
         network=network, at=time.monotonic(), rejoining=rejoining,
-        previous=previous,
+        previous=previous, made=made, plan=plan,
     )
     return {
         "ok": True,
         "token": token,
         "path": str(target),
-        "files": _offered_files(store, project),
+        "existing": made is not None,
+        "files": _offered_files(store, project, plan),
     }
 
 
@@ -1186,21 +1269,57 @@ class PendingJoin:
     #: registry's entry for it at the new folder rather than add a second.
     rejoining: bool = False
     previous: str = ""
+    #: What the join made in a folder that already had files, so that a
+    #: discard, a timeout or a failure removes exactly that and nothing
+    #: the writer had. `None` for the empty folder a join makes itself.
+    made: "JoinMade | None" = None
+    #: The reconciliation, for a folder that already had files.
+    plan: list = field(default_factory=list)
 
     async def release(self, keep: bool) -> None:
-        """Close the connection, and remove the folder unless it is kept."""
+        """Close the connection, and remove what the join made unless kept."""
         with contextlib.suppress(Exception):
             await self.network.close()
         with contextlib.suppress(Exception):
             self.store.close()
         if not keep:
-            shutil.rmtree(self.target, ignore_errors=True)
+            _undo_join(self.target, self.made)
             if not self.rejoining:
                 # A join that was declined wrote a card for a folder that
                 # no longer exists.  A rejoin never wrote one: the share's
                 # card is the one it read, and it stays as it was.
                 with contextlib.suppress(Exception):
                     self.network.share.drop_card()
+
+
+@dataclass
+class JoinMade:
+    """What a join into a folder that already had files created there."""
+
+    #: `.nexttex/` did not exist before, so all of it is the join's.
+    state_dir: bool = False
+    #: Where the folder's own `.nexttex/collab` was moved, if it had one.
+    aside: Path | None = None
+
+
+def _undo_join(target: Path, made: "JoinMade | None") -> None:
+    """Remove what a join made, and only that.
+
+    Every path that took a join down used to `rmtree` the folder, which
+    was right for the empty folder the join had made and would have been
+    the writer's whole copy for a join into one that already had files.
+    """
+    if made is None:
+        shutil.rmtree(target, ignore_errors=True)
+        return
+    state = target / ".nexttex"
+    if made.state_dir:
+        shutil.rmtree(state, ignore_errors=True)
+        return
+    shutil.rmtree(state / "collab", ignore_errors=True)
+    if made.aside is not None and made.aside.exists():
+        with contextlib.suppress(OSError):
+            made.aside.rename(state / "collab")
 
 
 #: Whether the watcher's failure has already been logged. It retries every
@@ -1241,15 +1360,32 @@ async def _ingest_on_loop(session, relative: str, text: str) -> None:
     session.collab.ingest(relative, text)
 
 
-def _offered_files(store, project: Project) -> list[dict]:
+def _offered_files(store, project: Project, plan: list | None = None) -> list[dict]:
     """What the other end has sent, as a person would want to see it.
 
     `refused` rather than silently absent: a joiner is better served by
     being told that a `latexmkrc` was offered and will not be written than
     by a list that quietly omits it. What was offered is the more
     interesting fact of the two.
+
+    With a `plan`, for a folder that already had files, each file carries
+    what accepting would do to it, and files that exist only here are
+    listed as well, since they are about to reach everybody.
     """
+    outcomes = {item["path"]: item["outcome"] for item in plan or []}
     offered = []
+    for item in plan or []:
+        if item["outcome"] in ("new here", "deleted elsewhere"):
+            relative = item["path"]
+            try:
+                size = project.resolve(relative).stat().st_size
+            except (OSError, ValueError):
+                size = 0
+            offered.append({
+                "path": relative, "kind": item["kind"], "size": size,
+                "refused": is_control_path(Path(relative)),
+                "outcome": item["outcome"],
+            })
     for file_id, record in store.files.items():
         if record.get("trashed"):
             continue
@@ -1277,6 +1413,7 @@ def _offered_files(store, project: Project) -> list[dict]:
             "kind": kind,
             "size": size,
             "refused": is_control_path(Path(relative)),
+            "outcome": outcomes.get(relative, "new from peers"),
         })
     offered.sort(key=lambda item: item["path"])
     return offered
@@ -1295,6 +1432,22 @@ async def accept_join(token: str = Body(..., embed=True)):
         # observe, so a zero-length file was named in the manifest, listed
         # on the offer card, accepted, and never written: the writer got a
         # project with a file missing and nothing saying which.
+        pending.store.holding = False
+        if pending.made is not None:
+            # A copy that had files: the plan the card showed, done now,
+            # with a history and a trash of this folder's own to keep what
+            # loses, since there is no session yet to hold them.
+            state_dir = pending.project.state_dir
+            history = History(state_dir / "history")
+            me = collab_identity.peer_id()
+            who = SETTINGS.display_name or ""
+            trash = Trash(
+                state_dir / "trash", history, pending.target,
+                identity=lambda: {"peer": me, "who": who},
+            )
+            pending.store.reconcile_apply(
+                pending.plan, history=history, trash=trash, peer=me, who=who,
+            )
         pending.store.project_everything()
         pending.store.flush()
         if pending.rejoining:
