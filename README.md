@@ -638,6 +638,11 @@ answer is kept with the project, so a restart does not ask you again.
 If that is more asking than you want, the control under the box has three
 positions and you choose which one you are in.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/fence-dark.svg">
+  <img alt="The three positions of the control under the agent's box: Ask before acting, the default, asks about every command, fetch and write that leaves the project; Run the work without asking lets commands and edits run and still asks about a write outside the project or to a file the build runs, and about anything that reaches the internet; Never ask about anything asks about nothing and takes a second press to switch on." src="docs/fence-light.svg">
+</picture>
+
 **Ask before acting** is the above: a card for every command, every fetch and
 every write that leaves the project. It is the only one of the three that is a
 complete fence, and it is the default.
@@ -860,6 +865,11 @@ being gone, which is what it is, and nobody else would notice anything.
 
 ### Losing your folder is not losing your place
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/lost-folder-dark.svg">
+  <img alt="Your folder is deleted, moved or on a drive that went away, and your NextTex closes the project and says so. Their copy is untouched: every file, its history, its trash. Your project list offers two ways back, Find it for a folder that moved and Rejoin from collaborators for one that is gone, with no new invite." src="docs/lost-folder-light.svg">
+</picture>
+
 If the folder on your machine is deleted, moved, or on a drive that went
 away, nobody else is affected, and you are still in the share. NextTex
 keeps a note of every share you are in outside the project, so the project
@@ -868,6 +878,11 @@ from your collaborators, into a folder that is empty or already holds a
 copy of your own, with no new invite needed.
 
 ### Joining into a folder you already have
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/join-copy-dark.svg">
+  <img alt="The shared project on the left, your folder on the right, and between them what accepting does to each file: the same as yours, nothing; new from the others, written; only here, goes to everybody; different, the shared copy wins and yours is kept in the file's history; deleted by the others, yours goes to the trash; a git clone's own edits, merged in. Nothing is written until you accept." src="docs/join-copy-light.svg">
+</picture>
 
 The folder an invite arrives in can already hold a copy of the files, a git
 clone say. NextTex lets the shared project arrive first and then shows what
