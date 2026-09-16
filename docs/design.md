@@ -3148,7 +3148,10 @@ latency, which is seconds.
 And removing a collaborator disconnects them without retracting anything.
 There is no owner, so there is no authority that could rotate a key, and a
 button that looked like revocation and was not would be worse than no button.
-The sentence saying so is next to the button and not in a footnote.
+The sentence saying so is next to the button and not in a footnote. The
+removed install is told once, by the tombstone itself, and stops; §38 says
+how, and why a refusal at another peer's door is deliberately not the same
+signal.
 
 ## 23. A page you can choose, and furniture you cannot
 
@@ -6861,3 +6864,33 @@ touch the disk after an update arrives is its log, and `persist.append`
 makes the directories it needs, so a project moved to a new home returned
 to its old path as a `.nexttex/collab/docs` and nothing else. The log is
 now refused under a missing root as the projection is.
+
+### The removed install is told, once
+
+Removing a collaborator wrote a tombstone into the shared manifest and
+closed their link, in that order, and the order was the bug: the tombstone
+was queued to the link and the link was marked dead before the queue had
+drained, so the removed install never received it. It learned by dialling
+and being refused, and a connection that succeeded reset the dial loop's
+backoff, so it knocked every two seconds for as long as its server ran.
+Its share panel showed every member as away, which reads as a network
+problem on a machine that had been put out on purpose.
+
+The tombstone is now the last thing the removed peer's link carries before
+it is closed, and if that link was down it reaches them through whichever
+member they next sync with, since the manifest is what every peer mirrors
+its member list from. On arrival the install closes its links, stops
+listening for the share and stops dialling, and the share panel says who
+removed it, that the copy and its history stay, and that nothing typed
+from now on reaches anyone; the tab strip draws nobody rather than a row
+of collaborators who are away.
+
+A refusal at the door is deliberately not the same signal. A peer refuses
+from its own copy of the member list, and that copy can be behind: a
+project restored from a backup, or a peer that was offline when somebody
+was added, will refuse a member it has not heard of yet. Under the first
+draft of this that one stale peer could put a member out for good. So a
+`DENIED` backs the dial loop off from that peer and keeps the reason for
+the panel, and only the tombstone in the install's own record, which only
+an actual removal writes, means removed. Being let in anywhere clears the
+reason.

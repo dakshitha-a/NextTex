@@ -39,6 +39,14 @@ back the copy they already have -- they have the files, the history and very
 likely a git remote.  The interface says so beside the button rather than
 only in the documentation, because a control that looks like revocation and
 is not is worse than no control.
+
+The removed member is told, once, by the same tombstone: it is the last
+thing their link carries before it is closed, and if that link was down it
+reaches them through whichever member they next sync with.  Their install
+then stops dialling and stops listening, and offers to keep the copy as a
+project of its own.  A refusal at the door is deliberately *not* the same
+signal: a peer refuses from its own copy of the member list, which can be
+behind, and one stale peer must not be able to put a member out for good.
 """
 
 from __future__ import annotations
@@ -228,6 +236,10 @@ class PeerLink:
         self.colour = ""
         self.address = ""
         self.alive = True
+        #: Set when the other end answered this link with a DENIED.  Read
+        #: by the dial loop, which backs off from a peer that refuses us
+        #: rather than dialling it again two seconds later.
+        self.denied = False
         #: What is waiting to go to this peer. A queue rather than a task
         #: each, because `_document_changed` runs per keystroke per peer: a
         #: peer that is connected but not draining -- QUIC flow control, a
@@ -277,14 +289,33 @@ class PeerLink:
     async def _drain(self) -> None:
         while True:
             frame = await self.outbox.get()
-            if frame is None or not self.alive:
-                return
             try:
-                await self.stream.send(frame)
-                self._last_sent = asyncio.get_running_loop().time()
-            except Exception:
-                self.alive = False
-                return
+                if frame is None or not self.alive:
+                    return
+                try:
+                    await self.stream.send(frame)
+                    self._last_sent = asyncio.get_running_loop().time()
+                except Exception:
+                    self.alive = False
+                    return
+            finally:
+                self.outbox.task_done()
+
+    async def drained(self, timeout: float = 2.0) -> bool:
+        """Wait until everything queued for this peer has been sent.
+
+        For the two moments a queued frame matters more than the link:
+        removing a peer, whose tombstone is the last thing they should hear
+        from us, and leaving, where our own is.  Bounded, because a peer
+        that is not reading is exactly the peer this may be waiting on.
+        """
+        if self._pump is None or not self.alive:
+            return self.outbox.empty()
+        try:
+            await asyncio.wait_for(self.outbox.join(), timeout)
+        except asyncio.TimeoutError:
+            return False
+        return True
 
     async def send(self, frame: bytes) -> None:
         if not self.alive:
@@ -481,6 +512,9 @@ class PeerLink:
                 log.warning(
                     "a peer sent a different share id; keeping the one we have"
                 )
+            # Somebody let us in, so whatever the last refusal said is
+            # no longer the state of things.
+            self.network.last_error = ""
             for peer_id, record in (frame.header.get("members") or {}).items():
                 if peer_id not in self.network.share.members:
                     self.network.share.members[peer_id] = record
@@ -537,7 +571,14 @@ class PeerLink:
             if file_id in self.wanted_files:
                 self.wanted_files[file_id] = asyncio.get_running_loop().time()
         elif frame.kind == wire.DENIED:
+            # One peer's opinion, from its own copy of the member list,
+            # which may be behind: a restored backup, or a peer that was
+            # offline when we were added.  So this is not taken as being
+            # removed; that is what the tombstone in the manifest says,
+            # and it arrives through the sync.  This peer is backed off
+            # from, and the reason is kept for the interface.
             self.network.last_error = frame.header.get("reason", "refused")
+            self.denied = True
             self.alive = False
 
     async def _send_history(self, frame: wire.Frame) -> None:
@@ -688,6 +729,8 @@ class PeerNetwork:
         self.links: dict[str, PeerLink] = {}
         self.applying: PeerLink | None = None
         self.last_error = ""
+        #: Set once `note_removed_self` has acted on our own tombstone.
+        self.removed = False
         self._tasks: set[asyncio.Task] = set()
         #: Peers we already have a dialling loop for, so learning about one
         #: twice does not start two.
@@ -719,6 +762,12 @@ class PeerNetwork:
         if self._closed or self.transport is not None:
             return
         if not self.share.shared:
+            return
+        if self.removed_here():
+            # Removed before this restart.  Nothing to listen for and
+            # nobody to dial: every member will refuse us, and the
+            # interface says so from the record alone.
+            self.removed = True
             return
         self._loop = asyncio.get_running_loop()
         self._teach_history()
@@ -858,6 +907,48 @@ class PeerNetwork:
                 changed = True
         if changed:
             self.share.save()
+        # The one record that is about us.  A tombstone here was written
+        # by somebody's actual `remove`, whether it came from them or by
+        # way of a third peer, and it is the only thing that means we were
+        # removed: see `note_removed_self`.
+        if self.removed_here() and not self.removed:
+            self._spawn(self.note_removed_self())
+
+    def removed_here(self) -> bool:
+        """Whether this install's own member record carries a tombstone."""
+        record = self.share.members.get(self.peer_id) or {}
+        return bool(record.get("removed_at"))
+
+    async def note_removed_self(self) -> None:
+        """Somebody removed this install from the project.  Act on it once.
+
+        The links are closed and nothing is dialled again, because every
+        peer that has heard will refuse us and dialling the ones that have
+        not would only be the same refusal a little later.  The transport
+        stops listening for this share, so nobody can be let in by an
+        install that is no longer a member.  The record stays: the project
+        is still here, the documents still open, and the interface says
+        what happened beside an offer to keep the copy as a project of
+        this install's own.
+
+        Never reached from a DENIED.  A peer denies from its own copy of
+        the member list, and that copy can be behind; one stale peer must
+        not be able to put a member out for good.
+        """
+        if self.removed:
+            return
+        self.removed = True
+        self.share.save()
+        for link in list(self.links.values()):
+            link.alive = False
+            with contextlib.suppress(Exception):
+                await link.stream.close()
+        self.links.clear()
+        if self.transport is not None:
+            with contextlib.suppress(Exception):
+                await self.transport.close()
+            self.transport = None
+        self._announce_peers()
 
     def remove(self, peer_id: str) -> None:
         """Stop talking to a peer, and tell the others.
@@ -872,11 +963,23 @@ class PeerNetwork:
                 record["removed_by"] = self.peer_id
         entry = self.share.members.setdefault(peer_id, {})
         entry["removed_at"] = time.time()
+        entry["removed_by"] = self.peer_id
         self.share.save()
         link = self.links.pop(peer_id, None)
         if link is not None:
-            link.alive = False
-            self._spawn(link.stream.close())
+            # The tombstone was queued to them a moment ago, by the
+            # manifest observer.  Marking the link dead here, before the
+            # queue had drained, meant they never received it: they found
+            # out by dialling and being refused, every two seconds, for
+            # ever.  So the queue is given a moment to empty first.
+            self._spawn(self._say_goodbye(link))
+        self._announce_peers()
+
+    async def _say_goodbye(self, link: PeerLink) -> None:
+        await link.drained()
+        link.alive = False
+        with contextlib.suppress(Exception):
+            await link.stream.close()
 
     async def join(self, invite: str, name: str) -> str:
         """Accept an invite: dial the peer who wrote it and ask to be let in.
@@ -985,7 +1088,12 @@ class PeerNetwork:
 
     async def _dial_until_told_otherwise(self, peer_id: str) -> None:
         attempt = 0
-        while not self._closed and self.share.allows(peer_id):
+        while (
+            not self._closed
+            and self.transport is not None
+            and self.share.allows(peer_id)
+            and not self.removed_here()
+        ):
             if peer_id in self.links and self.links[peer_id].alive:
                 await asyncio.sleep(2)
                 continue
@@ -997,7 +1105,6 @@ class PeerNetwork:
                 attempt += 1
                 await asyncio.sleep(wait)
                 continue
-            attempt = 0
             link = PeerLink(self, stream, peer_id)
             self.adopt_link(link)
             self._spawn(link.run())
@@ -1007,6 +1114,16 @@ class PeerNetwork:
             ))
             await link.send_documents()
             await asyncio.sleep(2)
+            if link.denied:
+                # Connected and turned away.  A connection that succeeds
+                # used to reset the backoff, so a peer whose copy of the
+                # member list was behind ours, or that had removed us, was
+                # dialled again every two seconds.
+                wait = BACKOFF[min(attempt, len(BACKOFF) - 1)]
+                attempt += 1
+                await asyncio.sleep(wait)
+            else:
+                attempt = 0
 
     def _announce_peers(self) -> None:
         """Tell the browsers that a peer arrived or went away.
@@ -1249,6 +1366,11 @@ class PeerNetwork:
             if link.alive:
                 await link.want_blob(sha)
 
+    def _name_of(self, peer_id: str) -> str:
+        if not peer_id:
+            return ""
+        return (self.share.members.get(peer_id) or {}).get("name", "") or peer_id
+
     def state(self) -> dict:
         """What the interface shows about this project's peers."""
         return {
@@ -1264,6 +1386,13 @@ class PeerNetwork:
             # different thing from "they will not let you in" and sends the
             # writer looking for the wrong problem.
             "member": bool(self.share.shared and self.peer_id in self.share.members),
+            # Whether somebody removed this install, and who, by name where
+            # their record says one.  Told from the tombstone in our own
+            # record and nothing else.
+            "removed": self.removed_here(),
+            "removedBy": self._name_of(
+                (self.share.members.get(self.peer_id) or {}).get("removed_by", "")
+            ),
             "address": self.address(),
             "available": transport.available(),
             "members": [

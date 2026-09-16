@@ -144,6 +144,30 @@ export default function SharePanel({ projectId, onClose }: {
               anywhere.
             </p>
           </div>
+        ) : state.shared && state.removed ? (
+          /* Somebody removed this install. Said plainly, once, with what it
+             does and does not mean: the copy is here, the history is here,
+             and nothing typed from now on reaches anyone. The dial loop
+             has already stopped; without this the panel showed every
+             member as away, which reads as a network problem. */
+          <div className="px-[12px] pb-[12px]" data-testid="removed-notice">
+            <p className="t-meta text-ink-2">
+              {state.removedBy ? (
+                <>
+                  <span className="text-ink">{state.removedBy}</span> removed you
+                  from this project.
+                </>
+              ) : (
+                "You were removed from this project."
+              )}{" "}
+              Your copy stays on this machine, with its history, and nothing
+              you type here reaches anyone now.
+            </p>
+            <p className="t-meta mt-[8px] text-ink-2">
+              To collaborate on it again, ask somebody in the share for a new
+              invite.
+            </p>
+          </div>
         ) : state.shared && !state.member ? (
           /* A project that was copied to this machine. The share record
              travels inside the project and the identity does not, so this

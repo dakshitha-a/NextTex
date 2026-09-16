@@ -23,7 +23,13 @@
  */
 
 export type Member = { peer: string; name: string; connected: boolean; removed?: boolean };
-export type Share = { shared: boolean; me: string; members: Member[] } | null;
+export type Share = {
+  shared: boolean;
+  me: string;
+  members: Member[];
+  /** This install was removed from the share. There is nobody to draw. */
+  removed?: boolean;
+} | null;
 
 /** Where a share has got to, from the tab strip's point of view. */
 export type Standing =
@@ -41,7 +47,7 @@ export type Standing =
 /** The members of a share other than this install, ignoring anybody who
  *  has been removed from it. */
 export function others(share: Share): Member[] {
-  if (!share?.shared) return [];
+  if (!share?.shared || share.removed) return [];
   return share.members.filter((m) => m.peer !== share.me && !m.removed);
 }
 

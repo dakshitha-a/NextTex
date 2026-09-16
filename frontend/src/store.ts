@@ -339,7 +339,7 @@ export type State = {
    *  goes. Not the same question as `connection`, which is this browser's
    *  socket to its own server, and the two must never be drawn as one
    *  thing. */
-  share: { shared: boolean; me: string; members: Member[] } | null;
+  share: { shared: boolean; me: string; members: Member[]; removed?: boolean } | null;
   /** A project whose folder went away from under it while it was open.
    *  Shown once on the projects screen, where the row already says the
    *  folder is missing but not why the editor just closed. */
@@ -975,6 +975,7 @@ function receive(event: any) {
           shared: Boolean(event.shared),
           me: String(event.me ?? ""),
           members: (event.members ?? []) as Member[],
+          removed: Boolean(event.removed),
         },
       });
       break;

@@ -330,6 +330,7 @@ export default function Editor({
               shared: collabState.shared,
               me: collabState.me,
               members: collabState.members,
+              removed: collabState.removed,
             },
           }))
           .catch(() => undefined);

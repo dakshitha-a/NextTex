@@ -147,6 +147,24 @@ def test_removing_a_member_marks_them_removed(client, opened):
     assert bob["removed"] is True
 
 
+def test_the_state_says_when_this_install_was_removed(client, opened):
+    """Read from the tombstone in this install's own record, and naming
+    whoever wrote it."""
+    project_id = opened["id"]
+    state = client.post(f"/api/projects/{project_id}/collab/share",
+                        json={"name": "A"}).json()
+    assert state["removed"] is False and state["removedBy"] == ""
+    peers = server_main.SESSIONS[project_id].peers
+    peers.share.members["b" * 64] = {"name": "Bob", "at": 0}
+    peers.share.members[state["me"]]["removed_at"] = 1.0
+    peers.share.members[state["me"]]["removed_by"] = "b" * 64
+    peers.share.save()
+
+    state = client.get(f"/api/projects/{project_id}/collab").json()
+    assert state["removed"] is True
+    assert state["removedBy"] == "Bob"
+
+
 def test_the_state_says_whether_this_platform_can_do_it_at_all(client, opened):
     """An Intel Mac has no iroh wheel. The share card has to be able to say
     so rather than offering a button that fails."""

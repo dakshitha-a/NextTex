@@ -329,6 +329,12 @@ export type CollabState = {
    *  False on a machine the project folder was copied to: the share record
    *  travels inside the project and the identity does not. */
   member: boolean;
+  /** Somebody removed this install from the project. Told from the
+   *  tombstone in its own member record, which only an actual removal
+   *  writes, never from a refusal at another peer's door. */
+  removed: boolean;
+  /** Who did, by name where their record carries one. */
+  removedBy: string;
   members: Member[];
   error: string;
 };

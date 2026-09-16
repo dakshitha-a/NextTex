@@ -50,6 +50,27 @@ describe("where a share has got to", () => {
     ]))).toBe("none");
   });
 
+  test("an install that was itself removed has nobody to draw", () => {
+    // The others are still members and still away from here, and drawing
+    // them as away read as a network problem on a machine that had been
+    // put out of the share on purpose.
+    expect(peerStanding({
+      shared: true,
+      me,
+      removed: true,
+      members: [
+        { peer: me, name: "Me", connected: false, removed: true },
+        { peer: "bbbb", name: "Bob", connected: false },
+      ],
+    })).toBe("none");
+    expect(others({
+      shared: true,
+      me,
+      removed: true,
+      members: [{ peer: "bbbb", name: "Bob", connected: true }],
+    })).toEqual([]);
+  });
+
   test("one connected peer is present even when another is not", () => {
     expect(peerStanding(share([
       { peer: "bbbb", name: "Bob", connected: false },
