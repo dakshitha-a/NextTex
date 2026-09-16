@@ -76,7 +76,7 @@ test("the invite box and the folder beneath it are one pair", async ({
   const measured = await page.evaluate(() => {
     const area = document.querySelector<HTMLElement>('[data-testid="invite-input"]')!;
     const field = [...document.querySelectorAll<HTMLInputElement>("input")].find(
-      (el) => (el.placeholder ?? "").includes("empty folder"),
+      (el) => (el.placeholder ?? "").includes("A folder to put it in"),
     )!;
     const a = area.getBoundingClientRect();
     const b = field.getBoundingClientRect();
