@@ -899,14 +899,26 @@ class PeerNetwork:
             return
         members = self.store.manifest.get("members", type=Map)
         changed = False
+        arrived: list[str] = []
         for peer_id, record in members.items():
             entry = {k: v for k, v in dict(record).items() if v is not None}
             known = self.share.members.get(peer_id)
+            if known is None:
+                arrived.append(peer_id)
             if known != entry:
                 self.share.members[peer_id] = entry
                 changed = True
         if changed:
             self.share.save()
+        # A member first heard of here is dialled, as one named in a
+        # WELCOME is.  It was not: the newcomer dialled everybody from
+        # their WELCOME and that was the only link either side had, so
+        # when it dropped, the newcomer's loop was the only thing that
+        # would ever rebuild it, and a third peer that had forgotten them
+        # was never so much as asked again.
+        for peer_id in arrived:
+            if peer_id != self.peer_id:
+                self.dial_later(peer_id)
         # The one record that is about us.  A tombstone here was written
         # by somebody's actual `remove`, whether it came from them or by
         # way of a third peer, and it is the only thing that means we were
