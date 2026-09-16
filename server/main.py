@@ -43,8 +43,9 @@ from pydantic import BaseModel, Field
 
 from nexttex import attachments, auth, claude_auth, gitrepo, plots, report, synctex
 from nexttex.version import VERSION
+from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
-from server.collab.peers import PeerNetwork
+from server.collab.peers import PeerNetwork, WELL_FORMED_SHARE_ID
 from server.collab.store import CollabStore
 from server.transcript import TranscriptError
 from nexttex.atomic import (
@@ -60,7 +61,7 @@ from nexttex.library import (
 from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
-from nexttex.paths import state_home
+from nexttex.paths import shares_home, state_home
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
     is_ours, kind_of, under_ignored_directory,
@@ -1649,9 +1650,58 @@ def _safe_rel(session: ProjectSession, relative: str) -> tuple[Path, str]:
 # Projects
 
 
+def _share_cards() -> dict[str, dict]:
+    """The shares this install is in, by project path, from the cards.
+
+    Read from the state directory rather than from inside each project,
+    which is the point of the cards: a project whose folder is gone still
+    has one, and the row for it can say it was shared and offer a way
+    back in.  A card names a share this install was removed from when its
+    own member record carries a tombstone.
+    """
+    cards: dict[str, dict] = {}
+    home = shares_home()
+    try:
+        entries = list(home.iterdir())
+    except OSError:
+        return cards
+    me = ""
+    for entry in entries:
+        if entry.suffix != ".json" or not WELL_FORMED_SHARE_ID.fullmatch(entry.stem):
+            continue
+        try:
+            card = json.loads(entry.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(card, dict) or card.get("share_id") != entry.stem:
+            continue
+        path = str(card.get("path") or "")
+        if not path:
+            continue
+        if not me:
+            try:
+                me = collab_identity.peer_id()
+            except Exception:
+                me = ""
+        members = card.get("members") or {}
+        mine = members.get(me) if isinstance(members, dict) else None
+        cards[path] = {
+            "shareId": entry.stem,
+            "removed": bool(isinstance(mine, dict) and mine.get("removed_at")),
+        }
+    return cards
+
+
 @app.get("/api/projects")
 async def list_projects():
-    return {"projects": REGISTRY.list(), "open": list(SESSIONS)}
+    projects = REGISTRY.list()
+    cards = _share_cards()
+    for entry in projects:
+        card = cards.get(str(entry.get("path") or ""))
+        entry["shared"] = card is not None
+        entry["shareId"] = card["shareId"] if card else ""
+        entry["removed"] = bool(card and card["removed"])
+    return {"projects": projects, "open": list(SESSIONS)}
 
 
 @app.post("/api/projects")

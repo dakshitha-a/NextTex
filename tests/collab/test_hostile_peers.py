@@ -265,9 +265,18 @@ def test_a_joiner_still_learns_the_share_id(tmp_path):
     link, share, asyncio = _link_and_share(tmp_path)
     assert not share.share_id
 
-    asyncio.run(link.handle(_welcome("the-real-share")))
+    asyncio.run(link.handle(_welcome("ab" * 16)))
 
-    assert share.share_id == "the-real-share"
+    assert share.share_id == "ab" * 16
+
+
+def test_a_welcome_naming_a_share_that_is_not_one_teaches_nothing(tmp_path):
+    """The id names a file in the state directory, so it has to look like
+    the one `begin_sharing` mints before it is taken from the wire."""
+    link, share, asyncio = _link_and_share(tmp_path)
+    for offered in ("the-real-share", "../../peer.key", "", "AB" * 16):
+        asyncio.run(link.handle(_welcome(offered)))
+        assert share.share_id == "", offered
 
 
 def test_a_rename_cannot_move_a_file_from_outside_the_project_in(store, tmp_path):

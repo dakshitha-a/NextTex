@@ -251,6 +251,13 @@ export type ProjectSummary = {
   path: string;
   lastOpened: number;
   missing: boolean;
+  /** Whether this install is in a share for this project, known from the
+   *  card in the state directory, so it is known even when the folder is
+   *  missing. */
+  shared: boolean;
+  shareId: string;
+  /** This install was removed from that share. */
+  removed: boolean;
 };
 
 export type ContextDocument = {

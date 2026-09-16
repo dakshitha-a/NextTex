@@ -66,6 +66,7 @@ from pycrdt import Map, create_sync_message, handle_sync_message
 
 from nexttex.atomic import write_atomically
 from nexttex.history import now_ms
+from nexttex.project import shares_home
 
 from . import history_sync, identity, transport, wire
 from .store import ARRIVED_LIMIT, _WELL_FORMED_ID as _WELL_FORMED_ID_RE
@@ -153,6 +154,12 @@ def _unwrap(invite: str) -> dict:
     return payload
 
 
+#: What a share id looks like: `token_hex(16)` from `begin_sharing`.  A
+#: joiner takes its id from an invite, so it is checked against this before
+#: it names a file anywhere.
+WELL_FORMED_SHARE_ID = re.compile(r"[0-9a-f]{8,64}")
+
+
 class Share:
     """What this peer knows about a shared project, on its own disk.
 
@@ -160,15 +167,51 @@ class Share:
     readable *before* the document has been synced -- it is what says whether
     a project is shared at all, and it is the gate an inbound connection is
     checked against.
+
+    Kept twice.  `share.json` lives inside the project, where the store and
+    the gate read it.  A *card* with the same members and no invites lives
+    in the install's own state directory, keyed by share id, because the
+    one moment somebody most needs to know whom to dial is after the
+    project folder is gone, and everything the install knew about the
+    share used to go with it.
     """
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, card_dir: Path | None = None,
+                 project_root: Path | None = None) -> None:
         self.path = root / "share.json"
+        self.card_dir = card_dir
+        self.project_root = project_root
         self.share_id: str = ""
         self.members: dict[str, dict] = {}
         self.invites: dict[str, dict] = {}
         self.joined_at: float = 0.0
         self.load()
+
+    @property
+    def card_path(self) -> Path | None:
+        if self.card_dir is None or not WELL_FORMED_SHARE_ID.fullmatch(self.share_id):
+            return None
+        return self.card_dir / f"{self.share_id}.json"
+
+    def save_card(self) -> None:
+        card = self.card_path
+        if card is None:
+            return
+        try:
+            write_atomically(card, json.dumps({
+                "share_id": self.share_id,
+                "members": self.members,
+                "joined_at": self.joined_at,
+                "path": str(self.project_root) if self.project_root else "",
+            }, indent=2), mode=0o600)
+        except OSError:
+            log.warning("could not write the share card for %s", self.share_id)
+
+    def drop_card(self) -> None:
+        card = self.card_path
+        if card is not None:
+            with contextlib.suppress(OSError):
+                card.unlink()
 
     def load(self) -> None:
         try:
@@ -188,6 +231,7 @@ class Share:
             "invites": self.invites,
             "joined_at": self.joined_at,
         }, indent=2), mode=0o600)
+        self.save_card()
 
     @property
     def shared(self) -> bool:
@@ -506,8 +550,10 @@ class PeerLink:
             #
             # Filling a blank is the case that exists; replacing a value we
             # already hold is the case that does not.
+            offered_id = str(frame.header.get("share", ""))
             if not self.network.share.share_id:
-                self.network.share.share_id = frame.header.get("share", "")
+                if WELL_FORMED_SHARE_ID.fullmatch(offered_id):
+                    self.network.share.share_id = offered_id
             elif frame.header.get("share", "") not in ("", self.network.share.share_id):
                 log.warning(
                     "a peer sent a different share id; keeping the one we have"
@@ -723,7 +769,10 @@ class PeerNetwork:
         self.store = store
         self.hub = hub
         self.session = session
-        self.share = Share(store.project.state_dir / "collab")
+        self.share = Share(
+            store.project.state_dir / "collab",
+            card_dir=shares_home(), project_root=store.project.root,
+        )
         self.marks = history_sync.Marks(store.project.state_dir / "collab")
         self.transport: transport.Transport | None = None
         self.links: dict[str, PeerLink] = {}
@@ -1004,6 +1053,9 @@ class PeerNetwork:
             address = str(payload["address"])
             secret = str(payload["secret"])
         except Exception:
+            return "That does not look like an invite."
+        if not WELL_FORMED_SHARE_ID.fullmatch(share_id):
+            # The id names a file in the state directory from here on.
             return "That does not look like an invite."
 
         self.share.share_id = share_id

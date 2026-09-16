@@ -15,11 +15,19 @@ from __future__ import annotations
 
 import asyncio
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
 
 os.environ["NEXTTEX_COLLAB_TRANSPORT"] = "loopback"
+# Sharing writes a card into the install's state directory, and nothing
+# under here redirected that: every shared test project would have left a
+# card in the developer's own `~/.local/share/nexttex/shares`.
+os.environ.setdefault(
+    "XDG_DATA_HOME",
+    tempfile.mkdtemp(prefix="nexttex-collab-tests-"),
+)
 
 from nexttex.history import History                              # noqa: E402
 from nexttex.trash import Trash                                  # noqa: E402

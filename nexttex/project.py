@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-from .paths import instance_name, state_home
+from .paths import instance_name, shares_home, state_home
 
 try:
     import tomllib

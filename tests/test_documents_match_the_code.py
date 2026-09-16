@@ -40,6 +40,7 @@ NOT_OURS = {
     # Inside a writer's own project or their own state directory, created at
     # runtime. `.nexttex/` is gitignored precisely so none of this is here.
     ".nexttex/collab/share.json",
+    "shares/",
     ".nexttex/dictionary.txt",
     ".nexttex/previews.json",
     # Examples of what a writer's project holds, in the passage about the

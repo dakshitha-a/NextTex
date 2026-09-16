@@ -50,3 +50,54 @@ def test_a_folder_removed_under_an_open_project_closes_it(client, opened, projec
     # went while the server was down.
     listed = client.get("/api/projects").json()["projects"]
     assert [p["missing"] for p in listed if p["id"] == project_id] == [True]
+
+
+def test_a_missing_shared_project_still_says_which_share_it_was(client, opened, project_dir):
+    """From the card in the state directory, since the folder is gone."""
+    project_id = opened["id"]
+    state = client.post(f"/api/projects/{project_id}/collab/share",
+                        json={"name": "Wilhelmina"}).json()
+    share_id = state["shareId"]
+
+    listed = client.get("/api/projects").json()["projects"]
+    row = next(p for p in listed if p["id"] == project_id)
+    assert row["shared"] is True and row["shareId"] == share_id
+    assert row["removed"] is False
+
+    shutil.rmtree(project_dir)
+    assert _wait(lambda: project_id not in server_main.SESSIONS)
+    listed = client.get("/api/projects").json()["projects"]
+    row = next(p for p in listed if p["id"] == project_id)
+    assert row["missing"] is True
+    assert row["shared"] is True and row["shareId"] == share_id
+
+
+def test_a_private_project_carries_no_share(client, opened):
+    listed = client.get("/api/projects").json()["projects"]
+    row = next(p for p in listed if p["id"] == opened["id"])
+    assert row["shared"] is False and row["shareId"] == "" and row["removed"] is False
+
+
+def test_a_card_for_a_share_this_install_was_removed_from_says_so(client, opened):
+    project_id = opened["id"]
+    state = client.post(f"/api/projects/{project_id}/collab/share",
+                        json={"name": "A"}).json()
+    peers = server_main.SESSIONS[project_id].peers
+    peers.share.members[state["me"]]["removed_at"] = 1.0
+    peers.share.save()
+    listed = client.get("/api/projects").json()["projects"]
+    row = next(p for p in listed if p["id"] == project_id)
+    assert row["removed"] is True
+
+
+def test_a_card_that_is_not_one_is_ignored(client, opened):
+    """Anything in the shares directory that is not a well-formed card."""
+    from nexttex.paths import shares_home
+
+    home = shares_home()
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "notes.txt").write_text("not a card")
+    (home / f"{'e' * 32}.json").write_text("{not json")
+    (home / f"{'f' * 32}.json").write_text('{"share_id": "other", "path": "/x"}')
+    listed = client.get("/api/projects").json()["projects"]
+    assert all(p["shared"] is False for p in listed)

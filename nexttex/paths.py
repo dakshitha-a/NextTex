@@ -38,3 +38,15 @@ def state_home(environ=None) -> Path:
     base = environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")
     name = instance_name(environ)
     return Path(base) / (f"nexttex-{name}" if name else "nexttex")
+
+
+def shares_home(environ=None) -> Path:
+    """Where the install keeps a card for each share it is in.
+
+    One JSON file per share id: the members and their last addresses, and
+    the project folder's path.  Outside the project on purpose, since the
+    moment somebody most needs to know whom to dial is after the folder is
+    gone, and everything the install knew about the share used to go with
+    it.  Never invites: those stay inside the project.
+    """
+    return state_home(environ) / "shares"
