@@ -1163,6 +1163,46 @@ class PeerNetwork:
 
     # --- connections ------------------------------------------------------
 
+    async def rejoin(self, card: dict) -> str:
+        """Get back into a share this install is already a member of.
+
+        For the install whose project folder is gone: the card in the
+        state directory still says which share it was, whom to dial and
+        where they were last reachable.  No invite, because the gate at
+        every member admits a member's key on its own; a HELLO with no
+        secret is all a member ever sends.  Returns "" or a sentence.
+        """
+        share_id = str(card.get("share_id") or "")
+        if not WELL_FORMED_SHARE_ID.fullmatch(share_id):
+            return "That is not a share this install knows."
+        members = card.get("members")
+        if not isinstance(members, dict) or self.peer_id not in members:
+            return "This install is not a member of that share."
+        self.share.share_id = share_id
+        self.share.members = {
+            str(k): dict(v) for k, v in members.items() if isinstance(v, dict)
+        }
+        self.share.joined_at = float(card.get("joined_at") or 0.0) or time.time()
+        if self.removed_here():
+            return ("You were removed from this project. To get back in, "
+                    "ask somebody in it for a new invite.")
+        self.share.save()
+
+        self._loop = asyncio.get_running_loop()
+        self._teach_history()
+        self.transport = self.transport or self._make_transport()
+        await self.transport.start(self._accept)
+        if self._document_changed not in self.store.listeners:
+            self.store.listeners.append(self._document_changed)
+        dialled = 0
+        for peer_id in list(self.share.members):
+            if peer_id != self.peer_id and self.share.allows(peer_id):
+                self.dial_later(peer_id)
+                dialled += 1
+        if not dialled:
+            return "Nobody else is in that share to ask for the project."
+        return ""
+
     async def _accept(self, stream) -> None:
         """Somebody dialled us."""
         peer_id = getattr(stream, "peer_id", "")

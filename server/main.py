@@ -1034,6 +1034,69 @@ async def join_share(
     if not collab_transport.available():
         raise HTTPException(501, "Not available on this platform.")
 
+    target = _empty_folder_for_joining(path)
+    # Joined *before* the project is opened, because an empty folder is not
+    # yet a project: `ProjectSession` needs a main document, and the joiner
+    # has no files at all until the first sync brings them.  So this is a
+    # bootstrap -- documents, then disk, then a project -- and the session
+    # that opens afterwards finds an ordinary LaTeX folder.
+    project = Project.open(target)
+    store = CollabStore(project)
+    network = PeerNetwork(store)
+    return await _hold_join(
+        target, project, store, network,
+        network.join(invite, SETTINGS.display_name or "Unnamed"),
+    )
+
+
+@app.post("/api/collab/rejoin")
+async def rejoin_share(
+    share: str = Body(..., embed=True),
+    path: str = Body(..., embed=True),
+):
+    """Get back into a share this install is a member of, with no invite.
+
+    For the project whose folder is gone. The card in the state directory
+    says which share it was and whom to dial, and every member's gate
+    admits a member's key on its own, so the invite an ordinary join
+    needs is not needed here. The rest is the ordinary held join: the
+    project arrives into memory, the offer card lists it, and accepting
+    writes it and points the old registry entry at the new folder.
+    """
+    if not collab_transport.available():
+        raise HTTPException(501, "Not available on this platform.")
+    if not WELL_FORMED_SHARE_ID.fullmatch(share or ""):
+        raise HTTPException(404, "That is not a share this install knows.")
+    card_path = shares_home() / f"{share}.json"
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise HTTPException(404, "That is not a share this install knows.")
+    if not isinstance(card, dict) or card.get("share_id") != share:
+        raise HTTPException(404, "That is not a share this install knows.")
+
+    target = _empty_folder_for_joining(path)
+    project = Project.open(target)
+    store = CollabStore(project)
+    network = PeerNetwork(store)
+    # The card is this share's one card, and it points at the old folder
+    # until the rejoin is accepted: a rejoin that is discarded must leave
+    # it as it was.
+    network.share.card_dir = None
+    return await _hold_join(
+        target, project, store, network, network.rejoin(card),
+        rejoining=True, previous=str(card.get("path") or ""),
+    )
+
+
+def _empty_folder_for_joining(path: str) -> Path:
+    """The folder a join or a rejoin writes into, made if need be.
+
+    It must be empty or new.  Two documents built independently from
+    identical text merge into *both* copies -- every line twice -- and
+    nothing raises, so a joiner has to start from nothing and be sent the
+    whole state.
+    """
     target = Path(path).expanduser()
     if target.exists() and any(target.iterdir()):
         raise HTTPException(
@@ -1046,19 +1109,25 @@ async def join_share(
         target.mkdir(parents=True, exist_ok=True)
     except OSError as error:
         raise HTTPException(400, f"Could not make that folder: {error}")
+    return target
 
-    # Joined *before* the project is opened, because an empty folder is not
-    # yet a project: `ProjectSession` needs a main document, and the joiner
-    # has no files at all until the first sync brings them.  So this is a
-    # bootstrap -- documents, then disk, then a project -- and the session
-    # that opens afterwards finds an ordinary LaTeX folder.
-    project = Project.open(target)
-    store = CollabStore(project)
-    network = PeerNetwork(store)
+
+async def _hold_join(target: Path, project: Project, store, network, opening,
+                     *, rejoining: bool = False, previous: str = "") -> dict:
+    """Let a project arrive into memory, and hold it for an answer.
+
+    `opening` is the coroutine that dials: a join with an invite or a
+    rejoin from the card.  Whatever fails on the way leaves no folder
+    behind, since the folder was empty or new when this began.
+    """
     try:
-        reason = await network.join(invite, SETTINGS.display_name or "Unnamed")
+        reason = await opening
         if not reason:
             reason = await _wait_for_the_project(store)
+            if reason and network.last_error:
+                # Why nothing came, when a peer said: being refused as not
+                # a member is the case worth naming.
+                reason = f"{reason} The other end said: {network.last_error}."
     except Exception:
         await network.close()
         store.close()
@@ -1091,7 +1160,8 @@ async def join_share(
     token = secrets.token_urlsafe(16)
     PENDING_JOINS[token] = PendingJoin(
         token=token, target=target, project=project, store=store,
-        network=network, at=time.monotonic(),
+        network=network, at=time.monotonic(), rejoining=rejoining,
+        previous=previous,
     )
     return {
         "ok": True,
@@ -1111,6 +1181,11 @@ class PendingJoin:
     store: object
     network: object
     at: float
+    #: A rejoin from the share card rather than a join from an invite, and
+    #: the folder the card pointed at before, so accepting can point the
+    #: registry's entry for it at the new folder rather than add a second.
+    rejoining: bool = False
+    previous: str = ""
 
     async def release(self, keep: bool) -> None:
         """Close the connection, and remove the folder unless it is kept."""
@@ -1120,6 +1195,12 @@ class PendingJoin:
             self.store.close()
         if not keep:
             shutil.rmtree(self.target, ignore_errors=True)
+            if not self.rejoining:
+                # A join that was declined wrote a card for a folder that
+                # no longer exists.  A rejoin never wrote one: the share's
+                # card is the one it read, and it stays as it was.
+                with contextlib.suppress(Exception):
+                    self.network.share.drop_card()
 
 
 #: Whether the watcher's failure has already been logged. It retries every
@@ -1216,11 +1297,25 @@ async def accept_join(token: str = Body(..., embed=True)):
         # project with a file missing and nothing saying which.
         pending.store.project_everything()
         pending.store.flush()
+        if pending.rejoining:
+            # Only now does the card point at the new folder.
+            pending.network.share.card_dir = shares_home()
+            pending.network.share.save_card()
     finally:
         await pending.release(keep=True)
     # Registered only now: a join that was never accepted leaves nothing
-    # behind for somebody to find later and wonder about.
-    REGISTRY.add(str(pending.target))
+    # behind for somebody to find later and wonder about.  A rejoin whose
+    # old folder is still a registry entry takes that entry's place, so
+    # the list does not show the missing folder beside the new one.
+    old_root = Path(pending.previous) if pending.previous else None
+    if (
+        pending.rejoining and old_root is not None
+        and REGISTRY.path_for(id_for(old_root)) is not None
+        and old_root.resolve() != pending.target.resolve()
+    ):
+        REGISTRY.relocate(old_root, pending.target)
+    else:
+        REGISTRY.add(str(pending.target))
     _restart_watch()
     return {
         "ok": True,

@@ -120,6 +120,8 @@ class Pending:
         self.store = self
         self.network = self
         self.at = 0.0
+        self.rejoining = False
+        self.previous = ""
 
     # what the route calls on the store
     def project_everything(self):

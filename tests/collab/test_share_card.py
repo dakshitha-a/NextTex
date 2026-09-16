@@ -95,3 +95,50 @@ def test_a_card_is_dropped_on_request(tmp_path):
     assert share.card_path is not None and share.card_path.is_file()
     share.drop_card()
     assert not share.card_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_a_rejoin_dials_every_member_on_the_card(tmp_path):
+    """Not only the one who issued the original invite."""
+    import shutil
+
+    alice = Peer(tmp_path / "alice").be(A)
+    bob = Peer(tmp_path / "bob", {}).be(B)
+    carol = Peer(tmp_path / "carol", {}).be("c" * 64)
+    await join_up(alice, bob)
+    assert await carol.network.join(alice.network.invite(), "Carol") == ""
+    assert await until(lambda: "c" * 64 in bob.network.share.members)
+    card = _card(alice.network.share.share_id)
+    await bob.close()
+    shutil.rmtree(bob.project.root)
+
+    again = Peer(tmp_path / "bob-again", {}).be(B)
+    assert await until(lambda: set(card["members"]) >= {A, B, "c" * 64})
+    assert await again.network.rejoin(_card(alice.network.share.share_id)) == ""
+    assert await until(
+        lambda: A in again.network.links and "c" * 64 in again.network.links, 15.0,
+    )
+    assert await until(lambda: len(again.store.files) == len(alice.store.files))
+    assert again.network.share.share_id == alice.network.share.share_id
+
+    await again.close()
+    await carol.close()
+    await alice.close()
+
+
+@pytest.mark.asyncio
+async def test_a_rejoin_by_a_removed_install_is_refused_before_dialling(tmp_path):
+    alice = Peer(tmp_path / "alice").be(A)
+    bob = Peer(tmp_path / "bob", {}).be(B)
+    await join_up(alice, bob)
+    alice.network.remove(B)
+    assert await until(lambda: bob.network.removed)
+    card = _card(alice.network.share.share_id)
+    await bob.close()
+
+    again = Peer(tmp_path / "bob-again", {}).be(B)
+    reason = await again.network.rejoin(card)
+    assert "new invite" in reason
+    assert again.network.transport is None
+    await again.close()
+    await alice.close()

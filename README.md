@@ -734,6 +734,13 @@ already have. It stops the two of you syncing. It cannot unsend a paper. The
 button says so, next to itself. Somebody who is removed is told so, once,
 and their copy stays theirs.
 
+**Losing your copy is not losing your place.** If the folder on your
+machine is deleted, moved, or on a drive that went away, nobody else is
+affected, and you are still in the share: NextTex keeps a note of every
+share you are in outside the project. The project list offers to find the
+folder if you moved it, or to rejoin from your collaborators into an empty
+folder, with no new invite needed.
+
 **You can leave.** The share panel has a Leave button: the others carry on
 without you, and your copy stays on your computer as a project of your own,
 with its history, or is deleted if you tick the box that says so. Deleting
