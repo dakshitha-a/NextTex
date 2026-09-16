@@ -417,6 +417,13 @@ async def _reap_once() -> None:
 
     for project_id, session in list(SESSIONS.items()):
         try:
+            # The folder may have gone without the watcher saying so: on
+            # Windows a deleted watch root produced no event at all, and
+            # the session sat open on it until a peer's update happened to
+            # touch the disk. A look once a minute is the backstop.
+            if not Path(session.project.root).is_dir():
+                session.note_root_lost()
+                continue
             if (
                 not session.in_use()
                 and time.monotonic() - session.touched > SESSION_IDLE_TIMEOUT

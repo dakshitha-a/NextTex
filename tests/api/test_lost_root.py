@@ -128,3 +128,21 @@ def test_the_idle_watcher_wakes_when_a_project_opens(client, project):
     client.post(f"/api/projects/{project['id']}/open")
     assert _wait(lambda: bool(server_main.WATCH_RESTART), 5.0)
     assert time.monotonic() - started < 0.9
+
+
+def test_the_reaper_notices_a_folder_the_watcher_did_not(client, opened, project_dir):
+    """On Windows a deleted watch root produced no event at all."""
+    project_id = opened["id"]
+    session = server_main.session_for(project_id)
+    shutil.rmtree(project_dir)
+    time.sleep(0.5)
+    # Whatever the watcher did or did not notice on this platform, put the
+    # session back as one that has not heard, and let the reaper look.
+    server_main.SESSIONS[project_id] = session
+    session.root_lost = False
+    session.closing = False
+
+    client.portal.call(server_main._reap_once)
+
+    assert session.root_lost is True
+    assert _wait(lambda: project_id not in server_main.SESSIONS)
