@@ -333,3 +333,26 @@ def test_head_text_reads_like_the_working_copy_whatever_git_stores(tmp_path):
     subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=tmp_path, check=True)
     commit_everything(tmp_path)
     assert gitrepo.head_text(tmp_path, "main.tex") == "one\ntwo\n"
+
+
+def test_merge_three_never_answers_with_a_carriage_return(tmp_path, monkeypatch):
+    """The scratch files are bytes, so the platform's text mode cannot put
+    CRLF into them; and whatever comes back is read as `read_text` would."""
+    from pathlib import Path
+
+    written: list[bytes] = []
+    original = Path.write_bytes
+
+    def spy(self, data):
+        written.append(data)
+        return original(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", spy)
+    merged, conflicts = gitrepo.merge_three(
+        tmp_path, "one\ntwo\n", "one\ntwo\nmine\n", "zero\none\ntwo\n",
+    )
+    assert conflicts == 0 and merged == "zero\none\ntwo\nmine\n"
+    assert written and all(b"\r" not in data for data in written)
+    # A CRLF that did reach git on some other path is still taken out.
+    merged, _ = gitrepo.merge_three(tmp_path, "a\r\n", "a\r\n", "a\r\nb\r\n")
+    assert "\r" not in merged

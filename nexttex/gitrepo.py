@@ -428,7 +428,14 @@ def merge_three(root: Path, base: str, mine: str, theirs: str) -> tuple[str, int
     with tempfile.TemporaryDirectory(prefix="nexttex-merge-") as scratch:
         where = Path(scratch)
         for name, text in (("base", base), ("mine", mine), ("theirs", theirs)):
-            (where / name).write_text(text, encoding="utf-8")
+            # Bytes, not text: written in text mode on Windows these went
+            # to disk with CRLF, git merged CRLF, and the merged text
+            # carried `\r\n` into a shared document that had never held
+            # a carriage return. The projection then wrote `\r\r\n`, read
+            # it back as two newlines, and folded that in as an edit made
+            # outside; the desktop ended up with a blank line after every
+            # line of the file.
+            (where / name).write_bytes(text.encode("utf-8"))
         try:
             result = subprocess.run(
                 ["git", "merge-file", "-p", "-L", "yours", "-L", "before",
@@ -442,4 +449,6 @@ def merge_three(root: Path, base: str, mine: str, theirs: str) -> tuple[str, int
     if result.returncode < 0 or result.returncode >= 128:
         message = (result.stderr or b"").decode("utf-8", "replace").strip()
         raise GitError(message.splitlines()[-1] if message else "git merge-file failed")
-    return result.stdout.decode("utf-8", "replace"), result.returncode
+    merged = result.stdout.decode("utf-8", "replace")
+    # And the same on the way out, whatever git did with the endings.
+    return merged.replace("\r\n", "\n"), result.returncode
