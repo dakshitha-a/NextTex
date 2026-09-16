@@ -408,9 +408,13 @@ def head_text(root: Path, relative: str) -> str | None:
     if result.returncode != 0:
         return None
     try:
-        return result.stdout.decode("utf-8")
+        text = result.stdout.decode("utf-8")
     except UnicodeDecodeError:
         return None
+    # As `Path.read_text` would give it: a repository that stores CRLF would
+    # otherwise differ from the working copy on every line, and a merge
+    # against it would see both sides changing everything.
+    return text.replace("\r\n", "\n")
 
 
 def merge_three(root: Path, base: str, mine: str, theirs: str) -> tuple[str, int]:

@@ -324,3 +324,12 @@ def test_merge_three_counts_a_conflict(tmp_path):
 def test_merge_three_with_nothing_changed_on_one_side_is_the_other(tmp_path):
     merged, conflicts = gitrepo.merge_three(tmp_path, "a\n", "a\n", "a\nb\n")
     assert (merged, conflicts) == ("a\nb\n", 0)
+
+
+def test_head_text_reads_like_the_working_copy_whatever_git_stores(tmp_path):
+    """CRLF in the repository comes back as LF, as `read_text` gives it."""
+    a_repository(tmp_path)
+    (tmp_path / "main.tex").write_bytes(b"one\r\ntwo\r\n")
+    subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=tmp_path, check=True)
+    commit_everything(tmp_path)
+    assert gitrepo.head_text(tmp_path, "main.tex") == "one\ntwo\n"
