@@ -101,3 +101,30 @@ def test_a_card_that_is_not_one_is_ignored(client, opened):
     (home / f"{'f' * 32}.json").write_text('{"share_id": "other", "path": "/x"}')
     listed = client.get("/api/projects").json()["projects"]
     assert all(p["shared"] is False for p in listed)
+
+
+def test_a_file_written_before_the_watcher_started_is_adopted_when_it_does(client, opened, project_dir):
+    """`adopt()` at the session's opening is before the gap, and the
+    watcher reports only what happens after it; what appeared in between
+    was never adopted until the project was next opened."""
+    session = server_main.session_for(opened["id"])
+    (project_dir / "appeared.tex").write_text("Written into the gap.\n", encoding="utf-8")
+    assert session.collab.file_id_for("appeared.tex") is None
+
+    client.portal.call(server_main._adopt_what_appeared, [session])
+
+    assert session.collab.file_id_for("appeared.tex") is not None
+
+
+def test_the_idle_watcher_wakes_when_a_project_opens(client, project):
+    """Not after a second's sleep: within that second a file could be
+    written and missed."""
+    import time
+
+    # With nothing open the watcher is idle and waiting on the wake event.
+    assert not server_main.SESSIONS
+    assert _wait(lambda: server_main.WATCH_WAKE is not None and not server_main.WATCH_RESTART, 5.0)
+    started = time.monotonic()
+    client.post(f"/api/projects/{project['id']}/open")
+    assert _wait(lambda: bool(server_main.WATCH_RESTART), 5.0)
+    assert time.monotonic() - started < 0.9

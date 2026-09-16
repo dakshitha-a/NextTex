@@ -82,6 +82,10 @@ LIBRARY_JOBS: dict[str, Scan] = {}
 # Stop events for the running file watch.  Setting one makes the watcher
 # restart against the current set of open projects.
 WATCH_RESTART: list[asyncio.Event] = []
+#: Set by `_restart_watch` while the watcher is idle with nothing to watch,
+#: so a project opened into an idle watcher is watched at once rather than
+#: after the second the idle loop used to sleep.
+WATCH_WAKE: asyncio.Event | None = None
 SETTINGS = Settings.load()
 REGISTRY = Registry()
 
@@ -223,12 +227,16 @@ async def _watch_projects() -> None:
     """
     from watchfiles import awatch
 
+    global WATCH_WAKE
+    WATCH_WAKE = asyncio.Event()
     while True:
         roots = []
+        watched = []
         for session in list(SESSIONS.values()):
             root = Path(session.project.root)
             if root.is_dir():
                 roots.append(root)
+                watched.append(session)
             else:
                 # A folder that went while nothing was watching it. Never
                 # handed to the watcher: `awatch` refuses to start on a
@@ -236,10 +244,19 @@ async def _watch_projects() -> None:
                 # once a second for every other project as well.
                 session.note_root_lost()
         if not roots:
-            await asyncio.sleep(1.0)
+            # Woken by `_restart_watch` rather than by a timer: a project
+            # opened into an idle watcher used to go unwatched for up to a
+            # second, and a file written in that second was never adopted.
+            WATCH_WAKE.clear()
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(WATCH_WAKE.wait(), 1.0)
             continue
         stop = asyncio.Event()
         WATCH_RESTART.append(stop)
+        # What appeared between a session opening and this watch starting.
+        # `adopt()` at the session's opening is before the gap, and the
+        # watcher reports only what happens after it.
+        _adopt_what_appeared(watched)
         try:
             # `step` is the poll interval; `debounce` is the window over which
             # changes are coalesced, and its default of 1600 ms would make an
@@ -340,6 +357,24 @@ def _restart_watch() -> None:
     """Wake the file watcher so it picks up a newly opened or closed project."""
     while WATCH_RESTART:
         WATCH_RESTART.pop().set()
+    if WATCH_WAKE is not None:
+        WATCH_WAKE.set()
+
+
+def _adopt_what_appeared(sessions) -> None:
+    """Bring into each manifest any file that appeared unwatched.
+
+    Idempotent, and cheap: a walk of the tree per open project, once per
+    watch start.  A file the manifest has not heard of becomes a record
+    here; a file it knows is left alone, its contents being the document's
+    business when the document is next opened.
+    """
+    for session in sessions:
+        try:
+            session.collab.adopt()
+        except Exception:
+            log.warning("could not adopt what appeared in %s", session.project.root,
+                        exc_info=True)
 
 
 # How long a project stays open after the last request that wanted it.

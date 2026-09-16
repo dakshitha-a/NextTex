@@ -34,6 +34,19 @@ folder that already has files.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A Windows install's server exited silently after an update's
+      restart.** Seen on the laptop during the cross-machine check for
+      2.3.0: the restart helper launched the Startup shortcut, the new
+      server printed its banner four seconds later, and by morning nothing
+      was listening, with `server.err.log` empty and no crash, reboot or
+      logoff in Windows' own logs. Either the process died with nothing
+      logged or the minimized console window the shortcut opens was closed
+      by hand, which kills it without a word. Left because the two cannot
+      be told apart from the evidence; the next step is to leave a freshly
+      restarted server alone overnight on that machine with its window
+      untouched, and if it is still up, to have the shortcut run the
+      server without a console window at all.
+
 - [ ] **An outside edit made while the server is running is not a
       version.** The watcher folds a `git pull` or another editor's save
       into the document through `ingest`, and nothing records what the
