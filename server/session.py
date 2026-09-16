@@ -9,7 +9,7 @@ watch the same project.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 import logging
 import re
@@ -226,6 +226,14 @@ class ProjectSession:
         #: be rebuilt from disk, so this is not state, it is a hint about
         #: whether holding it open is still earning its memory.
         self.touched = time.monotonic()
+        #: Set once the project's folder has been found missing, and set
+        #: while the session is being closed, so the folder going away
+        #: during the close does not start a second one.
+        self.root_lost = False
+        self.closing = False
+        #: What the server does when the folder is gone: closes this
+        #: session and restarts the watcher.  Assigned by whoever opened it.
+        self.on_root_lost: Callable[[], Awaitable[None]] | None = None
         self.context = ProjectContext(project.state_dir)
         self.transcript = Transcript(project.state_dir / "transcript.jsonl")
         self.history = History(project.state_dir / "history")
@@ -681,6 +689,33 @@ class ProjectSession:
             ),
             "announcing a file a peer sent",
         )
+
+    def note_root_lost(self) -> None:
+        """The project's folder is gone from this disk.
+
+        Deleted, moved, or on a drive that went away: the store cannot
+        tell and does not need to.  What it needs is for nothing more to
+        be written or published from here, and for the person at the
+        keyboard to hear that this copy is gone rather than that the
+        project is.  Every other collaborator's copy is untouched, and the
+        registry row already says the folder is missing, so the browser is
+        sent back to the list, where it can find the folder again or
+        rejoin from the others.
+        """
+        if self.root_lost or self.closing:
+            return
+        self.root_lost = True
+
+        async def announce() -> None:
+            await self.events.publish({
+                "type": "root_lost",
+                "name": self.project.config.name,
+                "shared": bool(self.peers.share.share_id),
+            })
+            if self.on_root_lost is not None:
+                await self.on_root_lost()
+
+        spawn(announce(), "closing a project whose folder is gone")
 
     def note_trashed(self, was: str) -> None:
         """A file a peer deleted has just been moved into this trash.
@@ -1250,6 +1285,7 @@ class ProjectSession:
         )
 
     async def close(self) -> None:
+        self.closing = True
         # First, so anything still only in a document reaches the disk
         # before the project stops being open.
         await self.peers.close()

@@ -76,3 +76,23 @@ test("pointing it somewhere that is not there says so, on the row", async ({
   });
   await expect(page.getByText("This folder is no longer there.")).toBeVisible();
 });
+
+test("a folder removed while the project is open sends the editor back to the list", async ({
+  tab,
+  project,
+}) => {
+  // The watcher has to be looking at this root before it goes; a project
+  // it picks up within a second of being opened.
+  await tab.waitForTimeout(1_500);
+  rmSync(project.root, { recursive: true, force: true });
+
+  // Not a message inside an editor over nothing: the editor is left, and
+  // the list says why, beside the row that says the folder is missing.
+  await expect(tab.getByTestId("folder-lost")).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByTestId("folder-lost")).toContainText("gone from this disk");
+  await expect(tab.getByText("This folder is no longer there.")).toBeVisible();
+  await expect(tab.locator(".cm-editor")).toHaveCount(0);
+
+  await tab.getByRole("button", { name: "Dismiss" }).click();
+  await expect(tab.getByTestId("folder-lost")).toHaveCount(0);
+});

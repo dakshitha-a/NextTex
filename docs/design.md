@@ -6811,3 +6811,53 @@ that was `380×34`, `712×110` for one that was `240×236`. The `width` and
 and with the wrong ratio it reflowed on every open. They are the files'
 real pixel sizes now, generated at twice the display size as the spec's
 comment always said they were.
+
+## 38. A folder that is gone is gone from one disk
+
+### What `rm -rf` used to say to everybody
+
+A shared project is a set of installs that each hold the whole thing, and
+nothing in the store ever asked whether the folder it was projecting into
+was still there. So when a collaborator deleted their copy, or moved it,
+or closed the lid on a laptop whose project sat on a drive that then went
+away, the watcher reported every file missing, the store called each of
+them deleted, the flags travelled through the manifest like any other
+edit, and every other collaborator's copy went into their own trash, one
+directory entry at a time. Nothing was lost, since the trash never
+empties itself, and everything looked lost, which for the person tidying
+a laptop after a paper was submitted is the worse of the two.
+
+A folder that is not there is not a list of deletions. It is a fact about
+this disk, and the store treats it as one: nothing is flagged, nothing is
+written and nothing is logged once the root has been found missing, and
+the session says so once and closes. The folder going away is reported
+three ways, because the disk reports it three ways. A removal arrives as
+one deletion per file with the root beside them; a move arrives as the
+root alone, with no word about the files inside it; and a folder that
+went while nothing was watching is found by the watcher when it next
+looks. All three reach `note_root_lost`, which is idempotent.
+
+The root exists until its last file has gone, so a slow disk can deliver
+the first few deletions with the folder still standing. A batch naming
+half the project or more is therefore held for one more debounce, and
+the root is looked at again before any of it is published. A genuine
+clearing-out inside a folder that stays is delayed by 120 milliseconds
+and reaches the others exactly as before.
+
+### What the writer sees
+
+Not a message inside an editor over nothing. The browser is sent back to
+the project list, where the row already reads "This folder is no longer
+there." as it does for a folder that went while the server was down, and
+a line above the list says that the folder for this project is gone from
+this disk and, for a shared project, that the collaborators' copies are
+untouched. "Find it…" on the row is the way back for a folder that was
+moved: `.nexttex/` moves with it, the document logs inside it are the
+sync state, and relocating a shared project reconnects it without
+reconciling anything.
+
+A peer's edit could also bring a moved folder back. The first thing to
+touch the disk after an update arrives is its log, and `persist.append`
+makes the directories it needs, so a project moved to a new home returned
+to its old path as a `.nexttex/collab/docs` and nothing else. The log is
+now refused under a missing root as the projection is.

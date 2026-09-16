@@ -221,7 +221,17 @@ async def _watch_projects() -> None:
     from watchfiles import awatch
 
     while True:
-        roots = [Path(s.project.root) for s in SESSIONS.values()]
+        roots = []
+        for session in list(SESSIONS.values()):
+            root = Path(session.project.root)
+            if root.is_dir():
+                roots.append(root)
+            else:
+                # A folder that went while nothing was watching it. Never
+                # handed to the watcher: `awatch` refuses to start on a
+                # path that is not there, and the retry below then failed
+                # once a second for every other project as well.
+                session.note_root_lost()
         if not roots:
             await asyncio.sleep(1.0)
             continue
@@ -239,6 +249,13 @@ async def _watch_projects() -> None:
                     path = Path(raw)
                     for session in SESSIONS.values():
                         root = session.project.root
+                        if path == root:
+                            # The folder itself. A move reports only this,
+                            # with no word about the files inside it, and
+                            # a removal reports it beside them.
+                            if not root.is_dir():
+                                session.note_root_lost()
+                            continue
                         if root not in path.parents:
                             continue
                         # Build output and our own state churn constantly and
@@ -1485,6 +1502,16 @@ def _open_session(project: Project) -> ProjectSession:
     )
     SESSIONS[project.id] = session
     session.start_agent_pump()
+
+    async def lost() -> None:
+        # The folder is gone from this disk.  The session is closed so
+        # nothing more is written under a path that is not there, and the
+        # watcher is restarted so it stops asking after it.
+        if SESSIONS.get(project.id) is session:
+            await _close_session(project.id, session)
+            _restart_watch()
+
+    session.on_root_lost = lost
     # A project that has been shared picks its peers back up when it opens.
     # Nothing is contacted for a project that has not been.
     if session.peers.share.shared:

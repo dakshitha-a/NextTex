@@ -432,6 +432,7 @@ export default function App() {
     set({
       projectId: id,
       projectName: project.name ?? "",
+      lostFolder: null,
       tree: project.tree,
       tabs: [],
       activePath: null,
@@ -855,6 +856,9 @@ export default function App() {
     handlers.onRenamed = (from, to) => {
       renameOpenFile(from, to);
     };
+    handlers.onRootLost = () => {
+      leaveProject();
+    };
     handlers.onReveal = (path, line) => {
       openFile(path, line);
     };
@@ -937,6 +941,7 @@ export default function App() {
     return () => {
       handlers.onFilesChanged = undefined;
       handlers.onRenamed = undefined;
+      handlers.onRootLost = undefined;
       handlers.onReveal = undefined;
       handlers.onShowPage = undefined;
       handlers.onAgentEdit = undefined;
@@ -944,7 +949,7 @@ export default function App() {
       handlers.onCompileDone = undefined;
       handlers.onCompileStart = undefined;
     };
-  }, [refreshTree, openFile, renameOpenFile]);
+  }, [refreshTree, openFile, renameOpenFile, leaveProject]);
 
   useEffect(() => () => disconnect(), []);
 

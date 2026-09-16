@@ -129,6 +129,10 @@ def test_ingesting_a_deletion_marks_the_file_rather_than_dropping_it(store, proj
     file_id = store.file_id_for("chapters/one.tex")
     (project.root / "chapters" / "one.tex").unlink()
     assert store.ingest("chapters/one.tex", None, gone=True)
+    # One file of two is half the project, so the first flush holds the
+    # batch back to look at the folder again; the second calls it deleted.
+    store.flush()
+    assert store.files[file_id]["trashed"] is False
     store.flush()
     assert store.files[file_id]["trashed"] is True
 
@@ -169,6 +173,8 @@ def test_a_file_missing_when_the_project_opens_is_called_deleted_at_the_flush(pr
     second = CollabStore(project)
     second.adopt()
     assert second.files[file_id]["trashed"] is False
+    second.flush()
+    # Held back once, as any batch naming half the project is.
     second.flush()
     assert second.files[file_id]["trashed"] is True
     second.close()

@@ -11,7 +11,7 @@ import UpdateFooter from "./UpdateFooter";
 import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
-import { useStore } from "../store";
+import { set, useStore } from "../store";
 
 // Lazy, like the in-project tutorial: help text is not something a first
 // visit should have to download before the project list appears.
@@ -83,6 +83,11 @@ export default function Projects({
   // The strapline names whichever agent is configured, and says nothing
   // about one at all when the writer chose to work on their own.
   const provider = useStore((s) => s.agent?.provider);
+  // Why the editor just closed on its own: the folder went away from
+  // under it.  The row below says the folder is missing, as it does for
+  // one that went while the server was down, but not that this is the
+  // project the writer was in a moment ago.
+  const lost = useStore((s) => s.lostFolder);
   const tagline =
     provider === "none"
       ? "Write LaTeX beside the typeset page."
@@ -314,6 +319,29 @@ export default function Projects({
           </div>
         </div>
 
+        {lost ? (
+          <div
+            role="status"
+            data-testid="folder-lost"
+            className="mt-6 flex items-start gap-3 rounded-[3px] border border-line bg-surface-2 px-4 py-3"
+          >
+            <div className="t-ui min-w-0 flex-1 text-ink">
+              The folder for {lost.name ? <b className="font-medium">{lost.name}</b> : "that project"} is
+              gone from this disk, so it was closed.
+              {lost.shared
+                ? " Your collaborators still have their copies; nothing was deleted for them."
+                : ""}{" "}
+              If you moved it, point NextTex at where it is now from its row below.
+            </div>
+            <button
+              type="button"
+              className="h-[28px] shrink-0 px-2 t-meta text-ink-3 hover:text-ink"
+              onClick={() => set({ lostFolder: null })}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
         <div
           className={
             projects.length

@@ -45,7 +45,12 @@ class Peer:
 
     def __init__(self, root: Path, files: dict[str, str] | None = None):
         root.mkdir(parents=True, exist_ok=True)
-        for name, text in (files or {"main.tex": "The chapter.\n"}).items():
+        # An empty map is an empty folder, which is what a joiner needs to
+        # be.  `files or default` gave a joiner a `main.tex` of its own, and
+        # a document built from that merged with the one it then received.
+        if files is None:
+            files = {"main.tex": "The chapter.\n"}
+        for name, text in files.items():
             target = root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(text, encoding="utf-8")

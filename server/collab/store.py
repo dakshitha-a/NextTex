@@ -288,6 +288,13 @@ class CollabStore:
         #: The flag goes on the record at the next flush, and only if the
         #: file is still absent then: see `_settle_gone`.
         self._gone_pending: set[str] = set()
+        #: Set when `_settle_gone` has held a batch back once to look at
+        #: the root again before calling any of it deleted.
+        self._gone_deferred = False
+        #: True once the project's folder has been found missing.  Nothing
+        #: is written, flagged or persisted after that: the folder is gone
+        #: from *this* disk, which says nothing about anybody else's.
+        self.root_lost = False
         self.last_projected: dict[str, str] = {}
 
         self._dirty: set[str] = set()
@@ -551,12 +558,49 @@ class CollabStore:
         So the update is handed in rather than derived, and compaction, which
         does have to read the document, waits for `_compact` on a path where
         no transaction is open.
+
+        Checked against the root first, and here rather than only at the
+        flush, because this is the first thing to touch the disk after a
+        peer's edit arrives: `persist.append` makes the directories it
+        needs, so a project folder that had been moved away came back at
+        its old path as `.nexttex/collab/docs` and nothing else.
         """
+        if not self._root_present():
+            return
         try:
             persist.append(self.root / f"{name}.y", update)
         except OSError:
             pass
         self._grown.add(name)
+
+    # --- the folder itself ---------------------------------------------------
+
+    def _root_present(self) -> bool:
+        """Whether the project's folder is still there, noting it once if not.
+
+        A folder that is gone from this disk is a fact about this disk.
+        The first version of this store never asked, and so `rm -rf` of a
+        shared project, or moving it, or a drive that went to sleep, read
+        as every file being deleted one by one, was published as such, and
+        moved the whole project into every collaborator's trash.
+        """
+        if self.root_lost:
+            return False
+        if self.project.root.is_dir():
+            return True
+        self._lose_root()
+        return False
+
+    def _lose_root(self) -> None:
+        self.root_lost = True
+        self._gone_pending.clear()
+        self._gone_deferred = False
+        self._dirty.clear()
+        self.arrived.clear()
+        self._grown.clear()
+        noted = getattr(self.session, "note_root_lost", None)
+        if noted is not None:
+            noted()
 
     def _compact(self) -> None:
         """Squash any log that has outgrown a snapshot of its document.
@@ -1080,6 +1124,20 @@ class CollabStore:
         """
         if not self._gone_pending or self._closed:
             return
+        # A folder being removed goes file by file, and exists until the
+        # last of them: on a slow disk the first batch of sightings arrives
+        # with the root still there.  So a batch that names half the
+        # project or more is held for one more debounce and the root is
+        # looked at again before any of it is called deleted.  A genuine
+        # clearing-out inside a folder that stays is delayed by 120 ms.
+        live = sum(1 for record in self.files.values() if not record.get("trashed"))
+        if not self._gone_deferred and live and 2 * len(self._gone_pending) >= live:
+            self._gone_deferred = True
+            self._schedule()
+            return
+        self._gone_deferred = False
+        if not self._root_present():
+            return
         pending, self._gone_pending = self._gone_pending, set()
         for file_id in pending:
             record = self.files.get(file_id)
@@ -1189,7 +1247,13 @@ class CollabStore:
         the exception vanished into the event loop's handler because `_fire`
         is a timer callback, and nothing was ever retried because the set was
         already empty.
+
+        Nothing at all when the folder is gone: not the deletions, which
+        would be every file, not the writes, which would recreate the
+        folder, and not the logs.
         """
+        if not self._root_present():
+            return
         self._settle_gone()
         if self._paths_moved:
             self._paths_moved = False

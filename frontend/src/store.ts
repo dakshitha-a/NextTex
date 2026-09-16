@@ -340,6 +340,10 @@ export type State = {
    *  socket to its own server, and the two must never be drawn as one
    *  thing. */
   share: { shared: boolean; me: string; members: Member[] } | null;
+  /** A project whose folder went away from under it while it was open.
+   *  Shown once on the projects screen, where the row already says the
+   *  folder is missing but not why the editor just closed. */
+  lostFolder: { name: string; shared: boolean } | null;
   error: string | null;
   notices: Notice[];
 };
@@ -397,6 +401,7 @@ const state: State = {
   trashFailed: false,
   gitFailed: false,
   share: null,
+  lostFolder: null,
   words: null,
   error: null,
   notices: [],
@@ -766,6 +771,8 @@ export type EventHandlers = {
   onAgentEdit?: (path: string, line: number) => void | Promise<void>;
   onAgentFocus?: (path: string, line: number) => void;
   onRenamed?: (from: string, to: string) => void;
+  /** The project's folder is gone from the server's disk. */
+  onRootLost?: () => void;
 };
 export const handlers: EventHandlers = {};
 
@@ -1156,6 +1163,14 @@ function receive(event: any) {
       break;
     case "trash_changed":
       if (state.projectId) refreshTrash(state.projectId);
+      break;
+    case "root_lost":
+      // The server has closed the project: its folder was deleted, moved,
+      // or is on a drive that went away.  Nothing typed from here on
+      // would reach a disk, so the editor is left rather than kept open
+      // over nothing, and the list says what happened.
+      set({ lostFolder: { name: String(event.name ?? ""), shared: Boolean(event.shared) } });
+      handlers.onRootLost?.();
       break;
     case "project_changed":
       // A settings change invalidates the preview, and the three switches
