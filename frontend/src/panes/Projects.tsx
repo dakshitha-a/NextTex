@@ -437,7 +437,7 @@ export default function Projects({
                       <input
                         autoFocus
                         value={rejoinTo}
-                        placeholder="An empty folder for it to arrive in"
+                        placeholder="A folder for it to arrive in, empty or holding a copy"
                         className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
                         onChange={(event) => setRejoinTo(event.target.value)}
                         onKeyDown={(event) => {

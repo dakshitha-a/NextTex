@@ -119,7 +119,7 @@ test("a shared project whose folder is gone offers a way back in", async ({
   await expect(page.getByTestId("find-project")).toBeVisible();
   await page.getByTestId("rejoin-project").click();
   // Defaults to where it was, which is usually where the writer wants it.
-  const where = page.getByPlaceholder("An empty folder for it to arrive in");
+  const where = page.getByPlaceholder("A folder for it to arrive in");
   await expect(where).toHaveValue(project.root);
   await expect(page.getByText("Nothing is written until you accept")).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();

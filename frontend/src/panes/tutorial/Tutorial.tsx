@@ -403,8 +403,9 @@ export default function Tutorial({
           <Lead>
             <strong>Share</strong>, beside the project's name, gives you an invite to
             send. Whoever opens it gets the whole project, every file and
-            what those files used to say, into an empty folder of their own,
-            and from then on the two copies stay in step.
+            what those files used to say, into a folder of their own, empty or
+            already holding a copy, and from then on the two copies stay in
+            step.
           </Lead>
           <P>
             Both of you keep a whole copy: your own files, your own version

@@ -220,7 +220,8 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
             <p className="t-meta mt-[8px] text-ink-2">
               The work is not affected and nothing has been lost. To collaborate
               from here, ask somebody already in the share for a new invite, and
-              accept it into an empty folder.
+              accept it into a folder of your own, empty or already holding a
+              copy of the files.
             </p>
           </div>
         ) : !state.shared ? (
