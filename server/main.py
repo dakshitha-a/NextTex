@@ -1508,9 +1508,14 @@ async def accept_join(token: str = Body(..., embed=True)):
         and REGISTRY.path_for(id_for(old_root)) is not None
         and old_root.resolve() != pending.target.resolve()
     ):
-        REGISTRY.relocate(old_root, pending.target)
+        project = REGISTRY.relocate(old_root, pending.target)
     else:
-        REGISTRY.add(str(pending.target))
+        project = REGISTRY.add(str(pending.target))
+    # Opened now, so its peers reach it at once. The browser opens it
+    # itself on accepting; a script using the routes alone did not, and
+    # the cross-machine check found the desktop unable to connect to a
+    # freshly rejoined laptop until somebody opened the project there.
+    session_for(project.id)
     _restart_watch()
     return {
         "ok": True,

@@ -705,6 +705,10 @@ class ProjectSession:
         if self.root_lost or self.closing:
             return
         self.root_lost = True
+        log.warning(
+            "the folder for %s is gone from this disk; closing the project. "
+            "Other collaborators are unaffected.", self.project.root,
+        )
 
         async def announce() -> None:
             await self.events.publish({

@@ -391,3 +391,16 @@ def test_a_clean_checkout_behind_the_others_records_nothing(client, them, tmp_pa
     versions = client.get(f"/api/projects/{accepted['project']['id']}/history",
                           params={"path": "notes.tex"}).json()["versions"]
     assert "Before rejoining" not in [v.get("label") for v in versions]
+
+
+def test_accepting_opens_the_project_so_its_peers_reach_it(client, them, tmp_path):
+    """The browser opens it itself on accepting; a script using the routes
+    alone did not, and the desktop could not connect to a freshly rejoined
+    laptop until somebody opened the project there."""
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+    mine = tmp_path / "mine-again"
+    body = client.post("/api/collab/rejoin",
+                       json={"share": them["share"], "path": str(mine)}).json()
+    accepted = client.post("/api/collab/join/accept", json={"token": body["token"]}).json()
+    assert accepted["project"]["id"] in server_main.SESSIONS
+    assert accepted["project"]["id"] in client.get("/api/projects").json()["open"]
