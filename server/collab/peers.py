@@ -272,10 +272,15 @@ class PeerLink:
     ping_every = PING_EVERY
     silence_limit = SILENCE_LIMIT
 
-    def __init__(self, network: "PeerNetwork", stream, peer_id: str) -> None:
+    def __init__(self, network: "PeerNetwork", stream, peer_id: str,
+                 outbound: bool = False) -> None:
         self.network = network
         self.stream = stream
         self.peer_id = peer_id
+        #: Whether this install dialled the connection, as opposed to
+        #: accepting it.  What `adopt_link` decides between two live links
+        #: to one peer by.
+        self.outbound = outbound
         self.name = ""
         self.colour = ""
         self.address = ""
@@ -1074,8 +1079,8 @@ class PeerNetwork:
         except Exception as error:
             return f"Could not reach that peer: {error}"
 
-        link = PeerLink(self, stream, getattr(stream, "peer_id", ""))
-        self.adopt_link(link)
+        link = PeerLink(self, stream, getattr(stream, "peer_id", ""), outbound=True)
+        self.adopt_link(link, force=True)
         self._spawn(link.run())
         await link.send(wire.hello(
             share_id, name, "", self.address(), secret,
@@ -1138,7 +1143,11 @@ class PeerNetwork:
         link.colour = frame.header.get("colour", "")
         link.address = frame.header.get("address", "")
         self.note_address(peer_id, link.address, link.name)
-        self.adopt_link(link)
+        if not self.adopt_link(link):
+            # Crossed with our own dial to them, which both ends keep.
+            link.alive = False
+            await _quietly_close(stream)
+            return
         self._spawn(link.run())
         await link.send(wire.welcome(self.share.share_id, self.share.members))
         await link.send_documents()
@@ -1169,8 +1178,15 @@ class PeerNetwork:
                 attempt += 1
                 await asyncio.sleep(wait)
                 continue
-            link = PeerLink(self, stream, peer_id)
-            self.adopt_link(link)
+            link = PeerLink(self, stream, peer_id, outbound=True)
+            if not self.adopt_link(link):
+                # They dialled us in the meantime, and theirs is the one
+                # both ends keep.
+                link.alive = False
+                await _quietly_close(stream)
+                attempt = 0
+                await asyncio.sleep(2)
+                continue
             self._spawn(link.run())
             name = (self.share.members.get(self.peer_id) or {}).get("name", "")
             await link.send(wire.hello(
@@ -1207,8 +1223,8 @@ class PeerNetwork:
             return
         self._spawn(events.publish({"type": "collab_peers", **self.state()}))
 
-    def adopt_link(self, link: PeerLink) -> None:
-        """Take a new connection to a peer, closing any it replaces.
+    def adopt_link(self, link: PeerLink, *, force: bool = False) -> bool:
+        """Take a new connection to a peer, or say that the one held wins.
 
         Two installs starting at the same time dial each other at the same
         time, which is the ordinary shape rather than a rare one -- and
@@ -1216,13 +1232,30 @@ class PeerNetwork:
         going round for ever on a stream nothing would ever close. `dropped`
         could not clean it up either, because it only forgets a link that is
         still the current one.
+
+        Which of two live links to keep has to be decided the same way at
+        both ends, or the two decisions undo each other: each side kept
+        its own newest link, which was its own dial, and closed the other
+        side's, so on a slow machine two loops crossing every two seconds
+        took each other's links down for as long as they ran.  The rule is
+        that the connection dialled by the lower peer id is the one both
+        sides keep.  A dead link is replaced by whatever arrives, and
+        `force` is for a join, which has nothing to keep yet.
+
+        Returns whether the link was adopted.  A caller told no closes it
+        and carries on with the link it has.
         """
         existing = self.links.get(link.peer_id)
+        if existing is not None and existing is not link and existing.alive and not force:
+            lower_dials = self.peer_id < link.peer_id
+            if existing.outbound == lower_dials and link.outbound != lower_dials:
+                return False
         if existing is not None and existing is not link:
             existing.alive = False
             self._spawn(_quietly_close(existing.stream))
         self.links[link.peer_id] = link
         self._announce_peers()
+        return True
 
     def dropped(self, link: PeerLink) -> None:
         if self.links.get(link.peer_id) is link:
