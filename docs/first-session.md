@@ -311,8 +311,9 @@ your-paper/
 ```
 
 Delete `.nexttex/` and you have exactly the LaTeX project you started with.
-(On a *shared* project that also leaves the share: the files are all still
-there, and somebody would have to invite you back.)
+(On a *shared* project, leave from the share panel first: deleting the
+records by hand tells nobody, so the others would still count you as a
+member.)
 Nothing NextTex does is needed to compile your document, which is the point:
 the project has to still be an ordinary LaTeX project when you close the tab.
 

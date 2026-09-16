@@ -2,9 +2,10 @@
 
 # NextTex
 
-A LaTeX editor you run yourself, with an **optional** AI agent beside the document.
-The agent can write, manage project files, references and much more.
-**Caution:** Use AI writing for publications and academic work at your own risk.
+A LaTeX editor you run yourself, with an **optional** AI agent beside the
+document. The agent can write, manage project files, references and much
+more. **Caution:** use AI writing for publications and academic work at your
+own risk.
 
 If you have used a Jupyter notebook, you already know how NextTex works. You
 start it on your own machine, it opens in a browser tab, and your files stay
@@ -69,6 +70,8 @@ close the tab. No database, no Docker, no nginx.
 
 ## Highlights
 
+**Writing and the page**
+
 - **The page follows your typing.** An ordinary edit typesets only the section
   you are in, about a third of a second on a forty-file project.
 - **Nothing is ever unsaved.** A keystroke goes into the document as it is
@@ -80,21 +83,13 @@ close the tab. No database, no Docker, no nginx.
 - **Every pause is a version**, kept until you say otherwise, with a trash that
   never empties itself.
 - **Four git buttons** for the four commands a paper actually needs.
-- **The agent edits the project and asks about everything else**, or approves
-  everything if you turn that on, with the record staying honest either way.
-- **It cannot invent a citation.** Every reference comes from the publisher's
-  own record, by DOI.
-- **It remembers the project, not just the conversation**, so you can start a
-  fresh chat without teaching it your work again.
-- **Fill a bibliography from a folder of papers**, checked against each PDF so
-  a wrong DOI is refused rather than added.
-- **Reading and writing modes**: double-click the tab in front of either pane
-  to give it the window, and again to get your layout back; one click on it
-  folds the pane away.
 - **Every document in the folder has its own page.** There is no main file:
   a resume and its variations, a thesis and its supplementary information,
   each build and download on their own, and the page follows whatever you
   are writing, a chapter showing the document that includes it.
+- **Reading and writing modes**: double-click the tab in front of either pane
+  to give it the window, and again to get your layout back; one click on it
+  folds the pane away.
 - **The editor is lit on its own terms.** Six pages to choose from,
   matching the interface, the proofing grey, white, warm white, cool white,
   or dark, so a dark shell can hold a white page. The syntax colours, the
@@ -106,13 +101,30 @@ close the tab. No database, no Docker, no nginx.
   its shape rather than its words.
 - **Search and drag in the file list**, with open files following a folder
   that moves.
+
+**The agent**
+
 - **Choose Claude, OpenAI, or no agent at all.** The last is a real option,
   not a degraded one, and the choice can be changed later in the settings
   sheet rather than only when you first sign in.
+- **It edits the project and asks about everything else**, or approves
+  everything if you turn that on, with the record staying honest either way.
+- **It cannot invent a citation.** Every reference comes from the publisher's
+  own record, by DOI.
+- **It remembers the project, not just the conversation**, so you can start a
+  fresh chat without teaching it your work again.
+- **Fill a bibliography from a folder of papers**, checked against each PDF so
+  a wrong DOI is refused rather than added.
+
+**Sharing and privacy**
+
 - **Write it with somebody, without a server.** Share a project and their
   NextTex holds a whole copy of it: you see each other's typing and each
   other's cursors, and anything either of you wrote offline is merged rather
   than fought over when you reconnect.
+- **Losing your folder is not losing your place.** Delete or move your copy
+  and nobody else is touched; rejoin from your collaborators with no new
+  invite, into an empty folder or a copy you already have.
 - **Nothing leaves the machine** except what you asked for. No telemetry.
 
 ## Getting started
@@ -167,11 +179,10 @@ interrupts you again.
 `git` is the only thing you need beforehand, and `curl` if there is no
 Python on the machine at all, since that is what fetches one. Python, TeX
 and the Claude CLI are all fetched for you if they are missing and you
-asked for them. If you
-would rather read the script before you run it, clone the repository yourself
-and run `scripts/install.sh` from inside it. It does the same thing either
-way, except that it then installs into the checkout you are standing in
-instead of asking where to go.
+asked for them. If you would rather read the script before you run it,
+clone the repository yourself and run `scripts/install.sh` from inside it.
+It does the same thing either way, except that it then installs into the
+checkout you are standing in instead of asking where to go.
 
 The first install takes a while, mostly because TeX is a large download. This
 is the same bargain as the first time you set up a scientific Python stack:
@@ -203,16 +214,18 @@ none at all they say so and fetch `uv`, which brings its own. Then they hand
 over to `python -m nexttex.install`, which is the same code on Linux, macOS
 and Windows.
 
-**The survey.** `git`, the Python that is running this and whether it can
-make a virtual environment at all (Debian and Ubuntu ship one that cannot,
-which used to be the most common way a first install failed); `uv`; whether
-`.venv` is already here; a TeX installation wherever TinyTeX, MacTeX, MiKTeX
-or TeX Live puts one, and which of `latexmk`, `biber`, `synctex`, `chktex`
-and `texcount` are missing from it; `pdftotext`; `claude`; `tailscale`;
-Node; whether this machine can start things at login; and whatever
-configuration a previous install left. It also opens a two-second connection
-to each host it may need, so being offline is something you are told rather
-than something you wait three minutes to discover.
+**The survey.** It looks for `git`, and for the Python that is running it
+and whether that Python can make a virtual environment at all: Debian and
+Ubuntu ship one that cannot, which used to be the most common way a first
+install failed. It looks for `uv`, and for a `.venv` that is already here.
+It looks for a TeX installation wherever TinyTeX, MacTeX, MiKTeX or TeX Live
+puts one, and says which of `latexmk`, `biber`, `synctex`, `chktex` and
+`texcount` are missing from it. It looks for `pdftotext`, `claude`,
+`tailscale` and Node, for whether this machine can start things at login,
+and for whatever configuration a previous install left. It also opens a
+two-second connection to each host it may need, so being offline is
+something you are told rather than something you wait three minutes to
+discover.
 
 **The plan.** A virtual environment and the Python dependencies, with `iroh`
 tried separately so a platform it has no build for loses sharing rather than
@@ -272,7 +285,8 @@ Stop-ScheduledTask  -TaskName NextTex
 
 Registering that task wants administrator, so on an ordinary account
 `scripts\register-task.ps1`, which is what the installer calls for this,
-falls back to a shortcut in your Startup folder and says which it used. If it is the shortcut, there is no task to start or stop: run
+falls back to a shortcut in your Startup folder and says which it used. If
+it is the shortcut, there is no task to start or stop: run
 `.venv\Scripts\python.exe -u server\run.py` to start it, or open the
 `nexttex` shortcut itself, and end the `python` process running
 `server\run.py` to stop it. `shell:startup` in the Run box opens the folder
@@ -288,8 +302,8 @@ beside the install log, so a server that will not start has left its last
 words there whichever way it was started.
 
 **Any platform.** To print the URL and token again, which is the way back in
-if you have forgotten the password (a server started as a service prints
-its address to its log and never the token, which is what this is for):
+if you have forgotten the password. A server started as a service prints
+its address to its log and never the token, which is what this is for:
 
 ```bash
 .venv/bin/python server/run.py --print-url
@@ -415,8 +429,7 @@ Everything NextTex fetched for itself is inside the install directory,
 including the `uv` it may have downloaded and the Python environment, so
 deleting the folder really does remove them. The state directory holds
 `config.json`, which holds your token, your password and your list of
-projects, so it
-goes too.
+projects, so it goes too.
 
 **What this does not remove**, deliberately:
 
@@ -464,11 +477,11 @@ rather than reporting an error you already know about.
 
 **And the page goes where you are writing.** When a build you caused lands,
 the preview scrolls to the part of the page your caret is on and flashes it,
-in whichever view mode you are in. Only when that part is not already in
-front of you, so working down a page you are looking at moves nothing, and
-only for a build your own typing caused: a rebuild you asked for while
-reading, a collaborator's edit, and the agent's edits while you are
-mid-sentence all leave the page alone.
+in whichever view mode you are in. It does that only when that part is not
+already in front of you, so working down a page you are looking at moves
+nothing. And it does it only for a build your own typing caused: a rebuild
+you asked for while reading, a collaborator's edit, and the agent's edits
+while you are mid-sentence all leave the page alone.
 
 <details><summary>The measured numbers</summary>
 
@@ -527,10 +540,10 @@ A version is the sha256 of the file's bytes, stored once and compressed on
 your own disk, so going back costs nothing. An editing burst collapses into
 one version rather than forty, and old ones thin with age: everything from the
 last day, hourly for a week, daily for three months, weekly after that. Some
-are never thinned at all, being the ones people come back for: one you named,
-one the agent made, and the ones that mark a change of state rather than a
-change of text -- a file's first version, a deletion, a restore, an undo or a
-redo.
+are never thinned at all, because they are the ones people come back for:
+one you named, one the agent made, and the ones that mark a change of state
+rather than a change of text, which are a file's first version, a deletion,
+a restore, an undo or a redo.
 
 Figures are versioned too, so replacing a plot keeps the one it replaced byte
 for byte. A deleted file goes to a trash that never empties itself, because a
@@ -550,9 +563,11 @@ your own business: thinning is a decision about your own disk.
 See what changed, commit it, push it, pull it back on another machine. That is
 a paper's whole relationship with git, and each is one button in the rail
 footer. Seeing what changed means the patch, not only the file's name: the
-chevron beside a changed file opens it, with the old lines and the new ones,
-and the same patch is there for any version in a file's history, against the
-file as it stands or against any other version. A project with no repository is offered one, with a first commit and a
+chevron beside a changed file opens it, with the old lines and the new ones.
+The same patch is there for any version in a file's history, against the
+file as it stands or against any other version.
+
+A project with no repository is offered one, with a first commit and a
 `.gitignore` that already knows about `build/` and `.nexttex/`. With the
 GitHub CLI signed in, *Back this up to GitHub* creates the repository, private
 by default, and pushes into it; a token you supply goes to your credential
@@ -579,7 +594,7 @@ what makes a long chapter skimmable for its shape rather than its words.
 Highlighting has a second half, Emphasis: commands are set a step heavier
 than the prose unless you choose Plain, and a plain command takes a quiet
 slate instead so that `\textbf` never looks like the word after it. The
-same switch reaches a script: a `.py` open in the editor takes the same
+same switch reaches a script. A `.py` open in the editor takes the same
 five hues, keywords in the sectioning colour, strings in the citation
 colour, numbers in the mathematics colour, and so on, so a figure script
 never reads as a second palette beside the chapter it draws for.
@@ -666,11 +681,11 @@ somebody's commands means. The first position is the one that asks about all of
 it, which is why it is the default and why it is still there.
 
 **Never ask about anything** does what it says, including for a write that
-leaves the project. Switching it on takes a second press and a sentence saying
-so, because the risk is not really about your own judgement: the agent's
-instructions come partly from your project's own files, and those arrive from
-templates, from clones and from co-authors, so a sentence in somebody else's
-`.bib` file is an instruction it may follow.
+leaves the project. Switching it on takes a second press and a sentence
+saying so, because the risk is not really about your own judgement. The
+agent's instructions come partly from your project's own files, and those
+arrive from templates, from clones and from co-authors, so a sentence in
+somebody else's `.bib` file is an instruction it may follow.
 
 Every automatic approval appears in the transcript marked as one, whichever
 position you are in, and at the quietest position that record is the only
@@ -712,11 +727,11 @@ right, for reasons that are set out below.
 
 **The script is saved in your project, under `scripts/`.** That is the part
 worth caring about. A figure a model drew and threw the script away for is a
-figure you cannot change next year when a referee asks for the same plot on
-a log axis, so the script is a file in your project with a version history
-like any other, and re-drawing is running it again rather than asking again:
-from the source pane with Run, or by the agent, which can run a script by
-name without touching it and is asked first, with the code on the card.
+figure you cannot change next year, when a referee asks for the same plot on
+a log axis. So the script is a file in your project with a version history
+like any other, and re-drawing is running it again rather than asking again.
+You can run it from the source pane with Run, or the agent can run it by
+name without touching it, and is asked first, with the code on the card.
 
 **The first attempt is already the right shape for a paper**, which is the
 difference between a figure you keep and one you redraw by hand. The first
@@ -779,12 +794,12 @@ bibliography against the record it claims to come from. A fabricated reference
 is an academic integrity failure, so the defence is structural rather than a
 matter of care: there is no path from the model's memory to your `.bib` file.
 
-Both of those are yours without an agent as well, in the Papers section at the
-foot of the file list: paste a DOI and *Add*, and the entry arrives from the
-publisher with its title, author and year shown so you can check it against
-the page in front of you; *Check these against their records* re-reads the
-whole bibliography and lists every entry that disagrees with the record it
-came from. Neither writes anything the publisher did not say.
+Both of those are yours without an agent as well, in the Papers section at
+the foot of the file list. Paste a DOI and *Add*, and the entry arrives from
+the publisher with its title, author and year shown, so you can check it
+against the page in front of you. *Check these against their records*
+re-reads the whole bibliography and lists every entry that disagrees with
+the record it came from. Neither writes anything the publisher did not say.
 
 The agent can also point. `goto` opens a file in your editor at a line,
 and `show_page` turns the preview to a page of a document on the strip,
@@ -824,10 +839,11 @@ of their own, and from then on the two copies stay in step.
 ### Both of you keep a whole copy
 
 Yours is not a cache of somebody else's: your own files, your own version
-history, your own git repository and your own backups. If the other person's laptop is shut, or yours is, both of you carry
-on writing; when you are both back, the two sets of edits are merged rather
-than one of them being refused. That is true of an afternoon apart as much as
-of a second, and it needs nothing switched on.
+history, your own git repository and your own backups. If the other
+person's laptop is shut, or yours is, both of you carry on writing; when you
+are both back, the two sets of edits are merged rather than one of them
+being refused. That is true of an afternoon apart as much as of a second,
+and it needs nothing switched on.
 
 The thing keeping in touch is the NextTex on each machine, not the browser
 tab. So a collaborator's work arrives while your tab is closed, and a shared
@@ -836,17 +852,19 @@ open it first for their afternoon's writing to land.
 
 ### You can see where they are
 
-Their caret sits in your margin in their own colour and says their name for a moment whenever it moves, and a strip at the
-end of the tabs shows who else is in the project, filled in while they are
-typing, outlined while they are only there. Their name is on the versions
-they wrote, so a month later the history says who changed the paragraph.
+Their caret sits in your margin in their own colour, and says their name
+for a moment whenever it moves. A strip at the end of the tabs shows who
+else is in the project, filled in while they are typing, outlined while
+they are only there. Their name is on the versions they wrote, so a month
+later the history says who changed the paragraph.
 
 ### A collaborator is a public key
 
-There are no accounts, no server in the middle, and nothing to sign up for: two NextTex installs find each other and
-talk directly, encrypted end to end, over a connection made to the other
-side's key rather than to an address. An invite is single-use and expires,
-and it is a credential, so send it the way you would send a password.
+There are no accounts, no server in the middle, and nothing to sign up
+for. Two NextTex installs find each other and talk directly, encrypted end
+to end, over a connection made to the other side's key rather than to an
+address. An invite is single-use and expires, and it is a credential, so
+send it the way you would send a password.
 
 ### Nobody owns it, and anyone can leave
 
@@ -872,10 +890,10 @@ being gone, which is what it is, and nobody else would notice anything.
 
 If the folder on your machine is deleted, moved, or on a drive that went
 away, nobody else is affected, and you are still in the share. NextTex
-keeps a note of every share you are in outside the project, so the project
+keeps a note of every share you are in outside the project. So the project
 list can offer two ways back: find the folder, if you moved it, or rejoin
-from your collaborators, into a folder that is empty or already holds a
-copy of your own, with no new invite needed.
+from your collaborators, with no new invite needed, into a folder that is
+empty or already holds a copy of your own.
 
 ### Joining into a folder you already have
 
@@ -910,7 +928,7 @@ links, and a collaborator is a public key, so there is nobody to sign up with
 and nothing in the middle to go down. What there is not: comments,
 suggestions, tracked changes, or any notion of who is allowed to do what.
 Everybody in a shared project can do everything, including inviting somebody
-else and disconnecting somebody else.
+else, disconnecting somebody else, and leaving.
 
 **Not a git client**, and not a general-purpose editor.
 
@@ -922,45 +940,33 @@ a missing build costs you the one feature, not the install.
 
 ### On Windows, only partly verified
 
-Windows support is written and only partly verified. An install has now
-been run on Windows and reached the end, which found four things and fixed
-them: the `irm ... | iex` line went straight to *"Cannot bind argument to
-parameter 'Path'"* because the script had no clone step and `$PSScriptRoot`
-was empty; the TinyTeX and Claude CLI installers were both fetched with
-`(Invoke-WebRequest).Content` and handed to `Invoke-Expression`, which is a
-byte array in PowerShell 7 rather than a string, and the TinyTeX one is a
-`.bat` that `Invoke-Expression` could never have run in any case; and
-registering the login task failed with *Access is denied* on an account
-without administrator.
+Windows support is written and only partly verified. What has been run on
+a real Windows laptop, more than once: the `irm ... | iex` install to the
+end, the server starting from the Startup shortcut, `scripts\update.ps1`
+against the real repository, and a project shared from a Linux machine
+joined, edited, deleted with the server running, rejoined from the card,
+left, and joined again from a git clone. Each of those rounds found things
+and fixed them, and the ones from the latest round are in the commit log
+under 2.3.1.
 
-Since then the whole install after the clone has become the same Python that
-Linux and macOS run, so the parts that used to be Windows-only code are now
-Windows-only *branches* of code the test suite exercises on every platform,
-including the console-encoding fallback that a legacy code page needs. What
-that leaves genuinely unproven is smaller than it was again. A Windows
-laptop has since run the install end to end, started the server from the
-Startup shortcut, opened a project, joined a shared one from this machine
-and typed into it, and run `scripts\update.ps1` against a real remote. That
-found five more things, all of them fixed: the instance route reported the
-commit on disk rather than the one it had loaded, the update did three of
-its four steps and exited zero, its dependencies step left a directory of
-litter behind every time, it wrote no log, and the README told a Startup
-install to start itself with an interpreter that discards every word the
-server prints.
+The whole install after the clone is the same Python that Linux and macOS
+run, so what used to be Windows-only code is now Windows-only *branches*
+of code the test suite exercises on every platform, including the
+console-encoding fallback that a legacy code page needs.
 
 Two things are still unproven. The logon *task* branch has never run,
 because registering one needs administrator and the accounts this has been
-installed on do not have it, and no Intel Mac has run any of it. Signing in to Claude
-from the browser needs a
-pseudo-terminal, which Windows does not have, so run `claude auth login` in a
-terminal once or use an OpenAI key. Reports welcome.
+installed on do not have it; and no Intel Mac has run any of it. Signing in
+to Claude from the browser needs a pseudo-terminal, which Windows does not
+have, so run `claude auth login` in a terminal once or use an OpenAI key.
+Reports welcome.
 
 ## Requirements
 
-The last column has three states, and the middle one is the one that used to
-be missing: **named** means the installer will not fetch it, but it tells you
-so on its survey before it asks you anything, with the command for the
-platform you are on, so you can install it and run the installer again.
+The last column has three states. **Named** is the middle one: the
+installer will not fetch it, but it tells you so on its survey, before it
+asks you anything, with the command for the platform you are on, so you can
+install it and run the installer again.
 
 | What | Why | Supplied by the installer? |
 |---|---|---|
@@ -1004,9 +1010,9 @@ starts when a build does and exits when it finishes. A big build is the one
 time NextTex will use a whole core, and that is TeX rather than NextTex.
 
 On disk, an install is about 300 MB, nearly all of it the Python virtual
-environment. TeX is much larger than everything else here, since TinyTeX is about
-460 MB installed, and it goes outside NextTex and shared with anything else on
-the machine that typesets.
+environment. TeX is much larger than everything else here, since TinyTeX is
+about 460 MB installed, and it goes outside NextTex, shared with anything
+else on the machine that typesets.
 
 Your projects are the rest, and they are yours: the version history is
 compressed and content-addressed, so a year of writing is usually smaller
@@ -1024,9 +1030,10 @@ Six things go out, all of them things you asked for:
 3. What the installer downloads, and only what the plan it printed said it
    would: TinyTeX from `yihui.org` and `tinytex.yihui.org`, the Claude CLI
    from `claude.ai` if you chose it, and `uv` from `astral.sh` when this
-   machine's Python cannot make a virtual environment on its own. It also opens a two-second
-   connection to each of those before it asks you anything, so that being
-   offline is something you are told rather than something you wait for.
+   machine's Python cannot make a virtual environment on its own. It also
+   opens a two-second connection to each of those before it asks you
+   anything, so that being offline is something you are told rather than
+   something you wait for.
 4. GitHub, to check whether this install is behind and to download the
    interface for the commit it is on. Nothing about you or your documents
    goes with either request. Reporting a bug (below) opens a GitHub page in
@@ -1062,11 +1069,12 @@ The installer prints a URL carrying a token, which is how the first browser
 gets in. That browser is then asked to set a password, the way JupyterLab
 does, and once there is one every browser after it gets a sign-in page.
 Signing in issues *that browser* its own session rather than handing it the
-install's token, so no browser is holding the master credential, and the
-settings sheet can sign the others out, which is useful when the one you left signed
-in is a laptop you no longer have. The token stays as the way back in, as a query parameter or an
-`x-nexttex-token` header, so scripts are unaffected and a forgotten password
-is recoverable from the machine itself.
+install's token, so no browser is holding the master credential. The
+settings sheet can sign the others out, which is useful when the one you
+left signed in is a laptop you no longer have. The token stays as the way
+back in, as a query parameter or an `x-nexttex-token` header, so scripts
+are unaffected and a forgotten password is recoverable from the machine
+itself.
 
 On localhost it is plain HTTP, so a password typed at the machine's own
 browser crosses nothing but the loopback; any address another machine can
@@ -1114,12 +1122,12 @@ mark_warnings = false   # and chktex warnings, which are noisier
 
 There is no main file to name. Every `.tex` with a `\documentclass` and a
 `\begin{document}` of its own that no other file reads is a document with
-its own PDF, the way a folder of notebooks is a folder of notebooks, and the
+its own PDF, the way a folder of notebooks is a folder of notebooks. The
 preview shows whichever one you are writing: open a chapter and the page is
 the document that includes it. A document in a subfolder is built from
 that folder, the way `pdflatex paper.tex` run there would build it, so
 its `\input`, `\graphicspath` and a style file beside it resolve against
-the folder; the project root stays on the search path, so a path written
+the folder. The project root stays on the search path, so a path written
 from the root still resolves too. Every document's PDF and log land in
 the one `build_dir`, named after the file, which is why two documents
 cannot share a stem. Which documents are on the preview strip is
@@ -1144,8 +1152,9 @@ your-paper/
 ```
 
 Delete `.nexttex/` and you have exactly the LaTeX project you started with.
-On a shared project that also leaves the share. The files are all still
-there, and somebody would have to invite you back.
+On a shared project, leave from the share panel first: deleting the folder's
+records by hand tells nobody, so the others would still count you as a
+member and keep trying to reach you.
 
 ## Keyboard
 
@@ -1253,15 +1262,15 @@ the machine has:
 python3 -m nexttex.report
 ```
 
-Either prints a report: the commit the code is on and the commit the
-interface was built from, the settings with a yes or no in place of every
-secret, each tool NextTex looks for and where it found it, whether a service
-is running it, what the Claude CLI says about itself (never the account), and
-the last eighty lines of every log the install keeps. On Linux that is the
-user journal (`journalctl --user -u nexttex` is what it runs); on macOS and
-Windows it is `server.log` and `server.err.log` in `~/.local/share/nexttex/`;
-on every platform it is the last run recorded in `install.log` and
-`update.log`.
+Either prints a report. It carries the commit the code is on and the commit
+the interface was built from, the settings with a yes or no in place of
+every secret, each tool NextTex looks for and where it found it, whether a
+service is running it, and what the Claude CLI says about itself (never the
+account). It ends with the last eighty lines of every log the install
+keeps: on Linux the user journal (`journalctl --user -u nexttex` is what it
+runs), on macOS and Windows `server.log` and `server.err.log` in
+`~/.local/share/nexttex/`, and on every platform the last run recorded in
+`install.log` and `update.log`.
 
 The access token, the OpenAI key, the password hash and every browser
 session's fingerprint are removed before you see it, and so is your home
