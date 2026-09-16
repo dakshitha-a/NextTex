@@ -24,11 +24,10 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-A shared project surviving one machine losing its folder, worked from the
-plan file of the session that started it: a removed peer told once, edits
-made while the server was stopped folded in, a share card outside the
-project, leave, rejoin without an invite, and a join that may point at a
-folder that already has files.
+Nothing at the moment. The run that made a shared project survive one
+machine losing its folder finished with 2.3.1, checked between a Linux
+desktop and a Windows laptop over a real connection; what it left is in
+the backlog below.
 
 ## Backlog
 
