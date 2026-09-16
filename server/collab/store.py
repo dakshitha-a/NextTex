@@ -70,6 +70,8 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import hashlib
+import json
 import logging
 import re
 import secrets
@@ -114,6 +116,16 @@ _WELL_FORMED_ID = re.compile(r"[0-9a-f]{8,64}")
 # that came *from* disk from one that has to go *to* it.
 FROM_DISK = "disk"
 FROM_AGENT = "agent"
+
+#: Where the store remembers what it last wrote to each file, by id: the
+#: sha256 of the text.  What lets an opening store tell a file somebody
+#: edited while the server was down from one the server had not finished
+#: writing when it went down.  See `_fold_outside_edit`.
+PROJECTED = "projected.json"
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def minimal_edit(before: str, after: str) -> tuple[int, int, str]:
@@ -288,6 +300,13 @@ class CollabStore:
         #: The flag goes on the record at the next flush, and only if the
         #: file is still absent then: see `_settle_gone`.
         self._gone_pending: set[str] = set()
+        #: Whether a document with no log yet may be built from the file on
+        #: disk, and a document with one may fold in a file that changed
+        #: while nothing was watching.  Off for a store that is being
+        #: joined into a folder that already has files: those documents
+        #: exist elsewhere and are on their way, and a document built here
+        #: from the same text would merge into every line twice.
+        self.seed_from_disk = True
         #: Set when `_settle_gone` has held a batch back once to look at
         #: the root again before calling any of it deleted.
         self._gone_deferred = False
@@ -330,6 +349,46 @@ class CollabStore:
             self._loop = None
 
         self._load_manifest()
+        #: The sha256 of what this install last wrote to each file, by id,
+        #: kept on disk across restarts.  Nothing else can say whether a
+        #: file that disagrees with its document was edited outside or was
+        #: simply not written yet when the server last stopped.
+        self._projected: dict[str, str] = self._load_projected()
+        self._projected_dirty = False
+
+    def _load_projected(self) -> dict[str, str]:
+        try:
+            data = json.loads((self.root / PROJECTED).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        return {
+            str(k): str(v) for k, v in data.items()
+            if isinstance(k, str) and isinstance(v, str)
+        }
+
+    def _note_projected(self, file_id: str, text: str) -> None:
+        digest = _sha(text)
+        if self._projected.get(file_id) != digest:
+            self._projected[file_id] = digest
+            self._projected_dirty = True
+
+    def _save_projected(self) -> None:
+        """Write the projection record, once per flush rather than per file."""
+        if not self._projected_dirty or self.root_lost:
+            return
+        self._projected_dirty = False
+        # Only ids the manifest still names: a trashed record keeps its
+        # entry, since a restore brings the same id back, and one that was
+        # never there is a leftover from nothing.
+        kept = {k: v for k, v in self._projected.items() if k in self.files}
+        try:
+            write_atomically(
+                self.root / PROJECTED, json.dumps(kept, sort_keys=True),
+            )
+        except OSError:
+            self._projected_dirty = True
 
     @property
     def shared(self) -> bool:
@@ -514,14 +573,78 @@ class CollabStore:
         # right, and it is how the person who shares a project puts their own
         # work into it in the first place.
         if not str(text) and (not had_a_log or not self.shared):
-            on_disk = self._read(record["path"])
-            if on_disk:
-                with doc.transaction(origin=FROM_DISK):
-                    text += on_disk
-                self.last_projected[file_id] = on_disk
+            if self.seed_from_disk:
+                on_disk = self._read(record["path"])
+                if on_disk:
+                    with doc.transaction(origin=FROM_DISK):
+                        text += on_disk
+                    self.last_projected[file_id] = on_disk
+                    self._note_projected(file_id, on_disk)
         else:
             self.last_projected.setdefault(file_id, str(text))
+            if had_a_log and self.seed_from_disk:
+                self._fold_outside_edit(file_id, record, text)
         return text
+
+    def _fold_outside_edit(self, file_id: str, record, text: Text) -> None:
+        """Notice a file that changed while nothing was watching it.
+
+        The watcher reports only what happens while the server is up, and
+        a document with a log is opened from the log, so a chapter edited
+        in another editor while NextTex was stopped was overwritten by the
+        next projection without a version, silently.
+
+        "Disk differs from document" is not the test.  The log is appended
+        inside the transaction and the file is written up to 120 ms later,
+        so a server killed in that gap reopens with the document ahead of
+        the file, and folding the file in would publish a revert of the
+        edit to every peer.  The question is whether anything outside
+        NextTex touched the file since this install last wrote it, which is
+        what the projection record answers.  Three cases:
+
+        - the file matches what was last written: untouched. If the
+          document has moved on since, it is written out now, which the
+          crash case used to leave until the next edit;
+        - the file matches the document: nothing to do, and the record is
+          brought up to date;
+        - neither: an edit made outside, folded in as one and recorded as
+          a version under this install's name.
+
+        A file with no record, because this store predates the record or
+        the document was built elsewhere, keeps today's rule: the
+        document wins.
+        """
+        known = self._projected.get(file_id)
+        if known is None:
+            return
+        relative = record.get("path") or ""
+        on_disk = self._read(relative)
+        if not on_disk:
+            return
+        current = str(text)
+        if on_disk == current:
+            self._note_projected(file_id, on_disk)
+            return
+        if _sha(on_disk) == known:
+            # Ours, and behind the document.  `last_projected` holding the
+            # document's text is what would stop `_write` from writing it.
+            self.last_projected[file_id] = on_disk
+            self._dirty.add(file_id)
+            self._schedule()
+            return
+        self.ingest(relative, on_disk)
+        self._note_projected(file_id, on_disk)
+        session = self.session
+        recorder = getattr(session, "record_version", None)
+        if recorder is not None:
+            try:
+                path = self.project.resolve(relative)
+            except (PermissionError, OSError, ValueError):
+                return
+            recorder(
+                path, on_disk, previous=current, by="you",
+                why="changed while NextTex was not running",
+            )
 
     def _watcher_for(self, file_id: str) -> Callable:
         def observed(event) -> None:
@@ -1283,6 +1406,7 @@ class CollabStore:
         if failed:
             self._dirty |= failed
             self._schedule()
+        self._save_projected()
         self._compact()
 
     def _write(self, file_id: str) -> None:
@@ -1325,6 +1449,7 @@ class CollabStore:
         try:
             write_atomically(path, content)
             self.last_projected[file_id] = content
+            self._note_projected(file_id, content)
             self._named[file_id] = relative
             session = self.session
             if session is not None:

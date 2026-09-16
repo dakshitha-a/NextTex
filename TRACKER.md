@@ -34,6 +34,15 @@ folder that already has files.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **An outside edit made while the server is running is not a
+      version.** The watcher folds a `git pull` or another editor's save
+      into the document through `ingest`, and nothing records what the
+      file held before or after; only the projection's own writes and,
+      since the projection record, edits made while the server was stopped
+      are. Left because a pull touching forty files would write forty
+      versions in one second and the timeline has no way yet to fold a
+      burst like that into one entry.
+
 - [ ] **A script never runs on its own.** Not on save and not after the
       agent edits it; the pane says the agent changed it and offers Run
       again. The agent's runs pass the permission fence with the script as
