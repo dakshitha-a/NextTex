@@ -1943,6 +1943,12 @@ async def relocate_project(project_id: str, path: str = Body(..., embed=True)):
         project = REGISTRY.relocate(old_root, root)
     except (FileNotFoundError, OSError) as error:
         raise HTTPException(400, f"could not open {root}: {error}")
+    # A shared project is opened here and now, so its peers reconnect to
+    # it at its new home without waiting for the next open or the next
+    # server start. `.nexttex/` moved with the folder, and the document
+    # logs in it are the sync state, so nothing needs reconciling.
+    if (root / ".nexttex" / "collab" / "share.json").is_file():
+        session_for(project.id)
     _restart_watch()
     return project.as_dict()
 

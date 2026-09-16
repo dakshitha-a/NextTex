@@ -6924,3 +6924,22 @@ An install that was removed gets the same action under a different name,
 "Keep it as a project of my own", at the foot of the notice saying who
 removed it. Without it the record of the share stayed, and the panel said
 removed on every visit for the life of the project.
+
+### The missing row offers both ways back
+
+A row whose folder is gone used to offer "Find it…", which is right for a
+folder that was moved: `.nexttex/` moves with it, the document logs in it
+are the sync state, and pointing NextTex at the new place reconnects a
+shared project with nothing to reconcile. Relocating now also opens the
+project, so its peers find it at its new home at once rather than at the
+next open. For a folder that is really gone the row of a shared project
+offers "Rejoin from collaborators…" beside it, known from the card in the
+state directory rather than from anything in the folder. The field it
+opens defaults to the old path, which is usually where the writer wants
+the project back, and says that the collaborators send the project as it
+is now and that nothing is written until the offer is accepted. What
+follows is the join's own offer card. A private project's row offers only
+"Find it…", and so does the row of a share this install was removed from,
+since a rejoin there would be refused after thirty seconds of waiting;
+the share panel says what happened once the copy is opened from wherever
+it went.

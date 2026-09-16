@@ -66,6 +66,11 @@ export default function Projects({
   const [relocating, setRelocating] = useState<string | null>(null);
   const [movedTo, setMovedTo] = useState("");
   const [rowError, setRowError] = useState<string | null>(null);
+  // Rejoining a shared project whose folder is gone, keyed the same way.
+  // The folder it arrives into defaults to where it was, since that is
+  // usually where the writer wants it back.
+  const [rejoining, setRejoining] = useState<string | null>(null);
+  const [rejoinTo, setRejoinTo] = useState("");
   // While an update is running the server is about to exit.  Opening a
   // project then means typing into a document whose server disappears
   // mid-save, so the screen stops offering it.
@@ -201,6 +206,24 @@ export default function Projects({
       await refresh();
     } catch (problem: any) {
       setRowError(problem.message);
+    }
+  };
+
+  const rejoin = async (project: ProjectSummary) => {
+    const where = rejoinTo.trim();
+    if (!where || busy === project.id) return;
+    setRowError(null);
+    setBusy(project.id);
+    try {
+      // The same offer card a join shows, drawn under the form; nothing
+      // is written until it is accepted.
+      setOffer(await api.rejoinShare(project.shareId, where));
+      setRejoining(null);
+      setRejoinTo("");
+    } catch (problem: any) {
+      setRowError(problem.message);
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -390,6 +413,44 @@ export default function Projects({
                     This folder is no longer there.
                   </div>
                 ) : null}
+                {rejoining === project.path ? (
+                  <div className="mt-2">
+                    <div className="flex gap-2">
+                      <input
+                        autoFocus
+                        value={rejoinTo}
+                        placeholder="An empty folder for it to arrive in"
+                        className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                        onChange={(event) => setRejoinTo(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") rejoin(project);
+                          if (event.key === "Escape") setRejoining(null);
+                        }}
+                      />
+                      <button
+                        className="ghost-button h-[28px] shrink-0 px-3 t-meta"
+                        data-testid="confirm-rejoin"
+                        disabled={busy === project.id}
+                        onClick={() => rejoin(project)}
+                      >
+                        {busy === project.id ? "Asking…" : "Rejoin"}
+                      </button>
+                      <button
+                        className="h-[28px] shrink-0 px-2 t-meta text-ink-3 hover:text-ink"
+                        onClick={() => setRejoining(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="t-meta mt-1 text-ink-3">
+                      Your collaborators send the project as it is now. Nothing
+                      is written until you accept what they offer.
+                    </p>
+                    {rowError ? (
+                      <p className="t-meta mt-1 text-error">{rowError}</p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {relocating === project.path ? (
                   <div className="mt-2">
                     <div className="flex gap-2">
@@ -490,10 +551,31 @@ export default function Projects({
                     onClick={() => {
                       setRowError(null);
                       setMovedTo("");
+                      setRejoining(null);
                       setRelocating(project.path);
                     }}
                   >
                     Find it…
+                  </button>
+                ) : null}
+                {/* The other way back for a shared project: the folder is
+                    really gone, and the collaborators still have theirs.
+                    Not offered to an install that was removed, which the
+                    share panel explains once the copy is opened elsewhere;
+                    a rejoin would only be refused after thirty seconds. */}
+                {project.missing && project.shared && !project.removed
+                  && rejoining !== project.path ? (
+                  <button
+                    className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink"
+                    data-testid="rejoin-project"
+                    onClick={() => {
+                      setRowError(null);
+                      setRejoinTo(project.path);
+                      setRelocating(null);
+                      setRejoining(project.path);
+                    }}
+                  >
+                    Rejoin from collaborators…
                   </button>
                 ) : null}
                 <button

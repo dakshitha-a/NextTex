@@ -96,3 +96,46 @@ test("a folder removed while the project is open sends the editor back to the li
   await tab.getByRole("button", { name: "Dismiss" }).click();
   await expect(tab.getByTestId("folder-lost")).toHaveCount(0);
 });
+
+test("a shared project whose folder is gone offers a way back in", async ({
+  app,
+  project,
+  page,
+}) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  const shared = await page.request.post(
+    `${app.base}/api/projects/${project.id}/collab/share`,
+    { data: { name: "Wilhelmina" } },
+  );
+  expect(shared.ok()).toBeTruthy();
+  rmSync(project.root, { recursive: true, force: true });
+
+  await page.reload();
+  await expect(page.getByText("This folder is no longer there.")).toBeVisible({
+    timeout: 20_000,
+  });
+  // Both exits, side by side: the folder may have moved, or it may be gone
+  // and the collaborators still have theirs.
+  await expect(page.getByTestId("find-project")).toBeVisible();
+  await page.getByTestId("rejoin-project").click();
+  // Defaults to where it was, which is usually where the writer wants it.
+  const where = page.getByPlaceholder("An empty folder for it to arrive in");
+  await expect(where).toHaveValue(project.root);
+  await expect(page.getByText("Nothing is written until you accept")).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(where).toHaveCount(0);
+});
+
+test("a private project whose folder is gone is not offered a rejoin", async ({
+  app,
+  project,
+  page,
+}) => {
+  rmSync(project.root, { recursive: true, force: true });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await expect(page.getByText("This folder is no longer there.")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByTestId("find-project")).toBeVisible();
+  await expect(page.getByTestId("rejoin-project")).toHaveCount(0);
+});

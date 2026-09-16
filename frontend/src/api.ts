@@ -489,6 +489,11 @@ const api = {
    *  disk: the documents are held open on the server until the answer. */
   joinShare: (invite: string, path: string) =>
     request<JoinOffer>("/collab/join", json({ invite, path })),
+  /** Back into a share this install is a member of, from the note it
+   *  keeps outside the project, with no invite. The answer is an offer,
+   *  as for a join. */
+  rejoinShare: (share: string, path: string) =>
+    request<JoinOffer>("/collab/rejoin", json({ share, path })),
   acceptJoin: (token: string) =>
     request<{ ok: true; project: { id: string; path: string } }>(
       "/collab/join/accept", json({ token }),

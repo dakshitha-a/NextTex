@@ -206,3 +206,37 @@ def test_a_relocated_project_keeps_its_place_in_the_list(client, project_dir, tm
     # Still second: the list is ordered by when each was last worked on, and
     # being moved on disk is not working on it.
     assert [p["path"] for p in listed] == [str(newer), str(moved)]
+
+
+def test_relocating_a_shared_project_reopens_it(client, opened, project_dir, tmp_path):
+    """So its peers reconnect to it at its new home now, rather than at
+    the next open or the next server start."""
+    import shutil
+
+    from server import main as server_main
+
+    project_id = opened["id"]
+    client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
+    session = server_main.SESSIONS[project_id]
+    client.portal.call(server_main._close_session, project_id, session)
+
+    moved = tmp_path / "moved-here"
+    shutil.move(str(project_dir), str(moved))
+    answer = client.post(f"/api/projects/{project_id}/relocate", json={"path": str(moved)})
+    assert answer.status_code == 200, answer.text
+    new_id = answer.json()["id"]
+    assert new_id in server_main.SESSIONS
+    state = client.get(f"/api/projects/{new_id}/collab").json()
+    assert state["shared"] is True and state["member"] is True
+
+
+def test_relocating_a_private_project_leaves_it_closed(client, project, project_dir, tmp_path):
+    import shutil
+
+    from server import main as server_main
+
+    moved = tmp_path / "moved-here"
+    shutil.move(str(project_dir), str(moved))
+    answer = client.post(f"/api/projects/{project['id']}/relocate", json={"path": str(moved)})
+    assert answer.status_code == 200
+    assert answer.json()["id"] not in server_main.SESSIONS
