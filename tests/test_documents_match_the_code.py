@@ -325,3 +325,42 @@ def test_the_measured_bundle_in_the_readme_is_close_to_the_one_on_disk():
     assert abs(stated - on_disk) / on_disk < 0.005, (
         f"the README says {stated} kB and frontend/dist is {on_disk} kB"
     )
+
+
+# --- the README's own index -------------------------------------------------
+
+
+def _readme_index():
+    """The generator, imported by path: `scripts/` is not a package."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "readme_index", ROOT / "scripts" / "readme_index.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_every_link_within_the_readme_reaches_a_heading():
+    """A `#anchor` was the one kind of link nothing checked."""
+    module = _readme_index()
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    anchors = {module.slug(title) for _level, title in module.headings(text)}
+    # The title is a `#` heading and not in the index; it still has an anchor.
+    anchors |= {module.slug(line[2:]) for line in text.splitlines() if line.startswith("# ")}
+    missing = [
+        target for target in re.findall(r"\]\(#([^)]+)\)", text)
+        if target not in anchors
+    ]
+    assert not missing, "README links to headings that are not there: " + ", ".join(missing)
+
+
+def test_the_readme_index_names_every_section_in_order():
+    """The index is generated, so it can be checked rather than trusted."""
+    module = _readme_index()
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert module.current(text) == module.wanted(text), (
+        "the README's Contents index is behind its headings; "
+        "run scripts/readme_index.py"
+    )

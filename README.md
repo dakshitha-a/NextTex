@@ -21,6 +21,52 @@ close the tab. No database, no Docker, no nginx.
   <img alt="NextTex: the file list, the source, the typeset page and the agent" src="docs/screenshot-light.png">
 </picture>
 
+**Contents**
+
+- [Highlights](#highlights)
+- [Getting started](#getting-started)
+  - [Installing](#installing)
+  - [Running it](#running-it)
+  - [Keeping it up to date](#keeping-it-up-to-date)
+  - [Uninstalling](#uninstalling)
+  - [Your first session](#your-first-session)
+- [How it works](#how-it-works)
+  - [The page follows your typing](#the-page-follows-your-typing)
+  - [It tells you what the error means](#it-tells-you-what-the-error-means)
+  - [Every pause is a version](#every-pause-is-a-version)
+  - [Four git commands, and the fifth one is a terminal](#four-git-commands-and-the-fifth-one-is-a-terminal)
+  - [The page you write on](#the-page-you-write-on)
+  - [Panes, and two modes](#panes-and-two-modes)
+- [The agent](#the-agent)
+  - [It edits the project, and asks about everything else](#it-edits-the-project-and-asks-about-everything-else)
+  - [It draws a figure from your data](#it-draws-a-figure-from-your-data)
+  - [You can show it something](#you-can-show-it-something)
+  - [It cannot invent a citation](#it-cannot-invent-a-citation)
+  - [Point it at a folder of papers](#point-it-at-a-folder-of-papers)
+- [Writing it with somebody else](#writing-it-with-somebody-else)
+  - [Both of you keep a whole copy](#both-of-you-keep-a-whole-copy)
+  - [You can see where they are](#you-can-see-where-they-are)
+  - [A collaborator is a public key](#a-collaborator-is-a-public-key)
+  - [Nobody owns it, and anyone can leave](#nobody-owns-it-and-anyone-can-leave)
+  - [Losing your folder is not losing your place](#losing-your-folder-is-not-losing-your-place)
+  - [Joining into a folder you already have](#joining-into-a-folder-you-already-have)
+  - [Git and the agent stay yours](#git-and-the-agent-stay-yours)
+- [What it is not](#what-it-is-not)
+  - [On Windows, only partly verified](#on-windows-only-partly-verified)
+- [Requirements](#requirements)
+  - [What it costs to leave running](#what-it-costs-to-leave-running)
+- [What leaves this machine](#what-leaves-this-machine)
+- [A project on disk](#a-project-on-disk)
+- [Keyboard](#keyboard)
+  - [Anywhere](#anywhere)
+  - [In the source](#in-the-source)
+  - [On the page](#on-the-page)
+  - [In the file list](#in-the-file-list)
+  - [In the agent panel](#in-the-agent-panel)
+- [Documentation](#documentation)
+- [Reporting a bug](#reporting-a-bug)
+- [Licence](#licence)
+
 ## Highlights
 
 - **The page follows your typing.** An ordinary edit typesets only the section
@@ -69,7 +115,9 @@ close the tab. No database, no Docker, no nginx.
   than fought over when you reconnect.
 - **Nothing leaves the machine** except what you asked for. No telemetry.
 
-## Installing
+## Getting started
+
+### Installing
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dakshitha-a/NextTex/master/scripts/install.sh | sh
@@ -181,7 +229,7 @@ All of it is idempotent. Run it again after installing something it said was
 missing and it picks up where it left off without touching your projects.
 </details>
 
-## Running it
+### Running it
 
 The installer sets NextTex to start at login, and puts a shortcut on your
 desktop. The shortcut opens NextTex in your browser, and starts it first if
@@ -269,7 +317,7 @@ tell the two apart. Running `server/run.py` by hand for that copy takes
 `--instance NAME` as well, which is what its shortcut and its login task
 pass; without it you are talking to the first install.
 
-## Keeping it up to date
+### Keeping it up to date
 
 `./scripts/update.sh` pulls, reinstalls, rebuilds and restarts, or
 `scripts\update.ps1` on Windows. Your projects live outside this directory and
@@ -318,12 +366,12 @@ the last block is the one you want, and it is the one to send if you are asking
 for help. The report described under *Reporting a bug* quotes that block for
 you.
 
-## Uninstalling
+### Uninstalling
 
 Four things to remove, in this order: the service, the desktop shortcut,
 the install, and the state directory. Your projects are in none of them.
 
-**Linux.**
+**Linux**
 
 ```bash
 systemctl --user disable --now nexttex
@@ -333,7 +381,7 @@ rm -f ~/Desktop/NextTex.desktop
 rm -rf ~/apps/NextTex ~/.local/share/nexttex
 ```
 
-**macOS.**
+**macOS**
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.nexttex.server.plist
@@ -375,7 +423,7 @@ goes too.
 - **Your projects.** They were never inside the install; the registry held
   paths. Each still has its `.nexttex/` beside it with the version history
   and the trash in it, and deleting that is a separate decision. The section
-  above on [a project on disk](#a-project-on-disk) says what is in there.
+  below on [a project on disk](#a-project-on-disk) says what is in there.
 - **TeX.** TinyTeX at `~/.TinyTeX`, or `~/Library/TinyTeX` on macOS, is
   about 460 MB and is a normal TeX installation that anything else on the
   machine can use. `tlmgr` did not put anything NextTex-specific in it.
@@ -389,7 +437,7 @@ and somebody will have to invite you back. Your files and their history are
 untouched either way. It is the collaborative link that is lost, which is
 the same thing that happens when somebody removes you.
 
-## Your first session
+### Your first session
 
 About twenty minutes, most of it TinyTeX downloading. Open the URL, choose an
 agent or none, and add `examples/minimal-article` as a project. It typesets as
@@ -512,7 +560,71 @@ store rather than into the remote URL, so it never turns up in
 `git remote -v`. Branching and merging stay in the terminal, where the tools
 are better and the mistakes are recoverable.
 
-### The agent edits the project, and asks about everything else
+### The page you write on
+
+The editor is lit on its own terms, because the shell and the page are
+answering different questions. The frame is chrome and plenty of people want
+it out of the way in the dark; the page is the thing being typeset, and a
+writer who thinks in paper wants that white whatever the frame is doing. Six
+grounds: the interface, the proofing grey, white, warm white, cool
+white and dark. The syntax colours, the gutter and the text's weight all
+follow the page rather than the frame. Dark type on a bright ground looks
+thinner than light type on a dark one, so a light page sets the text a step
+heavier on its own; the weight is a control of its own if that lands wrong.
+
+Colouring the commands is off by default, because the typeset page two panes
+away has to stay the loudest thing on screen. Turned on, it gives sectioning,
+environments, mathematics, citations and the preamble a hue each, which is
+what makes a long chapter skimmable for its shape rather than its words.
+Highlighting has a second half, Emphasis: commands are set a step heavier
+than the prose unless you choose Plain, and a plain command takes a quiet
+slate instead so that `\textbf` never looks like the word after it. The
+same switch reaches a script: a `.py` open in the editor takes the same
+five hues, keywords in the sectioning colour, strings in the citation
+colour, numbers in the mathematics colour, and so on, so a figure script
+never reads as a second palette beside the chapter it draws for.
+
+<img alt="A white page inside a dark shell, with the command families coloured: the file list and agent panel stay dark while the editor is white." src="docs/screenshot-white-page.png">
+
+*A dark shell holding a white page, with colouring switched on. Both are
+settings; neither is the default.*
+
+### Panes, and two modes
+
+Double-click the preview's header for a reading mode: everything else folds to
+a strip and the typeset page gets the screen. The empty part of the tab strip
+does the same for writing, except that it keeps the file list, because you are
+still moving between chapters. Double-click again and your layout comes back
+exactly as you left it, including what you had already folded away. A single
+click on either folds just that pane, as it does on the agent's header. Both
+modes have a key as well, `⌘⌥R` / `Ctrl-Alt-R` for reading and `⌘⌥E` /
+`Ctrl-Alt-E` for writing, for when the tab strip is full and there is nothing
+left to double-click.
+
+Right-click the tab you are working in and you can close every other tab,
+close the lot, or duplicate the file. A duplicate arrives beside the original
+as `chapter (copy).tex` and the file list opens far enough to show you where
+it landed; nothing moves out from under you, so the file you were editing is
+still the one in front.
+
+The two strips keep each other tidy. Stop previewing a document and the files
+that belong to it, its chapters, its bibliography, its own root file, close
+with it; a file another previewed document also reads stays, and so does a
+scratch file nothing reads. In the other direction, a document that arrived
+on the preview strip only because you opened one of its chapters leaves again
+when you close the last of them, while one you added with `+` or clicked on
+stays until you stop it yourself. Reopening a closed tab with `⌘⌥⇧T` /
+`Ctrl-Alt-Shift-T` brings its document back too.
+
+The file list has a filter row behind a magnifier: type and the tree narrows
+to what matches, through folders you had collapsed, and clearing it gives back
+exactly the tree you had. Rows drag onto folders, and a folder takes
+everything under it, including open files, which follow it rather than being
+left pointing at a name that no longer exists.
+
+## The agent
+
+### It edits the project, and asks about everything else
 
 An edit inside the project happens directly and appears in the transcript as a
 chip with its diff and an undo. A shell command, or a write outside the
@@ -586,11 +698,12 @@ permission rules you have set.
 paper you have already written; it reads them once, distils them, and keeps
 the result in its instructions from then on.
 
-### It draws a figure from your data, and the first attempt looks right
+### It draws a figure from your data
 
 Point at a dataset in the file list and ask for a plot, or just say which
 file and what to plot. The agent reads the data, writes a Python script,
-runs it, and puts the figure in your document.
+runs it, and puts the figure in your document. The first attempt looks
+right, for reasons that are set out below.
 
 **The script is saved in your project, under `scripts/`.** That is the part
 worth caring about. A figure a model drew and threw the script away for is a
@@ -692,25 +805,21 @@ library it can search**, so it can ask what you have already read before going
 to the whole literature. What it gets back is labelled as quotation rather
 than instruction, because the text came out of files you downloaded.
 
-### Writing it with somebody else
+## Writing it with somebody else
 
 Share a project and you get an invite to send. Whoever opens it gets the
 whole project, every file and what those files used to say, into a folder
-of their own, and from then on the two copies stay in step. The folder can
-already hold a copy of the files, a git clone say: NextTex shows what
-accepting would do to each file before it does it, merges a clone's own
-edits in where git can, and where it cannot the shared project wins and
-whatever it replaces goes to that file's history or to the trash rather
-than anywhere it cannot be got back from.
+of their own, and from then on the two copies stay in step.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg">
   <img alt="Two NextTex installs, each holding a whole copy, connected directly and encrypted to the other's public key, with a relay that forwards ciphertext only when a direct route cannot be made." src="docs/collab-light.svg">
 </picture>
 
-**Both of you keep a whole copy.** Not a cache of somebody else's: your own
-files, your own version history, your own git repository and your own
-backups. If the other person's laptop is shut, or yours is, both of you carry
+### Both of you keep a whole copy
+
+Yours is not a cache of somebody else's: your own files, your own version
+history, your own git repository and your own backups. If the other person's laptop is shut, or yours is, both of you carry
 on writing; when you are both back, the two sets of edits are merged rather
 than one of them being refused. That is true of an afternoon apart as much as
 of a second, and it needs nothing switched on.
@@ -720,105 +829,62 @@ tab. So a collaborator's work arrives while your tab is closed, and a shared
 project picks its peers back up when the server starts, so you do not have to
 open it first for their afternoon's writing to land.
 
-**You can see where they are.** Their caret sits in your margin in their own
-colour and says their name for a moment whenever it moves, and a strip at the
+### You can see where they are
+
+Their caret sits in your margin in their own colour and says their name for a moment whenever it moves, and a strip at the
 end of the tabs shows who else is in the project, filled in while they are
 typing, outlined while they are only there. Their name is on the versions
 they wrote, so a month later the history says who changed the paragraph.
 
-**A collaborator is a public key.** There are no accounts, no server in the
-middle, and nothing to sign up for: two NextTex installs find each other and
+### A collaborator is a public key
+
+There are no accounts, no server in the middle, and nothing to sign up for: two NextTex installs find each other and
 talk directly, encrypted end to end, over a connection made to the other
 side's key rather than to an address. An invite is single-use and expires,
 and it is a credential, so send it the way you would send a password.
 
-**Nobody owns a shared project**, which has one honest consequence worth
+### Nobody owns it, and anyone can leave
+
+Nobody owns a shared project, which has one honest consequence worth
 knowing before you rely on it: anyone in it can invite somebody, anyone can
 remove anybody, and removing somebody does not take back the copy they
 already have. It stops the two of you syncing. It cannot unsend a paper. The
 button says so, next to itself. Somebody who is removed is told so, once,
 and their copy stays theirs.
 
-**Losing your copy is not losing your place.** If the folder on your
-machine is deleted, moved, or on a drive that went away, nobody else is
-affected, and you are still in the share: NextTex keeps a note of every
-share you are in outside the project. The project list offers to find the
-folder if you moved it, or to rejoin from your collaborators into an empty
-folder, with no new invite needed.
+You can leave from the share panel. The others carry on without you, and
+your copy stays on your computer as a project of your own, with its
+history, or is deleted if you tick the box that says so. Deleting the
+folder by hand is never the way out: NextTex would take that as this copy
+being gone, which is what it is, and nobody else would notice anything.
 
-**You can leave.** The share panel has a Leave button: the others carry on
-without you, and your copy stays on your computer as a project of your own,
-with its history, or is deleted if you tick the box that says so. Deleting
-the folder by hand is never the way out; NextTex would take that as this
-copy being gone, which is what it is, and nobody else would notice anything.
+### Losing your folder is not losing your place
 
-Two more things that are true and might not be obvious. Each of you keeps
-your own `.git`, so committing and pushing are yours alone. Pull between
-sessions rather than during one, because a pull replaces a whole file and
-will win against a collaborator's untouched paragraphs. And your conversation
-with the agent is yours: the writing is shared, the chat is not.
+If the folder on your machine is deleted, moved, or on a drive that went
+away, nobody else is affected, and you are still in the share. NextTex
+keeps a note of every share you are in outside the project, so the project
+list can offer two ways back: find the folder, if you moved it, or rejoin
+from your collaborators, into a folder that is empty or already holds a
+copy of your own, with no new invite needed.
 
-### The page you write on
+### Joining into a folder you already have
 
-The editor is lit on its own terms, because the shell and the page are
-answering different questions. The frame is chrome and plenty of people want
-it out of the way in the dark; the page is the thing being typeset, and a
-writer who thinks in paper wants that white whatever the frame is doing. Six
-grounds: the interface, the proofing grey, white, warm white, cool
-white and dark. The syntax colours, the gutter and the text's weight all
-follow the page rather than the frame. Dark type on a bright ground looks
-thinner than light type on a dark one, so a light page sets the text a step
-heavier on its own; the weight is a control of its own if that lands wrong.
+The folder an invite arrives in can already hold a copy of the files, a git
+clone say. NextTex lets the shared project arrive first and then shows what
+accepting would do to each file: the same as yours, new from the others,
+only here, or different. Where a file differs the shared copy wins, and
+whatever it replaces goes to that file's history or to the trash rather
+than anywhere it cannot be got back from. A git clone's own uncommitted
+edits are merged in where git can merge them cleanly. Nothing is written
+until you accept.
 
-Colouring the commands is off by default, because the typeset page two panes
-away has to stay the loudest thing on screen. Turned on, it gives sectioning,
-environments, mathematics, citations and the preamble a hue each, which is
-what makes a long chapter skimmable for its shape rather than its words.
-Highlighting has a second half, Emphasis: commands are set a step heavier
-than the prose unless you choose Plain, and a plain command takes a quiet
-slate instead so that `\textbf` never looks like the word after it. The
-same switch reaches a script: a `.py` open in the editor takes the same
-five hues, keywords in the sectioning colour, strings in the citation
-colour, numbers in the mathematics colour, and so on, so a figure script
-never reads as a second palette beside the chapter it draws for.
+### Git and the agent stay yours
 
-<img alt="A white page inside a dark shell, with the command families coloured: the file list and agent panel stay dark while the editor is white." src="docs/screenshot-white-page.png">
-
-*A dark shell holding a white page, with colouring switched on. Both are
-settings; neither is the default.*
-
-### Panes, and two modes
-
-Double-click the preview's header for a reading mode: everything else folds to
-a strip and the typeset page gets the screen. The empty part of the tab strip
-does the same for writing, except that it keeps the file list, because you are
-still moving between chapters. Double-click again and your layout comes back
-exactly as you left it, including what you had already folded away. A single
-click on either folds just that pane, as it does on the agent's header. Both
-modes have a key as well, `⌘⌥R` / `Ctrl-Alt-R` for reading and `⌘⌥E` /
-`Ctrl-Alt-E` for writing, for when the tab strip is full and there is nothing
-left to double-click.
-
-Right-click the tab you are working in and you can close every other tab,
-close the lot, or duplicate the file. A duplicate arrives beside the original
-as `chapter (copy).tex` and the file list opens far enough to show you where
-it landed; nothing moves out from under you, so the file you were editing is
-still the one in front.
-
-The two strips keep each other tidy. Stop previewing a document and the files
-that belong to it, its chapters, its bibliography, its own root file, close
-with it; a file another previewed document also reads stays, and so does a
-scratch file nothing reads. In the other direction, a document that arrived
-on the preview strip only because you opened one of its chapters leaves again
-when you close the last of them, while one you added with `+` or clicked on
-stays until you stop it yourself. Reopening a closed tab with `⌘⌥⇧T` /
-`Ctrl-Alt-Shift-T` brings its document back too.
-
-The file list has a filter row behind a magnifier: type and the tree narrows
-to what matches, through folders you had collapsed, and clearing it gives back
-exactly the tree you had. Rows drag onto folders, and a folder takes
-everything under it, including open files, which follow it rather than being
-left pointing at a name that no longer exists.
+Each of you keeps your own `.git`, so committing and pushing are yours
+alone. Pull between sessions rather than during one, because a pull
+replaces a whole file and will win against a collaborator's untouched
+paragraphs. And your conversation with the agent is yours: the writing is
+shared, the chat is not.
 
 ## What it is not
 
@@ -839,7 +905,9 @@ share card says sharing is unavailable and everything else works exactly as
 it does anywhere. The installer treats iroh as optional for the same reason:
 a missing build costs you the one feature, not the install.
 
-**Windows support is written and only partly verified.** An install has now
+### On Windows, only partly verified
+
+Windows support is written and only partly verified. An install has now
 been run on Windows and reached the end, which found four things and fixed
 them: the `irm ... | iex` line went straight to *"Cannot bind argument to
 parameter 'Path'"* because the script had no clone step and `$PSScriptRoot`
@@ -1066,35 +1134,63 @@ there, and somebody would have to invite you back.
 
 ## Keyboard
 
+Every chord is written for both keyboards, the Mac glyphs first and the
+words after. The settings sheet's Keyboard section lists the same chords
+inside the app.
+
+### Anywhere
+
 | Key | Does |
 |---|---|
 | `⌘S` / `Ctrl-S` | Put the file on disk this instant; builds instead when compile-as-you-type is off |
 | `⌘B` / `Ctrl-B` | Hide the file list |
 | `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
-| `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on; in a script, run it |
 | `⌘⌥P` / `Ctrl-Alt-P` | Move between the previewed documents |
-| `⌘F` / `Ctrl-F` | Find and replace in the file you are in |
-| `⌘.` / `Ctrl-.` | The menu for the word under the caret, which is how a word joins the project's dictionary |
-| `⌘F` / `Ctrl-F`, on the page | Find on the typeset page |
 | `⌘⇧F` / `Ctrl-Shift-F` | Find and replace across every file in the project |
 | `⌘⌥O` / `Ctrl-Alt-O` | Open a file by typing its name |
 | `⌘⌥[` `⌘⌥]` / `Ctrl-Alt-[` `Ctrl-Alt-]` | Previous and next tab |
-| Wheel, over either tab strip | Scroll across the tabs; the count at the end lists the ones out of sight |
-| Right-click, on the preview tab in front | Stop previewing the others or all, or download that document's PDF |
 | `⌘⌥W` / `Ctrl-Alt-W` | Close the tab in front |
+| `⌘⌥⇧T` / `Ctrl-Alt-Shift-T` | Reopen the tab you just closed |
 | `⌘⌥R` / `Ctrl-Alt-R` | Reading mode: the page fills the window; again puts your layout back |
 | `⌘⌥E` / `Ctrl-Alt-E` | Writing mode: the source and the file list fill the window; again puts it back |
-| `⌘⌥⇧T` / `Ctrl-Alt-Shift-T` | Reopen the tab you just closed |
 | `F8`, `Shift-F8` | Next and previous error |
+| Wheel, over either tab strip | Scroll across the tabs; the count at the end lists the ones out of sight |
+| Right-click, on the preview tab in front | Stop previewing the others or all, or download that document's PDF |
+
+### In the source
+
+| Key | Does |
+|---|---|
+| `⌘↵` / `Ctrl-↵` | Scroll the PDF to the line you are on; in a script, run it |
+| `⌘F` / `Ctrl-F` | Find and replace in the file you are in |
+| `⌘.` / `Ctrl-.` | The menu for the word under the caret, which is how a word joins the project's dictionary |
 | `⌘`-click / `Ctrl`-click, on a `\ref` or `\input` | Go to the label, or open the file |
-| Typing, in the file tree | Jump to a file |
-| `↹` or `↵`, in the completion list | Take the suggestion |
-| `⌥`-drag / `Alt`-drag | Select a column, for editing a table; some Linux desktops take Alt-drag for moving windows, so the two rows below do the same by keyboard |
+| `⌥`-drag / `Alt`-drag | Select a column, for editing a table; some Linux desktops take Alt-drag for moving windows, so the next row does the same by keyboard |
 | `⌘⌥↑` `⌘⌥↓` / `Ctrl-Alt-↑` `Ctrl-Alt-↓`, or with `⇧` / `Shift` added | Add a caret on the row above or below |
+| `↹` or `↵`, in the completion list | Take the suggestion |
 | `Esc` | Back to one caret |
-| `F2`, `Delete`, in the file tree | Rename, move to trash |
-| `Esc`, in the agent panel | Stop the turn if one is running, otherwise close the panel |
+
+### On the page
+
+| Key | Does |
+|---|---|
+| `⌘F` / `Ctrl-F` | Find on the typeset page |
+| Double-click | Go to the line that set this |
+
+### In the file list
+
+| Key | Does |
+|---|---|
+| Typing | Jump to a file |
+| `F2`, `Delete` | Rename, move to trash |
+
+### In the agent panel
+
+| Key | Does |
+|---|---|
+| `↵`, `⇧↵` / `Shift-↵` | Send; a new line |
 | `A`, `⇧A`, `C`, `D`, in a permission card | Allow, allow always, allow for this conversation, deny |
+| `Esc` | Stop the turn if one is running, otherwise close the panel |
 
 ## Documentation
 
