@@ -24,8 +24,8 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-A shared project surviving one machine losing its folder, worked from
-`.claude/plans/binary-strolling-hinton.md`: a removed peer told once, edits
+A shared project surviving one machine losing its folder, worked from the
+plan file of the session that started it: a removed peer told once, edits
 made while the server was stopped folded in, a share card outside the
 project, leave, rejoin without an invite, and a join that may point at a
 folder that already has files.

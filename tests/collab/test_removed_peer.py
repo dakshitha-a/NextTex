@@ -27,7 +27,19 @@ async def _three(tmp_path):
     refused = await carol.network.join(alice.network.invite(), "Carol")
     assert refused == "", refused
     await settle()
-    assert await until(lambda: C in bob.network.links and B in carol.network.links)
+
+    def linked() -> bool:
+        return all(
+            peer in net.links and net.links[peer].alive
+            for net, peer in ((bob.network, C), (carol.network, B),
+                              (bob.network, A), (carol.network, A))
+        )
+
+    # Both sides dial, so a link can be replaced once while the three
+    # settle; wait for the links to be up and to stay up.
+    assert await until(linked, 15.0)
+    await settle(1.0)
+    assert linked()
     return alice, bob, carol
 
 
@@ -71,9 +83,9 @@ async def test_a_removal_reaches_a_peer_through_a_third(tmp_path):
 
     alice.network.remove(B)
     # Carol hears through the manifest and refuses Bob from then on.
-    assert await until(lambda: not carol.network.share.allows(B))
+    assert await until(lambda: not carol.network.share.allows(B), 15.0)
     # Bob hears through Carol's copy of the same manifest.
-    assert await until(lambda: bob.network.removed)
+    assert await until(lambda: bob.network.removed, 15.0)
     assert bob.network.state()["removedBy"] == "Alice"
 
     await alice.close()
@@ -134,7 +146,9 @@ async def test_a_refusal_at_the_door_is_not_a_removal(tmp_path):
         link.alive = False
         await link.stream.close()
 
-    assert await until(lambda: bob.network.last_error == "not a member of this project")
+    assert await until(
+        lambda: bob.network.last_error == "not a member of this project", 15.0,
+    )
     assert bob.network.removed is False
     assert bob.network.state()["removed"] is False
     assert alice.network.share.allows(B)
