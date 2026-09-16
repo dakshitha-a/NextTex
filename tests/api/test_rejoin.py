@@ -296,3 +296,98 @@ def test_a_copy_of_another_share_is_refused(client, them, tmp_path):
     answer = client.post("/api/collab/rejoin",
                          json={"share": them["share"], "path": str(other)})
     assert answer.status_code == 409
+
+
+# --- a git checkout ------------------------------------------------------------
+
+
+def _checkout(copy, files: dict) -> None:
+    """Make the copy a git checkout with `files` as its one commit."""
+    import subprocess
+
+    for name, text in files.items():
+        (copy / name).write_text(text)
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(copy),
+           "GIT_AUTHOR_NAME": "A Test", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+           "GIT_COMMITTER_NAME": "A Test", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
+    for arguments in (("init", "-q", "-b", "main"), ("add", "-A"), ("commit", "-q", "-m", "base")):
+        subprocess.run(["git", *arguments], cwd=copy, check=True, capture_output=True, env=env)
+
+
+def _their_text(client, them, path: str) -> str:
+    store = them["store"]
+    return client.portal.call(lambda: str(store.body(store.file_id_for(path))))
+
+
+def test_a_checkout_with_an_uncommitted_edit_merges_it_in(client, them, tmp_path):
+    """`notes.tex` was committed as the others still have it; the local
+    edit since then applies cleanly to the shared text."""
+    import time
+
+    copy = tmp_path / "my-clone"
+    copy.mkdir()
+    _checkout(copy, {"main.tex": (them["root"] / "main.tex").read_text(),
+                     "notes.tex": "Notes.\n"})
+    (copy / "notes.tex").write_text("Notes.\nMine, since the clone.\n")
+    # And the others moved on too, elsewhere in the file.
+    store = them["store"]
+    client.portal.call(lambda: store.body(store.file_id_for("notes.tex")).insert(0, "Theirs first.\n"))
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+
+    body = client.post("/api/collab/rejoin",
+                       json={"share": them["share"], "path": str(copy)}).json()
+    outcomes = {f["path"]: f["outcome"] for f in body["files"]}
+    assert outcomes == {"main.tex": "same", "notes.tex": "merged"}
+    accepted = client.post("/api/collab/join/accept", json={"token": body["token"]}).json()
+    assert (copy / "notes.tex").read_text() == "Theirs first.\nNotes.\nMine, since the clone.\n"
+    # The merge reaches the others, and the local text is still a version.
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and "Mine, since" not in _their_text(client, them, "notes.tex"):
+        time.sleep(0.1)
+    assert _their_text(client, them, "notes.tex") == "Theirs first.\nNotes.\nMine, since the clone.\n"
+    versions = client.get(f"/api/projects/{accepted['project']['id']}/history",
+                          params={"path": "notes.tex"}).json()["versions"]
+    assert "Before rejoining" in [v.get("label") for v in versions]
+
+
+def test_a_checkout_with_a_conflicting_edit_keeps_the_shared_text(client, them, tmp_path):
+    copy = tmp_path / "my-clone"
+    copy.mkdir()
+    _checkout(copy, {"main.tex": (them["root"] / "main.tex").read_text(),
+                     "notes.tex": "Notes.\n"})
+    (copy / "notes.tex").write_text("Notes, mine.\n")
+    store = them["store"]
+    client.portal.call(lambda: store.body(store.file_id_for("notes.tex")).insert(6, ", theirs"))
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+
+    body = client.post("/api/collab/rejoin",
+                       json={"share": them["share"], "path": str(copy)}).json()
+    outcomes = {f["path"]: f["outcome"] for f in body["files"]}
+    assert outcomes["notes.tex"] == "differs"
+    accepted = client.post("/api/collab/join/accept", json={"token": body["token"]}).json()
+    text = (copy / "notes.tex").read_text()
+    assert text == "Notes., theirs\n" or text == "Notes, theirs.\n"
+    assert "<<<<" not in text
+    versions = client.get(f"/api/projects/{accepted['project']['id']}/history",
+                          params={"path": "notes.tex"}).json()["versions"]
+    assert "Before rejoining" in [v.get("label") for v in versions]
+
+
+def test_a_clean_checkout_behind_the_others_records_nothing(client, them, tmp_path):
+    copy = tmp_path / "my-clone"
+    copy.mkdir()
+    _checkout(copy, {"main.tex": (them["root"] / "main.tex").read_text(),
+                     "notes.tex": "Notes.\n"})
+    store = them["store"]
+    client.portal.call(lambda: store.body(store.file_id_for("notes.tex")).insert(6, " More."))
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+
+    body = client.post("/api/collab/rejoin",
+                       json={"share": them["share"], "path": str(copy)}).json()
+    outcomes = {f["path"]: f["outcome"] for f in body["files"]}
+    assert outcomes["notes.tex"] == "behind"
+    accepted = client.post("/api/collab/join/accept", json={"token": body["token"]}).json()
+    assert (copy / "notes.tex").read_text() == "Notes. More.\n"
+    versions = client.get(f"/api/projects/{accepted['project']['id']}/history",
+                          params={"path": "notes.tex"}).json()["versions"]
+    assert "Before rejoining" not in [v.get("label") for v in versions]

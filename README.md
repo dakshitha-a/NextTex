@@ -698,9 +698,10 @@ Share a project and you get an invite to send. Whoever opens it gets the
 whole project, every file and what those files used to say, into a folder
 of their own, and from then on the two copies stay in step. The folder can
 already hold a copy of the files, a git clone say: NextTex shows what
-accepting would do to each file before it does it, the shared project wins
-where they disagree, and whatever it replaces goes to that file's history
-or to the trash rather than anywhere it cannot be got back from.
+accepting would do to each file before it does it, merges a clone's own
+edits in where git can, and where it cannot the shared project wins and
+whatever it replaces goes to that file's history or to the trash rather
+than anywhere it cannot be got back from.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg">

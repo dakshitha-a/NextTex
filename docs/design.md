@@ -6972,3 +6972,18 @@ sync state; a folder carrying another share's is refused.
 The card is honest about one limit: a binary can only be compared by
 size, since a record carries no hash, so a figure rewritten to the same
 number of bytes reads as the same.
+
+### A git clone merges its own edits in
+
+A copy that differs from the shared project is usually a git clone with
+work in it, and for a clone there is a base: what the last commit holds.
+With a base, "replaces yours" splits three ways on the card. A file that
+is exactly what git has is behind the shared copy and is simply replaced,
+with nothing recorded, since git keeps it. A file edited since the clone
+has its edits merged into the shared text by git's own three-way merge,
+and the merged text is what lands and what reaches everybody, with the
+local text kept as a version all the same. Only a merge with conflicts
+falls back to the shared text winning, because conflict markers must
+never reach a shared `.tex`. The words on the card say which: "newer
+than yours; replaces it, git has yours" and "your edits merged in; goes
+to everybody".

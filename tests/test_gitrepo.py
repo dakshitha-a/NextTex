@@ -280,3 +280,47 @@ def test_a_path_shaped_like_an_option_is_still_a_path(tmp_path):
 def test_no_repository_means_no_patch(tmp_path):
     (tmp_path / "main.tex").write_text("one\n", encoding="utf-8")
     assert gitrepo.diff(tmp_path, "main.tex") == ""
+
+
+# --- what HEAD holds, and a three-way merge ------------------------------------
+
+
+def test_head_text_is_what_the_last_commit_holds(tmp_path):
+    a_repository(tmp_path)
+    (tmp_path / "main.tex").write_text("one\ntwo\n", encoding="utf-8")
+    commit_everything(tmp_path)
+    (tmp_path / "main.tex").write_text("one\ntwo\nthree\n", encoding="utf-8")
+    assert gitrepo.head_text(tmp_path, "main.tex") == "one\ntwo\n"
+
+
+def test_head_text_is_none_for_what_git_does_not_hold(tmp_path):
+    assert gitrepo.head_text(tmp_path, "main.tex") is None
+    a_repository(tmp_path)
+    (tmp_path / "main.tex").write_text("x", encoding="utf-8")
+    # No commit yet, then an untracked file, then paths that are not plain.
+    assert gitrepo.head_text(tmp_path, "main.tex") is None
+    commit_everything(tmp_path)
+    assert gitrepo.head_text(tmp_path, "other.tex") is None
+    for shaped in ("-x", "--output=/tmp/x", "../main.tex", "/etc/passwd", "a:b"):
+        assert gitrepo.head_text(tmp_path, shaped) is None, shaped
+
+
+def test_merge_three_takes_both_sides_when_they_do_not_overlap(tmp_path):
+    merged, conflicts = gitrepo.merge_three(
+        tmp_path, "one\ntwo\nthree\n", "one\ntwo\nthree\nmine\n", "zero\none\ntwo\nthree\n",
+    )
+    assert conflicts == 0
+    assert merged == "zero\none\ntwo\nthree\nmine\n"
+
+
+def test_merge_three_counts_a_conflict(tmp_path):
+    merged, conflicts = gitrepo.merge_three(
+        tmp_path, "one\ntwo\nthree\n", "one\nMINE\nthree\n", "one\nTHEIRS\nthree\n",
+    )
+    assert conflicts == 1
+    assert "<<<<<<<" in merged and "MINE" in merged and "THEIRS" in merged
+
+
+def test_merge_three_with_nothing_changed_on_one_side_is_the_other(tmp_path):
+    merged, conflicts = gitrepo.merge_three(tmp_path, "a\n", "a\n", "a\nb\n")
+    assert (merged, conflicts) == ("a\nb\n", 0)

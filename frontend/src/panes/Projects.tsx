@@ -841,7 +841,7 @@ function JoinOfferCard({
             <span className="t-micro shrink-0 text-ink-3">
               {offer.existing ? (
                 <>
-                  <span className={file.outcome === "same" ? "" : "text-ink-2"}>
+                  <span className={file.outcome === "same" || file.outcome === "behind" ? "" : "text-ink-2"}>
                     {outcomeWords(file.outcome)}
                   </span>
                   {" · "}
@@ -897,6 +897,10 @@ function outcomeWords(outcome: OfferedFile["outcome"]): string {
       return "same as yours";
     case "differs":
       return "replaces yours; yours kept in its history";
+    case "behind":
+      return "newer than yours; replaces it, git has yours";
+    case "merged":
+      return "your edits merged in; goes to everybody";
     case "new here":
       return "only here; goes to everybody";
     case "deleted elsewhere":

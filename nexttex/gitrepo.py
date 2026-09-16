@@ -12,6 +12,7 @@ from __future__ import annotations
 import difflib
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -379,3 +380,62 @@ def attach_remote(root: Path, url: str, token: str = "") -> str:
     # option rather than as a remote, and this value comes from a form.
     _run(root, "remote", "add", "origin", "--", url)
     return url
+
+
+def head_text(root: Path, relative: str) -> str | None:
+    """What `HEAD` holds for a tracked file, or None.
+
+    None for a repository with no commit, an untracked path, a binary, or
+    a path that is not a plain relative one: the path sits inside the one
+    argument `HEAD:<path>`, so `--` cannot fence it, and a leading dash or
+    a `..` is refused here rather than handed to git.
+    """
+    if not (root / ".git").exists():
+        return None
+    parts = Path(relative).parts
+    if (
+        not parts or Path(relative).is_absolute() or ".." in parts
+        or relative.startswith("-") or ":" in relative
+    ):
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "show", f"HEAD:{Path(*parts).as_posix()}"], cwd=root,
+            capture_output=True, timeout=30, env=_environment(),
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        return result.stdout.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def merge_three(root: Path, base: str, mine: str, theirs: str) -> tuple[str, int]:
+    """`git merge-file`, on three texts, outside the project.
+
+    Returns the merged text and the number of conflicts. With conflicts
+    the text carries git's markers, which a caller into a shared `.tex`
+    must not write; the count is the exit status, which `git merge-file`
+    uses for the number of conflicts up to 127 and for an error above.
+    """
+    with tempfile.TemporaryDirectory(prefix="nexttex-merge-") as scratch:
+        where = Path(scratch)
+        for name, text in (("base", base), ("mine", mine), ("theirs", theirs)):
+            (where / name).write_text(text, encoding="utf-8")
+        try:
+            result = subprocess.run(
+                ["git", "merge-file", "-p", "-L", "yours", "-L", "before",
+                 "-L", "shared", "mine", "base", "theirs"],
+                cwd=where, capture_output=True, timeout=30, env=_environment(),
+            )
+        except subprocess.TimeoutExpired:
+            raise GitError("git took too long and was stopped")
+        except OSError as error:
+            raise GitError(f"could not run git: {error}")
+    if result.returncode < 0 or result.returncode >= 128:
+        message = (result.stderr or b"").decode("utf-8", "replace").strip()
+        raise GitError(message.splitlines()[-1] if message else "git merge-file failed")
+    return result.stdout.decode("utf-8", "replace"), result.returncode

@@ -854,6 +854,20 @@ class CollabStore:
         - `deleted elsewhere`: on disk, and the manifest says the others
           deleted it.  Into the trash here too, rather than brought back
           for everybody by being adopted as a new file.
+
+        Where the folder is a git checkout and the file is tracked, what
+        `HEAD` holds is a base for the two sides, and `differs` splits:
+
+        - `behind`: the file is exactly what git has, so it carries no
+          local edits and the document simply replaces it, with nothing
+          to keep since git keeps it;
+        - `merged`: the local edits since `HEAD` apply cleanly to the
+          document, by `git merge-file`, so the merged text is what lands
+          and reaches everybody, with the local text kept as a version
+          all the same.
+
+        A merge with conflicts stays `differs`: markers must never reach
+        a shared `.tex`.
         """
         on_disk = {path: (kind, size) for path, kind, size in self._walk()}
         live: dict[str, str] = {}
@@ -871,14 +885,21 @@ class CollabStore:
             if path in live:
                 file_id = live[path]
                 record = self.files[file_id]
+                item = {"path": path, "kind": str(record.get("kind") or kind),
+                        "id": file_id}
                 if record.get("kind") == "text":
                     text = self.body(file_id)
-                    same = text is not None and self._read(path) == str(text)
+                    local = self._read(path)
+                    if text is not None and local == str(text):
+                        item["outcome"] = "same"
+                    else:
+                        item["outcome"] = "differs"
+                        if text is not None:
+                            self._merge_against_git(item, local, str(text))
                 else:
                     same = int(record.get("size") or 0) == size
-                outcome = "same" if same else "differs"
-                plan.append({"path": path, "kind": str(record.get("kind") or kind),
-                             "outcome": outcome, "id": file_id})
+                    item["outcome"] = "same" if same else "differs"
+                plan.append(item)
             elif path in trashed:
                 plan.append({"path": path, "kind": kind,
                              "outcome": "deleted elsewhere", "id": trashed[path]})
@@ -891,6 +912,26 @@ class CollabStore:
                              "outcome": "new from peers", "id": file_id})
         plan.sort(key=lambda item: item["path"])
         return plan
+
+    def _merge_against_git(self, item: dict, local: str, shared: str) -> None:
+        """Split `differs` three ways when git holds a base for it."""
+        from nexttex import gitrepo
+
+        base = gitrepo.head_text(self.project.root, item["path"])
+        if base is None:
+            return
+        if local == base:
+            item["outcome"] = "behind"
+            return
+        try:
+            merged, conflicts = gitrepo.merge_three(
+                self.project.root, base, local, shared,
+            )
+        except gitrepo.GitError:
+            return
+        if conflicts == 0:
+            item["outcome"] = "merged"
+            item["merged"] = merged
 
     def reconcile_apply(self, plan: list[dict], *, history, trash,
                         peer: str = "", who: str = "") -> None:
@@ -920,7 +961,7 @@ class CollabStore:
         )
         for item in plan:
             path, outcome, file_id = item["path"], item["outcome"], item.get("id") or ""
-            if outcome == "differs" and item["kind"] == "text":
+            if outcome in ("differs", "merged") and item["kind"] == "text":
                 local = self._read(path)
                 if local:
                     history.record_of(
@@ -928,6 +969,12 @@ class CollabStore:
                         why="your copy before rejoining", op="import",
                         label="Before rejoining", peer=peer, who=who,
                     )
+                if outcome == "merged":
+                    # Into the document, as an edit made here, so it
+                    # reaches everybody; then onto the disk by the flush.
+                    self.ingest(path, str(item.get("merged") or ""))
+                self.last_projected.pop(file_id, None)
+            elif outcome == "behind":
                 self.last_projected.pop(file_id, None)
             elif outcome in ("differs", "deleted elsewhere"):
                 try:

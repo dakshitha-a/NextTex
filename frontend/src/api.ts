@@ -319,7 +319,9 @@ export type OfferedFile = {
   /** What accepting does to this file. "new from peers" for every file
    *  of a join into an empty folder; the others only for a folder that
    *  already had files, reconciled against the shared project. */
-  outcome: "same" | "differs" | "new here" | "new from peers" | "deleted elsewhere";
+  outcome:
+    | "same" | "differs" | "new here" | "new from peers" | "deleted elsewhere"
+    | "behind" | "merged";
 };
 
 export type JoinOffer = {
