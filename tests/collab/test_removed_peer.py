@@ -165,3 +165,80 @@ async def test_a_refusal_at_the_door_is_not_a_removal(tmp_path):
     await carol.close()
 
 
+
+
+# --- leaving -----------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_leaving_tells_the_others_and_keeps_the_project(tmp_path):
+    alice = Peer(tmp_path / "alice").be(A)
+    bob = Peer(tmp_path / "bob", {}).be(B)
+    await join_up(alice, bob)
+    assert await until(lambda: (bob.project.root / "main.tex").exists())
+    share_id = alice.network.share.share_id
+
+    await bob.network.leave()
+
+    # Alice heard, and refuses the key from now on.
+    assert await until(lambda: not alice.network.share.allows(B))
+    assert alice.network.state()["members"][1]["removed"] is True
+    # Bob's copy is a project of his own: not shared, still editable.
+    assert bob.network.share.shared is False
+    assert bob.store.shared is False
+    assert bob.network.state()["shared"] is False
+    assert not (bob.project.state_dir / "collab" / "share.json").exists()
+    assert bob.network.links == {} and bob.network.transport is None
+    file_id = bob.store.file_id_for("main.tex")
+    text = bob.store.body(file_id)
+    text += "Alone now.\n"
+    bob.store.flush()
+    assert (bob.project.root / "main.tex").read_text().endswith("Alone now.\n")
+    # And nothing of it reached Alice.
+    await settle()
+    assert "Alone now." not in str(alice.store.body(alice.store.file_id_for("main.tex")))
+    # Bob's dialling loops are gone: no new link appears.
+    dials = len(transport.HUB.links)
+    await settle(2.5)
+    assert len(transport.HUB.links) == dials
+    assert share_id  # the share itself is untouched for Alice
+    assert alice.network.share.share_id == share_id
+
+    await alice.close()
+    await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_sharing_again_after_leaving_starts_a_fresh_share(tmp_path):
+    """The old members do not come along as members who never connect."""
+    alice = Peer(tmp_path / "alice").be(A)
+    bob = Peer(tmp_path / "bob", {}).be(B)
+    await join_up(alice, bob)
+    old = alice.network.share.share_id
+    await bob.network.leave()
+
+    bob.network.begin_sharing("Bob")
+    await bob.network.start()
+    assert bob.network.share.share_id and bob.network.share.share_id != old
+    assert list(bob.network.share.members) == [B]
+    assert bob.network.state()["members"] == [
+        {"peer": B, "name": "Bob", "connected": False, "removed": False},
+    ]
+    await alice.close()
+    await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_a_removed_install_can_leave_to_keep_its_copy(tmp_path):
+    alice = Peer(tmp_path / "alice").be(A)
+    bob = Peer(tmp_path / "bob", {}).be(B)
+    await join_up(alice, bob)
+    alice.network.remove(B)
+    assert await until(lambda: bob.network.removed)
+
+    await bob.network.leave()
+    state = bob.network.state()
+    assert state["shared"] is False and state["removed"] is False
+    assert bob.store.shared is False
+    await alice.close()
+    await bob.close()

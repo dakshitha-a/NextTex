@@ -23,11 +23,16 @@ import { useDismiss } from "../useDismiss";
  *  A button that looks like revocation and is not is worse than no button,
  *  so the sentence sits next to it and not in a footnote.
  */
-export default function SharePanel({ projectId, onClose }: {
+export default function SharePanel({ projectId, onClose, onLeft }: {
   projectId: string;
   onClose: () => void;
+  /** The copy on this machine was deleted on the way out of the share,
+   *  so there is no project to stay in. */
+  onLeft?: () => void;
 }) {
   const [state, setState] = useState<CollabState | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [deleteCopy, setDeleteCopy] = useState(false);
   const [me, setMe] = useState("");
   const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
@@ -109,6 +114,24 @@ export default function SharePanel({ projectId, onClose }: {
     }
   };
 
+  const leave = async (del: boolean) => {
+    setLeaving(false);
+    setBusy(true);
+    try {
+      const answer = await api.leaveShare(projectId, del);
+      if (answer.deleted) {
+        onLeft?.();
+        onClose();
+        return;
+      }
+      refresh();
+    } catch {
+      setError("Could not leave this project.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const others = (state?.members ?? []).filter(
     (member) => member.peer !== state?.me && !member.removed,
   );
@@ -167,6 +190,17 @@ export default function SharePanel({ projectId, onClose }: {
               To collaborate on it again, ask somebody in the share for a new
               invite.
             </p>
+            {/* The record of the share is still here, saying removed, and
+                it would say so on every visit. Keeping the copy makes the
+                project an ordinary one of this install's own. */}
+            <button
+              className="pen-button t-ui mt-[10px] h-[28px] w-full"
+              disabled={busy}
+              data-testid="keep-as-own"
+              onClick={() => leave(false)}
+            >
+              {busy ? "Keeping…" : "Keep it as a project of my own"}
+            </button>
           </div>
         ) : state.shared && !state.member ? (
           /* A project that was copied to this machine. The share record
@@ -348,6 +382,52 @@ export default function SharePanel({ projectId, onClose }: {
                 </li>
               ))}
             </ul>
+
+            <Heading>Leave</Heading>
+            <div className="px-[12px] py-[8px]">
+              {!leaving ? (
+                <button
+                  className="quiet t-micro"
+                  data-testid="leave-share"
+                  disabled={busy}
+                  onClick={() => setLeaving(true)}
+                >
+                  Leave this project
+                </button>
+              ) : (
+                <div className="rounded-[3px] border border-warn/60 px-[8px] py-[6px]">
+                  <p className="t-micro text-ink-2" data-testid="leave-words">
+                    {deleteCopy
+                      ? "The others keep their copies and carry on without you. Your copy on this computer is deleted, with its history. To collaborate on it again you will need a new invite."
+                      : "The others keep their copies and carry on without you. Your copy stays on this computer as a project of your own, with its history. To collaborate on it again you will need a new invite."}
+                  </p>
+                  <label className="t-micro mt-[6px] flex items-center gap-[6px] text-ink-2">
+                    <input
+                      type="checkbox"
+                      checked={deleteCopy}
+                      data-testid="leave-delete"
+                      onChange={(event) => setDeleteCopy(event.target.checked)}
+                    />
+                    and delete my copy from this computer
+                  </label>
+                  <div className="mt-[6px] flex gap-2">
+                    <button
+                      className="t-micro text-error"
+                      data-testid="confirm-leave"
+                      onClick={() => leave(deleteCopy)}
+                    >
+                      {deleteCopy ? "Leave and delete my copy" : "Leave"}
+                    </button>
+                    <button
+                      className="quiet t-micro"
+                      onClick={() => setLeaving(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* The app has a name for you; answering "who am I here" with a
                 hash contradicted the field that asked for one. */}

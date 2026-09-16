@@ -297,3 +297,49 @@ def test_an_invite_nobody_answers_does_not_hold_a_connection_open(client, tmp_pa
     # And the folder it was going to be written into is gone, rather than
     # left for somebody to find and wonder about.
     assert not target.exists()
+
+
+def test_leaving_makes_the_project_private_and_keeps_it(client, opened, project_dir):
+    project_id = opened["id"]
+    client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
+    answer = client.post(f"/api/projects/{project_id}/collab/leave", json={}).json()
+    assert answer["deleted"] is False and answer["shared"] is False
+    assert project_dir.is_dir() and (project_dir / "main.tex").is_file()
+    assert client.get(f"/api/projects/{project_id}/collab").json()["shared"] is False
+    listed = client.get("/api/projects").json()["projects"]
+    row = next(p for p in listed if p["id"] == project_id)
+    assert row["shared"] is False and row["missing"] is False
+
+
+def test_leaving_with_delete_removes_the_copy(client, opened, project_dir):
+    project_id = opened["id"]
+    client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
+    answer = client.post(f"/api/projects/{project_id}/collab/leave",
+                         json={"delete": True}).json()
+    assert answer == {"ok": True, "deleted": True}
+    assert not project_dir.exists()
+    assert project_id not in server_main.SESSIONS
+    assert all(p["id"] != project_id
+               for p in client.get("/api/projects").json()["projects"])
+
+
+def test_delete_refuses_a_folder_nexttex_has_not_worked_in(client, opened, project_dir):
+    """The registry can hold any directory somebody pointed it at."""
+    import shutil
+
+    project_id = opened["id"]
+    client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
+    # Take the marker away: what is left is a folder of somebody's files.
+    shutil.rmtree(project_dir / ".nexttex")
+    response = client.post(f"/api/projects/{project_id}/collab/leave",
+                           json={"delete": True})
+    assert response.status_code == 400
+    assert project_dir.is_dir() and (project_dir / "main.tex").is_file()
+    # Refused before anything was left: still shared.
+    assert client.get(f"/api/projects/{project_id}/collab").json()["shared"] is True
+
+
+def test_leaving_an_unshared_project_is_harmless(client, opened, project_dir):
+    answer = client.post(f"/api/projects/{opened['id']}/collab/leave", json={}).json()
+    assert answer["deleted"] is False and answer["shared"] is False
+    assert project_dir.is_dir()

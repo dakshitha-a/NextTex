@@ -731,7 +731,14 @@ and it is a credential, so send it the way you would send a password.
 knowing before you rely on it: anyone in it can invite somebody, anyone can
 remove anybody, and removing somebody does not take back the copy they
 already have. It stops the two of you syncing. It cannot unsend a paper. The
-button says so, next to itself.
+button says so, next to itself. Somebody who is removed is told so, once,
+and their copy stays theirs.
+
+**You can leave.** The share panel has a Leave button: the others carry on
+without you, and your copy stays on your computer as a project of your own,
+with its history, or is deleted if you tick the box that says so. Deleting
+the folder by hand is never the way out; NextTex would take that as this
+copy being gone, which is what it is, and nobody else would notice anything.
 
 Two more things that are true and might not be obvious. Each of you keeps
 your own `.git`, so committing and pushing are yours alone. Pull between

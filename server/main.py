@@ -1293,6 +1293,44 @@ async def remove_member(project_id: str, peer: str):
     return session.peers.state()
 
 
+@app.post("/api/projects/{project_id}/collab/leave")
+async def leave_share(project_id: str, delete: bool = Body(False, embed=True)):
+    """Take this install out of the share, and optionally delete its copy.
+
+    Without `delete` the folder stays, as a project of this install's own
+    with the same documents and history, which is also the answer for an
+    install that was removed and wants to keep working. With it the
+    session is closed, the entry forgotten and the folder removed, after
+    the tombstone has gone out, because the folder going away first is
+    the bug that used to publish a deletion of everything to everybody.
+
+    The folder is removed only when it is the registered root of a project
+    NextTex has been working in, which `.nexttex/` inside it says; the
+    registry can hold any directory somebody once pointed it at, and this
+    must not be the route that empties a home directory.
+    """
+    session = session_for(project_id)
+    root = session.project.root
+    resolved = root.resolve()
+    if delete and (
+        resolved == Path.home().resolve()
+        or resolved.parent == resolved
+        or not (resolved / ".nexttex").is_dir()
+        or REGISTRY.path_for(project_id) is None
+    ):
+        # Decided before leaving, since leaving writes under `.nexttex/`
+        # and would make the marker true of any folder.
+        raise HTTPException(400, "That folder is not one NextTex can remove.")
+    await session.peers.leave()
+    if not delete:
+        return {"ok": True, "deleted": False, **session.peers.state()}
+    await _close_session(project_id, session)
+    REGISTRY.remove(root)
+    await asyncio.to_thread(shutil.rmtree, resolved, True)
+    _restart_watch()
+    return {"ok": True, "deleted": True}
+
+
 # ---------------------------------------------------------------------------
 # The shared documents
 

@@ -867,6 +867,74 @@ class PeerNetwork:
         self.share.save()
         self._write_member(self.peer_id, name)
 
+    async def leave(self) -> None:
+        """Take this install out of the share, keeping the project.
+
+        The other members keep their copies and their share; this copy
+        becomes a project of this install's own, with the same documents
+        and the same history.  In order: our own tombstone into the
+        manifest, so the others learn it the way they learn any removal;
+        a moment for every link to carry it; the links and the transport
+        closed; and then the share record and its card removed, which is
+        what makes the project private again.  Getting back in needs a
+        new invite, as the tombstone says.
+
+        An install that was itself removed does only the local half: its
+        tombstone is already written, and there is nobody to tell.
+        """
+        if not self.share.shared:
+            return
+        if not self.removed_here() and not self.removed:
+            if "members" in self.store.manifest:
+                members = self.store.manifest.get("members", type=Map)
+                record = members.get(self.peer_id)
+                if record is not None:
+                    record["removed_at"] = time.time()
+                    record["removed_by"] = self.peer_id
+            entry = self.share.members.setdefault(self.peer_id, {})
+            entry["removed_at"] = time.time()
+            entry["removed_by"] = self.peer_id
+            self.share.save()
+            await asyncio.gather(
+                *(link.drained() for link in list(self.links.values())),
+                return_exceptions=True,
+            )
+        for link in list(self.links.values()):
+            link.alive = False
+            with contextlib.suppress(Exception):
+                await link.stream.close()
+        self.links.clear()
+        for task in list(self._tasks):
+            task.cancel()
+        if self.transport is not None:
+            with contextlib.suppress(Exception):
+                await self.transport.close()
+            self.transport = None
+        if self._document_changed in self.store.listeners:
+            self.store.listeners.remove(self._document_changed)
+        if self.hub is not None and self.hub.on_awareness is self._awareness_changed:
+            self.hub.on_awareness = None
+        # The manifest's member list belongs to the share this project has
+        # just left.  With no link open this change reaches nobody, and it
+        # is what keeps a later `begin_sharing` from carrying the old
+        # members into a new share as members who are never connected.
+        if "members" in self.store.manifest:
+            members = self.store.manifest.get("members", type=Map)
+            with self.store.manifest.transaction():
+                for peer_id in list(members.keys()):
+                    del members[peer_id]
+        self.share.drop_card()
+        with contextlib.suppress(OSError):
+            self.share.path.unlink()
+        self.share.share_id = ""
+        self.share.members = {}
+        self.share.invites = {}
+        self.share.joined_at = 0.0
+        self.removed = False
+        self.last_error = ""
+        self._dialling.clear()
+        self._announce_peers()
+
     def invite(self, name: str = "") -> str:
         """A single-use string for one other install.
 

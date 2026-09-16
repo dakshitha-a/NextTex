@@ -499,6 +499,13 @@ const api = {
     request<CollabState>(`/projects/${id}/collab/member/${peer}`, {
       method: "DELETE",
     }),
+  /** Take this install out of the share. The folder stays as a project of
+   *  its own unless `del` is set, in which case the session is closed, the
+   *  entry forgotten and the folder removed. */
+  leaveShare: (id: string, del = false) =>
+    request<{ ok: true; deleted: boolean } & Partial<CollabState>>(
+      `/projects/${id}/collab/leave`, json({ delete: del }),
+    ),
 
   /** Write the shared documents out now rather than on their debounce.
    *

@@ -6894,3 +6894,33 @@ draft of this that one stale peer could put a member out for good. So a
 the panel, and only the tombstone in the install's own record, which only
 an actual removal writes, means removed. Being let in anywhere clears the
 reason.
+
+### Leaving, which used to be `rm -rf`
+
+There was no way out of a share except deleting the folder, and §38's
+first section says what that did. The share panel now ends with Leave. The
+confirmation says, in one sentence each, what happens to the others, to
+this copy, and to getting back in: they carry on, the copy stays as a
+project of this install's own with its history, and returning needs a new
+invite. A checkbox, "and delete my copy from this computer", swaps the
+middle sentence for the one that says the folder is deleted, and the
+button's label changes with it, because a control that deletes a folder
+should say so on its face.
+
+On the server, leaving is a removal of oneself: the tombstone goes into
+the manifest first, the links are given a moment to carry it, and only
+then are the links and the transport closed and the share record and its
+card removed, which is what makes the project private again. The manifest's
+member list is cleared last, with no link open to carry the change, so
+that sharing the same project again later starts with one member rather
+than carrying the old ones along as collaborators who never connect. With
+the box ticked the session is closed, the entry forgotten and the folder
+removed, in that order, and only for a folder that is the registered root
+of a project NextTex has worked in: the registry can hold any directory
+somebody once pointed it at, and the route that deletes a folder must not
+be the one that empties a home directory.
+
+An install that was removed gets the same action under a different name,
+"Keep it as a project of my own", at the foot of the notice saying who
+removed it. Without it the record of the share stayed, and the panel said
+removed on every visit for the life of the project.
