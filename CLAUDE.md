@@ -97,6 +97,25 @@ which points every test at `tests/fake_claude.py`; `NEXTTEX_LIVE`, which is
 never set; and `e2e/review/` and `e2e/shots/`, which are never run by a
 check. Every route that takes a path gets a path-escape test in `tests/api/`.
 
+## Subagents
+
+The session runs on Opus with the advisor on Fable, and a subagent
+inherits the session model unless something lowers it. The lowering is
+explicit and deliberate, so a forgotten rule overspends and never
+underplans. Never set `CLAUDE_CODE_SUBAGENT_MODEL`; it flips that default
+the other way.
+
+- `Explore` is defined in `.claude/agents/Explore.md` and runs on Sonnet.
+  The definition replaces the built-in, so its body is the agent's whole
+  prompt; edit it there.
+- A general-purpose agent that only reads, researches or verifies is
+  launched with `model: sonnet`.
+- An agent that edits the repository, a `Plan` agent and a fork stay on
+  the session model.
+- `claude-code-guide` is launched with `model: haiku`.
+- The advisor stays on Fable; it must be at least as capable as the
+  session model.
+
 ## Tangents and trackers
 
 Fix what you notice while you are in a file, with a test and a document
