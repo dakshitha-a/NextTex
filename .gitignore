@@ -55,3 +55,8 @@ bench/report/
 # see .claude/hooks/plan_amendment.py.
 .claude/plans/
 .claude/plan-in-progress/
+# The per-machine companions Claude Code reads beside the tracked files and
+# never commits: where this machine keeps a newer Node, which account gh is
+# signed in as, and the permissions one person has granted.
+CLAUDE.local.md
+.claude/settings.local.json

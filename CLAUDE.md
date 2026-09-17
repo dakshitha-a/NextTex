@@ -37,9 +37,9 @@ NextTex has a version, `x.y.z`, on the `VERSION` line of
 `nexttex/version.py`, and the session that pushes is the one that advances
 it. The number names the program, so a push that touches only what
 `nexttex/updates.py` lists as not the program (`docs/`, `README.md`,
-`tests/`, `e2e/`, `bench/`, `examples/`, `CLAUDE.md`, `.claude/`) leaves it
-alone; the update footer is already quiet about those commits and the
-number agrees with it.
+`tests/`, `e2e/`, `bench/`, `examples/`, `CLAUDE.md`, `.claude/`,
+`.gitignore`, `.gitattributes`) leaves it alone; the update footer is
+already quiet about those commits and the number agrees with it.
 
 - **z** when the program changed and a writer would notice nothing new: a
   bug fix, a performance improvement, a refactor, a dependency bump, a

@@ -38,6 +38,9 @@ NOT_THE_PROGRAM = (
     "docs/", "README.md", "LICENSE", "tests/", "e2e/", "bench/", "examples/",
     # What the agent that develops NextTex reads, not what a writer runs.
     "CLAUDE.md", ".claude/",
+    # The repository's own furniture: what git ignores and how it checks
+    # files out.  Neither reaches a running install.
+    ".gitignore", ".gitattributes",
 )
 
 MIN_NODE_MAJOR = 20

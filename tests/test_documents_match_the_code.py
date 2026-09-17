@@ -53,6 +53,10 @@ NOT_OURS = {
     # they have opened. The review names it where it explains what the agent
     # reads; nothing in this repository writes it.
     ".claude/settings.json",
+    # The per-machine companion to `CLAUDE.md`: Claude Code reads it beside
+    # the tracked file, and it is gitignored, so it exists only on the
+    # machine that wrote it and never where CI runs this test.
+    "CLAUDE.local.md",
 }
 
 # `yml` joined the list late: the four workflows had been named in the

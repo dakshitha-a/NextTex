@@ -65,6 +65,13 @@ def test_a_commit_touching_the_agents_configuration_changes_nothing():
     assert updates.classify([".claude/hooks/plan_amendment.py"]) == ("neither", False)
 
 
+def test_a_commit_touching_the_repositorys_furniture_changes_nothing():
+    """`.gitignore` and `.gitattributes` say what git leaves out and how it
+    checks files out; a running install never reads either."""
+    assert updates.classify([".gitignore"]) == ("neither", False)
+    assert updates.classify([".gitattributes", ".gitignore"]) == ("neither", False)
+
+
 def test_a_commit_touching_the_server_changes_the_app():
     assert updates.classify(["server/main.py"]) == ("app", False)
     assert updates.classify(["nexttex/compile.py", "docs/x.md"]) == ("app", False)
