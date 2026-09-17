@@ -144,7 +144,7 @@ the backlog below.
       what no test here can say is how a real library of PDFs behaves.
 - [ ] **Windows: no clean install on current master is on the record.** Four
       failures were found on a real Windows machine and fixed, the last in
-      `db8c332`, but the verification run afterwards was never written down.
+      `e92a9d7`, but the verification run afterwards was never written down.
       The README says Windows is partly verified, which is honest; this is the
       check that would change that.
 - [ ] **The update footer's long-reason line is held by a Linux browser

@@ -2935,9 +2935,9 @@ missing control rather than a documentation gap, because papering over it in
 a tutorial would have been the wrong fix.
 
 **It was built afterwards, and this paragraph is kept for the reason it was
-written rather than deleted.** `c527b6e` gave the sign-in screen a way out
+written rather than deleted.** `18cc6af` gave the sign-in screen a way out
 that is not a choice, so the screen that chooses an agent can be left
-without choosing one. `c59b5e9` then put the route on both screens and named
+without choosing one. `550509d` then put the route on both screens and named
 it after what it does rather than after the state it reports: the settings
 sheet carries a `Writing agent: <name>` row whose action is `Change`, or
 `Writing agent: not set up` with `Set up` where there is none, and the
@@ -4059,7 +4059,7 @@ Reported by the writer: the project list finds an update, you press Not now, and
 
 There were seven, and they are all the same bug wearing different clothes. Something is written down once, at the moment it is first true, and there is no path back. A dismissal that outlives the question it answered. An answer read on mount that nothing revises. An error with no one to clear it. A flag raised at the start of a job that only one of the job's four endings lowers. None of these is a mistake in the ordinary sense: every one is a correct line of code that was right about the case its author had in mind and silent about the others.
 
-`c527b6e` was the same family, a fortnight earlier, and that is the interesting part. The screen that chose an agent withheld its way out on a condition that was true in the case its author was thinking of and false in the one that mattered.
+`18cc6af` was the same family, a fortnight earlier, and that is the interesting part. The screen that chose an agent withheld its way out on a condition that was true in the case its author was thinking of and false in the one that mattered.
 
 ### What the update footer had got wrong
 
@@ -4757,8 +4757,8 @@ line, which is the only time anything needs pushing.
 
 An install can be at three different places at once. The commit the running
 process loaded, the commit the files on disk are at, and the commit the remote
-is at. A Windows laptop was found holding exactly that: `664f237` serving,
-`b16bf6d` on disk, `b832d28` upstream, having fast-forwarded overnight without
+is at. A Windows laptop was found holding exactly that: `b7b60f2` serving,
+`96d2b46` on disk, `b6a300d` upstream, having fast-forwarded overnight without
 restarting.
 
 What the interface reported was the middle one, everywhere, because the
@@ -5028,7 +5028,7 @@ test now reads both of its `:root` blocks and asserts every value against
 
 ### The only control on the restart line did nothing
 
-The line R-041 added says "Updated on disk to 1d10915. Restart to run it", and
+The line R-041 added says "Updated on disk to b998e19. Restart to run it", and
 the control it carried was Reload, which is the right control for every other
 state the update footer draws. On this one it is a dead end. The page comes
 back from the same process, and `head` is read once when that process starts,
