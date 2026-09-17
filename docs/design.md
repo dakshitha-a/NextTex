@@ -2899,9 +2899,14 @@ read as a pair, opening a 320 px popover in the `PapersChooser` idiom. It
 card that follows you around the project list is what that hook exists to
 prevent.
 
-Eight labelled lines and no figures at all: every one of them describes
+Nine labelled lines and no figures at all: every one of them describes
 something visible behind the card, which is the figure rule applied
-honestly. The two surfaces therefore share their type scale and their
+honestly. They move with the screen: when the row actions came to appear
+on hover, the Zip and PDF line said so; when a long list got its filter,
+it got a line; and the line about a folder that is gone names `Find it…`
+and the rejoin, which it had gone on describing as "remove the row, then
+point at the new location" for some time after the row stopped needing
+that. The two surfaces therefore share their type scale and their
 `Section`/`Keys` primitives but not their component: they differ in width,
 fill, radius, positioning, focus behaviour, dismissal and whether they carry
 images, and a `variant` prop switching all six would be two components

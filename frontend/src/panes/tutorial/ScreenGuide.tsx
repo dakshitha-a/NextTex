@@ -71,8 +71,12 @@ const ROWS: [string, string][] = [
     "Which, if you reached this page over Tailscale, is not the laptop you are sitting at. A leading ~ works.",
   ],
   [
+    "Find a project",
+    "Once there are six, a box above the list. Press / to reach it, type any part of a name or a path, and Enter opens the first match.",
+  ],
+  [
     "Zip and PDF",
-    "Zip is the project as it stands. PDF typesets first, so it takes a moment, and says why if the document does not build.",
+    "At the end of a row, when you point at it. Zip is the project as it stands. PDF typesets first, so it takes a moment, and says why if the document does not build.",
   ],
   [
     "Remove",
@@ -80,7 +84,7 @@ const ROWS: [string, string][] = [
   ],
   [
     "A row that says the folder is gone",
-    "It was moved or deleted. Remove the row, then point at the new location.",
+    "It was moved or deleted. Find it… points NextTex at where it is now; a shared project can also be rejoined from your collaborators' copies; or remove the row.",
   ],
   [
     "The cog",
