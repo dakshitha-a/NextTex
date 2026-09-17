@@ -169,7 +169,7 @@ the reversal should have to answer it.
     A `/` at the start of the box lists reusable prompts kept as files in
     the context directory beside the distilled style guide, so a group can
     share them through git. The first two are `/review friendly`, which
-    reads as a mentor, and `/review fire`, which reads as a second
+    reads as a mentor, and `/review critical`, which reads as a second
     reviewer. *Small to medium; y.*
 
 18. **Spelling in other languages.** The bundled word lists are English.
