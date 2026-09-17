@@ -24,14 +24,29 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing at the moment. The run that made a shared project survive one
-machine losing its folder finished with 2.3.1, checked between a Linux
-desktop and a Windows laptop over a real connection; what it left is in
-the backlog below.
+Nothing at the moment. The run that looked at the projects screen with
+twelve projects on it finished with 2.4.0: the masthead reachable again, a
+long list with a filter and the ways in beside it, rows that say when they
+were opened and show their actions when pointed at. What it left is in the
+backlog below.
 
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **A row does not say the project is open in another window.**
+      `GET /api/projects` answers `open`, the ids with a live session, and
+      the list ignores it. Left because on a one-writer install the open
+      project is almost always the one just left with Back, so a mark
+      would sit on the top row nearly every time and mean little; it earns
+      its place once two windows on two projects is common enough to
+      design for.
+
+- [ ] **The project list has no arrow keys.** Tab reaches every row and
+      the filter's Enter opens the first match, which covers the keyboard
+      case a long list actually has. Left because arrow keys want a roving
+      tabindex across rows whose buttons are also in the tab order, and
+      that is a design for the file tree's idiom, not an evening.
 
 - [ ] **A Windows install's server exited silently after an update's
       restart.** Seen on the laptop during the cross-machine check for
