@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import api, { type AuthState } from "../api";
 import { useDismiss } from "../useDismiss";
+import { ago } from "../when";
 
 /** The password, the name collaborators see, and every browser signed in.
  *
@@ -324,9 +325,9 @@ export default function AccessCard({
                   </span>
                   <span
                     className="t-micro tnum shrink-0 text-ink-3"
-                    title={`First signed in ${when(one.created)}`}
+                    title={`First signed in ${ago(one.created)}`}
                   >
-                    {when(one.lastSeen)}
+                    {ago(one.lastSeen)}
                   </span>
                 </li>
               ))}
@@ -406,18 +407,4 @@ function Field({
       />
     </label>
   );
-}
-
-/** "4 minutes ago", roughly.  Rough is the point: the row exists so someone
- *  can recognise a machine, and a timestamp to the second invites reading it
- *  as a security log, which it is not. */
-function when(at: number): string {
-  const seconds = Math.max(0, (Date.now() - at * 1000) / 1000);
-  if (seconds < 90) return "just now";
-  const minutes = seconds / 60;
-  if (minutes < 60) return `${Math.round(minutes)} min ago`;
-  const hours = minutes / 60;
-  if (hours < 24) return `${Math.round(hours)} h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? "yesterday" : `${days} days ago`;
 }
