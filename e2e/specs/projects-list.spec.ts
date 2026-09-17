@@ -79,3 +79,16 @@ test("a row says when it was opened, and its actions are there without a hover",
   await expect(actions).toHaveCSS("opacity", "1");
   await expect(row.getByTestId("row-opened")).toHaveCSS("opacity", "0");
 });
+
+test("the create row does not run off a phone", async ({ app, project, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText(project.root.split("/").pop()!, { exact: true }).waitFor();
+  // The folder field, the template chooser and the button were one row
+  // that could not shrink below 445px, so the sheet scrolled sideways.
+  const wide = await page.locator(".nx-furniture").evaluate(
+    (root) => root.scrollWidth - root.clientWidth,
+  );
+  expect(wide).toBe(0);
+  await expect(page.getByRole("button", { name: "Create project" })).toBeInViewport();
+});

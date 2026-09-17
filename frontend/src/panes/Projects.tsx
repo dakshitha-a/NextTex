@@ -710,7 +710,9 @@ export default function Projects({
             onChange={(event) => setInvite(event.target.value)}
           />
         ) : null}
-        <div className={`mt-2 flex gap-2 ${mode === "join" ? "flex-col" : ""}`}>
+        {/* Wrapping, so on a phone the button drops under the folder field
+            rather than running off the right of the sheet, which it did. */}
+        <div className={`mt-2 flex flex-wrap gap-2 ${mode === "join" ? "flex-col" : ""}`}>
           <input
             value={path}
             placeholder={
@@ -727,7 +729,7 @@ export default function Projects({
             // made one box tall and the other a slot.  The cross axis
             // stretches on its own, so the width needs nothing said.
             className={`t-code-sm h-[28px] rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3 ${
-              mode === "join" ? "w-full" : "flex-1"
+              mode === "join" ? "w-full" : "min-w-[200px] flex-1"
             }`}
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && add()}
