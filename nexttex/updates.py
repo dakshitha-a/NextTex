@@ -38,6 +38,9 @@ NOT_THE_PROGRAM = (
     "docs/", "README.md", "LICENSE", "tests/", "e2e/", "bench/", "examples/",
     # What the agent that develops NextTex reads, not what a writer runs.
     "CLAUDE.md", ".claude/",
+    # Working state: what is in hand and what comes next.  Struck and added
+    # to beside the code, and never read by a running install.
+    "TRACKER.md", "ROADMAP.md",
     # The repository's own furniture: what git ignores and how it checks
     # files out.  Neither reaches a running install.
     ".gitignore", ".gitattributes",

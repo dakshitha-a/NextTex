@@ -72,6 +72,15 @@ def test_a_commit_touching_the_repositorys_furniture_changes_nothing():
     assert updates.classify([".gitattributes", ".gitignore"]) == ("neither", False)
 
 
+def test_a_commit_touching_the_working_state_changes_nothing():
+    """`TRACKER.md` and `ROADMAP.md` are working state, written beside the
+    code and read by nobody who runs it.  The tracker was not on the list,
+    so a commit that struck one line from it was reported in the update
+    footer as a change to NextTex."""
+    assert updates.classify(["TRACKER.md"]) == ("neither", False)
+    assert updates.classify(["ROADMAP.md", "TRACKER.md"]) == ("neither", False)
+
+
 def test_a_commit_touching_the_server_changes_the_app():
     assert updates.classify(["server/main.py"]) == ("app", False)
     assert updates.classify(["nexttex/compile.py", "docs/x.md"]) == ("app", False)
