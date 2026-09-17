@@ -3406,6 +3406,16 @@ The project list inside it steps down to `--surface-2` rather than carrying
 a border of its own, because a card inside a card is two objects claiming to
 be one.
 
+The sheet centres itself with auto margins, and the column it sits in does
+not centre it. The difference only shows once the sheet is taller than the
+window, which twelve projects on a 1000px screen is: auto margins collapse
+to nothing when there is no room and the sheet starts at the top and
+scrolls, whereas `justify-content: center` centres the overflow as well,
+and the top of the sheet, with the logo, the agent button, help, the cog and
+Back on it, sits above the scroll area where no scroll position reaches.
+`e2e/specs/projects-list.spec.ts` seeds twelve projects and asks for the
+masthead.
+
 ### The mark
 
 Redrawn, and the reasoning is in `frontend/src/Logo.tsx` at length because a

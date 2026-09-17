@@ -272,7 +272,7 @@ export default function Projects({
   };
 
   return (
-    <div className="nx-furniture flex h-full flex-col items-center justify-center overflow-auto bg-surround px-6 py-10">
+    <div className="nx-furniture flex h-full flex-col items-center overflow-auto bg-surround px-6 py-10">
       {/* A sheet, not a column of controls floating on the table.
           Everything else in this application is drawn as something lying on
           the proofing grey -- the typeset page, the panes, the cards -- and
@@ -280,7 +280,16 @@ export default function Projects({
           form and a status line, centred in a field with nothing under them.
           At 1000px tall that is three hundred pixels of nothing above the
           first word. The sheet costs one class and makes the screen read as
-          designed rather than as unfinished. */}
+          designed rather than as unfinished.
+
+          Centred by its own `my-auto`, and deliberately not by
+          `justify-center` on the column. Auto margins take the free space
+          when there is some and collapse to nothing when there is none;
+          `justify-center` centres either way, and a sheet taller than the
+          window then overflows upward into a region no scroll position
+          reaches. At about nine projects on a 1000px screen the masthead,
+          the cog, help and Back were all above the top with no way to
+          them. */}
       <div className="my-auto w-full max-w-[680px] rounded-[5px] border border-line bg-surface px-7 py-6">
         <div className="flex items-start justify-between gap-3">
           <div>
