@@ -12,6 +12,10 @@ scripts/check.sh --bench  # what the slow parts cost, on a project shaped like a
 If the Node on your PATH is older than 20, point `NEXTTEX_NODE_BIN` at a
 newer one rather than changing the system's.
 
+`scripts/dev.sh` is not a check: it runs the server from `.venv` with
+uvicorn's reloader, on loopback only, for looking at a change in a browser
+while editing it.
+
 A green run is not the whole of finishing. A change also owes the documents it
 made wrong, which is `docs/architecture.md` for the mechanics, `docs/design.md`
 for the interface, the README for anything a reader would act on, and
