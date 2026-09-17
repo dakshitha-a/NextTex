@@ -73,12 +73,25 @@ jobs:
           } > notes.md
           cat notes.md
 
+      # A release that already exists is brought up to date rather than
+      # refused, so a re-run job, or a tag pushed again after a history
+      # rewrite, goes green.  Latest is the highest version tag, whichever
+      # tag this run is for: fifteen tags pushed at once run this
+      # concurrently, and the last to finish must not be the one to say so.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "${GITHUB_REF_NAME}" \
+          tag="${GITHUB_REF_NAME}"
+          highest="$(git tag -l 'v*' | sort -V | tail -n 1)"
+          if [ "$tag" = "$highest" ]; then latest=true; else latest=false; fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            verb=edit
+          else
+            verb=create
+          fi
+          gh release "$verb" "$tag" \
             --title "NextTex ${{ steps.version.outputs.number }}" \
             --notes-file notes.md \
-            --latest
+            --latest="$latest"
