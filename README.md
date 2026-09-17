@@ -1180,6 +1180,7 @@ inside the app.
 | `F8`, `Shift-F8` | Next and previous error |
 | Wheel, over either tab strip | Scroll across the tabs; the count at the end lists the ones out of sight |
 | Right-click, on the preview tab in front | Stop previewing the others or all, or download that document's PDF |
+| `/`, on the project list | Find a project by typing, once there are six or more; Enter opens the first match |
 
 ### In the source
 

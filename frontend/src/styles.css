@@ -1104,6 +1104,40 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   .nx-row-when { opacity: 1 !important; }
 }
 
+/* The projects sheet with a long list on it: six projects or more, on a
+   window 960px or wider.  The sheet widens and becomes two columns, the
+   list and, beside it, the three ways in, which stick to the top of the
+   scroll so starting something never means scrolling past everything
+   already started.  The tabs stand in a column there, the rule on their
+   left edge instead of underneath, and the fields stack.  Below 960px, or
+   with fewer projects, none of this applies and the sheet is the stacked
+   one.  Plain rules rather than utilities because whether the list is
+   long is a fact about the data, carried as `data-long`, and a utility
+   class cannot see it. */
+@media (min-width: 960px) {
+  .nx-sheet[data-long] { max-width: 1060px; }
+  .nx-sheet[data-long] .nx-sheet-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 32px;
+    align-items: start;
+  }
+  .nx-sheet[data-long] .nx-ways { position: sticky; top: 24px; }
+  .nx-sheet[data-long] .nx-ways-tabs { flex-direction: column; gap: 2px; align-items: stretch; }
+  .nx-sheet[data-long] .nx-ways-tab {
+    border-bottom-width: 0;
+    border-left: 2px solid transparent;
+    padding: 3px 0 3px 8px;
+    text-align: left;
+  }
+  .nx-sheet[data-long] .nx-ways-tab[aria-pressed="true"] { border-left-color: var(--hint); }
+  .nx-sheet[data-long] .nx-ways-fields { flex-direction: column; }
+  /* `flex: none`, because in a column `flex-1` is a rule about height and
+     a basis of 0 collapses a 28px field to the 17px of its text; the join
+     tab found that once already. */
+  .nx-sheet[data-long] .nx-ways-fields > * { flex: none; width: 100%; align-self: stretch; }
+}
+
 /* ---- motion --------------------------------------------------------------
    Everything here is a hint, not decoration: it tells the eye that a thing
    is interactive, that something arrived, or that a panel went somewhere

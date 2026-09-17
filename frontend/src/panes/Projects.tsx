@@ -15,6 +15,7 @@ import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
 import { set, useStore } from "../store";
 import { openedWords, rowMarks, shortPath } from "../project-row";
+import { LONG_LIST, matches } from "../project-filter";
 
 // Lazy, like the in-project tutorial: help text is not something a first
 // visit should have to download before the project list appears.
@@ -50,6 +51,9 @@ export default function Projects({
   /** Where home is on the machine running NextTex, for the rows' paths. */
   const [home, setHome] = useState("");
   const [guide, setGuide] = useState(false);
+  /** What is typed into the filter a long list gets. */
+  const [query, setQuery] = useState("");
+  const filterBox = useRef<HTMLInputElement | null>(null);
   const helpButton = useRef<HTMLButtonElement | null>(null);
   const [path, setPath] = useState("");
   const [mode, setMode] = useState<"add" | "create" | "join">("create");
@@ -132,6 +136,25 @@ export default function Projects({
   useEffect(() => {
     refresh();
   }, []);
+
+  // A long list has a filter, and `/` reaches it from anywhere on the
+  // screen that is not already a field, the way it does in a browser's
+  // own find and on most sites with a list worth searching.
+  const long = projects.length >= LONG_LIST;
+  useEffect(() => {
+    if (!long) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable]")) return;
+      event.preventDefault();
+      filterBox.current?.focus();
+      filterBox.current?.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [long]);
+  const shown = long ? projects.filter((project) => matches(project, query)) : projects;
 
   const add = async () => {
     if (!path.trim() || busy === "add") return;
@@ -294,7 +317,15 @@ export default function Projects({
           reaches. At about nine projects on a 1000px screen the masthead,
           the cog, help and Back were all above the top with no way to
           them. */}
-      <div className="my-auto w-full max-w-[680px] rounded-[5px] border border-line bg-surface px-7 py-6">
+      <div
+        className="nx-sheet my-auto w-full max-w-[680px] rounded-[5px] border border-line bg-surface px-7 py-6"
+        // Six projects or more, and on a window 960px or wider the sheet
+        // widens and the ways in stand beside the list rather than under
+        // it (styles.css, `.nx-sheet[data-long]`).  With five or fewer the
+        // sheet is the one it always was: a second column beside one row
+        // is a column beside nothing.
+        data-long={long ? "" : undefined}
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="t-display flex items-center gap-3">
@@ -396,14 +427,54 @@ export default function Projects({
             </button>
           </div>
         ) : null}
-        <div
-          className={
-            projects.length
-              ? "mt-6 rounded-[3px] border border-line bg-surface-2"
-              : "hidden"
-          }
-        >
-          {projects.map((project) => (
+        <div className="nx-sheet-body">
+        {/* Not rendered rather than hidden when there is nothing to list:
+            the specs wait for the first thing on the screen that says
+            "Projects", and a hidden heading is a first thing that never
+            shows. */}
+        {projects.length ? (
+        <div className="min-w-0">
+          {/* A heading, which is also what every spec waits for on this
+              screen, and the count; a long list gets its filter here. */}
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <div className="flex items-baseline gap-2">
+              <span className="t-meta text-ink-2">Projects</span>
+              <span className="t-micro text-ink-3" data-testid="project-count">
+                {projects.length}
+              </span>
+            </div>
+            {long ? (
+              <input
+                ref={filterBox}
+                value={query}
+                placeholder="Find a project"
+                aria-label="Find a project"
+                data-testid="project-filter"
+                className="t-ui h-[28px] min-w-0 flex-1 max-w-[220px] rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  // Escape clears, then leaves; Enter opens the first
+                  // row still showing, which is what typing a name and
+                  // pressing Enter means.
+                  if (event.key === "Escape") {
+                    if (query) setQuery("");
+                    else event.currentTarget.blur();
+                  }
+                  if (event.key === "Enter") {
+                    const first = shown[0];
+                    if (first && !first.missing && !locked) onOpen(first.id);
+                  }
+                }}
+              />
+            ) : null}
+          </div>
+        <div className="mt-2 rounded-[3px] border border-line bg-surface-2">
+          {long && !shown.length ? (
+            <div className="t-meta px-4 py-3 text-ink-3" data-testid="no-match">
+              Nothing matches “{query.trim()}”
+            </div>
+          ) : null}
+          {shown.map((project) => (
             <div
               key={project.path}
               data-testid="project-row"
@@ -658,12 +729,19 @@ export default function Projects({
             </div>
           ))}
         </div>
+        </div>
+        ) : null}
 
-        <div className="mt-6 flex gap-3">
+        {/* The ways in.  Beside the list when the list is long and the
+            window wide, and then sticky, so starting something does not
+            mean scrolling past everything already started. */}
+        <div className="nx-ways min-w-0">
+        <div className="nx-ways-tabs mt-6 flex gap-3">
           {(["create", "add", "join"] as const).map((option) => (
             <button
               key={option}
-              className={`nx-hover t-ui border-b-2 pb-1 ${
+              aria-pressed={mode === option}
+              className={`nx-ways-tab nx-hover t-ui border-b-2 pb-1 ${
                 mode === option
                   ? "border-hint text-ink"
                   : "border-transparent text-ink-3 hover:text-ink"
@@ -712,7 +790,7 @@ export default function Projects({
         ) : null}
         {/* Wrapping, so on a phone the button drops under the folder field
             rather than running off the right of the sheet, which it did. */}
-        <div className={`mt-2 flex flex-wrap gap-2 ${mode === "join" ? "flex-col" : ""}`}>
+        <div className={`nx-ways-fields mt-2 flex flex-wrap gap-2 ${mode === "join" ? "flex-col" : ""}`}>
           <input
             value={path}
             placeholder={
@@ -774,6 +852,8 @@ export default function Projects({
           onDiscard={discardOffer}
         /> : null}
         {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}
+        </div>
+        </div>
         <PasswordNudge />
         <UpdateFooter onBusy={setLocked} />
       </div>

@@ -3442,6 +3442,29 @@ taken out of it; an ordinary project says nothing, because a mark on every
 row is a mark on none. The words are decided in
 `frontend/src/project-row.ts`, which is tested without a browser.
 
+Six projects is a long list, one number in `frontend/src/project-filter.ts`
+and one rule. Above the rows there is now a heading, `Projects`, with the
+count, which is also the word every browser spec waits for on this screen
+and until now was matched by accident in the password nudge. A long list
+puts a filter on that line: every word typed has to appear in the name or
+the path, `/` from anywhere on the screen that is not a field focuses it,
+Escape clears it and then leaves it, and Enter opens the first row still
+showing. A list that filters down to nothing says so in its own panel
+rather than vanishing.
+
+A long list on a window 960px or wider also changes the sheet's shape. It
+widens to 1060px and becomes two columns, the list on the left and the
+three ways in, start something, point at a folder, join, as a 320px column
+on the right that sticks to the top of the scroll, so starting something
+never means scrolling past everything already started. The three tabs
+stand in a column there with the rule on their left edge rather than
+underneath, and the fields stack. With five projects or fewer the sheet is
+the 680px one it always was, because a second column beside one row is a
+column beside nothing, and below 960px it stacks whatever the count. The
+rules live in `styles.css` under `.nx-sheet[data-long]` rather than as
+utilities, because whether the list is long is a fact about the data and a
+class on the sheet is how the stylesheet learns it.
+
 ### The mark
 
 Redrawn, and the reasoning is in `frontend/src/Logo.tsx` at length because a
