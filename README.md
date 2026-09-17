@@ -1241,6 +1241,10 @@ screen you are looking at, which is usually faster than the files below.
   waiting item with its reason. Working state rather than documentation, which
   is why it sits outside `docs/`, and it is struck and added to in the same
   commit as the code so it cannot drift out of date on its own.
+- [ROADMAP.md](ROADMAP.md): what will be built next, in the order it should
+  be built, with a reason on every item and on everything left out. Working
+  state like the tracker, which is why it is beside it rather than under
+  `docs/`; an item leaves it when the tracker takes it up.
 
 ## Reporting a bug
 
