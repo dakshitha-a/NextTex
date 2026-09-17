@@ -2034,7 +2034,10 @@ async def list_projects():
         entry["shared"] = card is not None
         entry["shareId"] = card["shareId"] if card else ""
         entry["removed"] = bool(card and card["removed"])
-    return {"projects": projects, "open": list(SESSIONS)}
+    # Where home is, so the rows can write a path the way a person does,
+    # `~/writing/thesis`.  The browser cannot know it: the machine running
+    # NextTex is not always the one the page is open on.
+    return {"projects": projects, "open": list(SESSIONS), "home": str(Path.home())}
 
 
 @app.post("/api/projects")

@@ -51,3 +51,31 @@ test("a short list keeps its sheet centred", async ({ app, project, page }) => {
   expect(box.top).toBeGreaterThan(100);
 });
 
+
+test("a row says when it was opened, and its actions are there without a hover", async ({
+  app, project, page,
+}) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const row = page.getByTestId("project-row").first();
+  // Registered a moment ago counts as opened a moment ago; the registry
+  // stamps an entry when it is added.
+  await expect(row.getByTestId("row-opened")).toHaveText("just now");
+  // The path is folded to `~` when it is under home; the sandbox is not,
+  // so the row shows it whole, and the title carries the whole path.
+  await expect(row.locator("[title]").first()).toHaveAttribute("title", project.root);
+
+  // At rest the actions are not drawn, and they are still real buttons:
+  // a keyboard reaches them and a click lands without a hover first.
+  const actions = row.getByTestId("row-actions");
+  await expect(actions).toHaveCSS("opacity", "0");
+  await page.mouse.move(0, 0);
+  await actions.getByRole("button", { name: "Remove" }).click();
+  await expect(row.getByText("Remove from NextTex?")).toBeVisible();
+  await row.getByRole("button", { name: "Keep" }).click();
+
+  // Pointed at, the actions are drawn and the time gives way to them.
+  await row.hover();
+  await expect(actions).toHaveCSS("opacity", "1");
+  await expect(row.getByTestId("row-opened")).toHaveCSS("opacity", "0");
+});

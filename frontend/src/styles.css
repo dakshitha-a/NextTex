@@ -1075,6 +1075,35 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   transform: translate(-50%, -50%);
 }
 
+/* The end of a project row: one slot, two things in it.  At rest it says
+   when the project was last opened; pointed at, or holding focus, it is
+   Zip, PDF and Remove instead.  The two share a grid cell so the slot is
+   as wide as the buttons and nothing moves when they swap.  Twelve rows
+   of three bordered buttons were the loudest thing on the screen.  The
+   buttons stay in the DOM and the tab order; a row says `data-always`
+   when they are its whole point (a missing folder, a PDF typesetting), and
+   a screen with nothing to point with lays both out side by side. */
+.nx-row-tail { display: grid; align-items: center; }
+.nx-row-tail > * { grid-area: 1 / 1; justify-self: end; }
+.nx-row-actions,
+.nx-row-when { transition: opacity 90ms var(--ease); }
+/* Positioned, so the buttons paint above the time whatever their
+   opacity: an element with opacity below 1 is its own stacking context
+   and paints after the ordinary flow, so a faded time was landing on top
+   of fully drawn buttons and taking their clicks. */
+.nx-row-actions { position: relative; opacity: 0; }
+.nx-project-row:hover .nx-row-actions,
+.nx-project-row:focus-within .nx-row-actions,
+.nx-row-actions[data-always] { opacity: 1; }
+.nx-project-row:hover .nx-row-when,
+.nx-project-row:focus-within .nx-row-when,
+.nx-row-tail:has([data-always]) .nx-row-when { opacity: 0; pointer-events: none; }
+@media (hover: none) {
+  .nx-row-tail { display: flex; align-items: center; gap: 8px; }
+  .nx-row-actions,
+  .nx-row-when { opacity: 1 !important; }
+}
+
 /* ---- motion --------------------------------------------------------------
    Everything here is a hint, not decoration: it tells the eye that a thing
    is interactive, that something arrived, or that a panel went somewhere

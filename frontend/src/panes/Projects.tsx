@@ -14,6 +14,7 @@ import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
 import { set, useStore } from "../store";
+import { openedWords, rowMarks, shortPath } from "../project-row";
 
 // Lazy, like the in-project tutorial: help text is not something a first
 // visit should have to download before the project list appears.
@@ -46,6 +47,8 @@ export default function Projects({
   onChangeAgent?: () => void;
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  /** Where home is on the machine running NextTex, for the rows' paths. */
+  const [home, setHome] = useState("");
   const [guide, setGuide] = useState(false);
   const helpButton = useRef<HTMLButtonElement | null>(null);
   const [path, setPath] = useState("");
@@ -108,6 +111,7 @@ export default function Projects({
     try {
       const result = await api.projects();
       setProjects(result.projects);
+      setHome(result.home ?? "");
       // Cleared on success rather than on the way in, so a message does not
       // flicker off and straight back on. This screen holds its error as one
       // string written from five places, and only two of them ever cleared
@@ -402,13 +406,17 @@ export default function Projects({
           {projects.map((project) => (
             <div
               key={project.path}
+              data-testid="project-row"
               role={!project.missing && !locked ? "button" : undefined}
               tabIndex={!project.missing && !locked ? 0 : undefined}
-              className={`group flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 ${
+              // Wrapping, so that on a narrow screen the tail of the row
+              // (the time, the actions) drops under the name rather than
+              // squeezing it to ten characters beside three buttons.
+              className={`nx-project-row group flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-3 last:border-b-0 ${
                 locked
                   ? "opacity-40"
                   : !project.missing
-                    ? "cursor-pointer hover:bg-surface-2"
+                    ? "cursor-pointer hover:bg-surface-3"
                     : ""
               }`}
               onClick={(event) => {
@@ -426,15 +434,29 @@ export default function Projects({
                 if (!project.missing) onOpen(project.id);
               }}
             >
-              <div className="min-w-0 flex-1">
-                <span
-                  className={`t-ui-lg block max-w-full truncate font-serif ${
-                    project.missing ? "text-ink-3" : "text-ink group-hover:text-hint"
-                  }`}
-                >
-                  {project.name}
-                </span>
-                <div className="t-code-sm truncate text-ink-3">{project.path}</div>
+              <div className="min-w-0 flex-1 basis-[200px]">
+                <div className="flex min-w-0 items-baseline gap-2">
+                  <span
+                    className={`t-ui-lg min-w-0 truncate font-serif ${
+                      project.missing ? "text-ink-3" : "text-ink group-hover:text-hint"
+                    }`}
+                  >
+                    {project.name}
+                  </span>
+                  {/* Only a shared project wears a mark: a mark on every
+                      row is a mark on none. */}
+                  {rowMarks(project).map((mark) => (
+                    <span key={mark} className="t-micro shrink-0 text-ink-3">
+                      {mark}
+                    </span>
+                  ))}
+                </div>
+                {/* Home folded to `~`, the whole path in the title.  Twelve
+                    rows used to begin with the same forty characters and
+                    the truncation cut the part that differed. */}
+                <div className="t-code-sm truncate text-ink-3" title={project.path}>
+                  {shortPath(project.path, home)}
+                </div>
                 {project.missing ? (
                   <div className="t-meta mt-1 text-warn">
                     This folder is no longer there.
@@ -513,7 +535,7 @@ export default function Projects({
                 ) : null}
               </div>
               {forgetting === project.path ? (
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2" data-testid="row-actions">
                   <span className="t-meta text-ink-2">
                     Remove from NextTex? The files stay where they are.
                   </span>
@@ -550,9 +572,28 @@ export default function Projects({
                   </button>
                 </div>
               ) : (
-              <div className="flex shrink-0 items-center gap-2">
+              /* One slot at the end of the row, two things in it.  At rest
+                 it says when the project was last opened, which is also
+                 why the list is in the order it is in; pointed at, or
+                 holding focus, it is Zip, PDF and Remove instead
+                 (styles.css, `.nx-row-tail`).  Twelve rows of three
+                 bordered buttons were thirty-six buttons, and the most
+                 visible thing on the right of the list was Remove.  The
+                 buttons stay in the DOM and the tab order; a missing
+                 folder's row keeps them shown, since they are the row's
+                 whole point, as does a row that is typesetting, and a
+                 screen with nothing to point with shows both. */
+              <div className="nx-row-tail ml-auto shrink-0">
+              <span className="nx-row-when t-micro text-ink-3" data-testid="row-opened">
+                {openedWords(project.lastOpened)}
+              </span>
+              <div
+                className="nx-row-actions flex items-center gap-1"
+                data-testid="row-actions"
+                data-always={project.missing || busy === project.id ? "" : undefined}
+              >
                 <button
-                  className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink disabled:opacity-40"
+                  className="h-[28px] rounded-[3px] px-2 t-meta text-ink-2 hover:bg-surface-3 hover:text-ink disabled:opacity-40"
                   disabled={locked || project.missing}
                   onClick={() =>
                     startDownload(api.downloadUrl(project.id, { format: "zip" }))
@@ -561,7 +602,7 @@ export default function Projects({
                   Zip
                 </button>
                 <button
-                  className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink disabled:opacity-40"
+                  className="h-[28px] rounded-[3px] px-2 t-meta text-ink-2 hover:bg-surface-3 hover:text-ink disabled:opacity-40"
                   disabled={locked || project.missing || busy === project.id}
                   onClick={() => takePdf(project)}
                 >
@@ -606,11 +647,12 @@ export default function Projects({
                   </button>
                 ) : null}
                 <button
-                  className="h-[28px] rounded-[3px] px-2 t-meta text-ink-3 hover:text-error"
+                  className="h-[28px] rounded-[3px] px-2 t-meta text-ink-3 hover:bg-surface-3 hover:text-error"
                   onClick={() => setForgetting(project.path)}
                 >
                   Remove
                 </button>
+              </div>
               </div>
               )}
             </div>

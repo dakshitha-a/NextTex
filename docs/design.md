@@ -3416,6 +3416,32 @@ Back on it, sits above the scroll area where no scroll position reaches.
 `e2e/specs/projects-list.spec.ts` seeds twelve projects and asks for the
 masthead.
 
+The same twelve projects showed what a row costs. Each carried `Zip`, `PDF`
+and `Remove` as three bordered buttons, so twelve rows were thirty-six
+buttons and the most visible thing on the right of the list was the one
+that removes a project. A row now ends in one slot with two things in it:
+at rest it says when the project was last opened, `just now`, `3 h ago`,
+`yesterday`, which is also why the list is in the order it is in; pointed
+at, or holding focus, the slot is the three actions instead, drawn as quiet
+text. The buttons are in the DOM and the tab order the whole time, so a
+keyboard reaches them and a spec clicks them without hovering first, and a
+screen with nothing to point with (`hover: none`) lays the time and the
+actions side by side. A missing folder's row keeps its `Find it…`, `Rejoin
+from collaborators…` and `Remove` shown, since they are the row's whole
+point, and so does a row whose PDF is typesetting. The row wraps rather
+than squeezing, so on a phone the slot drops under the name instead of
+leaving it ten characters beside three buttons. The whole row lights on
+hover, not only the name: a row that is one control should look like one.
+
+The path under the name folds the home directory to `~`, with the full
+path as the row's title. Everything a writer has tends to live under the
+same few folders, so twelve rows each began with the same forty characters
+and the truncation cut the part that differed. A shared project says
+`shared` after its name, or `removed from the share` when this install was
+taken out of it; an ordinary project says nothing, because a mark on every
+row is a mark on none. The words are decided in
+`frontend/src/project-row.ts`, which is tested without a browser.
+
 ### The mark
 
 Redrawn, and the reasoning is in `frontend/src/Logo.tsx` at length because a

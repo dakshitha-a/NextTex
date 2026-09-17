@@ -1,6 +1,7 @@
 """The project list, and what happens to it under abuse."""
 
 import json
+from pathlib import Path
 
 
 def test_a_project_can_be_registered_and_listed(client, project_dir):
@@ -8,6 +9,14 @@ def test_a_project_can_be_registered_and_listed(client, project_dir):
     assert added["name"] == project_dir.name
     listed = client.get("/api/projects").json()["projects"]
     assert [p["path"] for p in listed] == [str(project_dir)]
+
+
+def test_the_list_says_where_home_is(client):
+    # The rows fold the home directory to `~`, and only the server knows
+    # where that is: the page may be open on another machine entirely.
+    home = client.get("/api/projects").json()["home"]
+    assert home == str(Path.home())
+    assert Path(home).is_absolute()
 
 
 def test_registering_a_directory_that_is_not_there(client, tmp_path):
