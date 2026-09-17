@@ -349,9 +349,13 @@ def test_the_example_project_is_generic():
     )
     tail = main.split("\\end{document}", 1)[1]
     assert not tail.strip(), f"detritus after the document ends: {tail[:80]!r}"
-    # Nothing in it should name a person, an institution or a real project.
+    # Nothing in it should name a person or a real project.  The person it
+    # must not name is whoever holds the copyright, read from the LICENSE
+    # rather than spelled out here, so this file names nobody either.
     lowered = main.lower()
-    for needle in ("dissertation",):
+    holder = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    holder = holder.splitlines()[2].split(")", 1)[1].split()[1:]
+    for needle in ["dissertation", *(word.lower() for word in holder)]:
         assert needle not in lowered, needle
 
 
