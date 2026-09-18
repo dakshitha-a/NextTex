@@ -2,6 +2,7 @@ import {
   Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
+import { useOnScreen, type Wanted } from "../place-menu";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
 import { iconFor, isBib, isData, isScript } from "./file-kinds";
@@ -102,7 +103,7 @@ export default function FileTree({
   const [purged, setPurged] = useState<string>("");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
-  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+  const [menuAt, setMenuAt] = useState<Wanted | null>(null);
   const [creating, setCreating] = useState<
     { parent: string; directory: boolean; fromBar?: boolean } | null
   >(null);
@@ -146,6 +147,9 @@ export default function FileTree({
     setPurging(null);
   }, []);
   useDismiss(menuRef, menu !== null, closeMenu, menuButton);
+  // Measured after it is drawn, and again when the question inside it
+  // opens or closes, since that changes its height.
+  const menuPlaced = useOnScreen(menuRef, menu !== null ? menuAt : null, purging);
   const uploadTo = useRef<string>("");
   // Where the picker was started from, so focus can go back there when the
   // chooser closes, and whether that gesture named a folder of its own.
@@ -654,10 +658,16 @@ export default function FileTree({
               // widths below, the `style.left` this ends up in -- is in the
               // shell's own pixels.  Convert here, once, so nothing further
               // down has to know.
+              //
+              // Where it wants to be: under the button, right-aligned to
+              // it.  Where it ends up is `useOnScreen`'s decision once it
+              // has been measured, which is what keeps it on the screen
+              // from a row near the foot of a short window.
               const box = (event.target as HTMLElement).getBoundingClientRect();
               setMenuAt({
-                x: Math.min(toShell(box.right) - 184, viewportWidth() - 192),
-                y: Math.min(toShell(box.bottom) + 4, viewportHeight() - 220),
+                left: toShell(box.right) - 184,
+                top: toShell(box.bottom) + 4,
+                flip: toShell(box.top) - 4,
               });
               setMenu(menu === node.path ? null : node.path);
               setPurging(null);
@@ -683,8 +693,15 @@ export default function FileTree({
             data-testid="file-menu"
             // Fixed, not absolute: an absolute menu is clipped by the
             // tree's own scroll box, so the last row's menu was cut in half.
-            className="fixed z-40 w-[184px] rounded-[5px] border border-line bg-surface py-1 shadow-float"
-            style={menuAt ? { left: menuAt.x, top: menuAt.y } : undefined}
+            // Capped at the window's height and scrolling past it, for the
+            // window shorter than the menu; `useOnScreen` handles every
+            // taller one.
+            className="fixed z-40 max-h-[calc(100vh-16px)] w-[184px] overflow-y-auto rounded-[5px] border border-line bg-surface py-1 shadow-float"
+            style={
+              menuPlaced ? { left: menuPlaced.left, top: menuPlaced.top }
+              : menuAt ? { left: menuAt.left, top: menuAt.top }
+              : undefined
+            }
             onClick={(event) => event.stopPropagation()}
           >
             {purging === node.path ? (

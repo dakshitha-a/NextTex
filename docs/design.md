@@ -7241,3 +7241,29 @@ spec exists: the next surface that draws ink the colour of its ground
 fails a check rather than waiting to be noticed. The History panel and
 the project search panel gained a `data-testid` so the spec can name
 them.
+
+### A menu never opens below the screen
+
+The tree's row menu was placed at `min(button.bottom + 4, viewport - 220)`,
+a guess at its own height, and the tab strip's at `min(pointer, viewport - 120)`,
+another. A `.tex` row's menu is 306 px tall, the history-deletion
+question inside it makes it taller, and from a row near the foot of a
+short window the last items, *Move to trash* among them, were below the
+screen with no way to reach them.
+
+The height is measured now rather than guessed. `placeMenu` in
+`frontend/src/place-menu.ts` takes where a menu wants to be, its measured
+size and the viewport, and answers: below the anchor when the whole menu
+fits there, above it when it fits there instead, and otherwise as low as
+the window allows with the bottom edge inside; on the horizontal axis it
+is pushed left until its right edge is in. `useOnScreen` runs it from a
+layout effect once the menu is in the DOM, so the menu is moved before
+the frame is painted, and again when the question inside the tree's menu
+opens or closes. The tree's menu is also capped at the window's height
+and scrolls past it, for the window shorter than the menu, which the
+placement alone cannot help. Both fixed menus, the tree's and the tab
+strip's, go through it; the download menu already had a cap and a scroll.
+`e2e/specs/menus-on-screen.spec.ts` opens the last of forty rows' menu in
+a 600 px window and asserts it ends inside, with and without the
+question open, and opens one in a 260 px window and scrolls to its last
+item.

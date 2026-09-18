@@ -1,6 +1,7 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDismiss } from "../useDismiss";
-import { toShell, viewportHeight, viewportWidth } from "../viewport";
+import { toShell } from "../viewport";
+import { useOnScreen } from "../place-menu";
 import { focusFirst, walkMenu } from "./menu-keys";
 import {
   HiddenTabs, useFollowActive, useHiddenTabs, useWheelScroll,
@@ -92,6 +93,14 @@ export default function TabStrip({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   useDismiss(menuRef, menu !== null, closeMenu);
+  // Where the pointer was is where it wants to be; where it fits is
+  // decided once it has been measured, so a menu that grows an item does
+  // not grow past the foot of a short window.
+  const wanted = useMemo(
+    () => (menu ? { left: menu.x, top: menu.y, flip: menu.y } : null),
+    [menu],
+  );
+  const placed = useOnScreen(menuRef, wanted);
   // A menu can outlive the tab it was opened on: the file is renamed
   // underneath it, or another window closes it.  Leaving it up would leave
   // a column of items pointing at nothing.
@@ -159,13 +168,13 @@ export default function TabStrip({
                 if (!tab.active || !menuFor) return;
                 event.preventDefault();
                 // `clientX` is a viewport pixel and `style.left` is read in
-                // the zoomed shell's own, so both go through `toShell`.  The
-                // clamps keep a menu opened on the last tab, or near the
-                // foot of a short window, on screen.
+                // the zoomed shell's own, so both go through `toShell`.
+                // Keeping it on screen is `useOnScreen`'s job, from the
+                // menu's measured size rather than a guess at it.
                 setMenu({
                   path: tab.path,
-                  x: Math.min(toShell(event.clientX), viewportWidth() - 224),
-                  y: Math.min(toShell(event.clientY), viewportHeight() - 120),
+                  x: toShell(event.clientX),
+                  y: toShell(event.clientY),
                 });
               }}
             >
@@ -235,7 +244,7 @@ export default function TabStrip({
           // absolute menu would be clipped by it, the bug the tree hit
           // inside its own scroll box.
           className="nx-furniture nx-arrive fixed z-40 w-[220px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
-          style={{ left: menu.x, top: menu.y }}
+          style={placed ?? { left: menu.x, top: menu.y }}
           onKeyDown={(event) => walkMenu(event, closeMenu)}
         >
           {items.map((item) =>
