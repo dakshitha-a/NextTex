@@ -183,3 +183,23 @@ test("a long file name in the header truncates and keeps its full path as a titl
   const nameBox = (await name.boundingBox())!;
   expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(close.x + 1);
 });
+
+test("the viewing banner wraps rather than tearing its buttons in a narrow pane", async ({
+  tab, app, project, page,
+}) => {
+  await typeAndSave(tab, "the first draft", app, project);
+  await openHistory(tab);
+  await tab.getByTestId("version").last().click();
+  const banner = tab.getByTestId("viewing-banner");
+  await expect(banner).toBeVisible();
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await tab.waitForTimeout(300);
+  // Every control is a single line of text, whole, inside the banner.
+  const bannerBox = (await banner.boundingBox())!;
+  for (const button of await banner.getByRole("button").all()) {
+    const box = (await button.boundingBox())!;
+    expect(box.height).toBeLessThanOrEqual(26);
+    expect(box.y).toBeGreaterThanOrEqual(bannerBox.y - 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(bannerBox.y + bannerBox.height + 1);
+  }
+});

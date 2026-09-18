@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import api, { startDownload, type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
 import { Chevron } from "../chrome";
@@ -648,34 +648,47 @@ export function ViewingBanner({
     return () => window.removeEventListener("keydown", key);
   }, [onBack]);
 
+  // A row that wraps rather than one that tears.  The banner was a fixed
+  // 26px with nothing said about wrapping, and the editor pane beside a
+  // docked history panel is narrow enough that the buttons' own labels
+  // broke across two lines inside it, "Show what's" over "gone", with
+  // the second line drawn outside the bar.  Each control keeps its rule
+  // with it, so a second row, when there has to be one, starts with a
+  // label rather than a stray line.
   return (
     <div
-      className={`nx-arrive flex h-[26px] shrink-0 items-center gap-3 border-b border-line px-[10px] ${
+      className={`nx-arrive flex min-h-[26px] shrink-0 flex-wrap items-center gap-x-3 whitespace-nowrap border-b border-line px-[10px] ${
         version.by === "claude" ? "bg-pen-wash" : "bg-hint-wash"
       }`}
+      data-testid="viewing-banner"
       style={{ boxShadow: "inset 0 2px 0 var(--hint)" }}
     >
-      <span className="t-micro text-ink">
+      <span className="t-micro h-[26px] leading-[26px] text-ink">
         Viewing {timeOf(version.at)}
       </span>
-      <Rule />
-      <span className="t-micro text-ink-2">{who(version, me)}</span>
+      <Group>
+        <span className="t-micro text-ink-2">{who(version, me)}</span>
+      </Group>
       {version.label || version.why ? (
-        <>
-          <Rule />
-          <span className="t-micro min-w-0 flex-1 truncate text-ink-2">
+        <Group grow>
+          <span
+            className="t-micro min-w-0 flex-1 truncate text-ink-2"
+            title={version.label || version.why}
+          >
             {version.label || version.why}
           </span>
-        </>
+        </Group>
       ) : (
         <span className="flex-1" />
       )}
       {onDownload ? (
-        <button className="quiet t-micro" onClick={onDownload}>
-          Download
-        </button>
+        <Group>
+          <button className="quiet t-micro" onClick={onDownload}>
+            Download
+          </button>
+        </Group>
       ) : (
-        <>
+        <Group>
           <button className="quiet t-micro" onClick={onToggleChanges}>
             {showingChanges ? "Hide what's gone" : "Show what's gone"}
           </button>
@@ -688,36 +701,48 @@ export function ViewingBanner({
               {showingPatch ? "Hide the patch" : "Show what changed"}
             </button>
           ) : null}
-        </>
+        </Group>
       )}
-      <Rule />
-      {confirming ? (
-        <>
-          <span className="t-micro text-ink-2">Replace the file with this?</span>
-          <button
-            className="quiet t-micro"
-            data-tone="danger"
-            onClick={() => {
-              setConfirming(false);
-              onRestore();
-            }}
-          >
-            Restore
+      <Group>
+        {confirming ? (
+          <>
+            <span className="t-micro text-ink-2">Replace the file with this?</span>
+            <button
+              className="quiet t-micro"
+              data-tone="danger"
+              onClick={() => {
+                setConfirming(false);
+                onRestore();
+              }}
+            >
+              Restore
+            </button>
+            <button className="quiet t-micro" onClick={() => setConfirming(false)}>
+              Keep
+            </button>
+          </>
+        ) : (
+          <button className="quiet t-micro" onClick={() => setConfirming(true)}>
+            Restore this
           </button>
-          <button className="quiet t-micro" onClick={() => setConfirming(false)}>
-            Keep
-          </button>
-        </>
-      ) : (
-        <button className="quiet t-micro" onClick={() => setConfirming(true)}>
-          Restore this
+        )}
+      </Group>
+      <Group>
+        <button className="quiet t-micro" data-tone="on" onClick={onBack}>
+          Back to now
         </button>
-      )}
-      <Rule />
-      <button className="quiet t-micro" data-tone="on" onClick={onBack}>
-        Back to now
-      </button>
+      </Group>
     </div>
+  );
+}
+
+/** A rule and the controls that belong after it, kept on one line. */
+function Group({ children, grow = false }: { children: ReactNode; grow?: boolean }) {
+  return (
+    <span className={`flex h-[26px] items-center gap-3 ${grow ? "min-w-0 flex-1" : ""}`}>
+      <Rule />
+      {children}
+    </span>
   );
 }
 

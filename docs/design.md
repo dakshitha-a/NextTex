@@ -7753,3 +7753,11 @@ version being viewed going back to now first and the next press closing
 the panel; cancelling a name with Escape cancels the name and nothing
 else; and the shell no longer stands down for it. **A truncated reason,
 name or path** carries its full text as a title.
+
+**The viewing banner tore its buttons in a narrow pane.** It was a fixed
+26 px with nothing said about wrapping, and beside a docked history panel
+the editor is narrow enough that "Show what's gone" broke across two
+lines with the second drawn outside the bar. It wraps now, and each
+control keeps its rule with it so a second row starts with a word rather
+than a stray line; the spec measures every button whole inside the
+banner at 1100 px.
