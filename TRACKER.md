@@ -24,7 +24,47 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing at the moment. The run after 2.6.3 worked the writer's September
+The first roadmap run, after 2.7.0: eleven items from `ROADMAP.md`, taken
+in its order and grouped into three pushes. Each leaves this list in the
+commit that finishes it.
+
+The build, for 2.8.0:
+
+- [ ] **Choose the engine per document.** xelatex and lualatex through a
+      `% !TeX program` line or an `engine` key in `nexttex.toml`;
+      fontspec under pdflatex explained in the drawer.
+- [ ] **Shell escape, per project, on purpose.** The project asks in
+      `nexttex.toml`, the machine allows once per project, and a build
+      never gets `-shell-escape` silently.
+- [ ] **Install a missing package from the error drawer.** The `.sty`
+      row maps its file to a package through tlmgr and installs it on a
+      second press, then builds again.
+- [ ] **The TeX version on every build.** Beside the log and in the bug
+      report.
+
+The editor, for 2.9.0:
+
+- [ ] **Hover says the number.** "Figure 3, on page 7" read from the
+      build's `.aux` files, the number beside each label in the
+      completion list, and the image on hovering an `\includegraphics`.
+- [ ] **Fold sections and environments.** A fold gutter on the outline
+      parser.
+- [ ] **A sticky section header** above the source, driven by what is
+      scrolled into view.
+- [ ] **Rename a label or citation key everywhere.** Syntax-aware, so
+      `fig:a` leaves `fig:ab` alone and a hit in a comment is offered
+      rather than assumed.
+
+Papers, provider and window, for 2.10.0:
+
+- [ ] **Search the literature yourself.** A search box in the Papers
+      section with *Add* on each result.
+- [ ] **Local models through the OpenAI provider.** A base URL in the
+      settings, with no key needed for a local server.
+- [ ] **The page in its own window.** The typeset page alone, live, for a
+      second monitor.
+
+Before it, the run after 2.6.3 worked the writer's September
 interface list to 2.7.0, in one push: a figure of any size opens whole
 and downloads from its viewer, the source tab menu closes to the right
 and downloads, the find field's typed text can be read, every menu and
