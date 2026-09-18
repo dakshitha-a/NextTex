@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api, { startDownload, type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
 import { Chevron } from "../chrome";
@@ -170,68 +170,111 @@ export default function History({
     }
   };
 
+  // The keyboard arrives with the panel.  Opened from the status strip or
+  // the tree's row menu, the panel took focus nowhere, so Escape and Tab
+  // did nothing until somebody clicked into it; the design record has said
+  // since the agent shortcut landed that this panel owns Escape while it
+  // is open, and for a long time only the banner did.
+  const root = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    root.current?.focus({ preventScroll: true });
+  }, []);
+
   return (
     <div
+      ref={root}
+      tabIndex={-1}
       data-testid="history-panel"
-      className={
+      className={`outline-none ${
         docked
           ? "nx-arrive flex h-full w-[264px] shrink-0 flex-col border-l border-line bg-surface-2"
           : "nx-arrive absolute right-0 top-0 z-20 flex h-full w-[264px] flex-col border-l border-line bg-surface-2 shadow-float"
-      }
+      }`}
+      onKeyDown={(event) => {
+        // Escape leaves one level at a time, the way it does on the agent
+        // screen: a version being viewed goes back to now first, which the
+        // banner's own listener answers, and the next press closes the
+        // panel.  The naming input stops its own Escape before it gets
+        // here, so cancelling a name does not close anything.
+        if (event.key !== "Escape" || viewing) return;
+        event.preventDefault();
+        onClose();
+      }}
     >
+      {/* Two rows.  The first version put the title, the scope toggle,
+          the file name, the size and the close chevron in one 32px row,
+          and everything but the name was shrink-0: about 300px of it in a
+          264px panel, so the name was squeezed to nothing and the chevron
+          was drawn over the size.  The first row is the handle: the
+          title, the file, and the one control that closes it.  The
+          second is a toolbar, which is a different kind of thing and does
+          not close on a click. */}
       <div
-        className="flex h-[32px] shrink-0 cursor-pointer items-center justify-between border-b border-line bg-surface-3 px-[10px] transition-colors duration-[90ms] hover:bg-surface"
+        className="flex h-[32px] shrink-0 cursor-pointer items-center gap-2 bg-surface-3 px-[10px] transition-colors duration-[90ms] hover:bg-surface"
         title="Close the history"
+        data-testid="history-header"
         onClick={(event) => {
           if ((event.target as HTMLElement).closest("button")) return;
           onClose();
         }}
       >
-        <span className="flex min-w-0 items-baseline gap-2">
-          <span className="t-ui-lg font-serif">History</span>
-          {/* The same two-way micro toggle the preview footer uses for
-              Scroll and Page. Two questions, not two panels: what this
-              file used to say, and what I changed this afternoon. The
-              second was answerable only by opening every file in turn. */}
-          <span
-            className="flex shrink-0 self-center overflow-hidden rounded-[3px] border border-line"
-            onClick={(event) => event.stopPropagation()}
-          >
-            {(["file", "project"] as const).map((option) => (
-              <button
-                key={option}
-                className={`t-micro border-b-2 px-2 py-[1px] transition-colors duration-[90ms] ${
-                  scope === option
-                    ? "border-hint bg-surface text-ink"
-                    : "border-transparent text-ink-3 hover:text-hint"
-                }`}
-                aria-pressed={scope === option}
-                onClick={() => setScope(option)}
-                title={
-                  option === "file"
-                    ? "Versions of the file in the editor"
-                    : "Every file's versions, newest first"
-                }
-              >
-                {option === "file" ? "This file" : "Whole project"}
-              </button>
-            ))}
+        <span className="t-ui-lg shrink-0 font-serif">History</span>
+        {scope === "file" && name ? (
+          <span className="t-meta min-w-0 flex-1 truncate text-ink-3" title={activePath ?? undefined}>
+            {name}
           </span>
-          {scope === "file" && name ? (
-            <span className="t-meta truncate text-ink-3">{name}</span>
-          ) : null}
-          {/* What the project's history is holding, before anybody decides
-              whether to empty it. `/history/size` has had a client wrapper
-              and no caller since it was written. */}
-          {held ? (
-            <span className="t-micro shrink-0 text-ink-3" data-testid="history-size">
-              {held}
-            </span>
-          ) : null}
-        </span>
-        <button className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px]" aria-label="Close the history" onClick={onClose}>
+        ) : (
+          <span className="flex-1" />
+        )}
+        <button
+          className="quiet flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded-[3px] hover:bg-surface-3"
+          aria-label="Close the history"
+          onClick={onClose}
+        >
           <Chevron direction="right" />
         </button>
+      </div>
+      <div
+        className="flex h-[26px] shrink-0 items-center justify-between border-b border-line px-[10px]"
+        data-testid="history-toolbar"
+      >
+        {/* The same two-way micro toggle the preview footer uses for
+            Scroll and Page. Two questions, not two panels: what this
+            file used to say, and what I changed this afternoon. The
+            second was answerable only by opening every file in turn. */}
+        <span className="flex shrink-0 overflow-hidden rounded-[3px] border border-line">
+          {(["file", "project"] as const).map((option) => (
+            <button
+              key={option}
+              className={`t-micro border-b-2 px-2 py-[1px] transition-colors duration-[90ms] ${
+                scope === option
+                  ? "border-hint bg-surface text-ink"
+                  : "border-transparent text-ink-3 hover:text-hint"
+              }`}
+              aria-pressed={scope === option}
+              onClick={() => setScope(option)}
+              title={
+                option === "file"
+                  ? "Versions of the file in the editor"
+                  : "Every file's versions, newest first"
+              }
+            >
+              {option === "file" ? "This file" : "Whole project"}
+            </button>
+          ))}
+        </span>
+        {/* What the project's history is holding, before anybody decides
+            whether to empty it. `/history/size` has had a client wrapper
+            and no caller since it was written. */}
+        {held ? (
+          <span
+            className="t-micro shrink-0 text-ink-3"
+            data-testid="history-size"
+            title="What this project's history holds on disk"
+          >
+            {held}
+          </span>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
@@ -268,6 +311,15 @@ export default function History({
           // belong to one version, naming and comparing, are not drawn on
           // it; they are reached through the file's own list.
           const folded = scope === "project" && (version.count ?? 1) > 1;
+          // A row that has been chosen, by viewing its version or by
+          // opening a figure's in place.  Its controls are drawn without
+          // a pointer over it: hover is the only way they appeared, and a
+          // finger has no hover, nor does a keyboard.  Focus inside the
+          // row shows them too, for the same reason.
+          const lit = selected || opened === version.sha;
+          const reveal = lit
+            ? "block"
+            : "hidden group-hover:block group-focus-within:block";
           return (
             <div key={`${version.sha}-${version.at}`}>
               {first ? (
@@ -292,8 +344,13 @@ export default function History({
                 data-testid="version"
                 data-sha={version.sha}
                 data-by={version.by}
+                // `bg-surface`, not `bg-surface-2`: the panel's own ground
+                // is surface-2, so a hover or a selection drawn in it was
+                // invisible and the pen bar was all that marked the row.
+                // The file tree draws the same rule one step off its own
+                // ground, which is what this is.
                 className={`group relative flex cursor-pointer flex-col gap-[2px] px-[10px] py-[6px] ${
-                  selected ? "bg-surface-2" : "hover:bg-surface-2"
+                  selected ? "bg-surface" : "hover:bg-surface"
                 }`}
                 onClick={() => choose(version, selected)}
               >
@@ -342,7 +399,9 @@ export default function History({
                   {/* The naming control takes the size's place on hover
                       rather than sitting on top of it. */}
                   <span
-                    className="t-micro tnum text-ink-3 group-hover:hidden"
+                    className={`t-micro tnum text-ink-3 ${
+                      lit ? "hidden" : "group-hover:hidden group-focus-within:hidden"
+                    }`}
                     title={
                       elsewhere
                         ? "Only a collaborator has this one"
@@ -358,7 +417,7 @@ export default function History({
                   viewing.path === rowPath &&
                   !rowBinary ? (
                     <button
-                      className="quiet t-micro hidden group-hover:block"
+                      className={`quiet t-micro ${reveal}`}
                       title="Show what changed between the version on screen and this one"
                       data-testid="version-compare"
                       onClick={(event) => {
@@ -371,7 +430,7 @@ export default function History({
                   ) : null}
                   {!folded ? (
                     <button
-                      className="quiet t-micro hidden group-hover:block"
+                      className={`quiet t-micro ${reveal}`}
                       title="Name this version so it is never thinned away"
                       onClick={(event) => {
                         event.stopPropagation();
@@ -386,6 +445,7 @@ export default function History({
                   <span
                     className="t-micro truncate text-ink-3"
                     data-testid="history-scope-path"
+                    title={version.path}
                   >
                     {version.path}
                   </span>
@@ -429,7 +489,9 @@ export default function History({
                 ) : version.label ? (
                   <span className="t-meta text-ink">{version.label}</span>
                 ) : version.why ? (
-                  <span className="t-micro truncate text-ink-2">{version.why}</span>
+                  <span className="t-micro truncate text-ink-2" title={version.why}>
+                    {version.why}
+                  </span>
                 ) : null}
                 {elsewhere && opened === version.sha ? (
                   <div className="mt-2" data-testid="version-elsewhere">
@@ -503,7 +565,12 @@ export default function History({
                     onClick={(event) => event.stopPropagation()}
                     onBlur={() => setLabelling(null)}
                     onKeyDown={async (event) => {
-                      if (event.key === "Escape") setLabelling(null);
+                      if (event.key === "Escape") {
+                        // The name is cancelled and nothing else: the
+                        // panel's own Escape would close it otherwise.
+                        event.stopPropagation();
+                        setLabelling(null);
+                      }
                       if (event.key !== "Enter") return;
                       const value = event.currentTarget.value.trim();
                       setLabelling(null);

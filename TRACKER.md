@@ -24,7 +24,18 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing. The first roadmap run, after 2.7.0, took eleven items from
+The run after 2.10.0 works two requests from the writer: a review of the
+history panel, whose close arrow was drawn over the size and the toggle,
+and a Markdown preview that behaves like the page, its tab bringing its
+file to the source pane and a double-click on its rendering reaching the
+line. The panel's half is done: the header is two rows, a row shows that
+it is hovered and chosen, Name it and Compare exist for a finger and a
+keyboard, Escape leaves one level at a time and no longer blocks the
+chat's, and the viewing banner wraps instead of tearing. Still to do: the
+list following versions as they are recorded rather than after a build,
+and the Markdown half.
+
+Before it, the first roadmap run, after 2.7.0, took eleven items from
 `ROADMAP.md` in its order, in three pushes. The build went up as 2.8.0:
 the engine is chosen per document or per project, shell escape is
 allowed per project on this machine and never silently, a missing

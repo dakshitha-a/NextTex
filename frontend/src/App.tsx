@@ -1739,7 +1739,11 @@ export default function App() {
       // pair; anywhere else the key belongs to whatever is nearer.
       if (event.key === "Escape") {
         // These cover the screen while they are open, and close themselves.
-        if (tutorialOpen || historyOpen || showingChanges || contextRequest) return;
+        // The history panel is not among them: docked, it covers nothing,
+        // and it answers Escape only while the keyboard is inside it, so a
+        // writer in the composer with the panel open still closes the
+        // panel they are in.
+        if (tutorialOpen || showingChanges || contextRequest) return;
         const active = document.activeElement as HTMLElement | null;
         if (!active?.closest?.("[data-nx-chat]")) return;
         // A popover inside the panel claims Escape by preventing the
@@ -1769,7 +1773,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [
     activePath, toggleChat, closeChat, showPreview,
-    tutorialOpen, historyOpen, showingChanges, contextRequest,
+    tutorialOpen, showingChanges, contextRequest,
   ]);
 
 

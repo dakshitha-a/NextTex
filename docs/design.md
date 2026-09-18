@@ -2616,8 +2616,10 @@ editor to the composer caught it. Escape dismisses the thing you are in,
 here as everywhere else in the app. The pairing with `Cmd/Ctrl-Alt-A` still
 holds, because that shortcut leaves the caret in the composer.
 
-Two things still have to be true. The tutorial, the history panel and the
-context sheet own Escape while they are open, and close themselves. And a
+Two things still have to be true. The tutorial and the context sheet own
+Escape while they are open, and close themselves; the history panel, which
+can be docked beside the editor and covers nothing there, answers it only
+while the keyboard is inside it (§43). And a
 popover *inside* the panel claims it by preventing the default: a claim not
 visible synchronously, since window listeners run in the order they were
 added and those components mount long after the shell, so the decision waits
@@ -7704,3 +7706,50 @@ that is not one and a document that tries to leave the project;
 `e2e/specs/page-window.spec.ts` opens the window from the menu, finds the
 page and no editor or tree in it, grows the document in the first window
 and watches the page count change in the second.
+
+## 43. The history panel reviewed, and a Markdown preview that behaves like the page
+
+Two requests from the writer in September 2026, after the first roadmap
+run: a look at the history panel, whose close arrow was drawn over other
+things, and a Markdown preview whose tab brings its file and whose page
+can be double-clicked to reach the line. Each subsection says what
+changed, why it is shaped that way, and the tests that hold it.
+
+### The header held five things in 264 pixels
+
+The panel's one 32 px header carried the title, the *This file / Whole
+project* toggle, the file's name, the size the history holds on disk and
+the close chevron, and everything but the name was `shrink-0`. About 300
+px of it in a 264 px panel: the name was squeezed to nothing, and the
+chevron, the one thing in the row that must not lose, was drawn over the
+size and squeezed to 18 px. The header is two rows now. The first is the
+handle, the title, the file's name with its full path as a title, and
+the chevron, and it closes on a click as it did. The second is a toolbar,
+the toggle at the left and the size at the right, and does not close on a
+click because a toolbar is a different kind of thing from a handle.
+`e2e/specs/history-panel.spec.ts` measures the chevron's box against the
+toggle's and the size's, docked and over the editor, and finds the name
+drawn at a width.
+
+Reading the file to fix that found four more things, each of which had
+been true since the panel was built. **A row could not show that it was
+hovered or chosen**: both were drawn in `--surface-2`, which is the
+panel's own ground, so the 2 px pen bar was the whole of the selection
+and hover was nothing at all. Rows paint `--surface` now, one step off
+the panel's ground, which is the file tree's own rule on its own ground.
+**Name it and Compare were hover-only**, so a finger on a tablet and a
+keyboard on any machine could see a version and do nothing with it; the
+row that has been chosen carries them without a pointer over it, and so
+does a row with focus inside it, and the size gives way to them on the
+same terms. `touch.spec.ts` taps a row and finds the control. **Escape
+did nothing in the panel** unless a version was on screen, though §19
+had claimed the panel owned the key; and the shell's own Escape stood
+down whenever the panel was open, on the premise that it covered the
+screen, which a docked panel does not, so a writer in the composer with
+history open could not close the chat. The keyboard arrives with the
+panel now, so Tab and Escape work from the moment it opens; Escape
+leaves one level at a time, the way it does on the agent screen, a
+version being viewed going back to now first and the next press closing
+the panel; cancelling a name with Escape cancels the name and nothing
+else; and the shell no longer stands down for it. **A truncated reason,
+name or path** carries its full text as a title.

@@ -1,4 +1,5 @@
 import { expect, test } from "../fixtures";
+import { landed } from "../typing";
 
 /** The tablet project: a real touch pointer, at a tablet's size and density.
  *
@@ -80,4 +81,25 @@ test("a pinch zooms the page the way the trackpad does", async ({ tab }) => {
       timeout: 10_000,
     })
     .toBeGreaterThan(before);
+});
+
+test("a version's controls appear for the finger that chose it", async ({
+  tab, app, project,
+}) => {
+  // "Name it" and "Compare" were drawn on hover and nowhere else, and a
+  // finger has no hover: on a tablet the panel could show a version and
+  // offer nothing to do with it.  The row that has been chosen carries
+  // them now, without a pointer over it.
+  await tab.locator(".cm-content").tap();
+  await tab.keyboard.press("Control+a");
+  await tab.keyboard.type("the first draft, by touch");
+  await landed(app, project, "by touch");
+  await tab.locator('button[title="What this file used to say"]').tap();
+  const row = tab.getByTestId("version").last();
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  const name = row.getByRole("button", { name: /name it/i });
+  await expect(name).toBeHidden();
+  await row.tap();
+  await expect(tab.getByText(/viewing/i).first()).toBeVisible();
+  await expect(name).toBeVisible();
 });
