@@ -311,3 +311,94 @@ def test_the_module_names_no_person():
     """`tests/test_cross_platform.py` scans for an email address; this is the
     other thing a report module could carry by accident."""
     assert "@" not in (ROOT / "nexttex" / "report.py").read_text(encoding="utf-8").replace("@app", "")
+
+
+# -- the Windows events section --------------------------------------------
+
+
+class _Ran:
+    def __init__(self, stdout="", stderr="", returncode=0):
+        self.stdout, self.stderr, self.returncode = stdout, stderr, returncode
+
+
+def _on_windows(monkeypatch, run):
+    monkeypatch.setattr(report.sys, "platform", "win32")
+    monkeypatch.setattr(report.shutil, "which", lambda name: r"C:\Windows\powershell.exe")
+    monkeypatch.setattr(report.subprocess, "run", run)
+
+
+def test_the_windows_section_is_absent_anywhere_but_windows(monkeypatch):
+    monkeypatch.setattr(report.sys, "platform", "linux")
+    assert report.windows_events("nexttex") == []
+
+
+def test_the_windows_section_tells_history_off_from_nothing_there(monkeypatch):
+    """The Task Scheduler's history is off on a client Windows unless
+    somebody turned it on, and a report that said "nothing there" for a
+    machine that keeps nothing would send the reader looking for events
+    that were never written."""
+    seen = {}
+
+    def run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["kwargs"] = kwargs
+        return _Ran("##history disabled\n##crashes\n")
+
+    _on_windows(monkeypatch, run)
+    rows = report.windows_events("nexttex-lab")
+    assert any("not enabled" in row for row in rows)
+    assert any("Enable All Tasks History" in row for row in rows)
+    assert rows[-2] == "(none)"
+    # The task's own name, non-interactive, and no profile.
+    assert "-NoProfile" in seen["argv"] and "-NonInteractive" in seen["argv"]
+    assert r"\nexttex-lab" in seen["argv"][-1]
+    assert seen["kwargs"]["timeout"] == 30
+
+
+def test_the_windows_section_quotes_the_events_when_history_is_on(monkeypatch):
+    _on_windows(monkeypatch, lambda argv, **kw: _Ran(
+        "##history enabled\n"
+        "2026-09-17T23:01:02  102  Task Scheduler successfully finished \\nexttex\n"
+        "##crashes\n"
+        "2026-09-17T23:01:00  Application Error  Faulting application name: python.exe\n"
+    ))
+    rows = report.windows_events("nexttex")
+    text = "\n".join(rows)
+    assert "Task Scheduler successfully finished" in text
+    assert "Faulting application name: python.exe" in text
+    assert "(none)" not in text
+
+
+def test_the_windows_section_says_so_when_history_is_on_and_empty(monkeypatch):
+    _on_windows(monkeypatch, lambda argv, **kw: _Ran("##history enabled\n##crashes\n"))
+    rows = report.windows_events("nexttex")
+    assert any("holds nothing for the task" in row for row in rows)
+    assert rows[-2] == "(none)"
+
+
+def test_the_windows_section_reports_a_failure_as_a_row(monkeypatch):
+    _on_windows(monkeypatch, lambda argv, **kw: _Ran("", "Access is denied", 1))
+    assert report.windows_events("nexttex") == ["(powershell failed: Access is denied)"]
+
+    def slow(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    _on_windows(monkeypatch, slow)
+    assert "given up on" in report.windows_events("nexttex")[0]
+
+    monkeypatch.setattr(report.shutil, "which", lambda name: None)
+    assert "no PowerShell" in report.windows_events("nexttex")[0]
+
+
+def test_the_journal_helper_reports_its_failures_as_words(monkeypatch):
+    """`journal()` had no test of its own, and the Windows section is its
+    twin: the same answers for no binary, a refusal and a timeout."""
+    monkeypatch.setattr(report.shutil, "which", lambda name: None)
+    assert report.journal("nexttex") == "(no journalctl)"
+    monkeypatch.setattr(report.shutil, "which", lambda name: "/usr/bin/journalctl")
+    monkeypatch.setattr(report.subprocess, "run", lambda argv, **kw: _Ran("", "No journal files", 1))
+    assert report.journal("nexttex") == "(journalctl failed: No journal files)"
+    monkeypatch.setattr(report.subprocess, "run", lambda argv, **kw: _Ran("Sep 17 server started\n"))
+    assert report.journal("nexttex") == "Sep 17 server started"
+    monkeypatch.setattr(report.subprocess, "run", lambda argv, **kw: _Ran(""))
+    assert report.journal("nexttex") == "(empty)"

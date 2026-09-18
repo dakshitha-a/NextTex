@@ -1275,11 +1275,17 @@ account). It ends with the last eighty lines of every log the install
 keeps: on Linux the user journal (`journalctl --user -u nexttex` is what it
 runs), on macOS and Windows `server.log` and `server.err.log` in
 `~/.local/share/nexttex/`, and on every platform the last run recorded in
-`install.log` and `update.log`.
+`install.log` and `update.log`. On Windows it also reads the system's own
+logs: the scheduled task's history for the last week, or a line saying
+that history is not switched on, which it is not until somebody turns it
+on in Task Scheduler, and any crash the Application log recorded for the
+Python interpreter. That is where a server that stopped without writing a
+word leaves its trace.
 
 The access token, the OpenAI key, the password hash and every browser
 session's fingerprint are removed before you see it, and so is your home
-directory, which appears as `~`. A property test writes secrets into every
+directory, which appears as `~`, and your account's name, which appears as
+`[account]`. A property test writes secrets into every
 file the report reads and asserts none of them comes out. It is still yours
 to read before you paste it: it names your hostname, your tailnet address if
 you have one, and the commit subjects of your last update.

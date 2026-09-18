@@ -115,7 +115,7 @@ jobs:
         # /bin/sh is bash 3.2 in POSIX mode, a third shell after dash and
         # busybox ash, and the file skips itself on Windows where there is
         # no pty.  The PowerShell file runs under pwsh 7 on both.
-        run: python -m pytest tests/test_install_survey.py tests/test_install_plan.py tests/test_install_steps.py tests/test_install_service_files.py tests/test_install_stdlib_only.py tests/test_install_ui.py tests/test_cross_platform.py tests/test_install_bootstrap_sh.py tests/test_install_bootstrap_ps1.py tests/test_update_script.py -q
+        run: python -m pytest tests/test_install_survey.py tests/test_install_plan.py tests/test_install_steps.py tests/test_install_service_files.py tests/test_install_stdlib_only.py tests/test_install_ui.py tests/test_cross_platform.py tests/test_install_bootstrap_sh.py tests/test_install_bootstrap_ps1.py tests/test_update_script.py tests/test_report_windows.py -q
 
       - name: The PowerShell tests under Windows PowerShell 5.1
         # What a stock Windows opens for `irm | iex`, and the one that

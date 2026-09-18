@@ -31,11 +31,6 @@ decisions recorded so nobody reopens them by accident. The eight are here,
 each still carrying its reason, in the order they are being done, and each
 leaves this list in the commit that finishes it.
 
-- [ ] **The bug report has no Windows event log section.** `server.err.log`
-      covers a server that started; a launcher that never got that far
-      leaves its trace in the task's history, which `Get-WinEvent` can read.
-      Waits for a Windows reporter whose report comes back empty.
-
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
@@ -48,10 +43,13 @@ leaves this list in the commit that finishes it.
       logoff in Windows' own logs. Either the process died with nothing
       logged or the minimized console window the shortcut opens was closed
       by hand, which kills it without a word. Left because the two cannot
-      be told apart from the evidence; the next step is to leave a freshly
-      restarted server alone overnight on that machine with its window
-      untouched, and if it is still up, to have the shortcut run the
-      server without a console window at all.
+      be told apart from the evidence; the bug report now carries the
+      evidence, since the backlog run gave it the task's history and the
+      Application log's crash events on Windows, so the next step is to
+      leave a freshly restarted server alone overnight on that machine
+      with its window untouched and read the report's Windows events
+      section in the morning, and if it is still up, to have the shortcut
+      run the server without a console window at all.
 - [ ] **A script never runs on its own.** Not on save and not after the
       agent edits it; the pane says the agent changed it and offers Run
       again. The agent's runs pass the permission fence with the script as

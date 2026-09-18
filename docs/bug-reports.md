@@ -26,10 +26,18 @@ service supervises the process, what the Claude CLI says about itself, a
 count of projects, what the browser saw (its last twenty errors, including
 every answer of 500 or worse with the reference the server logged under),
 and the last eighty lines of each log: the user journal on Linux,
-`server.log` and `server.err.log` on macOS and Windows, and the last run
-recorded in `install.log` and `update.log` everywhere. The token, the OpenAI
-key, the password hash and the session fingerprints are already gone from
-it, and so is the home directory. `nexttex/report.py` is the composer;
+`server.log` and `server.err.log` on macOS and Windows, the last run
+recorded in `install.log` and `update.log` everywhere, and on Windows the
+system's own logs: the scheduled task's history for the last week, which
+is the trace a launcher leaves when it never got as far as
+`server.err.log`, and the Application log's crash events naming the
+interpreter, which is what a process that died with nothing logged leaves
+behind. A Windows report that says task history is not enabled is telling
+you the machine keeps none, which is the default; ask the reporter to turn
+it on in Task Scheduler before the next attempt rather than reading the
+absence as evidence. The token, the OpenAI key, the password hash and the
+session fingerprints are already gone from it, and so are the home
+directory and the account's name. `nexttex/report.py` is the composer;
 `docs/architecture.md` under *Reporting a problem* says how.
 
 An intake workflow, `.github/workflows/issues.yml`, has already added the

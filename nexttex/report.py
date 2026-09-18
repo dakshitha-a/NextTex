@@ -124,6 +124,97 @@ def journal(unit: str, lines: int = LOG_TAIL) -> str:
     return result.stdout.strip() or "(empty)"
 
 
+#: What the Windows events section asks PowerShell for, in one call.  Three
+#: blocks, each behind a label the section reads: whether the Task
+#: Scheduler's history log is on at all, since on a client Windows it is
+#: off unless somebody turned it on, and "nothing there" must not be
+#: mistaken for "history is not kept"; the task's own events, which is where
+#: a launcher that never got as far as writing server.err.log leaves its
+#: trace; and the crash events the Application log holds for the
+#: interpreter, which is what a process that died with nothing logged
+#: leaves behind.  Bounded in days and in count so the report stays short.
+WINDOWS_EVENTS_SCRIPT = r"""
+$ErrorActionPreference = 'SilentlyContinue'
+$since = (Get-Date).AddDays(-{days})
+$log = Get-WinEvent -ListLog 'Microsoft-Windows-TaskScheduler/Operational'
+if ($log -eq $null) {{ Write-Output '##history unavailable' }}
+elseif (-not $log.IsEnabled) {{ Write-Output '##history disabled' }}
+else {{
+  Write-Output '##history enabled'
+  Get-WinEvent -LogName 'Microsoft-Windows-TaskScheduler/Operational' -MaxEvents 2000 |
+    Where-Object {{ $_.TimeCreated -gt $since -and $_.Message -match [regex]::Escape('\{task}') }} |
+    Select-Object -First {limit} |
+    ForEach-Object {{ Write-Output ('{{0:s}}  {{1}}  {{2}}' -f $_.TimeCreated, $_.Id, ($_.Message -replace '\s+', ' ')) }}
+}}
+Write-Output '##crashes'
+Get-WinEvent -LogName 'Application' -MaxEvents 5000 |
+  Where-Object {{ $_.TimeCreated -gt $since -and ($_.ProviderName -eq 'Application Error' -or $_.ProviderName -eq 'Windows Error Reporting') -and $_.Message -match 'python' }} |
+  Select-Object -First {limit} |
+  ForEach-Object {{ Write-Output ('{{0:s}}  {{1}}  {{2}}' -f $_.TimeCreated, $_.ProviderName, ($_.Message -replace '\s+', ' ')) }}
+"""
+
+
+def windows_events(task: str, days: int = 7, limit: int = 40) -> list:
+    """What Windows' own logs say about the task and the interpreter.
+
+    Only on Windows, and only where PowerShell is; the rows say why when
+    the answer is nothing.  One call, with a ceiling of thirty seconds:
+    a cold PowerShell and two event queries are a few seconds on a
+    laptop, and ten was the wrong ceiling for that.  Nothing here reaches
+    the network, and the text goes through the same redaction as the rest.
+    """
+    if not sys.platform.startswith("win"):
+        return []
+    binary = shutil.which("powershell") or shutil.which("pwsh")
+    if not binary:
+        return ["(no PowerShell, so the event logs could not be read)"]
+    script = WINDOWS_EVENTS_SCRIPT.format(task=task, days=days, limit=limit)
+    try:
+        result = subprocess.run(
+            [binary, "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True, text=True, errors="replace", timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return ["(powershell took longer than thirty seconds and was given up on)"]
+    except (OSError, subprocess.SubprocessError) as error:
+        return [f"(powershell failed: {error})"]
+    if result.returncode != 0:
+        return [f"(powershell failed: {result.stderr.strip() or result.returncode})"]
+    return windows_events_rows(result.stdout, task, days)
+
+
+def windows_events_rows(output: str, task: str, days: int) -> list:
+    """The section's rows, from what the script printed."""
+    history: list = []
+    crashes: list = []
+    state = ""
+    where = history
+    for line in output.splitlines():
+        line = line.rstrip()
+        if line.startswith("##history "):
+            state = line[len("##history "):].strip()
+            where = history
+        elif line == "##crashes":
+            where = crashes
+        elif line:
+            where.append("  " + line)
+    rows = [f"### Task Scheduler history for {task}, last {days} days"]
+    if state == "disabled":
+        rows.append("(task history is not enabled on this machine, so nothing is kept: "
+                    "Task Scheduler > Enable All Tasks History turns it on)")
+    elif state == "unavailable":
+        rows.append("(the Task Scheduler log could not be read)")
+    elif history:
+        rows.extend(history)
+    else:
+        rows.append("(history is enabled and holds nothing for the task in that time)")
+    rows.append("")
+    rows.append(f"### Application log crashes naming python, last {days} days")
+    rows.extend(crashes or ["(none)"])
+    rows.append("")
+    return rows
+
+
 def read_config(state: Path) -> dict:
     """The config file as it is on disk, and nothing if it is not there.
 
@@ -337,6 +428,9 @@ def logs_section(state: Path, instance: str) -> list:
         add(str(state / name), tail(state / name))
     for name in ("update.log", "install.log"):
         add(str(state / name) + " (last run)", last_block(state / name))
+    # Where the server's output does not go, on a machine where the
+    # launcher's trace and a silent death are in the system's own logs.
+    rows.extend(windows_events("nexttex" + ("-" + instance if instance else "")))
     return rows
 
 
