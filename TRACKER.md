@@ -24,16 +24,38 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing at the moment. The run that looked at the projects screen with
-twelve projects on it finished with 2.4.0: the masthead reachable again, a
-long list with a filter and the ways in beside it, rows that say when they
-were opened and show their actions when pointed at. What it left is in the
-backlog below.
+The run that works the backlog. Of the thirty items at 2.4.0, eight were
+real gaps that could be started from this checkout with a test; the rest
+need a Windows machine, an OpenAI account or a Zotero library, or are
+decisions recorded so nobody reopens them by accident. The eight are here,
+each still carrying its reason, in the order they are being done, and each
+leaves this list in the commit that finishes it.
 
-## Backlog
-
-### Known gaps, with a cost somebody will eventually pay
-
+- [ ] **The README's screenshots show the headers as they were.** The
+      preview header had a serif "Preview" label for a single document and
+      the `+` was a glyph; both are tabs and an icon now. `e2e/shots/`
+      regenerates them and is never run by a check. The tutorial's figures,
+      which were on this item too, were regenerated on 15 September 2026;
+      the README's are `e2e/shots/hero.spec.ts` and still wait.
+- [ ] **A request during a session's close is told to wait, not made to.**
+      `_close_session` holds the project id in `CLOSING` while the close
+      awaits, and `session_for` answers 503 for it, so the window in which
+      a second session could be built over a project still flushing is
+      shut on every path since the backlog run put the provider change
+      through the same guard. What remains is that the browser is told to
+      try again in a moment rather than waited for, since `session_for` is
+      synchronous and called from most of the routes; a moment is all the
+      wait ever is.
+- [ ] **Split the composer's four controls out of the entry chunk.**
+      `bench/thresholds.json` names this as the honest way back under the
+      bundle budget, and it is a refactor rather than an import change. The
+      permission card is the wrong candidate for the same treatment: a session
+      with an agent in it always sees cards.
+- [ ] **The project list has no arrow keys.** Tab reaches every row and
+      the filter's Enter opens the first match, which covers the keyboard
+      case a long list actually has. Left because arrow keys want a roving
+      tabindex across rows whose buttons are also in the tab order, and
+      that is a design for the file tree's idiom, not an evening.
 - [ ] **A row does not say the project is open in another window.**
       `GET /api/projects` answers `open`, the ids with a live session, and
       the list ignores it. Left because on a one-writer install the open
@@ -41,12 +63,26 @@ backlog below.
       would sit on the top row nearly every time and mean little; it earns
       its place once two windows on two projects is common enough to
       design for.
+- [ ] **A folder cannot be duplicated.** Copying a tree has its own failure
+      modes and deserves its own decision; the route refuses it and neither
+      menu offers it. Duplicate for a file is on the tab strip and in the
+      tree since the backlog run.
+- [ ] **An outside edit made while the server is running is not a
+      version.** The watcher folds a `git pull` or another editor's save
+      into the document through `ingest`, and nothing records what the
+      file held before or after; only the projection's own writes and,
+      since the projection record, edits made while the server was stopped
+      are. Left because a pull touching forty files would write forty
+      versions in one second and the timeline has no way yet to fold a
+      burst like that into one entry.
+- [ ] **The bug report has no Windows event log section.** `server.err.log`
+      covers a server that started; a launcher that never got that far
+      leaves its trace in the task's history, which `Get-WinEvent` can read.
+      Waits for a Windows reporter whose report comes back empty.
 
-- [ ] **The project list has no arrow keys.** Tab reaches every row and
-      the filter's Enter opens the first match, which covers the keyboard
-      case a long list actually has. Left because arrow keys want a roving
-      tabindex across rows whose buttons are also in the tab order, and
-      that is a design for the file tree's idiom, not an evening.
+## Backlog
+
+### Known gaps, with a cost somebody will eventually pay
 
 - [ ] **A Windows install's server exited silently after an update's
       restart.** Seen on the laptop during the cross-machine check for
@@ -60,16 +96,6 @@ backlog below.
       restarted server alone overnight on that machine with its window
       untouched, and if it is still up, to have the shortcut run the
       server without a console window at all.
-
-- [ ] **An outside edit made while the server is running is not a
-      version.** The watcher folds a `git pull` or another editor's save
-      into the document through `ingest`, and nothing records what the
-      file held before or after; only the projection's own writes and,
-      since the projection record, edits made while the server was stopped
-      are. Left because a pull touching forty files would write forty
-      versions in one second and the timeline has no way yet to fold a
-      burst like that into one entry.
-
 - [ ] **A script never runs on its own.** Not on save and not after the
       agent edits it; the pane says the agent changed it and offers Run
       again. The agent's runs pass the permission fence with the script as
@@ -102,15 +128,9 @@ backlog below.
       in isolation, and not in five consecutive runs of the spec with
       retries off during the backlog run; if it recurs, trace it before
       widening the timeout.
-
-- [ ] **The bug report has no Windows event log section.** `server.err.log`
-      covers a server that started; a launcher that never got that far
-      leaves its trace in the task's history, which `Get-WinEvent` can read.
-      Waits for a Windows reporter whose report comes back empty.
 - [ ] **The issue form's `where` field is an input rather than a dropdown**
       because GitHub does not prefill dropdowns from a URL. If that changes,
       a dropdown for the platform would make the field sortable.
-
 - [ ] **The scheduled lane runs with `--tex=none`.** The TinyTeX shape has
       been dispatched by hand on all three runners and is green, with
       `verify_install.py --tex tinytex` checking pdflatex, the five extras
@@ -124,17 +144,6 @@ backlog below.
       the scheduled task and the per-push Windows job runs its command-line
       fallback for real under both PowerShells; the middle way back, the
       Startup shortcut on a non-admin account, has run nowhere.
-
-- [ ] **A request during a session's close is told to wait, not made to.**
-      `_close_session` holds the project id in `CLOSING` while the close
-      awaits, and `session_for` answers 503 for it, so the window in which
-      a second session could be built over a project still flushing is
-      shut on every path since the backlog run put the provider change
-      through the same guard. What remains is that the browser is told to
-      try again in a moment rather than waited for, since `session_for` is
-      synchronous and called from most of the routes; a moment is all the
-      wait ever is.
-
 - [ ] **One small latch left standing on purpose, from the projects screen
       sweep.** `PasswordNudge`'s persisted dismissal has no interface to undo
       it, which is deliberate and argued in that file's own header, with the
@@ -172,18 +181,8 @@ backlog below.
       a screenshot from a Windows machine at 125 percent is what would close
       this.
 
-- [ ] **A folder cannot be duplicated.** Copying a tree has its own failure
-      modes and deserves its own decision; the route refuses it and neither
-      menu offers it. Duplicate for a file is on the tab strip and in the
-      tree since the backlog run.
-
 ### Deliberately not done, and worth revisiting only if something changes
 
-- [ ] **Split the composer's four controls out of the entry chunk.**
-      `bench/thresholds.json` names this as the honest way back under the
-      bundle budget, and it is a refactor rather than an import change. The
-      permission card is the wrong candidate for the same treatment: a session
-      with an agent in it always sees cards.
 - [ ] **The project tree is walked twice per open.** Three milliseconds of the
       ninety-five, so the plumbing to pass one walk into the other costs more
       than it buys. Revisit if the walk gets more expensive.
@@ -200,12 +199,6 @@ backlog below.
       unique across their folders, and `main.pdf` is what every Makefile
       pointed at a project expects to find. Revisit if somebody reports the
       notice rather than renaming.
-- [ ] **The README's screenshots show the headers as they were.** The
-      preview header had a serif "Preview" label for a single document and
-      the `+` was a glyph; both are tabs and an icon now. `e2e/shots/`
-      regenerates them and is never run by a check. The tutorial's figures,
-      which were on this item too, were regenerated on 15 September 2026;
-      the README's are `e2e/shots/hero.spec.ts` and still wait.
 - [ ] **Another window's removal of a preview closes no tabs here.**
       `previews_changed` from elsewhere moves the strip and nothing else,
       by design: the strip is shared and the tabs are each window's own.
@@ -225,7 +218,6 @@ backlog below.
       rule, met while testing column selection. Nobody presses that fast;
       recorded so the next person to see the test's wait knows why it is
       there.
-
 - [ ] **Building a session walks the project on the event loop.**
       `session_for` is synchronous, and constructing a `ProjectSession`
       calls `collab.adopt()`, which walks the whole tree. Measured at about
@@ -237,7 +229,6 @@ backlog below.
       a pre-walked listing through `session_for` into `CollabStore.adopt`,
       which is a change to a function called from about fifty routes, and
       it is not worth 17 ms without somebody deciding it is.
-
 - [ ] **A collaborator's settled edit records its version from inside the
       flush.** `CollabStore._write` calls `session.record_version`, which is
       a sha256 and a zlib compression, on the event loop, once per settled
