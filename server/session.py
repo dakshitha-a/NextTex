@@ -57,6 +57,11 @@ COMPILE_DEBOUNCE = 1.6
 # writer is still typing it is the most irritating thing a preview can do.
 UNSETTLED_DEBOUNCE = 4.0
 
+# How long after a version is written before the browser tabs are told.
+# A tick of the watcher records a `git pull`'s forty files one after
+# another, and the history panel wants one event for the lot.
+HISTORY_EVENT_DELAY = 0.3
+
 # And longer still for a document nobody is looking at.  A background
 # preview does not need to join every typing pause; it needs to be right by
 # the time somebody switches to it.
@@ -283,6 +288,16 @@ class ProjectSession:
         )
         #: The pending re-scan of the document graph, see `_after_publish`.
         self._rescan: asyncio.TimerHandle | None = None
+        #: The loop this session lives on, so a version recorded on a
+        #: worker thread can reach the event stream; None for a session a
+        #: test builds with no loop running, which has no stream to reach.
+        try:
+            self._loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
+        self._history_nudge: asyncio.TimerHandle | None = None
+        self._history_pending: set[str] = set()
+        self.history.listen(self._history_changed)
 
         # One build at a time across the project, the document on screen
         # first -- see BuildQueue.
@@ -1101,6 +1116,56 @@ class ProjectSession:
                 state.compiler.note_edit(path, text, previous)
 
     # -- version history ---------------------------------------------------
+    def _history_changed(self, key: str) -> None:
+        """A file's log gained a version; tell the tabs, a moment later.
+
+        Hung off the history's own hook rather than `record_version`, for
+        the reasons `PeerNetwork._teach_history` gives: the trash records
+        straight onto the history, and a collaborator's lines absorbed
+        through sync are versions this install's panel should show.  The
+        panel used to learn of a version only from the next build, so a
+        `.md` typed into showed nothing new until it was reopened.
+
+        Recording runs on worker threads, so this hops to the loop first;
+        and it is debounced, because an editing burst is one version and a
+        `git pull` is forty files in one tick: one event naming every path,
+        not one per file.
+        """
+        loop = self._loop
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+            self._loop = loop
+        if loop.is_closed():
+            return
+        try:
+            loop.call_soon_threadsafe(self._nudge_history, key)
+        except RuntimeError:
+            pass
+
+    def _nudge_history(self, key: str) -> None:
+        self._history_pending.add(key)
+        if self._history_nudge is not None:
+            self._history_nudge.cancel()
+        self._history_nudge = asyncio.get_running_loop().call_later(
+            HISTORY_EVENT_DELAY, self._say_history_changed,
+        )
+
+    def _say_history_changed(self) -> None:
+        self._history_nudge = None
+        keys, self._history_pending = self._history_pending, set()
+        paths = sorted(
+            path for path in (self.history.path_of(key) for key in keys) if path
+        )
+        if not paths or self.closing:
+            return
+        spawn(
+            self.events.publish({"type": "history_changed", "paths": paths}),
+            "announcing new versions",
+        )
+
     def _agent_context(self) -> str:
         parts = [self.context.prompt_section(), self.library.prompt_section()]
         return "\n\n".join(part for part in parts if part)

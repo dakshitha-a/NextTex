@@ -1430,7 +1430,7 @@ class PeerNetwork:
         if history is None:
             return
         history.me = self.peer_id if self.share.shared else ""
-        history.on_change = self.note_history
+        history.listen(self.note_history)
 
     def note_history(self, key: str) -> None:
         """A file has a past it did not have a moment ago; say so.

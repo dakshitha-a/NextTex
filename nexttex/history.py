@@ -295,13 +295,17 @@ class History:
         #: project's log holds both, the empty ones from before it was
         #: shared and the stamped ones from after.
         self.me: str = ""
-        #: Called with a file's path when its log gains something.  Hung
+        #: Called with a file's key when its log gains something.  Hung
         #: here rather than on the session because the trash records
         #: straight onto this object, and because taking somebody else's
         #: lines has to say so as much as writing our own does -- a relaying
         #: install that stayed quiet would leave a file that only reaches
-        #: the project through it syncing on reconnection alone.
-        self.on_change: Callable[[str], None] | None = None
+        #: the project through it syncing on reconnection alone.  A list,
+        #: because two things listen: the peers, who tell the other
+        #: installs, and the session, which tells the browser tabs.  It was
+        #: one slot, and the second listener would have silently replaced
+        #: the first.
+        self.listeners: list[Callable[[str], None]] = []
 
     # -- keys --------------------------------------------------------------
     @property
@@ -356,16 +360,21 @@ class History:
         if records is not None:
             self.migrate(records)
 
+    def listen(self, listener: Callable[[str], None]) -> None:
+        """Be told a file's key whenever its log gains something.  Once:
+        the peers teach this history again on every share, and a listener
+        added twice would say everything twice."""
+        if listener not in self.listeners:
+            self.listeners.append(listener)
+
     def _changed(self, key: str) -> None:
-        listener = self.on_change
-        if listener is None:
-            return
-        try:
-            listener(key)
-        except Exception:
-            # Failing to tell anybody must never cost the version that was
-            # just written, which is on disk by the time this runs.
-            pass
+        for listener in list(self.listeners):
+            try:
+                listener(key)
+            except Exception:
+                # Failing to tell anybody must never cost the version that
+                # was just written, which is on disk by the time this runs.
+                pass
 
     def author_of(self, version: Version) -> str:
         """Whose sequence this version belongs to."""

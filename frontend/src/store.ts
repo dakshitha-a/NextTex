@@ -364,6 +364,11 @@ export type State = {
    *  is how "I could not ask" becomes "there is nothing", which for the
    *  git panel means offering to set up a backup the project already has. */
   historyFailed: boolean;
+  /** The files whose history last gained a version, from the server's
+   *  `history_changed`, with a stamp so the same files twice still
+   *  count.  The panel refreshes on it rather than on the next build,
+   *  which for a `.md` never comes. */
+  historyChanged: { paths: string[]; at: number } | null;
   trashFailed: boolean;
   gitFailed: boolean;
   /** The share, as the server sees it: who is a member and whose link is
@@ -435,6 +440,7 @@ const state: State = {
   connection: "connecting",
   peerId: "",
   historyFailed: false,
+  historyChanged: null,
   trashFailed: false,
   gitFailed: false,
   share: null,
@@ -1120,6 +1126,16 @@ function receive(event: any) {
       if (Array.isArray(event.gone) && event.gone.length) {
         handlers.onFilesGone?.(event.gone.map(String));
       }
+      break;
+    case "history_changed":
+      // A file's log gained a version: ours, a collaborator's absorbed
+      // through sync, or the trash's.  The panel reads it if it is open.
+      set({
+        historyChanged: {
+          paths: Array.isArray(event.paths) ? event.paths.map(String) : [],
+          at: Date.now(),
+        },
+      });
       break;
     case "conversation_reset":
       // Another tab started a new conversation.  This one is holding a

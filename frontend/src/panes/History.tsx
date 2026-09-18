@@ -78,6 +78,21 @@ export default function History({
     if (projectId && activePath) refreshHistory(projectId, activePath);
   }, [projectId, activePath, compile]);
 
+  // And whenever the server says a file's log gained a version.  A build
+  // was the only trigger, which is right for a `.tex` and nothing else:
+  // a `.md` typed into never builds, so its versions were recorded and
+  // the panel went on showing the list from when it opened.  The size
+  // and the timeline follow the same event, since both can have grown.
+  const changed = useStore((s) => s.historyChanged);
+  const [grown, setGrown] = useState(0);
+  useEffect(() => {
+    if (!changed || !projectId) return;
+    if (activePath && changed.paths.includes(activePath)) {
+      refreshHistory(projectId, activePath);
+    }
+    setGrown(changed.at);
+  }, [changed]);
+
   // What the whole history costs on disk. Read with the panel and again
   // after a build, which is when it can have grown.
   useEffect(() => {
@@ -90,7 +105,7 @@ export default function History({
     return () => {
       dropped = true;
     };
-  }, [projectId, compile]);
+  }, [projectId, compile, grown]);
 
   // Read on the way into the whole-project view and again after a build,
   // which is the same trigger the per-file list uses: a build is the point
@@ -111,7 +126,7 @@ export default function History({
     return () => {
       dropped = true;
     };
-  }, [scope, projectId, compile]);
+  }, [scope, projectId, compile, grown]);
 
   /** What the list is showing. Both shapes are versions; the project one
    *  carries the file each belongs to, which is the only difference. */

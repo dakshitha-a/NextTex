@@ -7761,3 +7761,18 @@ lines with the second drawn outside the bar. It wraps now, and each
 control keeps its rule with it so a second row starts with a word rather
 than a stray line; the spec measures every button whole inside the
 banner at 1100 px.
+
+### The list follows the versions as they are recorded
+
+The panel read its list when it opened and again after every build,
+which is the right trigger for a `.tex` and the wrong one for everything
+else: a `.md` typed into never builds, so its versions were recorded and
+the open panel went on showing the list from when it opened, and a
+collaborator's version arriving through history sync waited for the next
+build the same way. The server says `history_changed` now, from the
+history's own hook, the one the peers already listen on, naming every
+file whose log grew a moment after the last of them; the panel refreshes
+the file's list when the file on screen is named, and the size and the
+project timeline on any. The mechanics are in `docs/architecture.md`.
+`e2e/specs/history-panel.spec.ts` opens the panel on a `.md`, types, and
+finds a new row while the event counter shows that no build ran.

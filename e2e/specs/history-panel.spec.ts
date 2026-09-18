@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { landed } from "../typing";
+import { watchEvents } from "../events";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -182,6 +183,35 @@ test("a long file name in the header truncates and keeps its full path as a titl
   const close = await boxOf(tab, '[aria-label="Close the history"]');
   const nameBox = (await name.boundingBox())!;
   expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(close.x + 1);
+});
+
+test("a Markdown file's versions reach the open panel without a build", async ({
+  tab, app, project, page,
+}) => {
+  // The list refreshed after a build and at no other time.  A `.md` never
+  // builds, so typing into one recorded versions the open panel never
+  // showed.  The server says `history_changed` now, and the panel reads
+  // it; the event counter shows that no build was what did it.
+  writeFileSync(join(project.root, "notes.md"), "# Notes\n\nThe first line.\n");
+  await page.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
+  await tab.locator('[role="tree"] [data-path="notes.md"]').click();
+  await expect(tab.getByTestId("markdown-view")).toBeVisible({ timeout: 15_000 });
+  const events = await watchEvents(app, project.id);
+  await tab.locator('button[title="What this file used to say"]').click();
+  await expect(tab.getByTestId("history-panel")).toBeVisible();
+  const rows = tab.getByTestId("version");
+  const before = await rows.count();
+
+  // Two edits from this one window inside the coalescing window are one
+  // version, so one edit is what this asks for: a row that was not there.
+  await tab.locator(".cm-content").click({ position: { x: 30, y: 20 } });
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type("\nA second line.\n");
+  await landed(app, project, "A second line.", "notes.md");
+  await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThan(before);
+  expect(events.count("compile_start")).toBe(0);
+  events.stop();
 });
 
 test("the viewing banner wraps rather than tearing its buttons in a narrow pane", async ({

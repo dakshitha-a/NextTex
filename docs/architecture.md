@@ -268,6 +268,8 @@ Deleting is not a delete. An entry is written to the trash and the file is moved
 
 Blobs nothing refers to are collected in four places: when the trash is emptied, when one trash entry is purged, when a file's history is cleared, and on a timer for every project that is open. That last one is not an optimisation. A shared project is deliberately never evicted, eviction used to be the only routine sweep, and so a shared project kept every thinned version's contents for ever unless somebody emptied the trash by hand.
 
+**The browser hears about versions.** `History.listen` takes any number of listeners told a file's key when its log gains something; the peers were the only one, and the slot held one, so the session's listener would have replaced theirs. The session's publishes `history_changed`, naming every path whose log grew, `HISTORY_EVENT_DELAY` after the last of them, so a `git pull`'s forty files are one event; recording runs on worker threads, so the listener hops to the loop with `call_soon_threadsafe` first, and a session a test builds with no loop running skips it. The history panel refreshes its list on that event when the file on screen is named, and its size and the project timeline on any. Before it, the panel refreshed only after a build, which a `.md` never has. `tests/api/test_history_events.py` saves a `.md` through the file route with a subscriber on the stream and finds the event with no `compile_start`, and three files saved in one moment as one event.
+
 ## Where state lives
 
 Inside the project, in `.nexttex/`:
@@ -306,7 +308,7 @@ The same text is served at `POST /api/report`, where the browser adds what it sa
 
 React with a single mutable store read through `useSyncExternalStore`. A context and reducer tree would re-render the editor on every streamed token; this lets a component subscribe to exactly the slice it draws.
 
-Three channels run at once. Ordinary **HTTP** for everything transactional. A **server-sent event stream** per project carrying `compile_start`, `compile_done`, `files_changed`, `trash_changed` and a dozen more. A **WebSocket per open document** carrying the CRDT sync and awareness traffic.
+Three channels run at once. Ordinary **HTTP** for everything transactional. A **server-sent event stream** per project carrying `compile_start`, `compile_done`, `files_changed`, `trash_changed`, `history_changed` and a dozen more. A **WebSocket per open document** carrying the CRDT sync and awareness traffic.
 
 The editor is CodeMirror 6; the preview is pdf.js; maths hovers are KaTeX. The PDF pane, KaTeX, the collaboration client, the spell checker's word list, the tutorial, the upload card, the paper chooser, the file viewer, the version panel and the settings sheet are all fetched when they are wanted rather than before anything draws. Each of those is behind a click, and `bundle.initial_kb` counts only the entry script, so the test of whether something belongs out here is whether a session that never opens it should pay for it.
 
