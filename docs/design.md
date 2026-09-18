@@ -7226,16 +7226,16 @@ field it was written for.
 ### An audit of every menu, popup and floating panel, kept as a spec
 
 The audit the writer asked for is `e2e/specs/menus-contrast.spec.ts`, and
-it stays in the browser tier rather than being a report: twenty-six
+it stays in the browser tier rather than being a report: twenty-seven
 surfaces, from the tab menus and the tree's row menu with its
 history-deletion question open, through Move to…, the papers chooser, the
 upload card with a name already taken, the History panel, the rename and
 new-file boxes, both searches, the find panels, the completion list, the
 selection verbs, the spelling menu, the page footer with its number being
-typed, the composer's model and mode menus, the settings sheet and the
-share panel, each opened the way a person opens it and measured against
-the colour actually painted behind its text, in four shell and page
-pairings. `docs/testing.md` says how the measurement works. Beyond the
+typed, the composer's model and mode menus, the settings sheet, the
+share panel and the Markdown preview, each opened the way a person opens
+it and measured against the colour actually painted behind its text, in
+four shell and page pairings. `docs/testing.md` says how the measurement works. Beyond the
 find field and the completion list above, everything it reached was at
 5.4:1 or better, which is the answer the writer wanted and the reason the
 spec exists: the next surface that draws ink the colour of its ground
@@ -7263,7 +7263,9 @@ the frame is painted, and again when the question inside the tree's menu
 opens or closes. The tree's menu is also capped at the window's height
 and scrolls past it, for the window shorter than the menu, which the
 placement alone cannot help. Both fixed menus, the tree's and the tab
-strip's, go through it; the download menu already had a cap and a scroll.
+strip's, go through it; the download menu already had a cap and a scroll,
+and the hidden-tabs list has one now, since a strip with forty files open
+lists most of them there.
 `e2e/specs/menus-on-screen.spec.ts` opens the last of forty rows' menu in
 a 600 px window and asserts it ends inside, with and without the
 question open, and opens one in a 260 px window and scrolls to its last

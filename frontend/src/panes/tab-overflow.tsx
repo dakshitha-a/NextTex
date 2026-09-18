@@ -181,7 +181,11 @@ export function HiddenTabs({
           // Fixed, not absolute: the strip is `overflow-x-auto`, and an
           // absolute menu would be clipped by it, which is the bug the
           // tab menu and the tree's menu both hit before this one.
-          className="nx-furniture nx-arrive fixed z-40 w-[220px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
+          // Capped at the window's height and scrolling past it: a strip
+          // with forty files open lists most of them here, and a list
+          // that ran off the bottom hid exactly the tabs it exists to
+          // reach.
+          className="nx-furniture nx-arrive fixed z-40 max-h-[calc(100vh-16px)] w-[220px] overflow-y-auto rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
           style={fixedBelow(button.current)}
           onKeyDown={(event) => {
             if (walkMenu(event, () => setOpen(false))) {
