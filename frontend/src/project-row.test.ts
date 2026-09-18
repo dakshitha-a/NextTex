@@ -64,3 +64,19 @@ describe("the arrow keys on the list", () => {
     expect(rowAfterKey(order, "zz", "ArrowDown")).toBe("a");
   });
 });
+
+describe("the marks after a name", () => {
+  it("say nothing for an ordinary project", () => {
+    expect(rowMarks({ shared: false, removed: false })).toEqual([]);
+  });
+
+  it("put open-elsewhere first, ahead of the share", () => {
+    expect(rowMarks({ shared: true, removed: false, open: true })).toEqual([
+      "open in another window",
+      "shared",
+    ]);
+    expect(rowMarks({ shared: false, removed: false, open: true })).toEqual([
+      "open in another window",
+    ]);
+  });
+});

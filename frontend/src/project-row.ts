@@ -24,13 +24,22 @@ export function openedWords(lastOpened: number, now: number = Date.now()): strin
 }
 
 /** The small marks after the name.  Nothing for the ordinary case: a mark
- *  on every row is a mark on none. */
+ *  on every row is a mark on none.
+ *
+ *  `open` is whether a browser is holding the project's event stream at
+ *  the moment the list was fetched: another window, or this one before
+ *  it came back here, which the server stops counting the moment the
+ *  window leaves.  It comes first because it is the mark that changes
+ *  what pressing the row does to somebody else. */
 export function rowMarks(project: {
   shared: boolean;
   removed: boolean;
+  open?: boolean;
 }): string[] {
-  if (!project.shared) return [];
-  return [project.removed ? "removed from the share" : "shared"];
+  const marks: string[] = [];
+  if (project.open) marks.push("open in another window");
+  if (project.shared) marks.push(project.removed ? "removed from the share" : "shared");
+  return marks;
 }
 
 /** Where an arrow key takes the focus in the list: the id of the row to

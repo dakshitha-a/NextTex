@@ -51,6 +51,8 @@ export default function Projects({
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   /** Where home is on the machine running NextTex, for the rows' paths. */
   const [home, setHome] = useState("");
+  /** Ids a browser is holding open, as of the last fetch of the list. */
+  const [watched, setWatched] = useState<string[]>([]);
   const [guide, setGuide] = useState(false);
   /** What is typed into the filter a long list gets. */
   const [query, setQuery] = useState("");
@@ -117,6 +119,7 @@ export default function Projects({
       const result = await api.projects();
       setProjects(result.projects);
       setHome(result.home ?? "");
+      setWatched(result.watched ?? []);
       // Cleared on success rather than on the way in, so a message does not
       // flicker off and straight back on. This screen holds its error as one
       // string written from five places, and only two of them ever cleared
@@ -557,7 +560,7 @@ export default function Projects({
                   </span>
                   {/* Only a shared project wears a mark: a mark on every
                       row is a mark on none. */}
-                  {rowMarks(project).map((mark) => (
+                  {rowMarks({ ...project, open: watched.includes(project.id) }).map((mark) => (
                     <span key={mark} className="t-micro shrink-0 text-ink-3">
                       {mark}
                     </span>

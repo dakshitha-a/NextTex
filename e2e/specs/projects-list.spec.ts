@@ -243,3 +243,35 @@ test("leaving a project ends its event stream, so the list stops calling it open
   await expect.poll(watched, { timeout: 10_000 }).toEqual([]);
   await other.close();
 });
+
+test("a row says the project is open in another window, and only while it is", async ({
+  app, project, browser, page,
+}) => {
+  // Two windows: A opens the project, B reads the list.
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await page.getByText(project.root.split("/").pop()!, { exact: true }).click();
+  await page.locator(".cm-editor").waitFor({ timeout: 45_000 });
+
+  const other = await browser.newContext();
+  const list = await other.newPage();
+  await list.goto(`${app.base}/?token=${app.token}`);
+  await list.getByText("Projects", { exact: false }).first().waitFor();
+  const row = list.getByTestId("project-row").first();
+  await expect(row).toContainText("open in another window");
+
+  // A goes back to the list, its stream ends (the test above), and B's
+  // next look at the list finds the mark gone. The mark is as of the
+  // last fetch, so B has to look again: the list holds no stream.
+  await page.getByTestId("switch-project").click();
+  await page.getByText("Projects", { exact: true }).waitFor();
+  await expect
+    .poll(async () => (await (await list.request.get(`${app.base}/api/projects`)).json()).watched, {
+      timeout: 10_000,
+    })
+    .toEqual([]);
+  await list.reload();
+  await list.getByText("Projects", { exact: false }).first().waitFor();
+  await expect(list.getByTestId("project-row").first()).not.toContainText("open in another window");
+  await other.close();
+});

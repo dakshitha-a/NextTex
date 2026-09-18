@@ -31,13 +31,6 @@ decisions recorded so nobody reopens them by accident. The eight are here,
 each still carrying its reason, in the order they are being done, and each
 leaves this list in the commit that finishes it.
 
-- [ ] **A row does not say the project is open in another window.**
-      `GET /api/projects` answers `open`, the ids with a live session, and
-      the list ignores it. Left because on a one-writer install the open
-      project is almost always the one just left with Back, so a mark
-      would sit on the top row nearly every time and mean little; it earns
-      its place once two windows on two projects is common enough to
-      design for.
 - [ ] **A folder cannot be duplicated.** Copying a tree has its own failure
       modes and deserves its own decision; the route refuses it and neither
       menu offers it. Duplicate for a file is on the tab strip and in the

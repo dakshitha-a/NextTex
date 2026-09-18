@@ -3456,6 +3456,16 @@ taken out of it; an ordinary project says nothing, because a mark on every
 row is a mark on none. The words are decided in
 `frontend/src/project-row.ts`, which is tested without a browser.
 
+A third mark, since the backlog run: "open in another window", first
+among them, on a row whose project a browser is holding the event stream
+of. The tracker had left this undone because the open project was nearly
+always the one just left with Back, so the mark would have sat on the top
+row and meant nothing; that turned out to be a bug rather than a fact,
+since going back to the list never closed the stream, and with that fixed
+the mark says what it says. It is as of the moment the list was fetched,
+because the list holds no stream of its own, and a reload is how it is
+brought up to date.
+
 Six projects is a long list, one number in `frontend/src/project-filter.ts`
 and one rule. Above the rows there is now a heading, `Projects`, with the
 count, which is also the word every browser spec waits for on this screen
