@@ -66,6 +66,12 @@ class Settings:
     # which is what makes it the right place for an API key too.
     provider: str = "claude"
     openai_key: str = ""
+    # Where the OpenAI provider sends its requests.  Empty is OpenAI
+    # itself; a local server that speaks the same protocol, Ollama at
+    # http://localhost:11434/v1, LM Studio at http://localhost:1234/v1,
+    # vLLM, is a URL here and no key, and with it the sentence "nothing
+    # leaves this machine" holds with an agent running.
+    openai_base_url: str = ""
     # How a browser gets in.  The token above is still the recovery path and
     # the way a script authenticates; these are what a person uses.  See
     # nexttex/auth.py for why they are separate.

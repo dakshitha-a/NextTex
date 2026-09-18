@@ -1078,8 +1078,8 @@ const api = {
       plan?: string;
       reason?: string;
     }>("/agent/status"),
-  chooseProvider: (provider: string, key = "", model = "") =>
-    request<any>("/agent/provider", json({ provider, key, model })),
+  chooseProvider: (provider: string, key = "", model = "", baseUrl?: string) =>
+    request<any>("/agent/provider", json({ provider, key, model, ...(baseUrl === undefined ? {} : { baseUrl }) })),
 
   claudeStatus: () =>
     request<{

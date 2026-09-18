@@ -220,6 +220,7 @@ class ProjectSession:
         model: str | None = None,
         provider: str = "claude",
         api_key: str = "",
+        base_url: str = "",
         settings: Callable[[], Settings] | None = None,
     ):
         self.project = project
@@ -348,6 +349,7 @@ class ProjectSession:
             show_page=self.show_page,
             model=model or None,
             api_key=api_key,
+            base_url=base_url,
         )
 
         self._editor_state: dict = {}

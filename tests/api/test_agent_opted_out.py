@@ -166,6 +166,38 @@ def test_switching_to_no_agent_forgets_the_key(client):
     assert server_main.SETTINGS.openai_key == ""
 
 
+def test_a_local_server_needs_a_base_url_and_a_model_and_no_key(client):
+    """The OpenAI provider pointed at Ollama or LM Studio: the status is
+    ready with no key, since the server wants none, and the settings hold
+    the URL; switching to no agent forgets it along with the key."""
+    refused = client.post("/api/agent/provider", json={
+        "provider": "openai", "baseUrl": "http://localhost:11434/v1", "model": "",
+    })
+    assert refused.status_code == 400 and "model" in refused.json()["detail"]
+    refused = client.post("/api/agent/provider", json={
+        "provider": "openai", "baseUrl": "localhost:11434", "model": "llama3.1",
+    })
+    assert refused.status_code == 400 and "http" in refused.json()["detail"]
+
+    answer = client.post("/api/agent/provider", json={
+        "provider": "openai", "baseUrl": "http://localhost:11434/v1", "model": "llama3.1",
+    })
+    assert answer.status_code == 200, answer.text
+    assert server_main.SETTINGS.openai_base_url == "http://localhost:11434/v1"
+    assert server_main.SETTINGS.openai_key == ""
+    status = client.get("/api/agent/status").json()
+    assert status["ready"] is True
+    assert status["baseUrl"] == "http://localhost:11434/v1"
+    assert status["model"] == "llama3.1"
+
+    # Back to OpenAI itself: an empty base URL, and now a key is what
+    # makes it ready.
+    client.post("/api/agent/provider", json={"provider": "openai", "baseUrl": ""})
+    assert client.get("/api/agent/status").json()["ready"] is False
+    client.post("/api/agent/provider", json={"provider": "none"})
+    assert server_main.SETTINGS.openai_base_url == ""
+
+
 def test_switching_back_to_claude_after_opting_out_works(no_agent):
     response = no_agent.post("/api/agent/provider", json={"provider": "claude"})
     assert response.status_code == 200

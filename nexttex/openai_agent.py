@@ -45,7 +45,23 @@ from .references import appended, entry_for
 from .lines import first_changed_line
 from .writing import PROSE
 
-API_URL = "https://api.openai.com/v1/chat/completions"
+#: OpenAI itself.  A base URL in the settings replaces the host and the
+#: `/v1`; the path is the one every server that speaks this protocol
+#: serves, which is what makes a local model a URL rather than a provider.
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
+API_URL = f"{DEFAULT_BASE_URL}/chat/completions"
+
+
+def endpoint(base_url: str) -> str:
+    """The chat completions URL for a base URL, or for OpenAI when it is
+    empty.  A trailing slash or a `/chat/completions` already on the end
+    is tolerated, since both are what people paste."""
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        return API_URL
+    if base.endswith("/chat/completions"):
+        return base
+    return f"{base}/chat/completions"
 
 # A model that has to be named somewhere.  Any string the account can use
 # is accepted in settings; this is only what a fresh install starts with.
@@ -293,6 +309,7 @@ class OpenAIAgent:
         run_script: Callable[[Path], Any] | None = None,
         model: str | None = None,
         api_key: str = "",
+        base_url: str = "",
     ):
         self.root = project_root.resolve()
         self.state_dir = state_dir
@@ -315,6 +332,7 @@ class OpenAIAgent:
         self.run_script = run_script
         self.model = model or DEFAULT_MODEL
         self.api_key = api_key
+        self.base_url = base_url
 
         self._why = ""
         self._last_used = 0.0
@@ -461,7 +479,8 @@ class OpenAIAgent:
     async def ask(self, prompt: str, *, context: str = "") -> None:
         if self.busy:
             raise RuntimeError("a turn is already running")
-        if not self.api_key:
+        # A local server wants no key, so a base URL is enough to try.
+        if not self.api_key and not self.base_url:
             await self._emit({
                 "type": "error",
                 "message": "No OpenAI API key is set. Add one in the sign-in screen.",
@@ -606,12 +625,14 @@ class OpenAIAgent:
         reference lookups.  A second HTTP client for one endpoint is weight
         the install does not need to carry.
         """
+        # No authorization header without a key: a local server wants
+        # none, and some refuse a bearer token they did not issue.
+        headers = {"content-type": "application/json"}
+        if self.api_key:
+            headers["authorization"] = f"Bearer {self.api_key}"
         response = requests.post(
-            API_URL,
-            headers={
-                "authorization": f"Bearer {self.api_key}",
-                "content-type": "application/json",
-            },
+            endpoint(self.base_url),
+            headers=headers,
             json={
                 "model": self.model,
                 "messages": [{"role": "system", "content": self._system()}, *messages],

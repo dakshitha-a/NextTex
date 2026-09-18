@@ -104,9 +104,12 @@ close the tab. No database, no Docker, no nginx.
 
 **The agent**
 
-- **Choose Claude, OpenAI, or no agent at all.** The last is a real option,
-  not a degraded one, and the choice can be changed later in the settings
-  sheet rather than only when you first sign in.
+- **Choose Claude, OpenAI, a local model, or no agent at all.** The last is
+  a real option, not a degraded one, and the choice can be changed later in
+  the settings sheet rather than only when you first sign in. A local model
+  is the OpenAI choice with a base URL: Ollama, LM Studio, vLLM and most
+  local servers speak the same protocol, no key is needed, and nothing
+  leaves the machine.
 - **It edits the project and asks about everything else**, or approves
   everything if you turn that on, with the record staying honest either way.
 - **It cannot invent a citation.** Every reference comes from the publisher's
@@ -1060,7 +1063,8 @@ NextTex serves your own files from your own machine and ships its own
 typefaces, so the interface works on a host with no route to the internet.
 Six things go out, all of them things you asked for:
 
-1. What you send the agent, to Anthropic or OpenAI.
+1. What you send the agent, to Anthropic or OpenAI, unless the OpenAI
+   provider points at a local server, in which case it goes nowhere.
 2. Reference lookups, to Crossref, OpenAlex, Semantic Scholar, arXiv and
    `doi.org`.
 3. What the installer downloads, and only what the plan it printed said it

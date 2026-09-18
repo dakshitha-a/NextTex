@@ -37,8 +37,6 @@ The editor went up as 2.9.0.
 
 Papers, provider and window, for 2.10.0:
 
-- [ ] **Local models through the OpenAI provider.** A base URL in the
-      settings, with no key needed for a local server.
 - [ ] **The page in its own window.** The typeset page alone, live, for a
       second monitor.
 
@@ -179,11 +177,16 @@ this checkout does not have, or are decisions, are where they were.
       for real on this machine's TinyTeX and against the stand-in in the
       browser tier.
 
-- [ ] **The OpenAI provider has never spoken to OpenAI.** Everything above the
-      transport runs for real against a stub: the streaming parser, the tool
-      loop, the path fence, the edits, the usage accounting. Whether OpenAI
-      still returns these shapes is unproven, and there is no account here to
-      find out with.
+- [ ] **The OpenAI provider has never spoken to OpenAI, nor to a local
+      server.** Everything above the transport runs for real against a
+      stub: the streaming parser, the tool loop, the path fence, the
+      edits, the usage accounting. Whether OpenAI still returns these
+      shapes is unproven, and there is no account here to find out
+      with. The base URL for a local model, added by the roadmap run, is
+      the first real endpoint that provider could be exercised against
+      without an account: install Ollama, point the form at
+      `http://localhost:11434/v1` with a model it has pulled, and ask
+      for an edit; none of that has been done here either.
 - [ ] **Stop has not been pressed against the real CLI since the buffer
       fix.** The one-behind reply after Stop was diagnosed in a writing
       session's transcript and is reproduced by a stub with the SDK's

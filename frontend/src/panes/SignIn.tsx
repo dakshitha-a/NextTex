@@ -170,17 +170,25 @@ function OpenAIKey({
 }) {
   const [key, setKey] = useState("");
   const [model, setModel] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const save = async () => {
-    if (!key.trim()) {
+    // A local server wants no key and has no default model; OpenAI wants
+    // a key and has one.
+    const local = baseUrl.trim() !== "";
+    if (!local && !key.trim()) {
       setError("A key is needed.");
+      return;
+    }
+    if (local && !model.trim()) {
+      setError("A local server needs the model named, for example llama3.1.");
       return;
     }
     setBusy(true);
     try {
-      await api.chooseProvider("openai", key.trim(), model.trim());
+      await api.chooseProvider("openai", key.trim(), model.trim(), baseUrl.trim());
       onDone();
     } catch (problem: any) {
       setError(problem.message);
@@ -217,9 +225,27 @@ function OpenAIKey({
       />
       <input
         value={model}
-        placeholder="Model, or leave blank for the default"
+        placeholder={baseUrl.trim() ? "Model, which a local server needs named" : "Model, or leave blank for the default"}
+        data-testid="openai-model"
         className="t-code-sm mt-2 h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
         onChange={(event) => setModel(event.target.value)}
+        onKeyDown={(event) => event.key === "Enter" && void save()}
+      />
+      {/* Ollama, LM Studio, vLLM and most local servers speak this same
+          protocol, so a base URL is nearly the whole of running a model
+          on this machine, and with one the key above is optional. */}
+      <p className="t-meta mt-3 text-ink-2">
+        Or a local server that speaks the same protocol: Ollama is{" "}
+        <span className="font-mono">http://localhost:11434/v1</span>, LM Studio{" "}
+        <span className="font-mono">http://localhost:1234/v1</span>. With one, no key is
+        needed and nothing leaves this machine.
+      </p>
+      <input
+        value={baseUrl}
+        placeholder="Base URL, or leave blank for OpenAI"
+        data-testid="openai-base-url"
+        className="t-code-sm mt-2 h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+        onChange={(event) => setBaseUrl(event.target.value)}
         onKeyDown={(event) => event.key === "Enter" && void save()}
       />
       <div className="mt-3 flex gap-2">

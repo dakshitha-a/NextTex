@@ -137,8 +137,10 @@ def agent_for(provider: str, project_root: Path, state_dir: Path, **kwargs: Any)
     """
     from .scripted_agent import ScriptedAgent, scripted_name
 
-    # Only the OpenAI one takes a key; the others must not be handed one.
+    # Only the OpenAI one takes a key and a base URL; the others must not
+    # be handed either.
     api_key = kwargs.pop("api_key", "")
+    base_url = kwargs.pop("base_url", "")
 
     if scripted_name():
         return ScriptedAgent(project_root, state_dir, **kwargs)
@@ -146,7 +148,7 @@ def agent_for(provider: str, project_root: Path, state_dir: Path, **kwargs: Any)
     if provider == "openai":
         from .openai_agent import OpenAIAgent
 
-        return OpenAIAgent(project_root, state_dir, api_key=api_key, **kwargs)
+        return OpenAIAgent(project_root, state_dir, api_key=api_key, base_url=base_url, **kwargs)
 
     if provider == "none":
         return NoAgent()

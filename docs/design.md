@@ -7657,3 +7657,26 @@ go.
 row shape, the refusals and the 502; `e2e/specs/papers.spec.ts`
 intercepts both routes, searches from the box, reads the rows, adds one
 and finds its key beside it.
+
+### Local models through the OpenAI provider
+
+The OpenAI provider spoke to one host. Ollama, LM Studio, vLLM and most
+local servers speak the same protocol, so the sign-in form's OpenAI
+panel gains a *Base URL* field under the key and the model, with a
+sentence that names the two common ones, `http://localhost:11434/v1`
+and `http://localhost:1234/v1`, and says that with one no key is needed
+and nothing leaves this machine. The key is optional once a URL is
+typed; the model becomes required, and the form says so before it saves
+rather than letting the first turn fail, because a local server has no
+default model the way OpenAI does; an empty URL is OpenAI itself. The
+status route answers ready on a URL alone and carries the URL, and
+choosing no agent forgets it with the key. The README's sentence that
+nothing leaves the machine now holds with an agent running, and its
+list of what goes out says so.
+
+`tests/test_openai_local.py` posts to the endpoint the base URL makes,
+sends no bearer token without a key, and ends a turn whose stream has
+no usage chunk with the footer's fields intact; `tests/api/test_agent_opted_out.py`
+holds the route's refusals and the status; `e2e/specs/sign-in.spec.ts`
+fills the form with a URL and no key, is told the model is needed,
+names one, and finds the status ready.

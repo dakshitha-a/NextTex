@@ -109,6 +109,41 @@ test("an OpenAI key is asked for as a key, not dressed up as a sign-in", async (
   await expect(page.getByTestId("openai-key")).toHaveAttribute("type", "password");
 });
 
+test("a local server is the OpenAI choice with a base URL and no key", async ({
+  page,
+}) => {
+  /* Ollama, LM Studio and vLLM speak OpenAI's protocol, so a base URL is
+     nearly the whole of running a model on this machine.  Nothing here
+     reaches a model: the form saves the settings and the status says
+     ready, which is as far as a browser test can go without one. */
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByRole("button", { name: /With ChatGPT/ }).click();
+  await expect(page.getByText(/localhost:11434/)).toBeVisible();
+  await page.getByTestId("openai-base-url").fill("http://localhost:11434/v1");
+  // A local server has no default model, so the form says so before it
+  // saves rather than letting the first turn fail.
+  await page.getByRole("button", { name: "Save and start writing" }).click();
+  await expect(page.getByText(/needs the model named/)).toBeVisible();
+  await page.getByTestId("openai-model").fill("llama3.1");
+  await page.getByRole("button", { name: "Save and start writing" }).click();
+  await expect(page.getByText("How would you like to work?")).toHaveCount(0, { timeout: 20_000 });
+
+  const status = await fetch(`${app.base}/api/agent/status`, {
+    headers: { "x-nexttex-token": app.token },
+  }).then((r) => r.json());
+  expect(status).toMatchObject({
+    provider: "openai", ready: true, model: "llama3.1", keyTail: "",
+    baseUrl: "http://localhost:11434/v1",
+  });
+  // Back to no agent for the specs that follow, and the URL goes with
+  // the key.
+  await fetch(`${app.base}/api/agent/provider`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({ provider: "none" }),
+  });
+});
+
 test("signing in shows the link, takes the code, and lets the writer in", async ({
   page,
 }) => {

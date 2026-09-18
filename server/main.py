@@ -1988,6 +1988,7 @@ def _open_session(project: Project) -> ProjectSession:
         model=SETTINGS.model,
         provider=SETTINGS.provider,
         api_key=SETTINGS.openai_key,
+        base_url=SETTINGS.openai_base_url,
         # The live object rather than a fresh read, so a permission given
         # through a route reaches the next build without a restart.
         settings=lambda: SETTINGS,
@@ -5630,10 +5631,12 @@ async def agent_status():
     if provider == "openai":
         return {
             "provider": "openai",
-            "ready": bool(SETTINGS.openai_key),
+            # A local server wants no key, so a base URL is enough.
+            "ready": bool(SETTINGS.openai_key or SETTINGS.openai_base_url),
             "model": SETTINGS.model or OPENAI_DEFAULT_MODEL,
             # Never the key itself.  Enough to show that one is set.
             "keyTail": SETTINGS.openai_key[-4:] if SETTINGS.openai_key else "",
+            "baseUrl": SETTINGS.openai_base_url,
         }
     status = claude_auth.status()
     return {"provider": "claude", "ready": bool(status.get("loggedIn")), **status}
@@ -5641,11 +5644,24 @@ async def agent_status():
 
 @app.post("/api/agent/provider")
 async def agent_provider(
-    provider: str = Body(...), key: str = Body(""), model: str = Body("")
+    provider: str = Body(...), key: str = Body(""), model: str = Body(""),
+    baseUrl: str | None = Body(None),
 ):
-    """Choose the agent, and hand over a key if the choice needs one."""
+    """Choose the agent, and hand over a key if the choice needs one.
+
+    `baseUrl` points the OpenAI provider at a local server that speaks
+    its protocol; with one, a key is optional and a model is required,
+    since a local server has no default the way OpenAI does.  Absent
+    means unchanged; empty means OpenAI itself.
+    """
     if provider not in PROVIDERS:
         raise HTTPException(400, f"provider must be one of {', '.join(PROVIDERS)}")
+    if baseUrl is not None:
+        base = baseUrl.strip()
+        if base and not base.lower().startswith(("http://", "https://")):
+            raise HTTPException(400, "the base URL must start with http:// or https://")
+        if provider == "openai" and base and not (model.strip() or SETTINGS.model):
+            raise HTTPException(400, "a local server needs the model named")
     changed = SETTINGS.provider != provider
     SETTINGS.provider = provider
     if changed and not model.strip():
@@ -5656,6 +5672,8 @@ async def agent_provider(
     if provider == "openai":
         if key:
             SETTINGS.openai_key = key.strip()
+        if baseUrl is not None:
+            SETTINGS.openai_base_url = baseUrl.strip()
         SETTINGS.model = model.strip() or SETTINGS.model or OPENAI_DEFAULT_MODEL
     if provider == "claude" and _model_is_wrong_provider("claude", SETTINGS.model):
         SETTINGS.model = ""
@@ -5664,6 +5682,7 @@ async def agent_provider(
         # a credential in a config file for a feature nobody is using is
         # how credentials outlive the reason they existed.
         SETTINGS.openai_key = ""
+        SETTINGS.openai_base_url = ""
     try:
         SETTINGS.save()
     except OSError as error:
