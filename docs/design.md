@@ -2910,9 +2910,11 @@ A question mark left of the cog, wearing the cog's own chrome so the two
 read as a pair, opening a 320 px popover in the `PapersChooser` idiom. It
 *does* call `useDismiss`: nothing behind it needs trying mid-read, and a
 card that follows you around the project list is what that hook exists to
-prevent.
+prevent. Revised in §44: the pair stands at the foot of the projects rail
+now, and the card is placed by `placeMenu` rather than drawn under its
+button, since under the foot of a rail is below the window.
 
-Nine labelled lines and no figures at all: every one of them describes
+Ten labelled lines and no figures at all: every one of them describes
 something visible behind the card, which is the figure rule applied
 honestly. They move with the screen: when the row actions came to appear
 on hover, the Zip and PDF line said so; when a long list got its filter,
@@ -3419,20 +3421,23 @@ form and a status line centred in an empty field, with nothing under any of
 them: at 1000px tall, three hundred pixels of nothing above the first word.
 Every other surface in this application is drawn as an object lying on the
 proofing grey, the typeset page, the panes, the cards, the figures, and
-this screen was the one place that idea had been dropped. It is a sheet now.
-The project list inside it steps down to `--surface-2` rather than carrying
-a border of its own, because a card inside a card is two objects claiming to
-be one.
+this screen was the one place that idea had been dropped. It became a
+sheet. The project list inside it stepped down to `--surface-2` rather
+than carrying a border of its own, because a card inside a card is two
+objects claiming to be one.
 
-The sheet centres itself with auto margins, and the column it sits in does
-not centre it. The difference only shows once the sheet is taller than the
-window, which twelve projects on a 1000px screen is: auto margins collapse
-to nothing when there is no room and the sheet starts at the top and
-scrolls, whereas `justify-content: center` centres the overflow as well,
-and the top of the sheet, with the logo, the agent button, help, the cog and
-Back on it, sits above the scroll area where no scroll position reaches.
-`e2e/specs/projects-list.spec.ts` seeds twelve projects and asks for the
-masthead.
+Revised in §44: the sheet is gone. The screen is a rail beside the list,
+the list is the only thing that scrolls, and the paragraph that follows
+describes a problem the rail no longer has. The sheet centred itself with
+auto margins, and the column it sat in did not centre it. The difference
+only showed once the sheet was taller than the window, which twelve
+projects on a 1000px screen is: auto margins collapse to nothing when
+there is no room and the sheet starts at the top and scrolls, whereas
+`justify-content: center` centres the overflow as well, and the top of the
+sheet, with the logo, the agent button, help, the cog and Back on it, sat
+above the scroll area where no scroll position reaches. That was the first
+sign of what §44 finishes: the sheet scrolled as a whole, so however it
+was centred, a long list put something the writer needed off the screen.
 
 The same twelve projects showed what a row costs. Each carried `Zip`, `PDF`
 and `Remove` as three bordered buttons, so twelve rows were thirty-six
@@ -3470,15 +3475,17 @@ the mark says what it says. It is as of the moment the list was fetched,
 because the list holds no stream of its own, and a reload is how it is
 brought up to date.
 
-Six projects is a long list, one number in `frontend/src/project-filter.ts`
-and one rule. Above the rows there is now a heading, `Projects`, with the
-count, which is also the word every browser spec waits for on this screen
-and until now was matched by accident in the password nudge. A long list
-puts a filter on that line: every word typed has to appear in the name or
-the path, `/` from anywhere on the screen that is not a field focuses it,
+Above the rows there is a heading, `Projects`, with the count, which is
+also the word every browser spec waits for on this screen and until this
+heading existed was matched by accident in the password nudge. Beside it
+is the search box: every word typed has to appear in the name or the
+path, `/` from anywhere on the screen that is not a field focuses it,
 Escape clears it and then leaves it, and Enter opens the first row still
 showing. A list that filters down to nothing says so in its own panel
-rather than vanishing.
+rather than vanishing. The box used to appear only at six projects, one
+number in `frontend/src/project-filter.ts` called a long list; revised in
+§44, it is there whatever the count, since a control that appears at six
+is one nobody has learned by the time they need it.
 
 The rows are one Tab stop, the file tree's idiom: the arrow keys walk
 them, Home and End go to the ends, Enter or Space opens, and Down from
@@ -3491,18 +3498,14 @@ stop naming a row that is not there, recorded in section 30, is the reason
 that fallback is written down rather than assumed. The arithmetic is
 `rowAfterKey` in `frontend/src/project-row.ts`, tested without a browser.
 
-A long list on a window 960px or wider also changes the sheet's shape. It
-widens to 1060px and becomes two columns, the list on the left and the
-three ways in, start something, point at a folder, join, as a 320px column
-on the right that sticks to the top of the scroll, so starting something
-never means scrolling past everything already started. The three tabs
-stand in a column there with the rule on their left edge rather than
-underneath, and the fields stack. With five projects or fewer the sheet is
-the 680px one it always was, because a second column beside one row is a
-column beside nothing, and below 960px it stacks whatever the count. The
-rules live in `styles.css` under `.nx-sheet[data-long]` rather than as
-utilities, because whether the list is long is a fact about the data and a
-class on the sheet is how the stylesheet learns it.
+A long list on a window 960px or wider also changed the sheet's shape,
+for the run this section records: it widened to 1060px and became two
+columns, the list on the left and the three ways in as a 320px column on
+the right that stuck to the top of the scroll, the three tabs standing in
+a column with the rule on their left edge and the fields stacked. Revised
+in §44: that conditional second column is the layout for every window
+now, made structural, and the masthead, the cog and the update stay with
+it; the `data-long` attribute and its rules are gone.
 
 ### The mark
 
@@ -5133,9 +5136,10 @@ Its palette is a copy, written out by hand, because the built stylesheet's name
 is content-hashed and this page has no way to look it up. The copy had drifted
 in the way a copy does: the recovery command is `pre > code` on `--surround` at
 twelve pixels, and `--ink-3` measures 4.16:1 there against the 4.5 that small
-text needs. The app's own answer to that exact pairing is `.nx-on-surround`,
-which steps the dimmest ink up to `--ink-2`, and it cannot reach a page that
-cannot import the stylesheet. So the page carries `--ink-2` and uses it, and a
+text needs. The app's own answer to that exact pairing was `.nx-on-surround`,
+which stepped the dimmest ink up to `--ink-2` (gone since §44, when the last
+small text left the surround), and it could not reach a page that cannot
+import the stylesheet anyway. So the page carries `--ink-2` and uses it, and a
 test now reads both of its `:root` blocks and asserts every value against
 `styles.css`.
 
@@ -7901,3 +7905,112 @@ brings the pair back, the follow effect restoring the rendering as the
 file returns. The script tab keeps its own rule. The spec closes each
 side in turn and finds the other gone, and reopens the file to find
 both back.
+
+## 44. The projects screen is a rail beside the list
+
+The writer asked for a revamp with one complaint and two requests: with a
+long list, starting something, joining something, the settings and the
+update were all out of reach, and the list wanted a search box and a way
+to sort it. Five layouts were drawn as a page they could try, each with
+the list as the only thing that scrolls and everything else pinned
+around it, and they chose the rail.
+
+### The rail, the list, the footer
+
+Everything on the screen that is not a project stands in a 280px column
+on the left: the brand and its strapline, the writing agent, the three
+ways in as a stacked group where the chosen one unfolds its fields in
+place, and at the foot, help and the cog. The update and the password
+nudge are a footer under that column. The list has a header with the
+heading and count, the search box, the sort and Back, and the rows
+scroll under it. Nothing else moves. `e2e/specs/projects-list.spec.ts`
+seeds thirty projects, scrolls the list to its end, and finds the brand,
+Start something new, Join, the search, the sort and the cog all still in
+the window, with the screen's own scroll height equal to its client
+height.
+
+Placement is by grid area rather than by document order, and the order
+is chosen for the screen's readers: rail, then list, then footer. The
+footer's nudge says "your projects", and nineteen browser specs wait for
+the first thing on the screen that says Projects, which has to be the
+heading. The heading is drawn once the list has answered, so that wait
+keeps the timing it had. The cog, the help button and the agent control
+exist exactly once in the DOM; the phone layout below moves them with the
+grid rather than drawing a second set.
+
+Every pane is `--surface`. The proofing grey, `--surround`, is darker than
+the three surfaces the inks were certified against, and the sheet had
+been the one place small dim text sat on it, corrected by a rule that
+stepped `--ink-3` up to `--ink-2` on that plane. The rail, the list and
+the footer sit on a surface, the grey shows only as the seams between
+them, and that rule went with the sheet. The axe pass in
+`e2e/specs/a11y.spec.ts` over this screen is the check.
+
+The rail is 280 and not narrower because the join invite box, the
+template chooser, the offer card's outcome words and the update footer's
+wrapped lines all need it. The update footer's lines wrap now, since a
+message, a button and Report a problem on one line are wider than the
+rail; nothing is carried off a line, it drops under. The spec that guarded
+Try again against a long reason from git used to assert the row's height,
+which wrapping makes false, and asserts its premise instead: the message
+is one truncated line with the whole of it in its title, and both
+controls are inside the footer's box.
+
+The ways in scroll inside the rail on a window too short for them, and
+the footer keeps to half the window, so a 260px-tall window, which
+`e2e/specs/menus-on-screen.spec.ts` opens, still reaches the first row.
+The help card, which used to be drawn absolutely under its button, is
+placed by `placeMenu` from `frontend/src/place-menu.ts`, the file menu's
+road: under the button when there is room, above it when there is none,
+and pushed in from the edges, so at the foot of a rail it opens upward
+and on a phone it stays on the screen.
+
+An error that belongs to a row, a PDF that did not typeset or a remove
+the server refused, is said above the rows rather than under the form in
+the rail, where it read as an error about starting something. The form's
+own error stays under the chosen way in and clears when another is
+chosen. The join offer card is drawn after the third way in, so it sits
+under Join whatever is chosen: a rejoin from a row produces an offer
+while the chosen way in is still Start something new.
+
+### Search and sort
+
+The search box is on the header whatever the count. The rule that
+showed it at six projects, and the constant that carried the number, are
+gone: a control that appears once the list is long is one nobody has
+learned by the time they need it. `/` reaches it from anywhere on the
+screen that is not a field.
+
+The sort is a select with two choices, last opened and name. Last opened
+is the order the server already answers in, and `sortProjects` in
+`frontend/src/project-filter.ts` hands that array back untouched, so
+every row keeps its identity; name is a sorted copy through one
+`Intl.Collator` with case folded, accents ignored and digits read as
+numbers, so `chapter-3` sits before `chapter-10`, with the path as the tie
+break. The rows carry when a project was last opened, which is what the
+registry records; a sort by when it was last edited would need the server
+to learn that first, and was not asked for. `visibleProjects` filters and
+then sorts, and the arrow keys, Enter and Down from the search box all
+walk that one list. The choice is kept per browser under
+`nexttex.projects.sort`, through the same guarded `localStorage` helpers
+the appearance settings use, now exported from `frontend/src/appearance.ts`
+rather than copied; a stored value that is not a known key is the
+default. The spec sorts by name, reloads and finds the order kept, and
+walks the sorted rows with the arrows.
+
+### A phone
+
+Below 720 shell pixels, `BREAKPOINTS.phone` in `frontend/src/layout.ts`,
+the rail is a strip along the top with the brand, a New button, help and
+the cog, and the ways in are hidden until New opens them as a drawer from
+the bottom of the screen, a dialog that `useDismiss` handles: focus goes
+in, Tab wraps, Escape and a press outside close it and focus returns to
+New. The breakpoint is judged from `viewportWidth()` and carried as a
+`data-phone` attribute rather than as a media query, because the
+interface size is a `zoom` on the root and a media query would judge the
+window instead of the shell; the number is `MIN_SHELL`, the width at
+which the editor stops claiming to be a layout, and the two are declared
+equal on purpose. A rejoin on a phone opens the drawer when its offer
+arrives, since a card arriving into a closed drawer would wait there
+unseen; `e2e/specs/moved-project.spec.ts` plays a rejoin back at 390px
+and finds the card in the open drawer.

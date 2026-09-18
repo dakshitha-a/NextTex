@@ -31,8 +31,11 @@ and the update, beside a list with a pinned header that always has the
 search box and a sort by last opened or by name, the list being the only
 thing that scrolls. Mid-plan they added a Browse button beside the folder
 field, so a project's folder is chosen on the machine's disk rather than
-typed. The first commit is the order as a pure function and the phone
-breakpoint; the rail, the picker and the version are to follow.
+typed. The order is a pure function, the offer card is fetched on demand
+for the bundle's sake, and the rail itself is in: the sheet is gone, the
+list is the only thing that scrolls, the search is always there with the
+sort beside it, a phone gets a strip and a drawer, and the help card is
+placed by `placeMenu`. The picker and the version are to follow.
 
 The run after 2.10.0 works two requests from the writer: a review of the
 history panel, whose close arrow was drawn over the size and the toggle,
@@ -98,6 +101,17 @@ this checkout does not have, or are decisions, are where they were.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **Three hand-rolled `localStorage` try/catch copies remain,** in
+      `UpdateFooter.tsx`, `PasswordNudge.tsx` and `PapersChooser.tsx`,
+      now that `appearance.ts` exports `readStored` and `writeStored`
+      for exactly that. Left for a tidy commit of its own so the rail's
+      commit stayed about the rail.
+- [ ] **The list's "last opened" order does not tie-break on name.** Two
+      projects registered in the same millisecond keep the registry's
+      order, which is stable and harmless, and the spec asserts only
+      the ends of the order for that reason. A tie-break on name would
+      make the order fully determined; nobody has asked.
 
 - [ ] **`writing.spec.ts`'s equation hover failed once under the full
       browser tier and passed on its retry.** Seen once in the roadmap

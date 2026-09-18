@@ -5,7 +5,7 @@ import { standingOf } from "./update-standing";
 
 /** Whether this install is behind the repository it came from.
  *
- *  It sits at the foot of the project list, which is the only sensible
+ *  It sits at the foot of the projects rail, which is the only sensible
  *  place for it: updating exits the server, and offering that beside an
  *  open document with unsaved sentences in it would be wrong.
  *
@@ -306,10 +306,10 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   );
 
   return (
-    // The projects screen's ground is --surround, which is a darker plane
-    // than the surfaces the inks were certified against.  Everything dim in
-    // here steps up one; see the rule in styles.css.
-    <div className="nx-arrive nx-on-surround mt-8 min-h-[20px]">
+    // On --surface now, in the footer of the rail, so the inks need no
+    // stepping up; the footer sets the spacing around it, and hides this
+    // while it is empty, so no minimum height either.
+    <div className="nx-arrive">
       {render()}
       {trouble && trouble.kind !== "fetching" ? (
         <ReportCard
@@ -801,8 +801,11 @@ function ReportCard({
   );
 }
 
+/** Wrapping, because the rail is 280px and a line with a message, a
+ *  button and Report a problem on it is wider than that.  Nothing on a
+ *  line is carried off it; it drops under. */
 function Line({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center gap-3">{children}</div>;
+  return <div className="flex flex-wrap items-center gap-x-3 gap-y-1">{children}</div>;
 }
 
 function Card({

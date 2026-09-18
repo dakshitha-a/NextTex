@@ -7,8 +7,8 @@ const AccessCard = lazy(() => import("./AccessCard"));
  *  and undo the reason it is lazy. */
 const ACCESS_CHANGED = "nexttex:access";
 
-/** A quiet line at the foot of the project list, when this install has no
- *  password.
+/** A quiet line at the foot of the projects rail, when this install has
+ *  no password.
  *
  *  Not a modal, and not a screen you have to get past.  The same rule the
  *  update footer turns on applies here: this is the first screen of every
@@ -87,7 +87,9 @@ export default function PasswordNudge() {
     <>
       {needed && !gone ? (
         <div
-          className="mt-6 border-t border-line pt-3"
+          // No rule of its own: the footer it stands in spaces it from
+          // the update above, and a rule here doubled the one over the
+          // rail's tools whenever the update had nothing to say.
           data-testid="password-nudge"
         >
           {/* `--warn` because this is a state and not a note. It sat at the
@@ -97,7 +99,7 @@ export default function PasswordNudge() {
             This install has no password. Anyone with the link the server
             printed can read and edit your projects.
           </p>
-          <div className="mt-2 flex items-center gap-4">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
             <button
               className="ghost-button h-[26px] px-3 t-ui"
               data-testid="set-password"

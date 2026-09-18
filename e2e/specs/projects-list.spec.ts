@@ -4,12 +4,11 @@ import { seedProject } from "../server";
 /** The projects screen when there is a real number of projects on it.
  *
  *  Every other spec seeds one project, so nothing had ever looked at the
- *  screen with twelve. With that many the sheet is taller than a 1000px
- *  window, and the column that holds it centred the overflow: the top of
- *  the sheet, with the logo, the agent button, help, the cog and Back on
- *  it, sat above the top of the scroll area where no scroll position
- *  reaches. The masthead has to be on screen or reachable however long
- *  the list is, and a short list still has its sheet centred.
+ *  screen with twelve, and then with thirty. The screen used to be one
+ *  sheet that scrolled as a whole, so with that many the ways in, the cog
+ *  and the update were above or below the window. It is a rail beside
+ *  the list now, and the list is the only thing that scrolls: everything
+ *  that is not a project is on screen however long the list is.
  */
 
 const NAMES = [
@@ -19,36 +18,56 @@ const NAMES = [
   "old-thesis-backup", "figures-for-the-talk",
 ];
 
-test("the masthead is reachable with twelve projects", async ({ app, page }) => {
-  for (const name of NAMES) await seedProject(app, name);
+/** The rows in the order the sort by name draws them: case folded,
+ *  digits as numbers, the collator the screen uses. */
+const BY_NAME = [...NAMES].sort((a, b) =>
+  a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }),
+);
+
+test("the rail stays put while thirty projects scroll", async ({ app, page }) => {
+  for (let i = 0; i < 30; i++) await seedProject(app, `paper-${String(i).padStart(2, "0")}`);
   await page.setViewportSize({ width: 1680, height: 1000 });
   await page.goto(`${app.base}/?token=${app.token}`);
-  await page.getByText("Projects", { exact: false }).first().waitFor();
-  await expect(page.getByText(NAMES[NAMES.length - 1], { exact: true })).toBeVisible();
+  await page.getByText("Projects", { exact: true }).waitFor();
+  await expect(page.getByTestId("project-row")).toHaveCount(30);
 
+  // The list overflows, and it is the list that scrolls, not the screen.
+  const list = page.getByTestId("project-list");
+  const scrolls = await list.evaluate((el) => el.scrollHeight > el.clientHeight);
+  expect(scrolls).toBe(true);
+  const screen = await page.locator(".nx-furniture").evaluate(
+    (root) => root.scrollHeight - root.clientHeight,
+  );
+  expect(screen).toBe(0);
+
+  // Everything that is not a project is on screen without a scroll, and
+  // stays there once the list has been scrolled to its end.
+  await list.evaluate((el) => el.scrollTo(0, el.scrollHeight));
   const top = await page.locator("h1").evaluate((h1) => h1.getBoundingClientRect().top);
   expect(top).toBeGreaterThanOrEqual(0);
+  await expect(page.getByRole("button", { name: "Start something new" })).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Join a shared project" })).toBeInViewport();
+  await expect(page.getByTestId("project-filter")).toBeInViewport();
+  await expect(page.getByTestId("project-sort")).toBeInViewport();
   const cog = page.getByTestId("appearance");
-  await expect(cog).toBeVisible();
+  await expect(cog).toBeInViewport();
   await cog.click();
   await expect(cog).toHaveAttribute("aria-expanded", "true");
 });
 
-test("a short list keeps its sheet centred", async ({ app, project, page }) => {
+test("one project still has the search and the sort", async ({ app, project, page }) => {
   await page.setViewportSize({ width: 1680, height: 1000 });
   await page.goto(`${app.base}/?token=${app.token}`);
-  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await page.getByText("Projects", { exact: true }).waitFor();
   await expect(page.getByText(project.root.split("/").pop()!, { exact: true })).toBeVisible();
-  const box = await page
-    .locator(".nx-furniture > div")
-    .first()
-    .evaluate((sheet) => {
-      const rect = sheet.getBoundingClientRect();
-      return { top: rect.top, bottom: window.innerHeight - rect.bottom };
-    });
-  // Centred: as much room above as below, give or take the padding.
-  expect(Math.abs(box.top - box.bottom)).toBeLessThan(4);
-  expect(box.top).toBeGreaterThan(100);
+  // Whatever the count: a control that appears at six is one nobody has
+  // learned by the time they need it.
+  const filter = page.getByTestId("project-filter");
+  await expect(filter).toBeVisible();
+  await page.locator("h1").click();
+  await page.keyboard.press("/");
+  await expect(filter).toBeFocused();
+  await expect(page.getByTestId("project-sort")).toHaveValue("recent");
 });
 
 
@@ -80,21 +99,21 @@ test("a row says when it was opened, and its actions are there without a hover",
   await expect(row.getByTestId("row-opened")).toHaveCSS("opacity", "0");
 });
 
-test("a long list puts the ways in beside it, with a filter", async ({ app, page }) => {
+test("the ways in stand in the rail beside the list, and the search finds a row", async ({ app, page }) => {
   for (const name of NAMES) await seedProject(app, name);
   await page.setViewportSize({ width: 1680, height: 1000 });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: true }).waitFor();
   await expect(page.getByTestId("project-count")).toHaveText(String(NAMES.length));
 
-  // Beside, not under: the create form and the masthead are both on
-  // screen without a scroll, and the form sits to the right of the list.
+  // Beside, not under: the create form and the brand are both on screen
+  // without a scroll, and the form sits to the left of the list.
   const name = page.getByPlaceholder("What is it called?");
   await expect(name).toBeInViewport();
   await expect(page.locator("h1")).toBeInViewport();
   const list = await page.getByTestId("project-row").first().boundingBox();
   const form = await name.boundingBox();
-  expect(form!.x).toBeGreaterThan(list!.x + list!.width);
+  expect(form!.x + form!.width).toBeLessThanOrEqual(list!.x);
 
   // The three ways in are still the same three buttons.
   for (const tab of ["Start something new", "Point at a folder", "Join a shared project"]) {
@@ -120,7 +139,7 @@ test("a long list puts the ways in beside it, with a filter", async ({ app, page
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 });
 
-test("a long list stacks on a narrow screen and does not scroll sideways", async ({
+test("on a phone the rail is a strip and the ways in are a drawer behind New", async ({
   app, page,
 }) => {
   for (const name of NAMES) await seedProject(app, name);
@@ -133,28 +152,38 @@ test("a long list stacks on a narrow screen and does not scroll sideways", async
     (root) => root.scrollWidth - root.clientWidth,
   );
   expect(wide).toBe(0);
-  // Under, not beside.
-  const last = await page.getByTestId("project-row").last().boundingBox();
-  const tab = await page.getByRole("button", { name: "Start something new" }).boundingBox();
-  expect(tab!.y).toBeGreaterThan(last!.y + last!.height);
+
+  // The three ways in are behind New until asked for.
+  const start = page.getByRole("button", { name: "Start something new" });
+  await expect(start).toBeHidden();
+  const open = page.getByTestId("ways-open");
+  await expect(open).toBeVisible();
+  await open.click();
+  const drawer = page.getByRole("dialog", { name: "Ways in" });
+  await expect(drawer).toBeVisible();
+  for (const tab of ["Start something new", "Point at a folder", "Join a shared project"]) {
+    await expect(drawer.getByRole("button", { name: tab })).toBeVisible();
+  }
+  // A dialog: focus is inside it, Escape closes it and hands focus back to
+  // the button that opened it.
+  const inside = await drawer.evaluate((el) => el.contains(document.activeElement));
+  expect(inside).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+  await expect(open).toBeFocused();
+
+  // The search stays put while the list scrolls under it.
+  const list = page.getByTestId("project-list");
+  await list.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await expect(page.getByTestId("project-filter")).toBeInViewport();
+  await expect(open).toBeInViewport();
 });
 
-test("a short list has no filter and keeps the narrow sheet", async ({
-  app, project, page,
-}) => {
-  await page.setViewportSize({ width: 1680, height: 1000 });
-  await page.goto(`${app.base}/?token=${app.token}`);
-  await page.getByText("Projects", { exact: true }).waitFor();
-  await expect(page.getByText(project.root.split("/").pop()!, { exact: true })).toBeVisible();
-  await expect(page.getByTestId("project-filter")).toHaveCount(0);
-  const sheet = await page.locator(".nx-sheet").boundingBox();
-  expect(Math.round(sheet!.width)).toBe(680);
-});
-
-test("the create row does not run off a phone", async ({ app, project, page }) => {
+test("the create form does not run off a phone", async ({ app, project, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText(project.root.split("/").pop()!, { exact: true }).waitFor();
+  await page.getByTestId("ways-open").click();
   // The folder field, the template chooser and the button were one row
   // that could not shrink below 445px, so the sheet scrolled sideways.
   const wide = await page.locator(".nx-furniture").evaluate(
@@ -212,8 +241,53 @@ test("the arrow keys walk the list, and the filter cannot strand the focus", asy
   await expect(rows.first()).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(rows.nth(1)).toBeFocused();
+
+  // Sorted by name, the arrows walk the sorted order: the first row is
+  // the first name, and Down from the box lands on it.
+  await filter.focus();
+  await page.keyboard.press("Escape");
+  await expect(rows).toHaveCount(NAMES.length);
+  await page.getByTestId("project-sort").selectOption("name");
+  await expect(rows.first()).toContainText(BY_NAME[0]);
+  await filter.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.nth(1)).toBeFocused();
+  await expect(rows.nth(1)).toContainText(BY_NAME[1]);
   await page.keyboard.press("Enter");
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+});
+
+test("sort by name reorders the rows and is remembered", async ({ app, page }) => {
+  for (const name of NAMES) await seedProject(app, name);
+  await page.setViewportSize({ width: 1680, height: 1000 });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: true }).waitFor();
+  const rows = page.getByTestId("project-row");
+  await expect(rows).toHaveCount(NAMES.length);
+  const names = async () =>
+    rows.evaluateAll((els) => els.map((el) => el.querySelector(".font-serif")!.textContent));
+
+  // The server's order first: most recently registered at the top.  Only
+  // the ends are asserted, since two seeds a millisecond apart can share
+  // a stamp and keep their registry order.
+  const sort = page.getByTestId("project-sort");
+  await expect(sort).toHaveValue("recent");
+  expect((await names())[0]).toBe(NAMES[NAMES.length - 1]);
+
+  await sort.selectOption("name");
+  expect(await names()).toEqual(BY_NAME);
+
+  // Kept on this browser: a reload comes back sorted the same way.
+  await page.reload();
+  await page.getByText("Projects", { exact: true }).waitFor();
+  await expect(rows).toHaveCount(NAMES.length);
+  await expect(sort).toHaveValue("name");
+  expect(await names()).toEqual(BY_NAME);
+
+  await sort.selectOption("recent");
+  expect((await names())[0]).toBe(NAMES[NAMES.length - 1]);
 });
 
 test("leaving a project ends its event stream, so the list stops calling it open", async ({

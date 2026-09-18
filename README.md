@@ -341,9 +341,9 @@ pass; without it you are talking to the first install.
 neither script touches them.
 
 You can also update from the project list. NextTex checks once when that
-screen opens and, if the repository is ahead, says so at the foot of the page
-with the commit subjects and an Update button. It restarts itself afterwards
-and the page comes back on its own.
+screen opens and, if the repository is ahead, says so at the foot of the rail
+on the left, with the commit subjects and an Update button. It restarts
+itself afterwards and the page comes back on its own.
 
 It is deliberately quiet. Commits that change only documentation or tests are
 reported as *"three new commits, none of which change NextTex"*, a grey line
@@ -526,7 +526,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 849.1 kB | 860 kB |
+| Interface bundle | 849.4 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -1225,7 +1225,7 @@ inside the app.
 | `F8`, `Shift-F8` | Next and previous error |
 | Wheel, over either tab strip | Scroll across the tabs; the count at the end lists the ones out of sight |
 | Right-click, on the preview tab in front | Stop previewing the others or all, download that document's PDF, or open the page in a window of its own for a second monitor |
-| `/`, on the project list | Find a project by typing, once there are six or more; Enter opens the first match |
+| `/`, on the project list | Find a project by typing; Enter opens the first match. The sort beside the box orders the list by when each was last opened or by name |
 
 ### In the source
 
@@ -1297,8 +1297,8 @@ screen you are looking at, which is usually faster than the files below.
 
 Something broke, and the thing that makes the difference between a fix and a
 question back is knowing what this install is and what it saw. NextTex writes
-that down for you. On the projects screen, the footer has **Report a
-problem**: it puts the report on your clipboard, shows it to you, and offers
+that down for you. On the projects screen, the foot of the rail has **Report
+a problem**: it puts the report on your clipboard, shows it to you, and offers
 to open the issue form on GitHub with the platform and commit already filled
 in. From a terminal, the same text is:
 

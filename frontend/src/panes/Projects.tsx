@@ -15,7 +15,12 @@ import { agentName } from "../agent-name";
 import { set, useStore } from "../store";
 import { openedWords, rowAfterKey, rowMarks, shortPath } from "../project-row";
 import { tabStopFor } from "../tree";
-import { LONG_LIST, matches } from "../project-filter";
+import { SORT_STORAGE, sortKeyFrom, visibleProjects, type SortKey } from "../project-filter";
+import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
+import { breakpoints } from "../layout";
+import { viewportWidth } from "../viewport";
+import { onFrame } from "../timing";
+import { useDismiss } from "../useDismiss";
 
 // Lazy, like the in-project tutorial: help text is not something a first
 // visit should have to download before the project list appears.
@@ -56,10 +61,48 @@ export default function Projects({
   /** Ids a browser is holding open, as of the last fetch of the list. */
   const [watched, setWatched] = useState<string[]>([]);
   const [guide, setGuide] = useState(false);
-  /** What is typed into the filter a long list gets. */
+  /** What is typed into the search box above the list. */
   const [query, setQuery] = useState("");
   const filterBox = useRef<HTMLInputElement | null>(null);
   const helpButton = useRef<HTMLButtonElement | null>(null);
+  /** Whether the list has answered once.  The heading and the controls
+   *  above the list wait for it, so the screen does not draw a count of
+   *  nothing for the length of a fetch. */
+  const [loaded, setLoaded] = useState(false);
+  /** The list's order, kept per browser: somebody who sorts by name wants
+   *  it that way tomorrow. */
+  const [sort, setSort] = useState<SortKey>(() => sortKeyFrom(readStored(SORT_STORAGE)));
+  const chooseSort = (key: SortKey) => {
+    setSort(key);
+    writeStored(SORT_STORAGE, key);
+  };
+  /** A failure that belongs to a row rather than to the form in the rail:
+   *  a PDF that did not typeset, a remove the server refused. */
+  const [listError, setListError] = useState<string | null>(null);
+  // The shell's width, in its own pixels, the way `App.tsx` keeps it: on
+  // a phone the rail is a strip and the ways in are a drawer behind New.
+  const [width, setWidth] = useState(viewportWidth);
+  useEffect(() => {
+    const onResize = onFrame(() => setWidth(viewportWidth()));
+    window.addEventListener("resize", onResize);
+    window.addEventListener(APPEARANCE_CHANGED, onResize);
+    return () => {
+      onResize.cancel();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener(APPEARANCE_CHANGED, onResize);
+    };
+  }, []);
+  const phone = breakpoints(width).phone;
+  const [waysOpen, setWaysOpen] = useState(false);
+  const drawer = phone && waysOpen;
+  // A window widened past the breakpoint with the drawer open would keep
+  // `data-open` on a column that no longer needs it.
+  useEffect(() => {
+    if (!phone) setWaysOpen(false);
+  }, [phone]);
+  const waysRef = useRef<HTMLElement | null>(null);
+  const newButton = useRef<HTMLButtonElement | null>(null);
+  useDismiss(waysRef, drawer, () => setWaysOpen(false), newButton);
   const [path, setPath] = useState("");
   const [mode, setMode] = useState<"add" | "create" | "join">("create");
   const [invite, setInvite] = useState("");
@@ -132,6 +175,8 @@ export default function Projects({
       // region that draws it is mounted after the early return that shows
       // this screen, so it cannot be reached from here.
       setError(null);
+      setListError(null);
+      setLoaded(true);
     } catch (problem: any) {
       setError(problem.message);
     } finally {
@@ -143,12 +188,12 @@ export default function Projects({
     refresh();
   }, []);
 
-  // A long list has a filter, and `/` reaches it from anywhere on the
-  // screen that is not already a field, the way it does in a browser's
-  // own find and on most sites with a list worth searching.
-  const long = projects.length >= LONG_LIST;
+  // `/` reaches the search box from anywhere on the screen that is not
+  // already a field, the way it does in a browser's own find and on most
+  // sites with a list worth searching.  Not while the drawer is open on a
+  // phone: the box is behind the drawer then, and Escape is its key.
   useEffect(() => {
-    if (!long) return;
+    if (drawer) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
@@ -159,8 +204,10 @@ export default function Projects({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [long]);
-  const shown = long ? projects.filter((project) => matches(project, query)) : projects;
+  }, [drawer]);
+  // Filtered and then sorted, in `project-filter.ts`: the one list the
+  // screen draws and the arrow keys walk.
+  const shown = visibleProjects(projects, query, sort);
   // A roving tabindex, the file tree's idiom: the list is one Tab stop and
   // the arrow keys move inside it. `focusId` remembers the row that had
   // focus; `tabStopFor` falls back to the first openable row when that
@@ -290,6 +337,9 @@ export default function Projects({
         return;
       }
       setOffer(answer);
+      // The card is drawn under Join in the rail, which on a phone is the
+      // drawer: opened, so the offer is seen rather than waiting unseen.
+      setWaysOpen(true);
     } catch (problem: any) {
       setRowError(problem.message);
     } finally {
@@ -299,7 +349,7 @@ export default function Projects({
 
   const takePdf = async (project: ProjectSummary) => {
     setBusy(project.id);
-    setError(null);
+    setListError(null);
     try {
       // The PDF may need building first, so this is a fetch rather than a
       // plain link: a failed build should say why, not download an error.
@@ -317,189 +367,331 @@ export default function Projects({
       const named = /filename="?([^";]+)"?/.exec(header)?.[1];
       saveBlob(await response.blob(), named || `${project.name}.pdf`);
     } catch (problem: any) {
-      setError(`${project.name}: ${problem.message}`);
+      setListError(`${project.name}: ${problem.message}`);
     } finally {
       setBusy(null);
     }
   };
 
   return (
-    <div className="nx-furniture flex h-full flex-col items-center overflow-auto bg-surround px-6 py-10">
-      {/* A sheet, not a column of controls floating on the table.
-          Everything else in this application is drawn as something lying on
-          the proofing grey -- the typeset page, the panes, the cards -- and
-          this screen was the one place that idea was dropped: a masthead, a
-          form and a status line, centred in a field with nothing under them.
-          At 1000px tall that is three hundred pixels of nothing above the
-          first word. The sheet costs one class and makes the screen read as
-          designed rather than as unfinished.
-
-          Centred by its own `my-auto`, and deliberately not by
-          `justify-center` on the column. Auto margins take the free space
-          when there is some and collapse to nothing when there is none;
-          `justify-center` centres either way, and a sheet taller than the
-          window then overflows upward into a region no scroll position
-          reaches. At about nine projects on a 1000px screen the masthead,
-          the cog, help and Back were all above the top with no way to
-          them. */}
-      <div
-        className="nx-sheet my-auto w-full max-w-[680px] rounded-[5px] border border-line bg-surface px-7 py-6"
-        // Six projects or more, and on a window 960px or wider the sheet
-        // widens and the ways in stand beside the list rather than under
-        // it (styles.css, `.nx-sheet[data-long]`).  With five or fewer the
-        // sheet is the one it always was: a second column beside one row
-        // is a column beside nothing.
-        data-long={long ? "" : undefined}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="t-display flex items-center gap-3">
-              <Logo size={26} />
-              NextTex
-              <InstanceBadge />
-            </h1>
-            <p className="t-meta mt-1 text-ink-2">{tagline}</p>
-            {/* The only way to an agent used to be a settings row that
-                described the writer's situation rather than naming the
-                control, so somebody who had chosen "no agent" at install
-                time had nothing on this screen telling them it was a
-                decision they could revisit.  One line, under the strapline
-                that stops mentioning an agent at all in that case. */}
-
-          </div>
-          <div className="relative flex shrink-0 items-center gap-3">
-            {canClose ? (
-              <button className="t-ui text-ink-2 hover:text-ink" onClick={onClose}>
-                Back
-              </button>
-            ) : null}
-            {/* Understand, adjust, then change what is writing with you:
-                three controls in the cog's own chrome so they read as a set.
-                The agent one used to be a text link under the strapline,
-                shown only when there was no agent at all, so somebody on
-                one provider who wanted the other had to find it inside the
-                settings sheet. It says which agent it is rather than only
-                that there is one, because that is the question somebody
-                opening it has. */}
-            {onChangeAgent ? (
-              <button
-                className="quiet flex h-[26px] items-center gap-[5px] rounded-[3px] px-[5px] hover:bg-surface-3"
-                aria-label={
-                  provider === "none"
-                    ? "Set up a writing agent"
-                    : `Writing agent: ${agentName(provider)}. Change it.`
-                }
-                title={
-                  provider === "none"
-                    ? "Set up a writing agent"
-                    : `Writing with ${agentName(provider)}. Change it.`
-                }
-                data-testid="set-up-agent"
-                onClick={onChangeAgent}
-              >
-                <Nib />
-                <span className="t-micro">
-                  {provider === "none" ? "No agent" : agentName(provider)}
-                </span>
-              </button>
-            ) : null}
-            {/* Understand, then adjust: help sits left of the cog, and wears
-                the cog's own chrome so the two read as a pair. */}
-            <button
-              ref={helpButton}
-              className={`quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3 ${
-                guide ? "bg-surface-3" : ""
-              }`}
-              data-tone={guide ? "on" : undefined}
-              aria-label="About this screen"
-              title="About this screen"
-              aria-haspopup="dialog"
-              aria-expanded={guide}
-              data-testid="about-screen"
-              onClick={() => setGuide((open) => !open)}
-            >
-              <QuestionMark />
-            </button>
-            {guide ? (
-              <Suspense fallback={null}>
-                <ScreenGuide anchor={helpButton} onClose={() => setGuide(false)} />
-              </Suspense>
-            ) : null}
-            <Settings onChangeAgent={onChangeAgent} />
-          </div>
+    <div
+      className="nx-furniture nx-projects h-full bg-surround"
+      // Whether this is a phone is decided in shell pixels, the way the
+      // editor decides its narrow layouts, so the interface size counts
+      // (`layout.ts`, `BREAKPOINTS.phone`).  A media query would judge the
+      // window and be wrong by the zoom.
+      data-phone={phone ? "" : undefined}
+    >
+      {/* The rail: everything on this screen that is not a project.  It
+          never scrolls away, which is the whole reason the sheet this
+          screen used to be is gone: with fourteen projects on it the ways
+          in, the cog and the update were all above or below the window,
+          and the only thing in view was the middle of the list.  On a
+          phone it is a strip along the top and the ways in open from New
+          as a drawer; the same elements, placed by the grid in
+          styles.css, so the cog and the help exist exactly once. */}
+      <aside className="nx-projects-rail bg-surface" aria-label="NextTex">
+        <div className="nx-rail-brand">
+          <h1 className="t-display flex items-center gap-3">
+            <Logo size={26} />
+            NextTex
+            <InstanceBadge />
+          </h1>
+          <p className="nx-rail-tagline t-meta mt-1 text-ink-2">{tagline}</p>
         </div>
-
-        {lost ? (
-          <div
-            role="status"
-            data-testid="folder-lost"
-            className="mt-6 flex items-start gap-3 rounded-[3px] border border-line bg-surface-2 px-4 py-3"
-          >
-            <div className="t-ui min-w-0 flex-1 text-ink">
-              The folder for {lost.name ? <b className="font-medium">{lost.name}</b> : "that project"} is
-              gone from this disk, so it was closed.
-              {lost.shared
-                ? " Your collaborators still have their copies; nothing was deleted for them."
-                : ""}{" "}
-              If you moved it, point NextTex at where it is now from its row below.
-            </div>
+        <button
+          ref={newButton}
+          type="button"
+          className="nx-rail-new pen-button h-[28px] px-3 t-ui"
+          aria-expanded={waysOpen}
+          aria-controls="nx-ways"
+          data-testid="ways-open"
+          onClick={() => setWaysOpen((open) => !open)}
+        >
+          New
+        </button>
+        <section
+          id="nx-ways"
+          ref={waysRef}
+          className="nx-ways"
+          aria-label="Ways in"
+          // A dialog only while it is a drawer on a phone: then Escape and
+          // a press outside close it and focus goes in and comes back to
+          // New, all of which `useDismiss` does for a dialog and none of
+          // which a column in a rail wants.
+          role={drawer ? "dialog" : undefined}
+          aria-modal={drawer ? true : undefined}
+          data-open={waysOpen ? "" : undefined}
+        >
+          {/* Which agent is writing with you, and the way to change it.  It
+              says which agent it is rather than only that there is one,
+              because that is the question somebody opening it has. */}
+          {onChangeAgent ? (
             <button
-              type="button"
-              className="h-[28px] shrink-0 px-2 t-meta text-ink-3 hover:text-ink"
-              onClick={() => set({ lostFolder: null })}
+              className="quiet flex h-[26px] items-center gap-[5px] rounded-[3px] px-[5px] hover:bg-surface-3"
+              aria-label={
+                provider === "none"
+                  ? "Set up a writing agent"
+                  : `Writing agent: ${agentName(provider)}. Change it.`
+              }
+              title={
+                provider === "none"
+                  ? "Set up a writing agent"
+                  : `Writing with ${agentName(provider)}. Change it.`
+              }
+              data-testid="set-up-agent"
+              onClick={onChangeAgent}
             >
-              Dismiss
+              <Nib />
+              <span className="t-micro">
+                {provider === "none" ? "No agent" : agentName(provider)}
+              </span>
             </button>
+          ) : null}
+          {/* The three ways in, stacked, the chosen one unfolded in place.
+              The rule is on the left edge, as it was in the old wide mode's
+              column.  The message under the fields belongs to whichever of
+              the three the writer was last doing; carried across, it reads
+              as an error about the one they have just moved to, so a change
+              clears it. */}
+          <div className="nx-ways-list mt-3 flex flex-col gap-[2px]">
+            {(["create", "add", "join"] as const).map((option) => (
+              <div key={option} className="nx-way">
+                <button
+                  type="button"
+                  aria-expanded={mode === option}
+                  className={`nx-ways-tab nx-hover t-ui w-full border-l-2 py-[3px] pl-2 text-left ${
+                    mode === option
+                      ? "border-hint text-ink"
+                      : "border-transparent text-ink-3 hover:text-ink"
+                  }`}
+                  onClick={() => {
+                    setError(null);
+                    setMode(option);
+                  }}
+                >
+                  {option === "create"
+                    ? "Start something new"
+                    : option === "add"
+                    ? "Point at a folder"
+                    : "Join a shared project"}
+                </button>
+                {mode === option ? (
+                  <div className="nx-way-body flex flex-col gap-2 pb-3 pl-[10px] pt-1">
+                    <p className="t-meta text-ink-2">
+                      {mode === "create"
+                        ? agentCopy
+                        : mode === "add"
+                        ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
+                        : "Paste an invite somebody sent you. The whole project arrives here, the files and their history both, and stays in step with everyone else's copy, including anything written while you were offline."}
+                    </p>
+                    {mode === "create" ? (
+                      <input
+                        value={newName}
+                        placeholder="What is it called?"
+                        className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                        onChange={(event) => setNewName(event.target.value)}
+                      />
+                    ) : null}
+                    {mode === "join" ? (
+                      <textarea
+                        value={invite}
+                        rows={3}
+                        placeholder="Paste the invite here"
+                        aria-label="The invite you were sent"
+                        data-testid="invite-input"
+                        className="t-code-sm w-full resize-none rounded-[3px] border border-line bg-surface px-2 py-1 outline-none placeholder:text-ink-3"
+                        onChange={(event) => setInvite(event.target.value)}
+                      />
+                    ) : null}
+                    <input
+                      value={path}
+                      placeholder={
+                        mode === "create"
+                          ? "Where to put it, e.g. ~/writing/my-paper"
+                          : mode === "add"
+                          ? "/path/to/your/writing/project"
+                          : "A folder to put it in, e.g. ~/writing/their-paper"
+                      }
+                      className="t-code-sm h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                      onChange={(event) => setPath(event.target.value)}
+                      onKeyDown={(event) => event.key === "Enter" && add()}
+                    />
+                    {mode === "create" && templates.length > 1 ? (
+                      /* Hidden when there is only one, which is what an
+                         install with its templates trimmed looks like: a
+                         chooser offering a single choice is a control that
+                         asks a question with one answer. */
+                      <select
+                        value={template}
+                        aria-label="What to start from"
+                        data-testid="template-choice"
+                        className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 text-ink outline-none"
+                        onChange={(event) => setTemplate(event.target.value)}
+                      >
+                        {templates.map((name) => (
+                          <option key={name} value={name}>
+                            {START_FROM[name] ?? name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
+                    <button
+                      className={`h-[28px] self-start px-3 t-ui ${
+                        mode === "join" ? "pen-button" : "ghost-button"
+                      }`}
+                      onClick={add}
+                      disabled={busy === "add"}
+                    >
+                      {busy === "add" && mode === "join"
+                        ? "Joining…"
+                        : mode === "create"
+                        ? "Create project"
+                        : mode === "add"
+                        ? "Open folder"
+                        : "Join"}
+                    </button>
+                    {error ? <p className="t-meta text-error">{error}</p> : null}
+                  </div>
+                ) : null}
+              </div>
+            ))}
           </div>
-        ) : null}
-        <div className="nx-sheet-body">
-        {/* Not rendered rather than hidden when there is nothing to list:
-            the specs wait for the first thing on the screen that says
-            "Projects", and a hidden heading is a first thing that never
-            shows. */}
-        {projects.length ? (
-        <div className="min-w-0">
-          {/* A heading, which is also what every spec waits for on this
-              screen, and the count; a long list gets its filter here. */}
-          <div className="mt-6 flex items-center justify-between gap-3">
+          {/* After the third item, so it sits under Join whatever is
+              chosen: a rejoin from a row can produce an offer while the
+              chosen way in is still Start something new. */}
+          {offer ? (
+            <Suspense fallback={null}>
+              <JoinOfferCard offer={offer} onAccept={acceptOffer} onDiscard={discardOffer} />
+            </Suspense>
+          ) : null}
+        </section>
+        {/* Understand, then adjust: help sits left of the cog and wears the
+            cog's own chrome so the two read as a pair. */}
+        <div className="nx-rail-tools">
+          <button
+            ref={helpButton}
+            className={`quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3 ${
+              guide ? "bg-surface-3" : ""
+            }`}
+            data-tone={guide ? "on" : undefined}
+            aria-label="About this screen"
+            title="About this screen"
+            aria-haspopup="dialog"
+            aria-expanded={guide}
+            data-testid="about-screen"
+            onClick={() => setGuide((open) => !open)}
+          >
+            <QuestionMark />
+          </button>
+          {guide ? (
+            <Suspense fallback={null}>
+              <ScreenGuide anchor={helpButton} onClose={() => setGuide(false)} />
+            </Suspense>
+          ) : null}
+          <Settings onChangeAgent={onChangeAgent} />
+        </div>
+      </aside>
+
+      <main className="nx-projects-main bg-surface" aria-label="Projects">
+        {/* Drawn once the list has answered, so the heading, which is also
+            what every spec waits for on this screen, appears when the rows
+            do and not a moment before.  The search and the sort are here
+            whatever the count: a control that appears at six projects is
+            one nobody has learned by the time they need it. */}
+        {loaded ? (
+          <div className="nx-projects-head">
             <div className="flex items-baseline gap-2">
-              <span className="t-meta text-ink-2">Projects</span>
+              <h2 className="t-meta text-ink-2">Projects</h2>
               <span className="t-micro text-ink-3" data-testid="project-count">
                 {projects.length}
               </span>
             </div>
-            {long ? (
-              <input
-                ref={filterBox}
-                value={query}
-                placeholder="Find a project"
-                aria-label="Find a project"
-                data-testid="project-filter"
-                className="t-ui h-[28px] min-w-0 flex-1 max-w-[220px] rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  // Escape clears, then leaves; Enter opens the first
-                  // row still showing, which is what typing a name and
-                  // pressing Enter means.
-                  if (event.key === "Escape") {
-                    if (query) setQuery("");
-                    else event.currentTarget.blur();
-                  }
-                  if (event.key === "Enter") {
-                    const first = shown[0];
-                    if (first && !first.missing && !locked) onOpen(first.id);
-                  }
-                  // Down from the box lands on the first row still showing.
-                  if (event.key === "ArrowDown" && order[0]) {
-                    event.preventDefault();
-                    moveFocus(order[0]);
-                  }
-                }}
-              />
+            <input
+              ref={filterBox}
+              value={query}
+              placeholder="Find a project"
+              aria-label="Find a project"
+              data-testid="project-filter"
+              className="t-ui h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                // Escape clears, then leaves; Enter opens the first row
+                // still showing, which is what typing a name and pressing
+                // Enter means.
+                if (event.key === "Escape") {
+                  if (query) setQuery("");
+                  else event.currentTarget.blur();
+                }
+                if (event.key === "Enter") {
+                  const first = shown[0];
+                  if (first && !first.missing && !locked) onOpen(first.id);
+                }
+                // Down from the box lands on the first row still showing.
+                if (event.key === "ArrowDown" && order[0]) {
+                  event.preventDefault();
+                  moveFocus(order[0]);
+                }
+              }}
+            />
+            <select
+              value={sort}
+              aria-label="Sort projects"
+              data-testid="project-sort"
+              className="t-ui h-[28px] shrink-0 rounded-[3px] border border-line bg-surface px-2 text-ink outline-none"
+              onChange={(event) => chooseSort(sortKeyFrom(event.target.value))}
+            >
+              <option value="recent">Last opened</option>
+              <option value="name">Name, A to Z</option>
+            </select>
+            {canClose ? (
+              <button className="t-ui shrink-0 text-ink-2 hover:text-ink" onClick={onClose}>
+                Back
+              </button>
             ) : null}
           </div>
-        <div className="mt-2 rounded-[3px] border border-line bg-surface-2">
-          {long && !shown.length ? (
+        ) : null}
+        {/* The one thing on the screen that scrolls. */}
+        <div className="nx-projects-list" data-testid="project-list">
+          {lost ? (
+            <div
+              role="status"
+              data-testid="folder-lost"
+              className="mb-4 flex items-start gap-3 rounded-[3px] border border-line bg-surface-2 px-4 py-3"
+            >
+              <div className="t-ui min-w-0 flex-1 text-ink">
+                The folder for {lost.name ? <b className="font-medium">{lost.name}</b> : "that project"} is
+                gone from this disk, so it was closed.
+                {lost.shared
+                  ? " Your collaborators still have their copies; nothing was deleted for them."
+                  : ""}{" "}
+                If you moved it, point NextTex at where it is now from its row below.
+              </div>
+              <button
+                type="button"
+                className="h-[28px] shrink-0 px-2 t-meta text-ink-3 hover:text-ink"
+                onClick={() => set({ lostFolder: null })}
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
+          {/* A row's own failure, a PDF that did not typeset or a remove
+              the server refused, is said above the rows rather than under
+              the form in the rail, where it read as an error about
+              starting something. */}
+          {listError ? (
+            <p className="t-meta mb-2 text-error" data-testid="list-error">{listError}</p>
+          ) : null}
+          {loaded && !projects.length ? (
+            <p className="t-ui text-ink-2" data-testid="no-projects">
+              Nothing here yet.{" "}
+              {phone ? "Press New to start something." : "Start something on the left."}
+            </p>
+          ) : null}
+          {projects.length ? (
+        <div className="rounded-[3px] border border-line bg-surface-2">
+          {query.trim() && !shown.length ? (
             <div className="t-meta px-4 py-3 text-ink-3" data-testid="no-match">
               Nothing matches “{query.trim()}”
             </div>
@@ -675,7 +867,7 @@ export default function Projects({
                         await api.forgetProject(project.id);
                         await refresh();
                       } catch (problem: any) {
-                        setError(`${project.name}: ${problem.message}`);
+                        setListError(`${project.name}: ${problem.message}`);
                       }
                     }}
                   >
@@ -775,134 +967,18 @@ export default function Projects({
             </div>
           ))}
         </div>
-        </div>
-        ) : null}
-
-        {/* The ways in.  Beside the list when the list is long and the
-            window wide, and then sticky, so starting something does not
-            mean scrolling past everything already started. */}
-        <div className="nx-ways min-w-0">
-        <div className="nx-ways-tabs mt-6 flex gap-3">
-          {(["create", "add", "join"] as const).map((option) => (
-            <button
-              key={option}
-              aria-pressed={mode === option}
-              className={`nx-ways-tab nx-hover t-ui border-b-2 pb-1 ${
-                mode === option
-                  ? "border-hint text-ink"
-                  : "border-transparent text-ink-3 hover:text-ink"
-              }`}
-              // The message under this form belongs to whichever of the
-              // three the writer was last doing.  Carried across, it reads
-              // as an error about the tab they have just moved to.
-              onClick={() => {
-                setError(null);
-                setMode(option);
-              }}
-            >
-              {option === "create"
-                ? "Start something new"
-                : option === "add"
-                ? "Point at a folder"
-                : "Join a shared project"}
-            </button>
-          ))}
-        </div>
-        <p className="t-ui mt-2 text-ink-2">
-          {mode === "create"
-            ? agentCopy
-            : mode === "add"
-            ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
-            : "Paste an invite somebody sent you. The whole project arrives here, the files and their history both, and stays in step with everyone else's copy, including anything written while you were offline."}
-        </p>
-        {mode === "create" ? (
-          <input
-            value={newName}
-            placeholder="What is it called?"
-            className="t-ui mt-3 h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-            onChange={(event) => setNewName(event.target.value)}
-          />
-        ) : null}
-        {mode === "join" ? (
-          <textarea
-            value={invite}
-            rows={3}
-            placeholder="Paste the invite here"
-            aria-label="The invite you were sent"
-            data-testid="invite-input"
-            className="t-code-sm mt-3 w-full resize-none rounded-[3px] border border-line bg-surface px-2 py-1 outline-none placeholder:text-ink-3"
-            onChange={(event) => setInvite(event.target.value)}
-          />
-        ) : null}
-        {/* Wrapping, so on a phone the button drops under the folder field
-            rather than running off the right of the sheet, which it did. */}
-        <div className={`nx-ways-fields mt-2 flex flex-wrap gap-2 ${mode === "join" ? "flex-col" : ""}`}>
-          <input
-            value={path}
-            placeholder={
-              mode === "create"
-                ? "Where to put it, e.g. ~/writing/my-paper"
-                : mode === "add"
-                ? "/path/to/your/writing/project"
-                : "A folder to put it in, e.g. ~/writing/their-paper"
-            }
-            // `flex-1` only where the row is a row.  Joining stacks this
-            // under the invite box, and in a column `flex: 1 1 0%` is a
-            // rule about *height*: the basis of 0 beat `h-[28px]` and the
-            // field collapsed to the 17px of its own text, which is what
-            // made one box tall and the other a slot.  The cross axis
-            // stretches on its own, so the width needs nothing said.
-            className={`t-code-sm h-[28px] rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3 ${
-              mode === "join" ? "w-full" : "min-w-[200px] flex-1"
-            }`}
-            onChange={(event) => setPath(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && add()}
-          />
-          {mode === "create" && templates.length > 1 ? (
-            /* Hidden when there is only one, which is what an install with
-               its templates trimmed looks like: a chooser offering a single
-               choice is a control that asks a question with one answer. */
-            <select
-              value={template}
-              aria-label="What to start from"
-              data-testid="template-choice"
-              className="t-ui h-[28px] shrink-0 rounded-[3px] border border-line bg-surface px-2 text-ink outline-none"
-              onChange={(event) => setTemplate(event.target.value)}
-            >
-              {templates.map((name) => (
-                <option key={name} value={name}>
-                  {START_FROM[name] ?? name}
-                </option>
-              ))}
-            </select>
           ) : null}
-          <button
-            className={`h-[28px] px-3 t-ui ${
-              mode === "join" ? "pen-button self-start" : "ghost-button"
-            }`}
-            onClick={add}
-            disabled={busy === "add"}
-          >
-            {busy === "add" && mode === "join"
-              ? "Joining…"
-              : mode === "create"
-              ? "Create project"
-              : mode === "add"
-              ? "Open folder"
-              : "Join"}
-          </button>
         </div>
-        {offer ? (
-          <Suspense fallback={null}>
-            <JoinOfferCard offer={offer} onAccept={acceptOffer} onDiscard={discardOffer} />
-          </Suspense>
-        ) : null}
-        {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}
-        </div>
-        </div>
-        <PasswordNudge />
+      </main>
+
+      {/* Under the rail, after the list in the document: the nudge says
+          "your projects", and the first thing on the screen that says
+          Projects has to be the heading. */}
+      <footer className="nx-projects-foot bg-surface">
         <UpdateFooter onBusy={setLocked} />
-      </div>
+        <PasswordNudge />
+      </footer>
+      {drawer ? <div className="nx-scrim nx-ways-scrim" /> : null}
     </div>
   );
 }

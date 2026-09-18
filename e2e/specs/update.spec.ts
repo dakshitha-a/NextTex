@@ -440,18 +440,25 @@ test("a long reason from git does not carry Try again off the footer", async ({
     await open(app, page);
     const warn = page.getByTestId("update-unchecked");
     await expect(warn).toBeVisible({ timeout: 20_000 });
-    // The row itself, not the pieces on it: `items-center` keeps a button
-    // centred in a line three rows tall, so comparing the two boxes' tops
-    // would call a wrapped line straight.
+    // The footer stands in a 280px rail now and its lines wrap, so the
+    // premise is asserted directly rather than through the row's height:
+    // git's paragraph is one truncated line, readable in full on hover,
+    // and the two controls are on screen, inside the footer, not carried
+    // off its end.
     const row = warn.locator("..");
-    const box = await row.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.height).toBeLessThan(24);
-    // And the message is still readable in full, on hover.
-    await expect(warn.locator("..").locator("span[title]")).toHaveAttribute(
-      "title",
-      /Could not resolve host/,
-    );
+    const message = row.locator("span[title]");
+    await expect(message).toHaveAttribute("title", /Could not resolve host/);
+    const said = await message.boundingBox();
+    expect(said!.height).toBeLessThan(20);
+    const foot = await page.locator(".nx-projects-foot").boundingBox();
+    for (const name of ["Try again", "Report a problem"]) {
+      const control = row.getByRole("button", { name });
+      await expect(control).toBeVisible();
+      const box = (await control.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(foot!.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(foot!.x + foot!.width + 1);
+      expect(box.y + box.height).toBeLessThanOrEqual(foot!.y + foot!.height + 1);
+    }
   } finally {
     await app.stop();
   }

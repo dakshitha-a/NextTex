@@ -403,10 +403,12 @@ ground. And an intermittent failure in a test that renders a component with
 several states is usually the states, not the timing -- calling it flaky and
 re-running it is how it survives.
 
-The pairing is now prevented rather than certified: `.nx-on-surround` steps
-the dimmest ink up to `--ink-2` (6.04:1), and `["ink-3", "surround"]` is
-deliberately absent from the list, with a comment saying that adding it back
-is meant to fail.
+The pairing is now prevented rather than certified. `.nx-on-surround` used to
+step the dimmest ink up to `--ink-2` (6.04:1) on the projects screen, the one
+place small text sat on the surround; since the screen became a rail beside
+the list (`docs/design.md` §44) nothing sits on the surround at all and the
+rule is gone. `["ink-3", "surround"]` stays deliberately absent from the
+list, with a comment saying that adding it back is meant to fail.
 
 ## The surfaces a page-at-rest sweep never sees
 

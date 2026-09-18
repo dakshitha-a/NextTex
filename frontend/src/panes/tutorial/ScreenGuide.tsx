@@ -1,5 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDismiss } from "../../useDismiss";
+import { useOnScreen, type Wanted } from "../../place-menu";
+import { toShell } from "../../viewport";
 
 /** What everything on the projects screen does.
  *
@@ -21,6 +23,24 @@ export default function ScreenGuide({
     card.current?.focus();
   }, []);
 
+  // Fixed and placed by `placeMenu`, the file menu's road, rather than
+  // absolute under its button: the button stands at the foot of the
+  // projects rail now, where "under" is below the window, and inside a
+  // column that scrolls.  Right edges aligned when there is room, above
+  // the button when there is none below, pushed in from the left on a
+  // phone.  Read once, in shell pixels; the card does not follow a resize
+  // and nobody resizes a window with a help card open.
+  const [wanted] = useState<Wanted>(() => {
+    const box = anchor.current?.getBoundingClientRect();
+    if (!box) return { left: 120, top: 120 };
+    return {
+      left: toShell(box.right) - WIDTH,
+      top: toShell(box.bottom) + 4,
+      flip: toShell(box.top) - 4,
+    };
+  });
+  const placed = useOnScreen(card, wanted) ?? wanted;
+
   return (
     <div
       ref={card}
@@ -28,7 +48,8 @@ export default function ScreenGuide({
       aria-labelledby="screen-guide-heading"
       data-testid="screen-guide"
       tabIndex={-1}
-      className="nx-arrive absolute right-0 top-[30px] z-40 max-h-[calc(100vh-80px)] w-[320px] overflow-auto rounded-[5px] border border-line bg-surface shadow-float outline-none"
+      className="nx-arrive fixed z-40 max-h-[calc(100vh-16px)] w-[320px] overflow-auto rounded-[5px] border border-line bg-surface shadow-float outline-none"
+      style={{ left: placed.left, top: placed.top }}
     >
       <div
         id="screen-guide-heading"
@@ -53,6 +74,9 @@ export default function ScreenGuide({
   );
 }
 
+/** The card's width, which `wanted` needs before the card is measured. */
+const WIDTH = 320;
+
 const ROWS: [string, string][] = [
   [
     "Click a project to open it",
@@ -60,7 +84,7 @@ const ROWS: [string, string][] = [
   ],
   [
     "Start something new",
-    "Makes the folder and one empty document. Give the agent your template afterwards and it will shape the project around it.",
+    "In the rail on the left; on a phone, behind New. Makes the folder and one empty document. Give the agent your template afterwards and it will shape the project around it.",
   ],
   [
     "Point at a folder",
@@ -72,7 +96,11 @@ const ROWS: [string, string][] = [
   ],
   [
     "Find a project",
-    "Once there are six, a box above the list. Press / to reach it, type any part of a name or a path, and Enter opens the first match.",
+    "The box above the list. Press / to reach it, type any part of a name or a path, and Enter opens the first match.",
+  ],
+  [
+    "Sort",
+    "Beside the box: last opened, or by name. The choice is kept on this browser.",
   ],
   [
     "Zip and PDF",
@@ -88,6 +116,6 @@ const ROWS: [string, string][] = [
   ],
   [
     "The cog",
-    "Theme, interface size and editor text size. They follow you between projects; the per-project switches appear once one is open.",
+    "At the foot of the rail. Theme, interface size and editor text size. They follow you between projects; the per-project switches appear once one is open.",
   ],
 ];

@@ -185,3 +185,43 @@ test("the offer card says what accepting does to a folder that already has files
   await expect(card.locator('[data-outcome="new from peers"]')).toContainText("new from the others");
   await expect(card.locator('[data-outcome="deleted elsewhere"]')).toContainText("goes to the trash");
 });
+
+test("on a phone a rejoin's offer opens the drawer, so it is seen", async ({
+  app,
+  project,
+  page,
+}) => {
+  // The card is drawn under Join in the rail, which on a phone is the
+  // drawer behind New; an offer arriving into a closed drawer would wait
+  // there unseen, so the rejoin opens it.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  const shared = await page.request.post(
+    `${app.base}/api/projects/${project.id}/collab/share`,
+    { data: { name: "Wilhelmina" } },
+  );
+  expect(shared.ok()).toBeTruthy();
+  rmSync(project.root, { recursive: true, force: true });
+  await page.route("**/api/collab/rejoin", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        token: "played-back",
+        path: project.root,
+        existing: false,
+        files: [{ path: "main.tex", kind: "text", size: 900, refused: false, outcome: "same" }],
+      },
+    }),
+  );
+
+  await page.reload();
+  await page.getByTestId("rejoin-project").click({ timeout: 20_000 });
+  await page.getByTestId("confirm-rejoin").click();
+  const drawer = page.getByRole("dialog", { name: "Ways in" });
+  await expect(drawer).toBeVisible({ timeout: 10_000 });
+  const card = drawer.getByTestId("join-offer");
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("1 file");
+  await card.getByTestId("discard-join").click();
+  await expect(card).toHaveCount(0);
+});
