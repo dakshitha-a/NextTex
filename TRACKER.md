@@ -24,7 +24,14 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing at the moment. The run that worked the backlog finished with
+Nothing at the moment. The run after 2.6.3 worked the writer's September
+interface list to 2.7.0, in one push: a figure of any size opens whole
+and downloads from its viewer, the source tab menu closes to the right
+and downloads, the find field's typed text can be read, every menu and
+popup is measured for contrast by a spec that stays, a menu never opens
+below the screen, a folder answers a drag over it, and a Markdown file is
+previewed. What it left is one line in the backlog below. Before it, the
+run that worked the backlog finished with
 2.6.0: of the thirty items at 2.4.0, eight were real gaps that could be
 started from this checkout with a test, and all eight are done, in three
 pushes. The README's screenshots show the tab-strip headers; a request
@@ -41,6 +48,15 @@ this checkout does not have, or are decisions, are where they were.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **A PNG download the writer reported as broken was not reproduced.**
+      The file route answers a PNG with its bytes, `image/png` and an
+      attachment disposition, and the tree's *Download*, the image
+      viewer's and the History panel's each raise a real download in
+      Chromium, all under `e2e/specs/image-view.spec.ts` now. Whatever
+      failed did so in a browser or on a network this checkout did not
+      have; the report asks which control, which browser and how large
+      the file was, and the item waits on the answer.
 
 - [ ] **A full pytest run warns once that a pycrdt subscription was
       dropped on another thread.** `PytestUnraisableExceptionWarning`
