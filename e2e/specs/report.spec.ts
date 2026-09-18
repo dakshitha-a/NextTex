@@ -91,7 +91,9 @@ test("the report is redacted, quotes what the page saw, and points at the form",
     await page.screenshot({ path: "shots/out-report.png",
       clip: { x: 0, y: 0, width: 1280, height: 720 } });
 
-    await card.getByText("Close").click();
+    // The button by its role: the report quotes the Python path, and a
+    // checkout whose folder has "close" in its name matched twice.
+    await card.getByRole("button", { name: "Close", exact: true }).click();
     await expect(card).toHaveCount(0);
   } finally {
     await app.stop();
