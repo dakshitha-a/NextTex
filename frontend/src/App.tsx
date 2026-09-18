@@ -66,6 +66,8 @@ const Pdf = lazy(() => import("./panes/Pdf"));
  *  Behind a click on a `.py`, so a session that never opens one never
  *  downloads it. */
 const Script = lazy(() => import("./panes/Script"));
+/** The Markdown pane, likewise: behind a click on a `.md`. */
+const Markdown = lazy(() => import("./panes/Markdown"));
 // Lazy for the same reason Pdf is: the tutorial carries a dozen screenshots
 // and a thousand words, and none of it belongs in what a first visit has to
 // download before the editor appears.
@@ -1281,6 +1283,7 @@ export default function App() {
   const previews = useStore((s) => s.previews);
   const activePreview = useStore((s) => s.activePreview);
   const script = useStore((s) => s.script);
+  const markdown = useStore((s) => s.markdown);
   const previewShowing = useStore((s) => s.previewShowing);
   /** Removals in flight, during which the preview does not follow the
    *  editor; see `stopPreviewingMany`. */
@@ -1501,7 +1504,17 @@ export default function App() {
       }
       return;
     }
-    if (activePath && isTeX(activePath) && get().previewShowing === "script") {
+    // A Markdown file in front brings its rendering forward, the way a
+    // script brings its run; the text follows from the editor.  A tab
+    // closed by the writer stays closed while they type in the file, and
+    // comes back when the file next comes to the front.
+    if (decision.kind === "markdown") {
+      const path = decision.path;
+      if (get().markdown?.path !== path) set({ markdown: { path } });
+      if (get().previewShowing !== "markdown") set({ previewShowing: "markdown" });
+      return;
+    }
+    if (activePath && isTeX(activePath) && get().previewShowing !== "document") {
       set({ previewShowing: "document" });
     }
     if (decision.kind === "show") {
@@ -2522,8 +2535,19 @@ export default function App() {
               />
             </div>
           ) : null}
+          {/* The Markdown pane, on the same terms as the script's: in
+              front of the page, never instead of it. */}
+          {markdown ? (
+            <div className={previewShowing === "markdown" ? "contents" : "hidden"}>
+              <Markdown />
+            </div>
+          ) : null}
           <div
-            className={previewShowing === "script" && script ? "hidden" : "contents"}
+            className={
+              (previewShowing === "script" && script) || (previewShowing === "markdown" && markdown)
+                ? "hidden"
+                : "contents"
+            }
             data-testid="page-behind-script"
           >
           <Pdf

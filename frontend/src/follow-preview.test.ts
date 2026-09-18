@@ -74,3 +74,14 @@ test("a script is its own answer: the pane shows its last run", () => {
     kind: "none",
   });
 });
+
+test("a Markdown file is its own answer: the pane renders it", () => {
+  expect(followDecision("README.md", ["main.tex"], "main.tex", {})).toEqual({
+    kind: "markdown", path: "README.md",
+  });
+  expect(followDecision("notes/Plan.MARKDOWN", ["main.tex"], "main.tex", {})).toEqual({
+    kind: "markdown", path: "notes/Plan.MARKDOWN",
+  });
+  // A text file that is not Markdown is nothing to preview.
+  expect(followDecision("notes.txt", ["main.tex"], "main.tex", {})).toEqual({ kind: "none" });
+});

@@ -12,6 +12,8 @@ export type FollowDecision =
   | { kind: "show"; document: string }
   /** A script: its tab, with its last run, is what the pane shows. */
   | { kind: "script"; path: string }
+  /** A Markdown file: its rendering, as it is typed, is what the pane shows. */
+  | { kind: "markdown"; path: string }
   /** Not known here: ask the server which document this file belongs to. */
   | { kind: "ask" }
   /** Not a `.tex` file, or nothing to do. */
@@ -19,6 +21,7 @@ export type FollowDecision =
 
 const TEX = /\.(tex|ltx)$/i;
 const SCRIPT = /\.py$/i;
+const MARKDOWN = /\.(md|markdown)$/i;
 
 export function followDecision(
   path: string | null | undefined,
@@ -27,6 +30,7 @@ export function followDecision(
   owners: Readonly<Record<string, readonly string[]>>,
 ): FollowDecision {
   if (path && SCRIPT.test(path)) return { kind: "script", path };
+  if (path && MARKDOWN.test(path)) return { kind: "markdown", path };
   if (!path || !TEX.test(path)) return { kind: "none" };
   if (previews.includes(path)) {
     return path === activePreview ? { kind: "none" } : { kind: "show", document: path };

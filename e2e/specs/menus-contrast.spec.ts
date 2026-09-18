@@ -306,6 +306,18 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "the Markdown preview",
+    open: async (tab) => {
+      await tab.locator('[role="tree"] [data-path="notes.md"]').click();
+      const view = tab.getByTestId("markdown-view");
+      await expect(view.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 10_000 });
+      return view;
+    },
+    close: async (tab) => {
+      await tab.locator('[role="tree"] [data-path="main.tex"]').click();
+    },
+  },
+  {
     name: "the share panel",
     open: async (tab) => {
       await tab.getByTestId("open-share").click();
@@ -330,6 +342,10 @@ async function prepare(app: any, project: any, page: Page, pairing: Pairing) {
   for (let i = 0; i < 8; i += 1) {
     writeFileSync(join(project.root, `part${i}.tex`), `Part ${i}, recieved.\n`);
   }
+  writeFileSync(
+    join(project.root, "notes.md"),
+    "# Notes\n\nSome *prose*, a `command`, and **weight**.\n\n- one\n- two\n\n> quoted\n\n```tex\n\\section{x}\n```\n",
+  );
   await page.emulateMedia({ colorScheme: pairing.shell, reducedMotion: "reduce" });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();

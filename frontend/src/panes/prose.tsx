@@ -92,7 +92,7 @@ export function parseBlocks(source: string): Block[] {
 
 /** Inline spans: code, bold, italic.  Code wins, so `**` inside a path is
  *  left alone -- which matters when the paths are LaTeX. */
-function inline(text: string, keyPrefix: string): ReactNode[] {
+export function inline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(_[^_\n]+_)/g;
   let last = 0;

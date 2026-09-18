@@ -95,6 +95,12 @@ export function isScript(path: string): boolean {
   return extensionOf(path) === ".py";
 }
 
+/** A Markdown file, which the preview pane renders as it is typed. */
+export function isMarkdown(path: string): boolean {
+  const extension = extensionOf(path);
+  return extension === ".md" || extension === ".markdown";
+}
+
 export function isBib(path: string): boolean {
   return extensionOf(path) === ".bib";
 }

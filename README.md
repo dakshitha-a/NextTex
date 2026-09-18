@@ -503,7 +503,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 850.0 kB | 860 kB |
+| Interface bundle | 854.6 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -617,10 +617,16 @@ modes have a key as well, `⌘⌥R` / `Ctrl-Alt-R` for reading and `⌘⌥E` /
 left to double-click.
 
 Right-click the tab you are working in and you can close every other tab,
-close the lot, or duplicate the file. A duplicate arrives beside the original
-as `chapter (copy).tex` and the file list opens far enough to show you where
-it landed; nothing moves out from under you, so the file you were editing is
-still the one in front.
+close everything to its right, close the lot, duplicate the file, or download
+it. A duplicate arrives beside the original as `chapter (copy).tex` and the
+file list opens far enough to show you where it landed; nothing moves out
+from under you, so the file you were editing is still the one in front.
+
+A Markdown file gets the same treatment as a script: open a `README.md` or a
+set of notes and its rendering joins the preview strip as a tab of its own,
+following your typing a moment behind, while the typeset page waits behind it
+for the next `.tex` you open. A figure opens whole, however large, with a
+zoom that steps from what fits and a Download beside it.
 
 The two strips keep each other tidy. Stop previewing a document and the files
 that belong to it, its chapters, its bibliography, its own root file, close

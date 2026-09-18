@@ -209,10 +209,22 @@ export type State = {
      *  the pane offers a rerun rather than running it on its own. */
     changedByAgent: boolean;
   } | null;
-  /** Which of the two the preview pane draws: the document in front, or
-   *  the script tab.  Running a script always brings the script forward;
-   *  clicking a document tab puts the page back without closing it. */
-  previewShowing: "document" | "script";
+  /** The Markdown file on the preview strip, if one is: the `.md` in
+   *  front of the editor, or the one last in front.  One at a time and
+   *  this window's own, like the script tab, and for the same reason: a
+   *  rendering is read beside the file being typed, and another window's
+   *  file is not this window's reading. */
+  markdown: { path: string } | null;
+  /** What the editor holds for the Markdown file in front, published by
+   *  the editor a moment behind the keyboard; the pane renders it.  Kept
+   *  apart from `markdown` so closing the tab does not stop the text and
+   *  the text arriving does not reopen the tab. */
+  markdownSource: { path: string; text: string } | null;
+  /** Which of the three the preview pane draws: the document in front,
+   *  the script tab, or the Markdown tab.  Running a script always brings
+   *  the script forward; clicking a document tab puts the page back
+   *  without closing it. */
+  previewShowing: "document" | "script" | "markdown";
   /** Which documents are previewed, in tab order, main first. */
   previews: string[];
   /** The tab in front.  It builds first and waits the shorter debounce. */
@@ -363,6 +375,8 @@ const state: State = {
   history: [],
   trash: [],
   script: null,
+  markdown: null,
+  markdownSource: null,
   previewShowing: "document",
   previews: [],
   activePreview: "",

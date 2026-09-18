@@ -21,7 +21,7 @@ import {
   spellCompartment,
   viewExtensions,
 } from "./editor-setup";
-import { isCode } from "./file-kinds";
+import { isCode, isMarkdown } from "./file-kinds";
 
 import { outline as sectionsOf, sameOutline } from "../outline";
 import {
@@ -380,11 +380,25 @@ export default function Editor({
     const refreshOutline = () => {
       const editor = view.current;
       const path = viewing.current?.path ?? current.current;
-      const next = editor && path ? sectionsOf(editor.state.doc.toString()) : [];
+      const text = editor && path ? editor.state.doc.toString() : "";
+      const next = text ? sectionsOf(text) : [];
       const now = get().outline;
       // Typing prose changes the text on every keystroke and the section
       // list almost never; keeping the old array keeps the panel still.
       if (!sameOutline(now, next)) set({ outline: next });
+      // A Markdown file's text goes to the preview pane on the same
+      // cadence, and from the same place, because the two are the same
+      // question: what does the buffer say now.  An old version being
+      // viewed is what the buffer holds, so the pane renders that
+      // version, which is the point of viewing it.
+      const held = get().markdownSource;
+      if (editor && path && isMarkdown(path)) {
+        if (!held || held.path !== path || held.text !== text) {
+          set({ markdownSource: { path, text } });
+        }
+      } else if (held) {
+        set({ markdownSource: null });
+      }
     };
 
     const onChange = (local: boolean) => {

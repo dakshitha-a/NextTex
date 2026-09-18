@@ -7294,3 +7294,43 @@ drags a row along a folder's name and onto its icon with the mouse and
 asserts the folder holds, and dispatches a desktop file's events by hand
 and asserts the folder lights, the root does not, and the crossing onto
 the name and the icon leaves it lit.
+
+### A Markdown file is previewed
+
+A `.md` in front of the editor puts its rendering on the preview strip,
+as a tab of its own after the documents, on exactly the terms a `.py`
+puts its run there (§35): one at a time, this window's own, never the
+server's strip, in front of the page and not instead of it, so the page
+keeps its scroll and zoom for the next `.tex`. `followDecision` answers
+`markdown` for the file, `previewShowing` gains the third value, and the
+tab is closeable with a menu of *Close*. A tab the writer closes stays
+closed while they go on typing in the file, and returns when the file
+next comes to the front, which is the script tab's rule too.
+
+The text is the editor's. `Editor.tsx` publishes it into
+`markdownSource` from the same place and on the same 250 ms cadence it
+publishes the section list, because the two are one question, what the
+buffer says now; a version being viewed from History is what the buffer
+holds, so the pane renders that version, which is what viewing it is
+for. `markdownSource` is kept apart from the tab's own state so closing
+the tab does not stop the text and the text arriving does not reopen the
+tab. The pane, `frontend/src/panes/Markdown.tsx`, is lazy like the
+script's, and renders with the chat's own parser from `prose.tsx`:
+headings, paragraphs, lists, fenced code and quotes, with code, bold and
+italic inside them, on paper in the reading serif at a measure of about
+seventy characters. Unlike the chat's rendering the headings keep their
+levels. It is deliberately not a library and deliberately not more than
+the parser knows: what is wanted is the shape of the prose while it is
+being written, and what the parser does not know stays as the literal
+text.
+
+The paper carries the white page's own palette, `.nx-theme-light
+.nx-theme-white`, whatever the shell's theme. `.nx-page` is paper in both
+themes and paper takes dark ink; the first render took the dark shell's
+light ink and was pale grey on white, which the menu audit measures for
+now. `e2e/specs/markdown-preview.spec.ts` opens a file and finds its
+heading, list, quote and code rendered, types a heading and finds it
+arrive, puts a `.tex` in front and finds the page back with the tab
+kept, closes the tab and finds typing does not reopen it and reopening
+the file does; an empty file says *Nothing written yet* rather than
+showing a blank sheet.

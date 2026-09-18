@@ -54,6 +54,7 @@ export default function PreviewHeader({
   const previews = useStore((s) => s.previews);
   const active = useStore((s) => s.activePreview);
   const script = useStore((s) => s.script);
+  const markdown = useStore((s) => s.markdown);
   const showing = useStore((s) => s.previewShowing);
   const candidates = useStore((s) => s.candidates);
   const builds = useStore((s) => s.builds);
@@ -111,9 +112,30 @@ export default function PreviewHeader({
     });
   }
 
+  // And the Markdown file this window is looking at, after the script:
+  // its name with its extension, closeable, drawn from what the editor
+  // holds.  It never reaches the server's strip either.
+  if (markdown) {
+    const name = markdown.path.split("/").pop() ?? markdown.path;
+    const dot = name.lastIndexOf(".");
+    tabs.push({
+      path: markdown.path,
+      label: middleTruncate(dot > 0 ? name.slice(0, dot) : name, 18),
+      extension: dot > 0 ? name.slice(dot) : "",
+      title: markdown.path,
+      active: showing === "markdown",
+      closeLabel: `Close ${name}`,
+      testId: `markdown-tab-${markdown.path}`,
+    });
+  }
+
   const select = (path: string) => {
     if (script && path === script.path) {
       set({ previewShowing: "script" });
+      return;
+    }
+    if (markdown && path === markdown.path) {
+      set({ previewShowing: "markdown" });
       return;
     }
     set({ previewShowing: "document" });
@@ -121,13 +143,20 @@ export default function PreviewHeader({
   };
   const close = (path: string) => {
     if (script && path === script.path) {
-      set({ script: null, previewShowing: "document" });
+      set({ script: null, previewShowing: showing === "script" ? "document" : showing });
+      return;
+    }
+    if (markdown && path === markdown.path) {
+      set({ markdown: null, previewShowing: showing === "markdown" ? "document" : showing });
       return;
     }
     onClose(path);
   };
 
   const menuFor = (path: string): MenuItem[] => {
+    if (markdown && path === markdown.path) {
+      return [{ key: "close", label: "Close", run: () => close(path) }];
+    }
     if (script && path === script.path) {
       return [
         script.running
