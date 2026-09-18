@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PlusIcon } from "../chrome";
-import { set, useStore } from "../store";
+import { get, set, useStore } from "../store";
+import { pageWindowUrl } from "../page-window";
 import { useDismiss } from "../useDismiss";
 import { focusFirst, walkMenu } from "./menu-keys";
 import PaneHeader from "./PaneHeader";
@@ -176,6 +177,14 @@ export default function PreviewHeader({
         run: () => onCloseMany(others) },
       { key: "rule", rule: true },
       { key: "download", label: "Download PDF", run: () => onDownload(path) },
+      // The page alone, in a window of its own, for a second monitor.
+      // A new window rather than a tab, since a tab beside this one is
+      // not what a second monitor wants; the browser decides which it
+      // gets and the writer can drag it either way.
+      { key: "window", label: "Open in its own window", run: () => {
+        const id = get().projectId;
+        if (id) window.open(pageWindowUrl(id, path), "_blank", "noopener");
+      } },
     ];
   };
 

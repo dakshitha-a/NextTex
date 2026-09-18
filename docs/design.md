@@ -7680,3 +7680,27 @@ no usage chunk with the footer's fields intact; `tests/api/test_agent_opted_out.
 holds the route's refusals and the status; `e2e/specs/sign-in.spec.ts`
 fills the form with a URL and no key, is told the model is needed,
 names one, and finds the status ready.
+
+### The page in its own window
+
+A writer with a second monitor wants the typeset page on it, alone and
+live, and the only way to get it was a second copy of the whole app,
+with its rail and its editor and its own idea of which tab is in front.
+The preview tab's menu gains *Open in its own window*, under *Download
+PDF*, which opens the same document at `?page=<project>&document=<name>`
+in a new window. That window holds a one-line header, the logo, the
+project's name and the document's, and the page beneath it and nothing
+else: the PDF pane with its own zoom, its own view mode and its own
+find, the `nexttex.pdf.*` preferences shared with the main window
+because a second monitor wants the same page at the same size. It sits
+on the same event stream, so a build in the first window redraws it,
+and it asks for a build when it opens so it never shows the absence of
+one. A double-click on its page has no editor to go to and does nothing.
+The browser decides whether the new window is a window or a tab, and
+the writer can drag it either way.
+
+`frontend/src/page-window.test.ts` reads the URL back and refuses an id
+that is not one and a document that tries to leave the project;
+`e2e/specs/page-window.spec.ts` opens the window from the menu, finds the
+page and no editor or tree in it, grows the document in the first window
+and watches the page count change in the second.

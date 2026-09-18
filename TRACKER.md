@@ -35,10 +35,7 @@ in front shows the next, and a tab not in front follows its file.
 The editor went up as 2.9.0.
 
 
-Papers, provider and window, for 2.10.0:
-
-- [ ] **The page in its own window.** The typeset page alone, live, for a
-      second monitor.
+Papers, provider and window, for 2.10.0, is done and is this push.
 
 Before it, the run after 2.6.3 worked the writer's September
 interface list to 2.7.0, in one push: a figure of any size opens whole
