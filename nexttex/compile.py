@@ -41,6 +41,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Callable
 
 from .deps import uncommented
 from .latexlog import ParsedLog, parse as parse_log
@@ -133,6 +134,53 @@ class Outcome(str, Enum):
     NO_ENGINE = "no_engine"
 
 
+#: The engines a document may ask for.  Everything downstream, the log
+#: parser, synctex and the `.aux` files, is the same for all three; what
+#: differs is the binary and which latexmk switch names it.
+ENGINES = ("pdflatex", "xelatex", "lualatex")
+DEFAULT_ENGINE = "pdflatex"
+#: latexmk's mode switch and command option for each engine.  Checked
+#: against latexmk 4.88's own help, where `-pdfxe` and `-pdflua` select
+#: the engine and `-pdfxelatex=` and `-pdflualatex=` say how to run it.
+LATEXMK_ENGINE = {
+    "pdflatex": ("-pdf", "-pdflatex"),
+    "xelatex": ("-pdfxe", "-pdfxelatex"),
+    "lualatex": ("-pdflua", "-pdflualatex"),
+}
+
+#: `% !TeX program = xelatex`, the line every other editor honours, in its
+#: TeXShop spelling `TS-program` as well.  Only the first lines of the main
+#: file are read, so a mention deep in a comment does not count.
+MAGIC_PROGRAM = re.compile(
+    r"^\s*%\s*!\s*TeX\s+(?:TS-)?program\s*=\s*([A-Za-z]+)", re.I | re.M
+)
+MAGIC_LINES = 20
+
+
+def engine_in(main_source: str) -> str:
+    """The engine a `% !TeX program` line names, or "" when there is none
+    or it names something NextTex does not run."""
+    head = "\n".join(main_source.splitlines()[:MAGIC_LINES])
+    found = MAGIC_PROGRAM.search(head)
+    if not found:
+        return ""
+    name = found.group(1).lower()
+    return name if name in ENGINES else ""
+
+
+def engine_for(main_source: str, setting: str = "") -> str:
+    """Which engine builds this document: the magic comment, then the
+    project's `engine` setting, then pdflatex.
+
+    The comment wins because it travels with the file: a paper whose
+    venue hands out a font says so in its first line, and that line means
+    the same thing in every editor the co-authors use.
+    """
+    return engine_in(main_source) or (
+        setting if setting in ENGINES else DEFAULT_ENGINE
+    )
+
+
 @dataclass
 class CompileResult:
     outcome: Outcome
@@ -140,7 +188,8 @@ class CompileResult:
     pdf: Path | None
     duration: float
     scope: str          # "full" or the chapter stem the build was limited to
-    engine_pass: str    # "fast" (one pdflatex) or "full" (latexmk, which runs bibtex or biber as the document asks)
+    engine_pass: str    # "fast" (one engine run) or "full" (latexmk, which runs bibtex or biber as the document asks)
+    engine: str = DEFAULT_ENGINE   # which of ENGINES ran, or was asked for and not found
 
     def as_dict(self) -> dict:
         return {
@@ -148,6 +197,7 @@ class CompileResult:
             "durationMs": round(self.duration * 1000),
             "scope": self.scope,
             "enginePass": self.engine_pass,
+            "engine": self.engine,
             "pdf": str(self.pdf) if self.pdf else None,
             **(self.log.as_dict() if self.log else
                {"diagnostics": [], "errorCount": 0, "warningCount": 0, "rawTail": ""}),
@@ -377,12 +427,22 @@ class CompileScheduler:
     """
 
     def __init__(self, paths: ProjectPaths, timeout: float = 120.0,
-                 allow_rc: bool = False):
+                 allow_rc: bool = False,
+                 engine_setting: Callable[[], str] | None = None):
         self.paths = paths
         self.timeout = timeout
         # Whether latexmk may read a `latexmkrc` out of the project.  See
         # `full_argv`.  Off unless the install's settings turn it on.
         self.allow_rc = allow_rc
+        # The project's `engine` key, asked for at each build rather than
+        # copied at construction, so a change on the settings card reaches
+        # the next build and not the next restart.  The main file's own
+        # `% !TeX program` line wins over it; see `engine_for`.
+        self.engine_setting = engine_setting or (lambda: "")
+        # The engine the last build ran.  A different one next time means
+        # the `.aux` files in the build directory were written by the
+        # other engine, and a fast pass over them can leave stale numbers.
+        self._last_engine: str | None = None
         self._process: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
         self._generation = 0
@@ -498,6 +558,13 @@ class CompileScheduler:
                 only, scope = target, target
 
         source_file = write_shadow(self.paths, only)
+        # From the real main file, never the stand-in: the stand-in is the
+        # main file with its preamble rewritten, and the magic comment
+        # sits above the preamble in the file the writer sees.
+        engine = engine_for(main_source, self.engine_setting())
+        if self._last_engine is not None and engine != self._last_engine:
+            self._require_full()
+        self._last_engine = engine
         full_pass = force_full or self._needs_full
         mark = self._full_mark
 
@@ -505,7 +572,10 @@ class CompileScheduler:
         # output directory; the engine will not create those directories.
         self._mirror_build_tree(main_source)
 
-        argv = self.full_argv(source_file) if full_pass else self.fast_argv(source_file)
+        argv = (
+            self.full_argv(source_file, engine) if full_pass
+            else self.fast_argv(source_file, engine)
+        )
         env = {**os.environ, **LOG_ENV, **self.paths.search_env()}
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -520,7 +590,7 @@ class CompileScheduler:
         except FileNotFoundError:
             return CompileResult(
                 Outcome.NO_ENGINE, None, None, time.monotonic() - started, scope,
-                "full" if full_pass else "fast",
+                "full" if full_pass else "fast", engine,
             )
         self._process = proc
         if generation != self._generation:
@@ -538,7 +608,7 @@ class CompileScheduler:
             await self.cancel()
             return CompileResult(
                 Outcome.TIMEOUT, None, None, time.monotonic() - started, scope,
-                "full" if full_pass else "fast",
+                "full" if full_pass else "fast", engine,
             )
         finally:
             self._process = None
@@ -546,7 +616,7 @@ class CompileScheduler:
         if proc.returncode is not None and proc.returncode < 0:
             return CompileResult(
                 Outcome.CANCELLED, None, None, time.monotonic() - started, scope,
-                "full" if full_pass else "fast",
+                "full" if full_pass else "fast", engine,
             )
 
         if full_pass and mark == self._full_mark:
@@ -578,7 +648,7 @@ class CompileScheduler:
         outcome = Outcome.ERRORS if (log and log.errors) else Outcome.OK
         return CompileResult(
             outcome, log, pdf, time.monotonic() - started, scope,
-            "full" if full_pass else "fast",
+            "full" if full_pass else "fast", engine,
         )
 
     def _note_unresolved(self, log: ParsedLog, full_pass: bool) -> None:
@@ -620,7 +690,7 @@ class CompileScheduler:
             text, self.paths.root, self.paths.main, base=self.paths.workdir
         )
 
-    def full_argv(self, source_file: Path) -> list[str]:
+    def full_argv(self, source_file: Path, engine: str = DEFAULT_ENGINE) -> list[str]:
         """latexmk: citations through bibtex or biber, cross-references, the lot.
 
         latexmk accepts `-synctex=1` and then does not pass it on to the
@@ -642,21 +712,25 @@ class CompileScheduler:
         project, because a project carrying permission to run its own code
         is the same hole with an extra step.
         """
-        argv = ["latexmk", "-pdf", "-interaction=nonstopmode", "-file-line-error"]
+        # latexmk names each engine twice: a mode switch that picks it
+        # and an option that says how to run it.  The inner flags are the
+        # same for all three engines.
+        mode, command = LATEXMK_ENGINE[engine]
+        argv = ["latexmk", mode, "-interaction=nonstopmode", "-file-line-error"]
         if not self.allow_rc:
             argv.append("-norc")
         argv += [
-            "-pdflatex=pdflatex -synctex=1 -interaction=nonstopmode "
+            f"{command}={engine} -synctex=1 -interaction=nonstopmode "
             "-file-line-error %O %S",
             f"-jobname={self.paths.jobname}",
             f"-outdir={self.paths.build_dir}", str(source_file),
         ]
         return argv
 
-    def fast_argv(self, source_file: Path) -> list[str]:
-        """One pdflatex pass: what an ordinary edit gets."""
+    def fast_argv(self, source_file: Path, engine: str = DEFAULT_ENGINE) -> list[str]:
+        """One engine pass: what an ordinary edit gets."""
         return [
-            "pdflatex", "-interaction=nonstopmode", "-file-line-error",
+            engine, "-interaction=nonstopmode", "-file-line-error",
             "-synctex=1", f"-jobname={self.paths.jobname}",
             f"-output-directory={self.paths.build_dir}", str(source_file),
         ]

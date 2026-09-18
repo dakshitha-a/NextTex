@@ -17,6 +17,8 @@ from nexttex.explain import RULES, annotate, explain, summarise
     ("! Extra alignment tab has been changed to \\cr.", "Too many columns in a table row"),
     ("! Misplaced alignment tab character &.", "An & outside a table"),
     ("! LaTeX Error: File `mhchem.sty' not found.", "A package that is not installed"),
+    ("Fatal Package fontspec Error: The fontspec package requires either XeTeX or",
+     "This package needs xelatex or lualatex"),
     ("! LaTeX Error: File `figures/plot.png' not found.",
      "A file the document refers to is missing"),
     ("! LaTeX Error: Environment chemfig undefined.",

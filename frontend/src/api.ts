@@ -43,10 +43,24 @@ export type BuildSummary = Explanation & {
   note: string;
 };
 
+/** The three engines a document may ask for; "" on a setting means the
+ *  default, pdflatex. */
+export type Engine = "pdflatex" | "xelatex" | "lualatex";
+export const ENGINES: readonly Engine[] = ["pdflatex", "xelatex", "lualatex"];
+
+/** A setting read off the wire: one of the three engines or "" for the
+ *  default.  Anything else, from an older server or a hand-edited toml,
+ *  is the default rather than a value the card cannot draw. */
+export function engineOf(raw: unknown): Engine | "" {
+  return (ENGINES as readonly string[]).includes(raw as string) ? (raw as Engine) : "";
+}
+
 export type CompileResult = {
-  outcome: "ok" | "errors" | "cancelled" | "timeout" | "failed";
+  outcome: "ok" | "errors" | "cancelled" | "timeout" | "failed" | "no_engine";
   scope: string;
   enginePass: "fast" | "full";
+  /** Which engine ran, or was asked for and not found. */
+  engine?: Engine;
   durationMs: number;
   diagnostics: Diagnostic[];
   summary?: BuildSummary | null;
@@ -694,13 +708,14 @@ const api = {
       `/projects/${id}/template`,
       json({ name }),
     ),
-  /** One or more of the three per-project switches. */
+  /** One or more of the three per-project switches, or the engine. */
   setProjectSettings: (
     id: string,
     patch: Partial<{
       autocompile: boolean;
       markErrors: boolean;
       markWarnings: boolean;
+      engine: Engine | "";
     }>,
   ) =>
     request<{
@@ -709,6 +724,7 @@ const api = {
       autocompile: boolean;
       markErrors: boolean;
       markWarnings: boolean;
+      engine: Engine | "";
     }>(`/projects/${id}/settings`, json(patch)),
 
   /** `first` and `last` are 1-based inclusive lines, and they are how a

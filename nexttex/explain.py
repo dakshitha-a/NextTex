@@ -72,6 +72,17 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
         "Write \\& if you meant the symbol itself.",
     ),
     (
+        # fontspec's own words, which polyglossia repeats because it loads
+        # fontspec first.  The engine is the fix, not the package.
+        re.compile(r"fontspec package requires either XeTeX or", re.I),
+        "This package needs xelatex or lualatex",
+        "fontspec, and polyglossia which loads it, can only use the fonts "
+        "on your computer under XeTeX or LuaTeX. This build ran pdflatex.",
+        "Put `% !TeX program = xelatex` (or `lualatex`) on the first line "
+        "of the main file, or choose the engine for the whole project in "
+        "Settings, and build again.",
+    ),
+    (
         re.compile(r"File [`'\"]?([^'\"]+\.sty)", re.I),
         "A package that is not installed",
         "The preamble asks for a package this TeX installation does not have.",

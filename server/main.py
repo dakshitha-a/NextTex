@@ -52,7 +52,7 @@ from server.transcript import TranscriptError
 from nexttex.atomic import (
     NotAFile, read_bytes, read_text, unique_name, write_atomically,
 )
-from nexttex.compile import CompileScheduler, ProjectPaths
+from nexttex.compile import ENGINES, CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
 from nexttex import references
 from nexttex.library import (
@@ -3961,7 +3961,10 @@ async def download(
             )
             transient = DocumentState(
                 path=session.project.relative(target), paths=paths,
-                compiler=CompileScheduler(paths, allow_rc=Settings.load().latexmk_rc),
+                compiler=CompileScheduler(
+                    paths, allow_rc=Settings.load().latexmk_rc,
+                    engine_setting=lambda: session.project.config.engine,
+                ),
             )
             try:
                 pdf = await _project_pdf(session, transient)
@@ -4327,6 +4330,7 @@ def _project_settings(session) -> dict:
         "autocompile": config.autocompile,
         "markErrors": config.mark_errors,
         "markWarnings": config.mark_warnings,
+        "engine": config.engine,
     }
 
 
@@ -4336,10 +4340,14 @@ async def set_project_settings(
     autocompile: bool | None = Body(None),
     markErrors: bool | None = Body(None),
     markWarnings: bool | None = Body(None),
+    engine: str | None = Body(None),
 ):
-    """The three switches on the settings card.
+    """The three switches and the engine choice on the settings card.
 
-    Any subset: the card sends the one that changed.
+    Any subset: the card sends the one that changed.  The engine is one
+    of `compile.ENGINES` or "" for the default; anything else is refused
+    rather than written, since the value goes into a file the project
+    carries to other machines.
     """
     session = session_for(project_id)
     config = session.project.config
@@ -4349,6 +4357,10 @@ async def set_project_settings(
         config.mark_errors = bool(markErrors)
     if markWarnings is not None:
         config.mark_warnings = bool(markWarnings)
+    if engine is not None:
+        if engine and engine not in ENGINES:
+            raise HTTPException(400, f"unknown engine: {engine!r}")
+        config.engine = engine
     try:
         config.save(session.project.root)
     except OSError as error:

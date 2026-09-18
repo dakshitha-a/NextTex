@@ -36,7 +36,7 @@ export type StatusInput = {
   /** Whether anything has been edited since the last build started. */
   stale: boolean;
   /** The last build that said anything, or null if there has not been one. */
-  result: { durationMs: number; outcome?: Outcome } | null;
+  result: { durationMs: number; outcome?: Outcome; engine?: string } | null;
   errors: number;
   warnings: number;
   /** Only used to say how to get a build when none is coming by itself. */
@@ -105,12 +105,15 @@ export function statusFor(input: StatusInput): StatusDot {
   }
 
   if (outcome === "failed" || outcome === "no_engine") {
+    // A missing engine names itself: a document asking for xelatex on a
+    // machine with only pdflatex is a different fix from a broken install.
+    const engine = outcome === "no_engine" && input.result?.engine;
     return {
       state: "failed",
       dot: "bg-error",
       label: "Build failed",
       clickable: findings,
-      hint: "The build did not run",
+      hint: engine ? `${engine} is not installed` : "The build did not run",
     };
   }
 

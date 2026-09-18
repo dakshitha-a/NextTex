@@ -475,6 +475,16 @@ citation key or a new label pays for the full run with `biber`, and nothing
 else does. A half-finished equation holds the build back for four seconds
 rather than reporting an error you already know about.
 
+**The engine is the document's choice.** A paper in a non-Latin script,
+or one whose venue hands out a font, needs `fontspec`, and `fontspec`
+needs XeTeX or LuaTeX. Put `% !TeX program = xelatex` (or `lualatex`) on
+the first line of the main file, the line every other editor honours, or
+pick the engine for the whole project on the settings sheet; the line in
+the file wins over the sheet, because it travels with the file. A
+document that loads `fontspec` under pdflatex gets a diagnostic that
+says which engine it needs and how to choose it, rather than fontspec's
+own error.
+
 **And the page goes where you are writing.** When a build you caused lands,
 the preview scrolls to the part of the page your caret is on and flashes it,
 in whichever view mode you are in. It does that only when that part is not
@@ -1124,6 +1134,7 @@ build_dir = "build"
 autocompile = true      # build as you type; ⌘S builds when this is off
 mark_errors = true      # mark compile errors in the text itself
 mark_warnings = false   # and chktex warnings, which are noisier
+engine = "xelatex"      # or "lualatex"; pdflatex when the line is absent
 ```
 
 There is no main file to name. Every `.tex` with a `\documentclass` and a

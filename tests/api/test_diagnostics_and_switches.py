@@ -136,6 +136,7 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
         "autocompile": False,
         "markErrors": True,
         "markWarnings": True,
+        "engine": "",
     }
 
     # Written, not just held in memory.  `save()` writes its optional fields
@@ -159,6 +160,34 @@ def test_a_partial_update_leaves_the_others_alone(client, opened):
     ).json()
     assert body["markErrors"] is False
     assert body["autocompile"] is False
+
+
+def test_the_engine_is_chosen_on_the_card_and_travels_with_the_project(
+    client, project_dir, opened
+):
+    """One of the three engines, or "" for the default; written into the
+    project's own toml so a co-author's machine builds it the same way."""
+    project_id = opened["id"]
+    body = client.post(
+        f"/api/projects/{project_id}/settings", json={"engine": "xelatex"}
+    ).json()
+    assert body["engine"] == "xelatex"
+    written = (project_dir / "nexttex.toml").read_text(encoding="utf-8")
+    assert 'engine = "xelatex"' in written
+    assert client.post(f"/api/projects/{project_id}/open").json()["engine"] == "xelatex"
+    # Back to the default: the key leaves the file rather than saying "".
+    body = client.post(f"/api/projects/{project_id}/settings", json={"engine": ""}).json()
+    assert body["engine"] == ""
+    assert "engine" not in (project_dir / "nexttex.toml").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("bad", ["typst", "XELATEX", "xelatex; rm -rf /", "../x"])
+def test_an_engine_nextTex_does_not_run_is_refused_not_written(client, project_dir, opened, bad):
+    project_id = opened["id"]
+    response = client.post(f"/api/projects/{project_id}/settings", json={"engine": bad})
+    assert response.status_code == 400, response.text
+    toml = project_dir / "nexttex.toml"
+    assert not toml.exists() or "engine" not in toml.read_text(encoding="utf-8")
 
 
 def test_nothing_is_scheduled_when_compiling_as_you_type_is_off(client, opened):

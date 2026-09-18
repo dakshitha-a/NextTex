@@ -7336,3 +7336,42 @@ arrive, puts a `.tex` in front and finds the page back with the tab
 kept, closes the tab and finds typing does not reopen it and reopening
 the file does; an empty file says *Nothing written yet* rather than
 showing a blank sheet.
+
+## 40. The first roadmap run: the build
+
+The roadmap's first push, worked in September 2026: what the build can
+be asked for. Each subsection says what the writer gets, why it is
+shaped that way, and the tests that hold it.
+
+### The engine is the document's choice
+
+NextTex ran pdflatex and nothing else. A paper in a non-Latin script, or
+one whose venue hands out a font, needs `fontspec`, and `fontspec` needs
+XeTeX or LuaTeX, so the only way to build such a paper was to not use
+NextTex. Two ways to choose now, in the order of precedence. A `% !TeX
+program = xelatex` line at the top of the main file, which is the line
+every other editor honours and which travels with the file into every
+co-author's editor; and an *Engine* row on the settings sheet, under the
+project's three switches, which writes `engine = "xelatex"` into
+`nexttex.toml` so the project carries the choice to another machine.
+The row is drawn as pdflatex when the project has no key, never as
+nothing pressed, and picking pdflatex removes the key rather than
+writing a value the file does not need. A caption under the row says the
+line in the file wins over it, because a writer who picks xelatex on the
+sheet and still gets pdflatex from a document that says `lualatex` would
+otherwise have nothing to go on.
+
+A document that loads `fontspec` or `polyglossia` under pdflatex gets a
+drawer row that says *This package needs xelatex or lualatex* and names
+the two ways to choose one, keyed on fontspec's own message taken from a
+real log rather than typed. A missing engine is named on the status
+strip, *xelatex is not installed*, because that is a different fix from
+a broken install.
+
+`tests/test_compile_engines.py` reads the comment in every spelling
+editors use, builds a `fontspec` document under real xelatex and asserts
+the same document under pdflatex is explained, and shows a change of
+engine making the next build a full one; `e2e/specs/engine.spec.ts`
+picks xelatex on the sheet, builds, types the lualatex line at the top of
+the document and finds it win, and reloads to find the sheet still
+saying what the project asked for.

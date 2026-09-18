@@ -30,9 +30,6 @@ commit that finishes it.
 
 The build, for 2.8.0:
 
-- [ ] **Choose the engine per document.** xelatex and lualatex through a
-      `% !TeX program` line or an `engine` key in `nexttex.toml`;
-      fontspec under pdflatex explained in the drawer.
 - [ ] **Shell escape, per project, on purpose.** The project asks in
       `nexttex.toml`, the machine allows once per project, and a build
       never gets `-shell-escape` silently.

@@ -22,6 +22,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+from .compile import ENGINES
 from .paths import instance_name, shares_home, state_home
 
 try:
@@ -237,6 +238,13 @@ class ProjectConfig:
     # wrong often enough that marking every finding in the text is noise
     # while writing; the drawer keeps all of them either way.
     mark_warnings: bool = False
+    #: Which engine builds the project's documents: "pdflatex", "xelatex"
+    #: or "lualatex", or "" for the default.  A `% !TeX program` line at
+    #: the top of a document wins over this, because that line travels
+    #: with the file into every other editor.  Anything else on load is
+    #: read as the default rather than refused, since a malformed config
+    #: must not make the project unopenable.
+    engine: str = ""
 
     @classmethod
     def load(cls, root: Path) -> "ProjectConfig":
@@ -262,7 +270,13 @@ class ProjectConfig:
             autocompile=bool(section.get("autocompile", True)),
             mark_errors=bool(section.get("mark_errors", True)),
             mark_warnings=bool(section.get("mark_warnings", False)),
+            engine=cls._engine(section.get("engine")),
         )
+
+    @staticmethod
+    def _engine(raw: object) -> str:
+        name = str(raw or "").strip().lower()
+        return name if name in ENGINES else ""
 
     @staticmethod
     def _inside(value: object) -> str:
@@ -316,6 +330,8 @@ class ProjectConfig:
             f"mark_errors = {str(self.mark_errors).lower()}",
             f"mark_warnings = {str(self.mark_warnings).lower()}",
         ]
+        if self.engine:
+            lines.append(f"engine = {_toml(self.engine)}")
         if self.check_command:
             lines.append(f"check_command = {_toml(self.check_command)}")
         if self.exclude:
@@ -480,6 +496,7 @@ class Project:
             "autocompile": self.config.autocompile,
             "markErrors": self.config.mark_errors,
             "markWarnings": self.config.mark_warnings,
+            "engine": self.config.engine,
         }
 
 

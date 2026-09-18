@@ -412,7 +412,12 @@ class ProjectSession:
             # Read here rather than carried down from the route, because a
             # writer who turns it on wants their next build to have it, not
             # their next restart.
-            compiler=CompileScheduler(paths, allow_rc=Settings.load().latexmk_rc),
+            compiler=CompileScheduler(
+                paths, allow_rc=Settings.load().latexmk_rc,
+                # Asked for at each build, so the card's choice reaches the
+                # next build of every document without a restart.
+                engine_setting=lambda: self.project.config.engine,
+            ),
         )
         self.documents[name] = state
         return state

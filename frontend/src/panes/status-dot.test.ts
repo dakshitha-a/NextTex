@@ -93,6 +93,14 @@ describe("the status dot", () => {
       .toBe("failed");
   });
 
+  test("a missing engine is named, since the fix depends on which one", () => {
+    const dot = at({ result: { durationMs: 10, outcome: "no_engine", engine: "xelatex" } });
+    expect(dot.state).toBe("failed");
+    expect(dot.hint).toBe("xelatex is not installed");
+    expect(at({ result: { durationMs: 10, outcome: "failed", engine: "xelatex" } }).hint)
+      .toBe("The build did not run");
+  });
+
   test("errors win over warnings in the label", () => {
     const dot = at({ result: built, errors: 1, warnings: 9 });
     expect(dot.label).toBe("1 error");

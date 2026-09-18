@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import api from "../api";
+import api, { type Engine } from "../api";
 import { get, set, useStore } from "../store";
 import { agentName } from "../agent-name";
 import { useDismiss } from "../useDismiss";
@@ -78,7 +78,12 @@ export default function SettingsSheet({
   };
 
   const toggle = (
-    patch: Partial<{ autocompile: boolean; markErrors: boolean; markWarnings: boolean }>,
+    patch: Partial<{
+      autocompile: boolean;
+      markErrors: boolean;
+      markWarnings: boolean;
+      engine: Engine | "";
+    }>,
   ) => {
     if (!projectId) return;
     // Applied here and confirmed by the server's `project_changed`, so the
@@ -296,6 +301,28 @@ export default function SettingsSheet({
                   off="They stay in the diagnostics list."
                   onChange={(markWarnings) => toggle({ markWarnings })}
                 />
+                {/* "" is the default and is drawn as pdflatex, so the row
+                    never shows nothing pressed; picking pdflatex writes
+                    "" so the project's toml carries no key it does not
+                    need.  A `% !TeX program` line at the top of a document
+                    wins over this row, and the caption says so, because a
+                    writer who picks xelatex here and still gets pdflatex
+                    would otherwise have nothing to go on. */}
+                <Choice
+                  label="Engine"
+                  name="Engine"
+                  value={(project.engine || "pdflatex") as Engine}
+                  options={[
+                    { value: "pdflatex", text: "pdflatex", id: "engine-pdflatex" },
+                    { value: "xelatex", text: "xelatex", id: "engine-xelatex" },
+                    { value: "lualatex", text: "lualatex", id: "engine-lualatex" },
+                  ] as const}
+                  onPick={(engine) => toggle({ engine: engine === "pdflatex" ? "" : engine })}
+                />
+                <p className="t-micro border-t border-line px-[10px] py-[5px] text-ink-3">
+                  A <span className="font-mono">% !TeX program = xelatex</span> line at
+                  the top of a document wins over this.
+                </p>
               </Group>
             ) : null}
 

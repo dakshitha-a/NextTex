@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import type { WordHint } from "./panes/locate-word";
 import api, {
-  captureToken, landingAfter, startDownload, type ScriptResult, type WordScope,
+  captureToken, engineOf, landingAfter, startDownload, type ScriptResult, type WordScope,
 } from "./api";
 import { Followed } from "./followed";
 import { forget, keep, recall, recallText } from "./remember";
@@ -455,6 +455,7 @@ export default function App() {
         autocompile: project.autocompile !== false,
         markErrors: project.markErrors !== false,
         markWarnings: project.markWarnings === true,
+        engine: engineOf(project.engine),
       },
       // The last project's import progress, which belongs to the last
       // project. It was left, so opening another one showed a papers

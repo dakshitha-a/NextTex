@@ -11,7 +11,9 @@ import { agentChangedScript } from "./script-run";
 import { renamePaths } from "./tabs";
 import api, {
   clientId,
+  engineOf,
   type CompileResult,
+  type Engine,
   type Member,
   type ContextDocument,
   type Diagnostic,
@@ -305,7 +307,14 @@ export type State = {
   contextDocs: ContextDocument[];
   contextStale: string[];
   /** The three per-project switches from the settings card. */
-  settings: { autocompile: boolean; markErrors: boolean; markWarnings: boolean };
+  settings: {
+    autocompile: boolean;
+    markErrors: boolean;
+    markWarnings: boolean;
+    /** "" is the default engine, pdflatex; a `% !TeX program` line in
+     *  the document wins over this either way. */
+    engine: Engine | "";
+  };
   /** A folder-read in flight, or the one that just finished. */
   library: import("./api").LibraryProgress | null;
   /** Set only on an install started with `--instance`: a second NextTex
@@ -402,7 +411,7 @@ const state: State = {
   instance: "",
   contextDocs: [],
   contextStale: [],
-  settings: { autocompile: true, markErrors: true, markWarnings: false },
+  settings: { autocompile: true, markErrors: true, markWarnings: false, engine: "" },
   agent: null,
   library: null,
   cursor: { line: 1, column: 1 },
@@ -1198,6 +1207,7 @@ function receive(event: any) {
             autocompile: event.autocompile,
             markErrors: event.markErrors,
             markWarnings: event.markWarnings,
+            engine: engineOf(event.engine),
           },
         });
       }
