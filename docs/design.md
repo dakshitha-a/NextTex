@@ -7460,6 +7460,39 @@ holds the minimal change; `e2e/specs/parked-tab.spec.ts` rewrites a
 parked file from outside and through the file route, brings the tab
 back, and finds it current and still in step for the next change.
 
+### A deleted file's tab closes, and closing the tab in front shows the next
+
+The writer's report, raised mid-run: deleting a file that was open in a
+tab left a dead tab on the strip, and while it was there the other
+files did not display properly; closing the dead tab by hand restored
+things. Three faults, not one.
+
+The dead tab: a rename publishes `renamed` and the tab moves, and a
+deletion published nothing that said a path had gone, so the tab stayed,
+bound to a document the manifest had trashed. The delete route and the
+watcher's deletion say `gone` now, and the tabs at or under a gone path
+close, a folder taking every tab under it; the window that did the
+deleting closes them at once rather than on the event.
+
+The display: closing the tab in front, by any means, moved the strip to
+the next tab and left the view on the closed file's text. `get()` hands
+back the store's live state, and the close compared the new active path
+against that state after writing it, so it never saw a change and never
+opened the tab it had just put in front. It reads the old value first
+now. This was the whole of "the editor goes crazy": the strip said one
+file and the view showed another, bound to nothing.
+
+And the parked tab of the previous section, which is why a file
+rewritten from a shell kept showing its old text.
+
+`tests/api/test_files.py` asserts `gone` on the route's event and on the
+watcher's; `frontend/src/tabs.test.ts` holds the tabs a deletion takes;
+`e2e/specs/deleted-open-file.spec.ts` deletes an open file from the
+tree and from disk and a folder with two open files, and finds the tabs
+gone and the one that is left in front, showing its file and writing;
+`e2e/specs/tab-menu.spec.ts` closes the tab in front from the strip and
+finds the next one shown.
+
 ### The TeX version on every build
 
 The raw log a row opens begins with the engine's own version line,

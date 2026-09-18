@@ -22,7 +22,7 @@ import {
 import { resultFrom, troubleshootPrompt } from "./script-run";
 import { busyTyping, onFrame } from "./timing";
 import {
-  afterClosing, movedPath, neighbour, orphanedBy, pushClosed, renamePaths,
+  afterClosing, movedPath, neighbour, orphanedBy, pushClosed, renamePaths, tabsUnder,
   unfollowed, viewingClosed,
 } from "./tabs";
 import { followDecision } from "./follow-preview";
@@ -645,6 +645,13 @@ export default function App() {
       extra: Partial<Parameters<typeof set>[0]> = {},
     ) => {
       const state = get();
+      // Read now, not after the `set` below: `get()` hands back the live
+      // state, so `state.activePath` is whatever was last written, and
+      // comparing against it after writing it never found a change.  A
+      // close of the tab in front then moved the strip and left the view
+      // on the closed file's text, which is what "the editor goes crazy
+      // when an open file is deleted" turned out to be.
+      const wasActive = state.activePath;
       const closing = paths.filter((path) => state.tabs.some((tab) => tab.path === path));
       if (!closing.length) {
         if (Object.keys(extra).length) set(extra);
@@ -659,9 +666,9 @@ export default function App() {
       const activePath =
         nextActive !== undefined
           ? nextActive
-          : state.activePath && closing.includes(state.activePath)
+          : wasActive && closing.includes(wasActive)
             ? (tabs[tabs.length - 1]?.path ?? null)
-            : state.activePath;
+            : wasActive;
       // A figure's `viewing` is set here rather than by the editor, which
       // has no buffer to park for one, so nothing else would clear it and
       // the banner would go on offering the past of a file that is gone.
@@ -677,7 +684,7 @@ export default function App() {
       // Only when the file in front actually changed.  "Close the others"
       // from the tab already in front must not scroll the pane or move the
       // caret, which is what a `pendingOpen` does.
-      if (activePath && activePath !== state.activePath) {
+      if (activePath && activePath !== wasActive) {
         set({ pendingOpen: { path: activePath, nonce: Date.now() } });
       }
       // A document this window followed onto the strip leaves it with its
@@ -867,6 +874,13 @@ export default function App() {
     handlers.onRenamed = (from, to) => {
       renameOpenFile(from, to);
     };
+    // A deleted file's tab closes, whichever side deleted it.  It used to
+    // stay, bound to a document the manifest had trashed, until the writer
+    // closed it by hand.
+    handlers.onFilesGone = (gone) => {
+      const closing = tabsUnder(get().tabs, gone);
+      if (closing.length) void closeMany(closing);
+    };
     handlers.onRootLost = () => {
       leaveProject();
     };
@@ -952,6 +966,7 @@ export default function App() {
     return () => {
       handlers.onFilesChanged = undefined;
       handlers.onRenamed = undefined;
+      handlers.onFilesGone = undefined;
       handlers.onRootLost = undefined;
       handlers.onReveal = undefined;
       handlers.onShowPage = undefined;
@@ -2106,6 +2121,13 @@ export default function App() {
                   onOpen={openFile}
                   onRefresh={refreshTree}
                   onRename={renameOpenFile}
+                  onDeleted={(path) => {
+                    // Closed here as well as on the event, so the window
+                    // that did the deleting does not show the dead tab for
+                    // the round trip.
+                    const closing = tabsUnder(get().tabs, [path]);
+                    if (closing.length) void closeMany(closing);
+                  }}
                   onDuplicate={duplicateFile}
                   onHistory={() => setHistoryOpen(true)}
                   onAskAbout={noAgent ? undefined : askAboutSelection}

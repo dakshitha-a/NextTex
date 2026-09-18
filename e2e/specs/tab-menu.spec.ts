@@ -51,6 +51,24 @@ test("the menu closes every tab but the one it was opened on", async ({
   ).toBeVisible();
 });
 
+test("closing the tab in front shows the tab that takes its place", async ({
+  app, project, tab,
+}) => {
+  /* The strip moved and the view stayed on the closed file's text: the
+     store hands back its live state, and the close compared the new
+     active path against that state after writing it, so it never saw a
+     change and never opened the tab it had put in front. */
+  await threeOpen(app, project, tab);
+  await expect(tab.locator(".cm-content")).toContainText("notes to myself");
+  await tab.locator('[data-tab][data-path="notes.tex"] [aria-label^="Close"]').click();
+  await expect(tab.locator("[data-tab]")).toHaveCount(2);
+  await expect(
+    tab.locator('[data-tab][data-path="references.bib"] button[aria-current="true"]'),
+  ).toBeVisible();
+  await expect(tab.locator(".cm-content")).toContainText("References live here");
+  await expect(tab.locator(".cm-content")).not.toContainText("notes to myself");
+});
+
 test("a tab that is not in front keeps its browser menu", async ({
   app, project, tab,
 }) => {

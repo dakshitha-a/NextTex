@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CLOSED_CAP, afterClosing, movedPath, neighbour, orphanedBy, pushClosed, renamePaths,
+  CLOSED_CAP, afterClosing, movedPath, neighbour, orphanedBy, pushClosed, renamePaths, tabsUnder,
   unfollowed, viewingClosed,
 } from "./tabs";
 import type { Tab } from "./store";
@@ -268,5 +268,25 @@ describe("renamePaths", () => {
     const after = renamePaths(before(), { "figures/a.pdf": "figures/b.pdf" });
     expect(after.touched).toBe(false);
     expect(after.tabs).toEqual(before().tabs);
+  });
+});
+
+describe("the tabs a deletion took", () => {
+  const tabs = [
+    { path: "main.tex" }, { path: "chapters/one.tex" }, { path: "chapters/two.tex" },
+    { path: "chapters.tex" }, { path: "figures/a.png" },
+  ];
+
+  it("a file takes its own tab and nothing else", () => {
+    expect(tabsUnder(tabs, ["chapters/one.tex"])).toEqual(["chapters/one.tex"]);
+  });
+
+  it("a folder takes every tab under it, not a file that shares its prefix", () => {
+    expect(tabsUnder(tabs, ["chapters"])).toEqual(["chapters/one.tex", "chapters/two.tex"]);
+  });
+
+  it("several paths at once, in strip order, and nothing for a path with no tab", () => {
+    expect(tabsUnder(tabs, ["figures/a.png", "main.tex", "notes.tex"])).toEqual(["main.tex", "figures/a.png"]);
+    expect(tabsUnder(tabs, [])).toEqual([]);
   });
 });

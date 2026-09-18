@@ -753,7 +753,8 @@ class ProjectSession:
         spawn(announce(), "closing a project whose folder is gone")
 
     def note_trashed(self, was: str) -> None:
-        """A file a peer deleted has just been moved into this trash.
+        """A file a peer deleted has just been moved into this trash, or
+        one the watcher saw go has just been called deleted.
 
         The store cannot await, and the tree and the trash panel both
         draw from events: without these the file left the disk and
@@ -761,8 +762,9 @@ class ProjectSession:
         """
         async def announce() -> None:
             await self.events.publish({"type": "trash_changed"})
+            # `gone` closes the tab, the way the delete route's event does.
             await self.events.publish(
-                {"type": "files_changed", "paths": [was], "structural": True}
+                {"type": "files_changed", "paths": [was], "structural": True, "gone": [was]}
             )
 
         spawn(announce(), "announcing a peer's deletion")

@@ -160,6 +160,16 @@ export function movedPath(path: string, from: string, to: string): string | null
   return null;
 }
 
+/** The open tabs that a deletion took: each path that is one of the
+ *  gone paths or under a gone folder, in strip order.  The same prefix
+ *  rule as `movedPath`, for the same reason: a folder that goes takes
+ *  every file under it. */
+export function tabsUnder(tabs: { path: string }[], gone: string[]): string[] {
+  return tabs
+    .map((tab) => tab.path)
+    .filter((path) => gone.some((root) => path === root || path.startsWith(`${root}/`)));
+}
+
 /** Everything in the store that names a path, after a rename.
  *
  *  One function for the two callers, the route's `renamed` event and the

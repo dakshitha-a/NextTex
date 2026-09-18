@@ -1474,6 +1474,14 @@ class CollabStore:
                 record["trashed"] = True
                 if stamp:
                     self._record_outside_deletion(file_id, target, stamp)
+                # Say so, now that it is a deletion and not a gap: the tab
+                # for it closes on this.  `_trash_locally` says it for a
+                # peer's deletion whose file was still here, and returned
+                # before its hook for a file the watcher saw go, so an rm
+                # in a terminal closed nothing on the strip.
+                noted = getattr(self.session, "note_trashed", None)
+                if noted is not None:
+                    noted(record.get("path") or "")
 
     def _record_outside_deletion(self, file_id: str, target: Path, stamp: str) -> None:
         """A text file the watcher saw go ends its history with a version.

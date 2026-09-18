@@ -406,9 +406,57 @@ def test_deleting_a_file_tells_the_other_tabs_a_name_went(client, opened, projec
         session.events.publish = original
     assert response.status_code == 200
 
-    told = [e for e in seen if e["type"] == "files_changed"]
+    # The route's own event, not the watcher's, which can also see the
+    # file leave and say so without `structural` in the same instant.
+    told = [e for e in seen if e["type"] == "files_changed" and e.get("structural")]
     assert told and told[-1]["structural"] is True
     assert told[-1]["paths"] == ["spare.tex"]
+    # And says the path is gone, which is what closes its tab: a rename
+    # says `renamed` and the tab moves, and a deletion said nothing, so
+    # the tab stayed on the strip bound to a trashed document.
+    assert told[-1]["gone"] == ["spare.tex"]
+
+
+def test_a_file_deleted_on_disk_is_announced_as_gone_once_it_is_called_deleted(
+    client, opened, project_dir,
+):
+    """The watcher's road: `rm` in a terminal.  The store flags the record
+    at its flush, once the file has stayed missing through the debounce
+    that tells a deletion from an unlink-and-recreate rewrite, and only
+    then says `gone`, so a tab does not close for a file that is back a
+    moment later."""
+    import asyncio
+    import time
+
+    from conftest import server_main
+
+    (project_dir / "spare.tex").write_text("spare\n", encoding="utf-8")
+    session = server_main.SESSIONS[opened["id"]]
+    # Known to the manifest first, as a file that has been seen is; a file
+    # that appears and goes inside one tick was never a record to trash.
+    session.collab.adopt()
+    assert session.collab.file_id_for("spare.tex")
+    seen = []
+    original = session.events.publish
+
+    async def spy(event):
+        seen.append(event)
+        await original(event)
+
+    session.events.publish = spy
+    try:
+        (project_dir / "spare.tex").unlink()
+        # What the watcher does when it sees the file go, minus the wait.
+        session.collab.ingest("spare.tex", None, gone=True)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            gone = [e for e in seen if e.get("type") == "files_changed" and e.get("gone")]
+            if gone:
+                break
+            time.sleep(0.05)
+    finally:
+        session.events.publish = original
+    assert gone and gone[-1]["gone"] == ["spare.tex"], seen
 
 
 def test_lint_answers_with_a_list_whether_or_not_chktex_is_installed(client, opened):

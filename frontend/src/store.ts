@@ -793,6 +793,9 @@ export type EventHandlers = {
   onReveal?: (path: string, line: number) => void;
   onShowPage?: (document: string, page: number) => void;
   onFilesChanged?: (paths: string[], structural?: boolean) => void;
+  /** Paths a deletion took, from the delete route or from a peer's or an
+   *  outside deletion the watcher saw.  The tabs at or under them close. */
+  onFilesGone?: (paths: string[]) => void;
   onCompileDone?: (result: CompileResult) => void;
   /** A build has started. Read rather than acted on: the shell uses it to
    *  decide, *before* the build's duration is known, whether this build was
@@ -1108,6 +1111,9 @@ function receive(event: any) {
         set({ script: { ...state.script!, changedByAgent: true } });
       }
       handlers.onFilesChanged?.(event.paths ?? [], event.structural !== false);
+      if (Array.isArray(event.gone) && event.gone.length) {
+        handlers.onFilesGone?.(event.gone.map(String));
+      }
       break;
     case "conversation_reset":
       // Another tab started a new conversation.  This one is holding a

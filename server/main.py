@@ -2865,8 +2865,11 @@ async def delete_file(project_id: str, path: str):
     # this the tree learned of a deletion only from `trash_changed`, which
     # the trash panel reads and nothing else does, and the strip's `+`
     # offered a file that was in the trash until the watcher caught up.
+    # `gone` is what closes the tabs: `renamed` moves a tab, and nothing
+    # said a path had gone, so a deleted file's tab stayed on the strip
+    # bound to a document the manifest had trashed.
     await session.events.publish(
-        {"type": "files_changed", "paths": [path], "structural": True}
+        {"type": "files_changed", "paths": [path], "structural": True, "gone": [path]}
     )
     return {"ok": True, "entry": entry.as_dict()}
 

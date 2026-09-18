@@ -54,6 +54,7 @@ export default function FileTree({
   onRefresh,
   onRename,
   onDuplicate,
+  onDeleted,
   onHistory,
   onPreview,
   onUnpreview,
@@ -67,6 +68,8 @@ export default function FileTree({
   /** Copy a file beside itself.  Owned by the shell, which reveals the
    *  copy once it exists; a folder cannot be copied this way. */
   onDuplicate?: (path: string) => Promise<void> | void;
+  /** The file or folder has just gone to the trash; close what it held. */
+  onDeleted?: (path: string) => void;
   onHistory?: () => void;
   /** Hand a question about a file to the agent, seeded into the composer.
    *  Used by "Plot this", which is how a writer points at a dataset. */
@@ -295,6 +298,7 @@ export default function FileTree({
         // its history, and asking twice about something that is one click
         // from coming back is friction for nothing.
         await api.deleteFile(projectId, node.path);
+        onDeleted?.(node.path);
         onRefresh();
       } else if (action === "rename") {
         setRenaming(node.path);
