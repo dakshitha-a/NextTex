@@ -3973,7 +3973,21 @@ async def download(
             pdf = await _project_pdf(session, state)
             transient = state
         name = Path(transient.path).stem
-        return FileResponse(pdf, media_type="application/pdf", filename=f"{name}.pdf")
+        # Whole, for the reason `_whole_pdf` gives: a build the writer's
+        # typing started a moment after `_project_pdf` returned rewrites
+        # this inode under a streaming response.  Rarer than the preview
+        # route meeting it, and a download that ends short is worse,
+        # since it is the copy that leaves the machine.
+        data = await _whole_pdf(pdf, pdf.stat())
+        if data is None:
+            raise HTTPException(
+                503, "the PDF is being rebuilt at this moment; try again",
+                headers={"Retry-After": "1"},
+            )
+        return Response(
+            content=data, media_type="application/pdf",
+            headers={"Content-Disposition": _attachment(f"{name}.pdf")},
+        )
 
     session = SESSIONS.get(project_id)
     project = session.project if session else REGISTRY.find(project_id)
@@ -4446,6 +4460,19 @@ async def get_pdf(project_id: str, request: Request, document: str = ""):
         content=data, media_type="application/pdf",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
+
+
+def _attachment(filename: str) -> str:
+    """A Content-Disposition for a download, spelt the way `FileResponse`
+    spells its `filename=`: quoted when it is plain ASCII, and in the
+    `filename*` form otherwise, so a document called after its author's
+    name survives the header intact."""
+    from urllib.parse import quote
+
+    quoted = quote(filename)
+    if quoted != filename:
+        return f"attachment; filename*=utf-8''{quoted}"
+    return f'attachment; filename="{filename}"'
 
 
 async def _whole_pdf(pdf: Path, stat: os.stat_result) -> bytes | None:

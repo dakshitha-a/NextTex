@@ -177,7 +177,7 @@ def test_a_previewed_document_downloads_as_its_own_pdf(
 
     async def stub_build(self, *args, **kwargs):
         self.paths.pdf.parent.mkdir(parents=True, exist_ok=True)
-        self.paths.pdf.write_bytes(b"%PDF supplementary")
+        self.paths.pdf.write_bytes(b"%PDF supplementary\n%%EOF\n")
         self._note_pdf_scope("")
         return CompileResult(
             outcome=Outcome.OK, log=None, pdf=self.paths.pdf,
@@ -193,10 +193,10 @@ def test_a_previewed_document_downloads_as_its_own_pdf(
         params={"format": "pdf", "document": "esi.tex"},
     )
     assert answer.status_code == 200
-    assert answer.content == b"%PDF supplementary"
+    assert answer.content == b"%PDF supplementary\n%%EOF\n"
     assert answer.headers["content-disposition"].endswith('esi.pdf"')
     # And it was that document's file that was built, not the main one's.
-    assert state.paths.pdf.read_bytes() == b"%PDF supplementary"
+    assert state.paths.pdf.read_bytes() == b"%PDF supplementary\n%%EOF\n"
 
 
 def test_a_root_nobody_previews_downloads_without_joining_the_strip(
@@ -218,7 +218,7 @@ def test_a_root_nobody_previews_downloads_without_joining_the_strip(
 
     async def stub_build(self, *args, **kwargs):
         self.paths.pdf.parent.mkdir(parents=True, exist_ok=True)
-        self.paths.pdf.write_bytes(b"%PDF " + self.paths.jobname.encode())
+        self.paths.pdf.write_bytes(b"%PDF " + self.paths.jobname.encode() + b"\n%%EOF\n")
         self._note_pdf_scope("")
         return CompileResult(
             outcome=Outcome.OK, log=None, pdf=self.paths.pdf,
@@ -234,7 +234,7 @@ def test_a_root_nobody_previews_downloads_without_joining_the_strip(
         params={"format": "pdf", "document": "variants/acme.tex"},
     )
     assert answer.status_code == 200, answer.text
-    assert answer.content == b"%PDF acme"
+    assert answer.content == b"%PDF acme\n%%EOF\n"
     assert answer.headers["content-disposition"].endswith('acme.pdf"')
     session = server_main.SESSIONS[opened["id"]]
     assert list(session.documents) == ["main.tex"]
@@ -262,7 +262,7 @@ def test_a_document_name_that_leaves_the_project_is_refused(
 
     async def stub_build(self, *args, **kwargs):
         self.paths.pdf.parent.mkdir(parents=True, exist_ok=True)
-        self.paths.pdf.write_bytes(b"%PDF main")
+        self.paths.pdf.write_bytes(b"%PDF main\n%%EOF\n")
         self._note_pdf_scope("")
         return CompileResult(
             outcome=Outcome.OK, log=None, pdf=self.paths.pdf,
@@ -284,5 +284,38 @@ def test_a_document_name_that_leaves_the_project_is_refused(
         f"/api/projects/{opened['id']}/download", params={"format": "pdf"},
     )
     assert answer.status_code == 200
-    assert answer.content == b"%PDF main"
+    assert answer.content == b"%PDF main\n%%EOF\n"
     assert answer.headers["content-disposition"].endswith('main.pdf"')
+
+
+def test_a_download_that_meets_a_build_mid_write_says_so(
+    client, project_dir, opened, monkeypatch
+):
+    """The preview route's race, at the route whose copy leaves the
+    machine.  A build the writer's typing started a moment after the
+    download decided the PDF was fresh rewrites the inode under it; a
+    download that ended short was worse than a preview that did, and
+    this one says try again instead."""
+    import server.main as server_main
+    from nexttex.compile import CompileResult, CompileScheduler, Outcome
+
+    async def stub_build(self, *args, **kwargs):
+        self.paths.pdf.parent.mkdir(parents=True, exist_ok=True)
+        # What pdfTeX leaves between pages: a file with no trailer yet.
+        self.paths.pdf.write_bytes(b"%PDF-1.5\n1 0 obj\n<< /Type /Page >>\n")
+        self._note_pdf_scope("")
+        return CompileResult(
+            outcome=Outcome.OK, log=None, pdf=self.paths.pdf,
+            duration=0.1, scope="full", engine_pass="full",
+        )
+
+    monkeypatch.setattr(CompileScheduler, "build", stub_build)
+    for stale in project_dir.rglob("*.pdf"):
+        stale.unlink()
+
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download", params={"format": "pdf"},
+    )
+    assert answer.status_code == 503, answer.text
+    assert answer.headers.get("retry-after") == "1"
+    assert "rebuilt" in answer.text
