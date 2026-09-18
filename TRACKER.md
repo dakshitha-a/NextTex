@@ -24,6 +24,16 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+The projects screen revamp, after 2.11.1. The writer chose, from five
+layouts drawn as an artifact, a rail: a docked column on the left holding
+the brand, the agent, the three ways in and, at its foot, help, the cog
+and the update, beside a list with a pinned header that always has the
+search box and a sort by last opened or by name, the list being the only
+thing that scrolls. Mid-plan they added a Browse button beside the folder
+field, so a project's folder is chosen on the machine's disk rather than
+typed. The first commit is the order as a pure function and the phone
+breakpoint; the rail, the picker and the version are to follow.
+
 The run after 2.10.0 works two requests from the writer: a review of the
 history panel, whose close arrow was drawn over the size and the toggle,
 and a Markdown preview that behaves like the page, its tab bringing its

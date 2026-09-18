@@ -19,10 +19,13 @@ const bothOpen = { editor: false, pdf: false };
 
 describe("breakpoints", () => {
   it("changes exactly at the stated widths and not a pixel earlier", () => {
-    expect(breakpoints(BREAKPOINTS.narrow)).toEqual({ narrow: false, tight: false });
+    expect(breakpoints(BREAKPOINTS.narrow)).toEqual({ narrow: false, tight: false, phone: false });
     expect(breakpoints(BREAKPOINTS.narrow - 1).narrow).toBe(true);
-    expect(breakpoints(BREAKPOINTS.tight)).toEqual({ narrow: true, tight: false });
+    expect(breakpoints(BREAKPOINTS.tight)).toEqual({ narrow: true, tight: false, phone: false });
     expect(breakpoints(BREAKPOINTS.tight - 1).tight).toBe(true);
+    expect(breakpoints(BREAKPOINTS.phone).phone).toBe(false);
+    expect(breakpoints(BREAKPOINTS.phone - 1).phone).toBe(true);
+    expect(BREAKPOINTS.phone).toBe(720);
   });
 });
 

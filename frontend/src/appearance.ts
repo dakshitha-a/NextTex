@@ -153,8 +153,10 @@ const KEYS = {
 
 /** localStorage throws rather than returning null in a private window, or
  *  with site data blocked.  A preference is never worth taking the boot
- *  down for. */
-function read(key: string): string | null {
+ *  down for.  Exported for the other per-browser choices, such as the
+ *  project list's order, so each does not carry its own copy of the
+ *  try/catch. */
+export function readStored(key: string): string | null {
   try {
     return window.localStorage.getItem(key);
   } catch {
@@ -162,7 +164,7 @@ function read(key: string): string | null {
   }
 }
 
-function write(key: string, value: string): void {
+export function writeStored(key: string, value: string): void {
   try {
     window.localStorage.setItem(key, value);
   } catch {
@@ -191,16 +193,16 @@ export function step(value: number, steps: number[], by: 1 | -1): number {
 }
 
 export function storedAppearance(): Appearance {
-  const theme = read(KEYS.theme);
-  const scale = Number(read(KEYS.scale));
-  const editor = Number(read(KEYS.editor));
-  const editorTheme = read(KEYS.editorTheme);
-  const weight = Number(read(KEYS.weight));
-  const syntax = read(KEYS.syntax);
-  const emphasis = read(KEYS.emphasis);
-  const preview = read(KEYS.preview);
-  const spelling = read(KEYS.spelling);
-  const spellingVariety = read(KEYS.spellingVariety);
+  const theme = readStored(KEYS.theme);
+  const scale = Number(readStored(KEYS.scale));
+  const editor = Number(readStored(KEYS.editor));
+  const editorTheme = readStored(KEYS.editorTheme);
+  const weight = Number(readStored(KEYS.weight));
+  const syntax = readStored(KEYS.syntax);
+  const emphasis = readStored(KEYS.emphasis);
+  const preview = readStored(KEYS.preview);
+  const spelling = readStored(KEYS.spelling);
+  const spellingVariety = readStored(KEYS.spellingVariety);
   return {
     // Dark by default: this is an instrument you sit in front of for hours,
     // beside a white page that supplies all the brightness the eye needs.
@@ -269,16 +271,16 @@ export function applyAppearance(appearance: Appearance): void {
   root.dataset.spelling = appearance.spelling ? "on" : "off";
   root.dataset.spellingVariety = appearance.spellingVariety;
 
-  write(KEYS.theme, appearance.theme);
-  write(KEYS.scale, String(appearance.scale));
-  write(KEYS.editor, String(appearance.editor));
-  write(KEYS.editorTheme, appearance.editorTheme);
-  write(KEYS.weight, String(appearance.weight));
-  write(KEYS.syntax, appearance.syntax);
-  write(KEYS.emphasis, appearance.emphasis);
-  write(KEYS.preview, appearance.preview);
-  write(KEYS.spelling, appearance.spelling ? "on" : "off");
-  write(KEYS.spellingVariety, appearance.spellingVariety);
+  writeStored(KEYS.theme, appearance.theme);
+  writeStored(KEYS.scale, String(appearance.scale));
+  writeStored(KEYS.editor, String(appearance.editor));
+  writeStored(KEYS.editorTheme, appearance.editorTheme);
+  writeStored(KEYS.weight, String(appearance.weight));
+  writeStored(KEYS.syntax, appearance.syntax);
+  writeStored(KEYS.emphasis, appearance.emphasis);
+  writeStored(KEYS.preview, appearance.preview);
+  writeStored(KEYS.spelling, appearance.spelling ? "on" : "off");
+  writeStored(KEYS.spellingVariety, appearance.spellingVariety);
 
   // The preview draws to a canvas whose backing store is sized for the
   // scale in force when it was drawn, so it has to be told rather than left

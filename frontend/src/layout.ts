@@ -48,10 +48,24 @@ export const BREAKPOINTS = {
   /** Below this the source and the preview take turns rather than splitting
    *  a space too small for either. */
   tight: 900,
+  /** Below this the projects screen is a phone: its rail becomes a strip
+   *  and the ways in open as a drawer.  The same number as `MIN_SHELL`,
+   *  and deliberately so: the width at which the editor stops claiming to
+   *  be a layout is the width at which the screen before it stops being
+   *  two columns. */
+  phone: MIN_SHELL,
 };
 
-export function breakpoints(width: number): { narrow: boolean; tight: boolean } {
-  return { narrow: width < BREAKPOINTS.narrow, tight: width < BREAKPOINTS.tight };
+export function breakpoints(width: number): {
+  narrow: boolean;
+  tight: boolean;
+  phone: boolean;
+} {
+  return {
+    narrow: width < BREAKPOINTS.narrow,
+    tight: width < BREAKPOINTS.tight,
+    phone: width < BREAKPOINTS.phone,
+  };
 }
 
 /** What the window can currently give the panes. */
