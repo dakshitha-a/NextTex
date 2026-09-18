@@ -136,7 +136,7 @@ test("the preview tab in front has a menu, and the others keep the browser's", a
   const menu = page.getByTestId("preview-tab-menu");
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("menuitem")).toHaveText([
-    "Stop previewing the others", "Download PDF",
+    "Stop previewing the others", "Download PDF", "Open in its own window",
   ]);
   await expect(menu.getByRole("menuitem").first()).toBeFocused();
   // Duplicate is a file's affair, and this is a build.
