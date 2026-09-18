@@ -315,6 +315,102 @@ test("a search that finds nothing says so", async ({ tab }) => {
   await expect(tab.getByTestId("no-matches")).toContainText("zzzz");
 });
 
+/** Whether a folder row is lit as the drop target: the wash, and the
+ *  folder glyph leaning open. */
+async function litAsTarget(tab: Page, path: string): Promise<boolean> {
+  return row(tab, path).evaluate((element) => {
+    const washed = element.classList.contains("bg-pen-wash");
+    // The open folder is the two-path glyph; shut is one path.
+    const open = element.querySelectorAll("svg path").length >= 3;
+    return washed && open;
+  });
+}
+
+test("a folder stays lit while a row is dragged along its name", async ({ tab }) => {
+  await tab.getByTestId("new-folder").click();
+  await tab.keyboard.type("appendices");
+  await tab.keyboard.press("Enter");
+  await expect(row(tab, "appendices")).toBeVisible({ timeout: 15_000 });
+
+  // With the mouse, in steps, because the defect was between events: the
+  // folder lit on `dragenter` and went out on the `dragleave` the row
+  // fires when the pointer crosses onto its own name, so a pointer moving
+  // along the name saw the folder flicker rather than hold.
+  const from = (await row(tab, "references.bib").boundingBox())!;
+  const folder = row(tab, "appendices");
+  const name = folder.getByText("appendices", { exact: true });
+  const nameBox = (await name.boundingBox())!;
+  await tab.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await tab.mouse.down();
+  await tab.mouse.move(from.x + from.width / 2, from.y + from.height / 2 + 10, { steps: 4 });
+  await tab.mouse.move(nameBox.x + 4, nameBox.y + nameBox.height / 2, { steps: 6 });
+  await expect.poll(() => litAsTarget(tab, "appendices")).toBe(true);
+  // Along the name, and then onto the icon beside it: still lit.
+  await tab.mouse.move(nameBox.x + nameBox.width - 4, nameBox.y + nameBox.height / 2, { steps: 6 });
+  expect(await litAsTarget(tab, "appendices")).toBe(true);
+  const icon = (await folder.locator("svg").first().boundingBox())!;
+  await tab.mouse.move(icon.x + icon.width / 2, icon.y + icon.height / 2, { steps: 4 });
+  expect(await litAsTarget(tab, "appendices")).toBe(true);
+  // Off the row: out.
+  const other = (await row(tab, "main.tex").boundingBox())!;
+  await tab.mouse.move(other.x + other.width / 2, other.y + other.height / 2, { steps: 6 });
+  await expect.poll(() => litAsTarget(tab, "appendices")).toBe(false);
+  await tab.mouse.up();
+});
+
+test("a folder lights for files from the desktop, and not the root", async ({ tab }) => {
+  await tab.getByTestId("new-folder").click();
+  await tab.keyboard.type("appendices");
+  await tab.keyboard.press("Enter");
+  await expect(row(tab, "appendices")).toBeVisible({ timeout: 15_000 });
+
+  // A drag from outside the browser cannot be made with the mouse in a
+  // test, so its events are dispatched by hand, with a DataTransfer that
+  // carries a File the way the desktop's does.  The row used to set the
+  // folder as the target and the same event, bubbling to the tree body,
+  // set the root instead, so the root lit and the folder never did.
+  const state = await row(tab, "appendices").evaluate(async (element) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["x"], "table.csv", { type: "text/csv" }));
+    const fire = (target: Element, type: string, relatedTarget: Element | null = null) =>
+      target.dispatchEvent(
+        new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer, relatedTarget }),
+      );
+    const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const lit = () => element.classList.contains("bg-pen-wash");
+    const spans = element.querySelectorAll("span");
+    const icon = spans[1];
+    const name = Array.from(spans).find((span) => span.textContent === "appendices")!;
+    const bar = document.querySelector('[data-testid="new-file"]')!.parentElement!;
+    const out: Record<string, boolean> = {};
+    fire(element, "dragenter");
+    fire(element, "dragover");
+    await frame();
+    out.onEnter = lit();
+    out.rootOnEnter = bar.className.includes("bg-pen-wash");
+    // Onto the name: the child's enter, then the row's leave for it.
+    fire(name, "dragenter");
+    fire(element, "dragleave", name);
+    fire(name, "dragover");
+    await frame();
+    out.onName = lit();
+    // From the name onto the icon.
+    fire(icon, "dragenter", name);
+    fire(name, "dragleave", icon);
+    await frame();
+    out.onIcon = lit();
+    // And away from the row altogether.
+    fire(icon, "dragleave", document.body);
+    fire(element, "dragleave", document.body);
+    await frame();
+    out.afterLeaving = lit();
+    return out;
+  });
+  expect(state).toEqual({
+    onEnter: true, rootOnEnter: false, onName: true, onIcon: true, afterLeaving: false,
+  });
+});
+
 test("a file can be dragged into a folder", async ({ tab }) => {
   await tab.getByTestId("new-folder").click();
   await tab.keyboard.type("appendices");

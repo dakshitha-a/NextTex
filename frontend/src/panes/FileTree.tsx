@@ -415,8 +415,35 @@ export default function FileTree({
     return dirname(from) !== destination;
   };
 
+  /** How many of an element's own nested enters are outstanding.
+   *
+   *  `dragleave` fires on a row when the pointer crosses onto the row's
+   *  own icon or name, after the child's `dragenter`, so clearing the
+   *  target on every leave lit the folder for one event and put it out
+   *  on the next, over and over as the pointer moved along the name.  A
+   *  count per element says whether the pointer has really left: each
+   *  enter, the row's own and its children's bubbling up, adds one, and
+   *  each leave takes one away; zero is the pointer outside the row.
+   *  Keyed by element rather than by destination so two rows that share a
+   *  destination, a folder and a file inside it, keep their own counts,
+   *  and a WeakMap so a row that leaves the tree takes its count with it. */
+  const entered = useRef(new WeakMap<Element, number>());
+  const enter = (element: Element) =>
+    entered.current.set(element, (entered.current.get(element) ?? 0) + 1);
+  /** Whether this leave is the pointer really leaving the element. */
+  const leaves = (element: Element): boolean => {
+    const left = (entered.current.get(element) ?? 1) - 1;
+    if (left > 0) {
+      entered.current.set(element, left);
+      return false;
+    }
+    entered.current.delete(element);
+    return true;
+  };
+
   const overDrag = (event: React.DragEvent, node: TreeNode | null) => {
     const destination = destinationFor(node);
+    if (event.type === "dragenter") enter(event.currentTarget);
     if (event.dataTransfer.types.includes(NX_PATH)) {
       // A row answers for itself.  Without this the event went on up to the
       // tree body, which asked the same question about the project root --
@@ -435,14 +462,31 @@ export default function FileTree({
       return;
     }
     if (!event.dataTransfer.types.includes("Files")) return;
+    // And for files from the desktop, for a different reason: the row set
+    // the folder as the target and the same event, bubbling on to the
+    // tree body, set the root instead, and React kept the last word.  The
+    // drop landed in the folder, since `drop` already stopped here; only
+    // the folder never lit up to say it would.
+    if (node) event.stopPropagation();
     event.preventDefault();
     setDropTarget(node ? destination || ROOT_DROP : ROOT_DROP);
+  };
+
+  /** The pointer has left an element, or only one of its children. */
+  const leaveDrag = (event: React.DragEvent, node: TreeNode | null) => {
+    if (!leaves(event.currentTarget)) return;
+    const mine = node ? destinationFor(node) || ROOT_DROP : ROOT_DROP;
+    // Only the target this element set: the row entered next has usually
+    // already set its own, and it must not be put out by the old row's
+    // leave arriving after.
+    setDropTarget((current) => (current === mine ? null : current));
   };
 
   const drop = (event: React.DragEvent, node: TreeNode | null) => {
     event.preventDefault();
     event.stopPropagation();
     setDropTarget(null);
+    entered.current = new WeakMap();
     const destination = destinationFor(node);
     // A row from this tree, not a file from the desktop.
     const moved = event.dataTransfer.getData(NX_PATH);
@@ -581,10 +625,11 @@ export default function FileTree({
           dragging.current = null;
           setDraggingPath(null);
           setDropTarget(null);
+          entered.current = new WeakMap();
         }}
         onDragEnter={(event) => overDrag(event, node)}
         onDragOver={(event) => overDrag(event, node)}
-        onDragLeave={() => setDropTarget(null)}
+        onDragLeave={(event) => leaveDrag(event, node)}
         onDrop={(event) => drop(event, node)}
       >
         {active ? (
@@ -615,7 +660,10 @@ export default function FileTree({
           }`}
         >
           {isDirectory ? (
-            <FolderIcon open={isOpen} />
+            // Open while something is held over it, as well as when it is
+            // open: the wash says a drop lands here, and the folder
+            // leaning open says the same thing in the row's own glyph.
+            <FolderIcon open={isOpen || dropTarget === node.path} />
           ) : (
             <FileIcon name={iconFor(node.path)} />
           )}
@@ -995,7 +1043,7 @@ export default function FileTree({
         }}
         onDragEnter={(event) => overDrag(event, null)}
         onDragOver={(event) => overDrag(event, null)}
-        onDragLeave={() => setDropTarget(null)}
+        onDragLeave={(event) => leaveDrag(event, null)}
         onDrop={(event) => drop(event, null)}
       />
       {searching ? (
@@ -1052,7 +1100,7 @@ export default function FileTree({
         role="tree"
         onDragEnter={(event) => overDrag(event, null)}
         onDragOver={(event) => overDrag(event, null)}
-        onDragLeave={() => setDropTarget(null)}
+        onDragLeave={(event) => leaveDrag(event, null)}
         onDrop={(event) => drop(event, null)}
         onPaste={(event) => {
           // Screenshot to figure, which in chemistry writing is a loop
@@ -1205,7 +1253,7 @@ function FilesBar({
   dropping: boolean;
   onDragEnter: (event: React.DragEvent) => void;
   onDragOver: (event: React.DragEvent) => void;
-  onDragLeave: () => void;
+  onDragLeave: (event: React.DragEvent) => void;
   onDrop: (event: React.DragEvent) => void;
 }) {
   const button = "quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3";

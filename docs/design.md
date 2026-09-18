@@ -284,8 +284,9 @@ scans faster than a colour-coded icon set.
 
 States: rest transparent; hover `--surface-2` with no transition; **active file**
 `--surface-2` plus a 2 px `--pen` bar flush against the row's left edge, full height, square;
-keyboard focus a 1 px inset `--pen` outline; folder drag-over gets `--pen-wash` fill and a
-1 px `--pen` bottom border. Fill radius 3 px.
+keyboard focus a 1 px inset `--pen` outline; folder drag-over gets `--pen-wash` fill, a
+1 px `--pen` bottom border and the open-folder glyph, for a row from the tree and for
+files from the desktop alike (§39). Fill radius 3 px.
 
 Right slot (16 px), in priority order: error count in `--error` micro; unsaved dot (5 px
 solid `--ink-2`); git status letter (`M`/`A`/`?`) in `--ink-3` mono 10 px. On row hover that
@@ -7267,3 +7268,29 @@ strip's, go through it; the download menu already had a cap and a scroll.
 a 600 px window and asserts it ends inside, with and without the
 question open, and opens one in a 260 px window and scrolls to its last
 item.
+
+### A folder answers a drag over it
+
+Files dragged in from the desktop lit the project root rather than the
+folder they were over, and a row dragged from the tree lit its folder
+only in flashes. Two causes. The row set the folder as the target on
+`dragenter` and the same event, bubbling on to the tree body, set the
+root, and React kept the last word; the drop still landed in the folder,
+because `drop` already stopped there, so the folder took the file without
+ever saying it would. And `dragleave` fires on a row when the pointer
+crosses onto the row's own icon or name, after the child's `dragenter`,
+so a leave handler that cleared the target put the folder out on every
+crossing and the next `dragover` lit it again.
+
+The row now stops the event for desktop files as it already did for its
+own rows, and a leave counts before it clears: each `dragenter` an
+element sees, its own and its children's bubbling up, adds one and each
+`dragleave` takes one away, and only zero, the pointer really outside,
+clears the target, and only the target that element set, since the row
+entered next has usually set its own already. While a folder is the
+target its glyph leans open, the way it does when the folder is open, so
+the wash and the row's own mark say the same thing. `e2e/specs/files.spec.ts`
+drags a row along a folder's name and onto its icon with the mouse and
+asserts the folder holds, and dispatches a desktop file's events by hand
+and asserts the folder lights, the root does not, and the crossing onto
+the name and the icon leaves it lit.
