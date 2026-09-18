@@ -8,6 +8,8 @@ What it can leak is what it quotes, so that is what is asserted.
 import json
 from pathlib import Path
 
+import pytest
+
 from starlette.testclient import TestClient
 
 from nexttex import updates
