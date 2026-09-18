@@ -31,12 +31,6 @@ decisions recorded so nobody reopens them by accident. The eight are here,
 each still carrying its reason, in the order they are being done, and each
 leaves this list in the commit that finishes it.
 
-- [ ] **The README's screenshots show the headers as they were.** The
-      preview header had a serif "Preview" label for a single document and
-      the `+` was a glyph; both are tabs and an icon now. `e2e/shots/`
-      regenerates them and is never run by a check. The tutorial's figures,
-      which were on this item too, were regenerated on 15 September 2026;
-      the README's are `e2e/shots/hero.spec.ts` and still wait.
 - [ ] **A request during a session's close is told to wait, not made to.**
       `_close_session` holds the project id in `CLOSING` while the close
       awaits, and `session_for` answers 503 for it, so the window in which

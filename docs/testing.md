@@ -147,6 +147,17 @@ author's family name, the container title, a date. It needs no account,
 only a network, which is why it is the one live check a session can run
 by hand without spending anything.
 
+The screenshots are the other thing run by hand. `e2e/shots/hero.spec.ts`
+writes the README's three (`docs/screenshot-light.png`,
+`docs/screenshot-dark.png`, `docs/screenshot-white-page.png`) and
+`e2e/shots/tutorial.spec.ts` writes the tutorial's figures, each against
+a real server with a real build, with
+`cd e2e && node_modules/.bin/playwright test --config shots.config.ts`
+and the spec's name. They live outside `specs/` and no tier runs them,
+because they write into the repository and they are two more browsers on
+a machine already running five; run them when the interface changes, look
+at what came out, and commit the images with the change that moved them.
+
 ## The installer had no tests at all, which is why it had so many bugs
 
 For a long time this repository had four tiers of tests and nothing

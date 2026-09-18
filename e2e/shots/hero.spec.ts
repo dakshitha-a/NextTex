@@ -21,6 +21,12 @@ async function stage(tab: Page) {
   await tab.getByRole("button", { name: "Send" }).click();
   await tab.waitForTimeout(2500);
   await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  // At rest: the edit above starts a second build, and a shot taken while
+  // it runs shows "Compiling" and "references pending" on the strip and a
+  // dot on the preview tab, none of which is what the README is showing.
+  await expect(tab.getByTestId("status")).toHaveAttribute(
+    "data-state", /built|ready/, { timeout: 45_000 },
+  );
   await tab.waitForTimeout(1200);
 }
 
