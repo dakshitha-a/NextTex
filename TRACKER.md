@@ -24,17 +24,43 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The run that works the backlog. Of the thirty items at 2.4.0, eight were
-real gaps that could be started from this checkout with a test; the rest
-need a Windows machine, an OpenAI account or a Zotero library, or are
-decisions recorded so nobody reopens them by accident. The eight are here,
-each still carrying its reason, in the order they are being done, and each
-leaves this list in the commit that finishes it.
+Nothing at the moment. The run that worked the backlog finished with
+2.6.0: of the thirty items at 2.4.0, eight were real gaps that could be
+started from this checkout with a test, and all eight are done, in three
+pushes. The README's screenshots show the tab-strip headers; a request
+during a session's close waits for it; the composer's popovers arrive on
+first open; the project list has arrow keys; a row says its project is
+open in another window, which took closing the event stream on Back to
+mean anything; a folder can be duplicated; an edit made outside NextTex
+while it runs is a version and a pull's worth of them is one row of the
+project's history; and a Windows bug report carries the task's history and
+the interpreter's crash events. What it turned up and left is in the
+backlog below, and the twenty-two items that need a machine or an account
+this checkout does not have, or are decisions, are where they were.
 
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A full pytest run warns once that a pycrdt subscription was
+      dropped on another thread.** `PytestUnraisableExceptionWarning`
+      during `tests/api/test_download.py`, from a `Subscription` being
+      garbage collected on a worker thread rather than the loop's; it
+      does not appear when that file runs alone, so it is a store from an
+      earlier test whose last reference died in a thread. A warning and
+      not a panic, because it is a drop rather than a use, and the suite
+      is green with it; left because finding which test's store it is
+      means bisecting the order, and the cure is a `close()` that test is
+      not calling.
+- [ ] **A file that appears outside NextTex begins its history with the
+      state it arrived in, never with what was there before.** True of a
+      document that was not open when the change landed, and of one the
+      browser's socket opened in the moment between the write and the
+      watcher's tick: the document is seeded from the file as it now is,
+      so the earlier state was never anywhere NextTex could see. Recorded
+      rather than fixed because the one place the earlier state could
+      have come from is the file's own history, which for a file that
+      has one is exactly what the version before is.
 - [ ] **A Windows install's server exited silently after an update's
       restart.** Seen on the laptop during the cross-machine check for
       2.3.0: the restart helper launched the Startup shortcut, the new
