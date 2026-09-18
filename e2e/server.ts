@@ -27,6 +27,8 @@ export type Instance = {
   /** The temporary directory holding this instance's state, for a test
    *  that needs to put a file where the server can see it. */
   sandbox: string;
+  /** Everything the server has printed so far. */
+  output(): string;
   stop(): Promise<void>;
 };
 
@@ -141,6 +143,9 @@ export async function startServer(
     token,
     projects,
     sandbox,
+    /** Everything the server has printed so far, for a spec that needs to
+     *  see a traceback the page never shows. */
+    output: () => log,
     async stop() {
       process.off("exit", orphanGuard);
       endGroup("SIGTERM");

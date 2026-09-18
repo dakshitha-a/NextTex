@@ -7442,6 +7442,24 @@ sees it, and hands back the manager's words on failure;
 nothing has, presses the button twice, reads the argv the stand-in saw
 and finds a build follow, then shows the stale-mirror failure.
 
+### A tab that is not in front still follows its file
+
+Found while chasing a report that a deleted file's tab broke the other
+tabs (the next section): the breakage had nothing to do with deletion.
+A file open in a tab that was not in front did not take changes made
+to it while it was parked, by an outside rewrite, by the agent or by a
+collaborator; the tab came back showing what it showed when it was
+parked, and the next remote change was then spliced into the wrong
+offsets, "hTWe" in the middle of "here". The collaboration binding
+watches the shared text only while its state is in the view. The parked
+state is now brought into step with the shared text as it comes back,
+with the caret moving as it would for an edit made in front, and the
+History panel's comparison and the word count read a parked file's
+shared text rather than its state. `frontend/src/panes/parked.test.ts`
+holds the minimal change; `e2e/specs/parked-tab.spec.ts` rewrites a
+parked file from outside and through the file route, brings the tab
+back, and finds it current and still in step for the next change.
+
 ### The TeX version on every build
 
 The raw log a row opens begins with the engine's own version line,

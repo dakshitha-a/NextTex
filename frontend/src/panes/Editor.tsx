@@ -22,6 +22,7 @@ import {
   viewExtensions,
 } from "./editor-setup";
 import { isCode, isMarkdown } from "./file-kinds";
+import { reconciled } from "./parked";
 
 import { outline as sectionsOf, sameOutline } from "../outline";
 import {
@@ -60,7 +61,19 @@ type Buffer = {
   state: EditorState;
   /** Let the shared document know this tab is done with the file. */
   release: () => void;
+  /** The shared text this buffer is bound to, when it is bound to one.
+   *  Read whenever the parked state goes back into the view and whenever
+   *  a parked file's text is asked for: the state stops following the
+   *  shared text the moment it is parked, and this is what it follows. */
+  shared?: { toString(): string };
 };
+
+/** What a parked file says now: its shared text when it has one, since
+ *  the parked state only knows what it said when it was parked. */
+function parkedText(buffer: Buffer | undefined): string | null {
+  if (!buffer) return null;
+  return buffer.shared ? buffer.shared.toString() : buffer.state.doc.toString();
+}
 
 export type EditorHandle = {
   open(
@@ -668,6 +681,7 @@ export default function Editor({
       const buffer = buffers.current.get(parked.path);
       viewing.current = null;
       if (buffer) {
+        if (buffer.shared) buffer.state = reconciled(buffer.state, buffer.shared.toString());
         view.current.setState(buffer.state);
         view.current.scrollDOM.scrollTop = parked.scroll;
       }
@@ -748,9 +762,14 @@ export default function Editor({
               opened.text.toString(), [...ext, opened.extension], languageOf(path),
             ),
             release: () => shared!.release(path),
+            shared: opened.text,
           };
         }
         buffers.current.set(path, buffer);
+      } else if (buffer.shared) {
+        // Parked, and the shared text may have moved on without it: an
+        // outside rewrite, the agent, a collaborator.  See `parked.ts`.
+        buffer.state = reconciled(buffer.state, buffer.shared.toString());
       }
       if (current.current && view.current) {
         const outgoing = buffers.current.get(current.current);
@@ -823,7 +842,7 @@ export default function Editor({
         if (!parked || !editor) return null;
         return {
           old: editor.state.doc.toString(),
-          live: buffers.current.get(parked.path)?.state.doc.toString() ?? "",
+          live: parkedText(buffers.current.get(parked.path)) ?? "",
         };
       },
       showChanges: (on: boolean) => {
@@ -834,7 +853,7 @@ export default function Editor({
           editor.dispatch({ effects: setDiff.of([]) });
           return;
         }
-        const live = buffers.current.get(parked.path)?.state.doc.toString() ?? "";
+        const live = parkedText(buffers.current.get(parked.path)) ?? "";
         editor.dispatch({
           effects: setDiff.of(goneLines(editor.state.doc.toString(), live)),
         });
@@ -884,7 +903,7 @@ export default function Editor({
         if (current.current === path && view.current) {
           return view.current.state.doc.toString();
         }
-        return buffers.current.get(path)?.state.doc.toString() ?? null;
+        return parkedText(buffers.current.get(path));
       },
     });
 
