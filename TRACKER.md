@@ -58,9 +58,10 @@ this checkout does not have, or are decisions, are where they were.
       browser's socket opened in the moment between the write and the
       watcher's tick: the document is seeded from the file as it now is,
       so the earlier state was never anywhere NextTex could see. Recorded
-      rather than fixed because the one place the earlier state could
-      have come from is the file's own history, which for a file that
-      has one is exactly what the version before is.
+      rather than fixed: the earlier state could only come from a copy
+      NextTex never took, and a file that already has a history keeps its
+      earlier states there, where the version before this one is exactly
+      that.
 - [ ] **A Windows install's server exited silently after an update's
       restart.** Seen on the laptop during the cross-machine check for
       2.3.0: the restart helper launched the Startup shortcut, the new
