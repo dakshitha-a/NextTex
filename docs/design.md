@@ -7307,9 +7307,9 @@ puts its run there (§35): one at a time, this window's own, never the
 server's strip, in front of the page and not instead of it, so the page
 keeps its scroll and zoom for the next `.tex`. `followDecision` answers
 `markdown` for the file, `previewShowing` gains the third value, and the
-tab is closeable with a menu of *Close*. A tab the writer closes stays
-closed while they go on typing in the file, and returns when the file
-next comes to the front, which is the script tab's rule too.
+tab is closeable with a menu of *Close*. A tab the writer closed used
+to stay closed while they went on typing in the file, the script tab's
+rule; since 2.11.1 the tab and the file close each other (§43).
 
 The text is the editor's. `Editor.tsx` publishes it into
 `markdownSource` from the same place and on the same 250 ms cadence it
@@ -7335,9 +7335,9 @@ light ink and was pale grey on white, which the menu audit measures for
 now. `e2e/specs/markdown-preview.spec.ts` opens a file and finds its
 heading, list, quote and code rendered, types a heading and finds it
 arrive, puts a `.tex` in front and finds the page back with the tab
-kept, closes the tab and finds typing does not reopen it and reopening
-the file does; an empty file says *Nothing written yet* rather than
-showing a blank sheet.
+kept, closes the tab and finds the file gone with it and reopening the
+file bringing it back; an empty file says *Nothing written yet* rather
+than showing a blank sheet.
 
 ## 40. The first roadmap run: the build
 
@@ -7876,3 +7876,21 @@ nothing was built. `e2e/specs/markdown-preview.spec.ts` types at the end
 of an eighty-paragraph file and finds the last block in view, then
 scrolls back to the top, clicks into the editor without typing, and
 finds the pane where it was left.
+
+### The file and its rendering close each other
+
+Reported by the writer the day the Markdown half shipped: closing the
+`.md` left its rendering on the preview strip, and closing the rendering
+left the file open. §34 settled the rule for documents, a preview that
+stops closes its files and a followed document leaves with its last
+file, and §39 had given the Markdown tab the script tab's rule instead,
+staying closed while the file is typed in. A run's output is a thing of
+its own and can be read after its script is closed; a rendering is the
+file and nothing else, so the two are one thing to close, in either
+direction. Closing the file's tab takes the rendering with it, and
+closing the rendering closes the file, both through `closeMany` in one
+store write, so the file lands on the reopen stack and `Mod-Alt-Shift-T`
+brings the pair back, the follow effect restoring the rendering as the
+file returns. The script tab keeps its own rule. The spec closes each
+side in turn and finds the other gone, and reopens the file to find
+both back.

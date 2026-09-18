@@ -66,20 +66,56 @@ test("opening a Markdown file renders it beside the editor, live", async ({
   await page.getByTestId("markdown-tab-notes.md").click();
   await expect(view).toBeVisible();
 
-  // Closing the tab closes it; the file in front does not reopen it by
-  // being typed in, and reopening the file does.
+  // Closing the tab closes it and its file with it, and the page is back;
+  // opening the file again brings the rendering back.
   await page.locator('[role="tree"] [data-path="notes.md"]').click();
   await page.getByTestId("preview-strip").getByRole("button", { name: "Close notes.md" }).click();
   await expect(page.getByTestId("markdown-tab-notes.md")).toHaveCount(0);
+  await expect(page.locator('[data-tab][data-path="notes.md"]')).toHaveCount(0);
   await expect(page.getByTestId("page-behind-script")).not.toHaveClass(/hidden/);
-  await page.locator(".cm-content").click();
-  await page.keyboard.type("still typing ");
-  await page.waitForTimeout(600);
-  await expect(page.getByTestId("markdown-tab-notes.md")).toHaveCount(0);
-  await page.locator('[role="tree"] [data-path="main.tex"]').click();
   await page.locator('[role="tree"] [data-path="notes.md"]').click();
   await expect(page.getByTestId("markdown-tab-notes.md")).toBeVisible();
   await expect(view).toBeVisible();
+});
+
+test("the file and its rendering close each other, and come back together", async ({
+  app, project, page,
+}) => {
+  // The writer reported that closing the .md left its preview on the
+  // strip and closing the preview left the file open.  A document's
+  // preview and its files keep each other tidy; the rendering is one
+  // file, so it and the file are one thing to close, in either direction,
+  // and the reopen shortcut brings the pair back.
+  writeFileSync(join(project.root, "notes.md"), NOTES);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await page.locator('[role="tree"] [data-path="notes.md"]').click();
+  await expect(page.getByTestId("markdown-tab-notes.md")).toBeVisible({ timeout: 15_000 });
+
+  // Close the file: the rendering goes and the page is back.
+  await page.getByTestId("source-strip").getByRole("button", { name: "Close notes.md" }).click();
+  await expect(page.locator('[data-tab][data-path="notes.md"]')).toHaveCount(0);
+  await expect(page.getByTestId("markdown-tab-notes.md")).toHaveCount(0);
+  await expect(page.getByTestId("page-behind-script")).not.toHaveClass(/hidden/);
+  await expect(page.locator('[data-tab][data-path="main.tex"] [aria-current="true"]'))
+    .toBeVisible();
+
+  // Reopen the closed tab: both come back.
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+Alt+Shift+T");
+  await expect(page.locator('[data-tab][data-path="notes.md"] [aria-current="true"]'))
+    .toBeVisible();
+  await expect(page.getByTestId("markdown-tab-notes.md")).toBeVisible();
+  await expect(page.getByTestId("markdown-view")).toBeVisible();
+
+  // Close the rendering: the file goes with it.
+  await page.getByTestId("preview-strip").getByRole("button", { name: "Close notes.md" }).click();
+  await expect(page.getByTestId("markdown-tab-notes.md")).toHaveCount(0);
+  await expect(page.locator('[data-tab][data-path="notes.md"]')).toHaveCount(0);
+  await expect(page.locator('[data-tab][data-path="main.tex"] [aria-current="true"]'))
+    .toBeVisible();
 });
 
 test("choosing the Markdown tab brings its file to the source pane", async ({

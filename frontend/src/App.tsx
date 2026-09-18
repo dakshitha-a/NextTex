@@ -683,7 +683,19 @@ export default function App() {
       const stillViewing = !viewingClosed(state.viewing, closing);
       // Remembered before they go, so Mod-Alt-Shift-T can bring them back.
       closed.current = pushClosed(closed.current, closing);
+      // The Markdown tab is its file's rendering and nothing else, so it
+      // goes with the file, the way a followed document leaves with its
+      // last file.  It stayed on the strip after its file's tab had gone,
+      // showing the text of a file the editor no longer held.
+      const markdown = state.markdown;
+      const markdownGoes = Boolean(markdown && closing.includes(markdown.path));
       set({
+        ...(markdownGoes
+          ? {
+              markdown: null,
+              previewShowing: state.previewShowing === "markdown" ? "document" : state.previewShowing,
+            }
+          : {}),
         ...extra,
         tabs,
         activePath,
@@ -2537,6 +2549,17 @@ export default function App() {
               onSelectMarkdown={(path) => {
                 noteSelect("pdf");
                 if (get().activePath !== path) openFile(path);
+              }}
+              // Closing the rendering closes its file, as stopping a
+              // document's preview closes the document's files: both
+              // strips move in one write, and the file goes onto the
+              // reopen stack so Mod-Alt-Shift-T brings both back.
+              onCloseMarkdown={(path) => {
+                const showing = get().previewShowing;
+                void closeMany([path], undefined, {
+                  markdown: null,
+                  previewShowing: showing === "markdown" ? "document" : showing,
+                });
               }}
               onClose={stopPreviewing}
               onCloseMany={(paths) => {

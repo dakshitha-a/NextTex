@@ -34,6 +34,7 @@ export default function PreviewHeader({
   onRunScript,
   onStopScript,
   onSelectMarkdown,
+  onCloseMarkdown,
   onHeaderClick,
   trailing,
 }: {
@@ -54,6 +55,11 @@ export default function PreviewHeader({
    *  purpose: its content is a run's output, read beside the page while
    *  the chapter that includes the figure is being written. */
   onSelectMarkdown?: (path: string) => void;
+  /** The Markdown tab was closed: the rendering goes, and its file with
+   *  it, the way a document's files go when its preview stops.  Given,
+   *  the caller writes the tab's own state in the same store write as
+   *  the file's tab; absent, the tab closes on its own. */
+  onCloseMarkdown?: (path: string) => void;
   /** A click on the tab in front or the empty run: fold, or double-click
    *  for reading mode.  Absent below 900px, where nothing folds. */
   onHeaderClick?: () => void;
@@ -156,7 +162,8 @@ export default function PreviewHeader({
       return;
     }
     if (markdown && path === markdown.path) {
-      set({ markdown: null, previewShowing: showing === "markdown" ? "document" : showing });
+      if (onCloseMarkdown) onCloseMarkdown(path);
+      else set({ markdown: null, previewShowing: showing === "markdown" ? "document" : showing });
       return;
     }
     onClose(path);
