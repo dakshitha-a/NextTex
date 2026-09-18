@@ -289,6 +289,16 @@ export type DocumentsPayload = {
   visible: string;
 };
 
+/** One folder's worth of the machine's disk, from `/api/browse`. */
+export type Listing = {
+  path: string;
+  parent: string | null;
+  home: string;
+  folders: { name: string; path: string; pdfs: number }[];
+  pdfsHere: number;
+  deep: { pdfs: number; unreadable: number; capped: boolean } | null;
+};
+
 export type ProjectSummary = {
   /** Always present.  A registry entry is a path, and it has an identity
    *  whether or not anything is still at the end of it -- `missing` is what
@@ -1148,17 +1158,15 @@ const api = {
     return response.json();
   },
 
-  /** Folders on the machine running NextTex, for picking one to read
-   *  papers out of.  Not project-scoped, because it is not about one. */
-  browse: (path: string, count = false) =>
-    request<{
-      path: string;
-      parent: string | null;
-      home: string;
-      folders: { name: string; path: string; pdfs: number }[];
-      pdfsHere: number;
-      deep: { pdfs: number; unreadable: number; capped: boolean } | null;
-    }>(`/browse?path=${encodeURIComponent(path)}&count=${count ? 1 : 0}`),
+  /** Folders on the machine running NextTex, for picking one: to read
+   *  papers out of, or to put a project in.  Not project-scoped, because
+   *  it is not about one.  `pdfs` false skips counting each folder's
+   *  PDFs, which the project picker has no use for and which costs a
+   *  read of every child of home. */
+  browse: (path: string, count = false, pdfs = true) =>
+    request<Listing>(
+      `/browse?path=${encodeURIComponent(path)}&count=${count ? 1 : 0}&pdfs=${pdfs ? 1 : 0}`,
+    ),
 
   library: (id: string) =>
     request<{

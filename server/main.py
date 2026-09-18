@@ -3494,12 +3494,18 @@ async def upload(
 
 
 @app.get("/api/browse")
-async def browse(path: str = "", count: bool = False):
+async def browse(path: str = "", count: bool = False, pdfs: bool = True):
     """Folders on the machine running NextTex, for picking one.
 
     Not scoped to a project, because it is not about one: a project is
     already a server-side absolute path typed into a box on the projects
     screen, so this is the app's existing model finally given a control.
+
+    `pdfs` is whether each folder's PDFs are counted, which the papers
+    chooser wants and the projects screen's folder picker does not: that
+    count opens every child of the folder being looked at, and home has
+    a lot of children.  Off, the answer carries 0 for every folder and
+    for `pdfsHere`, and the walk `count` asks for is unaffected.
     """
     home = Path.home()
     where = Path(path).expanduser() if path else home
@@ -3520,15 +3526,17 @@ async def browse(path: str = "", count: bool = False):
                 if item.name.startswith("."):
                     continue
                 if item.is_dir(follow_symlinks=False):
-                    try:
-                        pdfs = sum(
-                            1 for child in os.scandir(item.path)
-                            if child.is_file() and child.name.lower().endswith(".pdf")
-                        )
-                    except OSError:
-                        pdfs = 0
-                    folders.append({"name": item.name, "path": item.path, "pdfs": pdfs})
-                elif item.is_file() and item.name.lower().endswith(".pdf"):
+                    found = 0
+                    if pdfs:
+                        try:
+                            found = sum(
+                                1 for child in os.scandir(item.path)
+                                if child.is_file() and child.name.lower().endswith(".pdf")
+                            )
+                        except OSError:
+                            found = 0
+                    folders.append({"name": item.name, "path": item.path, "pdfs": found})
+                elif pdfs and item.is_file() and item.name.lower().endswith(".pdf"):
                     here += 1
         except PermissionError:
             raise HTTPException(403, "NextTex cannot read that folder.")

@@ -526,7 +526,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 849.4 kB | 860 kB |
+| Interface bundle | 850.3 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -1146,9 +1146,10 @@ localhost and skip it.
 
 ## A project on disk
 
-Point NextTex at any folder containing a LaTeX document.
-`examples/minimal-article` is there to try it on. A project can carry a
-`nexttex.toml`:
+Point NextTex at any folder containing a LaTeX document, typed into the
+projects screen or picked with its Browse button, which walks the disk of
+the machine NextTex is running on. `examples/minimal-article` is there to
+try it on. A project can carry a `nexttex.toml`:
 
 ```toml
 [project]

@@ -8014,3 +8014,42 @@ equal on purpose. A rejoin on a phone opens the drawer when its offer
 arrives, since a card arriving into a closed drawer would wait there
 unseen; `e2e/specs/moved-project.spec.ts` plays a rejoin back at 390px
 and finds the card in the open drawer.
+
+### Browse
+
+Asked for mid-run, in these words: a Browse button for "where", so the
+folder is chosen visually rather than typed. A browser's own folder
+dialog cannot serve, because what it hands back is files and never a
+path on the server's disk, and the server's disk is the one that
+matters. So the button opens a card that walks that disk, the papers
+chooser's walk with a different footer. The walk itself, the path box,
+the row that goes up and the folders under the one being looked at, is
+`frontend/src/panes/FolderBrowser.tsx` now, taken out of
+`PapersChooser.tsx` so the two have one copy; the chooser keeps its PDF
+counts and its Read button around it, and asks `/api/browse` not to count
+PDFs for the picker, since that opens every child of home.
+
+What choosing means depends on the way in, and the footer says so.
+Pointing at a folder means that folder, since it already holds the
+project: "Use this folder". Starting something new or joining needs a
+folder that does not exist yet, so the picked one is the parent and the
+project's own folder goes under it: "Put it in here" fills the field with
+the folder and a name made from the title, lower-cased and hyphenated,
+and when there is no title yet, or the project is somebody else's and
+has no title here, with the folder and a trailing slash, the field
+focused and the caret at its end for the writer to finish. The
+arithmetic is `projectFolderFor` in `frontend/src/project-path.ts`,
+tested without a browser, as is `startingPoints`, which opens the walk
+on what the field says when that is a folder, on its parent when it
+names one not yet made, and on home otherwise.
+
+The card is placed by `placeMenu` from the button, and measured again
+when the listing lands: it is a heading and a footer until then, and a
+placement made at that height put the folders below the bottom of a
+phone once they arrived. Escape closes the card and only the card; on a
+phone it stands inside the drawer, which is itself a dialog listening
+on the window, so the card stops the key. `e2e/specs/projects-form.spec.ts`
+browses into a seeded folder and creates a project under it, finds the
+trailing slash and the caret with no title, opens an existing folder
+through the picker, and on a phone finds the card inside the window and
+the drawer still open after Escape.

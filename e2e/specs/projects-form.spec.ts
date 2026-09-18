@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, expect } from "../fixtures";
 
 /** The three ways in, and the fields they offer.
@@ -78,20 +80,23 @@ test("the invite box and the folder beneath it are one pair", async ({
     const field = [...document.querySelectorAll<HTMLInputElement>("input")].find(
       (el) => (el.placeholder ?? "").includes("A folder to put it in"),
     )!;
+    const browse = document.querySelector<HTMLElement>('[data-testid="browse-folder"]')!;
     const a = area.getBoundingClientRect();
     const b = field.getBoundingClientRect();
+    const c = browse.getBoundingClientRect();
     return {
       sameLeft: Math.round(a.x) === Math.round(b.x),
-      sameWidth: Math.round(a.width) === Math.round(b.width),
+      sameRight: Math.round(a.right) === Math.round(c.right),
       field: Math.round(b.height),
       invite: Math.round(a.height),
     };
   });
 
-  // One left edge and one width: they are two halves of one answer, not two
-  // controls that happen to be near each other.
+  // One left edge and one right edge: they are two halves of one answer,
+  // not two controls that happen to be near each other.  The folder's row
+  // ends in Browse now, so the right edge is the button's.
   expect(measured.sameLeft, "the two boxes do not share a left edge").toBe(true);
-  expect(measured.sameWidth, "the two boxes are different widths").toBe(true);
+  expect(measured.sameRight, "the folder's row does not end where the invite does").toBe(true);
   // The path is one line and the invite is a paste target, so they are not
   // the same height -- but the path is a full control, not a slot.
   expect(measured.field).toBe(28);
@@ -128,4 +133,138 @@ test("a new project can start as something other than an article", async ({
     timeout: 20_000,
   });
   await expect(page.locator(".cm-content")).toContainText("beamer");
+});
+
+test("a new project's folder can be browsed for, and goes under the picked one", async ({
+  app,
+  page,
+}) => {
+  // Asked for by the writer: a Browse button for "where", so the folder is
+  // chosen on the machine's disk rather than typed.  For a new project the
+  // picked folder is the parent, and the project's own folder goes under
+  // it, named from the title.
+  const writing = join(app.projects, "writing");
+  mkdirSync(join(writing, "alpha"), { recursive: true });
+  mkdirSync(join(writing, "beta"), { recursive: true });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+
+  await page.getByPlaceholder("What is it called?").fill("My Paper");
+  // The walk opens on what the field says when that is a folder.
+  await page.getByPlaceholder(/Where to put it/).fill(writing);
+  const browse = page.getByTestId("browse-folder");
+  await browse.click();
+  const picker = page.getByTestId("folder-picker");
+  await expect(picker).toBeVisible();
+  await expect(picker).toContainText("Which folder should it go in?");
+  await expect(picker.getByTestId("picker-path")).toHaveValue(writing);
+  await expect(picker.getByRole("button", { name: "alpha" })).toBeVisible();
+  await expect(picker.getByRole("button", { name: "beta" })).toBeVisible();
+
+  // Descend, then commit: two gestures, since the tree is mostly unseen.
+  await picker.getByRole("button", { name: "alpha" }).click();
+  await expect(picker.getByTestId("picker-path")).toHaveValue(join(writing, "alpha"));
+  await picker.getByTestId("pick-folder").click();
+  await expect(picker).toHaveCount(0);
+  const where = page.getByPlaceholder(/Where to put it/);
+  await expect(where).toHaveValue(join(writing, "alpha", "my-paper"));
+  await expect(browse).toBeFocused();
+
+  await page.getByRole("button", { name: "Create project" }).click();
+  await expect(page.locator(".cm-content")).toContainText("documentclass", {
+    timeout: 20_000,
+  });
+  expect(existsSync(join(writing, "alpha", "my-paper", "main.tex"))).toBe(true);
+});
+
+test("with no title yet the picked folder is left for the writer to finish", async ({
+  app,
+  page,
+}) => {
+  const writing = join(app.projects, "writing");
+  mkdirSync(writing, { recursive: true });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await page.getByPlaceholder(/Where to put it/).fill(writing);
+  await page.getByTestId("browse-folder").click();
+  const picker = page.getByTestId("folder-picker");
+  await expect(picker.getByTestId("picker-path")).toHaveValue(writing);
+  await picker.getByTestId("pick-folder").click();
+  // A trailing slash, and the caret at its end in the focused field.
+  const where = page.getByPlaceholder(/Where to put it/);
+  await expect(where).toHaveValue(`${writing}/`);
+  await expect(where).toBeFocused();
+  const caret = await where.evaluate((el: HTMLInputElement) => el.selectionStart);
+  expect(caret).toBe(writing.length + 1);
+});
+
+test("an existing project's folder can be browsed for and opened", async ({
+  app,
+  page,
+}) => {
+  const existing = join(app.projects, "existing");
+  mkdirSync(existing, { recursive: true });
+  writeFileSync(
+    join(existing, "main.tex"),
+    "\\documentclass{article}\\begin{document}Browsed.\\end{document}\n",
+  );
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await page.getByRole("button", { name: "Point at a folder" }).click();
+
+  // Nothing typed: the walk opens on home, and the path box takes a paste
+  // to jump, as the papers chooser's does.
+  await page.getByTestId("browse-folder").click();
+  const picker = page.getByTestId("folder-picker");
+  await expect(picker).toContainText("Which folder holds it?");
+  await picker.getByTestId("picker-path").fill(app.projects);
+  await page.keyboard.press("Enter");
+  await picker.getByRole("button", { name: "existing" }).click();
+  await expect(picker.getByTestId("picker-path")).toHaveValue(existing);
+  await picker.getByRole("button", { name: "Use this folder" }).click();
+  await expect(page.getByPlaceholder("/path/to/your/writing/project")).toHaveValue(existing);
+
+  await page.getByRole("button", { name: "Open folder" }).click();
+  await expect(page.locator(".cm-content")).toContainText("Browsed.", {
+    timeout: 20_000,
+  });
+});
+
+test("on a phone the picker opens inside the drawer and stays on the screen", async ({
+  app,
+  page,
+}) => {
+  const writing = join(app.projects, "writing");
+  for (const name of ["a", "b", "c", "d", "e", "f"]) mkdirSync(join(writing, name), { recursive: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: true }).waitFor();
+  await page.getByTestId("ways-open").click();
+  await page.getByPlaceholder(/Where to put it/).fill(writing);
+  await page.getByTestId("browse-folder").click();
+  const picker = page.getByTestId("folder-picker");
+  await expect(picker.getByRole("button", { name: "f" })).toBeVisible();
+  // Measured once the folders are in, not before: the card grew after it
+  // was placed and its footer used to sit below the bottom of the phone.
+  const box = (await picker.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
+  await expect(picker.getByTestId("pick-folder")).toBeInViewport();
+  // Escape closes the picker and leaves the drawer.
+  await page.keyboard.press("Escape");
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Ways in" })).toBeVisible();
+});
+
+test("Escape closes the picker and nothing else", async ({ app, page }) => {
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const browse = page.getByTestId("browse-folder");
+  await browse.click();
+  const picker = page.getByTestId("folder-picker");
+  await expect(picker).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(picker).toHaveCount(0);
+  await expect(browse).toBeFocused();
+  await expect(page.getByPlaceholder(/Where to put it/)).toHaveValue("");
 });

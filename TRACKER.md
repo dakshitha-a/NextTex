@@ -24,18 +24,20 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The projects screen revamp, after 2.11.1. The writer chose, from five
-layouts drawn as an artifact, a rail: a docked column on the left holding
-the brand, the agent, the three ways in and, at its foot, help, the cog
-and the update, beside a list with a pinned header that always has the
-search box and a sort by last opened or by name, the list being the only
-thing that scrolls. Mid-plan they added a Browse button beside the folder
-field, so a project's folder is chosen on the machine's disk rather than
-typed. The order is a pure function, the offer card is fetched on demand
-for the bundle's sake, and the rail itself is in: the sheet is gone, the
-list is the only thing that scrolls, the search is always there with the
-sort beside it, a phone gets a strip and a drawer, and the help card is
-placed by `placeMenu`. The picker and the version are to follow.
+The projects screen revamp, after 2.11.1, went up as 2.12.0. The writer
+chose, from five layouts drawn as an artifact, a rail: a docked column on
+the left holding the brand, the agent, the three ways in and, at its
+foot, help, the cog and the update, beside a list with a pinned header
+that always has the search box and a sort by last opened or by name, the
+list being the only thing that scrolls. Mid-plan they added a Browse
+button beside the folder field, so a project's folder is chosen on the
+machine's disk rather than typed. The order is a pure function, the
+offer card is fetched on demand for the bundle's sake, the sheet is gone,
+a phone gets a strip and a drawer, the help card is placed by
+`placeMenu`, `/api/browse` has its first tests and a flag that skips
+counting PDFs, the walk is one component shared with the papers chooser,
+and the picker fills the field by the way in. What it left is two lines
+in the backlog below, and one flake sighting.
 
 The run after 2.10.0 works two requests from the writer: a review of the
 history panel, whose close arrow was drawn over the size and the toggle,
@@ -113,6 +115,13 @@ this checkout does not have, or are decisions, are where they were.
       the ends of the order for that reason. A tie-break on name would
       make the order fully determined; nobody has asked.
 
+- [ ] **`history-panel.spec.ts`'s long-file-name test failed once under
+      the full browser tier and passed on its retry.** Seen once in the
+      projects rail run, while the tier ran beside a build: the wait for
+      the autosave to reach the disk timed out at fifteen seconds, with
+      the file still holding its first line. The same shape as the
+      sighting below; a second one is the signal to look at what the
+      autosave is waiting on under load.
 - [ ] **`writing.spec.ts`'s equation hover failed once under the full
       browser tier and passed on its retry.** Seen once in the roadmap
       run, while the machine was also building the bundle; the hover

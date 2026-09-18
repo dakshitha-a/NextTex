@@ -28,6 +28,8 @@ const ScreenGuide = lazy(() => import("./tutorial/ScreenGuide"));
 // The offer card likewise: it is on screen only between a join answering
 // and the writer deciding, and nobody reaches that from a cold start.
 const JoinOfferCard = lazy(() => import("./JoinOfferCard"));
+// And the folder picker, which is behind a button most visits never press.
+const FolderPicker = lazy(() => import("./FolderPicker"));
 
 /** What each template is, in the words somebody choosing one would use.
  *  A directory called `beamer` is a name only a LaTeX writer knows, and the
@@ -104,7 +106,25 @@ export default function Projects({
   const newButton = useRef<HTMLButtonElement | null>(null);
   useDismiss(waysRef, drawer, () => setWaysOpen(false), newButton);
   const [path, setPath] = useState("");
+  const pathBox = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<"add" | "create" | "join">("create");
+  /** Whether the folder picker is open, off the Browse button. */
+  const [picking, setPicking] = useState(false);
+  const browseButton = useRef<HTMLButtonElement | null>(null);
+  const picked = (folder: string) => {
+    setPath(folder);
+    setPicking(false);
+    // A folder ending in a slash is one the writer finishes: the caret
+    // goes to its end, once the field has the new value.
+    if (folder.endsWith("/")) {
+      requestAnimationFrame(() => {
+        const box = pathBox.current;
+        if (!box) return;
+        box.focus();
+        box.setSelectionRange(box.value.length, box.value.length);
+      });
+    }
+  };
   const [invite, setInvite] = useState("");
   /** What a peer is offering, before any of it is written. */
   const [offer, setOffer] = useState<JoinOffer | null>(null);
@@ -467,6 +487,7 @@ export default function Projects({
                   }`}
                   onClick={() => {
                     setError(null);
+                    setPicking(false);
                     setMode(option);
                   }}
                 >
@@ -504,19 +525,50 @@ export default function Projects({
                         onChange={(event) => setInvite(event.target.value)}
                       />
                     ) : null}
-                    <input
-                      value={path}
-                      placeholder={
-                        mode === "create"
-                          ? "Where to put it, e.g. ~/writing/my-paper"
-                          : mode === "add"
-                          ? "/path/to/your/writing/project"
-                          : "A folder to put it in, e.g. ~/writing/their-paper"
-                      }
-                      className="t-code-sm h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                      onChange={(event) => setPath(event.target.value)}
-                      onKeyDown={(event) => event.key === "Enter" && add()}
-                    />
+                    {/* The folder, typed or browsed.  Browse walks the
+                        machine's disk in a card, since a browser's own
+                        folder dialog hands back files and not a path on
+                        the server; what it fills in depends on the way
+                        in (`FolderPicker`). */}
+                    <div className="flex gap-2">
+                      <input
+                        ref={pathBox}
+                        value={path}
+                        placeholder={
+                          mode === "create"
+                            ? "Where to put it, e.g. ~/writing/my-paper"
+                            : mode === "add"
+                            ? "/path/to/your/writing/project"
+                            : "A folder to put it in, e.g. ~/writing/their-paper"
+                        }
+                        className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                        onChange={(event) => setPath(event.target.value)}
+                        onKeyDown={(event) => event.key === "Enter" && add()}
+                      />
+                      <button
+                        ref={browseButton}
+                        type="button"
+                        className="ghost-button h-[28px] shrink-0 px-2 t-meta"
+                        aria-haspopup="dialog"
+                        aria-expanded={picking}
+                        data-testid="browse-folder"
+                        onClick={() => setPicking((open) => !open)}
+                      >
+                        Browse…
+                      </button>
+                    </div>
+                    {picking ? (
+                      <Suspense fallback={null}>
+                        <FolderPicker
+                          mode={mode}
+                          name={newName}
+                          typed={path}
+                          anchor={browseButton}
+                          onPick={picked}
+                          onClose={() => setPicking(false)}
+                        />
+                      </Suspense>
+                    ) : null}
                     {mode === "create" && templates.length > 1 ? (
                       /* Hidden when there is only one, which is what an
                          install with its templates trimmed looks like: a
