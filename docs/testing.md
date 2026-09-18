@@ -400,6 +400,29 @@ the dimmest ink up to `--ink-2` (6.04:1), and `["ink-3", "surround"]` is
 deliberately absent from the list, with a comment saying that adding it back
 is meant to fail.
 
+## The surfaces a page-at-rest sweep never sees
+
+axe measures the page as it stands, and a menu is not standing: it exists
+for the second between a right-click and a choice. The editor's find field
+drew light ink on a white box in the dark theme, 1.24:1, for as long as the
+rule that styled it had a selector that matched nothing, and neither
+`contrast.test.ts` nor the axe sweep could have said so, one because the
+pairing was CodeMirror's own white and not in the palette, the other
+because the field only exists once Ctrl+F has been pressed.
+
+`e2e/specs/menus-contrast.spec.ts` opens every menu, popup and floating
+panel the way a person does and measures each with `e2e/contrast.ts`,
+which walks every run of text and every field inside an element and
+composites the colour actually painted behind it, blending the translucent
+washes on the way up to the first opaque ground. Four pairings, because the
+shell's theme and the editor page's palette can be mixed and a surface
+inside the editor host takes the page's palette while one floating over it
+is furniture. A surface that cannot be opened is reported, not skipped: a
+recipe that has silently stopped opening anything measures nothing and
+passes. What it found on its first run, beyond the field it was written
+for, was the completion list's matched letters on the selected row, the
+accent on a tint of itself at 3.6:1 in the light theme.
+
 ## Two peers, in one process
 
 Collaboration is the first thing in NextTex that needs *two installs* to test

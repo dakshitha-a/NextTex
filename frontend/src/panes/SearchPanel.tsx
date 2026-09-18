@@ -113,7 +113,7 @@ export default function SearchPanel({
   };
 
   return (
-    <div className="shrink-0 border-t border-line pb-1">
+    <div className="shrink-0 border-t border-line pb-1" data-testid="search-panel">
       <div className="flex items-center gap-1 px-[10px] py-[5px]">
         <input
           ref={box}

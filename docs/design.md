@@ -7221,3 +7221,23 @@ text needs. On the selected row the matched letters are ink now and the
 weight alone says which they are, since the row's own highlight already
 says it is the one. The first finding of the menu audit below beyond the
 field it was written for.
+
+### An audit of every menu, popup and floating panel, kept as a spec
+
+The audit the writer asked for is `e2e/specs/menus-contrast.spec.ts`, and
+it stays in the browser tier rather than being a report: twenty-six
+surfaces, from the tab menus and the tree's row menu with its
+history-deletion question open, through Move to…, the papers chooser, the
+upload card with a name already taken, the History panel, the rename and
+new-file boxes, both searches, the find panels, the completion list, the
+selection verbs, the spelling menu, the page footer with its number being
+typed, the composer's model and mode menus, the settings sheet and the
+share panel, each opened the way a person opens it and measured against
+the colour actually painted behind its text, in four shell and page
+pairings. `docs/testing.md` says how the measurement works. Beyond the
+find field and the completion list above, everything it reached was at
+5.4:1 or better, which is the answer the writer wanted and the reason the
+spec exists: the next surface that draws ink the colour of its ground
+fails a check rather than waiting to be noticed. The History panel and
+the project search panel gained a `data-testid` so the spec can name
+them.

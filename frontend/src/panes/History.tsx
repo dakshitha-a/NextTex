@@ -172,6 +172,7 @@ export default function History({
 
   return (
     <div
+      data-testid="history-panel"
       className={
         docked
           ? "nx-arrive flex h-full w-[264px] shrink-0 flex-col border-l border-line bg-surface-2"
