@@ -3,6 +3,7 @@ import api from "../api";
 import { startDownload } from "../api";
 import { useStore } from "../store";
 import { kindOf } from "./file-kinds";
+import { fitScale, nextStep } from "./image-zoom";
 
 const Pdf = lazy(() => import("./Pdf"));
 
@@ -35,25 +36,13 @@ export function readableSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** The zoom ladder, and it is the preview pane's, deliberately.  Two
- *  viewers a keystroke apart that step through different numbers would be
- *  two viewers; these are meant to be one thing that can show two kinds of
- *  file. */
-const STEPS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3];
-
-function nextStep(from: number, by: 1 | -1): number {
-  const near = STEPS.reduce((best, step) =>
-    Math.abs(step - from) < Math.abs(best - from) ? step : best,
-  );
-  const index = STEPS.indexOf(near);
-  return STEPS[Math.min(Math.max(index + by, 0), STEPS.length - 1)];
-}
-
-function ImageView({ source, name }: { source: string; name: string }) {
+function ImageView({ source, name, path }: { source: string; name: string; path: string }) {
+  const projectId = useStore((s) => s.projectId);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   // `null` is fit-to-pane, which is where a figure should start: the first
   // question is always what it looks like whole.
   const [zoom, setZoom] = useState<number | null>(null);
+  const [frameSize, setFrameSize] = useState<{ width: number; height: number } | null>(null);
   const frame = useRef<HTMLDivElement | null>(null);
 
   // A different file is a different picture, and it starts fitted again.
@@ -62,7 +51,30 @@ function ImageView({ source, name }: { source: string; name: string }) {
     setZoom(null);
   }, [source]);
 
-  const shown = zoom ?? 1;
+  // The frame's size, kept current: dragging a handle or folding a pane
+  // changes what fits, and a fitted figure follows.  `clientWidth` rather
+  // than the observer's box, because it is what the scroll box can show.
+  useEffect(() => {
+    const element = frame.current;
+    if (!element) return;
+    const measure = () =>
+      setFrameSize({ width: element.clientWidth, height: element.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const fit = natural && frameSize ? fitScale(frameSize, natural) : 1;
+  const shown = zoom ?? fit;
+  /** One rung along from what is on screen.  A fit with no rung beyond it
+   *  in that direction stays as it is, and stays Fit rather than becoming
+   *  a number that means the same thing. */
+  const stepFrom = (current: number | null, from: number, by: 1 | -1): number | null => {
+    const now = current ?? from;
+    const next = nextStep(now, by);
+    return next === now ? current : next;
+  };
   return (
     <>
       <div
@@ -88,12 +100,13 @@ function ImageView({ source, name }: { source: string; name: string }) {
                 h: event.currentTarget.naturalHeight,
               })
             }
+            // Always an explicit width once the size is known, never a
+            // percentage: see `fitScale`.  Before the load answers there
+            // is nothing to size, and a guess would be drawn and replaced.
             style={
-              zoom === null
-                ? { maxWidth: "100%", maxHeight: "100%", display: "block" }
-                : natural
-                  ? { width: natural.w * shown, display: "block" }
-                  : { display: "block" }
+              natural
+                ? { width: Math.max(1, Math.round(natural.w * shown)), display: "block" }
+                : { display: "block", visibility: "hidden" }
             }
           />
         </div>
@@ -109,7 +122,7 @@ function ImageView({ source, name }: { source: string; name: string }) {
             className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
             aria-label="Zoom out"
             data-testid="image-zoom-out"
-            onClick={() => setZoom((current) => nextStep(current ?? 1, -1))}
+            onClick={() => setZoom((current) => stepFrom(current, fit, -1))}
           >
             &minus;
           </button>
@@ -120,21 +133,50 @@ function ImageView({ source, name }: { source: string; name: string }) {
             className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
             aria-label="Zoom in"
             data-testid="image-zoom-in"
-            onClick={() => setZoom((current) => nextStep(current ?? 1, 1))}
+            onClick={() => setZoom((current) => stepFrom(current, fit, 1))}
           >
             +
           </button>
-          <button
-            className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
-            data-testid="image-fit"
-            onClick={() => setZoom(null)}
-          >
-            Fit
-          </button>
         </span>
+        {/* A rule and the footer's own gap between `+` and Fit, as the
+            page's footer has between its `+` and "Fit width".  The tap
+            area `nx-tap` draws is 44px wide around a 14px sign, and with
+            the two words 4px apart it lay over Fit, so a press on Fit was
+            answered by `+`, and Fit's own tap area, drawn later, took
+            presses meant for `+`.  Fit is `quiet` now, a word that is its
+            own target with the row's height for a finger, and the rule
+            puts the sign's reach short of it. */}
+        <Rule />
+        <button
+          className="quiet t-micro shrink-0"
+          data-testid="image-fit"
+          data-tone={zoom === null ? "on" : undefined}
+          onClick={() => setZoom(null)}
+        >
+          Fit
+        </button>
+        {/* The file as it is on disk, beside the picture of it.  The
+            card for a file nobody can draw has had this from the start;
+            a figure only had the tree's row menu, which is not where a
+            person looking at the figure is looking. */}
+        {projectId ? (
+          <a
+            className="quiet t-micro shrink-0"
+            href={api.downloadUrl(projectId, { path })}
+            download
+            data-testid="image-download"
+            title={`Download ${name}`}
+          >
+            Download
+          </a>
+        ) : null}
       </div>
     </>
   );
+}
+
+function Rule() {
+  return <span className="h-[10px] w-px shrink-0 bg-line" />;
 }
 
 export default function FileView({
@@ -189,7 +231,7 @@ export default function FileView({
   if (kind === "image" && source) {
     return (
       <div className="flex h-full min-h-0 flex-col" data-testid="file-view">
-        <ImageView source={source} name={name} />
+        <ImageView source={source} name={name} path={path} />
       </div>
     );
   }

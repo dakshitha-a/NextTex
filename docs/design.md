@@ -7107,3 +7107,66 @@ falls back to the shared text winning, because conflict markers must
 never reach a shared `.tex`. The words on the card say which: "newer
 than yours; replaces it, git has yours" and "your edits merged in; goes
 to everybody".
+
+---
+
+## 39. Previews, menus and downloads: the September list
+
+Eight things the writer listed in one message, and one added while the
+list was being read. All of them are on the interface's surface: a figure
+that would not fit, a field whose typed text could not be seen, a menu
+that opened below the screen. Each subsection says what was observed,
+what the cause was, and what the interface does now; the browser specs
+named in each are what keep it that way.
+
+### A figure of any size opens whole
+
+The image viewer drew a 7000 by 4200 pixel plot at 7000 by 4200 pixels
+inside a pane 489 wide, with Fit in the footer and nothing fitting.
+The image carried `max-width: 100%; max-height: 100%`, and both
+percentages resolved against the paper wrapper round it, which is
+`shrink-0` with auto width and height, so they resolved against the
+image's own size and meant nothing. A figure exported at 300 dpi is
+exactly the figure the viewer exists for, and it was the one it could
+not show.
+
+The fit is a number now, not a rule: `fitScale` in
+`frontend/src/panes/image-zoom.ts` takes the frame's client box and the
+image's natural size and answers the scale at which the whole picture is
+inside the frame with the frame's own padding and the paper's hairline
+allowed for, capped at 1 so a small figure is shown at its own size
+rather than blown up. A `ResizeObserver` on the frame keeps it current,
+so dragging a handle or narrowing the window refits a fitted figure. The
+image is always drawn at an explicit width, `natural width × scale`, and
+nothing depends on percentages inside an auto-sized box again.
+
+Two things followed from having the number. The zoom ladder steps from
+what is on screen: `+` from Fit on a plot fitted at seven percent goes to
+25%, the next rung above, rather than to 100%, which is what it did when
+the ladder assumed Fit meant 1. `nextStep` finds the rung strictly past
+the current scale in the direction asked, so a fit between two rungs goes
+to the next one rather than to the nearest one, and `−` from a fit below
+the lowest rung stays Fit rather than enlarging the picture. And the
+footer's Fit word is `quiet`, like the page's *Fit width*, with a rule
+before it: the finger-sized tap area `nx-tap` draws is 44 px wide around
+a 14 px sign, and with Fit four pixels from `+` the two areas overlapped,
+so a press on `+` was answered by Fit. `e2e/specs/image-view.spec.ts`
+holds all of it: a 4000 by 2400 PNG inside the frame on both axes with
+nothing to scroll, `+` landing on 25%, Fit coming back, the fit following
+the window, and a 120 px figure shown at 120 px.
+
+### A figure downloads from where it is being looked at
+
+The writer reported a PNG download failing. The route answers a PNG
+with its bytes, `image/png` and an attachment disposition, and the row
+menu's *Download* raises a real download in a browser, with the viewer
+open or not; neither reproduced the failure, and the browser test that
+now holds both is the guarantee that can be given from here. What was
+missing was the control a person looking at a figure would reach for:
+the card for a file nobody can draw has offered *Download* since it
+existed, and the image viewer, the pane a figure actually opens in, had
+only the tree's row menu, one pane away. The viewer's footer carries
+*Download* now, an anchor with `download` on the file route, beside Fit.
+`e2e/specs/image-view.spec.ts` downloads the same PNG three ways, from
+the viewer, from the row menu and from its history, and asserts the
+bytes each time.

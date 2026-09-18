@@ -17,6 +17,29 @@ def test_one_file_comes_back_as_itself(client, opened):
     assert "documentclass" in response.text
 
 
+def test_a_figure_comes_back_as_an_attachment_with_its_own_type(
+    client, opened, project_dir
+):
+    """A PNG is served byte for byte, typed as an image, and as an
+    attachment: the image viewer points an `img` at this URL and a
+    Download link at the same one, and both depend on the headers being
+    right.  The writer reported a PNG download failing; nothing here
+    reproduced it, so this is the route half of the guarantee, and
+    `e2e/specs/image-view.spec.ts` is the browser half."""
+    data = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 4
+    (project_dir / "figures").mkdir(exist_ok=True)
+    (project_dir / "figures" / "plot.png").write_bytes(data)
+    response = client.get(
+        f"/api/projects/{opened['id']}/download", params={"path": "figures/plot.png"}
+    )
+    assert response.status_code == 200
+    assert response.content == data
+    assert response.headers["content-type"] == "image/png"
+    disposition = response.headers["content-disposition"]
+    assert disposition.startswith("attachment")
+    assert 'filename="plot.png"' in disposition
+
+
 def test_the_whole_project_comes_back_as_a_zip(client, opened, project_dir):
     (project_dir / "build").mkdir(exist_ok=True)
     (project_dir / "build" / "main.pdf").write_bytes(b"%PDF regenerable")
