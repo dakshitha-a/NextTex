@@ -902,6 +902,20 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    glyph set at a fractional size lays its stems across pixel boundaries.
    The fallback is the default size's answer, for the frame before the
    stamp, which in practice never renders. */
+/* The fold gutter: a chevron that appears on hover over a line that can
+   fold and stays while it is folded, so a chapter reads as its headings
+   without a column of arrows beside every section the rest of the time.
+   The placeholder says how many lines are hidden. */
+.cm-editor .cm-foldGutter .cm-gutterElement { padding: 0 2px; cursor: pointer; }
+.cm-editor .cm-foldMarker { color: var(--ink-3); opacity: 0; font-size: 12px; line-height: 1; }
+.cm-editor .cm-gutters:hover .cm-foldMarker,
+.cm-editor .cm-activeLineGutter .cm-foldMarker { opacity: 1; }
+.cm-editor .cm-foldGutter .cm-gutterElement[title="Unfold"] .cm-foldMarker,
+.cm-editor .cm-foldMarker[title="Unfold"] { opacity: 1; color: var(--pen); }
+.cm-editor .cm-foldPlaceholder {
+  background: var(--surface-3); color: var(--ink-2); border: 1px solid var(--line);
+  border-radius: 3px; padding: 0 5px; margin: 0 3px; font-size: 11px; cursor: pointer;
+}
 .cm-editor .cm-gutters { background: var(--surface); color: var(--ink-3);
   border-right: none; font-size: var(--nx-editor-gutter, 11px); }
 .cm-editor .cm-activeLineGutter { background: transparent; color: var(--ink-2); }

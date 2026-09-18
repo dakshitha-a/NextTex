@@ -110,18 +110,24 @@ import FileTree from "./panes/FileTree";
 import { countFiles } from "./tree";
 import Projects from "./panes/Projects";
 import SignIn from "./panes/SignIn";
-import ContextPanel from "./panes/ContextPanel";
 import Collapsed from "./panes/Collapsed";
-import TrashPanel from "./panes/TrashPanel";
 import Logo from "./Logo";
 import Settings from "./panes/Settings";
 import InstanceBadge from "./panes/InstanceBadge";
 import { toShell, uiScale, viewportWidth } from "./viewport";
 import { APPEARANCE_CHANGED } from "./appearance";
 import { pageTitle } from "./page-title";
-import GitPanel from "./panes/GitPanel";
-import PapersPanel from "./panes/PapersPanel";
 import SectionsPanel, { includePath } from "./panes/SectionsPanel";
+/** The rail's four footer panels: the trash, the papers, the context and
+ *  git.  Each draws nothing, or a header, in a project that has not used
+ *  it, and each fetches its own state on mount, which a lazy mount does a
+ *  frame later than a static one.  Out of the entry chunk together, which
+ *  is what paid for the fold gutter; `bench/thresholds.json` had asked for
+ *  exactly this before the budget was raised a third time. */
+const TrashPanel = lazy(() => import("./panes/TrashPanel"));
+const PapersPanel = lazy(() => import("./panes/PapersPanel"));
+const ContextPanel = lazy(() => import("./panes/ContextPanel"));
+const GitPanel = lazy(() => import("./panes/GitPanel"));
 import { isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
 
 const DRAWER_CLOSED = 0;
@@ -2165,22 +2171,24 @@ export default function App() {
                 grow={!railOpen.files}
                 resolve={resolveInclude}
               />
-              <TrashPanel onRefresh={refreshTree} />
-              <PapersPanel onRefresh={refreshTree} />
-              {/* What the agent reads is nothing to offer when there is no
-                  agent.  The trash, the papers and the git panel all stay:
-                  none of them is about a model. */}
-              {noAgent ? null : (
-                <ContextPanel
-                  openFor={contextRequest}
-                  onHandled={() => setContextRequest(null)}
+              <Suspense fallback={null}>
+                <TrashPanel onRefresh={refreshTree} />
+                <PapersPanel onRefresh={refreshTree} />
+                {/* What the agent reads is nothing to offer when there is no
+                    agent.  The trash, the papers and the git panel all stay:
+                    none of them is about a model. */}
+                {noAgent ? null : (
+                  <ContextPanel
+                    openFor={contextRequest}
+                    onHandled={() => setContextRequest(null)}
+                  />
+                )}
+                <GitPanel
+                  open={railOpen.git}
+                  onToggle={() => toggleRail("git")}
+                  onOpen={openFile}
                 />
-              )}
-              <GitPanel
-                open={railOpen.git}
-                onToggle={() => toggleRail("git")}
-                onOpen={openFile}
-              />
+              </Suspense>
             </div>
           </div>
           <Handle

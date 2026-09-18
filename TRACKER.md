@@ -35,8 +35,6 @@ follows its file.
 
 The editor, for 2.9.0:
 
-- [ ] **Fold sections and environments.** A fold gutter on the outline
-      parser.
 - [ ] **A sticky section header** above the source, driven by what is
       scrolled into view.
 - [ ] **Rename a label or citation key everywhere.** Syntax-aware, so

@@ -523,7 +523,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 854.6 kB | 860 kB |
+| Interface bundle | 844.9 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -1227,6 +1227,7 @@ inside the app.
 | `⌘`-click / `Ctrl`-click, on a `\ref` or `\input` | Go to the label, or open the file |
 | `⌥`-drag / `Alt`-drag | Select a column, for editing a table; some Linux desktops take Alt-drag for moving windows, so the next row does the same by keyboard |
 | `⌘⌥↑` `⌘⌥↓` / `Ctrl-Alt-↑` `Ctrl-Alt-↓`, or with `⇧` / `Shift` added | Add a caret on the row above or below |
+| `⌘⇧[` `⌘⇧]` / `Ctrl-Shift-[` `Ctrl-Shift-]` | Fold or unfold the section or environment the caret is in; the chevron in the gutter does the same, and `⌘⌥[` / `Ctrl-Alt-[` folds everything |
 | `↹` or `↵`, in the completion list | Take the suggestion |
 | `Esc` | Back to one caret |
 

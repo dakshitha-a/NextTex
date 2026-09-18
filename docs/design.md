@@ -7537,3 +7537,43 @@ for real and finds the numbers on the route; the vitests in
 `e2e/specs/latex-links.spec.ts` hovers a reference after a build and
 reads "Section 1, on page 1", then hovers a figure and finds it drawn at
 its own size.
+
+### Sections and environments fold
+
+A fold gutter beside the line numbers, on a LaTeX file only: a Python
+script has no sections and gets no gutter, and the read-only version
+view folds like the live one. A section folds to the line before the
+next heading of its level or above, trailing blank lines left out so the
+fold ends where the prose does, and the last one to `\end{document}`;
+an environment folds to the line before its `\end`, which stays visible
+so the fold reads as a closed box; a `\begin` and `\end` on one line, an
+unmatched `\begin`, and the `document` environment fold nothing, and a
+verbatim block is opaque, so an `\end{itemize}` quoted inside one closes
+nothing. The ranges come from the text, not from a syntax tree, because
+the LaTeX mode is a stream parser with no tree, and they are computed
+once per document version since the gutter asks about every visible
+line on every redraw. Folding is a view decoration: the shared document
+and its undo history are untouched.
+
+The marker is a chevron in the gutter's own ink, shown while the gutter
+or its line is under the pointer and on every folded line, rather than a
+column of arrows beside every section the rest of the time; the
+placeholder says how many lines are hidden and unfolds on a click.
+`Mod-Shift-[` folds the section or environment the caret is in, walking
+up to the innermost range that reaches the caret, where the library's
+own command folds only a range starting on the caret's line;
+`Mod-Shift-]` unfolds, and `Mod-Alt-[` and `]` fold and unfold
+everything. The gutter and the fold service cost 8.3 kB of the entry
+chunk, which took it over its budget; rather than raise the budget a
+third time, the rail's four footer panels, the trash, the papers, the
+context and git, are fetched when the editor opens rather than shipped
+with it, as `bench/thresholds.json` had asked for before the next
+raise, and the chunk is 21 kB smaller than before the gutter.
+
+`frontend/src/folds.test.ts` holds the ranges: nesting, the last
+section, a starred heading, a commented one, an environment inside a
+section, the opaque verbatim block, and the cases that fold nothing;
+`e2e/specs/folds.spec.ts` folds a section from the gutter, reads the
+placeholder's count, finds the section below still shown, unfolds from
+the placeholder, folds a list on its own, and folds and unfolds by
+keyboard from inside a section.

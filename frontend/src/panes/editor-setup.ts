@@ -38,10 +38,14 @@ import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/sea
 import {
   HighlightStyle,
   bracketMatching,
+  codeFolding,
+  foldGutter,
+  foldKeymap,
   indentUnit,
   StreamLanguage,
   syntaxHighlighting,
 } from "@codemirror/language";
+import { foldEnclosing, latexFolding } from "../folds";
 import { tags } from "@lezer/highlight";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { python } from "@codemirror/legacy-modes/mode/python";
@@ -542,9 +546,38 @@ function followLinks(
   });
 }
 
+/** The gutter's marker: a small chevron that turns when the fold is
+ *  closed, in the gutter's own ink, rather than the library's triangle. */
+function foldMarker(open: boolean): HTMLElement {
+  const span = document.createElement("span");
+  span.className = "cm-foldMarker";
+  span.textContent = open ? "⌄" : "›";
+  span.title = open ? "Fold" : "Unfold";
+  return span;
+}
+
 function base(): Extension[] {
   return [
     lineNumbers(),
+    // The fold markers, drawn only where `latexFolding` answers, and a
+    // placeholder that says how much is hidden rather than an ellipsis.
+    // `foldKeymap` is Mod-Shift-[ and Mod-Shift-] to fold and unfold the
+    // section or environment the caret is in, and Mod-Alt-[ and ] for
+    // everything at once.
+    foldGutter({ markerDOM: foldMarker }),
+    codeFolding({
+      placeholderDOM: (_view, onclick, prepared) => {
+        const span = document.createElement("span");
+        span.className = "cm-foldPlaceholder";
+        span.textContent = prepared ? `${prepared} lines` : "…";
+        span.title = "Unfold";
+        span.setAttribute("aria-label", "folded lines");
+        span.onclick = onclick;
+        return span;
+      },
+      preparePlaceholder: (state, range) =>
+        state.doc.lineAt(range.to).number - state.doc.lineAt(range.from).number,
+    }),
     drawSelection(),
     highlightSpecialChars(),
     highlightActiveLine(),
@@ -608,6 +641,10 @@ function base(): Extension[] {
       // a column that no desktop is sitting on.
       { key: "Mod-Shift-Alt-ArrowUp", run: addCursorAbove },
       { key: "Mod-Shift-Alt-ArrowDown", run: addCursorBelow },
+      // Ahead of `foldKeymap`'s own binding for the same chord, which
+      // folds only a range starting on the caret's line.
+      { key: "Mod-Shift-[", run: foldEnclosing },
+      ...foldKeymap,
     ]),
     syntaxHighlighting(latexHighlight),
     // Empty until the writer asks for spell checking, and filled by a
@@ -657,6 +694,10 @@ export function languageFor(
       closeBrackets: { brackets: ["(", "[", "{", "'", '"', "$"] },
     }),
     familyHighlight,
+    // Sections and environments fold; see `folds.ts`.  Here rather than
+    // in `base()` so a Python script, which has no sections, gets no
+    // gutter, and the read-only version view folds like the live one.
+    latexFolding(),
     mathHover(symbols, options.imageUrl),
     ...(options.follow ? [followLinks(symbols, options.follow)] : []),
     ...(options.complete ? [latexCompletions(symbols)] : []),
