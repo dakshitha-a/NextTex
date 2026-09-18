@@ -35,9 +35,6 @@ follows its file.
 
 The editor, for 2.9.0:
 
-- [ ] **Hover says the number.** "Figure 3, on page 7" read from the
-      build's `.aux` files, the number beside each label in the
-      completion list, and the image on hovering an `\includegraphics`.
 - [ ] **Fold sections and environments.** A fold gutter on the outline
       parser.
 - [ ] **A sticky section header** above the source, driven by what is

@@ -631,7 +631,12 @@ function base(): Extension[] {
 export function languageFor(
   path: string,
   symbols: () => Symbols | null,
-  options: { follow?: (path: string, line?: number) => void; complete?: boolean } = {},
+  options: {
+    follow?: (path: string, line?: number) => void;
+    complete?: boolean;
+    /** Where a figure's bytes are, for the hover on `\includegraphics`. */
+    imageUrl?: (path: string) => string;
+  } = {},
 ): Extension[] {
   if (isScript(path)) {
     return [
@@ -652,7 +657,7 @@ export function languageFor(
       closeBrackets: { brackets: ["(", "[", "{", "'", '"', "$"] },
     }),
     familyHighlight,
-    mathHover(symbols),
+    mathHover(symbols, options.imageUrl),
     ...(options.follow ? [followLinks(symbols, options.follow)] : []),
     ...(options.complete ? [latexCompletions(symbols)] : []),
   ];

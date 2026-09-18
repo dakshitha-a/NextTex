@@ -1,5 +1,8 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { png } from "../png";
 
 /** R-085. A thesis is a graph held together by \ref, \input and \cite, and
  *  none of the three went anywhere. */
@@ -130,4 +133,40 @@ test("a reference to a label that is not there says so rather than jumping", asy
   await expect(tab.locator(".nx-link-tooltip")).toContainText("No \\label", {
     timeout: 10_000,
   });
+});
+
+test("after a build, hovering a reference says what it will say, and a figure shows itself", async ({
+  project, tab,
+}) => {
+  /* The hover said the file and line; the writer wanted "Figure 1, on
+     page 1", which every build writes into the .aux files.  The template
+     builds on open, so the numbers are there by the time the tooltip is
+     asked for; the place stays beneath the number. */
+  writeFileSync(join(project.root, "figures", "plot.png"), png(40, 30));
+  await write(tab, "Once more, \\ref{sec:results}, and \\includegraphics{figures/plot}.");
+  // The editor refetches the symbols when a build lands, so the number is
+  // in the browser a moment after the typed line's build; the tooltip is
+  // asked for until it says so, rather than the server, which is ahead.
+  const tip = tab.locator(".nx-link-tooltip");
+  await expect.poll(async () => {
+    await tab.mouse.move(5, 5);
+    const ref = await pointAt(tab, "Once more", "sec:results");
+    await tab.mouse.move(ref!.x, ref!.y);
+    await tab.mouse.move(ref!.x + 1, ref!.y);
+    await tip.waitFor({ timeout: 5_000 }).catch(() => undefined);
+    return (await tip.textContent().catch(() => "")) ?? "";
+  }, { timeout: 60_000, intervals: [1000] }).toMatch(/Section \d+, on page \d+/);
+  await expect(tip).toContainText("main.tex, line");
+
+  await tab.mouse.move(5, 5);
+  await expect(tip).toHaveCount(0);
+  const image = await pointAt(tab, "Once more", "figures/plot");
+  await tab.mouse.move(image!.x, image!.y);
+  await tab.mouse.move(image!.x + 1, image!.y);
+  await expect(tab.locator(".nx-link-tooltip img")).toBeVisible({ timeout: 10_000 });
+  await expect(tab.locator(".nx-link-tooltip")).toContainText("figures/plot.png");
+  const natural = await tab.locator(".nx-link-tooltip img").evaluate(
+    (el) => (el as HTMLImageElement).naturalWidth,
+  );
+  expect(natural).toBe(40);
 });

@@ -42,7 +42,9 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from nexttex import attachments, auth, claude_auth, gitrepo, plots, report, synctex, texpkg
+from nexttex import (
+    attachments, auth, auxlabels, claude_auth, gitrepo, plots, report, synctex, texpkg,
+)
 from nexttex.version import VERSION
 from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
@@ -4286,12 +4288,32 @@ async def git_backup(
 
 @app.get("/api/projects/{project_id}/symbols")
 async def project_symbols(project_id: str):
-    """Labels, citation keys, figures and macros -- for autocomplete."""
+    """Labels, citation keys, figures and macros, for autocomplete and the
+    hover; each label with the number and page its last build gave it.
+
+    The numbers come from the build directory's `.aux` files rather than
+    from the source scan, which cannot know them, and are read on every
+    ask: the files are small, and the editor asks once per build.
+    """
     session = session_for(project_id)
     found = session.symbols.get(
         excluded=session.project._excluded, build_dir=session.project.build_dir
     )
-    return found.as_dict()
+    answer = found.as_dict()
+
+    def numbers() -> dict[str, dict]:
+        known: dict[str, dict] = {}
+        for state in session.documents.values():
+            known.update(auxlabels.read(state.paths.build_dir, state.paths.jobname))
+        return known
+
+    known = await asyncio.to_thread(numbers)
+    if known:
+        answer["labels"] = [
+            {**label, **known[label["name"]]} if label.get("name") in known else label
+            for label in answer["labels"]
+        ]
+    return answer
 
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "nexttex" / "templates"

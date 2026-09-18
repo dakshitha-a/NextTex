@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { citationFor, inputTarget, labelTarget, linkAt } from "./latex-links";
+import {
+  citationFor, imageTarget, inputTarget, labelSays, labelTarget, linkAt,
+} from "./latex-links";
 
 const at = (line: string, column: number) => linkAt(line, column);
 
@@ -55,7 +57,12 @@ describe("linkAt", () => {
 });
 
 const symbols = {
-  labels: [{ name: "eq:flux", file: "chapters/02.tex", line: 14 }],
+  labels: [
+    { name: "eq:flux", file: "chapters/02.tex", line: 14 },
+    { name: "fig:one", file: "chapters/02.tex", line: 30, number: "3", page: "7", kind: "figure" },
+    { name: "sec:odd", file: "main.tex", line: 2, number: "2.1", page: "9", kind: "mystery" },
+    { name: "eq:plain", file: "main.tex", line: 5, number: "4", page: "" },
+  ],
   citations: [
     { key: "knuth", type: "book", title: "The Art", author: "Knuth", year: "1968" },
   ],
@@ -68,10 +75,33 @@ const symbols = {
 describe("where a link goes", () => {
   it("finds the file and line of a label", () => {
     expect(labelTarget("eq:flux", symbols)).toEqual({
+      name: "eq:flux",
       file: "chapters/02.tex",
       line: 14,
     });
     expect(labelTarget("eq:nope", symbols)).toBeNull();
+  });
+
+  it("says what a reference will say once the document has been built", () => {
+    // The kind hyperref's anchor names, its number, and the page.
+    expect(labelSays(labelTarget("fig:one", symbols))).toBe("Figure 3, on page 7");
+    // A kind nothing here names is shown by its number alone.
+    expect(labelSays(labelTarget("sec:odd", symbols))).toBe("2.1, on page 9");
+    // No hyperref: a number with no page and no kind.
+    expect(labelSays(labelTarget("eq:plain", symbols))).toBe("4");
+    // Before the first build there is nothing to say.
+    expect(labelSays(labelTarget("eq:flux", symbols))).toBeNull();
+    expect(labelSays(null)).toBeNull();
+  });
+
+  it("finds a figure with the suffix left off, and finds an includegraphics as an image", () => {
+    const table = { ...symbols, images: ["figures/plot.pdf", "figures/plot.png", "figures/plots/x.png"] };
+    expect(imageTarget("figures/plot.pdf", table)).toBe("figures/plot.pdf");
+    expect(imageTarget("figures/plot", table)).toBe("figures/plot.pdf");
+    expect(imageTarget("./figures/plot", table)).toBe("figures/plot.pdf");
+    expect(imageTarget("figures/plots", table)).toBeNull();
+    expect(imageTarget("nope", table)).toBeNull();
+    expect(linkAt("\\includegraphics[width=\\linewidth]{figures/plot}", 40)?.kind).toBe("image");
   });
 
   it("adds the suffix an input almost always leaves off", () => {

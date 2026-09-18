@@ -11,7 +11,9 @@
 import { hoverTooltip, type EditorView, type Tooltip } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
-import { citationFor, inputTarget, labelTarget, linkAt } from "./latex-links";
+import {
+  citationFor, imageTarget, inputTarget, labelSays, labelTarget, linkAt,
+} from "./latex-links";
 import { shortcut } from "../keys";
 
 type Katex = typeof import("katex");
@@ -221,14 +223,19 @@ export function macrosFrom(symbols: Symbols | null): Record<string, string> {
  *  span of at most a few hundred characters. */
 const HOVER_WINDOW = 20_000;
 
-export function mathHover(symbols: () => Symbols | null): Extension {
+export function mathHover(
+  symbols: () => Symbols | null,
+  /** Where a project file's bytes can be fetched from, for the image a
+   *  hover on `\includegraphics` shows.  Absent in the read-only panes. */
+  imageUrl?: (path: string) => string,
+): Extension {
   return hoverTooltip((view, pos): Tooltip | null => {
     const doc = view.state.doc;
     const from = Math.max(0, pos - HOVER_WINDOW);
     const to = Math.min(doc.length, pos + HOVER_WINDOW);
     const near = mathAt(doc.sliceString(from, to), pos - from);
     const span = near && { ...near, from: near.from + from, to: near.to + from };
-    if (!span || !span.body.trim()) return linkTooltip(view, pos, symbols);
+    if (!span || !span.body.trim()) return linkTooltip(view, pos, symbols, imageUrl);
 
     return {
       pos: span.from,
@@ -276,12 +283,16 @@ export function mathHover(symbols: () => Symbols | null): Extension {
  */
 function linkTooltip(
   view: EditorView, pos: number, symbols: () => Symbols | null,
+  imageUrl?: (path: string) => string,
 ): Tooltip | null {
   const line = view.state.doc.lineAt(pos);
   const link = linkAt(line.text, pos - line.from);
   if (!link) return null;
   const table = symbols();
   let says: string;
+  /** A second, quieter line: where the label is, under what it says. */
+  let where: string | null = null;
+  let image: string | null = null;
   let follow = true;
   if (link.kind === "cite") {
     const entry = citationFor(link.name, table);
@@ -292,11 +303,23 @@ function linkTooltip(
     // to open for it, so the gesture line would be a lie.
     follow = false;
   } else if (link.kind === "ref") {
+    // What the reference says, "Figure 3, on page 7", from the last
+    // build's .aux files, with the file and line beneath it.  Before a
+    // build there is only the place.
     const target = labelTarget(link.name, table);
-    says = target
-      ? `${target.file}, line ${target.line}`
-      : `No \\label{${link.name}} in this project.`;
+    const number = labelSays(target);
+    says = number
+      ? number
+      : target
+        ? `${target.file}, line ${target.line}`
+        : `No \\label{${link.name}} in this project.`;
+    if (number && target) where = `${target.file}, line ${target.line}`;
     follow = Boolean(target);
+  } else if (link.kind === "image") {
+    const target = imageTarget(link.name, table);
+    says = target ?? `${link.name} is not a figure in this project.`;
+    image = target && imageUrl ? imageUrl(target) : null;
+    follow = false;
   } else {
     const target = inputTarget(link.name, table);
     says = target ?? `${link.name} is not a file in this project.`;
@@ -309,9 +332,25 @@ function linkTooltip(
     create() {
       const dom = document.createElement("div");
       dom.className = "nx-math-tooltip nx-link-tooltip";
+      if (image) {
+        // The figure itself, at a size that stays a tooltip.  The same
+        // route the file view reads, so a PDF figure shows as the browser
+        // shows a PDF: not at all, and the name beneath says which file.
+        const picture = document.createElement("img");
+        picture.src = image;
+        picture.alt = says;
+        picture.className = "nx-link-image";
+        dom.append(picture);
+      }
       const what = document.createElement("div");
       what.textContent = says;
       dom.append(what);
+      if (where) {
+        const place = document.createElement("div");
+        place.className = "nx-link-hint";
+        place.textContent = where;
+        dom.append(place);
+      }
       if (follow) {
         const how = document.createElement("div");
         how.className = "nx-link-hint";

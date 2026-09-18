@@ -16,6 +16,7 @@ import {
 } from "@codemirror/autocomplete";
 import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
+import { labelSays } from "./latex-links";
 
 /** Commands worth offering, with their argument shapes.
  *  `#{n}` marks a field the writer tabs through. */
@@ -261,9 +262,11 @@ export function latexSource(
       }
 
       if (/^(eq|auto|page|c|name|v)?ref$/.test(command)) {
+        // What the reference will say, once a build has said it, is
+        // worth more beside the name than the file it is in.
         const options = (found?.labels ?? []).map((entry) => ({
           label: entry.name,
-          detail: entry.file.split("/").pop(),
+          detail: labelSays(entry) ?? entry.file.split("/").pop(),
           type: "variable",
         }));
         return options.length

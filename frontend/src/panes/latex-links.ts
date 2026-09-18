@@ -10,7 +10,7 @@ import type { Symbols } from "../api";
  *  list was built on it, and nothing but the completion list read it.
  */
 
-export type LinkKind = "ref" | "input" | "cite";
+export type LinkKind = "ref" | "input" | "cite" | "image";
 
 export type Link = {
   kind: LinkKind;
@@ -32,6 +32,7 @@ const REFS = new Set([
   "pageref", "nameref", "vref", "labelcref",
 ]);
 const INPUTS = new Set(["input", "include", "subfile", "subfileinclude"]);
+const IMAGES = new Set(["includegraphics"]);
 const CITES = new Set([
   "cite", "citep", "citet", "citealt", "citealp", "citeauthor", "citeyear",
   "citeyearpar", "parencite", "textcite", "autocite", "footcite", "smartcite",
@@ -46,6 +47,7 @@ function kindOf(command: string): LinkKind | null {
   if (REFS.has(command)) return "ref";
   if (INPUTS.has(command)) return "input";
   if (CITES.has(command)) return "cite";
+  if (IMAGES.has(command)) return "image";
   return null;
 }
 
@@ -88,12 +90,46 @@ export function linkAt(line: string, column: number): Link | null {
   return null;
 }
 
-/** Where a `\ref` goes: the file and line its `\label` is on. */
+/** Where a `\ref` goes: the file and line its `\label` is on, and what
+ *  the reference says once the document has been built. */
 export function labelTarget(
   name: string, symbols: Symbols | null,
-): { file: string; line: number } | null {
+): { file: string; line: number; number?: string; page?: string; kind?: string } | null {
   const found = symbols?.labels.find((label) => label.name === name);
-  return found ? { file: found.file, line: found.line } : null;
+  return found ? { ...found } : null;
+}
+
+/** What the hover says for each kind hyperref's anchors name.  The same
+ *  table as `nexttex/auxlabels.py`'s, for the same words. */
+const KIND_WORDS: Record<string, string> = {
+  figure: "Figure", table: "Table", equation: "Equation", AMS: "Equation",
+  section: "Section", subsection: "Section", subsubsection: "Section",
+  chapter: "Chapter", part: "Part", appendix: "Appendix", theorem: "Theorem",
+  lemma: "Lemma", definition: "Definition", proposition: "Proposition",
+  corollary: "Corollary", example: "Example", remark: "Remark",
+  algorithm: "Algorithm", algocf: "Algorithm", listing: "Listing",
+  lstlisting: "Listing", Item: "Item", footnote: "Footnote", Hfootnote: "Footnote",
+};
+
+/** "Figure 3, on page 7", from a label's number, kind and page; or null
+ *  before a build has given it a number. */
+export function labelSays(
+  target: { number?: string; page?: string; kind?: string } | null,
+): string | null {
+  if (!target?.number) return null;
+  const word = KIND_WORDS[target.kind ?? ""] ?? "";
+  const what = word ? `${word} ${target.number}` : target.number;
+  return target.page ? `${what}, on page ${target.page}` : what;
+}
+
+/** Which file an `\includegraphics{figures/plot}` means: the path as
+ *  written, or with one of the suffixes the symbol walk collected, since
+ *  the suffix is nearly always left off. */
+export function imageTarget(name: string, symbols: Symbols | null): string | null {
+  const images = symbols?.images ?? [];
+  const clean = name.replace(/^\.\//, "");
+  if (images.includes(clean)) return clean;
+  return images.find((path) => path.startsWith(`${clean}.`) && !path.slice(clean.length + 1).includes("/")) ?? null;
 }
 
 /** Which file a `\input{chapters/one}` means.

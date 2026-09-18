@@ -94,7 +94,10 @@ export type LibraryProgress = {
 };
 
 export type Symbols = {
-  labels: { name: string; file: string; line: number }[];
+  /** Where each label is, and, after a build, what it says: the number
+   *  and page from the `.aux` file and the kind hyperref's anchor names
+   *  (`figure`, `section`, `equation`); absent before the first build. */
+  labels: { name: string; file: string; line: number; number?: string; page?: string; kind?: string }[];
   citations: { key: string; type: string; title: string; author: string; year: string }[];
   images: string[];
   texfiles: string[];

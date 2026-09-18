@@ -14,7 +14,7 @@ import type { Symbols } from "../api";
 const SYMBOLS: Symbols = {
   labels: [
     { name: "eq:gap", file: "main.tex", line: 12 },
-    { name: "fig:one", file: "chapters/one.tex", line: 40 },
+    { name: "fig:one", file: "chapters/one.tex", line: 40, number: "1", page: "3", kind: "figure" },
   ],
   citations: [
     { key: "knuth1984", author: "Knuth", year: "1984", title: "The TeXbook" },
@@ -62,6 +62,10 @@ describe("citations", () => {
 describe("cross-references", () => {
   test("a ref brace offers the labels in the project", () => {
     expect(labels("\\ref{")).toEqual(["eq:gap", "fig:one"]);
+    // Beside each, what the reference will say once built; the file
+    // until then.
+    const details = at("\\ref{")?.options.map((option) => option.detail);
+    expect(details).toEqual(["main.tex", "Figure 1, on page 3"]);
   });
 
   test("eqref, autoref and cref are all refs", () => {

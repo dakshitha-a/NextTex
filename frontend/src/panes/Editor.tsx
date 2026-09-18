@@ -560,6 +560,12 @@ export default function Editor({
     const languageOf = (path: string) => languageFor(path, () => symbols.current, {
       follow: (target, line) => opener.current?.(target, line),
       complete: true,
+      // The same route the figure view reads, so the hover shows the file
+      // as it is on disk now.
+      imageUrl: (target) => {
+        const id = get().projectId;
+        return id ? api.downloadUrl(id, { path: target }) : "";
+      },
     });
     /** The same, for a pane that cannot be edited: no completions, and
      *  no following a reference out of a version being read. */

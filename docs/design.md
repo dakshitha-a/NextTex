@@ -7504,3 +7504,36 @@ asks for the version once per process; `tests/test_install_survey.py`
 fills the finding; `tests/api/test_report_route.py` finds it in the
 report; `e2e/specs/tex-install.spec.ts` opens the raw log and reads the
 first line.
+
+## 41. The first roadmap run: the editor
+
+The roadmap's second push: what the source pane can say and do.
+
+### Hover says the number
+
+Hovering `\ref{fig:a}` said "chapters/two.tex, line 4", which is where
+the label is, not what the reference will say. Every build writes the
+number into the `.aux` files, so the tooltip now says "Figure 3, on page
+7" from the last build, with the file and line beneath it in the quieter
+hint style, and the Ctrl-click still goes there. The kind is the word
+hyperref's anchor names, Figure, Table, Equation, Section, Chapter,
+Theorem and the rest; a kind nothing here names shows its number alone,
+and a document without hyperref has a number and a page and no kind.
+Before the first build there is only the place, as before. The
+completion list inside a `\ref` shows the same words beside each label
+in place of the file name once a build has given them.
+
+Hovering `\includegraphics{figures/plot}` shows the figure itself, at
+a size that stays a tooltip, above its resolved path, with the suffix
+the call leaves off found among the images the symbol scan collected.
+A PDF figure shows as the browser shows a PDF in an image tag, which is
+not at all, and the path beneath still says which file it is.
+
+`tests/test_auxlabels.py` parses fixtures copied from a real build,
+follows an included chapter, refuses an input outside the build
+directory and ends a loop; `tests/api/test_symbols_numbers.py` builds
+for real and finds the numbers on the route; the vitests in
+`latex-links.test.ts` and `latex-complete.test.ts` hold the wording;
+`e2e/specs/latex-links.spec.ts` hovers a reference after a build and
+reads "Section 1, on page 1", then hovers a figure and finds it drawn at
+its own size.

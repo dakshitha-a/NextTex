@@ -1313,6 +1313,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   font-size: 12px;
   line-height: 1.4;
 }
+.nx-link-image {
+  display: block;
+  max-width: 240px;
+  max-height: 160px;
+  margin-bottom: 4px;
+  background: #fff;
+}
 .nx-link-hint { color: var(--ink-3); padding-top: 3px; }
 
 /* ---- autocomplete ------------------------------------------------------- */
