@@ -1249,12 +1249,3 @@ export function saveBlob(blob: Blob, filename: string): void {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
-
-export function startDownload(url: string): void {
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = "";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-}

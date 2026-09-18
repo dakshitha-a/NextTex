@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import api from "../api";
-import { startDownload } from "../api";
+import { download } from "../chrome";
 import { useStore } from "../store";
 import { kindOf } from "./file-kinds";
 import { fitScale, nextStep } from "./image-zoom";
@@ -248,7 +248,7 @@ export default function FileView({
       <button
         className="ghost-button mt-3 h-[28px] px-3 t-ui"
         onClick={() =>
-          projectId && startDownload(api.downloadUrl(projectId, { path }))
+          projectId && void download(api.downloadUrl(projectId, { path }), name)
         }
       >
         Download

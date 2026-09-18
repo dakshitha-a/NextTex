@@ -1,6 +1,6 @@
 import { Suspense, lazy, useMemo, type ReactNode } from "react";
-import api, { startDownload } from "../api";
-import { RunIcon, StopIcon } from "../chrome";
+import api from "../api";
+import { RunIcon, StopIcon, download } from "../chrome";
 import { useStore } from "../store";
 import { isScript } from "./file-kinds";
 import PaneHeader from "./PaneHeader";
@@ -117,7 +117,7 @@ export default function SourceHeader({
       // takes.  A figure's viewer has its own; this is for the files the
       // editor holds, whose only download was in the tree.
       { key: "download", label: "Download", off: !projectId,
-        run: () => projectId && startDownload(api.downloadUrl(projectId, { path })) },
+        run: () => projectId && void download(api.downloadUrl(projectId, { path }), path.split("/").pop() ?? path) },
     ];
   };
 

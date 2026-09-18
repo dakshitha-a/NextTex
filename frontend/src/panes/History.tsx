@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import api, { startDownload, type Version } from "../api";
+import api, { type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
-import { Chevron } from "../chrome";
+import { Chevron, download } from "../chrome";
 import { isRenderable, isText, isViewable } from "./file-kinds";
 import { sizeOf } from "../size";
 
@@ -563,7 +563,7 @@ export default function History({
                         className="quiet t-micro"
                         onClick={(event) => {
                           event.stopPropagation();
-                          startDownload(blobUrl(version.sha, true));
+                          void download(blobUrl(version.sha, true), name, "the version");
                         }}
                       >
                         Download

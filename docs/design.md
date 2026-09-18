@@ -7839,8 +7839,15 @@ in that state was not established, and it is recorded as such rather
 than guessed at; what is established is which road works. The ZIP takes
 it now: fetched by the page and saved, the way the PDF download has
 been since it needed to say why a document did not typeset, from all
-three places the ZIP is offered. A 500 or a 503 becomes a sentence in
-the corner rather than a file called `download`. On the way, the
+three places the ZIP is offered. And since nothing in what was seen was
+about the ZIP's URL, the same probe was pointed at a single file and at
+a PDF by the link road, and both were cancelled the same way, so the
+writer had five more broken controls on that install: the tree's
+*Download*, the source tab's, the figure viewer's, and the history
+panel's and the viewing banner's *Download* of a version. Every one of
+them goes through `download` in `chrome.tsx` now, and the link helper is
+gone so nothing can reach for it again. A 500 or a 503 becomes a
+sentence in the corner rather than a file called `download`. On the way, the
 archive's walk stopped taking an atomic write's scratch file and stopped
 failing whole when a listed file is gone by the time it is read, which
 an open project, written under the walk every 120 ms, can do.

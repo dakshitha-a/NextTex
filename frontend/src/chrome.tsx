@@ -189,37 +189,40 @@ export async function downloadPdf(projectId: string, document = "") {
   }
 }
 
-/** The whole project as a ZIP, fetched and saved rather than handed to the
- *  browser as a link.
+/** A file the server serves as an attachment, fetched by the page and
+ *  saved, rather than handed to the browser as a link.
  *
- *  It was a plain link, and from inside an open project over HTTPS it
- *  failed with the browser's own "Check internet connection" whenever the
- *  page had been quiet for more than the server's five second keep-alive,
- *  while the same link from the project list, and a `fetch` of the same
- *  URL from the same page a moment before, both succeeded.  What differs
- *  is the road: a link download is the browser's download manager opening
- *  a connection of its own, a fetch is the page's, and the page's is the
- *  one that works with an event stream and a document socket already
- *  open to the host.  The PDF download has taken this road since it
- *  needed to say why a document did not typeset, and it was never
- *  reported failing.  A 500 or a 503 says what it said, rather than
- *  saving as a `.zip` or failing with a sentence about the network. */
-export async function downloadZip(projectId: string, fallback = "project.zip") {
+ *  Every download was a plain `<a download>` link, and from inside an
+ *  open project over HTTPS the browser cancelled such a download before
+ *  sending a byte once the page had been open about ten seconds: the ZIP,
+ *  a single file, a PDF, all the same, reproducibly, with nothing in the
+ *  server log, while the same link from the project list and a `fetch`
+ *  of the same URL from the same page at the same moment both went
+ *  through.  What Chrome's download manager objects to in that state was
+ *  not established; what is established is which road works, and it is
+ *  the one the PDF download had always taken because it needed to say
+ *  why a document did not typeset.  So every download takes it: the name
+ *  is what `Content-Disposition` says, or the caller's fallback, and a
+ *  refusal is a sentence in the corner rather than a file called
+ *  `download`.  `what` is the noun for that sentence. */
+export async function download(url: string, fallback: string, what = "the file") {
   try {
-    const response = await fetch(
-      api.downloadUrl(projectId, { format: "zip" }),
-      { credentials: "same-origin" },
-    );
+    const response = await fetch(url, { credentials: "same-origin" });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      throw new Error(body.detail || `the server answered ${response.status}`);
+      throw new Error(body.detail || body.error || `the server answered ${response.status}`);
     }
     const header = response.headers.get("content-disposition") ?? "";
     const named = /filename="?([^";]+)"?/.exec(header)?.[1];
     saveBlob(await response.blob(), named || fallback);
   } catch (error: any) {
-    set({ error: `Could not download the project: ${error.message}` });
+    set({ error: `Could not download ${what}: ${error.message}` });
   }
+}
+
+/** The whole project as a ZIP, by the road above. */
+export function downloadZip(projectId: string, fallback = "project.zip") {
+  return download(api.downloadUrl(projectId, { format: "zip" }), fallback, "the project");
 }
 
 export function AppControls({

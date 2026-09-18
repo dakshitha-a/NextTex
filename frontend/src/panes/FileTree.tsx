@@ -6,8 +6,8 @@ import { useOnScreen, type Wanted } from "../place-menu";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
 import { iconFor, isBib, isData, isScript } from "./file-kinds";
-import api, { startDownload, type TreeNode } from "../api";
-import { downloadPdf } from "../chrome";
+import api, { type TreeNode } from "../api";
+import { download, downloadPdf } from "../chrome";
 import { get, set, useStore } from "../store";
 import { sizeOf } from "../size";
 import {
@@ -287,11 +287,12 @@ export default function FileTree({
     setPurging(null);
     try {
       if (action === "download") {
-        startDownload(
+        void download(
           api.downloadUrl(projectId, {
             path: node.path,
             format: isDir(node) ? "zip" : undefined,
           }),
+          isDir(node) ? `${node.name}.zip` : node.name,
         );
       } else if (action === "delete") {
         // No confirmation: deleting now moves the file to the trash with

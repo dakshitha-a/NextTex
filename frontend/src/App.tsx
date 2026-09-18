@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import type { WordHint } from "./panes/locate-word";
 import api, {
-  captureToken, engineOf, landingAfter, shellEscapeOf, startDownload,
+  captureToken, engineOf, landingAfter, shellEscapeOf,
   type ScriptResult, type WordScope,
 } from "./api";
 import { Followed } from "./followed";
@@ -14,6 +14,7 @@ import {
   DownloadMenu,
   AppControls,
   Chevron,
+  download,
   downloadPdf,
   downloadZip,
   FoldButton,
@@ -2290,13 +2291,15 @@ export default function App() {
               onDownload={
                 projectId && !isText(viewing.path) && isViewable(viewing.path)
                   ? () =>
-                      startDownload(
+                      void download(
                         api.historyBlobUrl(
                           projectId,
                           viewing.path,
                           viewing.sha,
                           true,
                         ),
+                        viewing.path.split("/").pop() ?? viewing.path,
+                        "the version",
                       )
                   : undefined
               }
