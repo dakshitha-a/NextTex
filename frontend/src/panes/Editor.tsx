@@ -25,6 +25,7 @@ import { isCode, isMarkdown } from "./file-kinds";
 import { reconciled } from "./parked";
 
 import { outline as sectionsOf, sameOutline } from "../outline";
+import { sectionAtTop, trailTo } from "../section-at-top";
 import {
   useEditorTheme,
   useEditorEmphasis,
@@ -37,7 +38,7 @@ import { focusFirst, walkMenu } from "./menu-keys";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
 import { locateWord, type WordHint } from "./locate-word";
-import { noteTyping } from "../timing";
+import { noteTyping, onFrame } from "../timing";
 
 /** Fetched when a writer first selects something rather than before
  *  anything draws, the way every other surface behind a gesture in this app
@@ -116,6 +117,9 @@ export default function Editor({
   onOpen?: (path: string, line?: number) => void;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
+  /** `jump`, for the section bar, which is rendered outside the effect
+   *  that defines it. */
+  const jumpRef = useRef<((line: number) => void) | null>(null);
   const opener = useRef(onOpen);
   opener.current = onOpen;
   const editorTheme = useEditorTheme();
@@ -221,6 +225,11 @@ export default function Editor({
   /** Where to draw the verb row over a selection, and which lines it is
    *  about.  Null whenever there is nothing selected, which is most of the
    *  time. */
+  /** The first line on screen, for the bar that says which section the
+   *  top of the pane is in.  Written on scroll, once a frame. */
+  const [topLine, setTopLine] = useState(1);
+  const outlineNow = useStore((s) => s.outline);
+  const viewingNow = useStore((s) => s.viewing);
   const [actions, setActions] = useState<
     { left: number; top: number; from: number; to: number } | null
   >(null);
@@ -585,6 +594,17 @@ export default function Editor({
     scroller.addEventListener("scroll", followRow, { passive: true });
     const resized = new ResizeObserver(followRow);
     resized.observe(host.current);
+    // The section bar reads the line at the top of the viewport.  Once a
+    // frame, and only written when it changes: a scroll fires many times
+    // per frame and the bar redraws for none of them otherwise.
+    const noteTop = onFrame(() => {
+      const editor = view.current;
+      if (!editor) return;
+      const block = editor.lineBlockAtHeight(editor.scrollDOM.scrollTop);
+      const line = editor.state.doc.lineAt(block.from).number;
+      setTopLine((was) => (was === line ? was : line));
+    });
+    scroller.addEventListener("scroll", noteTop, { passive: true });
 
     /** Go and look at a line.
      *
@@ -791,6 +811,7 @@ export default function Editor({
       lintFile(projectId, path);
     };
     openRef.current = openBuffer;
+    jumpRef.current = (line) => jump(line);
 
     const viewVersion = async (path: string, sha: string) => {
       const projectId = get().projectId;
@@ -917,6 +938,8 @@ export default function Editor({
       cancelTimer();
       if (focusTimer.current !== null) window.clearTimeout(focusTimer.current);
       scroller.removeEventListener("scroll", followRow);
+      scroller.removeEventListener("scroll", noteTop);
+      noteTop.cancel();
       resized.disconnect();
       view.current?.destroy();
       view.current = null;
@@ -1219,11 +1242,36 @@ export default function Editor({
   // Likewise: the class takes the lift off one variable, and every command
   // weight in the pane resolves through that variable.
   const plain = emphasis === "plain" ? " nx-syntax-plain" : "";
+  // Which section the top of the pane is in, for a bar over the source.
+  // Hidden before the first heading, on a heading's own line, and while
+  // an old version is on screen, whose lines are not the outline's.
+  const atTop = viewingNow ? null : sectionAtTop(outlineNow, topLine);
   return (
     <div
       ref={host}
       className={`relative h-full min-h-0 overflow-hidden${skin}${colour}${plain}`}
     >
+      {atTop ? (
+        <button
+          type="button"
+          data-testid="section-bar"
+          data-line={atTop.line}
+          title={`Go to line ${atTop.line}`}
+          className="nx-section-bar absolute left-0 right-0 top-0 z-10 flex h-[22px] items-center gap-[6px] overflow-hidden whitespace-nowrap border-b border-line bg-surface px-[10px] text-left"
+          onClick={() => jumpRef.current?.(atTop.line)}
+        >
+          {trailTo(outlineNow, atTop).map((heading, index, trail) => (
+            <span key={`${heading.line}:${heading.title}`} className="flex min-w-0 items-center gap-[6px]">
+              {index ? <span className="t-micro text-ink-3">›</span> : null}
+              <span
+                className={`t-micro truncate ${index === trail.length - 1 ? "text-ink-2" : "text-ink-3"}`}
+              >
+                {heading.title}
+              </span>
+            </span>
+          ))}
+        </button>
+      ) : null}
       {actions ? (
         <Suspense fallback={null}>
           <SelectionActions

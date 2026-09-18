@@ -7577,3 +7577,25 @@ section, the opaque verbatim block, and the cases that fold nothing;
 placeholder's count, finds the section below still shown, unfolds from
 the placeholder, folds a list on its own, and folds and unfolds by
 keyboard from inside a section.
+
+### A bar above the source says where you are
+
+A long chapter says which section the top of the pane is in without
+scrolling up to find out: a one-line bar over the source, in the quiet
+ink, with the trail from the outermost enclosing heading down to the
+current one, "Method › Sampling › Frames", the last of them a shade
+darker. It is driven by the first line on screen, read off the editor's
+own line blocks on scroll once a frame, and not by the caret, which is
+the question the Sections panel already answers and a different one:
+the caret can be forty lines below the top of the screen, in the next
+section. The bar hides before the first heading, on a heading's own
+line, where the source already says it and a bar would cover the line
+beneath, in a file with no headings, and while an old version is on
+screen, whose lines are not the outline's. A click goes to the heading.
+An `\include` in a skeleton is not a place a reader is inside, and the
+bar names the last real heading above it instead.
+
+`frontend/src/section-at-top.test.ts` holds the hide rules and the
+trail; `e2e/specs/sections.spec.ts` scrolls a long chapter into its
+second section, reads the bar, clicks it to the heading, and scrolls to
+the top to find it gone.

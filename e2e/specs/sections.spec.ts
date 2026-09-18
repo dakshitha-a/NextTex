@@ -260,3 +260,38 @@ test("every panel in the rail stays inside it", async ({ app, project, page }) =
   expect(rail!.toolbarBottom, "the files toolbar is drawn outside the file list")
     .toBeLessThanOrEqual(rail!.treeBottom);
 });
+
+test("a bar above the source says which section the top of the pane is in", async ({
+  project, tab,
+}) => {
+  /* Driven by the viewport, not the caret: the Sections panel already
+     answers the caret's question.  Hidden at the top of the file, before
+     the first heading, and on a heading's own line. */
+  const lines: string[] = [];
+  lines.push("\\section{One}");
+  for (let i = 1; i <= 60; i++) lines.push(`Line ${i} of one.`);
+  lines.push("\\section{Two}");
+  lines.push("\\subsection{Inside two}");
+  for (let i = 1; i <= 60; i++) lines.push(`Line ${i} of two.`);
+  writeFileSync(join(project.root, "long.tex"), lines.join("\n") + "\n");
+  await tab.getByText("long.tex").first().click({ timeout: 15_000 });
+  await expect(tab.locator(".cm-content")).toContainText("Line 1 of one.");
+  const bar = tab.getByTestId("section-bar");
+  // At the top, the heading is on screen and the bar stays out of the way.
+  await expect(bar).toHaveCount(0);
+
+  const scroller = tab.locator(".cm-scroller");
+  await scroller.evaluate((el) => { el.scrollTop = 20 * 22; });
+  await expect(bar).toContainText("One", { timeout: 10_000 });
+  await scroller.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(bar).toContainText("Inside two", { timeout: 10_000 });
+  await expect(bar).toContainText("Two");
+
+  // A click goes to the heading, and the bar then hides because the
+  // heading's own line is at the top.
+  await bar.click();
+  await expect(tab.locator(".cm-activeLine")).toContainText("\\subsection{Inside two}", { timeout: 10_000 });
+
+  await scroller.evaluate((el) => { el.scrollTop = 0; });
+  await expect(bar).toHaveCount(0, { timeout: 10_000 });
+});

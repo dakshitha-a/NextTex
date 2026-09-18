@@ -35,8 +35,6 @@ follows its file.
 
 The editor, for 2.9.0:
 
-- [ ] **A sticky section header** above the source, driven by what is
-      scrolled into view.
 - [ ] **Rename a label or citation key everywhere.** Syntax-aware, so
       `fig:a` leaves `fig:ab` alone and a hit in a comment is offered
       rather than assumed.
