@@ -141,6 +141,15 @@ this checkout does not have, or are decisions, are where they were.
       loop, the path fence, the edits, the usage accounting. Whether OpenAI
       still returns these shapes is unproven, and there is no account here to
       find out with.
+- [ ] **Stop has not been pressed against the real CLI since the buffer
+      fix.** The one-behind reply after Stop was diagnosed in a writing
+      session's transcript and is reproduced by a stub with the SDK's
+      buffer in `tests/test_agent_robustness.py`; the real `interrupt`
+      control request and the `result` the CLI sends for a stopped turn
+      are exercised only by `tests/test_live_agent.py` under
+      `NEXTTEX_LIVE`. `tests/fake_claude.py` speaks the sign-in commands
+      and not the stream protocol, and teaching it the protocol is a
+      day's work that would still be a stand-in.
 - [ ] **The papers importer has not been run over a real Zotero library.**
       Fifty-four tests cover the pipeline with the network and `pdftotext`
       stubbed. Crossref and doi.org were asked by hand during the backlog

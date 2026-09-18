@@ -110,6 +110,26 @@ TOOL_RUNNING_TIMEOUT = 3600.0
 # a turn survives a long build is not a test anybody would run.
 WATCHDOG_INTERVAL = 30.0
 
+# How long Stop waits for the CLI to end the turn itself before the reader
+# task is cancelled from outside.
+#
+# Stop used to cancel the reader first and tell the CLI second.  The CLI
+# still answers an interrupt with a `result` message for the stopped turn,
+# and with nobody reading it sat in the SDK's buffer, which lives as long
+# as the client does.  The next question's `receive_response()` yields the
+# buffer before anything new and stops at the first result it sees, so it
+# stopped at the stale one, three milliseconds in, and the real answer
+# piled up behind it to be replayed as the answer to the question after.
+# Every reply was then one question late until the client was rebuilt.
+#
+# So Stop now tells the CLI and lets `_stream` read the result the CLI
+# sends back, which leaves the buffer empty; cancelling from outside is
+# the fallback for a CLI that does not answer, and a turn that ends that
+# way drops its client rather than reuse a buffer it cannot see into.  A
+# few seconds is longer than the interrupt round-trip takes and short
+# enough that Stop still feels like Stop.
+INTERRUPT_GRACE = 5.0
+
 # Tools that never need asking about wherever they point: they change
 # nothing outside the model's own head, and nothing leaves this machine.
 #
@@ -501,6 +521,14 @@ class ProjectAgent:
         self._events: asyncio.Queue | None = None
         self._turn: asyncio.Task | None = None
         self._cancelled = False
+        # Whether a Stop is already waiting for the CLI to end the turn.  A
+        # second Stop in that window cancels the reader at once.
+        self._stopping = False
+        # Whether the current turn read its own `result` from the client.
+        # A client is reused only when it did; any other ending may have
+        # left that result in the SDK's buffer, where the next question
+        # would mistake it for its own answer.
+        self._result_consumed = False
         # Set the moment a `done` reaches the queue, so the safety net in
         # `_run_turn` can tell "this turn already said how it ended" from
         # "this turn stopped without saying anything".
@@ -2542,21 +2570,66 @@ class ProjectAgent:
         state a turn that ended without emitting `done` leaves behind --
         the interface is still waiting, and the honest answer is to end it
         here rather than to do nothing and leave it waiting for ever.
+
+        The order matters, and it is the reverse of what it was.  The CLI
+        is told first and the reader in `_stream` is left running, so the
+        `result` the CLI sends for the stopped turn is read and the turn
+        ends the way every turn ends.  Cancelling the reader first left
+        that result in the SDK's buffer for the next question to find; see
+        `INTERRUPT_GRACE`.  The task is cancelled from outside only when
+        the CLI could not be told or does not answer in time, and a second
+        Stop while the first is waiting is that cancellation brought
+        forward, because Stop is never a no-op.
         """
         self._cancelled = True
-        running = self.busy
-        if running:
-            self._turn.cancel()
-        if self._client is not None:
-            try:
-                await self._client.interrupt()
-            except Exception as exc:
-                log.warning("interrupting the SDK client failed: %s", exc)
+        turn = self._turn
+        running = turn is not None and not turn.done()
+        # A card the writer is looking at is answered "no, and stop": the
+        # hook sees `_cancelled` and tells the CLI not to continue.
         for future in list(self._pending.values()):
             if not future.done():
                 future.cancel()
         if not running:
+            await self._interrupt_client()
             await self._emit({"type": "done", "subtype": "interrupted"})
+            return
+        if self._stopping:
+            turn.cancel()
+            return
+        self._stopping = True
+        try:
+            told = await self._interrupt_client()
+            if told:
+                done, _ = await asyncio.wait({turn}, timeout=INTERRUPT_GRACE)
+                if done:
+                    return
+                log.warning(
+                    "the CLI did not end the turn within %.0fs of Stop; "
+                    "cancelling it", INTERRUPT_GRACE,
+                )
+            turn.cancel()
+        finally:
+            self._stopping = False
+
+    async def _interrupt_client(self) -> bool:
+        """Tell the CLI to stop.  True when the request went through.
+
+        Bounded, because the control round-trip shares the CLI's stdout
+        with the messages it is streaming, and a CLI blocked on a full
+        buffer cannot answer: an unbounded wait here would hang the Stop
+        request itself.
+        """
+        client = self._client
+        if client is None:
+            return False
+        try:
+            await asyncio.wait_for(client.interrupt(), timeout=INTERRUPT_GRACE)
+            return True
+        except asyncio.TimeoutError:
+            log.warning("the SDK client did not acknowledge the interrupt")
+        except Exception as exc:
+            log.warning("interrupting the SDK client failed: %s", exc)
+        return False
 
     # -- the conversation ---------------------------------------------------
     # One queue per project carries everything a turn produces, in the order
@@ -2626,11 +2699,19 @@ class ProjectAgent:
         # tool nobody called had been running since the incident.  No turn
         # starts with a call already running, so this starts empty.
         self._running_tools.clear()
+        self._result_consumed = False
         watchdog = asyncio.create_task(self._watch_for_silence())
         try:
             await self._stream(prompt)
         except asyncio.CancelledError:
             await self._emit({"type": "done", "subtype": "interrupted"})
+            # Cancelled from outside, by Stop's fallback, the watchdog, the
+            # subagent guard, eviction or shutdown, so the CLI's `result`
+            # for this turn was never read and may be sitting in the SDK's
+            # buffer.  The next question would end at it.  The session id
+            # is saved, so a fresh client resumes the same conversation.
+            if not self._result_consumed:
+                await self._drop_client()
             raise
         except Exception as exc:  # a crashed turn must not stall the UI
             log.exception("the agent turn failed")
@@ -2852,15 +2933,18 @@ class ProjectAgent:
                     continue
 
                 if isinstance(message, ResultMessage):
+                    self._result_consumed = True
                     await self._flush_edits()
                     session_id = getattr(message, "session_id", None)
                     if session_id and session_id != self._session_id:
                         self._session_id = session_id
                         self._save_session(session_id)
                     self._record_usage(message)
+                    # The CLI names a stopped turn's result its own way;
+                    # the panel and the transcript key on "interrupted".
                     await self._emit({
                         "type": "done",
-                        "subtype": message.subtype,
+                        "subtype": "interrupted" if self._cancelled else message.subtype,
                         "costUsd": getattr(message, "total_cost_usd", None),
                         "durationMs": getattr(message, "duration_ms", None),
                         "usage": self.usage,

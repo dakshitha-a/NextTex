@@ -696,6 +696,26 @@ test("escape stops a turn before it closes the panel", async ({ tab }) => {
   await expect(tab.getByTestId("chat-panel")).toBeHidden();
 });
 
+test("a question after Stop is answered in its own turn", async ({ tab }) => {
+  // Reported from a writing session: after Stop, every reply arrived one
+  // question late, because the server cancelled its reader before the CLI
+  // had sent the stopped turn's result, and the next question ended at
+  // that stale result three milliseconds in.  The server now lets the
+  // stopped turn end itself.  The scripted agent has no SDK buffer, so
+  // what this checks is the panel's side of the contract: the turn after
+  // a Stop runs, shows working, and carries its own answer.
+  await ask(tab, "slow", "The long one.");
+  await expect(tab.getByTestId("stop")).toBeVisible({ timeout: 20_000 });
+  await tab.getByTestId("stop").click();
+  await expect(tab.getByTestId("stop")).toBeHidden({ timeout: 20_000 });
+
+  await ask(tab, "reply", "What does a label do?");
+  await expect(tab.getByText(/A label attaches a name/)).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(tab.getByTestId("stop")).toBeHidden({ timeout: 20_000 });
+});
+
 test("a command is not said to have run while its card is still asking", async ({
   tab,
 }) => {

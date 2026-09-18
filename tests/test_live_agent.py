@@ -169,3 +169,38 @@ def test_a_real_edit_arrives_as_an_edit_event(tmp_path):
     assert "A Live Test" in (tmp_path / "project" / "main.tex").read_text(
         encoding="utf-8"
     )
+
+
+def test_the_reply_after_stop_is_the_reply_to_the_question_asked(tmp_path):
+    """Stop, then ask, against the real CLI.
+
+    The unit tests drive a stub with the SDK's buffer; this is the one
+    place the actual buffer, the actual `interrupt` control request and
+    the actual `result` the CLI sends for a stopped turn are in play.  A
+    turn that ends in under a second with no text, followed by a reply to
+    the wrong question, is the bug this exists to catch.
+    """
+    session = live_session(tmp_path / "project")
+
+    async def run():
+        await session.agent.ask(
+            "Count slowly from one to two hundred, one number per line, "
+            "and do not read or write any file."
+        )
+        async for event in session.agent.events():
+            if event.get("type") == "text":
+                break
+        await session.agent.interrupt()
+        stopped, _ = await collect(session)
+        await session.agent.ask(
+            "Reply with the single word SECOND and nothing else. "
+            "Do not read or write any file."
+        )
+        return stopped, await collect(session)
+
+    stopped, (seen, _refused) = asyncio.run(run())
+    assert stopped[-1]["subtype"] == "interrupted"
+    text = "".join(e.get("text", "") for e in seen if e["type"] == "text")
+    assert "SECOND" in text, f"the turn after Stop answered with {text!r}"
+    assert seen[-1]["subtype"] != "interrupted"
+    assert (seen[-1].get("durationMs") or 0) > 0

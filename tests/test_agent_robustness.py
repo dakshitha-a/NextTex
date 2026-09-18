@@ -654,3 +654,260 @@ def test_a_fold_that_fails_is_not_swallowed(tmp_path):
     assert notices[0].get("tone") == "error"
     # And the edit itself stands: the bytes are on disk either way.
     assert target.read_text(encoding="utf-8") == "After.\n"
+
+
+# -- Stop and the SDK's buffer -----------------------------------------------
+#
+# Reported from a writing session: after Stop, every reply arrived one
+# question late.  `interrupt()` cancelled the reader task first and told the
+# CLI second, the CLI still sent a `result` for the stopped turn, and with
+# nobody reading it sat in the SDK's buffer.  The next `receive_response()`
+# yielded the buffer before anything new and stopped at that stale result,
+# three milliseconds in; the real answer then waited in the buffer to be
+# replayed as the answer to the question after.
+#
+# `StubClient` iterates a fixed list and cannot show any of this.  This stub
+# has what the real client has: one buffer that outlives a turn, a
+# `receive_response()` that reads it until a result, and an `interrupt()`
+# that, like the CLI, answers with a result for the stopped turn.
+
+
+def _result(subtype: str = "success"):
+    from claude_agent_sdk import ResultMessage
+
+    return ResultMessage(
+        subtype=subtype, duration_ms=1, duration_api_ms=1, is_error=False,
+        num_turns=1, session_id="s", total_cost_usd=0.0, usage={},
+    )
+
+
+def _text(text: str):
+    return _stream_event({"type": "content_block_delta",
+                          "delta": {"type": "text_delta", "text": text}})
+
+
+class QueueClient:
+    """The SDK client with the buffer the real one has.
+
+    `reply(prompt)` says what the CLI writes for a prompt: messages, with a
+    float meaning "wait this long first".  `interrupt()` stops that and, when
+    `answers_interrupt`, puts a result for the stopped turn in the buffer the
+    way the CLI does.
+    """
+
+    def __init__(self, reply, *, answers_interrupt: bool = True):
+        self.reply = reply
+        self.answers_interrupt = answers_interrupt
+        self.buffer: asyncio.Queue = asyncio.Queue()
+        self.queries: list[str] = []
+        self.interrupted = 0
+        self.disconnected = False
+        self._feeder: asyncio.Task | None = None
+
+    async def query(self, prompt: str) -> None:
+        self.queries.append(prompt)
+        self._feeder = asyncio.create_task(self._feed(prompt))
+
+    async def _feed(self, prompt: str) -> None:
+        for item in self.reply(prompt):
+            if isinstance(item, (int, float)):
+                await asyncio.sleep(item)
+            else:
+                await self.buffer.put(item)
+
+    async def receive_response(self):
+        from claude_agent_sdk import ResultMessage
+
+        while True:
+            message = await self.buffer.get()
+            yield message
+            if isinstance(message, ResultMessage):
+                return
+
+    async def interrupt(self) -> None:
+        self.interrupted += 1
+        if self._feeder is not None and not self._feeder.done():
+            self._feeder.cancel()
+        if self.answers_interrupt:
+            await self.buffer.put(_result("success"))
+
+    async def disconnect(self) -> None:
+        self.disconnected = True
+
+
+def _slow_then_quick(prompt: str):
+    """A first turn that takes a while, and later ones that answer at once."""
+    if prompt.startswith("slow"):
+        return [_text("Working"), 30, _text(" still"), _result()]
+    return [0.02, _text(f"Answer to {prompt}"), _result()]
+
+
+def test_the_reply_after_stop_answers_the_question_that_was_asked(tmp_path):
+    """The report's repro: a slow turn, Stop, then a question.
+
+    The second turn must carry its own answer and end with its own result,
+    not end instantly at the result of the stopped turn.
+    """
+    subject = make_agent(tmp_path)
+    client = QueueClient(_slow_then_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("slow one")
+        await asyncio.wait_for(drain(subject, until="text"), 2)
+        await subject.interrupt()
+        first = await drain(subject)
+        assert first[-1]["subtype"] == "interrupted", first[-1]
+        assert not subject.busy
+        await subject.ask("next")
+        return await drain(subject)
+
+    second = asyncio.run(run())
+    texts = "".join(e.get("text", "") for e in second if e["type"] == "text")
+    assert texts == "Answer to next", second
+    assert second[-1]["type"] == "done"
+    assert second[-1]["subtype"] == "success"
+    # The client was kept: the CLI ended the turn itself and left nothing
+    # behind, so there was no reason to pay for a new process.
+    assert subject._client is client
+    assert client.interrupted == 1
+    assert client.buffer.empty()
+
+
+def test_stop_reads_the_last_words_before_the_result(tmp_path):
+    """Deltas the model got out between Stop and its result are shown:
+    they are what the turn said before it was stopped, and the transcript
+    already renders a cut-off answer."""
+    subject = make_agent(tmp_path)
+
+    def reply(prompt):
+        return [_text("Before"), 30, _result()]
+
+    client = QueueClient(reply)
+
+    async def interrupt():
+        client.interrupted += 1
+        client._feeder.cancel()
+        await client.buffer.put(_text(" and after"))
+        await client.buffer.put(_result())
+
+    client.interrupt = interrupt
+    subject._client = client
+
+    async def run():
+        await subject.ask("say something")
+        await asyncio.wait_for(drain(subject, until="text"), 2)
+        await subject.interrupt()
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    texts = "".join(e.get("text", "") for e in events if e["type"] == "text")
+    assert texts.endswith(" and after"), events
+    assert events[-1]["subtype"] == "interrupted"
+
+
+def test_a_cli_that_does_not_answer_stop_is_cancelled_and_dropped(tmp_path, monkeypatch):
+    """The fallback.  The interrupt goes through but no result follows, so
+    after the grace period the reader is cancelled from outside, and the
+    client goes with it: its buffer may hold anything."""
+    monkeypatch.setattr(agent_module, "INTERRUPT_GRACE", 0.1)
+    subject = make_agent(tmp_path)
+    client = QueueClient(_slow_then_quick, answers_interrupt=False)
+    subject._client = client
+
+    async def run():
+        await subject.ask("slow one")
+        await asyncio.wait_for(drain(subject, until="text"), 2)
+        started = time.monotonic()
+        await subject.interrupt()
+        events = await drain(subject)
+        return events, time.monotonic() - started
+
+    events, took = asyncio.run(run())
+    assert events[-1] == {"type": "done", "subtype": "interrupted"}
+    assert took < 1.0, took
+    assert client.interrupted == 1
+    assert client.disconnected
+    assert subject._client is None
+    assert not subject.busy
+
+
+def test_a_second_stop_does_not_wait_for_the_first(tmp_path, monkeypatch):
+    """Stop is never a no-op, including while a Stop is already waiting."""
+    monkeypatch.setattr(agent_module, "INTERRUPT_GRACE", 5.0)
+    subject = make_agent(tmp_path)
+    client = QueueClient(_slow_then_quick, answers_interrupt=False)
+    subject._client = client
+
+    async def run():
+        await subject.ask("slow one")
+        await asyncio.wait_for(drain(subject, until="text"), 2)
+        started = time.monotonic()
+        first = asyncio.create_task(subject.interrupt())
+        await asyncio.sleep(0.05)
+        await subject.interrupt()
+        await asyncio.wait_for(first, 2)
+        events = await drain(subject)
+        return events, time.monotonic() - started
+
+    events, took = asyncio.run(run())
+    assert events[-1]["subtype"] == "interrupted"
+    assert took < 1.0, took
+    assert subject._client is None
+
+
+def test_a_turn_the_watchdog_ends_drops_its_client(tmp_path, monkeypatch):
+    """The watchdog cancels from outside, exactly like Stop's fallback, and
+    used to leave the client, so a turn that went silent set up the same
+    one-behind conversation as a Stop did."""
+    monkeypatch.setattr(agent_module, "WATCHDOG_INTERVAL", 0.02)
+    monkeypatch.setattr(agent_module, "TURN_SILENCE_TIMEOUT", 0.05)
+    subject = make_agent(tmp_path)
+    client = QueueClient(lambda prompt: [_text("..."), 30, _result()])
+    subject._client = client
+
+    async def run():
+        await subject.ask("go quiet")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    assert events[-1]["subtype"] == "interrupted"
+    assert client.disconnected
+    assert subject._client is None
+
+
+def test_a_turn_the_subagent_guard_ends_drops_its_client(tmp_path):
+    """The guard interrupts the CLI and raises, so the CLI's result for the
+    turn is never read.  Same buffer, same client, same fix."""
+    subject = make_agent(tmp_path)
+    client = QueueClient(lambda prompt: [SubagentMessage(), 30, _result()])
+    subject._client = client
+
+    async def run():
+        await subject.ask("delegate")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    assert events[-1]["subtype"] == "interrupted"
+    assert client.interrupted == 1
+    assert client.disconnected
+    assert subject._client is None
+
+
+def test_a_turn_that_ends_on_its_own_keeps_its_client(tmp_path):
+    """The other side of the invariant: a client that answered normally is
+    reused, so an ordinary conversation still costs one process."""
+    subject = make_agent(tmp_path)
+    client = QueueClient(_slow_then_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("one")
+        await drain(subject)
+        await subject.ask("two")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    assert events[-1]["subtype"] == "success"
+    assert subject._client is client
+    assert not client.disconnected
