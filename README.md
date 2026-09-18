@@ -554,6 +554,13 @@ start with: LaTeX reports everything after a mistake as a mistake too, and a
 writer who starts at the bottom of the list spends the evening fixing
 consequences. None of this involves a model.
 
+The commonest failure on a fresh TinyTeX is a package that is not
+installed, and that row carries an *Install* button: it asks `tlmgr`
+which package provides the missing file, names it, and on a second press
+installs it and builds again. A failing install shows `tlmgr`'s own
+words under the row, which on a TinyTeX behind its mirror is the one
+sentence that says what to do.
+
 ### Every pause is a version
 
 A version is the sha256 of the file's bytes, stored once and compressed on

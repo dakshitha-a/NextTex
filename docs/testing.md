@@ -58,6 +58,14 @@ pseudo-terminal, the output pump and the screen running exactly as they do
 in earnest. That seam is where the first-run bug was, and mocking either
 side of it would have removed the thing worth testing.
 
+`tests/fake_tlmgr.py` is the same shape of stand-in for `tlmgr`, behind
+`NEXTTEX_TLMGR`: it answers the file search and the install the way the
+real one does, fails the install for one package name with the
+stale-mirror message, and writes every argv it saw to the file
+`NEXTTEX_FAKE_TLMGR_LOG` names, so `e2e/specs/tex-install.spec.ts` can
+press the drawer's Install button twice against a real pdflatex build and
+assert what would have been run.
+
 For anything the page never displays, `e2e/events.ts` subscribes to the
 server's event stream from the test process and counts what arrives. A build
 of a short document takes about 130 milliseconds, which is less time than

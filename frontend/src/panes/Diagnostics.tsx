@@ -1,10 +1,112 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { orderRows, rowKey } from "./diagnostic-rows";
 import { uiScale } from "../viewport";
 import { Handle } from "../chrome";
 import { onFrame } from "../timing";
 import { get, set, useStore } from "../store";
 import api from "../api";
+
+/** The button that used to be a sentence: "run tlmgr install <name>".
+ *
+ *  Opened with the row, it asks the server which package provides the
+ *  file, so the button can name it before anything is pressed; a file no
+ *  package provides, or a TeX with no package manager, leaves the row as
+ *  it was, with the sentence.  Two presses to install, the pip card's
+ *  shape, because the install downloads from a mirror and unpacks what it
+ *  downloads.  A failure shows the manager's own words under the row: a
+ *  TinyTeX behind its mirror says "remote repository is newer than local",
+ *  and that sentence is the whole of the fix.
+ */
+function InstallPackage({ file }: { file: string }) {
+  const projectId = useStore((s) => s.projectId);
+  const [found, setFound] = useState<{ package: string; manager: string } | null>(null);
+  const [installing, setInstalling] = useState<"" | "asked" | "running" | "done">("");
+  const [said, setSaid] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    setFound(null);
+    setInstalling("");
+    setSaid("");
+    if (!projectId) return;
+    api.texPackage(projectId, file)
+      .then((answer) => live && setFound(answer))
+      .catch(() => live && setFound({ package: "", manager: "" }));
+    return () => {
+      live = false;
+    };
+  }, [projectId, file]);
+
+  if (!projectId || !found) return null;
+  if (!found.manager) return null;
+  if (!found.package) {
+    return (
+      <p className="t-meta mt-2 text-ink-3" data-testid="tex-install-none">
+        No package on the mirror provides {file}; check the spelling.
+      </p>
+    );
+  }
+  const pkg = found.package;
+
+  const install = async () => {
+    if (installing !== "asked") {
+      setInstalling("asked");
+      return;
+    }
+    setInstalling("running");
+    try {
+      const answer = await api.texInstall(projectId, pkg);
+      if (answer.ok) {
+        setInstalling("done");
+      } else {
+        setSaid(answer.err || `${pkg} could not be installed.`);
+        setInstalling("");
+      }
+    } catch (problem: any) {
+      setSaid(problem?.message ?? String(problem));
+      setInstalling("");
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-3">
+      {installing === "done" ? (
+        <span className="t-meta text-ink-2" data-testid="tex-install-done">
+          {pkg} is installed; building again.
+        </span>
+      ) : (
+        <button
+          className="ghost-button h-[24px] px-3 t-micro"
+          data-testid="tex-install"
+          disabled={installing === "running"}
+          onClick={(event) => {
+            event.stopPropagation();
+            void install();
+          }}
+        >
+          {installing === "running"
+            ? `Installing ${pkg}`
+            : installing === "asked"
+              ? `Yes, install ${pkg}`
+              : `Install ${pkg}`}
+        </button>
+      )}
+      {installing === "asked" ? (
+        <span className="t-meta text-ink-2">
+          Downloads {pkg} from a CTAN mirror with tlmgr, then builds again.
+        </span>
+      ) : null}
+      {said ? (
+        <pre
+          className="t-code-sm max-h-[72px] w-full overflow-auto whitespace-pre-wrap text-error"
+          data-testid="tex-install-error"
+        >
+          {said}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
 
 function summarise(rows: { severity: string }[]): string {
   const errors = rows.filter((row) => row.severity === "error").length;
@@ -350,6 +452,9 @@ export default function Diagnostics({
                     <span className="text-ink-3">What to do: </span>
                     {item.explain.fix}
                   </p>
+                  {item.missingFile ? (
+                    <InstallPackage file={item.missingFile} />
+                  ) : null}
                 </div>
               ) : null}
               {open && item.context ? (

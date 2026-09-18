@@ -30,9 +30,6 @@ commit that finishes it.
 
 The build, for 2.8.0:
 
-- [ ] **Install a missing package from the error drawer.** The `.sty`
-      row maps its file to a package through tlmgr and installs it on a
-      second press, then builds again.
 - [ ] **The TeX version on every build.** Beside the log and in the bug
       report.
 
@@ -185,6 +182,15 @@ this checkout does not have, or are decisions, are where they were.
       exists.
 
 ### Never run against the real thing
+
+- [ ] **The drawer's Install button has not been pressed on a MiKTeX.**
+      `nexttex/texpkg.py` runs `mpm --install=<stem>` when `tlmgr` is
+      absent and `mpm` is present, with the missing file's stem as the
+      package name, because MiKTeX names nearly every package after its
+      main file and installs on the fly by default anyway; nothing here
+      has a MiKTeX to check either claim against. The tlmgr path is run
+      for real on this machine's TinyTeX and against the stand-in in the
+      browser tier.
 
 - [ ] **The OpenAI provider has never spoken to OpenAI.** Everything above the
       transport runs for real against a stub: the streaming parser, the tool

@@ -42,7 +42,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from nexttex import attachments, auth, claude_auth, gitrepo, plots, report, synctex
+from nexttex import attachments, auth, claude_auth, gitrepo, plots, report, synctex, texpkg
 from nexttex.version import VERSION
 from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
@@ -2940,6 +2940,43 @@ async def script_figure(project_id: str, path: str, name: str):
     return FileResponse(
         figure, media_type="image/png", headers={"Cache-Control": "no-store"},
     )
+
+
+@app.get("/api/projects/{project_id}/tex/package")
+async def tex_package_for(project_id: str, file: str):
+    """Which package provides a file a build said was missing.
+
+    Asked when the drawer's row opens, so the button can say "Install
+    algorithm2e" before anything is pressed.  The answer comes from
+    tlmgr's own file search, off the loop, and is remembered per file.
+    """
+    session_for(project_id)
+    if not texpkg.MISSING_FILE.match(file or ""):
+        raise HTTPException(400, "not a file a package could provide")
+    return await texpkg.package_for_file(file)
+
+
+@app.post("/api/projects/{project_id}/tex/install")
+async def tex_install(project_id: str, package: str = Body(..., embed=True)):
+    """Install the package the drawer's row named, then build again.
+
+    The row asks the writer first and says what this reaches: tlmgr
+    downloads from a CTAN mirror and unpacks what it downloads.  Nothing
+    about the project goes with the request.  A successful install is
+    followed by a full build of every document, since the build the
+    writer is looking at is the one that failed for want of the file.
+    """
+    session = session_for(project_id)
+    if not texpkg.PACKAGE.match(package or ""):
+        raise HTTPException(400, f"{package!r} is not a package name")
+    result = await texpkg.install(package)
+    if result["ok"]:
+        for state in list(session.documents.values()):
+            spawn(
+                session.compile(force_full=True, document=state.path),
+                "the first build after a package was installed",
+            )
+    return result
 
 
 @app.post("/api/projects/{project_id}/scripts/install")

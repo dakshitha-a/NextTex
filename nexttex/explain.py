@@ -99,7 +99,16 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
         "A package that is not installed",
         "The preamble asks for a package this TeX installation does not have.",
         "Install it with your TeX package manager. For TinyTeX that is "
-        "`tlmgr install <name>`. Then build again.",
+        "`tlmgr install <name>`, and the Install button here does it for "
+        "you. Then build again.",
+    ),
+    (
+        re.compile(r"File [`'\"]?([^'\"]+\.cls)", re.I),
+        "A document class that is not installed",
+        "\\documentclass names a class this TeX installation does not have.",
+        "Install it with your TeX package manager. For TinyTeX that is "
+        "`tlmgr install <name>`, and the Install button here does it for "
+        "you. Then build again.",
     ),
     (
         re.compile(r"File [`'\"]?([^'\"]+)['\"]? not found", re.I),
@@ -245,12 +254,34 @@ def explain(message: str) -> dict | None:
     return None
 
 
+#: The file a "not found" names, when it is one a package manager could
+#: supply.  Only the name, never a path: `figures/plot.png' not found` is
+#: a missing figure and no package provides it.
+MISSING_FILE = re.compile(
+    r"File [`'\"]?([A-Za-z0-9][A-Za-z0-9._-]*\.(?:sty|cls|def|fd|bst|clo|ldf))['\"]? not found",
+    re.I,
+)
+
+
+def missing_file(message: str) -> str:
+    """The style, class or definition file a message says is missing, or ""."""
+    found = MISSING_FILE.search(message or "")
+    return found.group(1) if found else ""
+
+
 def annotate(diagnostics: Iterable[dict]) -> list[dict]:
-    """The same diagnostics, each with an explanation where one exists."""
+    """The same diagnostics, each with an explanation where one exists,
+    and the name of the missing file where the row can offer to install
+    it."""
     out = []
     for item in diagnostics:
-        found = explain(item.get("message", ""))
-        out.append({**item, "explain": found} if found else dict(item))
+        message = item.get("message", "")
+        found = explain(message)
+        row = {**item, "explain": found} if found else dict(item)
+        missing = missing_file(message)
+        if missing:
+            row["missingFile"] = missing
+        out.append(row)
     return out
 
 

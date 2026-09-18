@@ -7415,3 +7415,29 @@ with a real engine and a `\write18` marker file, and the re-read of a
 saved toml; `e2e/specs/engine.spec.ts` answers the question from the
 strip and the drawer in two presses, finds the marker appear, and
 revokes from the sheet.
+
+### A missing package is installed from its row
+
+The commonest build failure on a TinyTeX is a `.sty` that is not there,
+and the drawer's row for it said "run `tlmgr install <name>`", the one
+instruction in NextTex that sent somebody to a terminal. The row now
+carries the button. Opening the row asks the server which package
+provides the file, from tlmgr's own file search, so the button says
+*Install algorithm2e* before anything is pressed; a file no package on
+the mirror provides says so and suggests the spelling, and a TeX with no
+package manager leaves the row as it was. Two presses, the pip card's
+shape: the first becomes *Yes, install algorithm2e* and says that it
+downloads from a CTAN mirror with tlmgr and builds again; the second
+installs, and the row then says the package is installed and a build is
+under way. A failing install shows tlmgr's own words under the row in a
+scrolling block, because a TinyTeX behind its mirror fails with "remote
+repository is newer than local" and that sentence is the whole of the
+fix. A missing `.cls` gets the same row under its own title.
+
+`tests/test_texpkg.py` parses tlmgr's real output, remembers an answer
+per file, refuses anything that is not a package name before the manager
+sees it, and hands back the manager's words on failure;
+`tests/api/test_tex_install.py` drives both routes through the stand-in;
+`e2e/specs/tex-install.spec.ts` builds a document that asks for a package
+nothing has, presses the button twice, reads the argv the stand-in saw
+and finds a build follow, then shows the stale-mirror failure.

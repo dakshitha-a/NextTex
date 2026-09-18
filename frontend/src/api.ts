@@ -26,6 +26,9 @@ export type Diagnostic = {
   context?: string;
   package?: string | null;
   explain?: Explanation;
+  /** The style, class or definition file a "not found" names, when a
+   *  package manager could supply it; the drawer's Install button. */
+  missingFile?: string;
   /** Which previewed document's build produced this. Added by the store
    *  when it flattens the per-document lists into one; the server answers
    *  per document and does not need to say so. */
@@ -639,6 +642,18 @@ const api = {
    *  which is why the pane asks first. */
   installForScript: (id: string, name: string) =>
     request<{ ok: boolean; err: string }>(`/projects/${id}/scripts/install`, json({ name })),
+
+  /** Which TeX package provides a file a build said was missing, from
+   *  tlmgr's own file search.  An empty package means nothing provides
+   *  it; an empty manager means this TeX has no package manager. */
+  texPackage: (id: string, file: string) =>
+    request<{ file: string; package: string; manager: string }>(
+      `/projects/${id}/tex/package?file=${encodeURIComponent(file)}`,
+    ),
+  /** Install that package with tlmgr, then build again.  Reaches a CTAN
+   *  mirror, which is why the row asks first. */
+  texInstall: (id: string, pkg: string) =>
+    request<{ ok: boolean; err: string }>(`/projects/${id}/tex/install`, json({ package: pkg })),
 
   history: (id: string, path: string) =>
     request<{ path: string; versions: Version[] }>(
