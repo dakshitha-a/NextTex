@@ -1,5 +1,6 @@
-import { memo, useMemo } from "react";
-import { useStore } from "../store";
+import { memo, useEffect, useMemo, useRef } from "react";
+import { get, useStore } from "../store";
+import { busyTyping } from "../timing";
 import type { WordHint } from "./locate-word";
 import { lineOf, sameWithLines } from "./markdown-source";
 import { inline, parseBlocks, type Block } from "./prose";
@@ -109,6 +110,31 @@ export default function Markdown({
   const blocks = useMemo(() => parseBlocks(text), [text]);
   const name = tab?.path.split("/").pop() ?? "";
 
+  // The rendering follows the caret, gently, the way the page follows it
+  // after a build (§28 of the design record): only when the text has just
+  // changed under this keyboard, and only when the block the caret is in
+  // is not already on screen.  On the text and never on the cursor, so a
+  // click into the editor after reading the rendering moves nothing, and
+  // a collaborator's or the agent's change moves nothing either: those
+  // are the anti-jump cases.  No flash, because there was no build.
+  const scroller = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const pane = scroller.current;
+    if (!pane || !text || !busyTyping()) return;
+    const caret = get().cursor.line;
+    const block = blocks.reduce<Block | null>(
+      (held, candidate) => (candidate.line <= caret ? candidate : held),
+      null,
+    );
+    if (!block) return;
+    const target = pane.querySelector<HTMLElement>(`[data-line="${block.line}"]`);
+    if (!target) return;
+    const box = target.getBoundingClientRect();
+    const frame = pane.getBoundingClientRect();
+    const onScreen = box.top >= frame.top && box.bottom <= frame.bottom;
+    if (!onScreen) target.scrollIntoView({ block: "center" });
+  }, [text]);
+
   const onDoubleClick = (event: React.MouseEvent) => {
     if (!tab || !onNavigate) return;
     const target = (event.target as HTMLElement).closest("[data-line]") as HTMLElement | null;
@@ -127,7 +153,7 @@ export default function Markdown({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surround" data-testid="markdown-view">
-      <div className="min-h-0 flex-1 overflow-auto p-5">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-auto p-5" data-testid="markdown-scroll">
         {/* The white page's own palette, whatever the shell's: `.nx-page`
             is paper in both themes, and paper takes dark ink.  Without
             the skin the dark shell handed the page its light ink, and

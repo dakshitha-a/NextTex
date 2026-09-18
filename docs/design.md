@@ -7850,3 +7850,22 @@ typing and with a build running, twice, and reads the archive's own
 directory back to find the sources and no build output; and from the
 list. `tests/api/test_download.py` deletes a listed file under the walk
 and finds the archive whole without it, and a scratch file never taken.
+
+### The rendering follows the caret, gently
+
+The last half of behaving like the page. §28 records how the page
+follows the caret after a build: both the agent's edits and the writer's
+own typing move it, and one rule keeps it quiet, the move happens only
+when the target is not already in front of the reader. The rendering
+has no build to wait for, so it follows on the text's own cadence: when
+the text changes and this keyboard typed within the grace `timing.ts`
+keeps, the block holding the caret's line is scrolled into view if it
+is off screen, and left alone if it is not. The effect depends on the
+text and never on the caret, which is what makes the anti-jump cases
+hold: a click into the editor after reading the rendering changes no
+text and moves nothing, and a collaborator's or the agent's change
+arrives with nobody typing here and moves nothing. No flash, because
+nothing was built. `e2e/specs/markdown-preview.spec.ts` types at the end
+of an eighty-paragraph file and finds the last block in view, then
+scrolls back to the top, clicks into the editor without typing, and
+finds the pane where it was left.

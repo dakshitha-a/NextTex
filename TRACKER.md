@@ -39,8 +39,9 @@ word. The writer's mid-run report, the whole-project ZIP failing from
 inside a project over HTTPS, was reproduced against the running install
 with a real browser and fixed by fetching it the way the PDF is; what
 Chrome objects to in a link download from that state is recorded in
-`docs/design.md` §43 as not established. Still to do: the rendering
-following the caret, and the version.
+`docs/design.md` §43 as not established. The rendering follows the
+caret while typing, on the page's own anti-jump terms. The run goes up
+as 2.11.0.
 
 Before it, the first roadmap run, after 2.7.0, took eleven items from
 `ROADMAP.md` in its order, in three pushes. The build went up as 2.8.0:

@@ -144,6 +144,45 @@ test("double-clicking the rendering puts the caret on that word in the source", 
     .toBeVisible();
 });
 
+test("the rendering follows the caret while typing, and only then", async ({
+  app, project, page,
+}) => {
+  // The page follows the caret after a build the writer's typing caused,
+  // and moves only when the target is off screen.  The rendering does the
+  // same on the text's own cadence: typing at the end of a long file
+  // brings the last block into view; clicking into the editor without
+  // typing moves nothing, which is the anti-jump case.
+  const long = Array.from({ length: 80 }, (_, i) => `Paragraph ${i + 1} of the notes.`)
+    .join("\n\n") + "\n";
+  writeFileSync(join(project.root, "long.md"), long);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await page.locator('[role="tree"] [data-path="long.md"]').click();
+  const pane = page.getByTestId("markdown-scroll");
+  await expect(pane.locator("p")).toHaveCount(80, { timeout: 15_000 });
+  const scrollTop = () => pane.evaluate((el) => el.scrollTop);
+  expect(await scrollTop()).toBe(0);
+
+  // Type at the end: the rendering scrolls so the last block is in view.
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("\nThe last word.\n");
+  await expect.poll(scrollTop, { timeout: 10_000 }).toBeGreaterThan(0);
+  const last = pane.locator("p").last();
+  await expect(last).toContainText("The last word.");
+  await expect(last).toBeInViewport();
+
+  // Back to the top to read, then a click into the editor with no typing:
+  // the text did not change, so nothing moves.
+  await pane.evaluate((el) => { el.scrollTop = 0; });
+  await page.waitForTimeout(3_500);
+  await page.locator(".cm-content").click({ position: { x: 30, y: 20 } });
+  await page.waitForTimeout(600);
+  expect(await scrollTop()).toBe(0);
+});
+
 test("an empty Markdown file says so rather than showing a blank page", async ({
   app, project, page,
 }) => {
