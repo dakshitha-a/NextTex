@@ -44,6 +44,12 @@ export default function Status({
   const activePath = useStore((s) => s.activePath);
   const cursor = useStore((s) => s.cursor);
   const autocompile = useStore((s) => s.settings.autocompile);
+  // A project asking for shell escape that this machine has not answered.
+  // The question is drawn in the drawer, and the drawer opens only from
+  // this strip, so the strip has to open for the question as it does for
+  // an error: a project whose document builds clean without the flag
+  // would otherwise ask somewhere nobody could reach.
+  const askShell = useStore((s) => s.settings.shellEscape) === "asked";
   const [slow, setSlow] = useState(false);
 
   useEffect(() => {
@@ -71,9 +77,12 @@ export default function Status({
   // read.  Asserting on the colour class would pass on a dot that is the
   // right shade of nothing; asserting on the label would break the moment
   // the wording changes.
-  const { state, dot, label, clickable, hint } = statusFor({
+  const found = statusFor({
     compiling, slow, stale, result, errors, warnings, autocompile,
   });
+  const { state, dot, label } = found;
+  const clickable = found.clickable || askShell;
+  const hint = askShell && !found.clickable ? "This project asks for shell escape" : found.hint;
   // The duration is already in the label when a build succeeded; it earns a
   // segment of its own only when the label is saying something else.
   const showDuration = Boolean(result) && !compiling && !label.startsWith("Built");
@@ -101,6 +110,11 @@ export default function Status({
       >
         <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot}`} />
         <span className="t-micro text-ink-2">{label}</span>
+        {askShell ? (
+          <span className="t-micro text-warn" data-testid="status-shell-escape">
+            shell escape?
+          </span>
+        ) : null}
       </button>
       {showDuration ? (
         <span className="hidden shrink-0 items-center gap-3 @[380px]:flex">

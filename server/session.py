@@ -36,8 +36,8 @@ from server.collab.store import CollabStore
 from server.collab.sync import SyncHub
 from server.transcript import Transcript
 from nexttex.project import (
-    IGNORED_DIRS, PreviewList, Project, guess_document, is_ours,
-    under_ignored_directory,
+    CONFIG_NAME, IGNORED_DIRS, PreviewList, Project, ProjectConfig,
+    guess_document, is_ours, under_ignored_directory,
 )
 
 log = logging.getLogger("nexttex.session")
@@ -220,8 +220,15 @@ class ProjectSession:
         model: str | None = None,
         provider: str = "claude",
         api_key: str = "",
+        settings: Callable[[], Settings] | None = None,
     ):
         self.project = project
+        #: The install's settings, asked for when a build needs them: the
+        #: server hands in its live object, and a session built without
+        #: one, as the tests do, reads the file.  Two builds read it, the
+        #: latexmk rc switch and the shell-escape list, and both are
+        #: answers a writer changes while the session is open.
+        self.settings: Callable[[], Settings] = settings or Settings.load
         #: When a request last asked for this session.  A session can always
         #: be rebuilt from disk, so this is not state, it is a hint about
         #: whether holding it open is still earning its memory.
@@ -408,19 +415,38 @@ class ProjectSession:
                     "rename one of them"
                 )
         state = DocumentState(
-            path=name, paths=paths,
-            # Read here rather than carried down from the route, because a
-            # writer who turns it on wants their next build to have it, not
-            # their next restart.
-            compiler=CompileScheduler(
-                paths, allow_rc=Settings.load().latexmk_rc,
-                # Asked for at each build, so the card's choice reaches the
-                # next build of every document without a restart.
-                engine_setting=lambda: self.project.config.engine,
-            ),
+            path=name, paths=paths, compiler=self.scheduler_for(paths),
         )
         self.documents[name] = state
         return state
+
+    def scheduler_for(self, paths: ProjectPaths) -> CompileScheduler:
+        """A build scheduler wired to this project's choices and this
+        machine's permissions.
+
+        The rc switch is read here rather than carried down from the
+        route, because a writer who turns it on wants their next build to
+        have it, not their next restart; the engine and the shell-escape
+        answer are asked for at each build for the same reason, through
+        callables, since both change while the session is open.
+        """
+        return CompileScheduler(
+            paths, allow_rc=self.settings().latexmk_rc,
+            engine_setting=lambda: self.project.config.engine,
+            shell_escape=self.shell_escape_state,
+        )
+
+    def shell_escape_state(self) -> str:
+        """"off" when the project does not ask for shell escape, "asked"
+        when it does and this machine has not allowed it for this project,
+        "on" when both hold.  The project asks in its own `nexttex.toml`;
+        the machine answers in `Settings.shell_escape_allowed`, where a
+        project cannot bring the answer along."""
+        if not self.project.config.shell_escape:
+            return "off"
+        if self.project.id in self.settings().shell_escape_allowed:
+            return "on"
+        return "asked"
 
     def document_for(self, name: str | None) -> DocumentState:
         """The named document, or the visible one when nothing is named.
@@ -755,6 +781,12 @@ class ProjectSession:
         if event.get("type") != "files_changed":
             return
         paths = event.get("paths") or []
+        # The project's own settings file, saved in the editor or changed
+        # outside.  It was read once when the project opened, so `engine =
+        # "xelatex"` typed into it did nothing until the next restart, and
+        # the sheet went on showing the value from before the edit.
+        if any(str(path) == CONFIG_NAME for path in paths):
+            spawn(self.reload_config(), "re-reading nexttex.toml")
         if paths and not event.get("structural") and not any(
             str(path).lower().endswith((".tex", ".ltx")) for path in paths
         ):
@@ -765,6 +797,39 @@ class ProjectSession:
         self._rescan = loop.call_later(
             0.3, lambda: spawn(self._publish_documents(), "re-scanning the documents")
         )
+
+    async def reload_config(self) -> None:
+        """Re-read `nexttex.toml` and tell every tab what it now says.
+
+        The same event the settings sheet's own writes publish, so the
+        sheet and the drawer learn of an edit made in the editor the way
+        they learn of a switch flipped on the sheet.
+        """
+        self.project.config = await asyncio.to_thread(
+            ProjectConfig.load, self.project.root
+        )
+        await self.events.publish({"type": "project_changed", **self.settings_payload()})
+
+    def settings_payload(self) -> dict:
+        """Everything `project_changed` carries: the previewed documents and
+        the project's settings, with this machine's answer on shell escape.
+
+        Carried in the event rather than looked up afterwards.  The browser
+        used to answer this event by re-fetching `open`, the whole file
+        tree and the whole transcript, to learn one string, which on a
+        forty-file project with a long conversation is a real cost for a
+        switch being flipped.
+        """
+        config = self.project.config
+        return {
+            "previews": list(self.documents),
+            "visible": self.visible,
+            "autocompile": config.autocompile,
+            "markErrors": config.mark_errors,
+            "markWarnings": config.mark_warnings,
+            "engine": config.engine,
+            "shellEscape": self.shell_escape_state(),
+        }
 
     def documents_payload(self) -> dict:
         """What can be previewed, what already is, and who reads what."""

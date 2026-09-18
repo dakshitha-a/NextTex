@@ -30,9 +30,6 @@ commit that finishes it.
 
 The build, for 2.8.0:
 
-- [ ] **Shell escape, per project, on purpose.** The project asks in
-      `nexttex.toml`, the machine allows once per project, and a build
-      never gets `-shell-escape` silently.
 - [ ] **Install a missing package from the error drawer.** The `.sty`
       row maps its file to a package through tlmgr and installs it on a
       second press, then builds again.

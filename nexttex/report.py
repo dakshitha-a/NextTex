@@ -310,6 +310,7 @@ def settings_section(config: dict) -> list:
         f"provider    {config.get('provider', '')}",
         f"model       {config.get('model') or '(default)'}",
         f"latexmk_rc  {config.get('latexmk_rc', '')}",
+        f"shell_escape_allowed  {len(config.get('shell_escape_allowed') or [])} projects",
         f"password    {'set' if config.get('password_hash') else 'not set'}",
         f"browsers    {len(sessions) if isinstance(sessions, list) else 0} signed in",
     ]

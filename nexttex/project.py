@@ -245,6 +245,13 @@ class ProjectConfig:
     #: read as the default rather than refused, since a malformed config
     #: must not make the project unopenable.
     engine: str = ""
+    #: Whether the project asks for `-shell-escape`, which minted and
+    #: pythontex need.  A request and never a permission: this file
+    #: travels with the project, and a project is not always the writer's
+    #: own work, so the machine says yes separately, once per project, in
+    #: `Settings.shell_escape_allowed`.  The build passes the flag only
+    #: when both hold.
+    shell_escape: bool = False
 
     @classmethod
     def load(cls, root: Path) -> "ProjectConfig":
@@ -271,6 +278,7 @@ class ProjectConfig:
             mark_errors=bool(section.get("mark_errors", True)),
             mark_warnings=bool(section.get("mark_warnings", False)),
             engine=cls._engine(section.get("engine")),
+            shell_escape=section.get("shell_escape") is True,
         )
 
     @staticmethod
@@ -332,6 +340,8 @@ class ProjectConfig:
         ]
         if self.engine:
             lines.append(f"engine = {_toml(self.engine)}")
+        if self.shell_escape:
+            lines.append("shell_escape = true")
         if self.check_command:
             lines.append(f"check_command = {_toml(self.check_command)}")
         if self.exclude:
@@ -497,6 +507,7 @@ class Project:
             "markErrors": self.config.mark_errors,
             "markWarnings": self.config.mark_warnings,
             "engine": self.config.engine,
+            "shellEscapeAsked": self.config.shell_escape,
         }
 
 

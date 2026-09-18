@@ -12,8 +12,10 @@ import { renamePaths } from "./tabs";
 import api, {
   clientId,
   engineOf,
+  shellEscapeOf,
   type CompileResult,
   type Engine,
+  type ShellEscape,
   type Member,
   type ContextDocument,
   type Diagnostic,
@@ -314,6 +316,10 @@ export type State = {
     /** "" is the default engine, pdflatex; a `% !TeX program` line in
      *  the document wins over this either way. */
     engine: Engine | "";
+    /** The project's request for shell escape and this machine's answer,
+     *  in one word, since the interface only ever asks "is there a
+     *  question to draw" and "is it on". */
+    shellEscape: ShellEscape;
   };
   /** A folder-read in flight, or the one that just finished. */
   library: import("./api").LibraryProgress | null;
@@ -411,7 +417,9 @@ const state: State = {
   instance: "",
   contextDocs: [],
   contextStale: [],
-  settings: { autocompile: true, markErrors: true, markWarnings: false, engine: "" },
+  settings: {
+    autocompile: true, markErrors: true, markWarnings: false, engine: "", shellEscape: "off",
+  },
   agent: null,
   library: null,
   cursor: { line: 1, column: 1 },
@@ -1208,6 +1216,7 @@ function receive(event: any) {
             markErrors: event.markErrors,
             markWarnings: event.markWarnings,
             engine: engineOf(event.engine),
+            shellEscape: shellEscapeOf(event.shellEscape),
           },
         });
       }

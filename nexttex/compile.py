@@ -190,6 +190,10 @@ class CompileResult:
     scope: str          # "full" or the chapter stem the build was limited to
     engine_pass: str    # "fast" (one engine run) or "full" (latexmk, which runs bibtex or biber as the document asks)
     engine: str = DEFAULT_ENGINE   # which of ENGINES ran, or was asked for and not found
+    #: "off" when the project does not ask for shell escape, "asked" when
+    #: it does and this machine has not allowed it, "on" when the flag
+    #: was passed.  The drawer draws the question from "asked".
+    shell_escape: str = "off"
 
     def as_dict(self) -> dict:
         return {
@@ -198,6 +202,7 @@ class CompileResult:
             "scope": self.scope,
             "enginePass": self.engine_pass,
             "engine": self.engine,
+            "shellEscape": self.shell_escape,
             "pdf": str(self.pdf) if self.pdf else None,
             **(self.log.as_dict() if self.log else
                {"diagnostics": [], "errorCount": 0, "warningCount": 0, "rawTail": ""}),
@@ -428,7 +433,8 @@ class CompileScheduler:
 
     def __init__(self, paths: ProjectPaths, timeout: float = 120.0,
                  allow_rc: bool = False,
-                 engine_setting: Callable[[], str] | None = None):
+                 engine_setting: Callable[[], str] | None = None,
+                 shell_escape: Callable[[], str] | None = None):
         self.paths = paths
         self.timeout = timeout
         # Whether latexmk may read a `latexmkrc` out of the project.  See
@@ -439,10 +445,27 @@ class CompileScheduler:
         # the next build and not the next restart.  The main file's own
         # `% !TeX program` line wins over it; see `engine_for`.
         self.engine_setting = engine_setting or (lambda: "")
+        # "off", "asked" or "on", asked at each build for the same reason
+        # as the engine: the answer changes when the writer presses Allow,
+        # and the build after that press is the one they are waiting for.
+        # The flag itself is only ever passed on "on"; see `full_argv`.
+        self.shell_escape = shell_escape or (lambda: "off")
         # The engine the last build ran.  A different one next time means
         # the `.aux` files in the build directory were written by the
         # other engine, and a fast pass over them can leave stale numbers.
         self._last_engine: str | None = None
+        # The shell-escape state of the last build.  latexmk decides from
+        # its own database whether the sources changed and skips the engine
+        # when they did not; the flag alone is not a change it notices, so
+        # the first build after Allow ran nothing and the program the
+        # document named still had not run.  A change here forces a full
+        # pass with `-g`, and the need for it outlives a build that was
+        # cancelled on the way: Allow schedules a build and a keystroke a
+        # moment later replaces it, and the replacement is the one that
+        # has to carry the flag through.  An engine change needs no `-g`:
+        # latexmk sees a different command and reruns on its own.
+        self._last_escape: str | None = None
+        self._rerun_pending = False
         self._process: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
         self._generation = 0
@@ -565,6 +588,13 @@ class CompileScheduler:
         if self._last_engine is not None and engine != self._last_engine:
             self._require_full()
         self._last_engine = engine
+        escape = self.shell_escape()
+        if self._last_escape is not None and escape != self._last_escape:
+            self._rerun_pending = True
+        self._last_escape = escape
+        force_rerun = self._rerun_pending
+        if force_rerun:
+            self._require_full()
         full_pass = force_full or self._needs_full
         mark = self._full_mark
 
@@ -573,8 +603,9 @@ class CompileScheduler:
         self._mirror_build_tree(main_source)
 
         argv = (
-            self.full_argv(source_file, engine) if full_pass
-            else self.fast_argv(source_file, engine)
+            self.full_argv(source_file, engine, escape == "on", force=force_rerun)
+            if full_pass
+            else self.fast_argv(source_file, engine, escape == "on")
         )
         env = {**os.environ, **LOG_ENV, **self.paths.search_env()}
         try:
@@ -590,7 +621,7 @@ class CompileScheduler:
         except FileNotFoundError:
             return CompileResult(
                 Outcome.NO_ENGINE, None, None, time.monotonic() - started, scope,
-                "full" if full_pass else "fast", engine,
+                "full" if full_pass else "fast", engine, escape,
             )
         self._process = proc
         if generation != self._generation:
@@ -608,7 +639,7 @@ class CompileScheduler:
             await self.cancel()
             return CompileResult(
                 Outcome.TIMEOUT, None, None, time.monotonic() - started, scope,
-                "full" if full_pass else "fast", engine,
+                "full" if full_pass else "fast", engine, escape,
             )
         finally:
             self._process = None
@@ -616,11 +647,15 @@ class CompileScheduler:
         if proc.returncode is not None and proc.returncode < 0:
             return CompileResult(
                 Outcome.CANCELLED, None, None, time.monotonic() - started, scope,
-                "full" if full_pass else "fast", engine,
+                "full" if full_pass else "fast", engine, escape,
             )
 
         if full_pass and mark == self._full_mark:
             self._needs_full = False
+        if force_rerun:
+            # The engine ran to completion under the new state, so the
+            # database latexmk keeps now agrees with it.
+            self._rerun_pending = False
 
         # Record whether the PDF on disk is the whole document or one scoped
         # chapter.  They are indistinguishable by timestamp, and a download
@@ -648,7 +683,7 @@ class CompileScheduler:
         outcome = Outcome.ERRORS if (log and log.errors) else Outcome.OK
         return CompileResult(
             outcome, log, pdf, time.monotonic() - started, scope,
-            "full" if full_pass else "fast", engine,
+            "full" if full_pass else "fast", engine, escape,
         )
 
     def _note_unresolved(self, log: ParsedLog, full_pass: bool) -> None:
@@ -690,7 +725,10 @@ class CompileScheduler:
             text, self.paths.root, self.paths.main, base=self.paths.workdir
         )
 
-    def full_argv(self, source_file: Path, engine: str = DEFAULT_ENGINE) -> list[str]:
+    def full_argv(
+        self, source_file: Path, engine: str = DEFAULT_ENGINE,
+        shell_escape: bool = False, force: bool = False,
+    ) -> list[str]:
         """latexmk: citations through bibtex or biber, cross-references, the lot.
 
         latexmk accepts `-synctex=1` and then does not pass it on to the
@@ -711,26 +749,44 @@ class CompileScheduler:
         Turning it back on is a setting on the install rather than on the
         project, because a project carrying permission to run its own code
         is the same hole with an extra step.
+
+        `-shell-escape` is the same question with a different answer.
+        minted and pythontex genuinely need it, so a project may ask for
+        it in `nexttex.toml`; but the flag is passed only when this
+        machine has said yes to this project, which is the `shell_escape`
+        callable's "on".  The engine's own line inside latexmk's option
+        carries the flag too, because that is the line that runs it.
         """
         # latexmk names each engine twice: a mode switch that picks it
         # and an option that says how to run it.  The inner flags are the
         # same for all three engines.
         mode, command = LATEXMK_ENGINE[engine]
+        flag = " -shell-escape" if shell_escape else ""
         argv = ["latexmk", mode, "-interaction=nonstopmode", "-file-line-error"]
+        if shell_escape:
+            argv.append("-shell-escape")
+        if force:
+            # Run the engine whether or not latexmk thinks the sources
+            # changed; see `_last_escape`.
+            argv.append("-g")
         if not self.allow_rc:
             argv.append("-norc")
         argv += [
-            f"{command}={engine} -synctex=1 -interaction=nonstopmode "
+            f"{command}={engine}{flag} -synctex=1 -interaction=nonstopmode "
             "-file-line-error %O %S",
             f"-jobname={self.paths.jobname}",
             f"-outdir={self.paths.build_dir}", str(source_file),
         ]
         return argv
 
-    def fast_argv(self, source_file: Path, engine: str = DEFAULT_ENGINE) -> list[str]:
+    def fast_argv(
+        self, source_file: Path, engine: str = DEFAULT_ENGINE,
+        shell_escape: bool = False,
+    ) -> list[str]:
         """One engine pass: what an ordinary edit gets."""
         return [
-            engine, "-interaction=nonstopmode", "-file-line-error",
+            engine, *(["-shell-escape"] if shell_escape else []),
+            "-interaction=nonstopmode", "-file-line-error",
             "-synctex=1", f"-jobname={self.paths.jobname}",
             f"-output-directory={self.paths.build_dir}", str(source_file),
         ]

@@ -51,6 +51,33 @@ export default function Diagnostics({
    *  for a project with one document. */
   const [only, setOnly] = useState("");
   const [rawLog, setRawLog] = useState<Record<string, string>>({});
+  // The project's request for shell escape, and this machine's answer.
+  // "asked" is the only state drawn here: the question sits above the
+  // list because the build that ran without the flag is what filled it.
+  const shellEscape = useStore((s) => s.settings.shellEscape);
+  const [allowing, setAllowing] = useState<"" | "asked" | "running">("");
+  const [allowSaid, setAllowSaid] = useState("");
+
+  const allowShellEscape = async () => {
+    const projectId = get().projectId;
+    if (!projectId) return;
+    // Two presses, the pip card's shape: the first says what it would do
+    // and the second does it.  A build that runs programs is the one thing
+    // in NextTex that must not happen on a slip.
+    if (allowing !== "asked") {
+      setAllowing("asked");
+      return;
+    }
+    setAllowing("running");
+    try {
+      const body = await api.allowShellEscape(projectId, true);
+      set({ settings: { ...get().settings, shellEscape: body.shellEscape } });
+      setAllowing("");
+    } catch (problem: any) {
+      setAllowSaid(problem?.message ?? String(problem));
+      setAllowing("");
+    }
+  };
 
   const all = useMemo(() => orderRows(compile, lint), [compile, lint]);
   const rows = useMemo(
@@ -161,6 +188,37 @@ export default function Diagnostics({
           Close
         </button>
       </div>
+      {shellEscape === "asked" ? (
+        <div
+          className="shrink-0 border-b border-line bg-surface-2 px-3 py-2"
+          data-testid="shell-escape-ask"
+        >
+          <p className="t-ui text-ink">
+            This project asks for shell escape, which lets the build run
+            programs.
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <button
+              className="ghost-button h-[24px] px-3 t-micro"
+              data-testid="shell-escape-allow"
+              disabled={allowing === "running"}
+              onClick={() => void allowShellEscape()}
+            >
+              {allowing === "running"
+                ? "Allowing"
+                : allowing === "asked"
+                  ? "Yes, allow it on this computer"
+                  : "Allow"}
+            </button>
+            <span className="t-meta text-ink-2">
+              {allowing === "asked"
+                ? "Every build of this project here may run any program the document names, until you revoke it in Settings."
+                : "Asked in nexttex.toml; answered once per project, on this computer."}
+            </span>
+            {allowSaid ? <span className="t-meta text-error">{allowSaid}</span> : null}
+          </div>
+        </div>
+      ) : null}
       {summary ? (
         <div
           className="shrink-0 border-b border-line bg-surface-2 px-3 py-2"

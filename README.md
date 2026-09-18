@@ -485,6 +485,16 @@ document that loads `fontspec` under pdflatex gets a diagnostic that
 says which engine it needs and how to choose it, rather than fontspec's
 own error.
 
+**Shell escape is asked for, then allowed.** `minted` and `pythontex`
+need `-shell-escape`, which lets a build run programs, and a build the
+editor starts on its own a second after you stop typing must never pass
+it silently. The project asks with `shell_escape = true` in
+`nexttex.toml`; the status strip then says *shell escape?* and the error
+list carries the question, which you answer in two presses, once per
+project, on each computer. The answer lives on the computer and not in
+the project, so a project you cloned cannot arrive carrying permission
+to run its own code; *Revoke* is on the settings sheet.
+
 **And the page goes where you are writing.** When a build you caused lands,
 the preview scrolls to the part of the page your caret is on and flashes it,
 in whichever view mode you are in. It does that only when that part is not
@@ -1135,6 +1145,7 @@ autocompile = true      # build as you type; ⌘S builds when this is off
 mark_errors = true      # mark compile errors in the text itself
 mark_warnings = false   # and chktex warnings, which are noisier
 engine = "xelatex"      # or "lualatex"; pdflatex when the line is absent
+shell_escape = true     # asks for -shell-escape; each computer still says yes once
 ```
 
 There is no main file to name. Every `.tex` with a `\documentclass` and a

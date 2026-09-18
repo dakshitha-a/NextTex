@@ -72,6 +72,18 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
         "Write \\& if you meant the symbol itself.",
     ),
     (
+        # minted's sentence, which pythontex and svg repeat in their own
+        # words around the same flag.  The fix is a permission, not an edit.
+        re.compile(r"-shell-escape", re.I),
+        "This package needs shell escape",
+        "The package runs a program during the build, which LaTeX only "
+        "allows with -shell-escape. NextTex never passes that flag on its "
+        "own, because a project is not always your own work.",
+        "Put `shell_escape = true` in nexttex.toml so the project asks for "
+        "it, then allow it for this project on this computer from the row "
+        "that appears here, or from Settings.",
+    ),
+    (
         # fontspec's own words, which polyglossia repeats because it loads
         # fontspec first.  The engine is the fix, not the package.
         re.compile(r"fontspec package requires either XeTeX or", re.I),

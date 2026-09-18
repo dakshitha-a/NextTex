@@ -1985,6 +1985,9 @@ def _open_session(project: Project) -> ProjectSession:
         model=SETTINGS.model,
         provider=SETTINGS.provider,
         api_key=SETTINGS.openai_key,
+        # The live object rather than a fresh read, so a permission given
+        # through a route reaches the next build without a restart.
+        settings=lambda: SETTINGS,
     )
     SESSIONS[project.id] = session
     session.start_agent_pump()
@@ -2354,7 +2357,11 @@ async def open_project(project_id: str):
             **session.documents_payload(),
         }
 
-    return {**session.project.as_dict(), **await asyncio.to_thread(gather)}
+    return {
+        **session.project.as_dict(),
+        "shellEscape": session.shell_escape_state(),
+        **await asyncio.to_thread(gather),
+    }
 
 
 @app.get("/api/projects/{project_id}/tree")
@@ -3961,10 +3968,7 @@ async def download(
             )
             transient = DocumentState(
                 path=session.project.relative(target), paths=paths,
-                compiler=CompileScheduler(
-                    paths, allow_rc=Settings.load().latexmk_rc,
-                    engine_setting=lambda: session.project.config.engine,
-                ),
+                compiler=session.scheduler_for(paths),
             )
             try:
                 pdf = await _project_pdf(session, transient)
@@ -4315,23 +4319,39 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
 
 
 def _project_settings(session) -> dict:
-    """Everything `project_changed` carries.
+    """Everything `project_changed` carries; see `settings_payload`, which
+    the session also publishes on its own when `nexttex.toml` changes."""
+    return session.settings_payload()
 
-    Carried in the event rather than looked up afterwards.  The browser
-    used to answer this event by re-fetching `open` -- the whole file tree
-    and the whole transcript -- to learn one string, which on a forty-file
-    project with a long conversation is a real cost for a switch being
-    flipped.
+
+@app.post("/api/projects/{project_id}/shell-escape")
+async def allow_shell_escape(project_id: str, allow: bool = Body(..., embed=True)):
+    """This machine's answer to a project that asks for `-shell-escape`.
+
+    The project asks in its own `nexttex.toml`, which travels with it; the
+    answer is kept in the install's settings, per project id, where a
+    project cannot bring it along.  Allowing schedules a full build, since
+    the build the writer is looking at is the one that ran without the
+    flag.  Revoking is the same route with `allow: false`.
     """
-    config = session.project.config
-    return {
-        "previews": list(session.documents),
-        "visible": session.visible,
-        "autocompile": config.autocompile,
-        "markErrors": config.mark_errors,
-        "markWarnings": config.mark_warnings,
-        "engine": config.engine,
-    }
+    session = session_for(project_id)
+    allowed = [pid for pid in SETTINGS.shell_escape_allowed if pid != project_id]
+    if allow:
+        allowed.append(project_id)
+    SETTINGS.shell_escape_allowed = allowed
+    try:
+        SETTINGS.save()
+    except OSError as error:
+        raise HTTPException(500, f"could not save the settings: {error}")
+    settings = _project_settings(session)
+    await session.events.publish({"type": "project_changed", **settings})
+    if allow and session.project.config.shell_escape:
+        for state in list(session.documents.values()):
+            spawn(
+                session.compile(force_full=True, document=state.path),
+                "the first build with shell escape",
+            )
+    return settings
 
 
 @app.post("/api/projects/{project_id}/settings")

@@ -137,6 +137,7 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
         "markErrors": True,
         "markWarnings": True,
         "engine": "",
+        "shellEscape": "off",
     }
 
     # Written, not just held in memory.  `save()` writes its optional fields

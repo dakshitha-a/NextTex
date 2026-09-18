@@ -55,12 +55,21 @@ export function engineOf(raw: unknown): Engine | "" {
   return (ENGINES as readonly string[]).includes(raw as string) ? (raw as Engine) : "";
 }
 
+/** Where a project's request for `-shell-escape` stands on this machine:
+ *  "off" when the project does not ask, "asked" when it does and nobody
+ *  has answered, "on" when the build gets the flag. */
+export type ShellEscape = "off" | "asked" | "on";
+export function shellEscapeOf(raw: unknown): ShellEscape {
+  return raw === "asked" || raw === "on" ? raw : "off";
+}
+
 export type CompileResult = {
   outcome: "ok" | "errors" | "cancelled" | "timeout" | "failed" | "no_engine";
   scope: string;
   enginePass: "fast" | "full";
   /** Which engine ran, or was asked for and not found. */
   engine?: Engine;
+  shellEscape?: ShellEscape;
   durationMs: number;
   diagnostics: Diagnostic[];
   summary?: BuildSummary | null;
@@ -725,7 +734,15 @@ const api = {
       markErrors: boolean;
       markWarnings: boolean;
       engine: Engine | "";
+      shellEscape: ShellEscape;
     }>(`/projects/${id}/settings`, json(patch)),
+  /** This machine's answer to a project that asks for shell escape. The
+   *  project asks in its own toml; the answer is kept per project on the
+   *  install, where a project cannot bring it along. */
+  allowShellEscape: (id: string, allow: boolean) =>
+    request<{ shellEscape: ShellEscape }>(
+      `/projects/${id}/shell-escape`, json({ allow }),
+    ),
 
   /** `first` and `last` are 1-based inclusive lines, and they are how a
    *  selection and a section are counted. The same counter answers all

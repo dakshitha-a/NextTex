@@ -246,8 +246,8 @@ def test_a_build_superseded_while_it_starts_up_stops_itself(tmp_path):
 
     # Long enough that finishing on its own is not an explanation.
     monkeypatched = ["sleep", "20"]
-    build.fast_argv = lambda source, engine="pdflatex": monkeypatched
-    build.full_argv = lambda source, engine="pdflatex": monkeypatched
+    build.fast_argv = lambda source, *rest, **more: monkeypatched
+    build.full_argv = lambda source, *rest, **more: monkeypatched
 
     original = build._mirror_build_tree
 

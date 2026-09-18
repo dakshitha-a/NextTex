@@ -323,6 +323,16 @@ export default function SettingsSheet({
                   A <span className="font-mono">% !TeX program = xelatex</span> line at
                   the top of a document wins over this.
                 </p>
+                {/* Shown only when the project asks, because a row that
+                    reads "Shell escape: off" on every project advertises
+                    a switch, and this is not a switch: the project asks in
+                    its own file and this machine answers, once, per
+                    project.  Revoke is the one thing the sheet adds over
+                    the drawer's row, since the drawer has nowhere to put
+                    a "no" once the answer was "yes". */}
+                {project.shellEscape !== "off" ? (
+                  <ShellEscapeRow state={project.shellEscape} projectId={projectId} />
+                ) : null}
               </Group>
             ) : null}
 
@@ -408,6 +418,69 @@ export default function SettingsSheet({
  *  and there was nowhere to put it: a writer with two machines had no way
  *  to know which of these choices travelled with the project and which did
  *  not. */
+/** The project's request for shell escape, and this machine's answer. */
+function ShellEscapeRow({
+  state,
+  projectId,
+}: {
+  state: "asked" | "on";
+  projectId: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  // Two presses to allow, the pip card's shape, and one to revoke: a
+  // build that runs programs is the one thing here that must not happen
+  // on a slip, and taking it back needs no such care.
+  const [asked, setAsked] = useState(false);
+  const answer = async (allow: boolean) => {
+    if (allow && !asked) {
+      setAsked(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      const body = await api.allowShellEscape(projectId, allow);
+      set({ settings: { ...get().settings, shellEscape: body.shellEscape } });
+      setAsked(false);
+    } catch {
+      set({ error: "Could not save that answer." });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div
+      className="flex h-[30px] items-center justify-between border-t border-line px-[10px]"
+      data-testid="shell-escape-row"
+    >
+      <span className="t-meta text-ink-2">
+        Shell escape
+        <span className="t-micro ml-2 text-ink-3">
+          {state === "on" ? "allowed on this computer" : "the project asks for it"}
+        </span>
+      </span>
+      {state === "on" ? (
+        <button
+          className="quiet t-micro"
+          data-testid="shell-escape-revoke"
+          disabled={busy}
+          onClick={() => void answer(false)}
+        >
+          Revoke
+        </button>
+      ) : (
+        <button
+          className="quiet t-micro"
+          data-testid="shell-escape-allow"
+          disabled={busy}
+          onClick={() => void answer(true)}
+        >
+          {asked ? "Yes, allow it on this computer" : "Allow"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Group({
   title,
   note,

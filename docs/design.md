@@ -7375,3 +7375,43 @@ engine making the next build a full one; `e2e/specs/engine.spec.ts`
 picks xelatex on the sheet, builds, types the lualatex line at the top of
 the document and finds it win, and reloads to find the sheet still
 saying what the project asked for.
+
+### Shell escape is asked for by the project and allowed by the machine
+
+`minted` and `pythontex` need `-shell-escape`, and a build the editor
+starts on its own must never pass it silently; the `full_argv`
+docstring's argument about the latexmk rc file, that a project carrying
+permission to run its own code is the same hole with an extra step,
+applies with more force here. So the project asks, with `shell_escape =
+true` in `nexttex.toml`, and this machine answers, once per project,
+and the flag is passed only when both hold.
+
+While the question stands the status strip says *shell escape?* beside
+the build's state and becomes clickable even when the build has no
+findings, because the drawer is where the question is drawn and the
+drawer opens only from the strip; a project whose document builds clean
+without the flag would otherwise ask somewhere nobody could reach. The
+drawer's strip says what shell escape is, and *Allow* takes two presses
+in the pip card's shape: the first changes to *Yes, allow it on this
+computer* and says that every build of this project here may run any
+program the document names until it is revoked; the second answers.
+The settings sheet shows a *Shell escape* row only when the project
+asks, never as a switch on every project, with the same two-press
+*Allow* while the question stands and a one-press *Revoke* once it is
+answered. The drawer explains minted's own error, *This package needs
+shell escape*, as a permission rather than an edit.
+
+A build without the flag under a document that names a program logs
+`runsystem(...)...disabled (restricted)`, and the first build after
+Allow used to log the same, because latexmk had decided nothing changed
+and run no engine; that build is forced now. `nexttex.toml` saved in the
+editor is also read at once, which it was not: the file was read when
+the project opened and never again.
+
+`tests/test_shell_escape.py` holds the four combinations of request and
+answer, the forced rerun surviving a cancelled build, and the config's
+validation; `tests/api/test_shell_escape_route.py` runs the whole path
+with a real engine and a `\write18` marker file, and the re-read of a
+saved toml; `e2e/specs/engine.spec.ts` answers the question from the
+strip and the drawer in two presses, finds the marker appear, and
+revokes from the sheet.

@@ -88,6 +88,14 @@ class Settings:
     # `nexttex.toml`: that file is inside the project, so a project could
     # otherwise arrive carrying permission to run its own code.
     latexmk_rc: bool = False
+    # The projects, by id, this machine has allowed to build with
+    # `-shell-escape`.  The same reasoning as `latexmk_rc`, one step
+    # further: `nexttex.toml` may *ask* for shell escape, since minted and
+    # pythontex genuinely need it, and the answer lives here, where a
+    # project cannot bring it along.  A list rather than a switch because
+    # the answer is about one project, not about every project that will
+    # ever be opened.
+    shell_escape_allowed: list = field(default_factory=list)
 
     @classmethod
     def path(cls) -> Path:
