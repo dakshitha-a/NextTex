@@ -24,18 +24,25 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The first roadmap run, after 2.7.0: eleven items from `ROADMAP.md`, taken
-in its order and grouped into three pushes. Each leaves this list in the
-commit that finishes it.
-
-The build went up as 2.8.0, with three interface fixes the writer's
-mid-run report turned up: a deleted file's tab closes, closing the tab
-in front shows the next, and a tab not in front follows its file.
-
-The editor went up as 2.9.0.
-
-
-Papers, provider and window, for 2.10.0, is done and is this push.
+Nothing. The first roadmap run, after 2.7.0, took eleven items from
+`ROADMAP.md` in its order, in three pushes. The build went up as 2.8.0:
+the engine is chosen per document or per project, shell escape is
+allowed per project on this machine and never silently, a missing
+package installs from the drawer, and every build says which TeX made
+it; with three interface fixes the writer's mid-run report turned up,
+a deleted file's tab closes, closing the tab in front shows the next,
+and a tab not in front follows its file. The editor went up as 2.9.0:
+hover on a reference says the number and the page, sections and
+environments fold, a bar above the source names the section at the top
+of the pane, and a label, a citation key or a macro is renamed
+everywhere by the syntax. Papers, provider and window went up as
+2.10.0: the literature is searched from the Papers section without an
+agent, a local model runs through the OpenAI provider with a base URL
+and no key, and the page opens in a window of its own. What it left is
+two lines under *Never run against the real thing* below, the install
+button on a MiKTeX and the provider against a real endpoint, since this
+machine has neither; and one flake, also below. The fifteen items that
+stay in `ROADMAP.md` are where they were.
 
 Before it, the run after 2.6.3 worked the writer's September
 interface list to 2.7.0, in one push: a figure of any size opens whole
@@ -61,6 +68,14 @@ this checkout does not have, or are decisions, are where they were.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **`writing.spec.ts`'s equation hover failed once under the full
+      browser tier and passed on its retry.** Seen once in the roadmap
+      run, while the machine was also building the bundle; the hover
+      polls the tooltip, so the likely cause is the typeset image
+      arriving after the assertion's window rather than not at all. A
+      second sighting is the signal to widen that wait or to find what
+      else it is waiting on.
 
 - [ ] **A PNG download the writer reported as broken was not reproduced.**
       The file route answers a PNG with its bytes, `image/png` and an
