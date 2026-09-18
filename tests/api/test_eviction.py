@@ -363,7 +363,7 @@ def test_changing_the_provider_closes_each_project_behind_the_same_guard(client,
     monkeypatch.setattr(server_main, "CLOSE_WAIT_SECONDS", 0.05)
     try:
         future = client.portal.start_task_soon(
-            server_main.agent_provider, "none", "", "",
+            server_main.agent_provider, "none", "", "", None,
         )
         assert inside.wait(timeout=5), "the close never started"
         answer = client.get(f"/api/projects/{project_id}/tree")
