@@ -237,8 +237,12 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
     for it before `ingest`, because a document not yet open is opened
     there and its own fold, for a file that changed while nothing was
     watching, records inside the same stamp and leaves `ingest` nothing
-    to change.  The versions are recorded off the loop, a sha256 and a
-    zlib pass per file.
+    to change.  A file that `ingest` left alone is still recorded when it
+    has no history yet, because a document opened between the write and
+    the tick was seeded from the new text and has nothing to fold; one
+    with a history and nothing to fold was rewritten to what it already
+    said, and is left alone.  The versions are recorded off the loop, a
+    sha256 and a zlib pass per file.
     """
     stamp = f"outside:{now_ms()}"
     collab = session.collab
@@ -262,30 +266,31 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
                         body = collab.body(file_id)
                         before = str(body) if body is not None else None
                 folded = collab.ingest(relative, text, gone=not here)
-                # A document that was not open is opened by `body()` above,
-                # and where it had no log it is seeded from the file as it
-                # now is, so `ingest` then finds nothing to fold and the
-                # earlier state was never anywhere NextTex could see.  The
-                # new state is still a change the watcher saw, so it is
-                # recorded all the same; the history keeps one version per
-                # distinct text, so a file that merely came back the same
-                # costs nothing.
-                if text is not None and (folded or not was_open):
-                    changed.append((path, text, before if was_open else None))
+                if text is not None:
+                    changed.append((path, text, before if folded else None, folded))
             except (OSError, ValueError):
                 continue
     if not changed:
         return
 
     def record() -> None:
-        for path, text, before in changed:
+        for path, text, before, folded in changed:
             relative = session.project.relative(path)
-            # An edit when there is something for it to be an edit of: a
-            # version already, or the earlier state `previous` is about to
-            # seed; a creation otherwise.
-            known = before is not None or bool(session.history.versions(relative))
+            known = bool(session.history.versions(relative))
+            if not folded and known:
+                # Nothing moved and the file has a past: a tool rewrote it
+                # to what it already said, or the projection's own write
+                # came back around.  Nothing to record.
+                continue
+            # Not folded and no past: the document was seeded from the file
+            # as it now is, either because it was opened for the first
+            # time inside this tick, or because it was opened in the gap
+            # between the write and the tick.  Either way the earlier state
+            # was never anywhere NextTex could see, and the new state is
+            # still a change the watcher saw: its history begins here.
             session.record_version(
-                path, text, by="you", op="edit" if known else "create",
+                path, text, by="you",
+                op="edit" if (before is not None or known) else "create",
                 previous=before, why="changed outside NextTex", source=stamp,
             )
 
@@ -331,7 +336,7 @@ async def _watch_projects() -> None:
         # What appeared between a session opening and this watch starting.
         # `adopt()` at the session's opening is before the gap, and the
         # watcher reports only what happens after it.
-        _adopt_what_appeared(watched)
+        await _adopt_what_appeared(watched)
         try:
             # `step` is the poll interval; `debounce` is the window over which
             # changes are coalesced, and its default of 1600 ms would make an
@@ -417,19 +422,47 @@ def _restart_watch() -> None:
         WATCH_WAKE.set()
 
 
-def _adopt_what_appeared(sessions) -> None:
-    """Bring into each manifest any file that appeared unwatched.
+async def _adopt_what_appeared(sessions) -> None:
+    """Fold in what changed while nothing was watching.
 
-    Idempotent, and cheap: a walk of the tree per open project, once per
-    watch start.  A file the manifest has not heard of becomes a record
-    here; a file it knows is left alone, its contents being the document's
-    business when the document is next opened.
+    Once per watch start, for each open project.  A file the manifest has
+    not heard of becomes a record through `adopt()`, and used to be the
+    whole of it: a file it knew was left alone, its contents being the
+    document's business when the document was next opened.  For a
+    document that was already open that was wrong.  An edit saved from
+    another editor in the second between a project opening and its watch
+    starting reached neither the document nor the history, and the next
+    keystroke in the browser wrote the document over it.  So what appeared
+    and what changed under an open document are handed to `_fold_tick`
+    together, as the tick the watcher would have reported had it been
+    watching, and the browsers are told the same way.
     """
     for session in sessions:
         try:
-            session.collab.adopt()
+            collab = session.collab
+            known = set(collab.files)
+            collab.adopt()
+            paths: set[str] = set()
+            for file_id in set(collab.files) - known:
+                record = collab.files.get(file_id)
+                if record is not None and not record.get("trashed"):
+                    paths.add(str(record.get("path") or ""))
+            for relative, text in collab.open_texts().items():
+                try:
+                    on_disk = read_text(session.project.resolve(relative))
+                except (OSError, ValueError):
+                    continue
+                if on_disk is not None and on_disk != text:
+                    paths.add(relative)
+            paths.discard("")
+            if not paths:
+                continue
+            await _fold_tick(session, paths)
+            await session.events.publish(
+                {"type": "files_changed", "paths": sorted(paths)}
+            )
         except Exception:
-            log.warning("could not adopt what appeared in %s", session.project.root,
+            log.warning("could not fold what appeared in %s", session.project.root,
                         exc_info=True)
 
 

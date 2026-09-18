@@ -114,6 +114,41 @@ def test_a_file_written_before_the_watcher_started_is_adopted_when_it_does(clien
     client.portal.call(server_main._adopt_what_appeared, [session])
 
     assert session.collab.file_id_for("appeared.tex") is not None
+    # And its history begins, as it would have had the watcher seen it.
+    versions = client.get(
+        f"/api/projects/{opened['id']}/history", params={"path": "appeared.tex"}
+    ).json()["versions"]
+    assert [v["op"] for v in versions] == ["create"]
+    assert versions[0]["source"].startswith("outside:")
+
+
+def test_an_edit_under_an_open_document_before_the_watcher_started_is_folded_in(
+    client, opened, project_dir,
+):
+    """The other half of the gap. A file the manifest knew was left alone
+    at the watch's start, so an edit saved from another editor in that
+    second reached neither the document nor the history, and the next
+    keystroke in the browser wrote the document over it."""
+    session = server_main.session_for(opened["id"])
+
+    async def open_main() -> str:
+        return str(session.collab.body(session.collab.file_id_for("main.tex")))
+
+    template = client.portal.call(open_main)
+    (project_dir / "main.tex").write_text("Saved from vim in the gap.\n", encoding="utf-8")
+
+    client.portal.call(server_main._adopt_what_appeared, [session])
+
+    assert client.portal.call(open_main) == "Saved from vim in the gap.\n"
+    versions = client.get(
+        f"/api/projects/{opened['id']}/history", params={"path": "main.tex"}
+    ).json()["versions"]
+    assert [v["op"] for v in versions] == ["edit", "create"]
+    assert versions[0]["why"] == "changed outside NextTex"
+    assert client.get(
+        f"/api/projects/{opened['id']}/history/blob",
+        params={"path": "main.tex", "sha": versions[1]["sha"]},
+    ).json()["text"] == template
 
 
 def test_the_idle_watcher_wakes_when_a_project_opens(client, project):

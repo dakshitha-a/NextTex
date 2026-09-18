@@ -104,21 +104,47 @@ def test_a_typed_save_and_an_outside_save_inside_the_window_are_two_versions(
     assert document_text(client, project_id, "main.tex") == "pulled from git\n"
 
 
-def test_a_file_written_to_what_the_document_holds_is_not_a_version(
+def test_a_file_written_to_what_the_document_holds_is_not_a_new_version(
     client, opened, project_dir,
 ):
     """`ingest` diffs, so a tool that rewrites a file unchanged, or the
-    projection's own write coming back around, changes nothing and
-    records nothing."""
+    projection's own write coming back around, changes nothing. A file
+    with a history records nothing for it; a file with none gets its
+    first version, because the tick cannot tell a rewrite to the same
+    text from a document that was opened, and seeded from the file, in
+    the moment between an outside write and the tick that reports it."""
     project_id = opened["id"]
     text = (project_dir / "main.tex").read_text(encoding="utf-8")
     assert document_text(client, project_id, "main.tex") == text
-    before = versions_of(client, project_id, "main.tex")
+    assert versions_of(client, project_id, "main.tex") == []
     (project_dir / "main.tex").write_text(text, encoding="utf-8")
 
     fold(client, project_id, "main.tex")
 
-    assert versions_of(client, project_id, "main.tex") == before
+    first = versions_of(client, project_id, "main.tex")
+    assert [v["op"] for v in first] == ["create"]
+    (project_dir / "main.tex").write_text(text, encoding="utf-8")
+
+    fold(client, project_id, "main.tex")
+
+    assert versions_of(client, project_id, "main.tex") == first
+
+
+def test_a_document_opened_between_the_write_and_the_tick_still_gets_a_version(
+    client, opened, project_dir,
+):
+    """The browser's socket opens the document a moment after the editor
+    draws, so an outside write landing in that moment seeds the document
+    with the new text and the tick then has nothing to fold. The change
+    was still seen, and the file's history begins with it."""
+    project_id = opened["id"]
+    (project_dir / "main.tex").write_text("\\section{Pulled first}\n", encoding="utf-8")
+    assert document_text(client, project_id, "main.tex") == "\\section{Pulled first}\n"
+
+    fold(client, project_id, "main.tex")
+
+    main = versions_of(client, project_id, "main.tex")
+    assert [(v["op"], v["why"]) for v in main] == [("create", "changed outside NextTex")]
 
 
 def test_a_figure_that_changes_outside_gets_no_text_version(client, opened, project_dir):
