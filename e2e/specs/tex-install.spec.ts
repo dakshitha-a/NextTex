@@ -52,6 +52,12 @@ test("a missing package is installed from its row in two presses, and the build 
     const row = page.getByTestId("diagnostics").getByRole("button", { name: /nothere\.sty/ }).first();
     await row.click();
 
+    // The raw log opens with the engine's own version line, so a build
+    // that differs between two machines can be explained from the drawer.
+    await page.getByTestId("show-raw-log").first().click();
+    await expect(page.getByTestId("diagnostics").locator("pre").last())
+      .toContainText(/^(pdfTeX|XeTeX|This is LuaHBTeX)/, { timeout: 15_000 });
+
     // The row asked which package provides the file, and says so.
     const install = page.getByTestId("tex-install");
     await expect(install).toHaveText("Install nothere-pkg", { timeout: 15_000 });

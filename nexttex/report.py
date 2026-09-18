@@ -326,7 +326,9 @@ def tools_section(root: Path, environ) -> list:
         return [f"(survey failed: {type(error).__name__}: {error})"]
     rows = []
     for finding in result.findings:
-        rows.append(f"{finding.name:<18}{finding.kind:<12}{finding.version:<14}{finding.where}".rstrip())
+        # A space before the path: the TeX version is longer than its
+        # column, and without one it ran straight into the directory.
+        rows.append(f"{finding.name:<18}{finding.kind:<12}{finding.version:<14} {finding.where}".rstrip())
     rows += [
         f"tex_dir     {result.tex_dir or '(none)'}",
         f"tex extras  {', '.join(result.missing_tex_extras) or 'all present'}" if result.tex_dir else "",

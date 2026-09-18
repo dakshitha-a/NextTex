@@ -73,6 +73,8 @@ export type CompileResult = {
   /** Which engine ran, or was asked for and not found. */
   engine?: Engine;
   shellEscape?: ShellEscape;
+  /** The engine's own first line for `--version`. */
+  engineVersion?: string;
   durationMs: number;
   diagnostics: Diagnostic[];
   summary?: BuildSummary | null;
@@ -840,7 +842,7 @@ const api = {
   /** The engine's own log for one document. `build/` is out of the file
    *  tree, so this is the only way the drawer can show it. */
   buildLog: (id: string, document = "") =>
-    request<{ document: string; text: string }>(
+    request<{ document: string; text: string; engine: string; engineVersion: string }>(
       `/projects/${id}/log?document=${encodeURIComponent(document)}`,
     ),
   lint: (id: string, path: string) =>

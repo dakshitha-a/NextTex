@@ -3713,7 +3713,14 @@ async def build_log(project_id: str, document: str = ""):
         raw = path.read_bytes()[-MAX_LOG_BYTES:]
         return raw.decode("utf-8", errors="replace")
 
-    return {"document": state.path, "text": await asyncio.to_thread(read)}
+    last = state.last_result
+    return {
+        "document": state.path,
+        "text": await asyncio.to_thread(read),
+        # Which TeX wrote it, from the build that wrote it.
+        "engine": last.engine if last else "",
+        "engineVersion": last.engine_version if last else "",
+    }
 
 
 @app.post("/api/projects/{project_id}/library/add")

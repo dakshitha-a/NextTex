@@ -238,6 +238,10 @@ def test_the_raw_log_can_be_read_without_leaving_the_drawer(client, opened, tmp_
     answer = client.get(f"/api/projects/{opened['id']}/log")
     assert answer.status_code == 200, answer.text
     assert "Undefined control sequence" in answer.json()["text"]
+    # Which TeX wrote it rides beside the text, from the build that wrote
+    # it; nothing has built here, so the fields are present and empty.
+    assert answer.json()["engine"] == ""
+    assert answer.json()["engineVersion"] == ""
 
 
 def test_a_log_that_is_not_there_is_not_an_error(client, opened):

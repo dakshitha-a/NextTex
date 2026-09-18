@@ -252,6 +252,14 @@ def _version_of(argv, which) -> str:
     exe = which(argv[0])
     if not exe:
         return ""
+    return _version_at(exe, *argv[1:])
+
+
+def _version_at(exe, *args) -> str:
+    """The first line a program prints for `--version`, or "" when it
+    cannot be run.  Separate from `_version_of` because the TeX engine is
+    found by its directory rather than by `which`."""
+    argv = [str(exe), *(args or ["--version"])]
     try:
         out = subprocess.run(
             [exe, *argv[1:]], capture_output=True, text=True, timeout=10,
@@ -347,7 +355,15 @@ def survey(
         result.tex_dir = str(Path(which("pdflatex")).parent)
 
     if result.tex_dir:
-        add(Finding("tex", "TeX", PRESENT, where=result.tex_dir))
+        # The engine's own first line, "pdfTeX 3.14...-1.40.29 (TeX Live
+        # 2026)", so the bug report can say which TeX a build ran under:
+        # a build that differs between two machines is explained by this
+        # line more often than by anything in the log.
+        engine = tex_tool("pdflatex", result.tex_dir, which=which, exists=exists)
+        add(Finding(
+            "tex", "TeX", PRESENT, where=result.tex_dir,
+            version=_version_at(engine) if engine else "",
+        ))
     else:
         add(Finding("tex", "TeX (TinyTeX)", FETCHED, size=SIZES["tex"][0],
                     why="pdflatex, latexmk and synctex; nothing can be typeset "

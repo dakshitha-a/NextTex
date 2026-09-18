@@ -195,3 +195,53 @@ def test_changing_the_engine_makes_the_next_build_a_full_one(tmp_path, monkeypat
     config.engine = "xelatex"
     asyncio.run(build.build())
     assert seen[-1][0] == "latexmk" and "-pdfxe" in seen[-1]
+
+
+# -- the engine's version ---------------------------------------------------
+
+def test_the_engines_version_is_asked_once_per_process_and_rides_on_every_result(tmp_path, monkeypatch):
+    from nexttex import compile as build_module
+
+    calls: list[list[str]] = []
+
+    class Out:
+        stdout = "pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)\nkpathsea version 6.4.2\n"
+        stderr = ""
+
+    def fake_run(argv, **_):
+        calls.append(list(argv))
+        return Out()
+
+    monkeypatch.setattr(build_module, "_VERSIONS", {})
+    monkeypatch.setattr(build_module.subprocess, "run", fake_run)
+    assert build_module.engine_version("pdflatex") == "pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)"
+    assert build_module.engine_version("pdflatex").startswith("pdfTeX")
+    assert calls == [["pdflatex", "--version"]]
+
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}\n", encoding="utf-8"
+    )
+
+    class Done:
+        returncode = 0
+        pid = 0
+
+        async def wait(self):
+            return 0
+
+    async def fake_exec(*argv, **_):
+        return Done()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    build = CompileScheduler(paths_in(tmp_path))
+    result = asyncio.run(build.build())
+    assert result.as_dict()["engineVersion"] == "pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)"
+    asyncio.run(build.build())
+    assert len(calls) == 1, "a second build must not spawn a second --version"
+
+
+def test_an_engine_that_cannot_be_run_has_no_version_and_no_error(monkeypatch):
+    from nexttex import compile as build_module
+
+    monkeypatch.setattr(build_module, "_VERSIONS", {})
+    assert build_module.engine_version("no-such-engine-here") == ""

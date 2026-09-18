@@ -37,6 +37,7 @@ from contextlib import asynccontextmanager
 import os
 import re
 import signal
+import subprocess
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -157,6 +158,30 @@ MAGIC_PROGRAM = re.compile(
 MAGIC_LINES = 20
 
 
+#: `--version` answers, per engine, for the life of the process.  An
+#: engine does not change under a running server, and asking on every
+#: build would be a process spawn per keystroke pause.
+_VERSIONS: dict[str, str] = {}
+
+
+def engine_version(engine: str) -> str:
+    """The first line `<engine> --version` prints, or "" when it cannot be
+    run.  Cached; call it off the loop the first time."""
+    if engine in _VERSIONS:
+        return _VERSIONS[engine]
+    try:
+        out = subprocess.run(
+            [engine, "--version"], capture_output=True, text=True, timeout=10,
+            errors="replace",
+        )
+        lines = (out.stdout or out.stderr or "").strip().splitlines()
+        found = lines[0].strip() if lines else ""
+    except (OSError, subprocess.SubprocessError):
+        found = ""
+    _VERSIONS[engine] = found
+    return found
+
+
 def engine_in(main_source: str) -> str:
     """The engine a `% !TeX program` line names, or "" when there is none
     or it names something NextTex does not run."""
@@ -194,6 +219,11 @@ class CompileResult:
     #: it does and this machine has not allowed it, "on" when the flag
     #: was passed.  The drawer draws the question from "asked".
     shell_escape: str = "off"
+    #: The engine's own first line for `--version`, "pdfTeX
+    #: 3.141592653-2.6-1.40.29 (TeX Live 2026)", read once per engine per
+    #: process.  Beside the log and in the bug report, so a build that
+    #: differs between two machines can be explained without asking.
+    engine_version: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -203,6 +233,7 @@ class CompileResult:
             "enginePass": self.engine_pass,
             "engine": self.engine,
             "shellEscape": self.shell_escape,
+            "engineVersion": self.engine_version,
             "pdf": str(self.pdf) if self.pdf else None,
             **(self.log.as_dict() if self.log else
                {"diagnostics": [], "errorCount": 0, "warningCount": 0, "rawTail": ""}),
@@ -681,9 +712,13 @@ class CompileScheduler:
         # keeps showing the last thing that compiled rather than going blank.
         pdf = self.paths.pdf if self.paths.pdf.exists() else None
         outcome = Outcome.ERRORS if (log and log.errors) else Outcome.OK
+        version = (
+            _VERSIONS[engine] if engine in _VERSIONS
+            else await asyncio.to_thread(engine_version, engine)
+        )
         return CompileResult(
             outcome, log, pdf, time.monotonic() - started, scope,
-            "full" if full_pass else "fast", engine, escape,
+            "full" if full_pass else "fast", engine, escape, version,
         )
 
     def _note_unresolved(self, log: ParsedLog, full_pass: bool) -> None:

@@ -201,7 +201,10 @@ export default function Diagnostics({
     setRawLog((current) => ({ ...current, [document]: "" }));
     try {
       const answer = await api.buildLog(projectId, document);
-      setRawLog((current) => ({ ...current, [document]: answer.text }));
+      // The engine's version as the log's first line, so a build that
+      // differs between two machines can be explained without asking.
+      const head = answer.engineVersion ? `${answer.engineVersion}\n\n` : "";
+      setRawLog((current) => ({ ...current, [document]: head + answer.text }));
     } catch (error: any) {
       setRawLog((current) => ({ ...current, [document]: error.message }));
     }

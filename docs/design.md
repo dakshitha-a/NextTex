@@ -7441,3 +7441,15 @@ sees it, and hands back the manager's words on failure;
 `e2e/specs/tex-install.spec.ts` builds a document that asks for a package
 nothing has, presses the button twice, reads the argv the stand-in saw
 and finds a build follow, then shows the stale-mirror failure.
+
+### The TeX version on every build
+
+The raw log a row opens begins with the engine's own version line,
+"pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)", from the build that
+wrote the log, and the bug report's tools table prints the same line
+for TeX, which it had printed for git, Python, uv and Node and never
+for the one tool a report about a build is about. `tests/test_compile_engines.py`
+asks for the version once per process; `tests/test_install_survey.py`
+fills the finding; `tests/api/test_report_route.py` finds it in the
+report; `e2e/specs/tex-install.spec.ts` opens the raw log and reads the
+first line.

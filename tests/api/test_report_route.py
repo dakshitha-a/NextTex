@@ -6,6 +6,7 @@ What it can leak is what it quotes, so that is what is asserted.
 """
 
 import json
+from pathlib import Path
 
 from starlette.testclient import TestClient
 
@@ -81,3 +82,19 @@ def test_a_checkout_that_is_not_from_github_still_names_the_repository(client, m
 
 def test_the_security_headers_are_on_it(client):
     assert not missing(client.post("/api/report"))
+
+
+def test_the_tools_section_names_the_tex_version(client, monkeypatch):
+    """Through the survey's own finding, so the report and the drawer's log
+    header agree on which TeX a build ran under."""
+    from nexttex.install import survey as module
+
+    monkeypatch.setattr(
+        module, "_version_at",
+        lambda exe, *args: "pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)"
+        if Path(exe).name == "pdflatex" else "",
+    )
+    body = client.post("/api/report").json()
+    if "tex_dir     (none)" in body["text"]:
+        pytest.skip("no TeX on this machine")
+    assert "pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)" in body["text"]

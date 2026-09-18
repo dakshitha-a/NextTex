@@ -306,3 +306,38 @@ def test_the_estimate_does_not_promise_a_tex_install_in_three_minutes(tmp_path):
     without = build_plan(bare("linux", tmp_path), interactive=True,
                          answers={"tex": "none"})
     assert without.minutes < with_tex.minutes
+
+
+def test_the_tex_finding_carries_the_engines_version(tmp_path, monkeypatch):
+    """The bug report prints `Finding.version` for every tool, and the TeX
+    finding never filled it, so a build that differed between two machines
+    could not be explained from the report."""
+    from nexttex.install import survey as module
+
+    tex = tmp_path / "tex"
+    tex.mkdir()
+    (tex / "pdflatex").write_text("")
+    monkeypatch.setattr(module, "TEX_HINTS", [tex])
+    monkeypatch.setattr(
+        module, "_version_at",
+        lambda exe, *args: "pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)"
+        if Path(exe).name == "pdflatex" else "",
+    )
+    result = survey("linux", tmp_path, which=which_none, check_network=False,
+                    environ={"XDG_DATA_HOME": str(tmp_path / "state")})
+    finding = result.get("tex")
+    assert finding.kind == PRESENT
+    assert finding.version == "pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)"
+
+
+def test_a_tex_that_cannot_print_its_version_is_still_present(tmp_path, monkeypatch):
+    from nexttex.install import survey as module
+
+    tex = tmp_path / "tex"
+    tex.mkdir()
+    (tex / "pdflatex").write_text("")     # not executable: the probe fails
+    monkeypatch.setattr(module, "TEX_HINTS", [tex])
+    result = survey("linux", tmp_path, which=which_none, check_network=False,
+                    environ={"XDG_DATA_HOME": str(tmp_path / "state")})
+    assert result.get("tex").kind == PRESENT
+    assert result.get("tex").version == ""
