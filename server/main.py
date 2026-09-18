@@ -62,7 +62,7 @@ from nexttex.library import (
 from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
 from nexttex.providers import PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
-from nexttex.history import History
+from nexttex.history import History, now_ms
 from nexttex.paths import shares_home, state_home
 from nexttex.trash import Trash
 from nexttex.project import (
@@ -218,6 +218,80 @@ async def _rejoin_shared_projects() -> None:
             continue
 
 
+async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
+    """One watcher tick's changes, into the documents and the history.
+
+    Into the shared document first.  This is the only way an outside
+    write, a git pull, vim in another terminal, reaches the people editing
+    the file, and `ingest` diffs, so handing it text the document already
+    holds costs nothing and changes nothing.
+
+    And then into the history, which nothing did before: the projection's
+    own writes were versions, an edit made while the server was stopped
+    was one since the projection record, and an edit the watcher saw was
+    not.  Every file this tick touched is recorded under one stamp,
+    `outside:<ms>`, as its `source`, so the forty versions a pull writes
+    fold into one row of the timeline and none of them coalesces with a
+    typed save.  The document's text before the fold is `previous`, which
+    seeds the file's history the first time it is seen; `body()` is asked
+    for it before `ingest`, because a document not yet open is opened
+    there and its own fold, for a file that changed while nothing was
+    watching, records inside the same stamp and leaves `ingest` nothing
+    to change.  The versions are recorded off the loop, a sha256 and a
+    zlib pass per file.
+    """
+    stamp = f"outside:{now_ms()}"
+    collab = session.collab
+    changed: list[tuple[Path, str, str | None]] = []
+    with collab.live_outside_edits(stamp):
+        for relative in paths:
+            try:
+                path = session.project.resolve(relative)
+                here = path.exists()
+                # `gone` and "could not read it" are different things, and
+                # `read_text` returns None for both.  Conflating them marked
+                # every figure in the project as deleted the moment it was
+                # rewritten.
+                text = read_text(path) if here else None
+                before = None
+                was_open = False
+                if text is not None:
+                    file_id = collab.file_id_for(relative)
+                    if file_id is not None:
+                        was_open = file_id in collab.texts
+                        body = collab.body(file_id)
+                        before = str(body) if body is not None else None
+                folded = collab.ingest(relative, text, gone=not here)
+                # A document that was not open is opened by `body()` above,
+                # and where it had no log it is seeded from the file as it
+                # now is, so `ingest` then finds nothing to fold and the
+                # earlier state was never anywhere NextTex could see.  The
+                # new state is still a change the watcher saw, so it is
+                # recorded all the same; the history keeps one version per
+                # distinct text, so a file that merely came back the same
+                # costs nothing.
+                if text is not None and (folded or not was_open):
+                    changed.append((path, text, before if was_open else None))
+            except (OSError, ValueError):
+                continue
+    if not changed:
+        return
+
+    def record() -> None:
+        for path, text, before in changed:
+            relative = session.project.relative(path)
+            # An edit when there is something for it to be an edit of: a
+            # version already, or the earlier state `previous` is about to
+            # seed; a creation otherwise.
+            known = before is not None or bool(session.history.versions(relative))
+            session.record_version(
+                path, text, by="you", op="edit" if known else "create",
+                previous=before, why="changed outside NextTex", source=stamp,
+            )
+
+    await asyncio.to_thread(record)
+
+
 async def _watch_projects() -> None:
     """Tell the browser when files change underneath it.
 
@@ -308,26 +382,7 @@ async def _watch_projects() -> None:
                     session = SESSIONS.get(project_id)
                     if not session:
                         continue
-                    # Into the shared document first.  This is the only way
-                    # an outside write -- a git pull, vim in another
-                    # terminal -- reaches the people editing the file, and
-                    # `ingest` diffs, so handing it text the document
-                    # already holds costs nothing and changes nothing.
-                    for relative in paths:
-                        try:
-                            path = session.project.resolve(relative)
-                            here = path.exists()
-                            # `gone` and "could not read it" are different
-                            # things, and `read_text` returns None for both.
-                            # Conflating them marked every figure in the
-                            # project as deleted the moment it was rewritten.
-                            session.collab.ingest(
-                                relative,
-                                read_text(path) if here else None,
-                                gone=not here,
-                            )
-                        except (OSError, ValueError):
-                            continue
+                    await _fold_tick(session, paths)
                     await session.events.publish(
                         {"type": "files_changed", "paths": sorted(paths)}
                     )

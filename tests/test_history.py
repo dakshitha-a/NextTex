@@ -233,3 +233,28 @@ def test_one_window_still_collapses_its_own_burst(tmp_path):
     for text in ("a", "ab", "abc"):
         store.record("main.tex", text, source="tab-a")
     assert len(store.versions("main.tex")) == 1
+
+
+def test_an_outside_edit_never_collapses_into_a_typed_save(tmp_path):
+    """The watcher records what a `git pull` or another editor wrote under
+    the tick's stamp as its source, so it is a version of its own beside
+    the one the writer typed a moment earlier, whichever came second."""
+    store = history(tmp_path)
+    store.record("main.tex", "typed here", source="tab-a")
+    store.record("main.tex", "pulled from git", source="outside:1000")
+    store.record("main.tex", "typed again", source="tab-a")
+    assert [v.source for v in store.versions("main.tex")] == [
+        "tab-a", "outside:1000", "tab-a",
+    ]
+
+
+def test_two_watcher_ticks_on_one_file_are_one_burst(tmp_path):
+    """A vim user saving every ten seconds gets one version per window,
+    like typing does, and the later tick's stamp is the one kept."""
+    store = history(tmp_path)
+    store.record("main.tex", "save one", source="outside:1000")
+    store.record("main.tex", "save two", source="outside:2000")
+    versions = store.versions("main.tex")
+    assert len(versions) == 1
+    assert versions[0].source == "outside:2000"
+    assert store.content("main.tex", versions[0].sha) == "save two"

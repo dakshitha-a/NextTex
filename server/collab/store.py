@@ -69,6 +69,7 @@ editor in another terminal -- and records those as such.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import difflib
 import hashlib
 import json
@@ -296,10 +297,21 @@ class CollabStore:
         #: path that applies the fence, tells the session and can be told
         #: to hold.  Bounded in total by ARRIVED_LIMIT.
         self.arrived: dict[str, bytes] = {}
-        #: Files this machine saw missing and has not yet called deleted.
-        #: The flag goes on the record at the next flush, and only if the
-        #: file is still absent then: see `_settle_gone`.
-        self._gone_pending: set[str] = set()
+        #: Files this machine saw missing and has not yet called deleted,
+        #: each with the watcher tick's stamp when the watcher saw it and
+        #: "" when the adopt walk did.  The flag goes on the record at the
+        #: next flush, and only if the file is still absent then: see
+        #: `_settle_gone`, which is also where a stamped one is recorded
+        #: as a version.
+        self._gone_pending: dict[str, str] = {}
+        #: What a version recorded for an edit made outside NextTex says,
+        #: and the `source` it carries.  The defaults are the fold's, for a
+        #: file that changed while nothing was watching; the watcher sets
+        #: both for the length of one tick through `live_outside_edits`,
+        #: so that a change it saw is labelled as such and every file one
+        #: `git pull` touched shares a stamp the timeline can fold on.
+        self.outside_why = "changed while NextTex was not running"
+        self.outside_source = ""
         #: Whether a document with no log yet may be built from the file on
         #: disk, and a document with one may fold in a file that changed
         #: while nothing was watching.  Off for a store that is being
@@ -593,6 +605,24 @@ class CollabStore:
                 self._fold_outside_edit(file_id, record, text)
         return text
 
+    @contextlib.contextmanager
+    def live_outside_edits(self, stamp: str):
+        """Label what is recorded inside as a change seen while running.
+
+        Entered by the watcher for one tick.  `outside_source` is the
+        tick's stamp, `outside:<ms>`, so that a version recorded here,
+        whether by the fold that runs when a not-yet-open document is
+        first read or by the watcher itself, never coalesces with a typed
+        save and folds with the others of its tick in the timeline.
+        """
+        before = (self.outside_why, self.outside_source)
+        self.outside_why = "changed outside NextTex"
+        self.outside_source = stamp
+        try:
+            yield
+        finally:
+            self.outside_why, self.outside_source = before
+
     def _fold_outside_edit(self, file_id: str, record, text: Text) -> None:
         """Notice a file that changed while nothing was watching it.
 
@@ -650,7 +680,7 @@ class CollabStore:
                 return
             recorder(
                 path, on_disk, previous=current, by="you",
-                why="changed while NextTex was not running",
+                why=self.outside_why, source=self.outside_source,
             )
 
     def _watcher_for(self, file_id: str) -> Callable:
@@ -827,7 +857,7 @@ class CollabStore:
                 if record.get("trashed"):
                     continue
                 if record.get("path") not in seen:
-                    self._gone_pending.add(file_id)
+                    self._gone_pending.setdefault(file_id, "")
             if self._gone_pending:
                 self._schedule()
 
@@ -1036,7 +1066,7 @@ class CollabStore:
         if record is None or record.get("trashed"):
             return False
         record["trashed"] = True
-        self._gone_pending.discard(file_id)
+        self._gone_pending.pop(file_id, None)
         return True
 
     def key_for(self, relative: str) -> str | None:
@@ -1236,7 +1266,7 @@ class CollabStore:
                 # machine's trash, silently, which is how an .aux written
                 # by hand vanished mid-run.  The flag goes on at the flush,
                 # if the file is still missing then.
-                self._gone_pending.add(file_id)
+                self._gone_pending[file_id] = self.outside_source
                 self._schedule()
                 return True
             return False
@@ -1431,8 +1461,8 @@ class CollabStore:
         self._gone_deferred = False
         if not self._root_present():
             return
-        pending, self._gone_pending = self._gone_pending, set()
-        for file_id in pending:
+        pending, self._gone_pending = self._gone_pending, {}
+        for file_id, stamp in pending.items():
             record = self.files.get(file_id)
             if record is None or record.get("trashed"):
                 continue
@@ -1442,6 +1472,29 @@ class CollabStore:
                 continue
             if not target.exists():
                 record["trashed"] = True
+                if stamp:
+                    self._record_outside_deletion(file_id, target, stamp)
+
+    def _record_outside_deletion(self, file_id: str, target: Path, stamp: str) -> None:
+        """A text file the watcher saw go ends its history with a version.
+
+        The trash route records one on the way out and this path did not,
+        so an `rm` in a terminal, or a `git pull` that removed a chapter,
+        left the file's history ending at its last save rather than at
+        what it held when it went.  The text is the document's, which is
+        the file as it was plus whatever had not reached the disk.  Only
+        for a sighting the watcher made: the adopt walk's, with no stamp,
+        is a file that went while nothing was running, and its last state
+        is not known here.
+        """
+        text = self._body.get(file_id)
+        recorder = getattr(self.session, "record_version", None)
+        if text is None or recorder is None:
+            return
+        recorder(
+            target, str(text), by="you", op="delete",
+            why="deleted outside NextTex", source=stamp,
+        )
 
     def _trash_locally(self, was: str) -> bool:
         """Put a file somebody else deleted into this machine's own trash."""

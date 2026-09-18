@@ -26,6 +26,7 @@ class _Recorder:
 
     def __init__(self) -> None:
         self.versions: list[tuple[str, str, str]] = []
+        self.detail = []
 
     def mark_written(self, path) -> None:
         pass
@@ -39,6 +40,10 @@ class _Recorder:
     def record_version(self, path, text, *, previous=None, by="you", why="",
                        op="edit", source="") -> None:
         self.versions.append((path.name, text, why))
+        self.detail.append({"path": path.name, "text": text, "why": why,
+                            "op": op, "source": source})
+
+    detail: list[dict] = []
 
 
 @pytest.fixture
@@ -151,3 +156,67 @@ async def test_an_edit_made_while_a_peer_was_stopped_reaches_the_others(tmp_path
     await settle()
     await bob_again.close()
     await alice.close()
+
+
+def test_a_fold_inside_a_watcher_tick_carries_the_tick_label_and_stamp(project):
+    """The watcher reaches a not-yet-open document through `body()`, whose
+    fold records the outside edit; inside a tick the fold says so and
+    carries the tick's stamp rather than the stopped-server sentence."""
+    store, file_id = _open(project)
+    store.close()
+    (project.root / "main.tex").write_text("Pulled while running.\n")
+
+    session = _Recorder()
+    again = CollabStore(project, session)
+    again.adopt()
+    with again.live_outside_edits("outside:4242"):
+        assert str(again.body(file_id)) == "Pulled while running.\n"
+    assert session.detail == [{
+        "path": "main.tex", "text": "Pulled while running.\n",
+        "why": "changed outside NextTex", "op": "edit", "source": "outside:4242",
+    }]
+    # And the labels go back to the fold's own once the tick is over.
+    assert again.outside_why == "changed while NextTex was not running"
+    assert again.outside_source == ""
+    again.close()
+
+
+def test_a_file_the_watcher_sees_go_ends_its_history_with_a_version(project):
+    """An `rm` in a terminal reaches the store as a sighting, then a flush
+    that finds the file still absent flags the record; the flag used to be
+    all that happened, so the history ended at the last save rather than
+    at what the file held when it went."""
+    session = _Recorder()
+    store, file_id = _open(project, session)
+    store.flush()
+    (project.root / "main.tex").unlink()
+
+    with store.live_outside_edits("outside:7"):
+        assert store.ingest("main.tex", None, gone=True)
+    # Twice: a sighting naming half the project or more is held for one
+    # more flush and the root looked at again, and this project is one file.
+    store.flush()
+    store.flush()
+    assert store.files[file_id].get("trashed") is True
+    deletions = [d for d in session.detail if d["op"] == "delete"]
+    assert deletions == [{
+        "path": "main.tex", "text": "The chapter.\n",
+        "why": "deleted outside NextTex", "op": "delete", "source": "outside:7",
+    }]
+    store.close()
+
+
+def test_a_file_found_missing_by_the_adopt_walk_is_flagged_without_a_version(project):
+    """The other feeder of the pending set: `adopt()` finding a record whose
+    file is not on disk. That file went while nothing was running, its
+    last state is not known here, and nothing is recorded for it."""
+    session = _Recorder()
+    store, file_id = _open(project, session)
+    store.flush()
+    (project.root / "main.tex").unlink()
+    store.adopt()
+    store.flush()
+    store.flush()
+    assert store.files[file_id].get("trashed") is True
+    assert [d for d in session.detail if d["op"] == "delete"] == []
+    store.close()

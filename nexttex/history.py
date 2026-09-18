@@ -99,6 +99,15 @@ def slug_for(relative_path: str) -> str:
 #: What the store writes into `format` once a history is keyed by file id.
 FORMAT = "2"
 
+#: The `source` a version carries when the watcher recorded it: the tick's
+#: stamp, `outside:<ms>`, shared by every file that tick touched.
+OUTSIDE = "outside:"
+
+
+def _source_class(source: str) -> str:
+    """Which sources coalesce with which: every watcher tick is one."""
+    return OUTSIDE if source.startswith(OUTSIDE) else source
+
 
 @dataclass
 class Version:
@@ -748,8 +757,13 @@ class History:
                 # the one that saved second replaced the other's version --
                 # so the paragraph it overwrote was gone from the history as
                 # well as from the file.  A burst only collapses within one
-                # window.
-                and previous.source == source
+                # window.  Every watcher tick is its own source, so that the
+                # timeline can fold a tick's files into one row, and the
+                # ticks are one class here: a vim user saving every ten
+                # seconds gets one version per window like typing does, and
+                # the later stamp wins, which is the tick the timeline then
+                # shows it under.
+                and _source_class(previous.source) == _source_class(source)
                 # "replace" is deliberately excluded, which is the whole
                 # reason it is not just an edit.  Two uploads of the same
                 # figure a minute apart are both "you" and both inside this
