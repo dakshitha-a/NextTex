@@ -173,3 +173,23 @@ describe("locateWord, on a heading", () => {
     expect(near(7, { word: "2" })).toBeNull();
   });
 });
+
+describe("locateWord, on plain prose", () => {
+  // A Markdown file's line, where `%` is a percent sign and nothing is a
+  // key.  The LaTeX reading blanks everything after the `%`, and it is
+  // what the Markdown pane's double-click would otherwise get.
+  const PROSE = ["# Findings", "", "About 50% of users read on, and 50% do not."];
+  const readProse = (line: number) => PROSE[line - 1] ?? "";
+  const near = (hint: Parameters<typeof locateWord>[3]) =>
+    locateWord(readProse, PROSE.length, 3, hint);
+
+  it("keeps the words after a percent sign when told the source is plain", () => {
+    expect(near({ word: "users", plain: true })).toEqual({ line: 3, column: 14 });
+    expect(near({ word: "read", plain: true })).toEqual({ line: 3, column: 20 });
+  });
+
+  it("would lose them under the LaTeX reading, which is why the flag exists", () => {
+    expect(near({ word: "users" })).toBeNull();
+    expect(near("read")).toBeNull();
+  });
+});

@@ -36,6 +36,10 @@ export type WordHint = {
   word: string;
   context?: string;
   heading?: boolean;
+  /** The source is prose and not LaTeX, so nothing in it is a key or a
+   *  comment: a Markdown line saying "50% of users" keeps its "users",
+   *  where the LaTeX reading would blank everything after the `%`. */
+  plain?: boolean;
 };
 
 /** Ligatures a PDF renders as one glyph and a `.tex` file spells as two.
@@ -147,6 +151,9 @@ export function locateWord(
   const hint: WordHint = typeof raw === "string" ? { word: raw } : raw;
   const word = normaliseWord(hint.word);
   if (totalLines < 1) return null;
+  // What a line looks like once only its prose is left.  For LaTeX that
+  // blanks keys and comments; for plain prose there are none to blank.
+  const prose = hint.plain ? (text: string) => text : stripKeys;
   // A stale PDF can name a line the file no longer has -- the source was
   // shortened and not yet rebuilt. Start from the nearest line that exists
   // rather than searching a range entirely outside the document.
@@ -197,7 +204,7 @@ export function locateWord(
     for (const line of order(radius, true)) {
       const text = readLine(line);
       if (!isHeadingLine(text)) continue;
-      const found = stripKeys(text).search(pattern);
+      const found = prose(text).search(pattern);
       if (found >= 0) return { line, column: found + 1 };
     }
   }
@@ -208,7 +215,7 @@ export function locateWord(
   const votes = contextWords(hint.context, word);
   let best: { line: number; column: number; score: number } | null = null;
   for (const line of lines) {
-    const text = stripKeys(readLine(line));
+    const text = prose(readLine(line));
     const found = text.search(pattern);
     if (found < 0) continue;
     if (!votes.length) return { line, column: found + 1 };

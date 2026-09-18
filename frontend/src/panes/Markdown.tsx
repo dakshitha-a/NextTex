@@ -1,6 +1,8 @@
 import { memo, useMemo } from "react";
 import { useStore } from "../store";
-import { inline, parseBlocks, same, type Block } from "./prose";
+import type { WordHint } from "./locate-word";
+import { lineOf, sameWithLines } from "./markdown-source";
+import { inline, parseBlocks, type Block } from "./prose";
 
 /** A Markdown file, rendered as it is typed.
  *
@@ -26,6 +28,13 @@ import { inline, parseBlocks, same, type Block } from "./prose";
  *  and a measure of about seventy characters: it is a page being read,
  *  not a panel.  Unlike the chat's rendering the headings keep their
  *  levels, because a document's structure is what a preview of it is for.
+ *
+ *  And like the page, a double-click on it goes to the source.  The page
+ *  asks SyncTeX; this pane asks nobody, because the parser read the
+ *  file's lines itself and every block carries the one it starts on, in
+ *  `data-line`, with each list item carrying its own.  The word the
+ *  second click selected says which line of a paragraph the click was
+ *  on, and the editor puts the caret on that word.
  */
 
 const HEADING = [
@@ -40,11 +49,18 @@ const Rendered = memo(function Rendered({ block, id }: { block: Block; id: strin
   if (block.kind === "heading") {
     const level = Math.min(Math.max(block.level, 1), 4);
     const Tag = `h${level}` as "h1" | "h2" | "h3" | "h4";
-    return <Tag className={`${HEADING[level]} text-ink`}>{inline(block.text, id)}</Tag>;
+    return (
+      <Tag className={`${HEADING[level]} text-ink`} data-line={block.line}>
+        {inline(block.text, id)}
+      </Tag>
+    );
   }
   if (block.kind === "code") {
     return (
-      <pre className="t-code-sm overflow-x-auto rounded-[3px] bg-surface-2 p-2 text-ink">
+      <pre
+        className="t-code-sm overflow-x-auto rounded-[3px] bg-surface-2 p-2 text-ink"
+        data-line={block.line}
+      >
         {block.text}
       </pre>
     );
@@ -52,24 +68,39 @@ const Rendered = memo(function Rendered({ block, id }: { block: Block; id: strin
   if (block.kind === "list") {
     const Tag = block.ordered ? "ol" : "ul";
     return (
-      <Tag className={`flex flex-col gap-1 pl-6 ${block.ordered ? "list-decimal" : "list-disc"}`}>
+      <Tag
+        className={`flex flex-col gap-1 pl-6 ${block.ordered ? "list-decimal" : "list-disc"}`}
+        data-line={block.line}
+      >
         {block.items.map((item, index) => (
-          <li key={`${id}-${index}`}>{inline(item, `${id}-${index}`)}</li>
+          <li key={`${id}-${index}`} data-line={block.lines[index]}>
+            {inline(item, `${id}-${index}`)}
+          </li>
         ))}
       </Tag>
     );
   }
   if (block.kind === "quote") {
     return (
-      <blockquote className="border-l-2 border-line pl-3 italic text-ink-2">
+      <blockquote className="border-l-2 border-line pl-3 italic text-ink-2" data-line={block.line}>
         {inline(block.text, id)}
       </blockquote>
     );
   }
-  return <p className="whitespace-pre-wrap">{inline(block.text, id)}</p>;
-}, same);
+  return (
+    <p className="whitespace-pre-wrap" data-line={block.line}>
+      {inline(block.text, id)}
+    </p>
+  );
+}, sameWithLines);
 
-export default function Markdown() {
+export default function Markdown({
+  onNavigate,
+}: {
+  /** A double-click on the rendering: the file, the line it landed on,
+   *  and the word, for the caret to find on that line. */
+  onNavigate?: (path: string, line: number, hint: WordHint) => void;
+}) {
   const tab = useStore((s) => s.markdown);
   const source = useStore((s) => s.markdownSource);
   // The text for the tab's file, and nothing for another file's: the
@@ -77,6 +108,23 @@ export default function Markdown() {
   const text = tab && source && source.path === tab.path ? source.text : "";
   const blocks = useMemo(() => parseBlocks(text), [text]);
   const name = tab?.path.split("/").pop() ?? "";
+
+  const onDoubleClick = (event: React.MouseEvent) => {
+    if (!tab || !onNavigate) return;
+    const target = (event.target as HTMLElement).closest("[data-line]") as HTMLElement | null;
+    if (!target) return;
+    // Read before anything else can clear it: the second click selected
+    // the word, and that word is what says which line of a paragraph
+    // this was, and where on it the caret should land.
+    const word = String(window.getSelection() ?? "");
+    const line = Number(target.dataset.line);
+    if (!Number.isFinite(line) || line < 1) return;
+    // The list item's line is its own; every other element's is its
+    // block's first, and the word picks the line inside the block.
+    const block = target.tagName === "LI" ? undefined : blocks.find((b) => b.line === line);
+    onNavigate(tab.path, block ? lineOf(block, word) : line, { word, plain: true });
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-surround" data-testid="markdown-view">
       <div className="min-h-0 flex-1 overflow-auto p-5">
@@ -88,6 +136,8 @@ export default function Markdown() {
         <article
           className="nx-page nx-theme-light nx-theme-white t-prose mx-auto flex max-w-[72ch] flex-col gap-3 px-[44px] py-[40px] text-ink"
           aria-label={name ? `${name}, rendered` : undefined}
+          title={onNavigate ? "Double-click to go to this line in the source" : undefined}
+          onDoubleClick={onDoubleClick}
         >
           {blocks.length ? (
             blocks.map((block, index) => (

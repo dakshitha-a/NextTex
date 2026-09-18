@@ -2600,7 +2600,9 @@ export default function App() {
               front of the page, never instead of it. */}
           {markdown ? (
             <div className={previewShowing === "markdown" ? "contents" : "hidden"}>
-              <Markdown />
+              {/* The same road the page's double-click takes: the file,
+                  the line, and the word for the caret to find on it. */}
+              <Markdown onNavigate={(path, line, hint) => openFile(path, line, hint)} />
             </div>
           ) : null}
           <div

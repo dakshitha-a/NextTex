@@ -656,8 +656,10 @@ A Markdown file gets the same treatment as a script: open a `README.md` or a
 set of notes and its rendering joins the preview strip as a tab of its own,
 following your typing a moment behind, while the typeset page waits behind it
 for the next `.tex` you open. Choosing its tab brings the file to the source
-pane, as a document's tab does. A figure opens whole, however large, with a
-zoom that steps from what fits and a Download beside it.
+pane, as a document's tab does, and a double-click on a paragraph puts the
+caret on that word in the source, as it does on the page. A figure opens
+whole, however large, with a zoom that steps from what fits and a Download
+beside it.
 
 The two strips keep each other tidy. Stop previewing a document and the files
 that belong to it, its chapters, its bibliography, its own root file, close

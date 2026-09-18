@@ -8,12 +8,17 @@ import { memo, useMemo, useState, type ReactNode } from "react";
  *  literal text the model wrote, which is the honest failure mode.
  */
 
+/** Every block carries `line`, the 1-based source line it starts on, and
+ *  a list carries one per item.  The chat never reads them; the Markdown
+ *  pane does, so a double-click on the rendering can say which line of
+ *  the file it landed on, the way SyncTeX does for the page.  A code
+ *  block's line is its opening fence, so its text begins one below. */
 export type Block =
-  | { kind: "paragraph"; text: string }
-  | { kind: "code"; text: string; language: string }
-  | { kind: "heading"; text: string; level: number }
-  | { kind: "list"; items: string[]; ordered: boolean }
-  | { kind: "quote"; text: string };
+  | { kind: "paragraph"; text: string; line: number }
+  | { kind: "code"; text: string; language: string; line: number }
+  | { kind: "heading"; text: string; level: number; line: number }
+  | { kind: "list"; items: string[]; lines: number[]; ordered: boolean; line: number }
+  | { kind: "quote"; text: string; line: number };
 
 export function parseBlocks(source: string): Block[] {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
@@ -22,6 +27,7 @@ export function parseBlocks(source: string): Block[] {
 
   while (index < lines.length) {
     const line = lines[index];
+    const at = index + 1;
 
     if (line.startsWith("```")) {
       const language = line.slice(3).trim();
@@ -32,7 +38,7 @@ export function parseBlocks(source: string): Block[] {
         index += 1;
       }
       index += 1;   // the closing fence
-      blocks.push({ kind: "code", text: body.join("\n"), language });
+      blocks.push({ kind: "code", text: body.join("\n"), language, line: at });
       continue;
     }
 
@@ -42,6 +48,7 @@ export function parseBlocks(source: string): Block[] {
         kind: "heading",
         level: heading[1].length,
         text: heading[2],
+        line: at,
       });
       index += 1;
       continue;
@@ -50,11 +57,13 @@ export function parseBlocks(source: string): Block[] {
     if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) {
       const ordered = /^\s*\d/.test(line);
       const items: string[] = [];
+      const itemLines: number[] = [];
       while (index < lines.length && /^\s*([-*+]|\d+[.)])\s+/.test(lines[index])) {
         items.push(lines[index].replace(/^\s*([-*+]|\d+[.)])\s+/, ""));
+        itemLines.push(index + 1);
         index += 1;
       }
-      blocks.push({ kind: "list", items, ordered });
+      blocks.push({ kind: "list", items, lines: itemLines, ordered, line: at });
       continue;
     }
 
@@ -64,7 +73,7 @@ export function parseBlocks(source: string): Block[] {
         body.push(lines[index].slice(2));
         index += 1;
       }
-      blocks.push({ kind: "quote", text: body.join("\n") });
+      blocks.push({ kind: "quote", text: body.join("\n"), line: at });
       continue;
     }
 
@@ -84,7 +93,7 @@ export function parseBlocks(source: string): Block[] {
       body.push(lines[index]);
       index += 1;
     }
-    blocks.push({ kind: "paragraph", text: body.join("\n") });
+    blocks.push({ kind: "paragraph", text: body.join("\n"), line: at });
   }
 
   return blocks;
@@ -140,6 +149,12 @@ export function inline(text: string, keyPrefix: string): ReactNode[] {
  *  last is unchanged, and this is the difference between React rebuilding
  *  the whole message twenty times a second and rebuilding its final
  *  paragraph.
+ *
+ *  The source lines are deliberately not compared: the chat draws
+ *  nothing from them, and a message re-parsed after a line was added
+ *  above a block would otherwise redraw every block below it for no
+ *  visible change.  The Markdown pane, which does draw them, compares
+ *  them as well (`sameWithLines` in `markdown-source.ts`).
  */
 export function same(before: { block: Block }, after: { block: Block }): boolean {
   const one = before.block;

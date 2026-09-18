@@ -111,6 +111,39 @@ test("choosing the Markdown tab brings its file to the source pane", async ({
     .toBeVisible();
 });
 
+test("double-clicking the rendering puts the caret on that word in the source", async ({
+  app, project, page,
+}) => {
+  // The page has SyncTeX for this; the rendering knows its lines itself.
+  // NOTES puts "weight" on line 3 at column 25, "another" on line 6 and
+  // the code on line 11, so the claim can be exact where the page's
+  // spec, which depends on the typesetting, cannot.
+  writeFileSync(join(project.root, "notes.md"), NOTES);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await page.locator('[role="tree"] [data-path="notes.md"]').click();
+  const view = page.getByTestId("markdown-view");
+  await expect(view.locator("strong")).toHaveText("weight", { timeout: 15_000 });
+
+  const caret = () => page.getByText(/^Ln \d+, Col \d+$/).innerText();
+  await view.locator("strong").dblclick();
+  await expect.poll(caret).toBe("Ln 3, Col 25");
+
+  await view.locator("li").nth(1).dblclick();
+  await expect.poll(caret).toMatch(/^Ln 6, Col \d+$/);
+
+  await view.locator("pre").dblclick();
+  await expect.poll(caret).toMatch(/^Ln 11, Col \d+$/);
+
+  // The caret is in the editor now, on the word, and the file is still
+  // the one in front: nothing else moved.
+  await expect(page.locator(".cm-content")).toBeFocused();
+  await expect(page.locator('[data-tab][data-path="notes.md"] [aria-current="true"]'))
+    .toBeVisible();
+});
+
 test("an empty Markdown file says so rather than showing a blank page", async ({
   app, project, page,
 }) => {

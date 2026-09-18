@@ -7791,3 +7791,32 @@ chapter that includes the figure is being written, and pulling the
 source to the script would take the writer away from what they were
 doing. `e2e/specs/markdown-preview.spec.ts` puts `main.tex` in front,
 chooses the Markdown tab, and finds `notes.md` the source tab in front.
+
+### A double-click on the rendering goes to its line
+
+The page has had this since §6, through SyncTeX and a round trip to the
+server, and it is the thing that makes a preview beside the source worth
+more than one in another window. The Markdown pane needs no server for
+it: the parser read the file's lines itself, so every block carries the
+line it starts on and every list item its own, in `data-line`, and a
+double-click on the rendering names the line. Which line of a paragraph
+that spans several is answered by the word the second click selected,
+looked for on the block's own lines; the editor then puts the caret on
+that word with the same `locateWord` the page's jump uses, told the
+source is plain prose so a `%` on the line is a percent sign and not a
+comment, the case that would otherwise blank "users" out of "50% of
+users". A code block's text is one line below its fence, and a click on
+punctuation or a bullet lands at the block's first line.
+
+The chat's comparison of two blocks still ignores the lines on purpose,
+since a message redrawn for a line inserted above would redraw every
+block below it for no visible change; the pane compares them as well,
+because it writes them into the DOM and a paragraph that moved down has
+to be drawn again or its double-click would name the old line.
+`prose-lines.test.ts` holds the line of every kind, of each list item,
+of a fence, and under Windows line endings and runs of blanks;
+`markdown-source.test.ts` holds the word's line inside a block and the
+comparison; `locate-word.test.ts` holds the plain case both ways; and
+the browser spec double-clicks the bold word and finds the caret at
+exactly its line and column, which the page's spec, depending on the
+typesetting, cannot claim.
