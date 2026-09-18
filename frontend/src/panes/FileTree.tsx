@@ -754,10 +754,10 @@ export default function FileTree({
             ) : (
             [
               ["rename", "Rename"],
-              // The same verb the tab strip offers, for the same file.  A
-              // folder is left out: copying a tree has failure modes of
-              // its own and the route refuses it.
-              ...(!isDirectory && onDuplicate ? [["duplicate", "Duplicate"]] : []),
+              // The same verb the tab strip offers, for the same file, and
+              // for a folder since the backlog run: the route copies the
+              // tree with links and machinery left out.
+              ...(onDuplicate ? [["duplicate", "Duplicate"]] : []),
               ["move", "Move to…"],
               // A .bib file's reason to have a menu opened on it at all is
               // its contents, which is why this sits with the document

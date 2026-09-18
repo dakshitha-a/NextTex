@@ -67,7 +67,7 @@ from nexttex.paths import shares_home, state_home
 from nexttex.trash import Trash
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
-    is_ours, kind_of, under_ignored_directory,
+    ignored_directory, is_ours, kind_of, under_ignored_directory,
 )
 from nexttex.symbols import walk_project
 from nexttex import deps, lint_explain, search, updates
@@ -2633,26 +2633,91 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
     return {"ok": True}
 
 
+def _copy_tree_skips():
+    """What `shutil.copytree` leaves out of a folder's copy.
+
+    Machinery rather than the writer's work: the ignored directories
+    (`.git`, a virtual environment, `.nexttex`), NextTex's own files and
+    the scratch suffixes a write in flight leaves.  The build directory
+    needs no rule, since it sits in the root and the root is refused.  And
+    every symlink, outright: a link copied as a link still points where it
+    pointed, which may be outside the project, and the tree would list it
+    as a file of the copy that the fence then refuses to open.
+    """
+    def skip(directory: str, names: list[str]) -> set[str]:
+        here = Path(directory)
+        left: set[str] = set()
+        for name in names:
+            path = here / name
+            if path.is_symlink() or is_ours(name):
+                left.add(name)
+            elif name.endswith((".nexttex-tmp", ".part")):
+                left.add(name)
+            elif path.is_dir() and ignored_directory(path):
+                left.add(name)
+        return left
+
+    return skip
+
+
 @app.post("/api/projects/{project_id}/file/duplicate")
 async def duplicate_entry(project_id: str, path: str = Body(..., embed=True)):
-    """Copy a file beside itself.
+    """Copy a file, or a folder, beside itself.
 
     The name is chosen here rather than by the caller, for the reason
     `unique_name` exists at all: it is one rule in one place, and the
     interface quotes the answer back rather than guessing at it.
+
+    A folder is copied off the loop, since a folder of figures is as many
+    megabytes as it is, with links and machinery left out (see
+    `_copy_tree_skips`), and each text file in the copy gets a first
+    version saying where it came from, recorded in the same thread rather
+    than on the loop forty times over.  The root itself is refused: a copy
+    of the project inside the project would carry `.nexttex/` and the
+    build directory into a child, and nothing good follows from that.
     """
     session = session_for(project_id)
     source, path = _safe_rel(session, path)
     if not source.exists():
         raise HTTPException(404, "no such file")
-    if source.is_dir():
-        raise HTTPException(400, "a folder cannot be duplicated")
+    if source == session.project.root:
+        raise HTTPException(400, "the project itself cannot be duplicated")
     # Every keystroke goes into the shared document and the file on disk
     # trails it by the debounce, so a copy taken without this would be a copy
     # of the chapter as it was a moment ago rather than as it is -- and the
     # writer would have no way of telling which they had got.
     session.collab.flush()
     target = unique_name(source, "copy")
+    if source.is_dir():
+        def copy_tree() -> list[str]:
+            shutil.copytree(
+                source, target, symlinks=False, copy_function=shutil.copy2,
+                ignore=_copy_tree_skips(),
+            )
+            copied: list[str] = []
+            for copy in sorted(target.rglob("*")):
+                if not copy.is_file():
+                    continue
+                relative = session.project.relative(copy)
+                copied.append(relative)
+                text = read_text(copy)
+                if text is not None and kind_of(copy.name) == "text":
+                    origin = source / copy.relative_to(target)
+                    session.record_version(
+                        copy, text, by="you", op="create",
+                        why=f"copied from {session.project.relative(origin)}",
+                    )
+            return copied
+        try:
+            copied = await asyncio.to_thread(copy_tree)
+        except OSError as error:
+            shutil.rmtree(target, ignore_errors=True)
+            raise HTTPException(400, f"could not duplicate: {error}")
+        to = session.project.relative(target)
+        await session.events.publish(
+            {"type": "files_changed", "paths": copied or [to], "structural": True}
+        )
+        return {"ok": True, "path": to}
     try:
         # The bytes, not the text.  A figure that has been through a UTF-8
         # decode is not that figure any more.

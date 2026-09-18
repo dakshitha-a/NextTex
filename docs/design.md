@@ -6649,8 +6649,14 @@ The tab strip had *Duplicate* and the tree did not, on the argument that
 the menu asked for was the strip's and a row menu already holding
 twelve items was not somewhere to add a thirteenth without being asked.
 The backlog was asked. It sits under *Rename*, the same route and the
-same naming rule, and only on a file's row: copying a folder has failure
-modes of its own and the route refuses it.
+same naming rule. It was a file's row only at first, copying a folder
+having failure modes of its own, and the backlog run decided them: a
+folder is copied with its symlinks, its `.git` and other machinery and
+NextTex's own files left out, named whole (`v1.2 (copy)`, not
+`v1 (copy).2`), and each text file in the copy begins its history with
+a version saying which file it was copied from. The project's root is
+the one folder that cannot be duplicated, since the copy would carry
+`.nexttex/` and the build directory into a child of itself.
 
 ### What this window followed survives its reload
 

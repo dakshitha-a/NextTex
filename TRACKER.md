@@ -31,10 +31,6 @@ decisions recorded so nobody reopens them by accident. The eight are here,
 each still carrying its reason, in the order they are being done, and each
 leaves this list in the commit that finishes it.
 
-- [ ] **A folder cannot be duplicated.** Copying a tree has its own failure
-      modes and deserves its own decision; the route refuses it and neither
-      menu offers it. Duplicate for a file is on the tab strip and in the
-      tree since the backlog run.
 - [ ] **An outside edit made while the server is running is not a
       version.** The watcher folds a `git pull` or another editor's save
       into the document through `ingest`, and nothing records what the

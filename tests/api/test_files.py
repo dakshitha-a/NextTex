@@ -182,8 +182,51 @@ def test_duplicating_a_figure_copies_its_bytes(client, opened, project_dir):
     assert (project_dir / "figures" / "plot (copy).png").read_bytes() == raw
 
 
-def test_duplicating_a_folder_is_refused(client, opened):
-    assert duplicate(client, opened["id"], "figures").status_code == 400
+def test_duplicating_a_folder_copies_its_files_and_versions_the_text(client, opened, project_dir):
+    """A folder used to be refused. The copy carries the writer's files,
+    leaves out links and machinery, and each text file in it starts its
+    history with where it came from."""
+    folder = project_dir / "chapters"
+    (folder / "figs").mkdir(parents=True)
+    (folder / "one.tex").write_text("\\section{One}", encoding="utf-8")
+    (folder / "figs" / "plot.png").write_bytes(b"\x89PNG\r\n")
+    (folder / "__pycache__").mkdir()
+    (folder / "__pycache__" / "x.pyc").write_bytes(b"")
+    (folder / ".DS_Store").write_bytes(b"")
+    (folder / "hosts").symlink_to("/etc/hostname")
+    (folder / "notes.tex.part").write_text("half", encoding="utf-8")
+
+    answer = duplicate(client, opened["id"], "chapters")
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["path"] == "chapters (copy)"
+    copy = project_dir / "chapters (copy)"
+    assert (copy / "one.tex").read_text(encoding="utf-8") == "\\section{One}"
+    assert (copy / "figs" / "plot.png").read_bytes() == b"\x89PNG\r\n"
+    assert not (copy / "__pycache__").exists()
+    assert not (copy / ".DS_Store").exists()
+    assert not (copy / "hosts").exists() and not (copy / "hosts").is_symlink()
+    assert not (copy / "notes.tex.part").exists()
+
+    versions = client.get(
+        f"/api/projects/{opened['id']}/history", params={"path": "chapters (copy)/one.tex"}
+    ).json()["versions"]
+    assert len(versions) == 1
+    assert versions[0]["op"] == "create"
+    assert versions[0]["why"] == "copied from chapters/one.tex"
+    # The figure has no text and gets no version.
+    assert client.get(
+        f"/api/projects/{opened['id']}/history", params={"path": "chapters (copy)/figs/plot.png"}
+    ).json()["versions"] == []
+
+
+def test_duplicating_a_folder_twice_numbers_the_copies(client, opened, project_dir):
+    assert duplicate(client, opened["id"], "figures").json()["path"] == "figures (copy)"
+    assert duplicate(client, opened["id"], "figures").json()["path"] == "figures (copy 2)"
+
+
+def test_duplicating_the_project_itself_is_refused(client, opened):
+    for root in ("", "."):
+        assert duplicate(client, opened["id"], root).status_code == 400
 
 
 def test_duplicating_something_that_is_not_there(client, opened):

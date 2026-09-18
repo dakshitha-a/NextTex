@@ -1,6 +1,8 @@
 import { test, expect, openFolders } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { landed } from "../typing";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 /** Making files, and putting files in.
  *
@@ -400,7 +402,10 @@ test("a renamed file is still connected to the disk", async ({
   await landed(app, project, "typed after the rename", "paper.tex");
 });
 
-test("a file can be duplicated from its row in the tree", async ({ tab }) => {
+test("a file can be duplicated from its row in the tree, and so can a folder", async ({
+  tab, project,
+}) => {
+  writeFileSync(join(project.root, "figures", "plot.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   // The tab strip had Duplicate and the tree did not, on the argument that
   // a row menu holding twelve items is not somewhere to add a thirteenth
   // without being asked.  It was asked.  Same route, same naming rule.
@@ -409,8 +414,14 @@ test("a file can be duplicated from its row in the tree", async ({ tab }) => {
   await expect(tab.locator('[role="tree"] [data-path="main (copy).tex"]')).toBeVisible({
     timeout: 10_000,
   });
-  // A folder offers no such thing.
+  // And a folder, with the same verb: the copy appears beside it with
+  // the folder's files inside.
   await tab.getByLabel("Actions for figures").click();
-  await expect(tab.getByRole("button", { name: "Duplicate" })).toHaveCount(0);
-  await tab.keyboard.press("Escape");
+  await tab.getByRole("button", { name: "Duplicate" }).click();
+  const copy = tab.locator('[role="tree"] [data-path="figures (copy)"]');
+  await expect(copy).toBeVisible({ timeout: 10_000 });
+  await copy.click();
+  await expect(tab.locator('[role="tree"] [data-path^="figures (copy)/"]').first()).toBeVisible({
+    timeout: 10_000,
+  });
 });
