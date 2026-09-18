@@ -7211,3 +7211,13 @@ of …?* again instead of the menu. Closing the menu withdraws the question
 now, whichever way it closes. Found while the menu audit below was being
 written, by a recipe that opened the question, put it away and asked for
 the menu again.
+
+### The matched letters on the selected completion are ink
+
+The completion list marks the letters typed so far in `--hint`, and on
+the selected row, which is washed with `--hint-wash`, that put the accent
+on a tint of itself: 3.6:1 in the light theme, under the 4.5 that 12px
+text needs. On the selected row the matched letters are ink now and the
+weight alone says which they are, since the row's own highlight already
+says it is the one. The first finding of the menu audit below beyond the
+field it was written for.
