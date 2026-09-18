@@ -3784,6 +3784,52 @@ async def build_log(project_id: str, document: str = ""):
     }
 
 
+#: The publishers the search box offers, in the order the agent's tool
+#: tries them.  Named here so a source the route does not know is a 400
+#: rather than a KeyError inside the vendored script.
+SEARCH_SOURCES = ("crossref", "openalex", "semanticscholar")
+SEARCH_QUERY_MAX = 200
+
+
+@app.get("/api/projects/{project_id}/library/search")
+async def library_search(project_id: str, q: str, source: str = "crossref"):
+    """Papers matching a query, from a publisher's own record.
+
+    The agent has had this search since the literature tool landed; the
+    writer without an agent did not.  The same vendored script, on a
+    worker thread since it is a blocking request, capped at ten rows: the
+    box beside the file list is for finding one paper, and the DOI on
+    each row goes through the add-by-DOI path the section already has.
+    A publisher that will not answer is a 502 with its words, not a 500.
+    """
+    session_for(project_id)
+    query = (q or "").strip()
+    if not query:
+        raise HTTPException(400, "type something to search for")
+    if len(query) > SEARCH_QUERY_MAX:
+        raise HTTPException(400, f"a search is at most {SEARCH_QUERY_MAX} characters")
+    if source not in SEARCH_SOURCES:
+        raise HTTPException(400, f"source must be one of {', '.join(SEARCH_SOURCES)}")
+    try:
+        found = await asyncio.to_thread(references.search, query, source=source, limit=10)
+    except Exception as error:
+        raise HTTPException(502, f"{source} did not answer: {error}")
+    return {
+        "source": source,
+        "results": [
+            {
+                "doi": str(item.get("doi") or ""),
+                "title": str(item.get("title") or ""),
+                "first": str(item.get("first") or ""),
+                "authors": int(item.get("n_authors") or 0),
+                "year": str(item.get("year") or ""),
+                "journal": str(item.get("journal") or ""),
+            }
+            for item in found
+        ],
+    }
+
+
 @app.post("/api/projects/{project_id}/library/add")
 async def library_add(project_id: str, doi: str = Body(..., embed=True)):
     """One reference, from a DOI the writer has in front of them.

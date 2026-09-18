@@ -7630,3 +7630,30 @@ across two files and the bibliography and finds a version for each;
 `e2e/specs/rename.spec.ts` renames from the tooltip with the
 confirmation, reads both files and the histories, and opens the rename
 by F2 and the list by the other verb.
+
+## 42. The first roadmap run: papers, provider and window
+
+The roadmap's third push.
+
+### Search the literature yourself
+
+The agent can search Crossref, OpenAlex and Semantic Scholar and the
+writer without an agent could not, which is the one place the README's
+promise that everything the agent does with references is yours without
+one did not hold. The Papers section at the foot of the file list has a
+search box above its DOI box now: a query, a chooser for the publisher,
+Enter or *Search*, and each result as a row with its title, its first
+author with "et al." when there are more, its year and its venue, and an
+*Add* that goes through the same add-by-DOI path as the box beneath, so
+what lands in the `.bib` is the publisher's own record either way; the
+row then shows the key it made, or the reason it could not. A record
+with no DOI says so in place of the button. The route asks the vendored
+search on a worker thread, ten rows, and a publisher that will not
+answer is a 502 with its words rather than a 500. The box is there
+whenever the project has a `.bib`, since that is where an *Add* would
+go.
+
+`tests/api/test_library_routes.py` stubs the publisher and holds the
+row shape, the refusals and the 502; `e2e/specs/papers.spec.ts`
+intercepts both routes, searches from the box, reads the rows, adds one
+and finds its key beside it.

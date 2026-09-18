@@ -827,8 +827,11 @@ bibliography against the record it claims to come from. A fabricated reference
 is an academic integrity failure, so the defence is structural rather than a
 matter of care: there is no path from the model's memory to your `.bib` file.
 
-Both of those are yours without an agent as well, in the Papers section at
-the foot of the file list. Paste a DOI and *Add*, and the entry arrives from
+All of that is yours without an agent as well, in the Papers section at
+the foot of the file list. Type a few words into *Search the literature*,
+choose Crossref, OpenAlex or Semantic Scholar, and each result carries an
+*Add* that puts the publisher's record into your `.bib` and shows the key
+it made. Paste a DOI and *Add*, and the entry arrives from
 the publisher with its title, author and year shown, so you can check it
 against the page in front of you. *Check these against their records*
 re-reads the whole bibliography and lists every entry that disagrees with

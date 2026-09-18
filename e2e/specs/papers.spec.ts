@@ -139,3 +139,51 @@ test("a DOI on its own is enough, and the entries can be checked", async ({
   await expect(tab.getByTestId("papers-report")).toContainText("knuth1984");
   await expect(tab.getByTestId("papers-report")).toContainText("1986");
 });
+
+test("the literature can be searched without an agent, and a result added by its DOI", async ({
+  tab, page,
+}) => {
+  /* The agent has had this search since its literature tool landed; the
+     writer without an agent did not.  Both routes are answered here: they
+     reach a publisher, and a browser test must not. */
+  const asked: string[] = [];
+  await page.route("**/library/search?*", (route) => {
+    asked.push(new URL(route.request().url()).search);
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        source: "openalex",
+        results: [
+          { doi: "10.1038/nature14539", title: "Deep learning", first: "LeCun", authors: 3, year: "2015", journal: "Nature" },
+          { doi: "", title: "A record with no DOI", first: "Nobody", authors: 1, year: "", journal: "" },
+        ],
+      }),
+    });
+  });
+  await page.route("**/library/add", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ added: true, key: "LeCun2015deep", title: "Deep learning", author: "LeCun", year: "2015" }),
+    }),
+  );
+
+  const panel = tab.getByTestId("papers-panel");
+  await expect(panel).toBeVisible({ timeout: 20_000 });
+  await panel.getByRole("button", { name: /Papers/ }).click();
+  await tab.getByTestId("papers-source").selectOption("openalex");
+  await tab.getByTestId("papers-search").fill("deep learning");
+  await tab.keyboard.press("Enter");
+
+  const rows = tab.getByTestId("papers-result");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("Deep learning");
+  await expect(rows.nth(0)).toContainText("LeCun et al., 2015, Nature");
+  await expect(rows.nth(1)).toContainText("no DOI");
+  expect(asked[0]).toContain("q=deep%20learning");
+  expect(asked[0]).toContain("source=openalex");
+
+  await rows.nth(0).getByTestId("papers-result-add").click();
+  await expect(rows.nth(0).getByTestId("papers-result-added")).toHaveText("LeCun2015deep");
+});

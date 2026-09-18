@@ -33,6 +33,16 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState("");
   const [checking, setChecking] = useState(false);
+  /** The search box: a query, which publisher, what came back, and the
+   *  key an Add produced beside the row it produced it from. */
+  const [query, setQuery] = useState("");
+  const [source, setSource] = useState<"crossref" | "openalex" | "semanticscholar">("crossref");
+  const [results, setResults] = useState<
+    { doi: string; title: string; first: string; authors: number; year: string; journal: string }[] | null
+  >(null);
+  const [searching, setSearching] = useState(false);
+  const [searchSaid, setSearchSaid] = useState("");
+  const [addedKeys, setAddedKeys] = useState<Record<string, string>>({});
   const [report, setReport] = useState<
     { checked: number; problems: { key: string; issues: string[] }[] } | null
   >(null);
@@ -95,6 +105,37 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
       setAdded(error.message);
     } finally {
       setAdding(false);
+    }
+  };
+
+  const search = async () => {
+    if (!projectId || !query.trim()) return;
+    setSearching(true);
+    setSearchSaid("");
+    try {
+      const answer = await api.searchLiterature(projectId, query.trim(), source);
+      setResults(answer.results);
+      if (!answer.results.length) setSearchSaid("Nothing found.");
+    } catch (error: any) {
+      setResults(null);
+      setSearchSaid(error.message);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const addResult = async (doi: string) => {
+    if (!projectId || !doi) return;
+    setAddedKeys((current) => ({ ...current, [doi]: "…" }));
+    try {
+      const answer = await api.addByDoi(projectId, doi);
+      setAddedKeys((current) => ({
+        ...current,
+        [doi]: answer.added ? (answer.key ?? "added") : (answer.reason ?? "That did not work."),
+      }));
+      if (answer.added) onRefresh();
+    } catch (error: any) {
+      setAddedKeys((current) => ({ ...current, [doi]: error.message }));
     }
   };
 
@@ -184,11 +225,93 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
 
           {hasBib ? (
             <div className="mt-3 border-t border-line pt-2">
+              {/* The agent's literature search, for the writer without an
+                  agent.  Each row's Add goes through the same add-by-DOI
+                  path as the box below, so what lands in the .bib is the
+                  publisher's own record either way. */}
+              <label className="t-micro block text-ink-2" htmlFor="papers-search">
+                Search the literature
+              </label>
+              <div className="mt-1 flex gap-2">
+                <input
+                  id="papers-search"
+                  value={query}
+                  placeholder="deep learning nature 2015"
+                  data-testid="papers-search"
+                  className="t-code-sm min-w-0 flex-1 border-b border-line bg-transparent outline-none placeholder:text-ink-3 focus:border-pen"
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void search();
+                  }}
+                />
+                <select
+                  value={source}
+                  aria-label="Which publisher to ask"
+                  data-testid="papers-source"
+                  className="t-micro rounded-[3px] border border-line bg-surface px-1 text-ink-2"
+                  onChange={(event) => setSource(event.target.value as typeof source)}
+                >
+                  <option value="crossref">Crossref</option>
+                  <option value="openalex">OpenAlex</option>
+                  <option value="semanticscholar">Semantic Scholar</option>
+                </select>
+                <button
+                  className="quiet t-micro shrink-0"
+                  data-testid="papers-search-go"
+                  disabled={searching || !query.trim()}
+                  onClick={() => void search()}
+                >
+                  {searching ? "Asking…" : "Search"}
+                </button>
+              </div>
+              {searchSaid ? (
+                <p className="t-micro mt-1 text-ink-2" data-testid="papers-search-said">{searchSaid}</p>
+              ) : null}
+              {results && results.length ? (
+                <ul className="mt-1 max-h-[220px] overflow-auto" data-testid="papers-results">
+                  {results.map((row, index) => {
+                    const state = row.doi ? addedKeys[row.doi] : undefined;
+                    const who = [row.first + (row.authors > 1 ? " et al." : ""), row.year, row.journal]
+                      .filter(Boolean).join(", ");
+                    return (
+                      <li
+                        key={`${row.doi || row.title}:${index}`}
+                        className="flex items-start gap-2 border-t border-line py-[3px]"
+                        data-testid="papers-result"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="t-micro truncate text-ink" title={row.title}>{row.title}</p>
+                          <p className="t-micro truncate text-ink-3" title={who}>{who}</p>
+                        </div>
+                        {row.doi ? (
+                          state && state !== "…" ? (
+                            <span className="t-micro shrink-0 text-ink-2" data-testid="papers-result-added">
+                              {state}
+                            </span>
+                          ) : (
+                            <button
+                              className="quiet t-micro shrink-0"
+                              data-testid="papers-result-add"
+                              disabled={state === "…"}
+                              onClick={() => void addResult(row.doi)}
+                            >
+                              {state === "…" ? "Adding…" : "Add"}
+                            </button>
+                          )
+                        ) : (
+                          <span className="t-micro shrink-0 text-ink-3" title="No DOI on the record">no DOI</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+
               {/* Two things the README promises to somebody working
                   without an agent, both of which were agent tools and
                   nothing else. The entry always comes from the
                   publisher's own record; nothing here invents one. */}
-              <label className="t-micro block text-ink-2" htmlFor="papers-doi">
+              <label className="t-micro mt-3 block text-ink-2" htmlFor="papers-doi">
                 Add a paper by DOI
               </label>
               <div className="mt-1 flex gap-2">

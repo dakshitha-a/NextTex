@@ -100,3 +100,59 @@ def test_neither_route_works_without_a_bibliography(client, opened, monkeypatch)
         answer = client.post(f"/api/projects/{opened['id']}/{route}", json=payload)
         assert answer.status_code == 400, f"{route}: {answer.text}"
         assert "bib" in answer.json()["detail"]
+
+
+def test_the_search_box_asks_a_publisher_and_hands_back_rows_with_dois(client, opened, monkeypatch):
+    """The agent has had this search since its literature tool landed;
+    the writer without an agent did not.  The publisher is stubbed: a
+    route test must not reach one."""
+    asked = {}
+
+    def fake_search(query, *, source="crossref", author="", years="", limit=10):
+        asked.update(query=query, source=source, limit=limit)
+        return [
+            {"doi": "10.1038/nature14539", "title": "Deep learning", "first": "LeCun",
+             "n_authors": 3, "year": 2015, "journal": "Nature", "cites": 60000},
+            {"doi": "", "title": "No DOI here", "first": "Nobody", "n_authors": 1,
+             "year": None, "journal": "", "cites": None},
+        ]
+
+    monkeypatch.setattr(references, "search", fake_search)
+    answer = client.get(
+        f"/api/projects/{opened['id']}/library/search",
+        params={"q": "deep learning", "source": "openalex"},
+    )
+    assert answer.status_code == 200, answer.text
+    assert asked == {"query": "deep learning", "source": "openalex", "limit": 10}
+    body = answer.json()
+    assert body["source"] == "openalex"
+    assert body["results"][0] == {
+        "doi": "10.1038/nature14539", "title": "Deep learning", "first": "LeCun",
+        "authors": 3, "year": "2015", "journal": "Nature",
+    }
+    assert body["results"][1]["doi"] == "" and body["results"][1]["year"] == ""
+
+
+@pytest.mark.parametrize("params", [
+    {"q": ""},
+    {"q": "   "},
+    {"q": "x" * 201},
+    {"q": "fine", "source": "google"},
+])
+def test_a_search_that_cannot_be_asked_is_refused(client, opened, monkeypatch, params):
+    monkeypatch.setattr(references, "search", lambda *a, **k: pytest.fail("asked anyway"))
+    assert client.get(
+        f"/api/projects/{opened['id']}/library/search", params=params
+    ).status_code == 400
+
+
+def test_a_publisher_that_will_not_answer_is_a_502_with_its_words(client, opened, monkeypatch):
+    def down(*args, **kwargs):
+        raise RuntimeError("503 Service Unavailable")
+
+    monkeypatch.setattr(references, "search", down)
+    answer = client.get(
+        f"/api/projects/{opened['id']}/library/search", params={"q": "anything"}
+    )
+    assert answer.status_code == 502
+    assert "503" in answer.json()["detail"]

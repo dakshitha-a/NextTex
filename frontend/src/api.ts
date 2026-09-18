@@ -824,6 +824,13 @@ const api = {
     ),
   /** Rewrite every match. Each file that changes keeps a version in its
    *  history, which is the only undo a replace across a project has. */
+  /** Papers matching a query, from a publisher's own record; the DOI on
+   *  each goes through `addByDoi`. */
+  searchLiterature: (id: string, q: string, source: string) =>
+    request<{
+      source: string;
+      results: { doi: string; title: string; first: string; authors: number; year: string; journal: string }[];
+    }>(`/projects/${id}/library/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(source)}`),
   /** Every use of a label, a citation key or a macro, by the syntax. */
   references: (id: string, kind: SymbolKind, name: string) =>
     request<{ kind: SymbolKind; name: string; hits: SearchHit[]; commented: number }>(

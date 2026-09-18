@@ -32,13 +32,11 @@ The build went up as 2.8.0, with three interface fixes the writer's
 mid-run report turned up: a deleted file's tab closes, closing the tab
 in front shows the next, and a tab not in front follows its file.
 
-The editor, for 2.9.0, is done and is this push.
+The editor went up as 2.9.0.
 
 
 Papers, provider and window, for 2.10.0:
 
-- [ ] **Search the literature yourself.** A search box in the Papers
-      section with *Add* on each result.
 - [ ] **Local models through the OpenAI provider.** A base URL in the
       settings, with no key needed for a local server.
 - [ ] **The page in its own window.** The typeset page alone, live, for a
