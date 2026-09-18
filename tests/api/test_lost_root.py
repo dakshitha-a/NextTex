@@ -122,6 +122,35 @@ def test_a_file_written_before_the_watcher_started_is_adopted_when_it_does(clien
     assert versions[0]["source"].startswith("outside:")
 
 
+def test_typing_ahead_of_the_disk_is_not_mistaken_for_an_outside_edit(
+    client, opened, project_dir,
+):
+    """The document is ahead of the disk by the debounce whenever somebody
+    is typing, and the disk then holds NextTex's own last write. A watch
+    restart in that moment must not read the difference as an edit made
+    outside: nothing is folded, and a file with no history yet does not
+    begin it with a version so labelled."""
+    session = server_main.session_for(opened["id"])
+
+    async def type_a_line() -> str:
+        text = session.collab.body(session.collab.file_id_for("main.tex"))
+        text += "Typed, not yet on the disk.\n"
+        return str(text)
+
+    typed = client.portal.call(type_a_line)
+    assert (project_dir / "main.tex").read_text(encoding="utf-8") != typed
+
+    client.portal.call(server_main._adopt_what_appeared, [session])
+
+    async def document() -> str:
+        return str(session.collab.body(session.collab.file_id_for("main.tex")))
+
+    assert client.portal.call(document) == typed
+    assert client.get(
+        f"/api/projects/{opened['id']}/history", params={"path": "main.tex"}
+    ).json()["versions"] == []
+
+
 def test_an_edit_under_an_open_document_before_the_watcher_started_is_folded_in(
     client, opened, project_dir,
 ):

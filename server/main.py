@@ -447,12 +447,24 @@ async def _adopt_what_appeared(sessions) -> None:
                 record = collab.files.get(file_id)
                 if record is not None and not record.get("trashed"):
                     paths.add(str(record.get("path") or ""))
-            for relative, text in collab.open_texts().items():
+            # An open document whose file is no longer what NextTex last
+            # projected to it.  Not "differs from the document": the
+            # document is ahead of the disk by the debounce whenever
+            # somebody is typing, and the disk then holds NextTex's own
+            # last write, which is nothing to fold and, for a file with no
+            # history yet, would have been recorded as a change made
+            # outside under that label.  `last_projected` is what the
+            # store wrote or seeded, so a file that still matches it was
+            # left alone by everybody else.
+            for relative in collab.open_texts():
+                file_id = collab.file_id_for(relative)
+                if file_id is None:
+                    continue
                 try:
                     on_disk = read_text(session.project.resolve(relative))
                 except (OSError, ValueError):
                     continue
-                if on_disk is not None and on_disk != text:
+                if on_disk is not None and on_disk != collab.last_projected.get(file_id):
                     paths.add(relative)
             paths.discard("")
             if not paths:
