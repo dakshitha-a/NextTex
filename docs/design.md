@@ -3466,6 +3466,17 @@ Escape clears it and then leaves it, and Enter opens the first row still
 showing. A list that filters down to nothing says so in its own panel
 rather than vanishing.
 
+The rows are one Tab stop, the file tree's idiom: the arrow keys walk
+them, Home and End go to the ends, Enter or Space opens, and Down from
+the filter box lands on the first row still showing. A row's own buttons
+stay in the tab order after it, as the tree's do, and an arrow pressed on
+one of them is left to the button. The stop follows the row that last had
+focus and falls back to the first openable row when that one is gone,
+which the filter does on every keystroke; the lesson about a roving tab
+stop naming a row that is not there, recorded in section 30, is the reason
+that fallback is written down rather than assumed. The arithmetic is
+`rowAfterKey` in `frontend/src/project-row.ts`, tested without a browser.
+
 A long list on a window 960px or wider also changes the sheet's shape. It
 widens to 1060px and becomes two columns, the list on the left and the
 three ways in, start something, point at a folder, join, as a 320px column

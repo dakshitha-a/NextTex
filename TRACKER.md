@@ -31,11 +31,6 @@ decisions recorded so nobody reopens them by accident. The eight are here,
 each still carrying its reason, in the order they are being done, and each
 leaves this list in the commit that finishes it.
 
-- [ ] **The project list has no arrow keys.** Tab reaches every row and
-      the filter's Enter opens the first match, which covers the keyboard
-      case a long list actually has. Left because arrow keys want a roving
-      tabindex across rows whose buttons are also in the tab order, and
-      that is a design for the file tree's idiom, not an evening.
 - [ ] **A row does not say the project is open in another window.**
       `GET /api/projects` answers `open`, the ids with a live session, and
       the list ignores it. Left because on a one-writer install the open

@@ -14,7 +14,8 @@ import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
 import { set, useStore } from "../store";
-import { openedWords, rowMarks, shortPath } from "../project-row";
+import { openedWords, rowAfterKey, rowMarks, shortPath } from "../project-row";
+import { tabStopFor } from "../tree";
 import { LONG_LIST, matches } from "../project-filter";
 
 // Lazy, like the in-project tutorial: help text is not something a first
@@ -155,6 +156,25 @@ export default function Projects({
     return () => window.removeEventListener("keydown", onKey);
   }, [long]);
   const shown = long ? projects.filter((project) => matches(project, query)) : projects;
+  // A roving tabindex, the file tree's idiom: the list is one Tab stop and
+  // the arrow keys move inside it. `focusId` remembers the row that had
+  // focus; `tabStopFor` falls back to the first openable row when that
+  // one is gone, which the filter does on every keystroke, so a stale
+  // preference is ignored rather than leaving the list with no stop at
+  // all (the lesson recorded over `tabStopFor`). The rows' own buttons
+  // stay in the tab order, as the tree's do.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const order = shown.filter((project) => !project.missing && !locked).map((p) => p.id);
+  const tabStop = tabStopFor([focusId, order[0]], new Set(order));
+  const moveFocus = (id: string) => {
+    setFocusId(id);
+    // Now, not on the next frame: the row is already drawn, and a second
+    // arrow pressed before a deferred focus had landed was delivered to
+    // the row that still had it, so two presses moved one row.
+    document
+      .querySelector<HTMLElement>(`[data-project-id="${CSS.escape(id)}"]`)
+      ?.focus();
+  };
 
   const add = async () => {
     if (!path.trim() || busy === "add") return;
@@ -464,6 +484,11 @@ export default function Projects({
                     const first = shown[0];
                     if (first && !first.missing && !locked) onOpen(first.id);
                   }
+                  // Down from the box lands on the first row still showing.
+                  if (event.key === "ArrowDown" && order[0]) {
+                    event.preventDefault();
+                    moveFocus(order[0]);
+                  }
                 }}
               />
             ) : null}
@@ -478,8 +503,18 @@ export default function Projects({
             <div
               key={project.path}
               data-testid="project-row"
+              data-project-id={project.id}
               role={!project.missing && !locked ? "button" : undefined}
-              tabIndex={!project.missing && !locked ? 0 : undefined}
+              tabIndex={
+                !project.missing && !locked
+                  ? tabStop === project.id
+                    ? 0
+                    : -1
+                  : undefined
+              }
+              onFocus={(event) => {
+                if (event.target === event.currentTarget) setFocusId(project.id);
+              }}
               // Wrapping, so that on a narrow screen the tail of the row
               // (the time, the actions) drops under the name rather than
               // squeezing it to ten characters beside three buttons.
@@ -500,6 +535,12 @@ export default function Projects({
                 // inside it.  The click handler already says the same thing.
                 if (locked) return;
                 if (event.target !== event.currentTarget) return;
+                const next = rowAfterKey(order, project.id, event.key);
+                if (next) {
+                  event.preventDefault();
+                  moveFocus(next);
+                  return;
+                }
                 if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
                 if (!project.missing) onOpen(project.id);

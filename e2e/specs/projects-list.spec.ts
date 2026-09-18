@@ -163,3 +163,55 @@ test("the create row does not run off a phone", async ({ app, project, page }) =
   expect(wide).toBe(0);
   await expect(page.getByRole("button", { name: "Create project" })).toBeInViewport();
 });
+
+test("the arrow keys walk the list, and the filter cannot strand the focus", async ({
+  app, page,
+}) => {
+  for (const name of NAMES) await seedProject(app, name);
+  await page.setViewportSize({ width: 1680, height: 1000 });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: true }).waitFor();
+  await expect(page.getByTestId("project-row")).toHaveCount(NAMES.length);
+
+  // One Tab stop for the whole list, the file tree's idiom: every row
+  // but one is tabIndex -1, and the arrows move inside.
+  const rows = page.getByTestId("project-row");
+  await expect(page.locator('[data-testid="project-row"][tabindex="0"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid="project-row"][tabindex="-1"]')).toHaveCount(NAMES.length - 1);
+  await rows.first().focus();
+  await expect(rows.first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.nth(2)).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(rows.last()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.last()).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(rows.first()).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(rows.first()).toBeFocused();
+
+  // A row's own buttons stay in the tab order, and an arrow pressed on
+  // one of them is not the list's to take.
+  await page.keyboard.press("Tab");
+  await expect(rows.first().getByRole("button").first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.first().getByRole("button").first()).toBeFocused();
+
+  // Focus a row, then filter it away: the stop moves to the first row
+  // still showing rather than to nothing, and Down from the box lands
+  // on it.
+  await rows.nth(4).focus();
+  await expect(rows.nth(4)).toBeFocused();
+  const filter = page.getByTestId("project-filter");
+  await filter.focus();
+  await page.keyboard.type("thesis");
+  await expect(rows).toHaveCount(2);
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.nth(1)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+});

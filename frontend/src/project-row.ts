@@ -32,3 +32,31 @@ export function rowMarks(project: {
   if (!project.shared) return [];
   return [project.removed ? "removed from the share" : "shared"];
 }
+
+/** Where an arrow key takes the focus in the list: the id of the row to
+ *  land on, or null when the key is not one of the four or there is
+ *  nowhere to go.  `order` is every row that can take focus, top to
+ *  bottom, and `at` the one that has it.  Pure, like the rest of this
+ *  file, so the arithmetic is tested without a browser; the list is
+ *  short enough that the ends do not wrap, which is the file tree's rule
+ *  too. */
+export function rowAfterKey(
+  order: string[],
+  at: string,
+  key: string,
+): string | null {
+  if (!order.length) return null;
+  const index = order.indexOf(at);
+  switch (key) {
+    case "ArrowDown":
+      return order[index + 1] ?? null;
+    case "ArrowUp":
+      return index > 0 ? order[index - 1] : null;
+    case "Home":
+      return order[0];
+    case "End":
+      return order[order.length - 1];
+    default:
+      return null;
+  }
+}

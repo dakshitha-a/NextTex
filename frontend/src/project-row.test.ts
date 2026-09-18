@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { openedWords, rowMarks, shortPath } from "./project-row";
+import { openedWords, rowAfterKey, rowMarks, shortPath } from "./project-row";
 
 describe("the path on a project row", () => {
   it("folds the home directory to a tilde", () => {
@@ -39,5 +39,28 @@ describe("the marks after a name", () => {
   it("marks a shared one, and says when this install was removed from it", () => {
     expect(rowMarks({ shared: true, removed: false })).toEqual(["shared"]);
     expect(rowMarks({ shared: true, removed: true })).toEqual(["removed from the share"]);
+  });
+});
+
+describe("the arrow keys on the list", () => {
+  const order = ["a", "b", "c"];
+
+  it("walk down and up and stop at the ends", () => {
+    expect(rowAfterKey(order, "a", "ArrowDown")).toBe("b");
+    expect(rowAfterKey(order, "c", "ArrowDown")).toBeNull();
+    expect(rowAfterKey(order, "b", "ArrowUp")).toBe("a");
+    expect(rowAfterKey(order, "a", "ArrowUp")).toBeNull();
+  });
+
+  it("go to the ends on Home and End", () => {
+    expect(rowAfterKey(order, "b", "Home")).toBe("a");
+    expect(rowAfterKey(order, "b", "End")).toBe("c");
+  });
+
+  it("do nothing for another key, an empty list, or a row that is gone", () => {
+    expect(rowAfterKey(order, "b", "Enter")).toBeNull();
+    expect(rowAfterKey([], "b", "ArrowDown")).toBeNull();
+    // A focused row the filter has hidden: down lands on the first row.
+    expect(rowAfterKey(order, "zz", "ArrowDown")).toBe("a");
   });
 });
