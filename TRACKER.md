@@ -28,16 +28,12 @@ The first roadmap run, after 2.7.0: eleven items from `ROADMAP.md`, taken
 in its order and grouped into three pushes. Each leaves this list in the
 commit that finishes it.
 
-The build, for 2.8.0, is done and is this push, with three interface
-fixes the writer's mid-run report turned up: a deleted file's tab
-closes, closing the tab in front shows the next, and a tab not in front
-follows its file.
+The build went up as 2.8.0, with three interface fixes the writer's
+mid-run report turned up: a deleted file's tab closes, closing the tab
+in front shows the next, and a tab not in front follows its file.
 
-The editor, for 2.9.0:
+The editor, for 2.9.0, is done and is this push.
 
-- [ ] **Rename a label or citation key everywhere.** Syntax-aware, so
-      `fig:a` leaves `fig:ab` alone and a hit in a comment is offered
-      rather than assumed.
 
 Papers, provider and window, for 2.10.0:
 

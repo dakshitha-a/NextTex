@@ -30,6 +30,9 @@ export type Link = {
 const REFS = new Set([
   "ref", "eqref", "autoref", "cref", "Cref", "cpageref", "Cpageref",
   "pageref", "nameref", "vref", "labelcref",
+  // The definition counts as a link to itself: hovering it says what
+  // number it got, and it is where a rename is most often asked for.
+  "label",
 ]);
 const INPUTS = new Set(["input", "include", "subfile", "subfileinclude"]);
 const IMAGES = new Set(["includegraphics"]);

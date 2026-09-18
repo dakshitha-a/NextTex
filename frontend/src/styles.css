@@ -1335,6 +1335,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   background: #fff;
 }
 .nx-link-hint { color: var(--ink-3); padding-top: 3px; }
+.nx-link-verbs { display: flex; gap: 10px; padding-top: 4px; }
 
 /* ---- autocomplete ------------------------------------------------------- */
 /* --surface-2, not --surface: this list floats over the page, and every

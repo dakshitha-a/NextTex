@@ -43,7 +43,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from nexttex import (
-    attachments, auth, auxlabels, claude_auth, gitrepo, plots, report, synctex, texpkg,
+    attachments, auth, auxlabels, claude_auth, gitrepo, plots, rename, report,
+    synctex, texpkg,
 )
 from nexttex.version import VERSION
 from server.collab import identity as collab_identity
@@ -2651,6 +2652,61 @@ async def replace_in_project(
             "structural": False,
         })
     return {"files": len(changed), "replaced": replaced, "paths": changed}
+
+
+@app.get("/api/projects/{project_id}/references")
+async def references_to(project_id: str, kind: str, name: str):
+    """Every use of a label, a citation key or a macro, by the syntax.
+
+    The same texts the project search reads, the open documents first;
+    each hit says whether it sits in a comment, which the rename leaves
+    alone unless asked.
+    """
+    session = session_for(project_id)
+    if not rename.valid(kind, name):
+        raise HTTPException(400, "not a label, a citation key or a macro name")
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({path: body for path, body in live.items() if path in texts})
+    hits = await asyncio.to_thread(rename.references_to, texts, kind, name)
+    return {
+        "kind": kind, "name": name,
+        "hits": [hit.as_dict() for hit in hits],
+        "commented": sum(1 for hit in hits if hit.commented),
+    }
+
+
+@app.post("/api/projects/{project_id}/rename")
+async def rename_everywhere(
+    project_id: str,
+    kind: str = Body(...),
+    name: str = Body(...),
+    to: str = Body(...),
+    comments: bool = Body(False),
+    origin: str = Body(""),
+):
+    """Rename a label, a citation key or a macro in every file, through
+    the ordinary save path, so every changed file gets a version and the
+    shared document is folded.  `fig:a` leaves `fig:ab` alone, and a hit
+    in a comment is rewritten only when `comments` is set."""
+    session = session_for(project_id)
+    if not rename.valid(kind, name) or not rename.valid(kind, to):
+        raise HTTPException(400, "not a label, a citation key or a macro name")
+    if name == to:
+        return {"files": 0, "paths": []}
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({path: body for path, body in live.items() if path in texts})
+    changed = await asyncio.to_thread(rename.rename, texts, kind, name, to, comments=comments)
+    for relative, after in changed.items():
+        await _save_text(session, _safe(session, relative), after, source=origin)
+    if changed:
+        session.schedule_compile()
+        await session.events.publish({
+            "type": "files_changed", "paths": list(changed), "origin": origin,
+            "structural": False,
+        })
+    return {"files": len(changed), "paths": list(changed)}
 
 
 @app.post("/api/projects/{project_id}/flush")

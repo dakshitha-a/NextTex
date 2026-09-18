@@ -194,7 +194,13 @@ export type SearchHit = {
    *  a pattern the panel cannot work it out from the query. */
   length: number;
   text: string;
+  /** From the references route only: the hit sits after a `%`, and a
+   *  rename leaves it alone unless asked. */
+  commented?: boolean;
 };
+
+/** What a rename can be about. */
+export type SymbolKind = "label" | "cite" | "macro";
 
 /** The bug report and where to take it.  `text` is already redacted;
  *  `newIssue` is the form on GitHub with the short facts filled in. */
@@ -818,6 +824,16 @@ const api = {
     ),
   /** Rewrite every match. Each file that changes keeps a version in its
    *  history, which is the only undo a replace across a project has. */
+  /** Every use of a label, a citation key or a macro, by the syntax. */
+  references: (id: string, kind: SymbolKind, name: string) =>
+    request<{ kind: SymbolKind; name: string; hits: SearchHit[]; commented: number }>(
+      `/projects/${id}/references?kind=${kind}&name=${encodeURIComponent(name)}`,
+    ),
+  /** Rename it everywhere, through the ordinary save, one version per file. */
+  renameSymbol: (id: string, kind: SymbolKind, name: string, to: string, comments: boolean) =>
+    request<{ files: number; paths: string[] }>(
+      `/projects/${id}/rename`, json({ kind, name, to, comments }),
+    ),
   replaceInProject: (
     id: string,
     query: string,

@@ -223,11 +223,17 @@ export function macrosFrom(symbols: Symbols | null): Record<string, string> {
  *  span of at most a few hundred characters. */
 const HOVER_WINDOW = 20_000;
 
+/** What the editor does when a tooltip's verb is pressed: list the
+ *  references to a label, a key or a macro, or open the rename. */
+export type OnSymbol = (kind: "label" | "cite" | "macro", name: string, rename: boolean) => void;
+
 export function mathHover(
   symbols: () => Symbols | null,
   /** Where a project file's bytes can be fetched from, for the image a
    *  hover on `\includegraphics` shows.  Absent in the read-only panes. */
   imageUrl?: (path: string) => string,
+  /** Absent in the read-only panes, which offer no rename. */
+  onSymbol?: OnSymbol,
 ): Extension {
   return hoverTooltip((view, pos): Tooltip | null => {
     const doc = view.state.doc;
@@ -235,7 +241,7 @@ export function mathHover(
     const to = Math.min(doc.length, pos + HOVER_WINDOW);
     const near = mathAt(doc.sliceString(from, to), pos - from);
     const span = near && { ...near, from: near.from + from, to: near.to + from };
-    if (!span || !span.body.trim()) return linkTooltip(view, pos, symbols, imageUrl);
+    if (!span || !span.body.trim()) return linkTooltip(view, pos, symbols, imageUrl, onSymbol);
 
     return {
       pos: span.from,
@@ -284,6 +290,7 @@ export function mathHover(
 function linkTooltip(
   view: EditorView, pos: number, symbols: () => Symbols | null,
   imageUrl?: (path: string) => string,
+  onSymbol?: OnSymbol,
 ): Tooltip | null {
   const line = view.state.doc.lineAt(pos);
   const link = linkAt(line.text, pos - line.from);
@@ -356,6 +363,30 @@ function linkTooltip(
         how.className = "nx-link-hint";
         how.textContent = `${shortcut("Mod-click").both} to go there`;
         dom.append(how);
+      }
+      // The two verbs a name has: where else it is used, and a new name
+      // everywhere.  On a label or a citation key, never on a file or a
+      // figure, and only where the pane can edit.
+      const kind = link.kind === "ref" ? "label" : link.kind === "cite" ? "cite" : null;
+      if (kind && onSymbol) {
+        const verbs = document.createElement("div");
+        verbs.className = "nx-link-verbs";
+        for (const [label, rename] of [["Find references", false], ["Rename", true]] as const) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "quiet t-micro";
+          button.textContent = label;
+          button.dataset.testid = rename ? "link-rename" : "link-references";
+          // `mousedown` rather than `click`: the tooltip closes on the
+          // editor's own mousedown, before a click would arrive.
+          button.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onSymbol(kind, link.name, rename);
+          });
+          verbs.append(button);
+        }
+        dom.append(verbs);
       }
       return { dom };
     },

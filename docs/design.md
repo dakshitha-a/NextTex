@@ -7599,3 +7599,34 @@ bar names the last real heading above it instead.
 trail; `e2e/specs/sections.spec.ts` scrolls a long chapter into its
 second section, reads the bar, clicks it to the heading, and scrolls to
 the top to find it gone.
+
+### Rename a label or citation key everywhere
+
+Renaming `fig:overview` was a project-wide replace the writer had to
+scope by hand, and a replace does not know the syntax: `fig:a` matches
+inside `fig:ab`, and a name in a comment is rewritten as readily as one
+in a `\ref`. The hover on a `\label`, a `\ref` or a `\cite` now carries
+two verbs, *Find references* and *Rename*, and F2 on one is the rename.
+Both go to the search panel, which opens the way Mod-Shift-F opens it:
+it lists every use file by file, "4 uses of sec:a in 2 files, 1 in a
+comment", with a `%` beside a use that sits in a comment, and *Rename*
+puts a box under the summary with the name filled in and selected. A
+new name and Enter ask first, in the sentence the project replace uses,
+because it is the same edit, across the project and not one Mod-Z can
+take back; *Rename everywhere* writes it, each changed file keeps a
+version, and the editor shows the new name at once since the save went
+through the shared document. A hit in a comment is left alone unless
+the checkbox that appears when there is one is ticked. A label is found
+in its definition and in the whole reference family with comma lists; a
+citation key in the `.bib` entry's own line and in every cite command
+with its optional arguments; a macro at its definition and at every use
+that is not the head of a longer name. `fig:a` leaves `fig:ab` alone,
+and `knuth` leaves `knuthx` alone. Typing a query or pressing Close or
+Escape leaves the references and the panel is a search again.
+
+`tests/test_rename.py` holds the syntax, the prefix cases, the comment
+and the regex characters; `tests/api/test_rename_routes.py` renames
+across two files and the bibliography and finds a version for each;
+`e2e/specs/rename.spec.ts` renames from the tooltip with the
+confirmation, reads both files and the histories, and opens the rename
+by F2 and the list by the other verb.

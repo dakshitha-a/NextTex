@@ -20,6 +20,7 @@ import api, {
   type ContextDocument,
   type Diagnostic,
   type ScriptLive,
+  type SymbolKind,
   type ScriptResult,
   type ProjectSummary,
   type TrashEntry,
@@ -346,6 +347,10 @@ export type State = {
   /** The section list of whatever the editor is showing, parsed from the
    *  buffer on the same debounce as the save.  Empty with no file open. */
   outline: Heading[];
+  /** A label, key or macro the writer asked about from the editor: the
+   *  search panel lists its references and offers the rename.  A nonce,
+   *  since the same name can be asked for twice. */
+  symbolRequest: { kind: SymbolKind; name: string; rename: boolean; nonce: number } | null;
   words: number | null;
   /** Who else is in this project, and where they are looking. */
   collaborators: Collaborator[];
@@ -425,6 +430,7 @@ const state: State = {
   cursor: { line: 1, column: 1 },
   lineCount: 1,
   outline: [],
+  symbolRequest: null,
   collaborators: [],
   connection: "connecting",
   peerId: "",

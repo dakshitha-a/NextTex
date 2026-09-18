@@ -1225,6 +1225,7 @@ inside the app.
 | `⌘F` / `Ctrl-F` | Find and replace in the file you are in |
 | `⌘.` / `Ctrl-.` | The menu for the word under the caret, which is how a word joins the project's dictionary |
 | `⌘`-click / `Ctrl`-click, on a `\ref` or `\input` | Go to the label, or open the file |
+| `F2`, on a `\label`, `\ref` or `\cite` | Rename the label or key in every file; the hover on one offers the same, and *Find references* |
 | `⌥`-drag / `Alt`-drag | Select a column, for editing a table; some Linux desktops take Alt-drag for moving windows, so the next row does the same by keyboard |
 | `⌘⌥↑` `⌘⌥↓` / `Ctrl-Alt-↑` `Ctrl-Alt-↓`, or with `⇧` / `Shift` added | Add a caret on the row above or below |
 | `⌘⇧[` `⌘⇧]` / `Ctrl-Shift-[` `Ctrl-Shift-]` | Fold or unfold the section or environment the caret is in; the chevron in the gutter does the same, and `⌘⌥[` / `Ctrl-Alt-[` folds everything |

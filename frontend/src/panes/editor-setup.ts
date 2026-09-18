@@ -57,7 +57,7 @@ import { isEscaped } from "./escaping";
 import { isScript } from "./file-kinds";
 import { inputTarget, labelTarget, linkAt } from "./latex-links";
 import { mac } from "./math-hover";
-import { mathHover } from "./math-hover";
+import { mathHover, type OnSymbol } from "./math-hover";
 import {
   braceAfter,
   commentStart,
@@ -556,6 +556,23 @@ function foldMarker(open: boolean): HTMLElement {
   return span;
 }
 
+/** F2 on a `\label`, a `\ref` or a `\cite`: the rename, the way every
+ *  editor with a rename binds it.  Anywhere else the key does nothing. */
+function renameKey(onSymbol: OnSymbol): Extension {
+  return keymap.of([{
+    key: "F2",
+    run: (view) => {
+      const head = view.state.selection.main.head;
+      const line = view.state.doc.lineAt(head);
+      const link = linkAt(line.text, head - line.from);
+      const kind = link?.kind === "ref" ? "label" : link?.kind === "cite" ? "cite" : null;
+      if (!link || !kind) return false;
+      onSymbol(kind, link.name, true);
+      return true;
+    },
+  }]);
+}
+
 function base(): Extension[] {
   return [
     lineNumbers(),
@@ -673,6 +690,8 @@ export function languageFor(
     complete?: boolean;
     /** Where a figure's bytes are, for the hover on `\includegraphics`. */
     imageUrl?: (path: string) => string;
+    /** The tooltip's Find references and Rename, and F2 on a name. */
+    onSymbol?: OnSymbol;
   } = {},
 ): Extension[] {
   if (isScript(path)) {
@@ -698,7 +717,8 @@ export function languageFor(
     // in `base()` so a Python script, which has no sections, gets no
     // gutter, and the read-only version view folds like the live one.
     latexFolding(),
-    mathHover(symbols, options.imageUrl),
+    mathHover(symbols, options.imageUrl, options.onSymbol),
+    ...(options.onSymbol ? [renameKey(options.onSymbol)] : []),
     ...(options.follow ? [followLinks(symbols, options.follow)] : []),
     ...(options.complete ? [latexCompletions(symbols)] : []),
   ];

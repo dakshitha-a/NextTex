@@ -867,6 +867,17 @@ export default function App() {
     }
   }, [refreshTree]);
 
+  // A name asked about from the editor: the search panel answers, so it
+  // is opened the way Mod-Shift-F opens it.
+  const symbolRequest = useStore((s) => s.symbolRequest);
+  useEffect(() => {
+    if (!symbolRequest) return;
+    railByHand.current = true;
+    setRailHidden(false);
+    setFolded((current) => ({ ...current, rail: false }));
+    setRailOpen((current) => (current.search ? current : { ...current, search: true }));
+  }, [symbolRequest?.nonce]);
+
   // ---- events from the server ------------------------------------------
   useEffect(() => {
     handlers.onFilesChanged = (_paths, structural = true) => {

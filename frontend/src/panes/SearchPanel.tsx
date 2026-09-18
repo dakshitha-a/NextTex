@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import api, { type SearchHit } from "../api";
+import api, { type SearchHit, type SymbolKind } from "../api";
 import { set, useStore } from "../store";
 
 /** Find, and replace, across the whole project.
@@ -50,17 +50,89 @@ export default function SearchPanel({
   const [replacement, setReplacement] = useState("");
   const [confirming, setConfirming] = useState(false);
   const box = useRef<HTMLInputElement | null>(null);
+  /** The name the editor asked about, when the panel is listing its
+   *  references rather than searching.  Escape or typing a query leaves
+   *  it. */
+  const request = useStore((s) => s.symbolRequest);
+  const [refs, setRefs] = useState<{ kind: SymbolKind; name: string; commented: number } | null>(null);
+  const [newName, setNewName] = useState("");
+  const [inComments, setInComments] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const renameBox = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (focusNonce) box.current?.select();
   }, [focusNonce]);
 
+  // A request from the editor: list the references and, when asked,
+  // open the rename with the name filled in and selected.
+  useEffect(() => {
+    if (!request || !projectId) return;
+    let cancelled = false;
+    setQuery("");
+    setProblem("");
+    setBusy(true);
+    setRefs({ kind: request.kind, name: request.name, commented: 0 });
+    setNewName(request.name);
+    setInComments(false);
+    setRenaming(request.rename);
+    setConfirming(false);
+    api
+      .references(projectId, request.kind, request.name)
+      .then((answer) => {
+        if (cancelled) return;
+        setHits(answer.hits);
+        setCapped(false);
+        setRefs({ kind: answer.kind, name: answer.name, commented: answer.commented });
+        if (request.rename) window.setTimeout(() => renameBox.current?.select(), 0);
+      })
+      .catch((error: any) => !cancelled && setProblem(error.message))
+      .finally(() => !cancelled && setBusy(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [request?.nonce, projectId]);
+
+  const leaveReferences = () => {
+    setRefs(null);
+    setRenaming(false);
+    setConfirming(false);
+    setHits(null);
+  };
+
+  const renameAll = async () => {
+    if (!projectId || !refs) return;
+    const to = newName.trim();
+    if (!to || to === refs.name) return;
+    setConfirming(false);
+    setBusy(true);
+    try {
+      const answer = await api.renameSymbol(projectId, refs.kind, refs.name, to, inComments);
+      set({
+        error:
+          `Renamed ${refs.name} to ${to} in ${answer.files} ` +
+          `${answer.files === 1 ? "file" : "files"}.`,
+      });
+      leaveReferences();
+    } catch (error: any) {
+      setProblem(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!projectId || !query) {
-      setHits(null);
-      setProblem("");
+      // Not while the references are up: an empty query is how the
+      // panel looks with a request in it.
+      if (!refs) {
+        setHits(null);
+        setProblem("");
+      }
       return;
     }
+    setRefs(null);
+    setRenaming(false);
     let cancelled = false;
     setBusy(true);
     const timer = setTimeout(() => {
@@ -172,7 +244,104 @@ export default function SearchPanel({
         </p>
       ) : null}
 
-      {hits !== null && !problem ? (
+      {refs && !problem ? (
+        <div className="px-[10px] pb-[5px]" data-testid="references">
+          <div className="flex items-center gap-2">
+            <span className="t-micro flex-1 truncate text-ink-2" data-testid="references-summary">
+              {hits === null
+                ? `Finding ${refs.name}`
+                : `${hits.length} ${hits.length === 1 ? "use" : "uses"} of ${refs.name} in ${files} ` +
+                  `${files === 1 ? "file" : "files"}` +
+                  (refs.commented ? `, ${refs.commented} in ${refs.commented === 1 ? "a comment" : "comments"}` : "")}
+            </span>
+            {!renaming ? (
+              <button
+                className="quiet t-micro shrink-0"
+                data-testid="references-rename"
+                onClick={() => {
+                  setRenaming(true);
+                  window.setTimeout(() => renameBox.current?.select(), 0);
+                }}
+              >
+                Rename
+              </button>
+            ) : null}
+            <button className="quiet t-micro shrink-0" onClick={leaveReferences}>
+              Close
+            </button>
+          </div>
+          {renaming ? (
+            <div className="pt-[5px]">
+              <input
+                ref={renameBox}
+                className="t-ui w-full rounded-[3px] border border-line bg-surface-2 px-[6px] py-[2px] text-ink"
+                data-testid="rename-to"
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && newName.trim() && newName.trim() !== refs.name) {
+                    event.preventDefault();
+                    setConfirming(true);
+                  }
+                  if (event.key === "Escape") {
+                    event.stopPropagation();
+                    leaveReferences();
+                  }
+                }}
+              />
+              {refs.commented ? (
+                <label className="t-micro mt-[4px] flex items-center gap-[6px] text-ink-2">
+                  <input
+                    type="checkbox"
+                    data-testid="rename-comments"
+                    checked={inComments}
+                    onChange={(event) => setInComments(event.target.checked)}
+                  />
+                  Also in the {refs.commented === 1 ? "comment" : "comments"}
+                </label>
+              ) : null}
+              {confirming ? (
+                <div className="pt-[4px]">
+                  {/* The same sentence the replace shows, because it is
+                      the same edit: across the project, and not one
+                      Mod-Z can take back. */}
+                  <p className="t-micro pb-[4px] text-ink-2">
+                    Rename {refs.name} to {newName.trim()} in {files}{" "}
+                    {files === 1 ? "file" : "files"}? Each file keeps a version in its history.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      className="quiet t-micro"
+                      data-tone="danger"
+                      data-testid="rename-confirm"
+                      disabled={busy}
+                      onClick={renameAll}
+                    >
+                      Rename everywhere
+                    </button>
+                    <button className="quiet t-micro" onClick={() => setConfirming(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-[4px]">
+                  <button
+                    className="quiet t-micro"
+                    data-testid="rename-go"
+                    disabled={!newName.trim() || newName.trim() === refs.name || hits === null}
+                    onClick={() => setConfirming(true)}
+                  >
+                    Rename everywhere
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {hits !== null && !problem && !refs ? (
         <div className="flex items-center gap-2 px-[10px] pb-[5px]">
           <span className="t-micro flex-1 text-ink-3" data-testid="search-summary">
             {hits.length === 0
@@ -257,6 +426,9 @@ export default function SearchPanel({
                 <span className="t-micro tnum w-[28px] shrink-0 text-right text-ink-3">
                   {hit.line}
                 </span>
+                {hit.commented ? (
+                  <span className="t-micro shrink-0 text-ink-3" title="In a comment">%</span>
+                ) : null}
                 <span className="t-micro min-w-0 flex-1 truncate text-ink-2">
                   {hit.text.slice(0, hit.column - 1)}
                   <span className="text-ink nx-found">

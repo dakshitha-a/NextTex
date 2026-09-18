@@ -575,6 +575,11 @@ export default function Editor({
         const id = get().projectId;
         return id ? api.downloadUrl(id, { path: target }) : "";
       },
+      // The search panel answers: it lists the references and holds the
+      // rename box, since it already has the file-by-file list and the
+      // confirmation a project-wide edit needs.
+      onSymbol: (kind, name, rename) =>
+        set({ symbolRequest: { kind, name, rename, nonce: Date.now() } }),
     });
     /** The same, for a pane that cannot be edited: no completions, and
      *  no following a reference out of a version being read. */
