@@ -104,3 +104,19 @@ def test_a_directory_that_cannot_be_flushed_is_not_an_error(tmp_path, monkeypatc
     monkeypatch.setattr(os, "open", refuse)
     atomic.write_atomically(tmp_path / "notes.tex", "still written\n")
     assert (tmp_path / "notes.tex").read_text(encoding="utf-8") == "still written\n"
+
+
+def test_a_unique_name_keeps_a_file_suffix_and_a_folder_name_whole(tmp_path):
+    from nexttex.atomic import unique_name
+
+    (tmp_path / "plot.png").write_bytes(b"")
+    assert unique_name(tmp_path / "plot.png", "copy").name == "plot (copy).png"
+    (tmp_path / "v1.2").mkdir()
+    # A folder's dot is part of its name, not a suffix: this used to give
+    # "v1 (copy).2".
+    assert unique_name(tmp_path / "v1.2", "copy").name == "v1.2 (copy)"
+    # A restore is told the kind, because the target is what is in the way
+    # rather than what is coming back.
+    assert unique_name(tmp_path / "v1.2", "restored", directory=True).name == "v1.2 (restored)"
+    (tmp_path / "v1.2 (copy)").mkdir()
+    assert unique_name(tmp_path / "v1.2", "copy").name == "v1.2 (copy 2)"

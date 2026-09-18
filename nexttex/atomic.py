@@ -119,7 +119,7 @@ def read_bytes(target: Path) -> bytes | None:
         return None
 
 
-def unique_name(target: Path, tag: str = "") -> Path:
+def unique_name(target: Path, tag: str = "", *, directory: bool | None = None) -> Path:
     """A path beside `target` that nothing occupies yet.
 
     One rule, in one place, because the string it produces is quoted back
@@ -130,8 +130,20 @@ def unique_name(target: Path, tag: str = "") -> Path:
 
     `tag` names why the copy exists: the trash restores as
     `plot (restored).png`, an upload that keeps both writes `plot (2).png`.
+
+    A folder's name is not a stem and a suffix: `v1.2` is the whole name,
+    and splitting it the way a file's is split gave `v1 (copy).2`.  So
+    `directory` says which rule applies; left unsaid, the path on disk is
+    asked, which is right for a copy beside something that exists and
+    wrong for a restore into a name something else now occupies, where
+    the caller knows and says.
     """
-    stem, suffix = target.stem, target.suffix
+    if directory is None:
+        directory = target.is_dir()
+    if directory:
+        stem, suffix = target.name, ""
+    else:
+        stem, suffix = target.stem, target.suffix
     inside = f" ({tag})" if tag else " (2)"
     candidate = target.with_name(f"{stem}{inside}{suffix}")
     index = 2 if tag else 3

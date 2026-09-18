@@ -73,6 +73,20 @@ def test_a_restore_never_writes_over_what_is_there_now(tmp_path):
     assert result["renamed"] == "notes (restored).tex"
 
 
+def test_a_folder_restored_beside_a_newer_one_keeps_its_whole_name(tmp_path):
+    """`v1.2` is a folder's name, not a stem and a suffix: the free name
+    used to come out as `v1 (restored).2`."""
+    trash, project = bin(tmp_path)
+    (project / "v1.2").mkdir()
+    (project / "v1.2" / "a.tex").write_text("old", encoding="utf-8")
+    entry = trash.delete(project / "v1.2")
+    (project / "v1.2").mkdir()
+
+    result = trash.restore(entry.id)
+    assert (project / "v1.2 (restored)" / "a.tex").read_text(encoding="utf-8") == "old"
+    assert result["renamed"] == "v1.2 (restored)"
+
+
 def test_deleting_records_a_final_version_in_the_files_history(tmp_path):
     trash, project = bin(tmp_path)
     (project / "chapter.tex").write_text("last words", encoding="utf-8")

@@ -343,7 +343,7 @@ class Trash:
         if target.exists():
             # Something is there now.  Put the old one beside it rather than
             # over it, and say which name it came back under.
-            target = self._free_name(target)
+            target = self._free_name(target, payload.is_dir())
             renamed = str(target.relative_to(self.project_root))
         target.parent.mkdir(parents=True, exist_ok=True)
         payload.rename(target)
@@ -520,5 +520,5 @@ class Trash:
         return found
 
     @staticmethod
-    def _free_name(target: Path) -> Path:
-        return unique_name(target, "restored")
+    def _free_name(target: Path, directory: bool = False) -> Path:
+        return unique_name(target, "restored", directory=directory)
