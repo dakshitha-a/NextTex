@@ -169,10 +169,19 @@ def windows_events(task: str, days: int = 7, limit: int = 40) -> list:
     if not binary:
         return ["(no PowerShell, so the event logs could not be read)"]
     script = WINDOWS_EVENTS_SCRIPT.format(task=task, days=days, limit=limit)
+    # The one correction every PowerShell child on Windows gets: a
+    # `PSModulePath` inherited from pwsh 7 makes 5.1 import the wrong
+    # `Microsoft.PowerShell.Utility`, and `tests/test_cross_platform.py`
+    # holds every spawn beside the word PowerShell to it.  Imported here
+    # rather than at the top so the module still loads on a bare
+    # interpreter with nothing but the standard library.
+    from .install.ui import child_env
+
+    argv = [binary, "-NoProfile", "-NonInteractive", "-Command", script]
     try:
         result = subprocess.run(
-            [binary, "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True, text=True, errors="replace", timeout=30,
+            argv, capture_output=True, text=True, errors="replace",
+            timeout=30, env=child_env(argv),
         )
     except subprocess.TimeoutExpired:
         return ["(powershell took longer than thirty seconds and was given up on)"]
