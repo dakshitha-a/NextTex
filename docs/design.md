@@ -5086,6 +5086,13 @@ what kept the entry chunk inside its budget while this run's fixes went in: 800
 kilobytes is the budget, the fixes took it to 800.4, and moving the drawer out
 brought it back to 796.
 
+Revised, since the projects rail run: the join offer card, the list of
+what a peer is offering before any of it is written, is fetched the same
+way, on the join that answers. It is on screen only between that answer
+and the writer's decision, nobody reaches it from a cold start, and its
+2.8 kilobytes were the headroom the rail needed under the same budget.
+`frontend/src/panes/JoinOfferCard.tsx` is the file.
+
 ### A drag handle the editor was painting over
 
 Dragging the file rail's divider resized nothing and selected text in the
