@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import pytest
 
+from pycrdt import Map
+
 from server.collab import transport
 from server.collab.peers import BACKOFF
 
@@ -240,5 +242,32 @@ async def test_a_removed_install_can_leave_to_keep_its_copy(tmp_path):
     state = bob.network.state()
     assert state["shared"] is False and state["removed"] is False
     assert bob.store.shared is False
+    await alice.close()
+    await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_the_tombstone_travels_as_one_update(tmp_path):
+    """`removed_at` and `removed_by` were two map operations, so they could
+    reach the removed peer as two updates.  That peer acts on the first:
+    `removed_at` alone makes `removed_here()` true, `note_removed_self`
+    closes every link, and `removed_by` never lands.  The interface then
+    said they were removed and could not say by whom.  The race showed on
+    a slow CI runner and not here, so what is pinned is the property that
+    makes it impossible: one transaction, one update, both keys in it.
+    """
+    alice = Peer(tmp_path / "alice").be(A)
+    bob = Peer(tmp_path / "bob", {}).be(B)
+    await join_up(alice, bob)
+    assert await until(lambda: A in bob.network.links)
+
+    updates: list[bytes] = []
+    alice.store.manifest.observe(lambda event: updates.append(event.update))
+    alice.network.remove(B)
+
+    assert len(updates) == 1, len(updates)
+    record = alice.store.manifest.get("members", type=Map)[B]
+    assert record["removed_at"] and record["removed_by"] == A
+
     await alice.close()
     await bob.close()

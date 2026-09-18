@@ -889,8 +889,9 @@ class PeerNetwork:
                 members = self.store.manifest.get("members", type=Map)
                 record = members.get(self.peer_id)
                 if record is not None:
-                    record["removed_at"] = time.time()
-                    record["removed_by"] = self.peer_id
+                    with self.store.manifest.transaction():
+                        record["removed_at"] = time.time()
+                        record["removed_by"] = self.peer_id
             entry = self.share.members.setdefault(self.peer_id, {})
             entry["removed_at"] = time.time()
             entry["removed_by"] = self.peer_id
@@ -1093,8 +1094,16 @@ class PeerNetwork:
             members = self.store.manifest.get("members", type=Map)
             record = members.get(peer_id)
             if record is not None:
-                record["removed_at"] = time.time()
-                record["removed_by"] = self.peer_id
+                # One update, not two.  Written as two map operations the
+                # tombstone could travel as two updates, and the removed
+                # peer acts on the first: `removed_at` alone makes
+                # `removed_here()` true, `note_removed_self` closes every
+                # link, and `removed_by` never arrives.  The interface then
+                # said they were removed and could not say by whom, which
+                # the CI runner was slow enough to show.
+                with self.store.manifest.transaction():
+                    record["removed_at"] = time.time()
+                    record["removed_by"] = self.peer_id
         entry = self.share.members.setdefault(peer_id, {})
         entry["removed_at"] = time.time()
         entry["removed_by"] = self.peer_id
