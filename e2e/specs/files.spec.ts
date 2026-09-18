@@ -347,10 +347,10 @@ test("a folder stays lit while a row is dragged along its name", async ({ tab })
   await expect.poll(() => litAsTarget(tab, "appendices")).toBe(true);
   // Along the name, and then onto the icon beside it: still lit.
   await tab.mouse.move(nameBox.x + nameBox.width - 4, nameBox.y + nameBox.height / 2, { steps: 6 });
-  expect(await litAsTarget(tab, "appendices")).toBe(true);
+  await expect.poll(() => litAsTarget(tab, "appendices")).toBe(true);
   const icon = (await folder.locator("svg").first().boundingBox())!;
   await tab.mouse.move(icon.x + icon.width / 2, icon.y + icon.height / 2, { steps: 4 });
-  expect(await litAsTarget(tab, "appendices")).toBe(true);
+  await expect.poll(() => litAsTarget(tab, "appendices")).toBe(true);
   // Off the row: out.
   const other = (await row(tab, "main.tex").boundingBox())!;
   await tab.mouse.move(other.x + other.width / 2, other.y + other.height / 2, { steps: 6 });

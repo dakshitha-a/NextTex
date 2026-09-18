@@ -474,6 +474,10 @@ export default function FileTree({
 
   /** The pointer has left an element, or only one of its children. */
   const leaveDrag = (event: React.DragEvent, node: TreeNode | null) => {
+    // A row's enter stopped at the row, so its leave stops there too, or
+    // the tree body would count leaves it never counted enters for and
+    // put the root's highlight out one event early.
+    if (node) event.stopPropagation();
     if (!leaves(event.currentTarget)) return;
     const mine = node ? destinationFor(node) || ROOT_DROP : ROOT_DROP;
     // Only the target this element set: the row entered next has usually
