@@ -31,15 +31,6 @@ decisions recorded so nobody reopens them by accident. The eight are here,
 each still carrying its reason, in the order they are being done, and each
 leaves this list in the commit that finishes it.
 
-- [ ] **A request during a session's close is told to wait, not made to.**
-      `_close_session` holds the project id in `CLOSING` while the close
-      awaits, and `session_for` answers 503 for it, so the window in which
-      a second session could be built over a project still flushing is
-      shut on every path since the backlog run put the provider change
-      through the same guard. What remains is that the browser is told to
-      try again in a moment rather than waited for, since `session_for` is
-      synchronous and called from most of the routes; a moment is all the
-      wait ever is.
 - [ ] **Split the composer's four controls out of the entry chunk.**
       `bench/thresholds.json` names this as the honest way back under the
       bundle budget, and it is a refactor rather than an import change. The

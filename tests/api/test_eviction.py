@@ -222,21 +222,11 @@ def test_a_session_is_closed_before_its_blobs_are_swept(client, opened, monkeypa
     assert order == ["closed", "swept"]
 
 
-def test_a_project_being_closed_does_not_get_a_second_session(client, opened):
-    """`close()` awaits, and between popping a session and finishing with
-    it there was a window: any request arriving in it built a fresh session
-    over the same project, so one project had two sets of documents, two
-    compile schedulers and two watchers, both flushing to the same files.
-
-    A moment is all the wait ever is, and 503 is what a request in that
-    moment is told.
-    """
+def slow_closing(session):
+    """Make a session's close block until the test says, and say when it
+    has started. Returns the two events."""
     import threading
 
-    from server import main as server_main
-
-    project_id = opened["id"]
-    session = server_main.SESSIONS[project_id]
     inside = threading.Event()
     may_finish = threading.Event()
     real = session.close
@@ -247,6 +237,62 @@ def test_a_project_being_closed_does_not_get_a_second_session(client, opened):
         return await real()
 
     session.close = slow_close
+    return inside, may_finish
+
+
+def test_a_request_during_a_close_waits_for_it_and_is_then_served(client, opened):
+    """`close()` awaits, and between popping a session and finishing with
+    it there was a window: any request arriving in it built a fresh session
+    over the same project, so one project had two sets of documents, two
+    compile schedulers and two watchers, both flushing to the same files.
+
+    The window is shut, and a request arriving in it used to be told 503
+    and to try again in a moment. A moment is all the close ever is, so
+    the request now waits it out and is answered, by a session built after
+    the old one has gone.
+    """
+    import threading
+
+    from server import main as server_main
+
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
+    inside, may_finish = slow_closing(session)
+    answers: list = []
+
+    def ask():
+        answers.append(client.get(f"/api/projects/{project_id}/tree"))
+
+    asking = threading.Thread(target=ask)
+    try:
+        client.portal.start_task_soon(
+            server_main._close_session, project_id, session
+        )
+        assert inside.wait(timeout=5), "the close never started"
+        asking.start()
+        asking.join(timeout=0.5)
+        assert asking.is_alive(), "the request was answered while the close was still under way"
+        assert not answers
+    finally:
+        may_finish.set()
+    asking.join(timeout=5)
+    assert answers, "the request never came back"
+    assert answers[0].status_code == 200
+    assert server_main.SESSIONS[project_id] is not session
+    assert len(
+        [s for s in server_main.SESSIONS if s == project_id]
+    ) == 1, "a second session was built beside the one going away"
+
+
+def test_a_close_that_outlasts_the_wait_is_still_a_503(client, opened, monkeypatch):
+    """The ceiling is what keeps a close stuck on a disk from holding every
+    request to the project for ever: past it, the old answer."""
+    from server import main as server_main
+
+    monkeypatch.setattr(server_main, "CLOSE_WAIT_SECONDS", 0.05)
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
+    inside, may_finish = slow_closing(session)
     try:
         client.portal.start_task_soon(
             server_main._close_session, project_id, session
@@ -264,7 +310,45 @@ def test_a_project_being_closed_does_not_get_a_second_session(client, opened):
         may_finish.set()
 
 
-def test_changing_the_provider_closes_each_project_behind_the_same_guard(client, opened):
+def test_a_socket_arriving_during_a_close_is_not_served_by_the_closing_session(client, opened):
+    """The HTTP middleware does not see the websocket scope, and the socket
+    route looked the session up in the table before asking `session_for`,
+    so a browser reconnecting its document during a close was handed the
+    session whose documents were being flushed and closed. It waits like
+    everything else now, and is served by the session built afterwards."""
+    import threading
+
+    from server import main as server_main
+
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
+    file_id = session.collab.file_id_for("main.tex")
+    inside, may_finish = slow_closing(session)
+    served_by: list = []
+
+    def connect():
+        with client.websocket_connect(
+            f"/api/projects/{project_id}/sync/text/{file_id}"
+        ) as socket:
+            socket.receive_bytes()
+            served_by.append(server_main.SESSIONS.get(project_id))
+
+    connecting = threading.Thread(target=connect)
+    try:
+        client.portal.start_task_soon(
+            server_main._close_session, project_id, session
+        )
+        assert inside.wait(timeout=5), "the close never started"
+        connecting.start()
+        connecting.join(timeout=0.5)
+        assert not served_by, "the socket was served while the close was still under way"
+    finally:
+        may_finish.set()
+    connecting.join(timeout=5)
+    assert served_by and served_by[0] is not session
+
+
+def test_changing_the_provider_closes_each_project_behind_the_same_guard(client, opened, monkeypatch):
     """The provider route closed every open session bare and cleared the
     table afterwards, so a request arriving while one was still flushing
     built a second session over the same project: the window the eviction
@@ -275,16 +359,8 @@ def test_changing_the_provider_closes_each_project_behind_the_same_guard(client,
 
     project_id = opened["id"]
     session = server_main.SESSIONS[project_id]
-    inside = threading.Event()
-    may_finish = threading.Event()
-    real = session.close
-
-    async def slow_close():
-        inside.set()
-        await asyncio.to_thread(may_finish.wait, 5)
-        return await real()
-
-    session.close = slow_close
+    inside, may_finish = slow_closing(session)
+    monkeypatch.setattr(server_main, "CLOSE_WAIT_SECONDS", 0.05)
     try:
         future = client.portal.start_task_soon(
             server_main.agent_provider, "none", "", "",

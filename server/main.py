@@ -16,6 +16,7 @@ import json
 import os
 import mimetypes
 import secrets
+import re
 import shutil
 import subprocess
 import sys
@@ -752,6 +753,27 @@ def _secure(response: Response) -> Response:
 MAX_BODY_BYTES = 512 * 1024 * 1024
 
 
+#: The project id in a route's path, for the wait below.
+PROJECT_PATH = re.compile(r"^/api/projects/([^/]+)/")
+
+
+@app.middleware("http")
+async def wait_for_closing(request: Request, call_next):
+    """Hold a request to a project whose session is closing until it has.
+
+    Declared before `authenticate` in this file, which makes it the inner
+    of the two: Starlette wraps the last middleware declared outermost, and
+    a request that has not been authorised must not be able to wait on
+    anything. `session_for` still answers 503 if the close outlasts the
+    ceiling, so what this changes is only that a moment's close is waited
+    out rather than reported.
+    """
+    found = PROJECT_PATH.match(request.url.path)
+    if found and found.group(1) in CLOSING:
+        await _wait_for_close(found.group(1))
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def authenticate(request: Request, call_next):
     if not _same_origin_request(request):
@@ -1369,23 +1391,50 @@ def _undo_join(target: Path, made: "JoinMade | None") -> None:
 #: second for as long as the server runs.
 _WATCHER_COMPLAINED = False
 
-#: Projects whose session is being closed right now. `session_for` refuses
-#: while an id is in here rather than building a second session beside the
-#: one going away: `close()` awaits, so between popping a session and
-#: finishing with it there was a window in which any request built a fresh
-#: one over the same project, and the two then flushed the same documents
-#: to the same files from two sets of state.
-CLOSING: set[str] = set()
+#: Projects whose session is being closed right now, each with the event
+#: its close sets when it is over. `session_for` refuses while an id is in
+#: here rather than building a second session beside the one going away:
+#: `close()` awaits, so between popping a session and finishing with it
+#: there was a window in which any request built a fresh one over the same
+#: project, and the two then flushed the same documents to the same files
+#: from two sets of state. The event is what lets a request arriving in
+#: that window wait for it to pass rather than be told to try again.
+CLOSING: dict[str, asyncio.Event] = {}
+
+#: How long a request arriving during a close waits for it before it is
+#: told 503 after all. A close is a flush and a few socket closes, so the
+#: wait is nearly always a few milliseconds; the ceiling exists so that a
+#: close stuck on a disk cannot hold every request to the project for ever.
+CLOSE_WAIT_SECONDS = 3.0
 
 
 async def _close_session(project_id: str, session) -> None:
-    """Take a session down with nothing able to replace it halfway."""
-    CLOSING.add(project_id)
+    """Take a session down with nothing able to replace it halfway.
+
+    Two closes of one project can overlap, the reaper's and a provider
+    change's, and the second reuses the first's event rather than
+    replacing it: a replaced event is never set, so whoever was waiting on
+    it would sleep out the whole ceiling and then be refused.
+    """
+    over = CLOSING.setdefault(project_id, asyncio.Event())
     try:
         await session.close()
     finally:
         SESSIONS.pop(project_id, None)
-        CLOSING.discard(project_id)
+        if CLOSING.get(project_id) is over:
+            del CLOSING[project_id]
+        over.set()
+
+
+async def _wait_for_close(project_id: str) -> None:
+    """Let a close that is under way finish, for up to the ceiling."""
+    over = CLOSING.get(project_id)
+    if over is None:
+        return
+    try:
+        await asyncio.wait_for(over.wait(), CLOSE_WAIT_SECONDS)
+    except asyncio.TimeoutError:
+        pass
 
 #: Joins waiting for somebody to look at them. Bounded by the reaper below,
 #: because each one holds a peer connection and a set of documents open.
@@ -1648,13 +1697,16 @@ async def sync_socket(websocket: WebSocket, project_id: str, doc_id: str):
         await websocket.close(code=1008)
         return
 
-    session = SESSIONS.get(project_id)
-    if session is None:
-        try:
-            session = session_for(project_id)
-        except HTTPException:
-            await websocket.close(code=1003)
-            return
+    # The wait below is what the HTTP middleware does for every other
+    # route and cannot do for this one. Without it a socket arriving while
+    # the project was closing found the session still in the table and was
+    # served by it, on documents that were being flushed and closed.
+    await _wait_for_close(project_id)
+    try:
+        session = session_for(project_id)
+    except HTTPException:
+        await websocket.close(code=1003)
+        return
 
     await session.sync.serve(websocket, doc_id)
 
