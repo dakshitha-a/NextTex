@@ -7188,3 +7188,16 @@ download in the tree, one pane away from where they are being written.
 `e2e/specs/tab-menu.spec.ts` closes to the right from a middle tab and
 asserts the strip and the tab in front, finds the item disabled on the
 last tab, and downloads the file in front and reads its bytes back.
+
+### Typed text is visible in the find field
+
+The writer pressed Ctrl+F in the dark theme, typed, and saw nothing. The
+find and replace fields are the two CodeMirror draws; `styles.css` had a
+rule for them, `.cm-panel.cm-search input[type="text"]`, and it had never
+matched anything, because `@codemirror/search` builds its inputs without a
+`type` attribute. The attribute selector found nothing, and CodeMirror's
+own `.cm-textfield` painted the box white under whatever ink the theme
+handed it: dark on white in the light theme, which looked fine by luck,
+and light on white in the dark one at 1.24:1. The rule matches the class
+now, which is what is there. `e2e/specs/menus-contrast.spec.ts` types into
+both fields in all four shell and page pairings.

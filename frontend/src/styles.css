@@ -949,7 +949,15 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   border: 1px solid var(--line) !important; border-radius: 3px; font-size: 12px; }
 
 /* Find and replace.  CodeMirror ships this panel unstyled, and the browser
-   default controls read as somebody else's application inside this one. */
+   default controls read as somebody else's application inside this one.
+
+   The two fields are matched by their class and not by `input[type="text"]`,
+   which is what the rule said for a long time and never matched anything:
+   @codemirror/search builds its inputs without a `type` attribute, so the
+   attribute selector found nothing and CodeMirror's own `.cm-textfield`,
+   white, was the box the writer typed into.  In the light theme that was
+   invisible; in the dark one it was light ink on white at 1.24:1, and the
+   writer typed a word into it and saw nothing at all. */
 .cm-editor .cm-panels { background: var(--surface-2); color: var(--ink);
   border-bottom: 1px solid var(--line); }
 .cm-editor .cm-panels-bottom { border-top: 1px solid var(--line);
@@ -959,12 +967,12 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .cm-editor .cm-panel.cm-search br { display: none; }
 .cm-editor .cm-panel.cm-search label { display: inline-flex; align-items: center;
   gap: 4px; color: var(--ink-2); font-size: 11px; }
-.cm-editor .cm-panel.cm-search input[type="text"] {
+.cm-editor .cm-panel.cm-search input.cm-textfield {
   background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: 3px;
   padding: 3px 6px; font-family: var(--font-mono); font-size: 12px;
   min-width: 160px; }
-.cm-editor .cm-panel.cm-search input[type="text"]:focus-visible {
+.cm-editor .cm-panel.cm-search input.cm-textfield:focus-visible {
   outline: 2px solid var(--hint); outline-offset: -1px; }
 .cm-editor .cm-panel.cm-search button:not([name="close"]) {
   background: var(--surface); color: var(--ink-2);
