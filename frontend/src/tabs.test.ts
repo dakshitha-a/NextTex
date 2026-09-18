@@ -77,6 +77,35 @@ describe("afterClosing", () => {
   it("has nothing to do to an empty strip", () => {
     expect(afterClosing([], null, "all", "main.tex").closed).toEqual([]);
   });
+
+  it("closes everything to the right of the target and keeps the rest", () => {
+    const next = afterClosing(
+      strip("main.tex", "chapters/02.tex", "references.bib", "notes.tex"),
+      "notes.tex",
+      "right",
+      "chapters/02.tex",
+    );
+    expect(next.tabs.map((tab) => tab.path)).toEqual(["main.tex", "chapters/02.tex"]);
+    expect(next.closed).toEqual(["references.bib", "notes.tex"]);
+    // The tab in front was one of those closed, so the target takes its
+    // place rather than leaving nothing in front.
+    expect(next.activePath).toBe("chapters/02.tex");
+  });
+
+  it("closes nothing to the right of the last tab", () => {
+    const tabs = strip("main.tex", "references.bib");
+    const next = afterClosing(tabs, "main.tex", "right", "references.bib");
+    expect(next.closed).toEqual([]);
+    expect(next.tabs.map((tab) => tab.path)).toEqual(["main.tex", "references.bib"]);
+  });
+
+  it("closes nothing to the right of a target that has left the strip", () => {
+    const next = afterClosing(
+      strip("main.tex", "references.bib"), "main.tex", "right", "gone.tex",
+    );
+    expect(next.closed).toEqual([]);
+    expect(next.activePath).toBe("main.tex");
+  });
 });
 
 describe("viewingClosed", () => {

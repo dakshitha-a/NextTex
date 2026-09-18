@@ -695,12 +695,13 @@ export default function App() {
     [closeMany],
   );
 
-  /** Close every tab but one, or every tab. The decision is one
-   *  calculation, in `afterClosing`, which has the interesting cases: a
-   *  strip of one, a target that is no longer in the strip, and a tab in
-   *  front that is not the tab the menu was opened on. */
+  /** Close every tab but one, every tab, or every tab after one. The
+   *  decision is one calculation, in `afterClosing`, which has the
+   *  interesting cases: a strip of one, a target that is no longer in the
+   *  strip, and a tab in front that is not the tab the menu was opened
+   *  on. */
   const closeTabs = useCallback(
-    async (what: "others" | "all", target: string) => {
+    async (what: "others" | "all" | "right", target: string) => {
       const state = get();
       const next = afterClosing(state.tabs, state.activePath, what, target);
       if (!next.closed.length) return;

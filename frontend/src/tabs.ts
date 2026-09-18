@@ -17,17 +17,22 @@ import type { DocBuild, Tab } from "./store";
 export function afterClosing(
   tabs: Tab[],
   activePath: string | null,
-  what: "others" | "all",
+  what: "others" | "all" | "right",
   target: string,
 ): { tabs: Tab[]; activePath: string | null; closed: string[] } {
   // A menu can outlive the tab it was opened on: the file is renamed
   // underneath it, or another window closes it. Closing "the others" from a
   // tab that is no longer there would close the whole strip, which is the
-  // opposite of what was asked for.
-  if (what === "others" && !tabs.some((tab) => tab.path === target)) {
+  // opposite of what was asked for; closing "to the right" of it has no
+  // right to speak of.
+  const at = tabs.findIndex((tab) => tab.path === target);
+  if (what !== "all" && at < 0) {
     return { tabs, activePath, closed: [] };
   }
-  const kept = what === "all" ? [] : tabs.filter((tab) => tab.path === target);
+  const kept =
+    what === "all" ? []
+    : what === "right" ? tabs.slice(0, at + 1)
+    : tabs.filter((tab) => tab.path === target);
   const closed = tabs
     .filter((tab) => !kept.some((keep) => keep.path === tab.path))
     .map((tab) => tab.path);

@@ -465,14 +465,15 @@ could look at it, and the ring it specified could never have appeared.
 
 Tab switching is instantaneous: content swaps in the same frame, no crossfade.
 
-**Right-clicking the tab in front opens a menu**: *Close the others*, *Close all*, a rule,
-then *Duplicate*. Only the tab in front, because the items are about the file being
-written and a menu on any other tab would have to say which file it meant; a right-click
-anywhere else in the strip is left entirely alone, browser menu and all, since taking that
-away without putting something in its place is a loss for nothing. *Close the others* is
-disabled rather than absent when it is the only tab open, and the panel is `position:
-fixed`, not absolute, because the strip is a horizontal scroll box and would clip it, which
-is the same bug the file tree's row menu hit inside its own.
+**Right-clicking the tab in front opens a menu**: *Close the others*, *Close all to the
+right*, *Close all*, a rule, then *Duplicate* and *Download* (§39). Only the tab in front,
+because the items are about the file being written and a menu on any other tab would have
+to say which file it meant; a right-click anywhere else in the strip is left entirely
+alone, browser menu and all, since taking that away without putting something in its place
+is a loss for nothing. *Close the others* is disabled rather than absent when it is the
+only tab open, and *Close all to the right* when the tab is the last; the panel is
+`position: fixed`, not absolute, because the strip is a horizontal scroll box and would
+clip it, which is the same bug the file tree's row menu hit inside its own.
 
 The menu claims `role="menu"` and keeps the promise, through `menu-keys.ts`: focus on the
 first row when it opens, arrows that walk and wrap, Escape. It did not claim the role for
@@ -7170,3 +7171,20 @@ only the tree's row menu, one pane away. The viewer's footer carries
 `e2e/specs/image-view.spec.ts` downloads the same PNG three ways, from
 the viewer, from the row menu and from its history, and asserts the
 bytes each time.
+
+### The source tab menu closes to the right and downloads
+
+Two items on the tab in front's menu, one asked for in the list and
+one added while the list was being read. *Close all to the right* keeps
+the tab the menu was opened on and everything before it and closes what
+follows, the way every editor with tabs spells it; it is disabled on the
+last tab, where there is nothing to the right, and `afterClosing` in
+`frontend/src/tabs.ts` treats a target that has left the strip the way it
+does for *the others*, by closing nothing. The tab the gesture landed on
+comes to the front, which matters when the one in front was among those
+closed. *Download* takes the file as it stands on disk, by the route the
+tree's row menu already used: the files the editor holds had their only
+download in the tree, one pane away from where they are being written.
+`e2e/specs/tab-menu.spec.ts` closes to the right from a middle tab and
+asserts the strip and the tab in front, finds the item disabled on the
+last tab, and downloads the file in front and reads its bytes back.

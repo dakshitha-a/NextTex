@@ -68,10 +68,44 @@ test("a tab that is not in front keeps its browser menu", async ({
   ).toBeVisible();
 });
 
+test("close all to the right keeps the target and what is before it", async ({
+  app, project, tab,
+}) => {
+  // The strip reads main.tex, references.bib, notes.tex, with notes.tex in
+  // front.  From the middle tab, "to the right" closes only notes.tex and
+  // brings the middle tab forward, since the one in front has gone.
+  await threeOpen(app, project, tab);
+  await tab.locator('[data-tab][data-path="references.bib"]').click();
+  await tab.locator('[data-tab][data-path="references.bib"]').click({ button: "right" });
+  await tab.getByRole("menuitem", { name: "Close all to the right" }).click();
+
+  await expect(tab.locator("[data-tab]")).toHaveCount(2);
+  expect(await paths(tab)).toEqual(["main.tex", "references.bib"]);
+  await expect(
+    tab.locator('[data-tab][data-path="references.bib"] button[aria-current="true"]'),
+  ).toBeVisible();
+
+  // From the last tab there is nothing to the right, and the item says so.
+  await tab.locator('[data-tab][data-path="references.bib"]').click({ button: "right" });
+  await expect(tab.getByRole("menuitem", { name: "Close all to the right" })).toBeDisabled();
+  await tab.keyboard.press("Escape");
+});
+
+test("the menu downloads the file in front", async ({ app, project, tab }) => {
+  await threeOpen(app, project, tab);
+  await tab.locator('[data-tab][data-path="notes.tex"]').click({ button: "right" });
+  const waiting = tab.waitForEvent("download");
+  await tab.getByRole("menuitem", { name: "Download" }).click();
+  const download = await waiting;
+  expect(download.suggestedFilename()).toBe("notes.tex");
+  const { readFileSync } = await import("node:fs");
+  expect(readFileSync((await download.path())!, "utf-8")).toBe("% notes to myself\n");
+});
+
 test("close all empties the strip", async ({ app, project, tab }) => {
   await threeOpen(app, project, tab);
   await tab.locator('[data-tab][data-path="notes.tex"]').click({ button: "right" });
-  await tab.getByRole("menuitem", { name: "Close all" }).click();
+  await tab.getByRole("menuitem", { name: "Close all", exact: true }).click();
   await expect(tab.locator("[data-tab]")).toHaveCount(0);
 });
 

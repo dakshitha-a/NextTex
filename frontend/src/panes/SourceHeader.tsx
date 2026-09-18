@@ -1,4 +1,5 @@
 import { Suspense, lazy, useMemo, type ReactNode } from "react";
+import api, { startDownload } from "../api";
 import { RunIcon, StopIcon } from "../chrome";
 import { useStore } from "../store";
 import { isScript } from "./file-kinds";
@@ -35,7 +36,7 @@ export default function SourceHeader({
   /** Everything the right-click menu can do to the strip.  One prop rather
    *  than one per item: it is the signature of `afterClosing`, which does
    *  the thinking, so this component has nothing left to work out. */
-  onCloseTabs: (what: "others" | "all", path: string) => void;
+  onCloseTabs: (what: "others" | "all" | "right", path: string) => void;
   onDuplicate: (path: string) => void;
   /** Run the script in front, or stop it.  The control sits at the
    *  strip's end only while the tab in front is a `.py`. */
@@ -49,6 +50,7 @@ export default function SourceHeader({
 }) {
   const tabs = useStore((s) => s.tabs);
   const activePath = useStore((s) => s.activePath);
+  const projectId = useStore((s) => s.projectId);
   const diagnostics = useStore((s) => s.diagnostics);
   // Whether the strip has anything to say at all. Offline counts: a writer
   // whose typing is not reaching the file has to be told, collaborators or
@@ -98,16 +100,26 @@ export default function SourceHeader({
     };
   });
 
-  const menuFor = (path: string): MenuItem[] => [
-    // "Close the others" with nothing else open is the one item here that
-    // can have nothing to do.
-    { key: "others", label: "Close the others", off: tabs.length < 2,
-      run: () => onCloseTabs("others", path) },
-    { key: "all", label: "Close all", run: () => onCloseTabs("all", path) },
-    // Closing tabs and copying a file are not the same subject.
-    { key: "rule:copy", rule: true },
-    { key: "duplicate", label: "Duplicate", run: () => onDuplicate(path) },
-  ];
+  const menuFor = (path: string): MenuItem[] => {
+    const at = tabs.findIndex((tab) => tab.path === path);
+    return [
+      // "Close the others" with nothing else open, and "to the right" from
+      // the last tab, are the two items here that can have nothing to do.
+      { key: "others", label: "Close the others", off: tabs.length < 2,
+        run: () => onCloseTabs("others", path) },
+      { key: "right", label: "Close all to the right", off: at < 0 || at >= tabs.length - 1,
+        run: () => onCloseTabs("right", path) },
+      { key: "all", label: "Close all", run: () => onCloseTabs("all", path) },
+      // Closing tabs and taking a copy of a file are not the same subject.
+      { key: "rule:copy", rule: true },
+      { key: "duplicate", label: "Duplicate", run: () => onDuplicate(path) },
+      // The file as it stands on disk, the same route the tree's row menu
+      // takes.  A figure's viewer has its own; this is for the files the
+      // editor holds, whose only download was in the tree.
+      { key: "download", label: "Download", off: !projectId,
+        run: () => projectId && startDownload(api.downloadUrl(projectId, { path })) },
+    ];
+  };
 
   return (
     <PaneHeader
