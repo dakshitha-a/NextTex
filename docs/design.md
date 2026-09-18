@@ -7820,3 +7820,33 @@ comparison; `locate-word.test.ts` holds the plain case both ways; and
 the browser spec double-clicks the bold word and finds the caret at
 exactly its line and column, which the page's spec, depending on the
 typesetting, cannot claim.
+
+### The whole project downloads from inside it
+
+Reported by the writer during this run: *Whole project* from the
+download menu inside an open project failed with the browser's "Check
+internet connection", while the same download from the project list
+worked. Both screens asked the same route through the same `<a
+download>` link, the route is unchanged since the install that saw it,
+and the server's journal held no error. Driving a real Chromium against
+the running install reproduced it exactly: over the tailnet's HTTPS
+address, from inside an open project, once the page had been open about
+ten seconds, the browser cancelled the link download before sending a
+byte; within eight seconds it went through, over plain HTTP it never
+failed, and a `fetch` of the same URL from the same page at the same
+moment succeeded every time. What Chrome's download manager objects to
+in that state was not established, and it is recorded as such rather
+than guessed at; what is established is which road works. The ZIP takes
+it now: fetched by the page and saved, the way the PDF download has
+been since it needed to say why a document did not typeset, from all
+three places the ZIP is offered. A 500 or a 503 becomes a sentence in
+the corner rather than a file called `download`. On the way, the
+archive's walk stopped taking an atomic write's scratch file and stopped
+failing whole when a listed file is gone by the time it is read, which
+an open project, written under the walk every 120 ms, can do.
+
+`e2e/specs/download.spec.ts` downloads from inside the project while
+typing and with a build running, twice, and reads the archive's own
+directory back to find the sources and no build output; and from the
+list. `tests/api/test_download.py` deletes a listed file under the walk
+and finds the archive whole without it, and a scratch file never taken.

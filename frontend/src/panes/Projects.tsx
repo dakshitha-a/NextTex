@@ -1,13 +1,13 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import api, {
   saveBlob,
-  startDownload,
   type JoinOffer,
   type JoinOpened,
   type OfferedFile,
   type ProjectSummary,
 } from "../api";
 import Logo from "../Logo";
+import { downloadZip } from "../chrome";
 import Settings from "./Settings";
 import UpdateFooter from "./UpdateFooter";
 import PasswordNudge from "./PasswordNudge";
@@ -711,7 +711,7 @@ export default function Projects({
                   className="h-[28px] rounded-[3px] px-2 t-meta text-ink-2 hover:bg-surface-3 hover:text-ink disabled:opacity-40"
                   disabled={locked || project.missing}
                   onClick={() =>
-                    startDownload(api.downloadUrl(project.id, { format: "zip" }))
+                    void downloadZip(project.id, `${project.name}.zip`)
                   }
                 >
                   Zip

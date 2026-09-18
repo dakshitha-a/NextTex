@@ -53,7 +53,8 @@ from server.collab.peers import PeerNetwork, WELL_FORMED_SHARE_ID
 from server.collab.store import CollabStore
 from server.transcript import TranscriptError
 from nexttex.atomic import (
-    NotAFile, read_bytes, read_text, unique_name, write_atomically,
+    SUFFIX as SCRATCH_SUFFIX, NotAFile, read_bytes, read_text, unique_name,
+    write_atomically,
 )
 from nexttex.compile import ENGINES, CompileScheduler, ProjectPaths
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
@@ -4199,9 +4200,20 @@ async def download(
                     if any(p in {".git", ".nexttex", "__pycache__"}
                            for p in item.parts):
                         continue
-                    if is_ours(item.name):
+                    # A write in flight: the shared document is projected
+                    # to disk every 120 ms while somebody types, through a
+                    # scratch file beside the target that is renamed over
+                    # it, and the walk can list the scratch name.
+                    if is_ours(item.name) or item.name.endswith(SCRATCH_SUFFIX):
                         continue
-                    archive.write(item, item.relative_to(base))
+                    try:
+                        archive.write(item, item.relative_to(base))
+                    except FileNotFoundError:
+                        # Listed, then gone before it was read: that
+                        # scratch file renamed away, or a file the writer
+                        # deleted under the walk.  One file short beats
+                        # no archive at all.
+                        log.warning("left out of the archive, gone mid-walk: %s", item)
         finally:
             handle.close()
         return archive_path

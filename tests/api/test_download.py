@@ -6,6 +6,7 @@ list, where nothing is open -- that is the moment somebody most wants one.
 """
 
 import io
+import os
 import zipfile
 
 
@@ -55,6 +56,42 @@ def test_the_whole_project_comes_back_as_a_zip(client, opened, project_dir):
     assert "figures/plot.png" in names
     assert not [n for n in names if n.startswith("build/")]
     assert not [n for n in names if ".nexttex" in n]
+
+
+def test_a_file_that_vanishes_under_the_walk_leaves_the_archive_whole(
+    client, opened, project_dir, monkeypatch,
+):
+    """The walk lists the project and then reads each file, and a project
+    that is open is being written under it: a scratch file beside a target
+    is renamed over it every 120 ms while somebody types.  A name that was
+    listed and is gone by the time it is read used to raise out of the
+    whole archive; it is left out with a warning now, and the scratch
+    names are never taken at all."""
+    import zipfile as zf
+    from nexttex.atomic import SUFFIX
+
+    (project_dir / "chapter.tex").write_text("\\section{Chapter}\n")
+    (project_dir / "notes.tex").write_text("notes\n")
+    (project_dir / ("main.tex" + SUFFIX)).write_text("half written")
+
+    original = zf.ZipFile.write
+
+    def write(self, filename, *args, **kwargs):
+        # Gone between the listing and the read, the way a scratch file
+        # renamed away or a file deleted under the walk is.
+        if str(filename).endswith("notes.tex"):
+            os.unlink(filename)
+        return original(self, filename, *args, **kwargs)
+
+    monkeypatch.setattr(zf.ZipFile, "write", write)
+    response = client.get(f"/api/projects/{opened['id']}/download")
+    assert response.status_code == 200, response.text
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        names = set(archive.namelist())
+    assert "main.tex" in names
+    assert "chapter.tex" in names
+    assert "notes.tex" not in names
+    assert not [n for n in names if n.endswith(SUFFIX)]
 
 
 def test_a_project_that_is_not_open_can_still_be_downloaded(client, project):

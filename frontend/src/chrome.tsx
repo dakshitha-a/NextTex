@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import api, { saveBlob, startDownload } from "./api";
+import api, { saveBlob } from "./api";
 import { set, useStore } from "./store";
 import { useDismiss } from "./useDismiss";
 import { focusFirst, walkMenu } from "./panes/menu-keys";
@@ -189,6 +189,39 @@ export async function downloadPdf(projectId: string, document = "") {
   }
 }
 
+/** The whole project as a ZIP, fetched and saved rather than handed to the
+ *  browser as a link.
+ *
+ *  It was a plain link, and from inside an open project over HTTPS it
+ *  failed with the browser's own "Check internet connection" whenever the
+ *  page had been quiet for more than the server's five second keep-alive,
+ *  while the same link from the project list, and a `fetch` of the same
+ *  URL from the same page a moment before, both succeeded.  What differs
+ *  is the road: a link download is the browser's download manager opening
+ *  a connection of its own, a fetch is the page's, and the page's is the
+ *  one that works with an event stream and a document socket already
+ *  open to the host.  The PDF download has taken this road since it
+ *  needed to say why a document did not typeset, and it was never
+ *  reported failing.  A 500 or a 503 says what it said, rather than
+ *  saving as a `.zip` or failing with a sentence about the network. */
+export async function downloadZip(projectId: string, fallback = "project.zip") {
+  try {
+    const response = await fetch(
+      api.downloadUrl(projectId, { format: "zip" }),
+      { credentials: "same-origin" },
+    );
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail || `the server answered ${response.status}`);
+    }
+    const header = response.headers.get("content-disposition") ?? "";
+    const named = /filename="?([^";]+)"?/.exec(header)?.[1];
+    saveBlob(await response.blob(), named || fallback);
+  } catch (error: any) {
+    set({ error: `Could not download the project: ${error.message}` });
+  }
+}
+
 export function AppControls({
   projectId,
   projectName,
@@ -228,7 +261,7 @@ export function AppControls({
           where downloads live is worse than either arrangement. */}
       <DownloadMenu
         onZip={() =>
-          projectId && startDownload(api.downloadUrl(projectId, { format: "zip" }))
+          projectId && void downloadZip(projectId)
         }
         onPdf={(document) => projectId && downloadPdf(projectId, document)}
       />

@@ -32,8 +32,15 @@ line. The panel's half is done: the header is two rows, a row shows that
 it is hovered and chosen, Name it and Compare exist for a finger and a
 keyboard, Escape leaves one level at a time and no longer blocks the
 chat's, the viewing banner wraps instead of tearing, and the list follows
-versions as they are recorded rather than after a build. Still to do: the
-Markdown half.
+versions as they are recorded rather than after a build. The Markdown
+half is done too: the tab brings its file, the document tab brings its
+own back, and a double-click on the rendering lands on the line and the
+word. The writer's mid-run report, the whole-project ZIP failing from
+inside a project over HTTPS, was reproduced against the running install
+with a real browser and fixed by fetching it the way the PDF is; what
+Chrome objects to in a link download from that state is recorded in
+`docs/design.md` §43 as not established. Still to do: the rendering
+following the caret, and the version.
 
 Before it, the first roadmap run, after 2.7.0, took eleven items from
 `ROADMAP.md` in its order, in three pushes. The build went up as 2.8.0:

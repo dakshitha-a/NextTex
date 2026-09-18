@@ -15,6 +15,7 @@ import {
   AppControls,
   Chevron,
   downloadPdf,
+  downloadZip,
   FoldButton,
   Segmented,
   Handle,
@@ -2088,10 +2089,7 @@ export default function App() {
                     words competing with the project's name for a 32px bar.
                     One icon, and the choice inside it. */}
                 <DownloadMenu
-                  onZip={() =>
-                    projectId &&
-                    startDownload(api.downloadUrl(projectId, { format: "zip" }))
-                  }
+                  onZip={() => projectId && void downloadZip(projectId)}
                   onPdf={(document) => projectId && downloadPdf(projectId, document)}
                 />
                 <FoldButton
