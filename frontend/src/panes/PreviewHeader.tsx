@@ -33,6 +33,7 @@ export default function PreviewHeader({
   onAdd,
   onRunScript,
   onStopScript,
+  onSelectMarkdown,
   onHeaderClick,
   trailing,
 }: {
@@ -47,6 +48,12 @@ export default function PreviewHeader({
    *  it and closing it are store writes and need nobody's help. */
   onRunScript: (path: string) => void;
   onStopScript: (path: string) => void;
+  /** The Markdown tab was chosen: the pane is this window's own and
+   *  comes forward on its own, and this is for the source to follow,
+   *  the way a document's does.  The script tab has no such thing on
+   *  purpose: its content is a run's output, read beside the page while
+   *  the chapter that includes the figure is being written. */
+  onSelectMarkdown?: (path: string) => void;
   /** A click on the tab in front or the empty run: fold, or double-click
    *  for reading mode.  Absent below 900px, where nothing folds. */
   onHeaderClick?: () => void;
@@ -137,6 +144,7 @@ export default function PreviewHeader({
     }
     if (markdown && path === markdown.path) {
       set({ previewShowing: "markdown" });
+      onSelectMarkdown?.(path);
       return;
     }
     set({ previewShowing: "document" });

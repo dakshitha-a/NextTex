@@ -1391,7 +1391,13 @@ export default function App() {
     // A click on the strip is asking for the document by name, so it is no
     // longer one this window merely followed and may not leave on its own.
     if (withSource) followed.current.delete(path);
-    if (!path || path === get().activePreview) return;
+    if (!path) return;
+    // The source first, and before the early return: a document tab
+    // clicked while the Markdown pane or a script's run is in front is
+    // already the active preview, so the return below used to swallow
+    // the click's other half and the source stayed on the notes.
+    if (withSource && get().activePath !== path) openFile(path);
+    if (path === get().activePreview) return;
     set({ activePreview: path });
     const id = get().projectId;
     if (id) {
@@ -1399,7 +1405,6 @@ export default function App() {
         .setFocus(id, get().activePath ?? "", undefined, undefined, undefined, path)
         .catch(() => undefined);
     }
-    if (withSource && get().activePath !== path) openFile(path);
   }, [openFile]);
 
   const startPreviewing = useCallback(async (path: string) => {
@@ -2523,6 +2528,14 @@ export default function App() {
               onSelect={(path) => {
                 noteSelect("pdf");
                 showPreview(path);
+              }}
+              // The Markdown tab brings its file, as a document tab
+              // brings its document's: the rendering and the source
+              // are one file, and choosing to read it is choosing to be
+              // in it.  Nothing moves the keyboard, the strip's rule.
+              onSelectMarkdown={(path) => {
+                noteSelect("pdf");
+                if (get().activePath !== path) openFile(path);
               }}
               onClose={stopPreviewing}
               onCloseMany={(paths) => {

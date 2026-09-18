@@ -655,7 +655,8 @@ from under you, so the file you were editing is still the one in front.
 A Markdown file gets the same treatment as a script: open a `README.md` or a
 set of notes and its rendering joins the preview strip as a tab of its own,
 following your typing a moment behind, while the typeset page waits behind it
-for the next `.tex` you open. A figure opens whole, however large, with a
+for the next `.tex` you open. Choosing its tab brings the file to the source
+pane, as a document's tab does. A figure opens whole, however large, with a
 zoom that steps from what fits and a Download beside it.
 
 The two strips keep each other tidy. Stop previewing a document and the files

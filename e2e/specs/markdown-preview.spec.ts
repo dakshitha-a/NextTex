@@ -82,6 +82,35 @@ test("opening a Markdown file renders it beside the editor, live", async ({
   await expect(view).toBeVisible();
 });
 
+test("choosing the Markdown tab brings its file to the source pane", async ({
+  app, project, page,
+}) => {
+  // A document tab has always brought its file, through `showPreview`;
+  // the Markdown tab only brought its rendering forward and left the
+  // editor on whatever it had, so reading the notes meant a second
+  // click in the tree to write in them.
+  writeFileSync(join(project.root, "notes.md"), NOTES);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await page.locator('[role="tree"] [data-path="notes.md"]').click();
+  await expect(page.getByTestId("markdown-view")).toBeVisible({ timeout: 15_000 });
+  await page.locator('[role="tree"] [data-path="main.tex"]').click();
+  await expect(page.locator('[data-tab][data-path="main.tex"] [aria-current="true"]'))
+    .toBeVisible();
+
+  await page.getByTestId("markdown-tab-notes.md").click();
+  await expect(page.getByTestId("markdown-view")).toBeVisible();
+  await expect(page.locator('[data-tab][data-path="notes.md"] [aria-current="true"]'))
+    .toBeVisible();
+  await expect(page.locator(".cm-content")).toContainText("Reviewer notes");
+  // And the document tab brings its own file back, as it always did.
+  await page.getByTestId("preview-tab-main.tex").click();
+  await expect(page.locator('[data-tab][data-path="main.tex"] [aria-current="true"]'))
+    .toBeVisible();
+});
+
 test("an empty Markdown file says so rather than showing a blank page", async ({
   app, project, page,
 }) => {

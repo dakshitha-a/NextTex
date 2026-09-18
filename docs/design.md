@@ -7776,3 +7776,18 @@ the file's list when the file on screen is named, and the size and the
 project timeline on any. The mechanics are in `docs/architecture.md`.
 `e2e/specs/history-panel.spec.ts` opens the panel on a `.md`, types, and
 finds a new row while the event counter shows that no build ran.
+
+### The Markdown tab brings its file
+
+A document tab on the preview strip has always brought its file to the
+source pane, through `showPreview`; the Markdown tab brought its
+rendering forward and left the editor on whatever it had, so reading the
+notes and then wanting to write in them meant a second click in the
+tree. The rendering and the source are one file, and choosing to read it
+is choosing to be in it, so the tab opens its file now, on the strip's
+own terms: nothing moves the keyboard. The script tab deliberately does
+not: its content is a run's output, read beside the page while the
+chapter that includes the figure is being written, and pulling the
+source to the script would take the writer away from what they were
+doing. `e2e/specs/markdown-preview.spec.ts` puts `main.tex` in front,
+chooses the Markdown tab, and finds `notes.md` the source tab in front.
