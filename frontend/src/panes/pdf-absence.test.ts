@@ -36,6 +36,15 @@ describe("why there is no preview", () => {
     expect(absenceFrom(missing, BUILT)).toBe("empty");
   });
 
+  test("a build rewriting the file is a build in flight, not a failure", () => {
+    // The route answers 503 when the PDF changed under it mid-read, which
+    // pdflatex does by rewriting the same inode in place. Nothing is
+    // wrong with the document or the connection, and the next build's
+    // `compile_done` fetches again.
+    expect(absenceFrom({ ok: false, status: 503 }, BUILT)).toBe("building");
+    expect(absenceFrom({ ok: false, status: 503 }, NEVER_BUILT)).toBe("building");
+  });
+
   test("anything but a 404 is a failure, whatever the build is doing", () => {
     expect(absenceFrom(broken, BUILT)).toBe("unreachable");
     expect(absenceFrom(broken, BUILDING)).toBe("unreachable");

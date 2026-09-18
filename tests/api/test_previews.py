@@ -222,13 +222,15 @@ def test_each_document_has_its_own_pdf_and_its_own_etag(client, project_dir, ope
     client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
     session = server_main.SESSIONS[project_id]
     session.project.build_dir.mkdir(parents=True, exist_ok=True)
-    (session.project.build_dir / "main.pdf").write_bytes(b"%PDF-main\n")
-    (session.project.build_dir / "esi.pdf").write_bytes(b"%PDF-esi-longer\n")
+    # With the trailer the engine writes last, which the route now
+    # requires: a PDF without one is a build still writing.
+    (session.project.build_dir / "main.pdf").write_bytes(b"%PDF-main\n%%EOF\n")
+    (session.project.build_dir / "esi.pdf").write_bytes(b"%PDF-esi-longer\n%%EOF\n")
 
     main = client.get(f"/api/projects/{project_id}/pdf?document=main.tex")
     esi = client.get(f"/api/projects/{project_id}/pdf?document=esi.tex")
-    assert main.content == b"%PDF-main\n"
-    assert esi.content == b"%PDF-esi-longer\n"
+    assert main.content == b"%PDF-main\n%%EOF\n"
+    assert esi.content == b"%PDF-esi-longer\n%%EOF\n"
     assert main.headers["etag"] != esi.headers["etag"]
 
     # And one document's ETag must never satisfy the other's request, or a
@@ -238,6 +240,64 @@ def test_each_document_has_its_own_pdf_and_its_own_etag(client, project_dir, ope
         headers={"if-none-match": main.headers["etag"]},
     )
     assert crossed.status_code == 200
+
+
+def test_a_pdf_rewritten_under_the_reader_is_not_served_short(
+    client, project_dir, opened, monkeypatch
+):
+    """Seen in a writing session's log: `RuntimeError: Response content
+    shorter than Content-Length` on the PDF route.  pdflatex rewrites the
+    PDF in place, and a `FileResponse` measured the file, then streamed
+    it, and a build landed in between.  The route now reads the bytes and
+    measures again, and a file that moved is answered with 503 and a
+    retry rather than a fragment or an exception.
+    """
+    import os
+    import pathlib
+    import time
+
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
+    session.project.build_dir.mkdir(parents=True, exist_ok=True)
+    pdf = session.project.build_dir / "main.pdf"
+    pdf.write_bytes(b"%PDF-the-old-build" + b"." * 40 + b"\n%%EOF\n")
+
+    steady = client.get(f"/api/projects/{project_id}/pdf")
+    assert steady.status_code == 200
+    assert int(steady.headers["content-length"]) == len(steady.content)
+    assert steady.content.startswith(b"%PDF-the-old-build")
+
+    real = pathlib.Path.read_bytes
+
+    def a_build_lands_mid_read(self):
+        data = real(self)
+        if self == pdf:
+            # A new build, shorter, arriving while the old bytes were being
+            # read; a later mtime so the stat can see it.
+            self.write_bytes(b"%PDF-new\n%%EOF\n")
+            later = time.time() + 5
+            os.utime(self, (later, later))
+        return data
+
+    monkeypatch.setattr(pathlib.Path, "read_bytes", a_build_lands_mid_read)
+    caught = client.get(f"/api/projects/{project_id}/pdf")
+    assert caught.status_code == 503, caught.text
+    assert caught.headers.get("retry-after") == "1"
+    monkeypatch.undo()
+
+    # And once the build has settled, the new PDF is what comes back, whole.
+    settled = client.get(f"/api/projects/{project_id}/pdf")
+    assert settled.status_code == 200
+    assert settled.content == b"%PDF-new\n%%EOF\n"
+    assert settled.headers["etag"] != steady.headers["etag"]
+
+    # The other shape of a build in progress: pdfTeX ships pages out in
+    # bursts and idles between them, so a file that nothing moves during
+    # the read can still be half a document.  The trailer is what tells.
+    pdf.write_bytes(b"%PDF-1.5\n1 0 obj\n<< /Type /Page >>\nendobj\n")
+    between_pages = client.get(f"/api/projects/{project_id}/pdf")
+    assert between_pages.status_code == 503, between_pages.text
+    assert between_pages.headers.get("retry-after") == "1"
 
 
 def test_an_unknown_document_falls_back_to_the_one_on_screen(

@@ -350,3 +350,47 @@ test("a folder with no document opens with an empty strip that offers one", asyn
   await expect(page.getByText("No document to preview.")).toHaveCount(0);
   await expect(page.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
 });
+
+test("a fetch that lands mid-build keeps the page already on screen", async ({
+  tab,
+}) => {
+  // The route answers 503 when a build rewrote the PDF under the reader,
+  // which pdflatex does in place.  Seen in a writing session as
+  // "Response content shorter than Content-Length" in the server log and
+  // "The preview could not be fetched" over a document that was fine.
+  // The page that was on screen is the right thing to keep showing, and
+  // the build's own completion fetches again.
+  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+
+  let refused = 0;
+  await tab.route(/\/api\/projects\/[^/]+\/pdf\?/, async (route) => {
+    if (refused === 0) {
+      refused += 1;
+      await route.fulfill({ status: 503, headers: { "Retry-After": "1" } });
+      return;
+    }
+    await route.continue();
+  });
+
+  const answered = tab.waitForResponse(
+    (r) => r.url().includes("/pdf") && r.status() === 503,
+    { timeout: 45_000 },
+  );
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.type("\nA sentence typed while the file was being rewritten.");
+  await answered;
+
+  // Still the page, not a notice over it.
+  await expect(tab.locator("canvas").first()).toBeVisible();
+  await expect(tab.getByText("The preview could not be fetched")).toHaveCount(0);
+
+  // And the next build's page lands as usual.
+  const served = tab.waitForResponse(
+    (r) => r.url().includes("/pdf") && r.status() === 200,
+    { timeout: 45_000 },
+  );
+  await tab.keyboard.type(" And one more.");
+  await served;
+  await expect(tab.locator("canvas").first()).toBeVisible();
+  await expect(tab.getByText("The preview could not be fetched")).toHaveCount(0);
+});

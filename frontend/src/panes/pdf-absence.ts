@@ -45,6 +45,11 @@ export function absenceFrom(
 ): Absence {
   if (response === null) return "unreachable";
   if (response.ok) return "";
+  // The route answers 503 while a build is rewriting the PDF under it,
+  // which is the engine's doing and not a fault: the next `compile_done`
+  // fetches again.  The pane keeps a page it already has; with none, the
+  // truthful word is the one for a build in flight.
+  if (response.status === 503) return "building";
   if (response.status !== 404) return "unreachable";
   if (!onStrip) return "nodocument";
   if (build?.compiling) return "building";

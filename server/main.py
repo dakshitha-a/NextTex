@@ -4439,10 +4439,52 @@ async def get_pdf(project_id: str, request: Request, document: str = ""):
     etag = f'W/"{state.paths.jobname}-{int(stat.st_mtime_ns)}-{stat.st_size}"'
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag})
-    return FileResponse(
-        pdf, media_type="application/pdf",
+    data = await _whole_pdf(pdf, stat)
+    if data is None:
+        return Response(status_code=503, headers={"Retry-After": "1"})
+    return Response(
+        content=data, media_type="application/pdf",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
+
+
+async def _whole_pdf(pdf: Path, stat: os.stat_result) -> bytes | None:
+    """The PDF's bytes, or None while a build is writing it.
+
+    Read whole, not streamed.  The engine writes the PDF in place, in the
+    build directory, truncating the same inode, so a `FileResponse` that
+    took its Content-Length from a stat and then streamed the file could
+    be overtaken by a build and end short, which Starlette raises on as
+    "Response content shorter than Content-Length" and the browser sees
+    as a failed fetch over a document that was fine.
+
+    Three checks, because the engine's writing has two shapes.  A build
+    that lands during the read moves the mtime or the size between the
+    stat the caller took and the one taken here.  A build that is between
+    pages moves nothing: pdfTeX ships pages out in bursts and idles while
+    the next one typesets, so all three measurements can agree on a file
+    that is half a document.  What every finished PDF has and no
+    half-written one does is the `%%EOF` the engine writes last.  Either
+    way the honest answer is "not this instant" rather than a fragment;
+    the browser fetches again on the build's `compile_done` regardless.
+
+    A thesis is tens of megabytes at most and this runs once per build,
+    so the whole file in memory for the length of one response is a price
+    worth the certainty.
+    """
+    data = await asyncio.to_thread(pdf.read_bytes)
+    try:
+        after = pdf.stat()
+    except OSError:
+        return None
+    if (
+        after.st_mtime_ns != stat.st_mtime_ns
+        or after.st_size != stat.st_size
+        or len(data) != stat.st_size
+        or not data.rstrip().endswith(b"%%EOF")
+    ):
+        return None
+    return data
 
 
 @app.get("/api/projects/{project_id}/synctex/inverse")

@@ -4312,6 +4312,14 @@ two: **Typesetting** while a build is running, **Not built yet** when none
 has finished, **Nothing has been typeset yet** only for a build that finished
 and made no pages, and the unreachable screen for everything else.
 
+A fifth answer came later, from a writing session's log. The engine rewrites
+the PDF in place, and a fetch that arrived while a build was writing it came
+back short, which the pane showed as the unreachable screen over a document
+that was fine. The route now answers 503 for that instant, and the pane
+treats it as what it is: a build in flight. A page already on screen stays
+on screen, since the build's own completion fetches again; with no page yet,
+the pane says **Typesetting**, which is true.
+
 **The strip said Ready through that same build**, which is the other half and
 has a different cause. `compile_start` is news, and the broadcaster keeps no
 backlog, so a browser hears it only if it was subscribed at that instant.

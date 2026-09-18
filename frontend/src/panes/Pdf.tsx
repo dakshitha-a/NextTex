@@ -679,6 +679,11 @@ export default function Pdf({
           // one's: a stale 404 arriving after a good PDF had loaded put
           // the "no preview" screen over a page that was on the screen.
           if (cancelled) return;
+          // A 503 is the route saying a build is rewriting the file at
+          // this moment.  A page already on screen is better than any
+          // notice, and the build's own `compile_done` bumps the stamp,
+          // so the fetch is simply given up on.
+          if (response.status === 503 && doc.current) return;
           setAbsence(absenceFrom(response, buildRef.current, Boolean(source) || anyDocumentRef.current));
           return;
         }
