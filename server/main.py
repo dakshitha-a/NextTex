@@ -2089,7 +2089,19 @@ async def list_projects():
     # Where home is, so the rows can write a path the way a person does,
     # `~/writing/thesis`.  The browser cannot know it: the machine running
     # NextTex is not always the one the page is open on.
-    return {"projects": projects, "open": list(SESSIONS), "home": str(Path.home())}
+    #
+    # `open` is every project with a session, which is a fact about the
+    # server: a session outlives the window that opened it by up to the
+    # idle timeout.  `watched` is the ids a browser is holding the event
+    # stream of right now, which is what "open in another window" means to
+    # the person reading the list, and the count drops the moment a
+    # window goes back to the list or closes.
+    return {
+        "projects": projects,
+        "open": list(SESSIONS),
+        "watched": [id for id, s in SESSIONS.items() if s.events.watchers],
+        "home": str(Path.home()),
+    }
 
 
 @app.post("/api/projects")

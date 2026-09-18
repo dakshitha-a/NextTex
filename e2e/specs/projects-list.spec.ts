@@ -215,3 +215,31 @@ test("the arrow keys walk the list, and the filter cannot strand the focus", asy
   await page.keyboard.press("Enter");
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 });
+
+test("leaving a project ends its event stream, so the list stops calling it open", async ({
+  app, project, browser, page,
+}) => {
+  // Two windows: A opens the project, B reads the list.
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await page.getByText(project.root.split("/").pop()!, { exact: true }).click();
+  await page.locator(".cm-editor").waitFor({ timeout: 45_000 });
+
+  const other = await browser.newContext();
+  const list = await other.newPage();
+  await list.goto(`${app.base}/?token=${app.token}`);
+  await list.getByText("Projects", { exact: false }).first().waitFor();
+  const watched = async () =>
+    (await (await list.request.get(`${app.base}/api/projects`)).json()).watched as string[];
+  expect(await watched()).toEqual([project.id]);
+
+  // A goes back to the list. Its event stream ends there and then, not
+  // when the tab closes, so the server stops counting the project as
+  // held by a browser: the row the reader has just come from is not
+  // "open in another window", and the reaper can evict the session it
+  // left behind.
+  await page.getByTestId("switch-project").click();
+  await page.getByText("Projects", { exact: true }).waitFor();
+  await expect.poll(watched, { timeout: 10_000 }).toEqual([]);
+  await other.close();
+});

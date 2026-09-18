@@ -422,6 +422,11 @@ export default function App() {
     // a static import here would put a hundred kilobytes of it into the
     // entry bundle for every writer who never shares anything.
     void import("./collab").then((module) => module.closeCollab());
+    // And the event stream, which only the tab closing used to end: left
+    // open, the project just left went on counting as in use, so the
+    // reaper never evicted it and the list's "open in another window"
+    // would have marked the row the reader had just come from.
+    disconnect();
     set({ collaborators: [], share: null, connection: "offline" });
     setView("projects");
   }, []);

@@ -249,3 +249,24 @@ def test_relocating_a_private_project_leaves_it_closed(client, project, project_
     answer = client.post(f"/api/projects/{project['id']}/relocate", json={"path": str(moved)})
     assert answer.status_code == 200
     assert answer.json()["id"] not in server_main.SESSIONS
+
+
+def test_the_list_says_which_projects_a_browser_is_holding_open(client, opened):
+    """`open` names every project with a session, and a session outlives
+    the window that opened it by up to the idle timeout, so it is nearly
+    always the project just left with Back. `watched` is the ids a browser
+    is holding the event stream of right now, which is what a row means by
+    "open in another window"."""
+    from server import main as server_main
+
+    session = server_main.SESSIONS[opened["id"]]
+    listed = client.get("/api/projects").json()
+    assert opened["id"] in listed["open"]
+    assert opened["id"] not in listed["watched"]
+
+    queue = session.events.subscribe()
+    try:
+        assert opened["id"] in client.get("/api/projects").json()["watched"]
+    finally:
+        session.events.unsubscribe(queue)
+    assert opened["id"] not in client.get("/api/projects").json()["watched"]

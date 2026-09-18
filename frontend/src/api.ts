@@ -442,7 +442,7 @@ function json(body: unknown): RequestInit {
 
 const api = {
   projects: () =>
-    request<{ projects: ProjectSummary[]; open: string[]; home: string }>("/projects"),
+    request<{ projects: ProjectSummary[]; open: string[]; watched: string[]; home: string }>("/projects"),
   /** Who this server is.  Answered while it is shutting down, and its
    *  `boot` nonce changes when the process does -- which is how a page
    *  waiting out a restart knows the wait is over. */
