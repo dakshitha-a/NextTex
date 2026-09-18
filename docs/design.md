@@ -7201,3 +7201,13 @@ handed it: dark on white in the light theme, which looked fine by luck,
 and light on white in the dark one at 1.24:1. The rule matches the class
 now, which is what is there. `e2e/specs/menus-contrast.spec.ts` types into
 both fields in all four shell and page pairings.
+
+### A dismissed question is withdrawn
+
+The tree's row menu kept its history-deletion question after being
+dismissed: Escape or a click away closed the menu but not the question,
+so the next open of that row's menu showed *Delete every stored version
+of …?* again instead of the menu. Closing the menu withdraws the question
+now, whichever way it closes. Found while the menu audit below was being
+written, by a recipe that opened the question, put it away and asked for
+the menu again.

@@ -137,7 +137,14 @@ export default function FileTree({
   const menuButton = useRef<HTMLButtonElement | null>(null);
   const previews = useStore((s) => s.previews);
   const candidates = useStore((s) => s.candidates);
-  const closeMenu = useCallback(() => setMenu(null), []);
+  // Closing the menu also withdraws the question it was asking.  A menu
+  // dismissed with Escape or a click away while it was asking about
+  // deleting a file's history kept `purging`, so the next open of that
+  // row's menu showed the question again instead of the menu.
+  const closeMenu = useCallback(() => {
+    setMenu(null);
+    setPurging(null);
+  }, []);
   useDismiss(menuRef, menu !== null, closeMenu, menuButton);
   const uploadTo = useRef<string>("");
   // Where the picker was started from, so focus can go back there when the
@@ -653,6 +660,7 @@ export default function FileTree({
                 y: Math.min(toShell(box.bottom) + 4, viewportHeight() - 220),
               });
               setMenu(menu === node.path ? null : node.path);
+              setPurging(null);
             }}
           >
             ⋯
