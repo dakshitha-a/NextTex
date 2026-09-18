@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import re
 from hypothesis import given, settings, strategies as st
 
 from nexttex import report
@@ -87,6 +88,29 @@ def test_a_shorter_secret_inside_a_longer_one_leaves_no_tail():
 def test_the_home_directory_is_spelled_as_a_tilde():
     out = report.redact(r"C:\Users\me\x and C:/Users/me/y", [], r"C:\Users\me")
     assert out == "~\\x and ~/y"
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    name=st.text(alphabet=string.ascii_letters + string.digits, min_size=3, max_size=16),
+    filler=st.text(alphabet=string.ascii_letters + " \n.,", max_size=120),
+)
+def test_the_account_name_never_leaves_as_itself(name, filler):
+    """A Windows event names the account as DOMAIN\\name and journalctl as
+    name@host, and neither is inside the home path the tilde fold reaches."""
+    text = (f"{filler} UserContext: DESKTOP\\{name} {filler}\n"
+            f"session opened for user {name}@laptop\n"
+            f"C:\\Users\\{name}\\AppData\\x {filler}")
+    out = report.redact(text, [], f"C:\\Users\\{name}", name)
+    assert re.search(r"(?<![A-Za-z0-9_])" + re.escape(name) + r"(?![A-Za-z0-9_])", out) is None
+    assert report.ACCOUNT in out
+    assert "~\\AppData" in out
+
+
+def test_the_account_name_is_a_word_and_a_short_one_is_left_alone():
+    out = report.redact("dan, danger, dan@host, DOMAIN\\dan", [], "", "dan")
+    assert out == "[account], danger, [account]@host, DOMAIN\\[account]"
+    assert report.redact("me and some", [], "", "me") == "me and some"
 
 
 # -- what the report reads, and what it does not ---------------------------

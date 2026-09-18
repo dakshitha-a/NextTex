@@ -23,6 +23,7 @@ What it never reads: `peer.key`, `key.pem`, `cert.pem`, a project's
 from __future__ import annotations
 
 import datetime
+import getpass
 import json
 import os
 import platform
@@ -63,6 +64,10 @@ MAX_REPORT_BYTES = 96_000
 MAX_URL = 6000
 
 REDACTED = "[redacted]"
+
+#: What the account's name becomes: not a secret, so not the same word, and
+#: still readable as the place where a name was.
+ACCOUNT = "[account]"
 
 
 # ---------------------------------------------------------------------------
@@ -339,14 +344,21 @@ def logs_section(state: Path, instance: str) -> list:
 # The one pass that removes what must not leave
 
 
-def redact(text: str, secrets, home: str = "") -> str:
+def redact(text: str, secrets, home: str = "", account: str = "") -> str:
     """Every secret value, every token in a URL, every key-shaped line, then
-    the home directory.
+    the home directory, then the account's name.
 
     Secrets first and longest first, so a shorter one that is a prefix of a
     longer one cannot leave the longer one's tail behind.  The home path goes
-    last: a token never contains it, and replacing it earlier would move the
-    text under the patterns that follow.
+    after them: a token never contains it, and replacing it earlier would
+    move the text under the patterns that follow.  The account name goes
+    last of all, because the home path usually ends in it and folding the
+    path first is what leaves nothing of it behind: a Windows event names
+    the account as `DOMAIN\\name` and journalctl as name at host, neither
+    of which the home fold reaches.  Bounded by non-word characters so a
+    short name does not eat the middle of other words, and not applied to
+    a name under three characters, which would fold too much else to be
+    worth what it hides.
     """
     for secret in sorted({s for s in secrets if isinstance(s, str) and s}, key=len, reverse=True):
         text = text.replace(secret, REDACTED)
@@ -360,7 +372,20 @@ def redact(text: str, secrets, home: str = "") -> str:
         for spelling in {home, home.replace("\\", "/"), home.replace("/", "\\")}:
             if spelling and spelling not in ("/", "\\"):
                 text = text.replace(spelling, "~")
+    if account and len(account) >= 3:
+        text = re.sub(
+            r"(?<![A-Za-z0-9_])" + re.escape(account) + r"(?![A-Za-z0-9_])",
+            ACCOUNT, text,
+        )
     return text
+
+
+def account_name() -> str:
+    """The name this process runs as, or "" where nothing can say."""
+    try:
+        return getpass.getuser()
+    except Exception:
+        return os.environ.get("USERNAME") or os.environ.get("USER") or ""
 
 
 def _secrets_in(config: dict) -> list:
@@ -407,7 +432,7 @@ def compose(*, root: Path, environ=None, client=None, source: str,
         lines.append("")
     text = "\n".join(lines).rstrip() + "\n"
 
-    text = redact(text, _secrets_in(config), str(Path.home()))
+    text = redact(text, _secrets_in(config), str(Path.home()), account_name())
     if len(text.encode("utf-8")) > MAX_REPORT_BYTES:
         text = text.encode("utf-8")[:MAX_REPORT_BYTES].decode("utf-8", errors="ignore")
         text = text.rstrip() + "\n(cut here: the report was longer than it is worth pasting)\n"
