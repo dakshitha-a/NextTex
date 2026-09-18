@@ -16,11 +16,22 @@ import Prose from "./prose";
 // Fetched when somebody asks for it: most sessions never open a past
 // conversation, and the list and its renderers should not ship ahead of that.
 const PastConversation = lazy(() => import("./PastConversation"));
+// The three popovers under the composer, for the same reason: each draws
+// nothing until its trigger is pressed, and most sessions press none.
+const ModelMenu = lazy(() =>
+  import("./ComposerMenus").then((m) => ({ default: m.ModelMenu })),
+);
+const ModeMenu = lazy(() =>
+  import("./ComposerMenus").then((m) => ({ default: m.ModeMenu })),
+);
+const SetupPanel = lazy(() =>
+  import("./ComposerMenus").then((m) => ({ default: m.SetupPanel })),
+);
 import { shortRule } from "./short-rule";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
 import { agentName, usageNote } from "../agent-name";
 import { Chevron } from "../chrome";
-import { focusFirst, walkMenu } from "./menu-keys";
+import { MODE_TITLES } from "./mode-words";
 import api from "../api";
 import {
   clearChat,
@@ -269,11 +280,6 @@ export default function Chat({
   const [confirmAll, setConfirmAll] = useState(false);
   const modeRef2 = useRef<HTMLDivElement | null>(null);
   const modeButton = useRef<HTMLButtonElement | null>(null);
-  // Focus goes into the mode menu once, when it opens, from an effect keyed
-  // on the opening: the same lesson the strip menus learned about refs.
-  useEffect(() => {
-    if (modeOpen) focusFirst(modeRef2.current);
-  }, [modeOpen]);
   const confirmAllRef = useRef<HTMLDivElement | null>(null);
   const keepAskingButton = useRef<HTMLButtonElement | null>(null);
   const closeConfirmAll = useCallback(() => {
@@ -670,27 +676,15 @@ export default function Chat({
 
       <div className="shrink-0 border-t border-line p-[8px]">
         {setupOpen ? (
-          <div
-            ref={setupRef}
-            id="nx-setup"
-            role="group"
-            aria-label="Template and voice"
-            className="mb-2 flex flex-col gap-2 rounded-[3px] border border-line bg-surface-2 p-2"
-          >
-            {WELCOME_ACTIONS.map((action) => (
-              <button
-                key={action.kind}
-                className="ghost-button nx-press px-3 py-2 text-left"
-                onClick={() => {
-                  setSetupOpen(false);
-                  onAddContext?.(action.kind);
-                }}
-              >
-                <span className="t-ui block">{action.label}</span>
-                <span className="t-meta block text-ink-2">{action.detail}</span>
-              </button>
-            ))}
-          </div>
+          <Suspense fallback={null}>
+            <SetupPanel
+              ref={setupRef}
+              onPick={(kind) => {
+                setSetupOpen(false);
+                onAddContext?.(kind);
+              }}
+            />
+          </Suspense>
         ) : null}
         {/* What is going with the question. Above the composer beside the
             selection chip, with a thumbnail, because an image attached by
@@ -997,43 +991,14 @@ export default function Chat({
                 <Sliders />
               </button>
               {modelOpen ? (
-                <div
-                  ref={modelRef}
-                  data-testid="model-menu"
-                  className="nx-arrive absolute bottom-[30px] left-0 z-40 w-[230px] overflow-hidden rounded-[5px] border border-line bg-surface shadow-float"
-                >
-                  <div className="t-micro px-[10px] pb-1 pt-2 text-ink-2">
-                    Which model answers here
-                  </div>
-                  {(usage?.models ?? [{ id: "", name: "Default", note: "" }]).map(
-                    (entry) => (
-                      <button
-                        key={entry.id}
-                        className="flex w-full items-start gap-2 border-t border-line px-[10px] py-[6px] text-left transition-colors duration-[90ms] hover:bg-surface-2"
-                        aria-pressed={(usage?.model ?? "") === entry.id}
-                        onClick={() => chooseModel(entry.id)}
-                      >
-                        <span
-                          className={`mt-[6px] h-[4px] w-[4px] shrink-0 rounded-full ${
-                            (usage?.model ?? "") === entry.id
-                              ? "bg-pen"
-                              : "bg-transparent"
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="t-ui block truncate text-ink">
-                            {entry.name}
-                          </span>
-                          {entry.note ? (
-                            <span className="t-meta block text-ink-2">
-                              {entry.note}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    ),
-                  )}
-                </div>
+                <Suspense fallback={null}>
+                  <ModelMenu
+                    ref={modelRef}
+                    models={usage?.models ?? []}
+                    current={usage?.model ?? ""}
+                    onChoose={chooseModel}
+                  />
+                </Suspense>
               ) : null}
             </div>
             {/* Only the Claude agent ever puts a card up, so only it is
@@ -1063,56 +1028,15 @@ export default function Chat({
                   <Bolt />
                 </button>
                 {modeOpen ? (
-                  <div
-                    ref={modeRef2}
-                    role="menu"
-                    data-testid="mode-menu"
-                    className="nx-arrive absolute bottom-[30px] left-0 z-20 w-[288px] rounded-[5px] border border-line bg-surface-2 p-1 shadow-float"
-                    // The role's promise, kept: arrows walk the three,
-                    // Escape closes and gives the bolt its focus back.
-                    onKeyDown={(event) => {
-                      if (walkMenu(event, () => setModeOpen(false)) && event.key === "Escape") {
-                        modeButton.current?.focus();
-                      }
-                    }}
-                  >
-                    {(["ask", "project", "all"] as const).map((option) => (
-                      <button
-                        key={option}
-                        role="menuitemradio"
-                        aria-checked={mode === option}
-                        data-testid={`mode-${option}`}
-                        className={`flex w-full items-start gap-2 rounded-[3px] px-2 py-[6px] text-left transition-colors duration-[90ms] hover:bg-surface-3 ${
-                          mode === option ? "bg-surface-3" : ""
-                        }`}
-                        onClick={() => chooseMode(option)}
-                      >
-                        {/* The same 4px dot the model popover one icon
-                            along the strip uses for its selection. This
-                            marked the current position with a fill alone,
-                            and two popovers on the same strip saying the
-                            same thing two different ways is a difference
-                            a reader has to learn rather than read. */}
-                        <span
-                          className={`mt-[6px] h-[4px] w-[4px] shrink-0 rounded-full ${
-                            mode === option ? "bg-pen" : "bg-transparent"
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1">
-                        <span
-                          className={`t-ui block ${
-                            option === "all" ? "text-warn" : "text-ink"
-                          }`}
-                        >
-                          {MODE_TITLES[option]}
-                        </span>
-                        <span className="t-micro mt-[2px] block text-ink-3">
-                          {MODE_NOTES[option]}
-                        </span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <Suspense fallback={null}>
+                    <ModeMenu
+                      ref={modeRef2}
+                      mode={mode}
+                      onChoose={chooseMode}
+                      onClose={() => setModeOpen(false)}
+                      onEscape={() => modeButton.current?.focus()}
+                    />
+                  </Suspense>
                 ) : null}
               </div>
             ) : null}
@@ -1156,18 +1080,8 @@ export default function Chat({
               data-testid="setup-open"
               onClick={() => {
                 setConfirmClear(false);
-                setSetupOpen((open) => {
-                  if (!open) {
-                    window.setTimeout(
-                      () =>
-                        setupRef.current
-                          ?.querySelector<HTMLElement>("button")
-                          ?.focus({ preventScroll: true }),
-                      0,
-                    );
-                  }
-                  return !open;
-                });
+                // The panel puts focus on its first choice when it mounts.
+                setSetupOpen((open) => !open);
               }}
             >
               <Page />
@@ -1295,28 +1209,6 @@ function shorten(text: string, limit = 28): string {
   return line.includes("/") ? `…${tail}` : `${line.slice(0, limit - 1)}…`;
 }
 
-/** The three positions, in the writer's terms rather than the fence's.
- *
- *  Named for what happens, not for how much is switched off: "Run the work
- *  without asking" says what the middle position does, where "everything
- *  inside the project" would be a claim the code cannot keep. A piped
- *  command or a script can leave the project without the fence seeing it,
- *  because what the fence inspects is the tool call and not what the
- *  command then does, and section 28 says so where a reader will find it.
- */
-const MODE_TITLES: Record<"ask" | "project" | "all", string> = {
-  ask: "Ask before acting",
-  project: "Run the work without asking",
-  all: "Never ask about anything",
-};
-
-const MODE_NOTES: Record<"ask" | "project" | "all", string> = {
-  ask: "A card for every command, every fetch and every write that leaves this project.",
-  project:
-    "Commands and edits run silently. Still asked about: writing outside this project, and anything reaching the internet.",
-  all: "Nothing is asked about at all. Everything is still recorded here.",
-};
-
 /** Tools that are plumbing rather than work: showing them is noise.
  *
  *  `TodoWrite` used to be in here and is not plumbing. It is the model
@@ -1325,7 +1217,6 @@ const MODE_NOTES: Record<"ask" | "project" | "all", string> = {
  *  turn's plan, replaced in place as later calls revise it. `ToolSearch`
  *  genuinely is plumbing, and stays. */
 const HIDDEN_TOOLS = new Set(["ToolSearch"]);
-
 
 /** A picture, at the weight of the other four icons under the composer.
  *

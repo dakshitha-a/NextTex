@@ -31,11 +31,6 @@ decisions recorded so nobody reopens them by accident. The eight are here,
 each still carrying its reason, in the order they are being done, and each
 leaves this list in the commit that finishes it.
 
-- [ ] **Split the composer's four controls out of the entry chunk.**
-      `bench/thresholds.json` names this as the honest way back under the
-      bundle budget, and it is a refactor rather than an import change. The
-      permission card is the wrong candidate for the same treatment: a session
-      with an agent in it always sees cards.
 - [ ] **The project list has no arrow keys.** Tab reaches every row and
       the filter's Enter opens the first match, which covers the keyboard
       case a long list actually has. Left because arrow keys want a roving

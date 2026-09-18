@@ -2520,6 +2520,15 @@ anchor-aware `useDismiss`: the same hook, with the same trigger ref, that
 the usage panel needed. Any new toggle popover in this app must pass its
 anchor or it will close on `pointerdown` and reopen on `click`.
 
+Since the backlog run the model menu, the mode menu and the template-and-
+voice panel arrive on first open rather than with the panel: they are one
+lazy chunk, `ComposerMenus.tsx`, and the strip's buttons stay where they
+were. Two things follow. Each panel puts focus on its own first choice
+when it mounts, because an effect in the parent keyed on the opening runs
+before the chunk has arrived and finds nothing to focus; and the words the
+bolt's aria-label reads live in `mode-words.ts`, on the entry side, so the
+label is right before the menu that lists them has been fetched.
+
 ### Several previewed documents
 
 A project builds one document per previewed file rather than one per

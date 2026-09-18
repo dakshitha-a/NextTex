@@ -283,6 +283,29 @@ test("the mode menu keeps the promise of its role", async ({ tab }) => {
   await expect(control).toBeFocused();
 });
 
+test("the template-and-voice panel takes focus when it arrives, and gives it back", async ({
+  tab,
+}) => {
+  // The three popovers under the composer are fetched on first open rather
+  // than shipped with the panel, so the moment the trigger is pressed the
+  // panel is not there yet.  Focus has to be moved by the panel itself when
+  // it mounts, not by the trigger a tick after the press: the trigger's
+  // timeout used to find nothing to focus.
+  const control = tab.getByTestId("setup-open");
+  await control.click();
+  const panel = tab.locator("#nx-setup");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("button").first()).toBeFocused();
+  await tab.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(control).toBeFocused();
+  // And the model menu, which arrives from the same chunk.
+  await tab.getByTestId("model-open").click();
+  await expect(tab.getByTestId("model-menu")).toBeVisible();
+  await tab.keyboard.press("Escape");
+  await expect(tab.getByTestId("model-menu")).toBeHidden();
+});
+
 test("what the agent is told to remember survives a new conversation", async ({
   tab,
 }) => {
