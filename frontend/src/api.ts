@@ -99,6 +99,16 @@ export type Version = {
    *  contents, it never will be, and the panel should say so rather than
    *  offer a restore that cannot work. */
   here?: boolean;
+  /** In the whole-project list only: the versions one watcher tick
+   *  recorded, a `git pull` touching forty files, are folded into one
+   *  row, the newest of them, carrying every file the tick touched and
+   *  how many. Absent on a row that is one version. */
+  paths?: string[];
+  count?: number;
+  /** Which window, or which watcher tick, a version came from; never
+   *  shown, and on a folded row it is the tick's stamp, which is what
+   *  the row is keyed on while it is unfolded. */
+  source?: string;
 };
 
 export type TrashEntry = {

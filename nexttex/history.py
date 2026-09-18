@@ -633,7 +633,15 @@ class History:
         return data.decode("utf-8", errors="replace")
 
     def timeline(self, limit: int = 100) -> list[dict]:
-        """Recent versions across every file, newest first."""
+        """Recent versions across every file, newest first.
+
+        The versions one watcher tick recorded, a `git pull` touching forty
+        files in one second, share a `source` stamp and are folded into one
+        row: the newest of them, carrying `paths`, every file in the tick
+        sorted, and `count`.  A tick that touched one file is an ordinary
+        row.  Folded before the limit is applied, so a pull does not fill
+        the whole list with its own files.
+        """
         entries: list[dict] = []
         paths = self._paths()
         for log in self.log_dir.glob("*.jsonl"):
@@ -644,7 +652,26 @@ class History:
             for version in self.versions_of(key):
                 entries.append({"path": path, **version.as_dict()})
         entries.sort(key=lambda item: item["at"], reverse=True)
-        return entries[:limit]
+        folded: list[dict] = []
+        ticks: dict[str, dict] = {}
+        for entry in entries:
+            source = entry.get("source") or ""
+            if not source.startswith(OUTSIDE):
+                folded.append(entry)
+                continue
+            tick = ticks.get(source)
+            if tick is None:
+                tick = ticks[source] = {**entry, "paths": [entry["path"]], "count": 1}
+                folded.append(tick)
+            else:
+                tick["paths"].append(entry["path"])
+                tick["count"] += 1
+        for tick in ticks.values():
+            if tick["count"] == 1:
+                del tick["paths"], tick["count"]
+            else:
+                tick["paths"].sort()
+        return folded[:limit]
 
     # -- writing -----------------------------------------------------------
     def _write_log(self, relative_path: str, versions: list[Version]) -> None:

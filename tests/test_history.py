@@ -258,3 +258,22 @@ def test_two_watcher_ticks_on_one_file_are_one_burst(tmp_path):
     assert len(versions) == 1
     assert versions[0].source == "outside:2000"
     assert store.content("main.tex", versions[0].sha) == "save two"
+
+
+def test_the_timeline_folds_one_watcher_tick_into_one_row(tmp_path):
+    """Forty files pulled in one second are one row, the newest of them,
+    carrying every path; a tick that touched one file is an ordinary row."""
+    store = history(tmp_path)
+    store.record("c.tex", "typed", source="tab-a")
+    store.record("a.tex", "pulled a", source="outside:1000")
+    store.record("b.tex", "pulled b", source="outside:1000")
+    store.record("c.tex", "pulled c", source="outside:1000")
+    store.record("d.tex", "pulled later", source="outside:2000")
+    rows = store.timeline()
+    assert [row.get("count") for row in rows] == [None, 3, None]
+    assert rows[0]["path"] == "d.tex" and "paths" not in rows[0]
+    assert rows[1]["paths"] == ["a.tex", "b.tex", "c.tex"]
+    assert rows[1]["source"] == "outside:1000"
+    assert rows[2]["path"] == "c.tex" and rows[2]["source"] == "tab-a"
+    # Folded before the limit: a limit of two still shows the tick whole.
+    assert [row.get("count") for row in store.timeline(limit=2)] == [None, 3]

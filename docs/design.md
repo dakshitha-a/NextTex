@@ -5171,6 +5171,18 @@ The list is read on the way into the project view and again after a build,
 which is the trigger the per-file list already uses: a build is the point at
 which a session's typing has become versions.
 
+Since the backlog run the list has a third shape of row. An edit made
+outside NextTex while it is running, a `git pull`, another editor's save,
+is a version now, and a pull touching forty files in one second would
+have been forty rows saying the same thing. The versions one watcher tick
+recorded share a stamp, the whole-project list folds them into one row,
+the newest of them, that says "changed outside NextTex, 12 files" and
+unfolds to name the files, and each name is the way into that file's own
+list, where a version can be opened, named or restored. The folded row
+itself offers neither naming nor comparing, because it stands for several
+files and those verbs belong to one. A tick that touched one file is an
+ordinary row.
+
 ### Every project anybody made was an article
 
 `GET /api/templates` lists the directories under `nexttex/templates`, the

@@ -1,6 +1,8 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { landed } from "../typing";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 /** Getting back what you had.
  *
@@ -295,6 +297,39 @@ test("history can be read for the whole project, not just one file", async ({
   ).toBeVisible();
   await expect(tab.getByTestId("history-scope-path").filter({ hasText: "main.tex" }).first())
     .toBeVisible();
+});
+
+test("files changed outside NextTex in one moment are one row of the project's history", async ({
+  tab,
+  app,
+  project,
+}) => {
+  // A `git pull` touching forty files used to be nothing at all in the
+  // history, and would have been forty rows once it was something. Two
+  // files written back to back from outside land in one watcher tick,
+  // are recorded under one stamp, and the whole-project list folds them
+  // into one row that unfolds to name them; a name is the way into that
+  // file's own list.
+  writeFileSync(join(project.root, "main.tex"), "\\documentclass{article}\\begin{document}Pulled.\\end{document}\n");
+  writeFileSync(join(project.root, "notes.tex"), "Pulled too.\n");
+  await expect(tab.getByRole("treeitem", { name: /notes\.tex/ })).toBeVisible({
+    timeout: 10_000,
+  });
+
+  await openHistory(tab);
+  await tab.getByRole("button", { name: "Whole project" }).click();
+  const tick = tab.getByTestId("history-tick").first();
+  await expect(tick).toBeVisible({ timeout: 10_000 });
+  await expect(tick).toContainText("changed outside NextTex, 2 files");
+  await tab.getByTestId("history-tick-toggle").first().click();
+  await expect(tab.getByTestId("history-tick-path")).toHaveCount(2);
+  await tab.getByTestId("history-tick-path").filter({ hasText: "notes.tex" }).click();
+  // In that file now, with the panel back on its per-file question.
+  await expect(tab.getByTitle("notes.tex").first()).toBeVisible({ timeout: 10_000 });
+  await expect(tab.getByRole("button", { name: "This file" })).toHaveAttribute(
+    "aria-pressed", "true",
+  );
+  await expect(tab.getByTestId("version").first()).toContainText("changed outside NextTex");
 });
 
 test("emptying a history says what it freed, and the panel says what it holds", async ({

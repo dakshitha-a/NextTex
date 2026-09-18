@@ -66,6 +66,8 @@ export default function History({
   const [timeline, setTimeline] = useState<(Version & { path: string })[]>([]);
   const [timelineFailed, setTimelineFailed] = useState(false);
   const [held, setHeld] = useState("");
+  /** Which folded row, by its stamp, is showing the files it holds. */
+  const [unfolded, setUnfolded] = useState<string | null>(null);
   const binary = Boolean(activePath) && !isText(activePath!);
   const blobUrl = (sha: string, download = false) =>
     projectId && activePath
@@ -202,6 +204,7 @@ export default function History({
                     ? "border-hint bg-surface text-ink"
                     : "border-transparent text-ink-3 hover:text-hint"
                 }`}
+                aria-pressed={scope === option}
                 onClick={() => setScope(option)}
                 title={
                   option === "file"
@@ -260,6 +263,10 @@ export default function History({
           // follow the row rather than the editor.
           const rowPath = version.path ?? activePath ?? "";
           const rowBinary = Boolean(rowPath) && !isText(rowPath);
+          // A tick's row stands for several files, so the controls that
+          // belong to one version, naming and comparing, are not drawn on
+          // it; they are reached through the file's own list.
+          const folded = scope === "project" && (version.count ?? 1) > 1;
           return (
             <div key={`${version.sha}-${version.at}`}>
               {first ? (
@@ -343,7 +350,8 @@ export default function History({
                   >
                     {elsewhere ? "elsewhere" : size(version.bytes)}
                   </span>
-                  {onCompare &&
+                  {!folded &&
+                  onCompare &&
                   viewing?.version &&
                   viewing.version.sha !== version.sha &&
                   viewing.path === rowPath &&
@@ -360,18 +368,20 @@ export default function History({
                       Compare
                     </button>
                   ) : null}
-                  <button
-                    className="quiet t-micro hidden group-hover:block"
-                    title="Name this version so it is never thinned away"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setLabelling(version.sha);
-                    }}
-                  >
-                    {version.label ? "Rename" : "Name it"}
-                  </button>
+                  {!folded ? (
+                    <button
+                      className="quiet t-micro hidden group-hover:block"
+                      title="Name this version so it is never thinned away"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setLabelling(version.sha);
+                      }}
+                    >
+                      {version.label ? "Rename" : "Name it"}
+                    </button>
+                  ) : null}
                 </div>
-                {scope === "project" ? (
+                {scope === "project" && !folded ? (
                   <span
                     className="t-micro truncate text-ink-3"
                     data-testid="history-scope-path"
@@ -379,7 +389,43 @@ export default function History({
                     {version.path}
                   </span>
                 ) : null}
-                {version.label ? (
+                {folded ? (
+                  /* One watcher tick, many files: a `git pull`. The row
+                     says how many and unfolds to name them, and each name
+                     is the way into that file's own history, which is
+                     where a version can be opened, named or restored. */
+                  <div className="flex flex-col gap-[2px]" data-testid="history-tick">
+                    <button
+                      className="quiet t-micro flex items-center gap-1 self-start text-ink-2"
+                      aria-expanded={unfolded === version.source}
+                      data-testid="history-tick-toggle"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setUnfolded((current) =>
+                          current === version.source ? null : version.source ?? null,
+                        );
+                      }}
+                    >
+                      <Chevron direction={unfolded === version.source ? "down" : "right"} />
+                      {version.why}, {version.count} files
+                    </button>
+                    {unfolded === version.source
+                      ? version.paths!.map((path) => (
+                          <button
+                            key={path}
+                            className="quiet t-micro truncate pl-[14px] text-left text-ink-3 hover:text-ink"
+                            data-testid="history-tick-path"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void choose({ ...version, path }, false);
+                            }}
+                          >
+                            {path}
+                          </button>
+                        ))
+                      : null}
+                  </div>
+                ) : version.label ? (
                   <span className="t-meta text-ink">{version.label}</span>
                 ) : version.why ? (
                   <span className="t-micro truncate text-ink-2">{version.why}</span>

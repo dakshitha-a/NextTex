@@ -31,14 +31,6 @@ decisions recorded so nobody reopens them by accident. The eight are here,
 each still carrying its reason, in the order they are being done, and each
 leaves this list in the commit that finishes it.
 
-- [ ] **An outside edit made while the server is running is not a
-      version.** The watcher folds a `git pull` or another editor's save
-      into the document through `ingest`, and nothing records what the
-      file held before or after; only the projection's own writes and,
-      since the projection record, edits made while the server was stopped
-      are. Left because a pull touching forty files would write forty
-      versions in one second and the timeline has no way yet to fold a
-      burst like that into one entry.
 - [ ] **The bug report has no Windows event log section.** `server.err.log`
       covers a server that started; a launcher that never got that far
       leaves its trace in the task's history, which `Get-WinEvent` can read.
