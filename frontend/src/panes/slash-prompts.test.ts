@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completed, matching, slashHead, type PromptEntry } from "./slash-prompts";
+import { alreadyNamed, completed, matching, slashHead, type PromptEntry } from "./slash-prompts";
 
 const PROMPTS: PromptEntry[] = [
   { name: "review-critical", said: "review critical", source: "builtin", hint: "Read as the second reviewer.", text: "..." },
@@ -26,5 +26,20 @@ describe("a slash command being typed", () => {
 
   it("completes to the spoken name with a space for the note", () => {
     expect(completed(PROMPTS[1])).toBe("/review friendly ");
+  });
+
+  it("knows when the draft already is a name, even beside a longer one", () => {
+    const withShort: PromptEntry[] = [
+      { name: "review", said: "review", source: "project", hint: "Just review.", text: "..." },
+      ...PROMPTS,
+    ];
+    // Two rows stay up on `/review `, and the draft is one of them: Enter
+    // must send, not fill the first in again.
+    const offered = matching("/review ", withShort);
+    expect(offered.map((p) => p.name)).toEqual(["review", "review-critical", "review-friendly"]);
+    expect(alreadyNamed("/review ", offered)).toBe(true);
+    expect(alreadyNamed("/Review-Friendly", offered)).toBe(true);
+    expect(alreadyNamed("/rev", matching("/rev", withShort))).toBe(false);
+    expect(alreadyNamed("/review friendly the abstract", [])).toBe(false);
   });
 });

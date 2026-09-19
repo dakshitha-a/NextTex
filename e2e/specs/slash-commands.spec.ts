@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, expect, openFolders, openProject } from "../fixtures";
 import { startServer, seedProject } from "../server";
 
@@ -69,6 +71,7 @@ test("typing a slash offers the prompts, Enter completes one, and the agent gets
 
 test("the Context panel lists the prompts, and a copy puts the file in the project", async ({
   tab,
+  project,
 }) => {
   await tab.getByRole("button", { name: /What .* reads/ }).click();
   const list = tab.getByTestId("prompts-list");
@@ -97,4 +100,17 @@ test("the Context panel lists the prompts, and a copy puts the file in the proje
   await tab.keyboard.press("Escape");
   await expect(tab.getByTestId("prompt-menu")).toHaveCount(0);
   await expect(composer).toHaveValue("/review f");
+
+  // A project prompt whose name is the start of another's: on `/review `
+  // both rows are up and the draft already is one of them, so Enter sends
+  // rather than filling the same name in again.
+  writeFileSync(join(project.root, "prompts", "review.md"), "Just review it.\n");
+  await composer.fill("");
+  await composer.pressSequentially("/rev");
+  await expect(rows).toHaveCount(3, { timeout: 10_000 });
+  await composer.pressSequentially("iew ");
+  await expect(tab.getByTestId("prompt-menu")).toHaveCount(0);
+  await tab.keyboard.press("Enter");
+  await expect(composer).toHaveValue("");
+  await expect(tab.getByText("/review", { exact: true })).toBeVisible({ timeout: 20_000 });
 });

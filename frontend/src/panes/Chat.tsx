@@ -32,6 +32,7 @@ const PromptMenu = lazy(() =>
   import("./ComposerMenus").then((m) => ({ default: m.PromptMenu })),
 );
 import {
+  alreadyNamed,
   completed,
   matching,
   slashHead,
@@ -393,7 +394,7 @@ export default function Chat({
     focusedComposer &&
     !promptsAway &&
     offered.length > 0 &&
-    !(offered.length === 1 && completed(offered[0]).trim() === draft.trim());
+    !alreadyNamed(draft, offered);
   const promptChosen = Math.min(promptRow, Math.max(offered.length - 1, 0));
   const pickPrompt = (index: number) => {
     const prompt = offered[index];

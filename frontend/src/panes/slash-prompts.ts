@@ -39,3 +39,12 @@ export function matching(draft: string, prompts: PromptEntry[]): PromptEntry[] {
 export function completed(prompt: PromptEntry): string {
   return `/${prompt.said} `;
 }
+
+/** Whether the draft already is one of the offered prompts' names, so
+ *  Enter should send it rather than fill it in again. Any of them, not
+ *  only a lone match: a project's `review.md` beside `review-friendly`
+ *  keeps two rows up on `/review `, and Enter picked the first for ever. */
+export function alreadyNamed(draft: string, offered: PromptEntry[]): boolean {
+  const typed = fold(draft);
+  return offered.some((prompt) => fold(completed(prompt)) === typed);
+}
