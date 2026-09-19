@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placeMenu } from "./place-menu";
+import { placeMenu, under } from "./place-menu";
 
 const viewport = { width: 1600, height: 600 };
 const menu = { width: 184, height: 306 };
@@ -44,5 +44,20 @@ describe("placeMenu", () => {
   it("does not flip without a flip edge, and clamps instead", () => {
     const at = placeMenu({ left: 60, top: 570 }, menu, viewport);
     expect(at.top).toBe(viewport.height - menu.height - 8);
+  });
+});
+
+describe("under", () => {
+  const button = (box: { left: number; right: number; top: number; bottom: number }) =>
+    ({ getBoundingClientRect: () => box }) as unknown as HTMLElement;
+
+  it("hangs a menu from a button's left edge, or its right, with the button's top as the flip edge", () => {
+    const box = { left: 100, right: 124, top: 40, bottom: 66 };
+    expect(under(button(box), 232)).toEqual({ left: 100, top: 70, flip: 36 });
+    expect(under(button(box), 232, "right")).toEqual({ left: 124 - 232, top: 70, flip: 36 });
+  });
+
+  it("is nothing without a button", () => {
+    expect(under(null, 232)).toBeNull();
   });
 });

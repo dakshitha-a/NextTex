@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { onFrame } from "../timing";
-import { useDismiss } from "../useDismiss";
 import { toShell, viewportWidth } from "../viewport";
-import { focusFirst, walkMenu } from "./menu-keys";
+import { under } from "../place-menu";
+import { Menu, MenuItem } from "../ui/Menu";
 
 /** What the two tab strips share, so they cannot drift apart again.
  *
@@ -147,18 +147,11 @@ export function HiddenTabs({
   onPick: (path: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const menu = useRef<HTMLDivElement | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
-  useDismiss(menu, open, () => setOpen(false), button);
+  const wanted = useMemo(() => (open ? under(button.current, 232, "right") : null), [open]);
   useEffect(() => {
     if (!hidden.length) setOpen(false);
   }, [hidden.length]);
-  // Focus goes in once, when the list opens.  Not from the ref: an inline
-  // ref is a new function on every render, React calls a new ref with the
-  // node again, and this strip re-renders on every build tick.
-  useEffect(() => {
-    if (open) focusFirst(menu.current);
-  }, [open]);
   if (!hidden.length) return null;
   return (
     <div className="relative flex shrink-0">
@@ -173,45 +166,31 @@ export function HiddenTabs({
       >
         {hidden.length}
       </button>
-      {open ? (
-        <div
-          ref={menu}
-          role="menu"
-          data-testid={`${testId}-menu`}
-          // Fixed, not absolute: the strip is `overflow-x-auto`, and an
-          // absolute menu would be clipped by it, which is the bug the
-          // tab menu and the tree's menu both hit before this one.
-          // Capped at the window's height and scrolling past it: a strip
-          // with forty files open lists most of them here, and a list
-          // that ran off the bottom hid exactly the tabs it exists to
-          // reach.
-          className="nx-furniture nx-arrive fixed z-40 max-h-[calc(100vh-16px)] w-[220px] overflow-y-auto rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
-          style={fixedBelow(button.current)}
-          onKeyDown={(event) => {
-            if (walkMenu(event, () => setOpen(false))) {
-              if (event.key === "Escape") button.current?.focus();
-            }
-          }}
-        >
-          {hidden.map((path) => (
-            <button
-              key={path}
-              role="menuitem"
-              title={path}
-              className="t-ui block w-full truncate px-3 py-[3px] text-left text-ink focus:bg-hint-wash"
-              onPointerMove={(event) => {
-                if (event.movementX || event.movementY) event.currentTarget.focus();
-              }}
-              onClick={() => {
-                setOpen(false);
-                onPick(path);
-              }}
-            >
-              {name(path)}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {/* The kit's menu, hung from the button's right edge so it opens
+          inward, and capped at the window's height: a strip with forty
+          files open lists most of them here, and a list that ran off the
+          bottom hid exactly the tabs it exists to reach. */}
+      <Menu
+        open={open}
+        onClose={() => setOpen(false)}
+        wanted={wanted}
+        anchor={button}
+        testid={`${testId}-menu`}
+        width={232}
+      >
+        {hidden.map((path) => (
+          <MenuItem
+            key={path}
+            title={path}
+            onClick={() => {
+              setOpen(false);
+              onPick(path);
+            }}
+          >
+            {name(path)}
+          </MenuItem>
+        ))}
+      </Menu>
     </div>
   );
 }

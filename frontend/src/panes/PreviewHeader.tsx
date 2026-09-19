@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PlusIcon } from "../chrome";
 import { get, set, useStore } from "../store";
 import { pageWindowUrl } from "../page-window";
-import { useDismiss } from "../useDismiss";
-import { focusFirst, walkMenu } from "./menu-keys";
+import { under } from "../place-menu";
+import { Menu, MenuItem as Item } from "../ui/Menu";
 import PaneHeader from "./PaneHeader";
 import TabStrip, { middleTruncate, type MenuItem, type StripTab } from "./TabStrip";
 
@@ -75,12 +75,10 @@ export default function PreviewHeader({
   const activePath = useStore((s) => s.activePath);
 
   const [open, setOpen] = useState(false);
-  const menu = useRef<HTMLDivElement | null>(null);
   const plus = useRef<HTMLButtonElement | null>(null);
-  useDismiss(menu, open, () => setOpen(false), plus);
-  useEffect(() => {
-    if (open) focusFirst(menu.current);
-  }, [open]);
+  // Measured once per opening, not per render: the header re-renders on
+  // every build tick.
+  const wanted = useMemo(() => (open ? under(plus.current, 232, "right") : null), [open]);
   useEffect(() => {
     if (!candidates.length) setOpen(false);
   }, [candidates.length]);
@@ -225,40 +223,28 @@ export default function PreviewHeader({
                     <span className="absolute right-[3px] top-[3px] h-[4px] w-[4px] rounded-full bg-hint" />
                   ) : null}
                 </button>
-                {open ? (
-                  <div
-                    ref={menu}
-                    role="menu"
-                    data-testid="preview-menu"
-                    // Furniture, like the other menus, and it keeps the
-                    // role's promise: focus on open, arrow keys, Escape
-                    // back to the button.
-                    className="nx-furniture nx-arrive absolute right-0 top-[28px] z-40 w-[220px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
-                    onKeyDown={(event) => {
-                      if (walkMenu(event, () => setOpen(false)) && event.key === "Escape") {
-                        plus.current?.focus();
-                      }
-                    }}
-                  >
-                    {candidates.map((path) => (
-                      <button
-                        key={path}
-                        role="menuitem"
-                        title={path}
-                        className="t-ui block w-full truncate px-3 py-[3px] text-left text-ink focus:bg-hint-wash"
-                        onPointerMove={(event) => {
-                          if (event.movementX || event.movementY) event.currentTarget.focus();
-                        }}
-                        onClick={() => {
-                          setOpen(false);
-                          onAdd(path);
-                        }}
-                      >
-                        {path}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                {/* The kit's menu, hung from the button's right edge. */}
+                <Menu
+                  open={open}
+                  onClose={() => setOpen(false)}
+                  wanted={wanted}
+                  anchor={plus}
+                  testid="preview-menu"
+                  width={232}
+                >
+                  {candidates.map((path) => (
+                    <Item
+                      key={path}
+                      title={path}
+                      onClick={() => {
+                        setOpen(false);
+                        onAdd(path);
+                      }}
+                    >
+                      {path}
+                    </Item>
+                  ))}
+                </Menu>
               </div>
             ) : null}
             {trailing}

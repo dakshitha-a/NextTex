@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
-import { viewportHeight, viewportWidth } from "./viewport";
+import { toShell, viewportHeight, viewportWidth } from "./viewport";
 
 /** Where a menu wants to be, before the screen has had its say.
  *
@@ -77,4 +77,23 @@ export function useOnScreen(
     );
   }, [ref, wanted, revision]);
   return placed;
+}
+
+/** Where a menu wants to hang under its button, in shell pixels.
+ *
+ *  `align` says which edge of the button the menu lines up with: a menu
+ *  under a button at the right end of a strip hangs from its right edge so
+ *  it opens inward.  The flip edge is the button's top, so a button near
+ *  the foot of the window gets its menu above it.  Pure apart from the
+ *  measurement, which `placeMenu` then keeps on the screen. */
+export function under(
+  anchor: HTMLElement | null,
+  width: number,
+  align: "left" | "right" = "left",
+  gap = 4,
+): Wanted | null {
+  if (!anchor) return null;
+  const box = anchor.getBoundingClientRect();
+  const left = align === "right" ? toShell(box.right) - width : toShell(box.left);
+  return { left, top: toShell(box.bottom) + gap, flip: toShell(box.top) - gap };
 }

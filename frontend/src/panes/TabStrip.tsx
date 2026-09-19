@@ -1,8 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useDismiss } from "../useDismiss";
 import { toShell } from "../viewport";
-import { useOnScreen } from "../place-menu";
-import { focusFirst, walkMenu } from "./menu-keys";
+import { Menu, MenuDivider, MenuItem as Item } from "../ui/Menu";
 import {
   HiddenTabs, useFollowActive, useHiddenTabs, useWheelScroll,
 } from "./tab-overflow";
@@ -90,31 +88,19 @@ export default function TabStrip({
   useFollowActive(strip, active);
 
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
-  useDismiss(menuRef, menu !== null, closeMenu);
-  // Where the pointer was is where it wants to be; where it fits is
-  // decided once it has been measured, so a menu that grows an item does
-  // not grow past the foot of a short window.
+  // Where the pointer was is where it wants to be; where it fits is the
+  // kit's Menu's to decide once it has measured itself.
   const wanted = useMemo(
     () => (menu ? { left: menu.x, top: menu.y, flip: menu.y } : null),
     [menu],
   );
-  const placed = useOnScreen(menuRef, wanted);
   // A menu can outlive the tab it was opened on: the file is renamed
   // underneath it, or another window closes it.  Leaving it up would leave
   // a column of items pointing at nothing.
   useEffect(() => {
     if (menu && !tabs.some((tab) => tab.path === menu.path)) setMenu(null);
   }, [menu, tabs]);
-  // Focus goes into the menu once, when it opens, and from an effect keyed
-  // on the opening rather than from the ref: an inline ref is a new
-  // function on every render, React calls a new ref with the node again,
-  // and this strip re-renders on every build tick, which put focus back on
-  // the first row while the writer was walking down the list.
-  useEffect(() => {
-    if (menu) focusFirst(menuRef.current);
-  }, [menu]);
 
   const dataAttribute = kind === "source" ? "data-tab" : "data-preview-tab";
   const blankTestId = kind === "source" ? "tabs-blank" : "preview-blank";
@@ -235,45 +221,38 @@ export default function TabStrip({
         testId={kind === "source" ? "tabs-hidden" : "preview-hidden"}
         onPick={onSelect}
       />
-      {menu && items.length ? (
-        <div
-          ref={menuRef}
-          role="menu"
-          data-testid={menuTestId}
-          // Fixed, not absolute: the strip is `overflow-x-auto`, and an
-          // absolute menu would be clipped by it, the bug the tree hit
-          // inside its own scroll box.
-          className="nx-furniture nx-arrive fixed z-40 w-[220px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
-          style={placed ?? { left: menu.x, top: menu.y }}
-          onKeyDown={(event) => walkMenu(event, closeMenu)}
-        >
-          {items.map((item) =>
-            "rule" in item ? (
-              // Two subjects in one column read as two ways of doing one
-              // thing; the rule says where one ends.
-              <div key={item.key} className="my-1 border-t border-line" />
-            ) : (
-              <button
-                key={item.key}
-                role="menuitem"
-                className="t-ui block w-full px-3 py-[3px] text-left text-ink focus:bg-hint-wash disabled:opacity-40"
-                // An item that can have nothing to do says so first rather
-                // than explaining itself by doing nothing.
-                disabled={item.off}
-                onPointerMove={(event) => {
-                  if (event.movementX || event.movementY) event.currentTarget.focus();
-                }}
-                onClick={() => {
-                  setMenu(null);
-                  item.run();
-                }}
-              >
-                {item.label}
-              </button>
-            ),
-          )}
-        </div>
-      ) : null}
+      {/* The kit's menu: fixed rather than absolute, because the strip is
+          `overflow-x-auto` and an absolute menu would be clipped by it, the
+          bug the tree hit inside its own scroll box; and it keeps itself on
+          the screen from its measured size. */}
+      <Menu
+        open={menu !== null && items.length > 0}
+        onClose={closeMenu}
+        wanted={wanted}
+        testid={menuTestId}
+        width={kind === "source" ? 200 : 232}
+      >
+        {items.map((item) =>
+          "rule" in item ? (
+            // Two subjects in one column read as two ways of doing one
+            // thing; the rule says where one ends.
+            <MenuDivider key={item.key} />
+          ) : (
+            <Item
+              key={item.key}
+              // An item that can have nothing to do says so first rather
+              // than explaining itself by doing nothing.
+              disabled={item.off}
+              onClick={() => {
+                setMenu(null);
+                item.run();
+              }}
+            >
+              {item.label}
+            </Item>
+          ),
+        )}
+      </Menu>
     </div>
   );
 }
