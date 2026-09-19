@@ -1428,6 +1428,10 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   box-shadow: var(--float);
   padding: 8px 10px;
 }
+.nx-sheet[data-list] { padding: 6px; display: flex; flex-direction: column; max-height: 70vh; }
+.nx-sheet[data-list] .nx-field { flex: none; margin: 0 0 6px; }
+.nx-sheet[data-list] ul { overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.nx-menu-kind { width: 64px; flex: none; color: var(--ink-3); font-size: 12px; }
 .nx-sheet {
   max-height: 100%; max-width: 100%; overflow-y: auto;
   border-radius: var(--nx-radius-sheet);

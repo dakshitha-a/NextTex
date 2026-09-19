@@ -17,6 +17,11 @@ export type SheetProps = {
   labelledBy?: string;
   testid?: string;
   width?: number;
+  /** Centred, or hung from the top of the window like a palette. */
+  align?: "center" | "top";
+  /** A sheet that is a field over a list, like the palette: tighter
+   *  padding, and the list scrolls inside it. */
+  list?: boolean;
   className?: string;
   children: ReactNode;
 };
@@ -28,6 +33,8 @@ export function Sheet({
   labelledBy,
   testid,
   width = 540,
+  align = "center",
+  list = false,
   className,
   children,
 }: SheetProps) {
@@ -35,7 +42,10 @@ export function Sheet({
   useDismiss(ref, open, onClose);
   if (!open) return null;
   return (
-    <div className="nx-scrim fixed inset-0 z-50 grid place-items-center p-6" role="presentation">
+    <div
+      className={`nx-scrim fixed inset-0 z-50 p-6 ${align === "top" ? "flex items-start justify-center pt-[12vh]" : "grid place-items-center"}`}
+      role="presentation"
+    >
       <div
         ref={ref}
         role="dialog"
@@ -43,6 +53,7 @@ export function Sheet({
         aria-label={labelledBy ? undefined : label}
         aria-labelledby={labelledBy}
         data-testid={testid}
+        data-list={list || undefined}
         className={`nx-sheet nx-arrive${className ? ` ${className}` : ""}`}
         style={{ width }}
       >

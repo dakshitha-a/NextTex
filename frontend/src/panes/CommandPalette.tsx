@@ -4,7 +4,9 @@ import { applyAppearance, storedAppearance } from "../appearance";
 import { shortcut } from "../keys";
 import { fileItems, settingItems, type SettingItem } from "../palette-items";
 import { rank } from "../palette-rank";
-import { useDismiss } from "../useDismiss";
+import { Sheet } from "../ui/Sheet";
+import { Field } from "../ui/controls";
+import { SearchIcon } from "../ui/icons";
 import { useStore } from "../store";
 
 /** One box that finds every action, setting and file by typing.
@@ -39,9 +41,7 @@ export default function CommandPalette({
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const box = useRef<HTMLInputElement | null>(null);
-  const panel = useRef<HTMLDivElement | null>(null);
   const list = useRef<HTMLUListElement | null>(null);
-  useDismiss(panel, true, onClose);
 
   useEffect(() => {
     box.current?.focus();
@@ -86,22 +86,14 @@ export default function CommandPalette({
   };
 
   return (
-    <div className="nx-scrim fixed inset-0 z-50 flex justify-center p-6 pt-[12vh]" role="presentation">
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command palette"
-        data-testid="palette"
-        className="nx-furniture nx-arrive flex max-h-[70vh] w-[520px] max-w-full flex-col overflow-hidden rounded-[5px] border border-line bg-surface shadow-float"
-      >
-        <input
+    <Sheet open onClose={onClose} label="Command palette" testid="palette" width={420} align="top" list>
+        <Field
           ref={box}
+          leading={<SearchIcon />}
           value={query}
           placeholder="An action, a setting or a file"
           aria-label="What to find"
           data-testid="palette-input"
-          className="t-ui h-[36px] w-full border-b border-line bg-transparent px-[12px] outline-none placeholder:text-ink-3"
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") {
@@ -116,9 +108,9 @@ export default function CommandPalette({
             }
           }}
         />
-        <ul ref={list} className="overflow-y-auto py-[3px]" role="listbox" aria-label="Matches">
+        <ul ref={list} role="listbox" aria-label="Matches">
           {rows.length === 0 ? (
-            <li className="t-meta px-[12px] py-2 text-ink-3">Nothing matches.</li>
+            <li className="nx-menu-header">Nothing matches.</li>
           ) : null}
           {rows.map((row, index) => (
             <li
@@ -128,28 +120,25 @@ export default function CommandPalette({
               data-index={index}
               data-testid="palette-row"
               data-kind={row.kind}
-              className={`flex cursor-pointer items-baseline gap-2 px-[12px] py-[5px] ${
-                index === selected ? "bg-hint-wash" : "hover:bg-surface-2"
-              }`}
+              className="nx-menu-item cursor-pointer"
               onPointerMove={() => setSelected(index)}
               onClick={() => choose(row)}
             >
-              <span className="t-micro w-[64px] shrink-0 text-ink-3">
+              <span className="nx-menu-kind">
                 {row.kind === "action" ? row.group : row.kind === "setting" ? "Setting" : "File"}
               </span>
-              <span className={`t-ui min-w-0 flex-1 truncate ${row.kind === "file" ? "t-code-sm" : ""} text-ink`}>
+              <span className={`nx-menu-label ${row.kind === "file" ? "t-code-sm" : ""}`}>
                 {row.label}
                 {row.kind === "setting" && row.current ? (
                   <span className="t-micro ml-2 text-ink-3">current</span>
                 ) : null}
               </span>
               {row.kind === "action" && row.chord ? (
-                <span className="t-micro shrink-0 text-ink-3">{shortcut(row.chord).both}</span>
+                <span className="nx-menu-hint">{shortcut(row.chord).both}</span>
               ) : null}
             </li>
           ))}
         </ul>
-      </div>
-    </div>
+    </Sheet>
   );
 }
