@@ -24,6 +24,41 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+The second roadmap run, after 2.13.0, takes eight items from `ROADMAP.md`
+in its order, in three pushes, each earning a y bump: the checks (the
+submission panel and the bibliography rows) as 2.14.0, in and out
+(arriving with a zip, an arXiv id or a git URL, and pandoc export) as
+2.15.0, editor and agent (the command palette, Vim and Emacs, paste as
+table or figure, slash commands) as 2.16.0. Each line below is struck by
+the commit that finishes it. Three of the roadmap's premises were found
+wrong on the way in and are corrected in the design sections: the
+required-field rules the bibliography check needs do not exist in
+`nexttex/vendor/verify_bib.py`, which checks an entry against a
+publisher's record; the context directory is under `.nexttex/`, which is
+never synced, so shared prompt files live at the project root; and the
+rail gains one tile, not three.
+
+- [ ] **Before you submit.** One panel that reads the last build and
+      the sources and says what a venue would send back, with `pdffonts`
+      and `pdfimages` for what a log cannot say, a page limit and a
+      blind-review switch in `nexttex.toml`.
+- [ ] **Bibliography checks while you type.** A `.bib` file gets drawer
+      rows the way a `.tex` file gets chktex rows; `@` completes the
+      entry types with their fields as tab stops; `\bibliographystyle{}`
+      completes the styles this TeX has.
+- [ ] **Arrive with a project.** A zip into a new project, an arXiv id
+      fetched and unpacked, a git URL cloned, from a fourth tile.
+- [ ] **Word, HTML and Markdown export with pandoc**, in the download
+      menu when pandoc is present.
+- [ ] **A command palette**, and one registry behind the chords, the
+      tutorial's list and the README's table.
+- [ ] **Vim and Emacs keymaps**, loaded only when chosen, undo still the
+      document's.
+- [ ] **Paste data as a table, paste an image as a figure.**
+- [ ] **Slash commands in the agent panel**, prompts as files in
+      `prompts/`, with `/review friendly` and `/review critical` built
+      in.
+
 The rail's first review, after 2.12.0, went up as 2.13.0. The three ways
 in were a stacked list with the chosen one unfolded in place, so the two
 closed ones sat under the Create button and read as its children, and
