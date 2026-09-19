@@ -8435,3 +8435,56 @@ carrying tab-separated text and finds the table, the caret in the
 caption and two undos taking it away, dispatches one inside `verbatim`
 and finds no table, and dispatches one carrying a PNG and finds the file
 under `figures/` and the figure environment naming it.
+
+### Slash commands, and a review in two voices
+
+The selection toolbar has verbs, and each is a sentence that seeds the
+composer; a writer who wanted the same three paragraphs of instruction
+every time retyped them or kept them in a note. A reusable prompt is
+now a Markdown file whose stem is its name, a hyphen in the stem read as
+a space when typed, so `review-friendly.md` is `/review friendly`. Two
+ship inside NextTex, so a fresh project has them with no file: `/review
+friendly` reads the selected passage, or the document, as a mentor
+would, what works first and then what to strengthen, in order of how
+much it would help, kindly and concretely; `/review critical` reads it
+as the second reviewer, the claims that are not supported, the weakest
+section, what a rejection letter would say. The roadmap put a project's
+own beside the distilled style guide in the context directory, and that
+is under `.nexttex/`, which is never synced and which `initialise`
+writes into `.gitignore`, so nothing there could be shared through git,
+which was the point. They live in `prompts/` at the project root, where
+git sees them, and one with a built-in's stem replaces it.
+
+The composer draws the menu above the box while the draft is one line
+that starts with `/` and could still mean something, each row the
+prompt's spoken name and its first line as the hint, a project's own
+marked as this project's. The arrow keys move, Enter or Tab fills the
+name into the draft, and the writer sends on their own, which is the
+selection toolbar's rule: nothing goes to the model because a menu was
+open. A draft that is exactly a prompt's name gets no menu, so the next
+Enter sends it; Escape puts the menu away until the draft changes; a
+`/` that matches nothing sends as typed. The expansion happens once, on
+the server, before either provider sees the turn: the file's text, and
+`The writer adds:` with whatever followed the name, go ahead of the
+selection in the context, and the prompt itself stays the line that was
+typed, so the transcript shows `/review friendly the abstract only` and
+not the instruction. The Context panel lists the prompts under what the
+agent reads, since that is what they are, and *Copy to project* on a
+built-in writes `prompts/<name>.md` through the ordinary save, so the
+copy has a version, the tree hears about it, and the group can edit
+their own review and commit it with the paper; a name the project
+already has is refused rather than overwritten.
+
+`test_prompts.py` reads the two built-ins, the override, a name typed
+with a space and with a hyphen, the note, no match, and a stem that is a
+path never read; `test_prompts_routes.py` reads the list, the copy and
+its 409, a hostile name, and the scripted agent's record of a
+`/review critical` turn: the prompt as typed, the context carrying the
+file's text and the note. `slash-prompts.test.ts` reads the matcher.
+`e2e/specs/slash-commands.spec.ts` types `/rev`, finds two rows, arrows
+to the friendly one, presses Enter and finds the name filled in and
+nothing sent, adds a note and sends, and reads the answer of the
+scripted agent's `context` script, which says back what the turn was
+given, so the file's text and the note are on screen; a second test
+copies a built-in from the Context panel and finds the file in the tree
+and the row marked as the project's.

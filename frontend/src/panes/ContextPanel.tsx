@@ -3,6 +3,7 @@ import api from "../api";
 import { get, refreshContext, set, useStore } from "../store";
 import { Chevron } from "../chrome";
 import { agentName } from "../agent-name";
+import type { PromptEntry } from "./slash-prompts";
 
 const KINDS: {
   key: "style" | "voice" | "source";
@@ -69,6 +70,37 @@ export default function ContextPanel({
     // with this panel already open showed the previous project's memory,
     // because neither `open` nor `documents` had changed.
   }, [open, documents, projectId]);
+
+  // The reusable prompts a `/` in the composer names: the two that ship
+  // and the project's own under `prompts/`. Fetched with the memory, and
+  // again when the tree changes, since a copy or an edit to a prompt file
+  // is what changes the list.
+  const tree = useStore((s) => s.tree);
+  const [prompts, setPrompts] = useState<PromptEntry[]>([]);
+  useEffect(() => {
+    if (!open || !projectId) return;
+    let live = true;
+    api
+      .prompts(projectId)
+      .then((answer) => {
+        if (live) setPrompts(answer.prompts);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [open, projectId, tree]);
+
+  const copyPrompt = async (name: string) => {
+    const projectId = get().projectId;
+    if (!projectId) return;
+    try {
+      await api.copyPrompt(projectId, name);
+      setPrompts((await api.prompts(projectId)).prompts);
+    } catch (error: any) {
+      set({ error: error.message });
+    }
+  };
 
   const saveMemory = async () => {
     const projectId = get().projectId;
@@ -241,6 +273,49 @@ export default function ContextPanel({
               </div>
             );
           })}
+          {/* Last, because a prompt is the one thing here the writer
+              types rather than uploads: `/review friendly` in the composer
+              is this list. A built-in lives inside NextTex; copying it
+              puts `prompts/<name>.md` in the project, where the group can
+              edit it and version control can carry it, and the copy is
+              the one used. */}
+          <div className="mt-2" data-testid="prompts-list">
+            <div className="flex items-center justify-between">
+              <span className="t-micro text-ink-2">Reusable prompts</span>
+              <span className="t-micro text-ink-3">prompts/</span>
+            </div>
+            {prompts.length === 0 ? (
+              <p className="t-meta text-ink-3">
+                Type / in the box to use one. A Markdown file in prompts/ is
+                one more.
+              </p>
+            ) : (
+              prompts.map((prompt) => (
+                <div
+                  key={prompt.name}
+                  className="group flex items-center gap-2 rounded-[3px] px-1 hover:bg-surface-2"
+                  data-testid="prompt-entry"
+                  data-source={prompt.source}
+                  title={prompt.hint}
+                >
+                  <span className="t-code-sm min-w-0 flex-1 truncate text-ink">
+                    /{prompt.said}
+                  </span>
+                  {prompt.source === "project" ? (
+                    <span className="t-micro text-ink-3">this project's</span>
+                  ) : (
+                    <button
+                      className="t-micro text-ink-3 opacity-0 hover:text-pen focus:opacity-100 group-hover:opacity-100"
+                      data-testid="prompt-copy"
+                      onClick={() => copyPrompt(prompt.name)}
+                    >
+                      Copy to project
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
           <input
             ref={input}
             type="file"

@@ -299,6 +299,21 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "the prompt menu",
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.pressSequentially("/rev");
+      const menu = tab.getByTestId("prompt-menu");
+      await expect(menu).toBeVisible({ timeout: 10_000 });
+      return menu;
+    },
+    close: async (tab) => {
+      await tab.locator("textarea").fill("");
+      await esc(tab);
+    },
+  },
+  {
     name: "the settings sheet",
     open: async (tab) => {
       await tab.getByTestId("appearance").first().click();

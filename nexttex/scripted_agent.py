@@ -122,6 +122,9 @@ class ScriptedAgent:
         }
         # What the last turn was asked, so a test can assert on it.
         self.asked: list[str] = []
+        #: The context each prompt came with, so a test can read what the
+        #: model would have been given ahead of the question.
+        self.contexts: list[str] = []
 
     # -- the shape ProjectSession and the routes expect --------------------
     def _queue(self) -> asyncio.Queue:
@@ -222,6 +225,7 @@ class ScriptedAgent:
             self.script_name = first[len("#script:"):].strip() or self.script_name
             prompt = rest.lstrip()
         self.asked.append(prompt)
+        self.contexts.append(context)
         self._why = prompt.strip().splitlines()[0][:120] if prompt.strip() else ""
         self._turn = asyncio.create_task(self._run(prompt))
 
@@ -354,6 +358,15 @@ class ScriptedAgent:
 
         elif kind == "error":
             await self._emit({"type": "error", "message": step.get("message", "")})
+
+        elif kind == "context":
+            # What this turn was given ahead of the question, said back as
+            # the answer, so a browser test can see that a `/` command in
+            # the composer was expanded before the model saw it.
+            given = self.contexts[-1] if self.contexts else ""
+            await self._emit({"type": "text",
+                              "text": given or "Nothing came ahead of the question."})
+            await self._emit({"type": "text_end"})
 
         elif kind == "wait":
             await asyncio.sleep(float(step.get("seconds", 0.1)))

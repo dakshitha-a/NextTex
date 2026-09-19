@@ -38,10 +38,6 @@ publisher's record; the context directory is under `.nexttex/`, which is
 never synced, so shared prompt files live at the project root; and the
 rail gains one tile, not three.
 
-- [ ] **Slash commands in the agent panel**, prompts as files in
-      `prompts/`, with `/review friendly` and `/review critical` built
-      in.
-
 The rail's first review, after 2.12.0, went up as 2.13.0. The three ways
 in were a stacked list with the chosen one unfolded in place, so the two
 closed ones sat under the Create button and read as its children, and

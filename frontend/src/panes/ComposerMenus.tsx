@@ -168,3 +168,60 @@ export const SetupPanel = forwardRef<
     </div>
   );
 });
+
+/** The reusable prompts a `/` at the start of the composer can name.
+ *
+ *  Drawn above the box while the draft is one line beginning with a
+ *  slash, listing what it could still mean with each prompt's first
+ *  line as its hint. The arrow keys and Enter belong to the composer,
+ *  which tells this which row is chosen, and a click picks a row. A
+ *  prompt from the project is marked, since a group's own review is a
+ *  different thing from the one that ships. */
+export const PromptMenu = forwardRef<
+  HTMLDivElement,
+  {
+    prompts: { name: string; said: string; source: string; hint: string }[];
+    selected: number;
+    onPick: (index: number) => void;
+    onHover: (index: number) => void;
+  }
+>(function PromptMenu({ prompts, selected, onPick, onHover }, ref) {
+  return (
+    <div
+      ref={ref}
+      role="listbox"
+      aria-label="Reusable prompts"
+      data-testid="prompt-menu"
+      className="absolute bottom-full left-0 right-0 z-40 mb-1 overflow-hidden rounded-[5px] border border-line bg-surface shadow-float"
+    >
+      <div className="t-micro px-[10px] pb-1 pt-2 text-ink-2">
+        A reusable prompt: Enter fills it in, and you send when you are ready
+      </div>
+      {prompts.map((prompt, index) => (
+        <button
+          key={prompt.name}
+          type="button"
+          role="option"
+          aria-selected={index === selected}
+          data-testid="prompt-row"
+          className={`flex w-full items-start gap-2 border-t border-line px-[10px] py-[6px] text-left transition-colors duration-[90ms] ${
+            index === selected ? "bg-hint-wash" : "hover:bg-surface-2"
+          }`}
+          onPointerMove={() => onHover(index)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onPick(index)}
+        >
+          <span className="min-w-0 flex-1">
+            <span className="t-ui block truncate text-ink">
+              /{prompt.said}
+              {prompt.source === "project" ? (
+                <span className="t-micro ml-2 text-ink-3">this project's</span>
+              ) : null}
+            </span>
+            <span className="t-meta block truncate text-ink-2">{prompt.hint}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+});

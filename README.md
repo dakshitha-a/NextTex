@@ -42,6 +42,7 @@ close the tab. No database, no Docker, no nginx.
   - [It edits the project, and asks about everything else](#it-edits-the-project-and-asks-about-everything-else)
   - [It draws a figure from your data](#it-draws-a-figure-from-your-data)
   - [You can show it something](#you-can-show-it-something)
+  - [A review in two voices, and a prompt is a file](#a-review-in-two-voices-and-a-prompt-is-a-file)
   - [It cannot invent a citation](#it-cannot-invent-a-citation)
   - [Point it at a folder of papers](#point-it-at-a-folder-of-papers)
 - [Writing it with somebody else](#writing-it-with-somebody-else)
@@ -528,7 +529,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 841.4 kB | 860 kB |
+| Interface bundle | 842.6 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -851,6 +852,23 @@ something you find out about.
 The image is kept inside the project, in `.nexttex/attachments/`, and the
 agent reads it from there. Nothing about it goes anywhere your question was
 not already going.
+
+### A review in two voices, and a prompt is a file
+
+Type `/` at the start of the box and a menu lists the reusable prompts.
+Two come with NextTex: `/review friendly` reads the selected passage, or
+the document, as a mentor would, what works and what to strengthen, in
+that order and kindly; `/review critical` reads it as the second reviewer,
+the claims that are not supported, the weakest section, what a rejection
+letter would say. Arrow to one, press Enter to fill its name in, add a
+note after it if you like, and send. What you typed is what the
+transcript shows; the prompt's text goes to the agent ahead of it.
+
+A prompt is a Markdown file, and its name is the file's name with hyphens
+read as spaces. Put `tighten.md` in a `prompts/` folder at the project's
+root and `/tighten` is one more; copy a built-in there from the Context
+panel and the copy is the one used, so a group can edit its own reviews
+and commit them with the paper.
 
 ### It cannot invent a citation
 
@@ -1231,6 +1249,7 @@ your-paper/
 ├── main.tex                 your files, untouched
 ├── chapters/
 ├── references.bib
+├── prompts/                 your own /commands for the agent, if you keep any
 ├── build/                   latexmk's output
 └── .nexttex/                everything NextTex adds
     ├── history/             versions, content-addressed
@@ -1308,6 +1327,7 @@ of these, every setting and every file by typing.
 | Key | Does |
 |---|---|
 | `↵`, `⇧↵` / `Shift-↵` | Send; a new line |
+| `/` at the start of the box | List the reusable prompts; `↑`, `↓` and `↵` fill one in, `Esc` puts the list away |
 | `A`, `⇧A`, `C`, `D`, in a permission card | Allow, allow always, allow for this conversation, deny |
 | `Esc` | Stop the turn if one is running, otherwise close the panel |
 

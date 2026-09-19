@@ -1043,6 +1043,13 @@ const api = {
     request<any>(`/projects/${id}/context/${documentId}`, { method: "DELETE" }),
   distill: (id: string, kind: string) =>
     request<any>(`/projects/${id}/context/distill`, json({ kind })),
+  /** The reusable prompts a `/` in the composer can name: the built-ins
+   *  and the project's own under `prompts/`. */
+  prompts: (id: string) =>
+    request<{ prompts: import("./panes/slash-prompts").PromptEntry[] }>(`/projects/${id}/prompts`),
+  /** Put a built-in prompt into the project as a file the group can edit. */
+  copyPrompt: (id: string, name: string) =>
+    request<{ path: string }>(`/projects/${id}/prompts/copy`, json({ name })),
   memory: (id: string) =>
     request<{ text: string; notes: string[]; limit: number }>(
       `/projects/${id}/context/memory`,

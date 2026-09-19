@@ -27,6 +27,16 @@ const ModeMenu = lazy(() =>
 const SetupPanel = lazy(() =>
   import("./ComposerMenus").then((m) => ({ default: m.SetupPanel })),
 );
+// And the prompt menu, which draws only while the draft starts with `/`.
+const PromptMenu = lazy(() =>
+  import("./ComposerMenus").then((m) => ({ default: m.PromptMenu })),
+);
+import {
+  completed,
+  matching,
+  slashHead,
+  type PromptEntry,
+} from "./slash-prompts";
 import { shortRule } from "./short-rule";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
 import { agentName, usageNote } from "../agent-name";
@@ -349,6 +359,49 @@ export default function Chat({
     usageButton,
   );
   const [focusedComposer, setFocusedComposer] = useState(false);
+
+  // A `/` at the start of the draft names a reusable prompt. The list is
+  // fetched each time a draft turns into one, not on mount, because most
+  // messages are not commands and because a prompt copied into the
+  // project a moment ago should show as the project's. The menu is drawn
+  // while the box has focus and the draft could still mean something;
+  // Escape puts it away until the draft changes. A draft that is exactly
+  // a prompt's name, as it is after Enter picked one, gets no menu, so the
+  // next Enter sends it as typed and the server expands it.
+  const slash = slashHead(draft) !== null;
+  const [prompts, setPrompts] = useState<PromptEntry[]>([]);
+  const [promptRow, setPromptRow] = useState(0);
+  const [promptsAway, setPromptsAway] = useState(false);
+  useEffect(() => {
+    if (!slash || !projectId) return;
+    let live = true;
+    api
+      .prompts(projectId)
+      .then((answer) => {
+        if (live) setPrompts(answer.prompts);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [slash, projectId]);
+  const offered = useMemo(
+    () => (slash ? matching(draft, prompts) : []),
+    [slash, draft, prompts],
+  );
+  const promptMenuOpen =
+    focusedComposer &&
+    !promptsAway &&
+    offered.length > 0 &&
+    !(offered.length === 1 && completed(offered[0]).trim() === draft.trim());
+  const promptChosen = Math.min(promptRow, Math.max(offered.length - 1, 0));
+  const pickPrompt = (index: number) => {
+    const prompt = offered[index];
+    if (!prompt) return;
+    setDraft(completed(prompt));
+    setPromptRow(0);
+    composer.current?.focus({ preventScroll: true });
+  };
 
   // The tally follows the end of a turn, which is when it changes.
   useEffect(() => {
@@ -867,60 +920,103 @@ export default function Chat({
             </span>
           </div>
         ) : null}
-        <textarea
-          ref={composer}
-          rows={3}
-          value={draft}
-          // Not disabled while a card is open, which is a deviation from
-          // the specification and is recorded in section 28. The writer's
-          // next question is very often about the thing the card is asking
-          // about, and a box that will not take typing has taken the
-          // conversation away at the one moment they have something to
-          // say. The queue that makes this safe already existed for a
-          // question asked mid-turn; a card open means a turn is running,
-          // so the question goes next rather than nowhere.
-          //
-          // The card's own keys stay bound to the card and not to the
-          // window, which is what makes a live composer safe: typing `a`
-          // into a textarea cannot answer a gate.
-          // A screenshot arrives as a file on the clipboard on all three
-          // platforms, so this is the whole of "paste an image": no
-          // permission, no dialog. A paste that is text falls through to
-          // the browser's own handling, which is what `take` returning
-          // early does.
-          onPaste={(event) => {
-            const files = Array.from(event.clipboardData?.files ?? []);
-            if (files.some((file) => file.type.startsWith("image/"))) {
-              event.preventDefault();
-              void take(files);
-            }
-          }}
-          onDragOver={(event) => {
-            if (Array.from(event.dataTransfer.types).includes("Files")) {
-              event.preventDefault();
-            }
-          }}
-          onDrop={(event) => {
-            const files = Array.from(event.dataTransfer.files ?? []);
-            if (files.some((file) => file.type.startsWith("image/"))) {
-              event.preventDefault();
-              void take(files);
-            }
-          }}
-          placeholder={blocked ? `Ask ${name}, or answer above` : `Ask ${name}`}
-          className={`t-ui w-full resize-none rounded-[3px] border bg-surface-2 px-2 py-[6px] outline-none transition-colors duration-[90ms] placeholder:text-ink-3 ${
-            blocked ? "border-warn" : "border-line"
-          }`}
-          onFocus={() => setFocusedComposer(true)}
-          onBlur={() => setFocusedComposer(false)}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              send();
-            }
-          }}
-        />
+        <div className="relative">
+          {promptMenuOpen ? (
+            <Suspense fallback={null}>
+              <PromptMenu
+                prompts={offered}
+                selected={promptChosen}
+                onPick={pickPrompt}
+                onHover={setPromptRow}
+              />
+            </Suspense>
+          ) : null}
+          <textarea
+            ref={composer}
+            rows={3}
+            value={draft}
+            // Not disabled while a card is open, which is a deviation from
+            // the specification and is recorded in section 28. The writer's
+            // next question is very often about the thing the card is asking
+            // about, and a box that will not take typing has taken the
+            // conversation away at the one moment they have something to
+            // say. The queue that makes this safe already existed for a
+            // question asked mid-turn; a card open means a turn is running,
+            // so the question goes next rather than nowhere.
+            //
+            // The card's own keys stay bound to the card and not to the
+            // window, which is what makes a live composer safe: typing `a`
+            // into a textarea cannot answer a gate.
+            // A screenshot arrives as a file on the clipboard on all three
+            // platforms, so this is the whole of "paste an image": no
+            // permission, no dialog. A paste that is text falls through to
+            // the browser's own handling, which is what `take` returning
+            // early does.
+            onPaste={(event) => {
+              const files = Array.from(event.clipboardData?.files ?? []);
+              if (files.some((file) => file.type.startsWith("image/"))) {
+                event.preventDefault();
+                void take(files);
+              }
+            }}
+            onDragOver={(event) => {
+              if (Array.from(event.dataTransfer.types).includes("Files")) {
+                event.preventDefault();
+              }
+            }}
+            onDrop={(event) => {
+              const files = Array.from(event.dataTransfer.files ?? []);
+              if (files.some((file) => file.type.startsWith("image/"))) {
+                event.preventDefault();
+                void take(files);
+              }
+            }}
+            placeholder={blocked ? `Ask ${name}, or answer above` : `Ask ${name}`}
+            className={`t-ui w-full resize-none rounded-[3px] border bg-surface-2 px-2 py-[6px] outline-none transition-colors duration-[90ms] placeholder:text-ink-3 ${
+              blocked ? "border-warn" : "border-line"
+            }`}
+            onFocus={() => setFocusedComposer(true)}
+            onBlur={() => setFocusedComposer(false)}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setPromptRow(0);
+              setPromptsAway(false);
+            }}
+            onKeyDown={(event) => {
+              // The prompt menu takes the keys a list takes while it is up;
+              // Enter completes the name rather than sending, which is the
+              // selection toolbar's rule: the writer sends on their own.
+              if (promptMenuOpen) {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setPromptRow((promptChosen + 1) % offered.length);
+                  return;
+                }
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setPromptRow(
+                    (promptChosen - 1 + offered.length) % offered.length,
+                  );
+                  return;
+                }
+                if (event.key === "Enter" || event.key === "Tab") {
+                  event.preventDefault();
+                  pickPrompt(promptChosen);
+                  return;
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setPromptsAway(true);
+                  return;
+                }
+              }
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                send();
+              }
+            }}
+          />
+        </div>
         {/* The controls sit under the box rather than in the header: the
             header is a 32px bar that already carries the name, what the
             agent is doing, and the usage tally, and each of these is

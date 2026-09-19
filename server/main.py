@@ -74,7 +74,7 @@ from nexttex.project import (
     ignored_directory, is_ours, kind_of, under_ignored_directory,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, deps, export, lint_explain, search, texstyles, updates, usage
+from nexttex import bibcheck, deps, export, lint_explain, prompts, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -4219,6 +4219,41 @@ async def distill_context(project_id: str, kind: str = Body(..., embed=True)):
     return {"started": True, "writes": str(output)}
 
 
+@app.get("/api/projects/{project_id}/prompts")
+async def list_prompts(project_id: str):
+    """The reusable prompts a `/` in the composer can name: the two that
+    ship with NextTex, and the project's own under `prompts/`, which
+    replace a built-in of the same name."""
+    session = session_for(project_id)
+    found = await asyncio.to_thread(prompts.available, session.project.root)
+    return {"prompts": [prompt.as_dict() for prompt in found]}
+
+
+@app.post("/api/projects/{project_id}/prompts/copy")
+async def copy_prompt(project_id: str, name: str = Body(..., embed=True), origin: str = Body("")):
+    """Put a built-in prompt into the project as `prompts/<name>.md`, so a
+    group can edit it and commit it; the copy then replaces the built-in.
+    Through the ordinary save, so the file gets a version and the tree
+    hears about it.  A name that is already the project's own is refused
+    rather than overwritten."""
+    session = session_for(project_id)
+    if not prompts.NAME.match(name or ""):
+        raise HTTPException(400, "not a prompt name")
+    found = {prompt.name: prompt for prompt in prompts.available(session.project.root)}.get(name.lower())
+    if found is None:
+        raise HTTPException(404, "no such prompt")
+    if found.source == "project":
+        raise HTTPException(409, f"prompts/{found.name}.md is already the project's own")
+    relative = f"{prompts.PROMPTS_DIR}/{found.name}.md"
+    target = _safe(session, relative)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    await _save_text(session, target, found.text + "\n", source=origin)
+    await session.events.publish({
+        "type": "files_changed", "paths": [relative], "origin": origin, "structural": True,
+    })
+    return {"path": relative}
+
+
 @app.get("/api/projects/{project_id}/download")
 async def download(
     project_id: str, path: str = "", format: str = "auto", document: str = "",
@@ -5290,6 +5325,13 @@ async def agent_ask(
     note = attachments.sentence(paths)
     if note:
         preamble = f"{note}\n\n{preamble}" if preamble else note
+    # A `/` naming a reusable prompt: the file's text goes ahead of the
+    # prompt in the context, once, here, so both providers get it and the
+    # transcript keeps the line the writer typed.
+    named, remainder = prompts.expand(prompt, await asyncio.to_thread(prompts.available, session.project.root))
+    if named is not None:
+        instruction = prompts.instruction(named, remainder)
+        preamble = f"{instruction}\n\n{preamble}" if preamble else instruction
     try:
         await session.agent.ask(prompt, context=preamble)
     except RuntimeError as exc:
