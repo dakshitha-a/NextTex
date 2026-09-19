@@ -146,11 +146,28 @@ out the full three-minute timeout and reports that as the SDK having gone
 quiet. Denying rather than allowing, because a live model on somebody's real
 account must never be handed a blanket yes by a test.
 
-The OpenAI provider has the same limit and no way to close it here: there
-is no account to test against, so `tests/test_openai_agent.py` stubs the
+The OpenAI provider has the same limit against OpenAI itself: there is no
+account to test against, so `tests/test_openai_agent.py` stubs the
 transport and runs everything above it for real: the streaming parser, the
-tool loop, the path fence, the edits, the usage accounting and the event
-vocabulary. Whether OpenAI still returns those shapes is unproven.
+tool loop, the path fence, the permission card, the edits, the usage
+accounting and the event vocabulary. Whether OpenAI still returns those
+shapes is unproven. Against a local server it is proven, since the
+backlog close-out: `tests/test_openai_ollama.py` runs the provider
+against a real Ollama, one turn that edits `main.tex` through `edit_file`
+and one that draws a figure through `run_plot_script` with the card
+answered, and asserts the vocabulary, the usage chunk a real server
+sends, the edit on disk and the script in `scripts/`.
+
+    NEXTTEX_OLLAMA=1 .venv/bin/python -m pytest tests/test_openai_ollama.py -q
+
+`NEXTTEX_OLLAMA` is the base URL, or `1` for Ollama's default on this
+machine, and `NEXTTEX_OLLAMA_MODEL` names the model; it has to be one
+that calls tools, and the default, `qwen3-coder:30b`, answers a turn in
+three to twelve seconds once loaded where `qwen3:14b` thinks first and
+takes a minute. It is not under `NEXTTEX_LIVE`, which is reserved for a
+test that needs an account or the network: this is a local socket, and
+it costs nothing but a model load. It skips when the variable is unset,
+which is what CI sees.
 
 The publishers have a check of the same kind. `tests/test_references.py`
 runs the DOI tool and the checker with the network stubbed, and

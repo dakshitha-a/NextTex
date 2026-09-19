@@ -1787,7 +1787,13 @@ asks about nothing.*
 It has never spoken to OpenAI. There is no account here, so the transport
 is stubbed and everything above it runs for real. What that cannot tell you
 is whether OpenAI still returns these shapes, which is the same honest
-limit the Anthropic side has and the reason `NEXTTEX_LIVE` exists.
+limit the Anthropic side has and the reason `NEXTTEX_LIVE` exists. *It
+has spoken to a local server, since the backlog close-out: the Ollama on
+the writer's machine, through `tests/test_openai_ollama.py` and by hand
+in a real browser; the first real turn found that a local server's
+stream, which declares no charset, was being read as ISO-8859-1, so an
+x squared arrived as two wrong characters. It is read as UTF-8 now,
+which is what an event stream is.*
 
 **"None" removes the column rather than disabling it.** A greyed-out panel
 down the right-hand side is a permanent advertisement for a decision the

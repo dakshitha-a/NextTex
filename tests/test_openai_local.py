@@ -93,3 +93,50 @@ def test_openai_itself_still_gets_the_key(tmp_path, monkeypatch):
     list(made._request([{"role": "user", "content": "hi"}]))
     assert posted["url"] == "https://api.openai.com/v1/chat/completions"
     assert posted["headers"]["authorization"] == "Bearer sk-test"
+
+
+class BytesResponse:
+    """What `requests` hands back for a `text/event-stream` with no
+    charset: a body of bytes, and an `encoding` guessed as ISO-8859-1
+    unless somebody sets it, which is what `iter_lines(decode_unicode=True)`
+    decodes with."""
+    status_code = 200
+
+    def __init__(self, lines: list[str]):
+        self._raw = [line.encode("utf-8") for line in lines]
+        self.encoding = "ISO-8859-1"
+
+    def iter_lines(self, decode_unicode=True):
+        for raw in self._raw:
+            yield raw.decode(self.encoding) if decode_unicode else raw
+
+
+def test_a_local_servers_stream_is_read_as_utf8_whatever_it_declared(tmp_path, monkeypatch):
+    """Ollama sends `text/event-stream` with no charset and `requests`
+    reads a `text/*` body as ISO-8859-1, so an x squared arrived as two
+    wrong characters on the first real turn against a local server."""
+    root = tmp_path / "project"
+    shutil.copytree(TEMPLATE, root)
+    made = OpenAIAgent(root, tmp_path / "state", api_key="", base_url="http://localhost:11434/v1", model="qwen3")
+    monkeypatch.setattr(openai_agent.requests, "post", lambda *a, **k: BytesResponse([
+        'data: {"choices":[{"delta":{"content":"y = x² at the café"}}]}',
+        "data: [DONE]",
+    ]))
+
+    async def run():
+        seen = []
+
+        async def drain():
+            async for event in made.events():
+                seen.append(event)
+                if event["type"] == "done":
+                    return
+
+        reader = asyncio.create_task(drain())
+        await made.ask("hi")
+        await asyncio.wait_for(reader, timeout=10)
+        return seen
+
+    seen = asyncio.run(run())
+    said = "".join(e.get("text", "") for e in seen if e["type"] == "text")
+    assert said == "y = x² at the café"

@@ -52,6 +52,20 @@ chapter on the title check, said "No DOI printed" of the two arXiv
 preprints and the slides, "nothing could be read" of the scan, the
 truncated file and the text file, and counted the duplicate once.
 
+The Ollama run is done too, on `qwen3-coder:30b` and `qwen3:14b`
+through `tests/test_openai_ollama.py` (3 to 12 seconds a turn on the
+first, 43 to 69 on the second, which thinks first), and by hand in the
+throwaway install with a real browser: the provider chosen on the
+sign-in screen with the base URL, the three-position control drawn,
+an edit landing as a diff chip with Undo in 32 seconds, a figure's
+card with the model's own script, Allow always and the run in 4
+seconds, a rerun after a reload asked about again because a rerun is a
+different rule from a first run, the mode menu's three positions, and
+the usage footer counting tokens. The first real turn showed one thing
+the stub could not: a local server's stream declares no charset and
+was read as ISO-8859-1, so an x squared arrived as two wrong
+characters; it is read as UTF-8 now.
+
 The second roadmap run, after 2.13.0, took eight items from `ROADMAP.md`
 in its order and went up as three pushes: the checks (the submission
 panel and the bibliography rows) as 2.14.0, in and out (arriving with a
@@ -228,17 +242,18 @@ this host could not reproduce; each says which.
       has a MiKTeX to check either claim against. The tlmgr path is run
       for real on this machine's TinyTeX and against the stand-in in the
       browser tier.
-- [ ] **The OpenAI provider has never spoken to OpenAI, nor to a local
-      server.** Everything above the transport runs for real against a
-      stub: the streaming parser, the tool loop, the path fence, the
-      edits, the usage accounting. Whether OpenAI still returns these
-      shapes is unproven, and there is no account here to find out
-      with. The base URL for a local model, added by the roadmap run, is
-      the first real endpoint that provider could be exercised against
-      without an account: install Ollama, point the form at
-      `http://localhost:11434/v1` with a model it has pulled, and ask
-      for an edit; none of that has been done here either. In hand: the
-      backlog close-out's second push takes the local half.
+- [ ] **The OpenAI provider has never spoken to OpenAI itself.**
+      Everything above the transport runs for real against a stub, and
+      since the backlog close-out against a real local server too:
+      `tests/test_openai_ollama.py` edits a file and draws a figure
+      through the card against the Ollama on this machine, and the same
+      was driven by hand in a real browser, which is where the first real
+      turn showed that a stream with no declared charset was being read
+      as ISO-8859-1. Whether OpenAI's own endpoint still returns these
+      shapes is the half that stays unproven, since there is no account
+      here to find out with; the local run says the parser, the tool
+      loop, the card and the usage chunk all hold against a server that
+      speaks the same protocol.
 - [ ] **Stop has not been pressed against the real CLI since the buffer
       fix.** The one-behind reply after Stop was diagnosed in a writing
       session's transcript and is reproduced by a stub with the SDK's

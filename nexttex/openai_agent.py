@@ -841,6 +841,13 @@ class OpenAIAgent:
         )
         if response.status_code != 200:
             raise RuntimeError(self._explain(response))
+        # An event stream is UTF-8 by definition, and OpenAI says so in its
+        # content type; Ollama sends `text/event-stream` with no charset,
+        # and `requests` then reads a `text/*` body as ISO-8859-1, so every
+        # non-ASCII character a local model produced, an x squared, a cafe
+        # with its accent, arrived as two wrong ones.  Seen on the first
+        # real turn against a local server.
+        response.encoding = "utf-8"
         for line in response.iter_lines(decode_unicode=True):
             if not line or not line.startswith("data:"):
                 continue
