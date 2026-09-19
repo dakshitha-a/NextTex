@@ -227,3 +227,27 @@ def test_a_page_limit_that_is_not_a_count_reads_as_none(tmp_path, raw):
     )
     config = ProjectConfig.load(tmp_path)
     assert config.page_limit == 0 and config.blind is False
+
+
+def test_projects_opened_in_the_same_moment_are_listed_by_name_then_path(tmp_path):
+    """Most recently opened first, and a tie, which a seeded or hand-written
+    registry can hold, by name and then by path: the order is a function
+    of the entries, not of the order they were written in."""
+    from nexttex.project import Registry, RegistryEntry
+
+    for folder in ("zeta", "Alpha", "alpha-2", "mid"):
+        (tmp_path / folder).mkdir()
+    registry = Registry(tmp_path / "projects.json")
+    registry._write([
+        RegistryEntry(str(tmp_path / "zeta"), "zeta", 100.0),
+        RegistryEntry(str(tmp_path / "alpha-2"), "alpha", 100.0),
+        RegistryEntry(str(tmp_path / "Alpha"), "Alpha", 100.0),
+        RegistryEntry(str(tmp_path / "mid"), "mid", 200.0),
+    ])
+    listed = [(row["name"], row["path"]) for row in registry.list()]
+    assert listed == [
+        ("mid", str(tmp_path / "mid")),
+        ("Alpha", str(tmp_path / "Alpha")),
+        ("alpha", str(tmp_path / "alpha-2")),
+        ("zeta", str(tmp_path / "zeta")),
+    ]

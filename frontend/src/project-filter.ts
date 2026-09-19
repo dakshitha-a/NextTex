@@ -22,8 +22,8 @@ export function matches(
 export const LONG_LIST = 6;
 
 /** How the list is ordered.  `recent` is the order the server already
- *  answers in, most recently opened first (`Registry.list` in
- *  `nexttex/project.py`); `name` is alphabetical. */
+ *  answers in, most recently opened first and a tie by name then path
+ *  (`Registry.list` in `nexttex/project.py`); `name` is alphabetical. */
 export type SortKey = "recent" | "name";
 export const SORT_KEYS: readonly SortKey[] = ["recent", "name"];
 

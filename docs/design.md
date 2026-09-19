@@ -8014,7 +8014,10 @@ learned by the time they need it. `/` reaches it from anywhere on the
 screen that is not a field.
 
 The sort is a select with two choices, last opened and name. Last opened
-is the order the server already answers in, and `sortProjects` in
+is the order the server already answers in (two opened in the same
+moment, which a seeded or hand-written registry can hold, come by name
+and then by path since the backlog close-out, so the order is a function
+of the entries alone), and `sortProjects` in
 `frontend/src/project-filter.ts` hands that array back untouched, so
 every row keeps its identity; name is a sorted copy through one
 `Intl.Collator` with case folded, accents ignored and digits read as

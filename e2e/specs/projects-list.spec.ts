@@ -260,7 +260,14 @@ test("the arrow keys walk the list, and the filter cannot strand the focus", asy
 });
 
 test("sort by name reorders the rows and is remembered", async ({ app, page }) => {
-  for (const name of NAMES) await seedProject(app, name);
+  // A few milliseconds between seeds, so no two share a stamp and the
+  // recent order is exactly the reverse of the seeding.  A tie is
+  // broken by name on the server, which the unit test pins; here the
+  // whole order is asserted rather than its ends.
+  for (const name of NAMES) {
+    await seedProject(app, name);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
   await page.setViewportSize({ width: 1680, height: 1000 });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: true }).waitFor();
@@ -268,13 +275,12 @@ test("sort by name reorders the rows and is remembered", async ({ app, page }) =
   await expect(rows).toHaveCount(NAMES.length);
   const names = async () =>
     rows.evaluateAll((els) => els.map((el) => el.querySelector(".font-serif")!.textContent));
+  const BY_RECENT = [...NAMES].reverse();
 
-  // The server's order first: most recently registered at the top.  Only
-  // the ends are asserted, since two seeds a millisecond apart can share
-  // a stamp and keep their registry order.
+  // The server's order first: most recently registered at the top.
   const sort = page.getByTestId("project-sort");
   await expect(sort).toHaveValue("recent");
-  expect((await names())[0]).toBe(NAMES[NAMES.length - 1]);
+  expect(await names()).toEqual(BY_RECENT);
 
   await sort.selectOption("name");
   expect(await names()).toEqual(BY_NAME);
@@ -287,7 +293,7 @@ test("sort by name reorders the rows and is remembered", async ({ app, page }) =
   expect(await names()).toEqual(BY_NAME);
 
   await sort.selectOption("recent");
-  expect((await names())[0]).toBe(NAMES[NAMES.length - 1]);
+  expect(await names()).toEqual(BY_RECENT);
 });
 
 test("leaving a project ends its event stream, so the list stops calling it open", async ({

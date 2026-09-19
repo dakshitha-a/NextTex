@@ -608,7 +608,13 @@ class Registry:
     def list(self) -> list[dict]:
         entries = self._read()
         result = []
-        for entry in sorted(entries, key=lambda e: -e.last_opened):
+        # Most recently opened first; two opened in the same moment, which
+        # a hand-written registry or a seeded one can hold, by name and
+        # then by path, so the order is a function of the entries and not
+        # of the order they were written in.
+        for entry in sorted(
+            entries, key=lambda e: (-e.last_opened, e.name.casefold(), e.path)
+        ):
             exists = Path(entry.path).is_dir()
             result.append({
                 "path": entry.path,

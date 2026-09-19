@@ -150,11 +150,6 @@ this checkout does not have, or are decisions, are where they were.
       again by hand, and the cost is paid then; the fix upstream is
       theirs.
 
-- [ ] **The list's "last opened" order does not tie-break on name.** Two
-      projects registered in the same millisecond keep the registry's
-      order, which is stable and harmless, and the spec asserts only
-      the ends of the order for that reason. A tie-break on name would
-      make the order fully determined; nobody has asked.
 
 - [ ] **`history-panel.spec.ts`'s long-file-name test failed once under
       the full browser tier and passed on its retry.** Seen once in the
