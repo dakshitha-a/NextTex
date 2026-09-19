@@ -8301,3 +8301,56 @@ a data URI in the HTML and the reference in the Markdown;
 and a refusal for a document outside the project. `e2e/specs/export.spec.ts`
 points a server at the fake and downloads a `.docx` from the third row,
 then starts one with the seam unset and finds the rows absent.
+
+## 47. The second roadmap run: editor and agent
+
+The third push of the second roadmap run: what the hands do in the
+source and the composer.
+
+### A command palette, and one list behind the chords
+
+The roadmap asked for one box that finds every action, setting and file
+by typing, and said the chords in `keys.ts` and the settings sheet's
+controls were the list. Neither was. `keys.ts` only spells a chord for
+both keyboards; the chords themselves were literal `if` blocks in two
+keydown effects in `App`, the Tutorial's Keyboard section was a second
+list typed by hand, the README's table a third, and the README said the
+settings sheet held the list when it was the Tutorial. So the palette's
+first job was the list. `actions.ts` is it: one row per action with its
+id, its label, its group and its chord, no handlers, so a test can walk
+it. `App` dispatches every chord from that table now, the Tutorial
+renders its Anywhere rows from it, and a vitest reads the README's
+tables back and holds the Anywhere table to exactly the registry's
+chords; `Mod-Enter`, which acts on the caret, is listed with the
+source's own keys and the test knows that. The wrong sentence in the
+README is fixed, and the README gains the palette's row.
+
+`Mod-K` opens it, which is the chord every editor with a palette uses
+and which neither CodeMirror nor the browser claims in a way a page
+cannot take. It is fetched then, like the share sheet: most sessions
+never open it. One box at the top of the window, one column of rows
+under it with the group on the left, the label, and the chord on the
+right where the action has one, in the app's furniture and its usual
+dialog dismissal, Escape or a click outside. With nothing typed it
+lists the actions and a few files; typing ranks everything as a
+case-folded subsequence with a bonus for a word start and for a run of
+letters, within each kind, so a setting is never buried under forty
+chapters that share a letter with it. A setting is one row per value,
+"Editor ground: warm", "Spelling: on", with the current one marked, so
+choosing is one press and the row says what it will do; it goes through
+`applyAppearance` as the sheet's own control would. A file opens in a
+tab. The registry also carries actions with no chord, Build, the
+settings sheet, the tutorial, the history, sharing, the two downloads
+and the way back to the projects, so the palette reaches things a chord
+never did. The settings sheet is its trigger's own state and the trigger
+sits in whichever bar the layout draws, so the palette opens it by a
+count the trigger watches rather than by a second sheet.
+
+`actions.test.ts` reads `Mod` as Meta and Ctrl, a letter on the code
+with Alt held, a chord refusing a modifier it does not name, the
+brackets, the function keys and Enter, and the README round trip;
+`palette-rank.test.ts` the ranking and the settings rows.
+`e2e/specs/palette.spec.ts` opens the palette on `Mod-K`, chooses an
+action, a setting and a file and finds each done, and presses three of
+the chords the registry took over. The palette is in the contrast
+spec's list.

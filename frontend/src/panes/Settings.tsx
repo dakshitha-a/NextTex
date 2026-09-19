@@ -1,4 +1,4 @@
-import { Suspense, lazy, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 
 /** Both of these are fetched when they are opened rather than before
  *  anything draws.  The cog is on screen in every session; the sheet
@@ -23,13 +23,21 @@ export default function Settings({
   onTutorial,
   onChangeAgent,
   inProject = false,
+  openNonce = 0,
 }: {
   onTutorial?: () => void;
   onChangeAgent?: () => void;
   /** Whether a project is on screen.  See the note in `SettingsSheet`. */
   inProject?: boolean;
+  /** Counted up by the command palette to open the sheet from there: the
+   *  sheet is this trigger's own state, and the trigger sits in whichever
+   *  bar the layout is drawing, so a count is what reaches it. */
+  openNonce?: number;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (openNonce) setOpen(true);
+  }, [openNonce]);
   const [access, setAccess] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
 

@@ -278,10 +278,13 @@ export function AppControls({
   onSwitch,
   onTutorial,
   onChangeAgent,
+  settingsNonce = 0,
 }: {
   projectId: string | null;
   projectName: string;
   onSwitch: () => void;
+  /** The palette's way of opening the settings sheet; see `Settings`. */
+  settingsNonce?: number;
   /** Handed through rather than left out.  This bar exists because the rail
    *  folded away, and the rail folds by itself below 1100px -- which is a
    *  tablet, which this app is meant to be used on.  Without these the
@@ -305,6 +308,7 @@ export function AppControls({
         inProject
         onTutorial={onTutorial}
         onChangeAgent={onChangeAgent}
+        openNonce={settingsNonce}
       />
       {/* The same control as the rail's, because this is the same bar with
           the file list folded away, and two toolbars that disagree about

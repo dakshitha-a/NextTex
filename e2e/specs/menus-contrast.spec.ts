@@ -336,6 +336,20 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "the command palette",
+    open: async (tab) => {
+      await tab.locator("body").click({ position: { x: 4, y: 4 } });
+      await tab.keyboard.press("Control+k");
+      const palette = tab.getByTestId("palette");
+      await expect(palette).toBeVisible({ timeout: 10_000 });
+      // Typed, so a setting row with its "current" mark and a file row
+      // are on screen beside the actions.
+      await tab.keyboard.type("e");
+      await expect(palette.getByTestId("palette-row").first()).toBeVisible();
+      return palette;
+    },
+  },
+  {
     name: "the share panel",
     open: async (tab) => {
       await tab.getByTestId("open-share").click();

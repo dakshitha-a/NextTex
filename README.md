@@ -528,7 +528,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 833.2 kB | 860 kB |
+| Interface bundle | 836.5 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -1238,13 +1238,16 @@ member and keep trying to reach you.
 ## Keyboard
 
 Every chord is written for both keyboards, the Mac glyphs first and the
-words after. The settings sheet's Keyboard section lists the same chords
-inside the app.
+words after. The tutorial's Keyboard section lists the same chords inside
+the app, from the same table the app dispatches them from, and a test
+holds this table to it. `⌘K` / `Ctrl-K` opens a box that finds every one
+of these, every setting and every file by typing.
 
 ### Anywhere
 
 | Key | Does |
 |---|---|
+| `⌘K` / `Ctrl-K` | The command palette: every action, setting and file, found by typing |
 | `⌘S` / `Ctrl-S` | Put the file on disk this instant; builds instead when compile-as-you-type is off |
 | `⌘B` / `Ctrl-B` | Hide the file list |
 | `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |

@@ -38,8 +38,6 @@ publisher's record; the context directory is under `.nexttex/`, which is
 never synced, so shared prompt files live at the project root; and the
 rail gains one tile, not three.
 
-- [ ] **A command palette**, and one registry behind the chords, the
-      tutorial's list and the README's table.
 - [ ] **Vim and Emacs keymaps**, loaded only when chosen, undo still the
       document's.
 - [ ] **Paste data as a table, paste an image as a figure.**

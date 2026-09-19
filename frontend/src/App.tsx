@@ -79,6 +79,7 @@ const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 /** Lazily loaded, like the tutorial. Most sessions never open it, and the
  *  entry bundle is measured. */
 const SharePanel = lazy(() => import("./panes/SharePanel"));
+const CommandPalette = lazy(() => import("./panes/CommandPalette"));
 /** The sign-in screen is a whole screen, and a machine that is signed in
  *  never draws it; fetched when it is shown. */
 const SignIn = lazy(() => import("./panes/SignIn"));
@@ -123,6 +124,7 @@ import { toShell, uiScale, viewportWidth } from "./viewport";
 import { APPEARANCE_CHANGED } from "./appearance";
 import { pageTitle } from "./page-title";
 import { includePath } from "./tree";
+import { actionFor } from "./actions";
 /** The rail's four footer panels: the trash, the papers, the context and
  *  git.  Each draws nothing, or a header, in a project that has not used
  *  it, and each fetches its own state on mount, which a lazy mount does a
@@ -236,6 +238,10 @@ export default function App() {
   const [focusSearch, setFocusSearch] = useState(0);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  /** The command palette, and a count the settings trigger watches so
+   *  the palette can open the sheet whichever bar the trigger is in. */
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsNonce, setSettingsNonce] = useState(0);
   // Every pane folds away, and says where it went.  Editor and preview are
   // mutually exclusive: folding one gives the other the whole space, and
   // folding both would leave nothing to work in.
@@ -1624,193 +1630,6 @@ export default function App() {
     );
   }, [activePath, previews, activePreview, owners, removing, showPreview]);
 
-  // ---- keyboard ---------------------------------------------------------
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const meta = event.metaKey || event.ctrlKey;
-      if (meta && event.key === "b") {
-        event.preventDefault();
-        railByHand.current = true;
-        setRailHidden((value) => !value);
-      }
-      if (meta && event.key === "s") {
-        event.preventDefault();
-        // With compile-as-you-type off, save is also the build: it is the
-        // Overleaf convention, it is what the hands already do, and it
-        // saves inventing a second binding for a thing the writer now has
-        // to ask for explicitly.
-        if (get().settings.autocompile) editor.current?.saveNow();
-        else void buildNow(false);
-      }
-      if (meta && event.key === "Enter" && activePath) {
-        event.preventDefault();
-        // On a script, the key runs it; on a chapter it goes to the page.
-        if (isScript(activePath)) void runScript(activePath);
-        else pdf.current?.reveal(activePath, get().cursor.line);
-      }
-      // The agent panel.  `code` rather than `key`: with Alt held, macOS
-      // reports the character the combination would type, so `key` here is
-      // "å" rather than "a".
-      //
-      // Not Super-A as first suggested: on Linux the window manager takes
-      // Super before the browser sees it, and Cmd/Ctrl-A alone is Select
-      // All, which an editor cannot give up.  Cmd/Ctrl-Shift-A is Chrome's
-      // own tab search.  Alt keeps the A, which is the part worth keeping.
-      if (meta && event.altKey && event.code === "KeyA") {
-        event.preventDefault();
-        toggleChat();
-      }
-
-      // The tab strip, from the keyboard. Every tab change used to be a
-      // trip to the strip with the mouse: there was no next, no previous,
-      // no close and no way back from a tab closed by mistake, though
-      // `afterClosing` has always returned what it closed.
-      //
-      // Alt with the brackets, W and T, for the same reason as the two
-      // bindings above: Mod-Alt is the app's own space, and Mod-W and
-      // Mod-T belong to the browser and cannot be taken.
-      //
-      // The brackets rather than the arrows, which is where these started
-      // and where they never arrived: `Ctrl-Alt-Left` and
-      // `Ctrl-Alt-Right` are GNOME's own switch-to-workspace keys and are
-      // taken by the window manager before the browser is offered them,
-      // and on a Mac `Cmd-Alt-Left` and `Cmd-Alt-Right` are Safari's and
-      // Chrome's own previous and next tab. A headless browser has no
-      // window manager and no menu bar, so the test passed on both.
-      // `Cmd-[` and `Cmd-]` are already back and forward in a browser, so
-      // the direction reads the same way with Alt added, and nothing on
-      // either desktop claims that combination.
-      if (meta && event.altKey && event.code === "BracketRight") {
-        event.preventDefault();
-        const to = neighbour(get().tabs, get().activePath, 1);
-        if (to) void openFile(to);
-      }
-      if (meta && event.altKey && event.code === "BracketLeft") {
-        event.preventDefault();
-        const to = neighbour(get().tabs, get().activePath, -1);
-        if (to) void openFile(to);
-      }
-      if (meta && event.altKey && event.code === "KeyW") {
-        event.preventDefault();
-        const path = get().activePath;
-        if (path) void closeFile(path);
-      }
-      if (meta && event.altKey && event.shiftKey && event.code === "KeyT") {
-        event.preventDefault();
-        const path = closed.current[closed.current.length - 1];
-        if (path) {
-          closed.current = closed.current.slice(0, -1);
-          void openFile(path);
-        }
-      }
-
-      // Next and previous error, from anywhere. The drawer answered
-      // nothing but a click, and a writer fixing a build reads the list
-      // once and then works down it, which is a keyboard's job.
-      if (event.key === "F8") {
-        event.preventDefault();
-        const state = get();
-        const rows = orderRows(state.diagnostics, state.lint);
-        if (!rows.length) return;
-        const at = rows.findIndex((row) => rowKey(row) === state.selectedDiagnostic);
-        const step = event.shiftKey ? -1 : 1;
-        const next = at === -1
-          ? (step === 1 ? rows[0] : rows[rows.length - 1])
-          : rows[(at + step + rows.length) % rows.length];
-        set({ selectedDiagnostic: rowKey(next) });
-        // The drawer opens if it is shut: stepping to an error the writer
-        // cannot see is a jump with no explanation beside it.
-        setDrawer((value) => (value ? value : DRAWER_OPEN));
-        if (next.file && next.line) void openFile(next.file, next.line);
-      }
-
-      // Find in the project, from anywhere. Mod-F belongs to the editor's
-      // own find panel and is right where it is: it searches the file in
-      // front of you. Mod-Shift-F is the same question asked of every
-      // file, which is the convention every editor with both uses, and
-      // neither GNOME nor a browser claims it.
-      if (meta && event.shiftKey && event.code === "KeyF") {
-        event.preventDefault();
-        railByHand.current = true;
-        setRailHidden(false);
-        setFolded((current) => ({ ...current, rail: false }));
-        setRailOpen((current) => ({ ...current, search: true }));
-        setFocusSearch((count) => count + 1);
-      }
-
-      // Open a file by name, from anywhere. Every piece of a quick-open
-      // was already built and none of them had a key: the filter row, the
-      // search, and Enter opening the first match. This puts the caret in
-      // that box, unfolding the rail if it is folded, which is the one
-      // thing a writer could not do without a hand on the mouse.
-      if (meta && event.altKey && event.code === "KeyO") {
-        event.preventDefault();
-        railByHand.current = true;
-        setRailHidden(false);
-        setFolded((current) => ({ ...current, rail: false }));
-        setRailOpen((current) => ({ ...current, files: true }));
-        set({ focusTreeSearch: get().focusTreeSearch + 1 });
-      }
-
-      // Cycle the previewed documents.  KeyP for preview, and free in both
-      // CodeMirror's keymap and the browser's -- see docs/design.md.
-      if (meta && event.altKey && event.code === "KeyP") {
-        event.preventDefault();
-        const open = get().previews;
-        if (open.length > 1) {
-          const at = open.indexOf(get().activePreview);
-          showPreview(open[(at + 1 + open.length) % open.length]);
-        }
-      }
-
-      // Escape closes the agent panel, from inside the agent panel.
-      //
-      // Not from anywhere on screen.  Escape already means something in the
-      // editor -- it is how a keyboard gets out of CodeMirror, where Tab
-      // indents rather than moving on -- and a global binding stole that,
-      // shutting the panel every time somebody pressed it to tab away.  So
-      // this is scoped the way every other Escape in the app is: it
-      // dismisses the thing you are in.  The shortcut that opens the panel
-      // leaves the caret in its composer, which is what makes the two a
-      // pair; anywhere else the key belongs to whatever is nearer.
-      if (event.key === "Escape") {
-        // These cover the screen while they are open, and close themselves.
-        // The history panel is not among them: docked, it covers nothing,
-        // and it answers Escape only while the keyboard is inside it, so a
-        // writer in the composer with the panel open still closes the
-        // panel they are in.
-        if (tutorialOpen || showingChanges || contextRequest) return;
-        const active = document.activeElement as HTMLElement | null;
-        if (!active?.closest?.("[data-nx-chat]")) return;
-        // A popover inside the panel claims Escape by preventing the
-        // default, and window listeners run in the order they were added --
-        // those components mount long after this one, so the claim is only
-        // visible once the dispatch is over.  Hence the wait.
-        window.setTimeout(() => {
-          if (event.defaultPrevented) return;
-          // Stop first, close second, and the order is the whole point.
-          // Stop is the writer's one escape hatch from a turn that is
-          // doing the wrong thing, and it was a `t-micro` text button in a
-          // 32px header that can be folded away entirely. Escape is where
-          // a hand already goes when something should stop.
-          //
-          // Not both: pressing it once should not also shut the panel and
-          // hide the transcript of what the turn had got to before it was
-          // stopped, which is the thing the writer is about to read.
-          if (get().thinking && get().projectId) {
-            api.interrupt(get().projectId!).catch(() => undefined);
-            return;
-          }
-          closeChat();
-        }, 0);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    activePath, toggleChat, closeChat, showPreview,
-    tutorialOpen, showingChanges, contextRequest,
-  ]);
 
 
   /** Give one pane the whole window, and give it back.
@@ -1879,21 +1698,208 @@ export default function App() {
   // in CodeMirror's keymap and in the browser's; W was the obvious letter
   // for writing and is already Close the tab in front.  Pressing the same
   // one again gives the layout back, like the second double click.
+  // Every chord the app answers from anywhere is a row of `ACTIONS` in
+  // `actions.ts`, and this is the one place they are dispatched: the
+  // registry says which action a keydown names, `runAction` does it, and
+  // the same map answers the command palette's rows.  The chords used to
+  // be literal `if` blocks here, in two effects, with the Tutorial and the
+  // README each carrying a copy of the list; the copies drifted.
+  //
+  // Next and previous error, from anywhere: the drawer answered nothing
+  // but a click, and a writer fixing a build reads the list once and then
+  // works down it, which is a keyboard's job.  The drawer opens if it is
+  // shut, since stepping to an error the writer cannot see is a jump with
+  // no explanation beside it.
+  const stepError = useCallback((step: 1 | -1) => {
+    const state = get();
+    const rows = orderRows(state.diagnostics, state.lint);
+    if (!rows.length) return;
+    const at = rows.findIndex((row) => rowKey(row) === state.selectedDiagnostic);
+    const next = at === -1
+      ? (step === 1 ? rows[0] : rows[rows.length - 1])
+      : rows[(at + step + rows.length) % rows.length];
+    set({ selectedDiagnostic: rowKey(next) });
+    setDrawer((value) => (value ? value : DRAWER_OPEN));
+    if (next.file && next.line) void openFile(next.file, next.line);
+  }, [openFile]);
+
+  const runAction = useCallback((id: string) => {
+    const state = get();
+    switch (id) {
+      case "save":
+        // With compile-as-you-type off, save is also the build: it is the
+        // Overleaf convention, it is what the hands already do, and it
+        // saves inventing a second binding for a thing the writer now has
+        // to ask for explicitly.
+        if (state.settings.autocompile) editor.current?.saveNow();
+        else void buildNow(false);
+        break;
+      case "build":
+        void buildNow(false);
+        break;
+      case "build-full":
+        void buildNow(true);
+        break;
+      case "reveal": {
+        // On a script, the key runs it; on a chapter it goes to the page.
+        const path = state.activePath;
+        if (!path) break;
+        if (isScript(path)) void runScript(path);
+        else pdf.current?.reveal(path, state.cursor.line);
+        break;
+      }
+      case "rail":
+        railByHand.current = true;
+        setRailHidden((value) => !value);
+        break;
+      case "agent":
+        toggleChat();
+        break;
+      case "next-preview": {
+        // Cycle the previewed documents; see docs/design.md for the key.
+        const open = state.previews;
+        if (open.length > 1) {
+          const at = open.indexOf(state.activePreview);
+          showPreview(open[(at + 1 + open.length) % open.length]);
+        }
+        break;
+      }
+      case "search":
+        // Find in the project, from anywhere. Mod-F belongs to the
+        // editor's own find panel and searches the file in front of you;
+        // this is the same question asked of every file.
+        railByHand.current = true;
+        setRailHidden(false);
+        setFolded((current) => ({ ...current, rail: false }));
+        setRailOpen((current) => ({ ...current, search: true }));
+        setFocusSearch((count) => count + 1);
+        break;
+      case "quick-open":
+        // Open a file by name: the filter row, the search, and Enter
+        // opening the first match were all built and none had a key.
+        railByHand.current = true;
+        setRailHidden(false);
+        setFolded((current) => ({ ...current, rail: false }));
+        setRailOpen((current) => ({ ...current, files: true }));
+        set({ focusTreeSearch: state.focusTreeSearch + 1 });
+        break;
+      case "next-tab":
+      case "previous-tab": {
+        const to = neighbour(state.tabs, state.activePath, id === "next-tab" ? 1 : -1);
+        if (to) void openFile(to);
+        break;
+      }
+      case "close-tab":
+        if (state.activePath) void closeFile(state.activePath);
+        break;
+      case "reopen-tab": {
+        const path = closed.current[closed.current.length - 1];
+        if (path) {
+          closed.current = closed.current.slice(0, -1);
+          void openFile(path);
+        }
+        break;
+      }
+      case "reading":
+        toggleFocus("pdf");
+        break;
+      case "writing":
+        toggleFocus("editor");
+        break;
+      case "next-error":
+        stepError(1);
+        break;
+      case "previous-error":
+        stepError(-1);
+        break;
+      case "palette":
+        setPaletteOpen(true);
+        break;
+      case "settings":
+        setSettingsNonce((count) => count + 1);
+        break;
+      case "tutorial":
+        openTutorial();
+        break;
+      case "history":
+        if (historyOpen) closeHistory();
+        else setHistoryOpen(true);
+        break;
+      case "share":
+        setSharing(true);
+        break;
+      case "download-zip":
+        if (state.projectId) void downloadZip(state.projectId);
+        break;
+      case "download-pdf":
+        if (state.projectId) void downloadPdf(state.projectId, state.activePreview);
+        break;
+      case "projects":
+        leaveProject();
+        break;
+    }
+  }, [
+    buildNow, runScript, toggleChat, showPreview, openFile, closeFile, toggleFocus,
+    stepError, openTutorial, historyOpen, closeHistory, leaveProject,
+  ]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const meta = event.metaKey || event.ctrlKey;
-      if (!meta || !event.altKey) return;
-      if (event.code === "KeyR") {
+      const action = actionFor(event);
+      if (action) {
+        // Mod-Enter means nothing without a file in front, and must not
+        // eat the key from whatever else wanted it.
+        if (action.id === "reveal" && !get().activePath) return;
         event.preventDefault();
-        toggleFocus("pdf");
-      } else if (event.code === "KeyE") {
-        event.preventDefault();
-        toggleFocus("editor");
+        runAction(action.id);
+        return;
+      }
+
+      // Escape closes the agent panel, from inside the agent panel.
+      //
+      // Not from anywhere on screen.  Escape already means something in the
+      // editor -- it is how a keyboard gets out of CodeMirror, where Tab
+      // indents rather than moving on -- and a global binding stole that,
+      // shutting the panel every time somebody pressed it to tab away.  So
+      // this is scoped the way every other Escape in the app is: it
+      // dismisses the thing you are in.  The shortcut that opens the panel
+      // leaves the caret in its composer, which is what makes the two a
+      // pair; anywhere else the key belongs to whatever is nearer.
+      if (event.key === "Escape") {
+        // These cover the screen while they are open, and close themselves.
+        // The history panel is not among them: docked, it covers nothing,
+        // and it answers Escape only while the keyboard is inside it, so a
+        // writer in the composer with the panel open still closes the
+        // panel they are in.
+        if (tutorialOpen || showingChanges || contextRequest) return;
+        const active = document.activeElement as HTMLElement | null;
+        if (!active?.closest?.("[data-nx-chat]")) return;
+        // A popover inside the panel claims Escape by preventing the
+        // default, and window listeners run in the order they were added --
+        // those components mount long after this one, so the claim is only
+        // visible once the dispatch is over.  Hence the wait.
+        window.setTimeout(() => {
+          if (event.defaultPrevented) return;
+          // Stop first, close second, and the order is the whole point.
+          // Stop is the writer's one escape hatch from a turn that is
+          // doing the wrong thing, and it was a `t-micro` text button in a
+          // 32px header that can be folded away entirely. Escape is where
+          // a hand already goes when something should stop.
+          //
+          // Not both: pressing it once should not also shut the panel and
+          // hide the transcript of what the turn had got to before it was
+          // stopped, which is the thing the writer is about to read.
+          if (get().thinking && get().projectId) {
+            api.interrupt(get().projectId!).catch(() => undefined);
+            return;
+          }
+          closeChat();
+        }, 0);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleFocus]);
+  }, [runAction, closeChat, tutorialOpen, showingChanges, contextRequest]);
 
   /** One header, two gestures, on the tab in front and on the empty run.
    *
@@ -2116,6 +2122,7 @@ export default function App() {
                   inProject
                   onTutorial={openTutorial}
                   onChangeAgent={changeAgent}
+                  openNonce={settingsNonce}
                 />
                 {/* Two buttons that both mean "give me a copy" were two
                     words competing with the project's name for a 32px bar.
@@ -2297,6 +2304,7 @@ export default function App() {
                   onSwitch={leaveProject}
                   onTutorial={openTutorial}
                   onChangeAgent={changeAgent}
+                  settingsNonce={settingsNonce}
                 />
               ) : undefined
             }
@@ -2798,6 +2806,15 @@ export default function App() {
       </div>
       )}
 
+      {paletteOpen ? (
+        <Suspense fallback={null}>
+          <CommandPalette
+            onClose={() => setPaletteOpen(false)}
+            onRun={runAction}
+            onOpenFile={(path) => void openFile(path)}
+          />
+        </Suspense>
+      ) : null}
       {sharing && projectId ? (
         <Suspense fallback={null}>
           <SharePanel

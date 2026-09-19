@@ -1,4 +1,5 @@
 import { useMemo, useRef, useEffect } from "react";
+import { CHORDED } from "../../actions";
 import {
   C, Contents, Figure, Key, Keys, Lead, P, Section, useCurrentSection, type Entry,
 } from "./parts";
@@ -487,21 +488,11 @@ export default function Tutorial({
           <Keys
             groups={[
               {
+                // From the registry every chord is dispatched from, so this
+                // list cannot say a key the app does not answer; the
+                // README's table is checked against the same registry.
                 where: "Anywhere",
-                rows: [
-                  { spec: "Mod-S", does: "Save this instant; compile instead when Compile as you type is off" },
-                  { spec: "Mod-B", does: "Hide the left column" },
-                  { spec: "Mod-Alt-A", does: "Show or hide the agent, ready to type" },
-                  { spec: "Mod-Alt-P", does: "Move between the previewed documents" },
-                  { spec: "Mod-Shift-F", does: "Find and replace across every file" },
-                  { spec: "Mod-Alt-O", does: "Open a file by typing its name" },
-                  { spec: "Mod-Alt-]", does: "Next tab; [ for the previous" },
-                  { spec: "Mod-Alt-W", does: "Close the tab in front" },
-                  { spec: "Mod-Alt-Shift-T", does: "Reopen the tab you just closed" },
-                  { spec: "Mod-Alt-R", does: "Reading mode; again puts your layout back" },
-                  { spec: "Mod-Alt-E", does: "Writing mode; again puts it back" },
-                  { key: "F8, ⇧F8", does: "Next and previous error" },
-                ],
+                rows: CHORDED.map((action) => ({ spec: action.chord!, does: action.does ?? action.label })),
               },
               {
                 where: "In the source",
