@@ -8,6 +8,7 @@ list, where nothing is open -- that is the moment somebody most wants one.
 import io
 import os
 import zipfile
+from pathlib import Path
 
 
 def test_one_file_comes_back_as_itself(client, opened):
@@ -379,3 +380,59 @@ def test_a_download_that_meets_a_build_mid_write_says_so(
     assert answer.status_code == 503, answer.text
     assert answer.headers.get("retry-after") == "1"
     assert "rebuilt" in answer.text
+
+
+# -- Word, HTML and Markdown through pandoc -----------------------------------
+
+FAKE_PANDOC = Path(__file__).resolve().parent.parent / "fake_pandoc.py"
+
+
+def test_the_three_formats_come_back_from_pandoc_named_after_the_document(client, opened, monkeypatch, tmp_path):
+    import json
+
+    log = tmp_path / "pandoc.jsonl"
+    monkeypatch.setenv("NEXTTEX_PANDOC", str(FAKE_PANDOC))
+    monkeypatch.setenv("NEXTTEX_FAKE_PANDOC_LOG", str(log))
+    for fmt, suffix, media in (
+        ("docx", "docx", "application/vnd.openxmlformats"),
+        ("html", "html", "text/html"),
+        ("md", "md", "text/markdown"),
+    ):
+        answer = client.get(f"/api/projects/{opened['id']}/download", params={"format": fmt})
+        assert answer.status_code == 200, answer.text
+        assert answer.headers["content-type"].startswith(media)
+        assert answer.headers["content-disposition"] == f'attachment; filename="main.{suffix}"'
+        assert b"fake pandoc wrote" in answer.content
+    seen = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert [argv[argv.index("-t") + 1] for argv in seen] == ["docx", "html", "gfm"]
+    # The project's .bib rides along with citeproc.
+    assert all("--citeproc" in argv and any(a.endswith("references.bib") for a in argv) for argv in seen)
+
+
+def test_without_pandoc_the_answer_says_so(client, opened, monkeypatch):
+    import shutil
+
+    monkeypatch.delenv("NEXTTEX_PANDOC", raising=False)
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    answer = client.get(f"/api/projects/{opened['id']}/download", params={"format": "docx"})
+    assert answer.status_code == 409 and "pandoc" in answer.json()["detail"]
+
+
+def test_pandoc_failure_is_a_422_with_its_words(client, opened, project_dir, monkeypatch):
+    monkeypatch.setenv("NEXTTEX_PANDOC", str(FAKE_PANDOC))
+    (project_dir / "broken.tex").write_text(
+        "\\documentclass{article}\\begin{document}\\nothere\\end{document}\n", encoding="utf-8",
+    )
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download", params={"format": "html", "document": "broken.tex"},
+    )
+    assert answer.status_code == 422 and "nothere" in answer.json()["detail"]
+
+
+def test_an_export_of_a_document_outside_the_project_is_refused(client, opened, monkeypatch):
+    monkeypatch.setenv("NEXTTEX_PANDOC", str(FAKE_PANDOC))
+    for escape in ["../../etc/passwd", "/etc/passwd", "..\\..\\x.tex", "figures/plot.png"]:
+        answer = client.get(
+            f"/api/projects/{opened['id']}/download", params={"format": "md", "document": escape},
+        )
+        assert answer.status_code in (400, 403, 404), escape

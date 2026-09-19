@@ -38,8 +38,6 @@ publisher's record; the context directory is under `.nexttex/`, which is
 never synced, so shared prompt files live at the project root; and the
 rail gains one tile, not three.
 
-- [ ] **Word, HTML and Markdown export with pandoc**, in the download
-      menu when pandoc is present.
 - [ ] **A command palette**, and one registry behind the chords, the
       tutorial's list and the README's table.
 - [ ] **Vim and Emacs keymaps**, loaded only when chosen, undo still the

@@ -149,7 +149,7 @@ def test_a_machine_with_everything_is_told_there_is_nothing_to_do(tmp_path):
     result = survey(
         "linux", tmp_path,
         which=which_only("git", "pdflatex", "latexmk", "synctex", "biber",
-                         "chktex", "texcount", "pdftotext", "tailscale",
+                         "chktex", "texcount", "pdftotext", "pandoc", "tailscale",
                          "claude", "uv", "tlmgr"),
         check_network=False, environ={"XDG_DATA_HOME": str(tmp_path / "state")},
     )

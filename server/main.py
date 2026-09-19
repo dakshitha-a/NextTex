@@ -74,7 +74,7 @@ from nexttex.project import (
     ignored_directory, is_ours, kind_of, under_ignored_directory,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, deps, lint_explain, search, texstyles, updates, usage
+from nexttex import bibcheck, deps, export, lint_explain, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -3912,10 +3912,13 @@ async def optional_tools():
     handful of stats.
     """
     ensure_tex_on_path()
-    return {
+    found = {
         name: bool(shutil.which(name))
-        for name in ("pandoc", "pdffonts", "pdfimages", "pdftotext", "chktex")
+        for name in ("pdffonts", "pdfimages", "pdftotext", "chktex")
     }
+    # pandoc through its own resolver, which honours `NEXTTEX_PANDOC`.
+    found["pandoc"] = bool(export.pandoc_here())
+    return found
 
 
 #: The publishers the search box offers, in the order the agent's tool
@@ -4281,6 +4284,50 @@ async def download(
         return Response(
             content=data, media_type="application/pdf",
             headers={"Content-Disposition": _attachment(f"{name}.pdf")},
+        )
+
+    if format in export.FORMATS:
+        # Word, HTML or Markdown through pandoc, for the document named or
+        # the one on screen.  A document that is not on the strip is any
+        # `.tex` in the project that can build on its own, the same rule
+        # the PDF branch applies; nothing is put on the strip for it.
+        session = session_for(project_id)
+        state = session.documents.get(document) if document else None
+        if state is not None:
+            main = state.paths.main
+        elif document:
+            main = _safe(session, document)
+            if not main.is_file() or main.suffix.lower() not in {".tex", ".ltx"}:
+                raise HTTPException(404, "no such document")
+            text = await asyncio.to_thread(read_text, main)
+            if not deps.is_standalone(text or ""):
+                raise HTTPException(
+                    400, f"{document} cannot be converted by itself; it has no "
+                    "\\documentclass and \\begin{document} of its own",
+                )
+        else:
+            main = _document(session).paths.main
+        if not export.pandoc_here():
+            raise HTTPException(409, "pandoc is not installed on the machine running NextTex")
+        root = session.project.root
+        bibs = [
+            candidate for candidate in walk_project(root, build_dir=session.project.build_dir)
+            if candidate.suffix.lower() == ".bib"
+        ]
+
+        def run() -> tuple[bytes, str]:
+            with tempfile.TemporaryDirectory(prefix="nexttex-export-") as scratch:
+                written = export.convert(main, format, Path(scratch), root, bibs)
+                return written.read_bytes(), written.name
+
+        try:
+            data, name = await asyncio.to_thread(run)
+        except export.ExportError as error:
+            raise HTTPException(422, f"pandoc could not convert it: {error}")
+        _writer, _suffix, media = export.FORMATS[format]
+        return Response(
+            content=data, media_type=media,
+            headers={"Content-Disposition": _attachment(name)},
         )
 
     session = SESSIONS.get(project_id)

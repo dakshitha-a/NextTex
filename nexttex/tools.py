@@ -62,6 +62,7 @@ TOOLS = {
     "pdftotext": ("optional", "reading uploaded PDFs"),
     "pdffonts":  ("optional", "the submission check's font rows"),
     "pdfimages": ("optional", "the submission check's image rows"),
+    "pandoc":   ("optional", "Word, HTML and Markdown export"),
     "git":      ("optional", "the version control panel"),
 }
 

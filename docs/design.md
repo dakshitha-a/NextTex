@@ -8265,3 +8265,39 @@ run. `e2e/specs/arrive.spec.ts` brings a zip through the tile and finds
 the figure in the tree and the left-out names in the notice, serves a
 tar.gz from a stand-in for arXiv that `NEXTTEX_ARXIV_BASE` names, and
 finds nonsense refused in the form.
+
+### Word, HTML and Markdown, when pandoc is here
+
+A co-author who does not write LaTeX, a journal that wants a `.docx`, a
+page for the group's site: the one conversion a paper needs on the way
+out, and the first roadmap run left it because pandoc was not on this
+machine. It is now, fetched into `~/.local` by hand as the plan said,
+and the feature is shaped around its absence as much as its presence.
+pandoc is an optional tool the way `pdftotext` is: the installer's
+survey names it and the install line for this platform, NextTex never
+installs it, and `GET /api/tools` says once per load whether it is
+here. When it is, the download menu lists under each document's PDF row
+three more, Word, HTML and Markdown, indented and named for what they
+are with the suffix beside; when it is not, the menu says nothing about
+them, because a row that can only fail is not offered and a menu that
+grows a sentence about installing something is a settings sheet.
+
+The conversion is the download route's `format`, since it is the same
+gesture as the PDF: the document on the strip or any `.tex` that builds
+on its own, converted in its own directory with the project root on the
+resource path, every `.bib` handed over so a `\cite` comes out as a
+reference, and HTML as one file with its images inside it so it can be
+mailed. pandoc's own last line is what the corner says when it cannot,
+which is usually a macro it does not know, and that is the sentence the
+writer needs. The rows are in the download menu the contrast spec
+already measures.
+
+`tests/test_export.py` reads the argv for each format, the fake's file
+and failure, and runs the real pandoc over a document with a citation
+and a figure, finding `word/document.xml` in the `.docx`, the image as
+a data URI in the HTML and the reference in the Markdown;
+`tests/api/test_download.py` asks the route for all three through
+`tests/fake_pandoc.py`, finds a 409 without pandoc, a 422 with its words
+and a refusal for a document outside the project. `e2e/specs/export.spec.ts`
+points a server at the fake and downloads a `.docx` from the third row,
+then starts one with the seam unset and finds the rows absent.

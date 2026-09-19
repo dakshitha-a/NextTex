@@ -72,9 +72,20 @@ export function DownloadIcon() {
  *  twenty, so the column scrolls rather than leaving the window.  The role
  *  is kept this time: focus on open, arrows, Escape back to the button.
  */
-export function DownloadMenu({ onZip, onPdf }: {
+/** The formats pandoc writes, in the order the menu lists them, with the
+ *  suffix the row shows. */
+export const EXPORTS: readonly { format: string; suffix: string; says: string }[] = [
+  { format: "docx", suffix: ".docx", says: "Word" },
+  { format: "html", suffix: ".html", says: "HTML" },
+  { format: "md", suffix: ".md", says: "Markdown" },
+];
+
+export function DownloadMenu({ onZip, onPdf, onExport }: {
   onZip: () => void;
   onPdf: (document: string) => void;
+  /** Word, HTML or Markdown through pandoc; the rows are drawn only when
+   *  the machine has pandoc, which `/api/tools` says once per load. */
+  onExport?: (document: string, format: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
@@ -85,6 +96,7 @@ export function DownloadMenu({ onZip, onPdf }: {
   }, [open]);
   const previews = useStore((s) => s.previews);
   const candidates = useStore((s) => s.candidates);
+  const pandoc = useStore((s) => s.tools?.pandoc === true);
   const documents = [...previews, ...candidates.filter((path) => !previews.includes(path))];
 
   const choose = (what: () => void) => () => {
@@ -138,21 +150,45 @@ export function DownloadMenu({ onZip, onPdf }: {
           </button>
           {documents.length ? <div className="my-1 border-t border-line" /> : null}
           {documents.map((path) => (
-            <button
-              key={path}
-              role="menuitem"
-              data-testid="download-pdf"
-              data-document={path}
-              title={path}
-              className={item}
-              onPointerMove={(event) => {
-                if (event.movementX || event.movementY) event.currentTarget.focus();
-              }}
-              onClick={choose(() => onPdf(path))}
-            >
-              <span className="min-w-0 truncate">{stemOf(path)}</span>
-              <span className="t-micro ml-[6px] shrink-0 text-ink-3">.pdf</span>
-            </button>
+            <div key={path}>
+              <button
+                role="menuitem"
+                data-testid="download-pdf"
+                data-document={path}
+                title={path}
+                className={item}
+                onPointerMove={(event) => {
+                  if (event.movementX || event.movementY) event.currentTarget.focus();
+                }}
+                onClick={choose(() => onPdf(path))}
+              >
+                <span className="min-w-0 truncate">{stemOf(path)}</span>
+                <span className="t-micro ml-[6px] shrink-0 text-ink-3">.pdf</span>
+              </button>
+              {/* The same document as Word, HTML or Markdown, under its
+                  PDF row, only on a machine with pandoc: a row that can
+                  only fail is not offered. */}
+              {pandoc && onExport
+                ? EXPORTS.map((entry) => (
+                    <button
+                      key={entry.format}
+                      role="menuitem"
+                      data-testid="download-export"
+                      data-document={path}
+                      data-format={entry.format}
+                      title={`${path} as ${entry.says}`}
+                      className={`${item} pl-[22px]`}
+                      onPointerMove={(event) => {
+                        if (event.movementX || event.movementY) event.currentTarget.focus();
+                      }}
+                      onClick={choose(() => onExport(path, entry.format))}
+                    >
+                      <span className="min-w-0 truncate text-ink-2">{entry.says}</span>
+                      <span className="t-micro ml-[6px] shrink-0 text-ink-3">{entry.suffix}</span>
+                    </button>
+                  ))
+                : null}
+            </div>
           ))}
         </div>
       ) : null}
@@ -225,6 +261,17 @@ export function downloadZip(projectId: string, fallback = "project.zip") {
   return download(api.downloadUrl(projectId, { format: "zip" }), fallback, "the project");
 }
 
+/** A document as Word, HTML or Markdown, through pandoc on the server;
+ *  a refusal is pandoc's own sentence in the corner. */
+export function downloadExport(projectId: string, document: string, format: string) {
+  const suffix = EXPORTS.find((entry) => entry.format === format)?.suffix ?? `.${format}`;
+  return download(
+    api.downloadUrl(projectId, { format, document }),
+    `${stemOf(document)}${suffix}`,
+    "the converted document",
+  );
+}
+
 export function AppControls({
   projectId,
   projectName,
@@ -267,6 +314,7 @@ export function AppControls({
           projectId && void downloadZip(projectId)
         }
         onPdf={(document) => projectId && downloadPdf(projectId, document)}
+        onExport={(document, format) => projectId && void downloadExport(projectId, document, format)}
       />
     </div>
   );

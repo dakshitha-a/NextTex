@@ -86,7 +86,9 @@ close the tab. No database, no Docker, no nginx.
 - **Every document in the folder has its own page.** There is no main file:
   a resume and its variations, a thesis and its supplementary information,
   each build and download on their own, and the page follows whatever you
-  are writing, a chapter showing the document that includes it.
+  are writing, a chapter showing the document that includes it. With
+  pandoc installed, the download menu also offers each document as Word,
+  HTML or Markdown, citations resolved.
 - **Reading and writing modes**: double-click the tab in front of either pane
   to give it the window, and again to get your layout back; one click on it
   folds the pane away.
@@ -223,8 +225,8 @@ Ubuntu ship one that cannot, which used to be the most common way a first
 install failed. It looks for `uv`, and for a `.venv` that is already here.
 It looks for a TeX installation wherever TinyTeX, MacTeX, MiKTeX or TeX Live
 puts one, and says which of `latexmk`, `biber`, `synctex`, `chktex` and
-`texcount` are missing from it. It looks for `pdftotext`, `claude`,
-`tailscale` and Node, for whether this machine can start things at login,
+`texcount` are missing from it. It looks for `pdftotext`, `pandoc`,
+`claude`, `tailscale` and Node, for whether this machine can start things at login,
 and for whatever configuration a previous install left. It also opens a
 two-second connection to each host it may need, so being offline is
 something you are told rather than something you wait three minutes to
@@ -1039,6 +1041,7 @@ install it and run the installer again.
 | `biber` | biblatex bibliographies | yes, via `tlmgr` |
 | `chktex`, `texcount` | Linting and word counts | yes, via `tlmgr` |
 | `pdftotext` | Only for reading a folder of papers into your `.bib` | **named**, and it comes with poppler-utils |
+| `pandoc` | Only to download a document as Word, HTML or Markdown | **named** |
 | The [Claude CLI](https://claude.ai/download) | Only for the Claude agent | yes, if you choose it, at install time or later from the settings sheet |
 | An OpenAI API key | Only for the OpenAI agent | no, you paste it into the app |
 | `gh`, signed in | Only for *Back this up to GitHub* | no |

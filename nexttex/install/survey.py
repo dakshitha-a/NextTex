@@ -165,6 +165,11 @@ COMMANDS = {
         "macos": "brew install poppler",
         "windows": "winget install --id oschwartz10612.Poppler",
     },
+    "pandoc": {
+        "linux": "sudo apt install pandoc",
+        "macos": "brew install pandoc",
+        "windows": "winget install --id JohnMacFarlane.Pandoc",
+    },
     "tailscale": {
         "linux": "https://tailscale.com/download",
         "macos": "brew install --cask tailscale",
@@ -191,6 +196,7 @@ LINUX_INSTALLERS = (
 LINUX_PACKAGES = {
     "git": {"default": "git"},
     "pdftotext": {"default": "poppler-utils", "pacman": "poppler", "apk": "poppler-utils"},
+    "pandoc": {"default": "pandoc"},
 }
 
 
@@ -387,6 +393,13 @@ def survey(
                         "with it as pdffonts and pdfimages. NextTex works "
                         "without it.",
                     command=command_for("pdftotext")))
+    if which("pandoc"):
+        add(Finding("pandoc", "pandoc", PRESENT, where=which("pandoc")))
+    else:
+        add(Finding("pandoc", "pandoc", YOURS,
+                    why="only for downloading a document as Word, HTML or "
+                        "Markdown. NextTex works without it.",
+                    command=command_for("pandoc")))
 
     result.tailscale = bool(which("tailscale"))
     if result.tailscale:

@@ -15,6 +15,7 @@ import {
   AppControls,
   Chevron,
   download,
+  downloadExport,
   downloadPdf,
   downloadZip,
   FoldButton,
@@ -2122,6 +2123,7 @@ export default function App() {
                 <DownloadMenu
                   onZip={() => projectId && void downloadZip(projectId)}
                   onPdf={(document) => projectId && downloadPdf(projectId, document)}
+                  onExport={(document, format) => projectId && void downloadExport(projectId, document, format)}
                 />
                 <FoldButton
                   direction="left"
