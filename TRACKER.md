@@ -24,6 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+The rail's first review, after 2.12.0, went up as 2.13.0. The three ways
+in were a stacked list with the chosen one unfolded in place, so the two
+closed ones sat under the Create button and read as its children, and
+did not look like buttons. The writer chose tiles from five variants
+drawn for them: one row of icon tiles with the form under all three.
+Nothing was left.
+
 The projects screen revamp, after 2.11.1, went up as 2.12.0. The writer
 chose, from five layouts drawn as an artifact, a rail: a docked column on
 the left holding the brand, the agent, the three ways in and, at its
@@ -122,8 +129,11 @@ this checkout does not have, or are decisions, are where they were.
       the file still holding its first line. The same shape as the
       sighting below; a second one is the signal to look at what the
       autosave is waiting on under load.
-- [ ] **`writing.spec.ts`'s equation hover failed once under the full
-      browser tier and passed on its retry.** Seen once in the roadmap
+- [ ] **`writing.spec.ts`'s equation hover failed twice under the full
+      browser tier and passed on its retry both times.** The second
+      sighting was in the rail tiles run, again beside a build; that is
+      the signal the line below asked for, so the next session on this
+      file widens the tooltip's wait or finds what else it waits on. Seen once in the roadmap
       run, while the machine was also building the bundle; the hover
       polls the tooltip, so the likely cause is the typeset image
       arriving after the assertion's window rather than not at all. A

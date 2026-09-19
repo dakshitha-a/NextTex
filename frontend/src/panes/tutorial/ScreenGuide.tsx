@@ -84,11 +84,15 @@ const ROWS: [string, string][] = [
   ],
   [
     "Start something new",
-    "In the rail on the left; on a phone, behind New. Makes the folder and one empty document. Give the agent your template afterwards and it will shape the project around it.",
+    "The first of three tiles in the rail; on a phone, behind New. Makes the folder and one empty document. Give the agent your template afterwards and it will shape the project around it.",
   ],
   [
     "Point at a folder",
-    "For a LaTeX project you already have. Nothing is copied and nothing is moved.",
+    "The middle tile. For a LaTeX project you already have. Nothing is copied and nothing is moved.",
+  ],
+  [
+    "Join a shared project",
+    "The third tile. Paste an invite somebody sent you; nothing is written until you accept what arrives.",
   ],
   [
     "The path is on the machine running NextTex",

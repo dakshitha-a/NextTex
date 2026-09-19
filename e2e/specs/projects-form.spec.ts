@@ -68,6 +68,53 @@ test("no field on the projects screen is shorter than the control it says it is"
   expect(short, short.join("\n")).toEqual([]);
 });
 
+test("the three ways in are tiles, and the form is under all of them", async ({
+  app, page,
+}) => {
+  // They were a stacked list with the chosen one unfolded in place, so
+  // the two closed ones sat under the Create button and read as its
+  // children, and a text label did not say "press me".  One row now,
+  // the chosen tile filled, the form under the row whichever is chosen.
+  await page.setViewportSize({ width: 1680, height: 1000 });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: true }).waitFor();
+
+  const tiles = TABS.map((name) => page.getByRole("button", { name }));
+  const boxes = await Promise.all(tiles.map((tile) => tile.boundingBox()));
+  for (const box of boxes) {
+    expect(box!.y).toBe(boxes[0]!.y);
+    expect(box!.width).toBeLessThanOrEqual(90);
+  }
+  const bottom = Math.max(...boxes.map((box) => box!.y + box!.height));
+  const nameField = await page.getByPlaceholder("What is it called?").boundingBox();
+  expect(nameField!.y).toBeGreaterThan(bottom);
+  await expect(tiles[0]).toHaveAttribute("aria-pressed", "true");
+  await expect(tiles[2]).toHaveAttribute("aria-pressed", "false");
+
+  // Choosing Join fills its tile and puts its form under the row, not
+  // between the tiles.
+  await tiles[2].click();
+  await expect(tiles[2]).toHaveAttribute("aria-pressed", "true");
+  await expect(tiles[0]).toHaveAttribute("aria-pressed", "false");
+  const invite = await page.getByTestId("invite-input").boundingBox();
+  expect(invite!.y).toBeGreaterThan(bottom);
+  await tiles[0].click();
+  const back = await page.getByPlaceholder("What is it called?").boundingBox();
+  expect(back!.y).toBeGreaterThan(bottom);
+
+  // Pointed at, a closed tile answers in the hint colour.
+  const hint = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--hint)";
+    document.body.appendChild(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+  await tiles[1].hover();
+  await expect(tiles[1]).toHaveCSS("border-color", hint);
+});
+
 test("the invite box and the folder beneath it are one pair", async ({
   app, page,
 }) => {

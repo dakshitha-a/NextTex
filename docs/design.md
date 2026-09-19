@@ -7920,7 +7920,8 @@ around it, and they chose the rail.
 Everything on the screen that is not a project stands in a 280px column
 on the left: the brand and its strapline, the writing agent, the three
 ways in as a stacked group where the chosen one unfolds its fields in
-place, and at the foot, help and the cog. The update and the password
+place (revised below: they are a row of tiles now, with the form under
+them), and at the foot, help and the cog. The update and the password
 nudge are a footer under that column. The list has a header with the
 heading and count, the search box, the sort and Back, and the rows
 scroll under it. Nothing else moves. `e2e/specs/projects-list.spec.ts`
@@ -7972,6 +7973,33 @@ own error stays under the chosen way in and clears when another is
 chosen. The join offer card is drawn after the third way in, so it sits
 under Join whatever is chosen: a rejoin from a row produces an offer
 while the chosen way in is still Start something new.
+
+### The ways in are tiles
+
+The writer's first sight of the rail turned up the one thing the
+mockups had not shown with a form open: with Start something new
+unfolded in place, Point at a folder and Join a shared project sat
+under its Create button and read as its children, and a text label with
+a rule on its left did not say "press me". Five variants were drawn as a
+page they could try, cards, a segmented switch, an accordion, tiles, and
+a button column with the form under it, and they chose the tiles. The
+three ways in are one row of icon tiles, a plus, a folder and a link,
+each with one word under it, the chosen one filled in the hint wash and
+a closed one lifting its border and its word to the hint colour under
+the pointer; the form for the chosen one is under the row, so it is
+never between the three. The rules are plain CSS under `.nx-way-tile`,
+because the chosen state travels as `aria-pressed` and a utility cannot
+see it.
+
+The word on the tile is short so three fit across the rail, and the
+button's name is the whole phrase, through `aria-label`: a screen reader
+hears "Start something new", every spec that finds the buttons by name
+still does, and the visible word is contained in the name, which is
+what label-in-name asks. The phone drawer needs nothing; the same row
+sits across it. `e2e/specs/projects-form.spec.ts` finds the three on one
+row, each under 90px wide, the chosen one pressed and the form below the
+row's bottom whichever is chosen, and a hovered tile's border in the
+hint colour.
 
 ### Search and sort
 

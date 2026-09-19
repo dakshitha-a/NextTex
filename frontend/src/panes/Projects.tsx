@@ -43,6 +43,14 @@ const START_FROM: Record<string, string> = {
   letter: "A letter",
 };
 
+/** The three ways in: the word on the tile, and the whole phrase that is
+ *  the button's name. */
+const WAYS = {
+  create: { word: "New", label: "Start something new" },
+  add: { word: "Folder", label: "Point at a folder" },
+  join: { word: "Join", label: "Join a shared project" },
+} as const;
+
 /** The project list.  Downloads live here as well as inside an open project:
  *  the moment a copy is most wanted is often before opening anything. */
 export default function Projects({
@@ -468,146 +476,145 @@ export default function Projects({
               </span>
             </button>
           ) : null}
-          {/* The three ways in, stacked, the chosen one unfolded in place.
-              The rule is on the left edge, as it was in the old wide mode's
-              column.  The message under the fields belongs to whichever of
-              the three the writer was last doing; carried across, it reads
-              as an error about the one they have just moved to, so a change
-              clears it. */}
-          <div className="nx-ways-list mt-3 flex flex-col gap-[2px]">
+          {/* The three ways in as a row of tiles, the chosen one filled,
+              and one form under all three.  They were a stacked list with
+              the chosen one unfolded in place, which put the other two
+              under the Create button where they read as its children, and
+              a text label with a rule on its left did not say "press me".
+              The writer chose the tiles from five variants drawn for them.
+              The visible word is short so three fit across the rail; the
+              accessible name is the whole phrase, which contains the word,
+              so a screen reader hears the sentence and every spec that
+              finds the buttons by name still does.  The message under the
+              fields belongs to whichever of the three the writer was last
+              doing; carried across, it reads as an error about the one
+              they have just moved to, so a change clears it. */}
+          <div className="nx-way-tiles" role="group" aria-label="Ways in">
             {(["create", "add", "join"] as const).map((option) => (
-              <div key={option} className="nx-way">
-                <button
-                  type="button"
-                  aria-expanded={mode === option}
-                  className={`nx-ways-tab nx-hover t-ui w-full border-l-2 py-[3px] pl-2 text-left ${
-                    mode === option
-                      ? "border-hint text-ink"
-                      : "border-transparent text-ink-3 hover:text-ink"
-                  }`}
-                  onClick={() => {
-                    setError(null);
-                    setPicking(false);
-                    setMode(option);
-                  }}
-                >
-                  {option === "create"
-                    ? "Start something new"
-                    : option === "add"
-                    ? "Point at a folder"
-                    : "Join a shared project"}
-                </button>
-                {mode === option ? (
-                  <div className="nx-way-body flex flex-col gap-2 pb-3 pl-[10px] pt-1">
-                    <p className="t-meta text-ink-2">
-                      {mode === "create"
-                        ? agentCopy
-                        : mode === "add"
-                        ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
-                        : "Paste an invite somebody sent you. The whole project arrives here, the files and their history both, and stays in step with everyone else's copy, including anything written while you were offline."}
-                    </p>
-                    {mode === "create" ? (
-                      <input
-                        value={newName}
-                        placeholder="What is it called?"
-                        className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                        onChange={(event) => setNewName(event.target.value)}
-                      />
-                    ) : null}
-                    {mode === "join" ? (
-                      <textarea
-                        value={invite}
-                        rows={3}
-                        placeholder="Paste the invite here"
-                        aria-label="The invite you were sent"
-                        data-testid="invite-input"
-                        className="t-code-sm w-full resize-none rounded-[3px] border border-line bg-surface px-2 py-1 outline-none placeholder:text-ink-3"
-                        onChange={(event) => setInvite(event.target.value)}
-                      />
-                    ) : null}
-                    {/* The folder, typed or browsed.  Browse walks the
-                        machine's disk in a card, since a browser's own
-                        folder dialog hands back files and not a path on
-                        the server; what it fills in depends on the way
-                        in (`FolderPicker`). */}
-                    <div className="flex gap-2">
-                      <input
-                        ref={pathBox}
-                        value={path}
-                        placeholder={
-                          mode === "create"
-                            ? "Where to put it, e.g. ~/writing/my-paper"
-                            : mode === "add"
-                            ? "/path/to/your/writing/project"
-                            : "A folder to put it in, e.g. ~/writing/their-paper"
-                        }
-                        className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                        onChange={(event) => setPath(event.target.value)}
-                        onKeyDown={(event) => event.key === "Enter" && add()}
-                      />
-                      <button
-                        ref={browseButton}
-                        type="button"
-                        className="ghost-button h-[28px] shrink-0 px-2 t-meta"
-                        aria-haspopup="dialog"
-                        aria-expanded={picking}
-                        data-testid="browse-folder"
-                        onClick={() => setPicking((open) => !open)}
-                      >
-                        Browse…
-                      </button>
-                    </div>
-                    {picking ? (
-                      <Suspense fallback={null}>
-                        <FolderPicker
-                          mode={mode}
-                          name={newName}
-                          typed={path}
-                          anchor={browseButton}
-                          onPick={picked}
-                          onClose={() => setPicking(false)}
-                        />
-                      </Suspense>
-                    ) : null}
-                    {mode === "create" && templates.length > 1 ? (
-                      /* Hidden when there is only one, which is what an
-                         install with its templates trimmed looks like: a
-                         chooser offering a single choice is a control that
-                         asks a question with one answer. */
-                      <select
-                        value={template}
-                        aria-label="What to start from"
-                        data-testid="template-choice"
-                        className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 text-ink outline-none"
-                        onChange={(event) => setTemplate(event.target.value)}
-                      >
-                        {templates.map((name) => (
-                          <option key={name} value={name}>
-                            {START_FROM[name] ?? name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : null}
-                    <button
-                      className={`h-[28px] self-start px-3 t-ui ${
-                        mode === "join" ? "pen-button" : "ghost-button"
-                      }`}
-                      onClick={add}
-                      disabled={busy === "add"}
-                    >
-                      {busy === "add" && mode === "join"
-                        ? "Joining…"
-                        : mode === "create"
-                        ? "Create project"
-                        : mode === "add"
-                        ? "Open folder"
-                        : "Join"}
-                    </button>
-                    {error ? <p className="t-meta text-error">{error}</p> : null}
-                  </div>
-                ) : null}
-              </div>
+              <button
+                key={option}
+                type="button"
+                className="nx-way-tile"
+                aria-pressed={mode === option}
+                aria-label={WAYS[option].label}
+                data-way={option}
+                onClick={() => {
+                  setError(null);
+                  setPicking(false);
+                  setMode(option);
+                }}
+              >
+                {option === "create" ? <Plus /> : option === "add" ? <Folder /> : <Link />}
+                <span>{WAYS[option].word}</span>
+              </button>
             ))}
+          </div>
+          <div className="nx-way-form" data-testid="way-form">
+            <p className="t-meta text-ink-2">
+              {mode === "create"
+                ? agentCopy
+                : mode === "add"
+                ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
+                : "Paste an invite somebody sent you. The whole project arrives here, the files and their history both, and stays in step with everyone else's copy, including anything written while you were offline."}
+            </p>
+            {mode === "create" ? (
+              <input
+                value={newName}
+                placeholder="What is it called?"
+                className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                onChange={(event) => setNewName(event.target.value)}
+              />
+            ) : null}
+            {mode === "join" ? (
+              <textarea
+                value={invite}
+                rows={3}
+                placeholder="Paste the invite here"
+                aria-label="The invite you were sent"
+                data-testid="invite-input"
+                className="t-code-sm w-full resize-none rounded-[3px] border border-line bg-surface px-2 py-1 outline-none placeholder:text-ink-3"
+                onChange={(event) => setInvite(event.target.value)}
+              />
+            ) : null}
+            {/* The folder, typed or browsed.  Browse walks the
+                machine's disk in a card, since a browser's own
+                folder dialog hands back files and not a path on
+                the server; what it fills in depends on the way
+                in (`FolderPicker`). */}
+            <div className="flex gap-2">
+              <input
+                ref={pathBox}
+                value={path}
+                placeholder={
+                  mode === "create"
+                    ? "Where to put it, e.g. ~/writing/my-paper"
+                    : mode === "add"
+                    ? "/path/to/your/writing/project"
+                    : "A folder to put it in, e.g. ~/writing/their-paper"
+                }
+                className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                onChange={(event) => setPath(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && add()}
+              />
+              <button
+                ref={browseButton}
+                type="button"
+                className="ghost-button h-[28px] shrink-0 px-2 t-meta"
+                aria-haspopup="dialog"
+                aria-expanded={picking}
+                data-testid="browse-folder"
+                onClick={() => setPicking((open) => !open)}
+              >
+                Browse…
+              </button>
+            </div>
+            {picking ? (
+              <Suspense fallback={null}>
+                <FolderPicker
+                  mode={mode}
+                  name={newName}
+                  typed={path}
+                  anchor={browseButton}
+                  onPick={picked}
+                  onClose={() => setPicking(false)}
+                />
+              </Suspense>
+            ) : null}
+            {mode === "create" && templates.length > 1 ? (
+              /* Hidden when there is only one, which is what an
+                 install with its templates trimmed looks like: a
+                 chooser offering a single choice is a control that
+                 asks a question with one answer. */
+              <select
+                value={template}
+                aria-label="What to start from"
+                data-testid="template-choice"
+                className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 text-ink outline-none"
+                onChange={(event) => setTemplate(event.target.value)}
+              >
+                {templates.map((name) => (
+                  <option key={name} value={name}>
+                    {START_FROM[name] ?? name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <button
+              className={`h-[28px] self-start px-3 t-ui ${
+                mode === "join" ? "pen-button" : "ghost-button"
+              }`}
+              onClick={add}
+              disabled={busy === "add"}
+            >
+              {busy === "add" && mode === "join"
+                ? "Joining…"
+                : mode === "create"
+                ? "Create project"
+                : mode === "add"
+                ? "Open folder"
+                : "Join"}
+            </button>
+            {error ? <p className="t-meta text-error">{error}</p> : null}
           </div>
           {/* After the third item, so it sits under Join whatever is
               chosen: a rejoin from a row can produce an offer while the
@@ -1067,6 +1074,32 @@ function Nib() {
     >
       <path d="M3.2 12.8 L6 12 L13 5 A1.6 1.6 0 0 0 11 3 L4 10 Z" />
       <path d="M4 10 L6 12" />
+    </svg>
+  );
+}
+
+/** The three tiles' marks, at the cog's weight: a plus for something
+ *  new, a folder for one that exists, a link for one that is shared. */
+function Plus() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <path d="M8 3v10M3 8h10" />
+    </svg>
+  );
+}
+
+function Folder() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true">
+      <path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.5 1.6h5.5a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1Z" />
+    </svg>
+  );
+}
+
+function Link() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+      <path d="M6.5 9.5 9.5 6.5M7 4.5l1.2-1.2a2.5 2.5 0 0 1 3.5 3.5L10.5 8M5.5 8 4.3 9.2a2.5 2.5 0 0 0 3.5 3.5L9 11.5" />
     </svg>
   );
 }
