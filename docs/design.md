@@ -6212,6 +6212,10 @@ TRACKER.md carried; the agent panel's mode menu, the other one, gets the
 same handler in the same commit, with the radio items `menu-keys.ts` now
 knows to walk.
 
+*Since the backlog close-out the column is a grid: one row per document
+and a chip per format on it, §48. The order of the rows and the naming
+of the file are as above.*
+
 ## 34. Related tabs close together, and the footer names a version
 
 Two requests arrived in one message. The first was about the tab strips:
@@ -8280,7 +8284,9 @@ here. When it is, the download menu lists under each document's PDF row
 three more, Word, HTML and Markdown, indented and named for what they
 are with the suffix beside; when it is not, the menu says nothing about
 them, because a row that can only fail is not offered and a menu that
-grows a sentence about installing something is a settings sheet.
+grows a sentence about installing something is a settings sheet. (The
+three are chips on the document's own row since the backlog close-out,
+§48; the rule about their absence is unchanged.)
 
 The conversion is the download route's `format`, since it is the same
 gesture as the PDF: the document on the strip or any `.tex` that builds
@@ -8510,3 +8516,48 @@ scripted agent's `context` script, which says back what the turn was
 given, so the file's text and the note are on screen; a second test
 copies a built-in from the Context panel and finds the file in the tree
 and the row marked as the project's.
+
+## 48. The backlog close-out
+
+A run through every line of `TRACKER.md`'s backlog after 2.16.0, with
+four things the writer raised while the plan was being drawn. What
+changed for the writer is here; what changed for the tests and the
+mechanics is in `docs/testing.md` and `docs/architecture.md`.
+
+### The download menu is a table: one row per document, one chip per format
+
+The writer asked for the menu to show the whole project and each
+document once, with the format chosen on the row, "a fly out to select
+the format, or inline buttons for each format like on the projects
+screen", and left the choice to this end. The menu had been a column
+since §33: "Whole project .zip", then each document's `.pdf` row and,
+on a machine with pandoc, three indented rows under it for Word, HTML
+and Markdown. Twenty resume variants with pandoc was eighty rows, and a
+document's four rows read as four things when they are one thing in
+four shapes.
+
+Chips, not a fly-out. A second popup hung off a row needs hover intent
+so it does not open on the way past, a place of its own that stays in
+the window, a right-arrow path into it and back, and a line of its own
+in the contrast spec, all for a choice that is one word wide; and the
+projects screen already draws the answer, `Zip` and `PDF` sitting at the
+end of a row. So the menu is a grid. The first row says "Whole project"
+and ends in `.zip`. Each document's row is its stem, truncating with the
+full path in its title, and then `.pdf`, and with pandoc `.docx` `.html`
+`.md` after it, each chip named for what lands in the folder with the
+format's name in its title. A chip is a control and is drawn as one,
+ink-2 at rest and a wash on hover, the projects screen's buttons
+exactly, and the contrast spec measures it as one. The menu widened
+from 232 to 320 so a stem keeps a readable run beside four chips.
+
+The arrows walk the grid rather than the column, `walkGrid` in
+`menu-keys.ts` beside `walkMenu`: Down and Up move between rows and
+land on the chip at the same position, or the row's last chip when it
+is shorter, wrapping at the ends; Left and Right move along a row and
+stop at its ends, so Right on a `.pdf` with no pandoc goes nowhere
+rather than into the next document; Home and End are the first and last
+row; Escape closes and puts focus back on the button; focus follows the
+pointer as before. `menu-keys.test.ts` walks a three-row grid with one,
+four and one chips; `toolbar.spec.ts` opens the menu over two documents
+and walks it with the keyboard; `export.spec.ts` finds the three chips
+on the document's own row and downloads a `.docx` from the first.

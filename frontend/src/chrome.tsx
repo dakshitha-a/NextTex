@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import api, { saveBlob } from "./api";
 import { set, useStore } from "./store";
 import { useDismiss } from "./useDismiss";
-import { focusFirst, walkMenu } from "./panes/menu-keys";
+import { focusFirst, walkGrid } from "./panes/menu-keys";
 import { fixedBelow } from "./panes/tab-overflow";
 import Settings from "./panes/Settings";
 
@@ -66,19 +66,56 @@ export function DownloadIcon() {
  *
  *  A menu rather than a dialog: there is nothing to decide, only which
  *  thing to fetch, and a card with a heading would be more ceremony than
- *  the act deserves.  The whole project as a zip, then every document in
- *  it as its own PDF: the ones on the preview strip first, then the ones
- *  that are not, which the route builds on the spot.  A resume project has
- *  twenty, so the column scrolls rather than leaving the window.  The role
- *  is kept this time: focus on open, arrows, Escape back to the button.
+ *  the act deserves.  One row for the whole project, then one row per
+ *  document, the ones on the preview strip first, then the ones that are
+ *  not, which the route builds on the spot.  Each row ends in a chip per
+ *  format: `.zip` for the project, `.pdf` for a document and, on a
+ *  machine with pandoc, `.docx` `.html` `.md` beside it.  It was a
+ *  column before, the PDF row and three indented export rows under it
+ *  per document, which on a resume project with twenty variants was
+ *  eighty rows; the writer asked for the format to be chosen on the row,
+ *  the way the projects screen's Zip and PDF sit on theirs.  Chips
+ *  rather than a fly-out: a second popup needs hover intent, its own
+ *  placing and its own contrast test, for a choice one word wide.  The
+ *  role is kept: focus on open, arrows walk the grid, Escape back to
+ *  the button.
  */
-/** The formats pandoc writes, in the order the menu lists them, with the
- *  suffix the row shows. */
+/** The formats pandoc writes, in the order the chips sit, with the
+ *  suffix the chip shows. */
 export const EXPORTS: readonly { format: string; suffix: string; says: string }[] = [
   { format: "docx", suffix: ".docx", says: "Word" },
   { format: "html", suffix: ".html", says: "HTML" },
   { format: "md", suffix: ".md", says: "Markdown" },
 ];
+
+/** One format on a row.  A control, so it is drawn as one: ink-2 at
+ *  rest and a wash on hover, the projects screen's Zip and PDF exactly,
+ *  and measured as a control by the contrast spec. */
+function Chip({ label, title, testid, document, format, onChoose }: {
+  label: string;
+  title: string;
+  testid: string;
+  document?: string;
+  format?: string;
+  onChoose: () => void;
+}) {
+  return (
+    <button
+      role="menuitem"
+      data-testid={testid}
+      data-document={document}
+      data-format={format}
+      title={title}
+      className="t-meta h-[22px] shrink-0 rounded-[3px] px-[6px] text-ink-2 hover:bg-surface-3 hover:text-ink focus:bg-hint-wash focus:text-ink"
+      onPointerMove={(event) => {
+        if (event.movementX || event.movementY) event.currentTarget.focus();
+      }}
+      onClick={onChoose}
+    >
+      {label}
+    </button>
+  );
+}
 
 export function DownloadMenu({ onZip, onPdf, onExport }: {
   onZip: () => void;
@@ -103,7 +140,7 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
     setOpen(false);
     what();
   };
-  const item = "t-ui flex w-full items-baseline px-[10px] py-[5px] text-left text-ink focus:bg-hint-wash";
+  const row = "flex w-full items-center gap-[4px] px-[10px] py-[3px] text-ink";
 
   return (
     <div className="relative flex items-center">
@@ -128,64 +165,60 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
           // button's right edge: the button sits 40px from the left of the
           // rail, and a column wide enough for a file name hung there
           // started off screen.
-          className="nx-furniture nx-arrive fixed z-40 max-h-[60vh] w-[232px] overflow-y-auto rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
-          style={fixedBelow(trigger.current, 232)}
+          // 320 wide: a stem beside four chips.  With pandoc the chips
+          // alone are about 150px, and the stem still gets a readable run
+          // before it truncates.
+          className="nx-furniture nx-arrive fixed z-40 max-h-[60vh] w-[320px] overflow-y-auto rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
+          style={fixedBelow(trigger.current, 320)}
           onKeyDown={(event) => {
-            if (walkMenu(event, () => setOpen(false)) && event.key === "Escape") {
+            if (walkGrid(event, () => setOpen(false)) && event.key === "Escape") {
               trigger.current?.focus();
             }
           }}
         >
-          <button
-            role="menuitem"
-            data-testid="download-zip"
-            className={item}
-            onPointerMove={(event) => {
-              if (event.movementX || event.movementY) event.currentTarget.focus();
-            }}
-            onClick={choose(onZip)}
-          >
-            Whole project
-            <span className="t-micro ml-[6px] text-ink-3">.zip</span>
-          </button>
+          <div role="none" data-menu-row data-testid="download-row" className={row}>
+            <span className="t-ui min-w-0 flex-1 truncate">Whole project</span>
+            <Chip
+              label=".zip"
+              title="The whole project as a zip"
+              testid="download-zip"
+              onChoose={choose(onZip)}
+            />
+          </div>
           {documents.length ? <div className="my-1 border-t border-line" /> : null}
           {documents.map((path) => (
-            <div key={path}>
-              <button
-                role="menuitem"
-                data-testid="download-pdf"
-                data-document={path}
-                title={path}
-                className={item}
-                onPointerMove={(event) => {
-                  if (event.movementX || event.movementY) event.currentTarget.focus();
-                }}
-                onClick={choose(() => onPdf(path))}
-              >
-                <span className="min-w-0 truncate">{stemOf(path)}</span>
-                <span className="t-micro ml-[6px] shrink-0 text-ink-3">.pdf</span>
-              </button>
-              {/* The same document as Word, HTML or Markdown, under its
-                  PDF row, only on a machine with pandoc: a row that can
-                  only fail is not offered. */}
+            <div
+              key={path}
+              role="none"
+              data-menu-row
+              data-testid="download-row"
+              data-document={path}
+              className={row}
+            >
+              <span className="t-ui min-w-0 flex-1 truncate" title={path}>
+                {stemOf(path)}
+              </span>
+              <Chip
+                label=".pdf"
+                title={`${path} typeset`}
+                testid="download-pdf"
+                document={path}
+                onChoose={choose(() => onPdf(path))}
+              />
+              {/* The same document as Word, HTML or Markdown, only on a
+                  machine with pandoc: a chip that can only fail is not
+                  offered. */}
               {pandoc && onExport
                 ? EXPORTS.map((entry) => (
-                    <button
+                    <Chip
                       key={entry.format}
-                      role="menuitem"
-                      data-testid="download-export"
-                      data-document={path}
-                      data-format={entry.format}
+                      label={entry.suffix}
                       title={`${path} as ${entry.says}`}
-                      className={`${item} pl-[22px]`}
-                      onPointerMove={(event) => {
-                        if (event.movementX || event.movementY) event.currentTarget.focus();
-                      }}
-                      onClick={choose(() => onExport(path, entry.format))}
-                    >
-                      <span className="min-w-0 truncate text-ink-2">{entry.says}</span>
-                      <span className="t-micro ml-[6px] shrink-0 text-ink-3">{entry.suffix}</span>
-                    </button>
+                      testid="download-export"
+                      document={path}
+                      format={entry.format}
+                      onChoose={choose(() => onExport(path, entry.format))}
+                    />
                   ))
                 : null}
             </div>

@@ -34,19 +34,38 @@ test("the downloads live behind one button, one PDF per document", async ({
   const menu = tab.getByTestId("download-menu");
   await expect(menu).toBeVisible();
   await expect(menu.getByTestId("download-zip")).toBeVisible();
-  // Two documents, two rows, each named by its stem with the extension
-  // saying what lands in the folder.
-  await expect(menu.getByTestId("download-pdf")).toHaveCount(2, { timeout: 10_000 });
-  await expect(menu.getByTestId("download-pdf").first()).toHaveAttribute(
-    "data-document", "main.tex",
-  );
-  await expect(menu.getByTestId("download-pdf").nth(1)).toContainText("acme");
-  await expect(menu).toContainText(".zip");
-  await expect(menu).toContainText(".pdf");
-  // The role is kept: focus on the first row, arrows walk the list.
+  // The project's row and two documents' rows, each named by its stem,
+  // each ending in a chip per format that says what lands in the folder.
+  const rows = menu.getByTestId("download-row");
+  await expect(rows).toHaveCount(3, { timeout: 10_000 });
+  await expect(rows.nth(0)).toContainText("Whole project");
+  await expect(rows.nth(1)).toHaveAttribute("data-document", "main.tex");
+  await expect(rows.nth(1)).toContainText("main");
+  await expect(rows.nth(2)).toContainText("acme");
+  await expect(menu.getByTestId("download-pdf")).toHaveCount(2);
+  await expect(menu.getByTestId("download-zip")).toHaveText(".zip");
+  await expect(menu.getByTestId("download-pdf").nth(1)).toHaveText(".pdf");
+  // Export chips only where pandoc is, three per document row when it
+  // is and none when it is not; `export.spec.ts` pins each case with a
+  // server of its own, and this server takes whatever PATH has.
+  const exports = await menu.getByTestId("download-export").count();
+  expect([0, 6]).toContain(exports);
+  await expect(rows.nth(0).getByTestId("download-export")).toHaveCount(0);
+  // The role is kept: focus on the first row, Down walks the rows, Right
+  // and Left walk a row and stop at its ends rather than falling into
+  // the next row (with pandoc a row has four chips, without it one).
   await expect(menu.getByTestId("download-zip")).toBeFocused();
   await tab.keyboard.press("ArrowDown");
   await expect(menu.getByTestId("download-pdf").first()).toBeFocused();
+  await tab.keyboard.press("ArrowRight");
+  await expect(rows.nth(1).locator(":focus")).toHaveCount(1);
+  await tab.keyboard.press("ArrowLeft");
+  await tab.keyboard.press("ArrowLeft");
+  await expect(menu.getByTestId("download-pdf").first()).toBeFocused();
+  await tab.keyboard.press("End");
+  await expect(menu.getByTestId("download-pdf").nth(1)).toBeFocused();
+  await tab.keyboard.press("ArrowDown");
+  await expect(menu.getByTestId("download-zip")).toBeFocused();
 
   // Choosing the variant fetches that document's PDF, by its path.
   const requests: string[] = [];

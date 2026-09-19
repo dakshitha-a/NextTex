@@ -30,14 +30,21 @@ test("with pandoc the menu offers three formats under each document, and one dow
     await page.getByTestId("open-download").click();
     const menu = page.getByTestId("download-menu");
     await expect(menu.getByTestId("download-pdf")).toHaveCount(1, { timeout: 10_000 });
-    const rows = menu.getByTestId("download-export");
-    await expect(rows).toHaveCount(3);
-    await expect(rows.nth(0)).toContainText("Word");
-    await expect(rows.nth(1)).toContainText("HTML");
-    await expect(rows.nth(2)).toContainText("Markdown");
+    // Three chips on the document's own row, after its .pdf, each
+    // showing the suffix that lands in the folder and naming the format
+    // in its title.
+    const chips = menu.getByTestId("download-export");
+    await expect(chips).toHaveCount(3);
+    await expect(chips.nth(0)).toHaveText(".docx");
+    await expect(chips.nth(0)).toHaveAttribute("title", "main.tex as Word");
+    await expect(chips.nth(1)).toHaveText(".html");
+    await expect(chips.nth(2)).toHaveText(".md");
+    const row = menu.locator('[data-testid="download-row"][data-document="main.tex"]');
+    await expect(row.getByTestId("download-pdf")).toHaveCount(1);
+    await expect(row.getByTestId("download-export")).toHaveCount(3);
 
     const waiting = page.waitForEvent("download");
-    await rows.nth(0).click();
+    await chips.nth(0).click();
     const download = await waiting;
     expect(download.suggestedFilename()).toBe("main.docx");
     const saved = await download.path();

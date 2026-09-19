@@ -87,9 +87,10 @@ close the tab. No database, no Docker, no nginx.
 - **Every document in the folder has its own page.** There is no main file:
   a resume and its variations, a thesis and its supplementary information,
   each build and download on their own, and the page follows whatever you
-  are writing, a chapter showing the document that includes it. With
-  pandoc installed, the download menu also offers each document as Word,
-  HTML or Markdown, citations resolved.
+  are writing, a chapter showing the document that includes it. The
+  download menu is one row per document with a chip for each format:
+  `.pdf` always, and with pandoc installed `.docx`, `.html` and `.md`
+  beside it, citations resolved.
 - **Reading and writing modes**: double-click the tab in front of either pane
   to give it the window, and again to get your layout back; one click on it
   folds the pane away.
