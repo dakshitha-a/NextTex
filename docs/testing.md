@@ -189,6 +189,16 @@ because they write into the repository and they are two more browsers on
 a machine already running five; run them when the interface changes, look
 at what came out, and commit the images with the change that moved them.
 
+`e2e/shots/fidelity.spec.ts` is the third of these, and the one the visual
+overhaul was held to. It renders named surfaces from the running app, in
+both themes, as element screenshots rather than pages: a menu, a sheet, a
+hover card, the completion list, cropped to the element, so each can be put
+beside the direction page's drawing of it. `NEXTTEX_FIDELITY` names the
+surfaces, comma-separated, or leaves it empty for all of them, and
+`NEXTTEX_FIDELITY_DIR` says where the images go. A surface the fixture
+cannot open is written down as a `.failed.txt` beside the others and the
+run goes on, because the point is the pictures that came out, not a pass.
+
 ## The installer had no tests at all, which is why it had so many bugs
 
 For a long time this repository had four tiers of tests and nothing
