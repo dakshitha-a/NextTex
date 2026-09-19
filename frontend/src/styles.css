@@ -210,6 +210,10 @@
   /* One recipe for anything that floats above a pane: menus, popups,
      tooltips, the history panel. */
   --float: 0 4px 16px rgba(0, 0, 0, 0.18);
+  /* What a menu or a card is painted on when it floats over a light
+     pane: the paper's white, one step above --surface, so the card reads
+     as lifted rather than as a patch of the pane it covers. */
+  --float-ground: #FFFFFF;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   color-scheme: light;
 }
@@ -318,6 +322,7 @@
   --page-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
   --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
   --float: 0 4px 16px rgba(0, 0, 0, 0.55);
+  --float-ground: var(--surface);
   /* The three derived tokens, redeclared here, and this is not tidiness.
      A custom property whose value contains `var()` is substituted where it
      is *declared*, not where it is used, so `--line` computed once on
@@ -390,6 +395,7 @@
   --ink-3: #5C625B;
   --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
   --wash: color-mix(in oklab, var(--ink-3) 12%, transparent);
+  --float-ground: #FFFFFF;
 }
 .nx-theme-warm {
   --surround: #D3CEC2;
@@ -399,6 +405,7 @@
   --ink-3: #605C52;
   --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
   --wash: color-mix(in oklab, var(--ink-3) 12%, transparent);
+  --float-ground: #FFFFFF;
 }
 .nx-theme-cool {
   --surround: #C9CFD3;
@@ -408,6 +415,7 @@
   --ink-3: #5A6063;
   --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
   --wash: color-mix(in oklab, var(--ink-3) 12%, transparent);
+  --float-ground: #FFFFFF;
 }
 
 /* `inline` is what makes bg-surface follow the theme rather than baking in
@@ -429,6 +437,7 @@
   --color-ok: var(--ok);
   --color-line: var(--line);
   --color-wash: var(--wash);
+  --color-float-ground: var(--float-ground);
   --shadow-float: var(--float);
   --radius-control: var(--nx-radius-control);
   --radius-card: var(--nx-radius-card);
@@ -1315,6 +1324,169 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-projects[data-phone] .nx-projects-foot { max-height: 40vh; border-right: 0; }
 .nx-projects[data-phone] .nx-projects-head { padding: 12px 16px 8px; }
 .nx-projects[data-phone] .nx-projects-list { padding: 0 16px 16px; }
+
+/* ---- the kit ---------------------------------------------------------------
+   One primitive per kind of control, in frontend/src/ui/, and its rules
+   here.  A pane composes these and hand-rolls nothing: the button, the
+   icon button, the row, the menu and its items, the card that floats,
+   the sheet that covers, the field, the chip, the switch, the segmented
+   choice, the empty state and the key.  Sizes come from the tokens in the
+   root sizes block; colours from the palette in force.  Nothing here has
+   a hairline except a field, whose edge is information. */
+.nx-button {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: var(--nx-control); padding: 0 10px;
+  border-radius: var(--nx-radius-control);
+  font-size: 13px; line-height: 1; font-weight: 500; white-space: nowrap;
+  color: var(--ink-2);
+  transition: background-color 90ms var(--ease), color 90ms var(--ease), box-shadow 90ms var(--ease);
+}
+.nx-button[data-size="md"] { height: var(--nx-row); padding: 0 12px; font-size: 14px; }
+.nx-button[data-size="inline"] { height: 24px; padding: 0 8px; font-size: 12.5px; }
+.nx-button[data-variant="quiet"] { padding-left: 6px; padding-right: 6px; }
+.nx-button[data-variant="quiet"]:hover:not(:disabled) { color: var(--ink); background: var(--wash); }
+.nx-button[data-variant="ghost"] { color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.nx-button[data-variant="ghost"]:hover:not(:disabled) { color: var(--hint); box-shadow: inset 0 0 0 1px var(--hint); background: var(--hint-wash); }
+.nx-button[data-variant="pen"] { color: var(--on-pen); background: var(--pen); }
+.nx-button[data-variant="pen"]:hover:not(:disabled) { filter: brightness(1.06); }
+.nx-button[data-variant="pen"]:active:not(:disabled) { transform: translateY(1px); }
+/* A destructive action never takes the hover colour that means "safe and
+   interactive"; it darkens in its own ink. */
+.nx-button[data-variant="danger"] { color: var(--error); box-shadow: inset 0 0 0 1px var(--line); }
+.nx-button[data-variant="danger"]:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--error); background: color-mix(in oklab, var(--error) 10%, transparent); }
+.nx-button:disabled { opacity: 0.4; cursor: default; }
+.nx-button:focus-visible, .nx-icon-button:focus-visible, .nx-menu-item:focus-visible,
+.nx-segment:focus-visible, .nx-switch:focus-visible, .nx-chip-remove:focus-visible {
+  outline: 2px solid var(--hint); outline-offset: 2px;
+}
+
+.nx-icon-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--nx-control); height: var(--nx-control);
+  border-radius: var(--nx-radius-control);
+  color: var(--ink-3);
+  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+}
+.nx-icon-button[data-size="md"] { width: var(--nx-row); height: var(--nx-row); }
+.nx-icon-button:hover:not(:disabled) { color: var(--ink); }
+.nx-icon-button[data-on] { color: var(--ink); background: var(--wash); }
+.nx-icon-button:disabled { opacity: 0.4; }
+
+.nx-row {
+  display: flex; align-items: center; gap: 8px;
+  height: 30px; padding: 0 8px;
+  border-radius: var(--nx-radius-control);
+  color: var(--ink-2);
+}
+.nx-row[data-size="md"] { height: var(--nx-row); }
+.nx-row > svg { flex: none; color: var(--ink-3); }
+.nx-row-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-row:hover, .nx-row:focus-within { background: var(--wash); }
+.nx-row[data-selected] { background: var(--wash); color: var(--ink); }
+.nx-row[data-selected] > svg { color: var(--ink); }
+.nx-row-trailing { display: none; align-items: center; gap: 2px; margin-left: auto; color: var(--ink-3); font-size: 12px; }
+.nx-row:hover .nx-row-trailing, .nx-row:focus-within .nx-row-trailing, .nx-row-trailing-always { display: inline-flex; }
+/* Revealed on hover never means hidden on touch. */
+@media (pointer: coarse) { .nx-row-trailing { display: inline-flex; } }
+
+.nx-menu {
+  position: fixed; z-index: 40;
+  padding: 6px;
+  border-radius: var(--nx-radius-card);
+  background: var(--float-ground); color: var(--ink);
+  box-shadow: var(--float);
+  max-height: calc(100vh - 16px); overflow-y: auto;
+}
+.nx-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  height: 30px; padding: 0 10px;
+  border-radius: var(--nx-radius-control);
+  color: var(--ink); font-size: 14px; text-align: left; white-space: nowrap;
+}
+.nx-menu-item > svg { flex: none; color: var(--ink-3); }
+.nx-menu-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.nx-menu-hint { margin-left: auto; padding-left: 12px; color: var(--ink-3); font-size: 12px; }
+.nx-menu-item:hover:not(:disabled), .nx-menu-item:focus { background: var(--wash); outline: none; }
+.nx-menu-item[data-danger] { color: var(--error); }
+.nx-menu-item:disabled { color: var(--ink-3); cursor: default; }
+.nx-menu-item[aria-checked="true"]::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--hint); margin-right: 3px; }
+.nx-menu-divider { height: 1px; margin: 6px 4px; background: var(--line); }
+
+.nx-card {
+  border-radius: var(--nx-radius-card);
+  background: var(--float-ground); color: var(--ink);
+  box-shadow: var(--float);
+  padding: 8px 10px;
+}
+.nx-sheet {
+  max-height: 100%; max-width: 100%; overflow-y: auto;
+  border-radius: var(--nx-radius-sheet);
+  background: var(--surface); color: var(--ink);
+  box-shadow: var(--float);
+  padding: 18px 20px 14px;
+}
+
+.nx-field {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: var(--nx-row); padding: 0 10px;
+  border-radius: var(--nx-radius-control);
+  background: var(--surface-2); color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: box-shadow 90ms var(--ease);
+}
+.nx-field:focus-within { box-shadow: inset 0 0 0 1px var(--hint), 0 0 0 2px var(--hint-wash); }
+.nx-field > svg { flex: none; }
+.nx-field-input {
+  min-width: 0; flex: 1; height: 100%;
+  background: transparent; color: var(--ink); font: inherit; font-size: 13.5px;
+  outline: none;
+}
+.nx-field-input::placeholder { color: var(--ink-3); }
+
+.nx-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 8px;
+  border-radius: var(--nx-radius-control);
+  background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; white-space: nowrap;
+}
+.nx-chip-mono { font-family: var(--font-mono); font-size: 12px; }
+.nx-chip-remove { display: inline-flex; color: var(--ink-3); border-radius: 2px; }
+.nx-chip-remove:hover { color: var(--ink); }
+
+.nx-switch {
+  position: relative; width: 34px; height: 20px; flex: none;
+  border-radius: 10px; background: var(--surface-3);
+  transition: background-color 120ms var(--ease);
+}
+.nx-switch-knob {
+  position: absolute; top: 3px; left: 3px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--ink-3);
+  transition: transform 120ms var(--ease), background-color 120ms var(--ease);
+}
+.nx-switch[aria-checked="true"] { background: var(--hint); }
+.nx-switch[aria-checked="true"] .nx-switch-knob { transform: translateX(14px); background: var(--surface); }
+
+.nx-segmented { display: inline-flex; padding: 2px; border-radius: var(--nx-radius-control); background: var(--surface-2); }
+.nx-segment {
+  height: 24px; padding: 0 10px; border-radius: 3px;
+  color: var(--ink-2); font-size: 13px; line-height: 24px; white-space: nowrap;
+  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+}
+.nx-segment:hover:not([aria-pressed="true"]) { color: var(--ink); }
+.nx-segment[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; }
+
+.nx-empty { padding: 4px 8px 12px; }
+.nx-empty p { margin: 0 0 8px; color: var(--ink-2); font-size: 13.5px; line-height: 19px; }
+.nx-empty-action { display: flex; gap: 6px; align-items: center; }
+
+.nx-kbd {
+  display: inline-block; padding: 0 5px; line-height: 18px;
+  border-radius: 3px; box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2); font-family: var(--font-sans); font-size: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nx-button, .nx-icon-button, .nx-switch, .nx-switch-knob, .nx-segment, .nx-field { transition: none; }
+}
 
 /* ---- motion --------------------------------------------------------------
    Everything here is a hint, not decoration: it tells the eye that a thing
