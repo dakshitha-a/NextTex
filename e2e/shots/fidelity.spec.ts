@@ -204,6 +204,23 @@ const SURFACES: Record<string, Surface> = {
       await tab.goBack().catch(() => {});
     },
   },
+  permission: {
+    open: async (tab) => {
+      // The fake Claude's "permission" script asks before it runs.
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:permission\nRun something.");
+      await tab.getByRole("button", { name: "Send" }).click();
+      const card = tab.getByTestId("permission-card");
+      await card.waitFor({ timeout: 20_000 });
+      await tab.waitForTimeout(500);
+      return card;
+    },
+    close: async (tab) => {
+      await tab.getByTestId("deny").click().catch(() => {});
+      await tab.waitForTimeout(300);
+    },
+  },
   notices: {
     open: async (tab) => {
       await tab.evaluate(() => {
