@@ -43,8 +43,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from nexttex import (
-    attachments, auth, auxlabels, claude_auth, gitrepo, plots, rename, report,
-    submit, synctex, texpkg,
+    arrive, attachments, auth, auxlabels, claude_auth, gitrepo, plots, rename,
+    report, submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
 from server.collab import identity as collab_identity
@@ -2256,6 +2256,67 @@ async def create_project(
     project = REGISTRY.add(root)
     _restart_watch()
     return project.as_dict()
+
+
+@app.post("/api/projects/arrive")
+async def arrive_project(
+    path: str = Form(...),
+    source: str = Form(""),
+    file: UploadFile | None = File(None),
+):
+    """A project from somewhere else, into a new folder: the zip in
+    `file`, or the arXiv id or git URL in `source`.
+
+    The folder must be absent or empty, exactly as `create_project`
+    asks, and on any failure it is removed again so the next try finds
+    it as it was.  An archive gets an upload's fence, in `nexttex/arrive`:
+    entries that would leave the folder, symlinks and every control path
+    are left out and come back by name in `skipped`, so a zip that
+    carries a `.claude/settings.json` arrives without it and the writer is
+    told.  A clone brings `.git` by necessity; the URL is held to the
+    transports that reach a host, so nothing here names a place on this
+    machine or a command.  The fetch and the unpack run off the loop.
+    """
+    typed = source.strip()
+    if file is not None and (file.filename or "").strip():
+        way = "zip"
+    elif arrive.arxiv_id(typed):
+        way = "arxiv"
+    elif arrive.is_git_url(typed):
+        way = "git"
+    else:
+        raise HTTPException(400, "Type an arXiv id or a git URL, or choose a zip.")
+    try:
+        root = arrive.empty_folder(path)
+    except arrive.ArriveError as error:
+        raise HTTPException(400, str(error))
+
+    def bring() -> arrive.Unpacked:
+        if way == "zip":
+            data = file.file.read(MAX_UPLOAD_BYTES + 1)
+            if len(data) > MAX_UPLOAD_BYTES:
+                raise arrive.ArriveError("the zip is over 256 MB")
+            try:
+                return arrive.unpack_zip(data, root)
+            except zipfile.BadZipFile:
+                raise arrive.ArriveError("that is not a zip file")
+        if way == "arxiv":
+            identifier = arrive.arxiv_id(typed) or ""
+            return arrive.unpack_arxiv(arrive.fetch_arxiv(identifier), identifier, root)
+        gitrepo.clone(typed, root)
+        return arrive.Unpacked()
+
+    try:
+        unpacked = await asyncio.to_thread(bring)
+    except (arrive.ArriveError, gitrepo.GitError) as error:
+        await asyncio.to_thread(arrive.discard, root)
+        raise HTTPException(400, str(error))
+    except Exception:
+        await asyncio.to_thread(arrive.discard, root)
+        raise
+    project = REGISTRY.add(root)
+    _restart_watch()
+    return {**project.as_dict(), "skipped": unpacked.skipped, "way": way}
 
 
 @app.delete("/api/projects/{project_id}")

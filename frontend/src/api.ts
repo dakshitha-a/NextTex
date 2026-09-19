@@ -552,6 +552,31 @@ const api = {
   addProject: (path: string) => request<any>("/projects", json({ path })),
   createProject: (path: string, name: string) =>
     request<any>("/projects/create", json({ path, name })),
+  /** A project from somewhere else into a new folder: a zip, an arXiv id
+   *  or a git URL.  Multipart because the zip is a file; the answer is the
+   *  project, with the archive entries that were left out by name. */
+  arrive: async (path: string, source: string, file: File | null) => {
+    const form = new FormData();
+    form.append("path", path);
+    form.append("source", source);
+    if (file) form.append("file", file);
+    const response = await fetch("/api/projects/arrive", {
+      method: "POST",
+      body: form,
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      let message = response.statusText;
+      try {
+        const body = await response.json();
+        message = body.detail || body.error || message;
+      } catch {
+        /* the status line will do */
+      }
+      throw new ApiError(response.status, message);
+    }
+    return response.json() as Promise<{ id: string; name: string; skipped: string[] }>;
+  },
   forgetProject: (id: string) =>
     request<any>(`/projects/${id}`, { method: "DELETE" }),
   open: (id: string) =>

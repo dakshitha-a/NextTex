@@ -350,6 +350,29 @@ def create_github(root: Path, name: str, private: bool = True) -> str:
     return _run(root, "remote", "get-url", "origin", timeout=15).strip()
 
 
+#: A clone reaches the network and copies a history, which on a large
+#: repository over a slow link is minutes; `TIMEOUT` is for a command on
+#: a folder that is already here.
+CLONE_TIMEOUT = 600
+
+
+def clone(url: str, into: Path, timeout: int = CLONE_TIMEOUT) -> None:
+    """Clone `url` into `into`, an existing empty folder.
+
+    The caller has held the URL to the transports that reach a host, so
+    `file://`, a bare path and `ext::` never get here; `--` still goes
+    before it, since a value from a form must not be read as an option,
+    and `protocol.file.allow=never` is set for the run so nothing the
+    clone reads can pull a second repository off this machine's disk.
+    The environment is `_environment()`'s, prompt-free, so a private
+    repository with no key fails in a sentence rather than hanging.
+    """
+    _run(
+        into, "-c", "protocol.file.allow=never", "clone", "--", url, ".",
+        timeout=timeout,
+    )
+
+
 def attach_remote(root: Path, url: str, token: str = "") -> str:
     """Point this project at an existing repository.
 

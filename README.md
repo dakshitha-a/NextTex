@@ -526,7 +526,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 851.0 kB | 860 kB |
+| Interface bundle | 858.0 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -1084,7 +1084,7 @@ than the PDF it produces.
 
 NextTex serves your own files from your own machine and ships its own
 typefaces, so the interface works on a host with no route to the internet.
-Six things go out, all of them things you asked for:
+Seven things go out, all of them things you asked for:
 
 1. What you send the agent, to Anthropic or OpenAI, unless the OpenAI
    provider points at a local server, in which case it goes nowhere.
@@ -1121,6 +1121,10 @@ Six things go out, all of them things you asked for:
    or who either of you is. Where the two of you can reach each other
    directly, in the same office or on the same tailnet, nothing goes through a
    relay at all. A project you have not shared contacts none of it.
+7. **Only when you bring a project from elsewhere**: `arxiv.org`, for the
+   source of the paper whose id you typed, and the git host whose URL you
+   typed, for the clone. Nothing about you goes with either request beyond
+   what a browser would send.
 
 That is the whole list, and a test fails if a new host appears in the source
 without this section changing. There is no telemetry and no analytics of any
@@ -1169,7 +1173,11 @@ localhost and skip it.
 Point NextTex at any folder containing a LaTeX document, typed into the
 projects screen or picked with its Browse button, which walks the disk of
 the machine NextTex is running on. `examples/minimal-article` is there to
-try it on. A project can carry a `nexttex.toml`:
+try it on. A project that exists somewhere else is brought here from the
+fourth tile: choose a zip somebody sent, type an arXiv id, or paste a git
+URL, and it arrives in a new folder. A zip's entries that would run or
+leave the folder, a `Makefile`, a `.claude/`, a `../`, are left out and
+named; a clone keeps its `.git`. A project can carry a `nexttex.toml`:
 
 ```toml
 [project]

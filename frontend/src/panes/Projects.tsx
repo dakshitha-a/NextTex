@@ -30,6 +30,7 @@ const ScreenGuide = lazy(() => import("./tutorial/ScreenGuide"));
 const JoinOfferCard = lazy(() => import("./JoinOfferCard"));
 // And the folder picker, which is behind a button most visits never press.
 const FolderPicker = lazy(() => import("./FolderPicker"));
+import { classify, nameFor } from "../arrive-source";
 
 /** What each template is, in the words somebody choosing one would use.
  *  A directory called `beamer` is a name only a LaTeX writer knows, and the
@@ -43,13 +44,16 @@ const START_FROM: Record<string, string> = {
   letter: "A letter",
 };
 
-/** The three ways in: the word on the tile, and the whole phrase that is
- *  the button's name. */
+/** The four ways in: the word on the tile, and the whole phrase that is
+ *  the button's name.  The fourth brings a project that exists somewhere
+ *  else: a zip, an arXiv id or a git URL, into a new folder. */
 const WAYS = {
   create: { word: "New", label: "Start something new" },
   add: { word: "Folder", label: "Point at a folder" },
   join: { word: "Join", label: "Join a shared project" },
+  bring: { word: "Bring", label: "Bring one from elsewhere" },
 } as const;
+type Way = keyof typeof WAYS;
 
 /** The project list.  Downloads live here as well as inside an open project:
  *  the moment a copy is most wanted is often before opening anything. */
@@ -115,7 +119,12 @@ export default function Projects({
   useDismiss(waysRef, drawer, () => setWaysOpen(false), newButton);
   const [path, setPath] = useState("");
   const pathBox = useRef<HTMLInputElement | null>(null);
-  const [mode, setMode] = useState<"add" | "create" | "join">("create");
+  const [mode, setMode] = useState<Way>("create");
+  /** The fourth way's field: an arXiv id or a git URL, or the name of the
+   *  zip chosen with the button beside it; and what the route left out. */
+  const [source, setSource] = useState("");
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const zipInput = useRef<HTMLInputElement | null>(null);
   /** Whether the folder picker is open, off the Browse button. */
   const [picking, setPicking] = useState(false);
   const browseButton = useRef<HTMLButtonElement | null>(null);
@@ -281,6 +290,30 @@ export default function Projects({
           return;
         }
         setOffer(answer);
+        return;
+      }
+      if (mode === "bring") {
+        // Refused here, with the sentence the field wants, before a
+        // request: the server decides again with the same patterns.
+        if (!classify(source, zipFile)) {
+          setError("Type an arXiv id or a git URL, or choose a zip.");
+          return;
+        }
+        const arrived = await api.arrive(path.trim(), zipFile ? "" : source.trim(), zipFile);
+        setPath("");
+        setSource("");
+        setZipFile(null);
+        await refresh();
+        if (arrived.id) onOpen(arrived.id);
+        // What the archive carried and the project did not receive, said
+        // inside the project it concerns, since this screen is gone the
+        // moment the project opens.  A notice, because a file the writer
+        // sent and did not get is something to know.
+        const left = arrived.skipped ?? [];
+        if (left.length) {
+          const named = left.slice(0, 6).join(", ") + (left.length > 6 ? ` and ${left.length - 6} more` : "");
+          set({ error: `Left out of the archive because it would run or leave the folder: ${named}.` });
+        }
         return;
       }
       const project =
@@ -490,7 +523,7 @@ export default function Projects({
               doing; carried across, it reads as an error about the one
               they have just moved to, so a change clears it. */}
           <div className="nx-way-tiles" role="group" aria-label="Ways in">
-            {(["create", "add", "join"] as const).map((option) => (
+            {(["create", "add", "join", "bring"] as const).map((option) => (
               <button
                 key={option}
                 type="button"
@@ -504,7 +537,7 @@ export default function Projects({
                   setMode(option);
                 }}
               >
-                {option === "create" ? <Plus /> : option === "add" ? <Folder /> : <Link />}
+                {option === "create" ? <Plus /> : option === "add" ? <Folder /> : option === "join" ? <Link /> : <Inbox />}
                 <span>{WAYS[option].word}</span>
               </button>
             ))}
@@ -515,6 +548,8 @@ export default function Projects({
                 ? agentCopy
                 : mode === "add"
                 ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
+                : mode === "bring"
+                ? "A zip somebody sent, an arXiv id, or a git URL. The project arrives in a new folder; a zip's build files and anything that would run are left out."
                 : "Paste an invite somebody sent you. The whole project arrives here, the files and their history both, and stays in step with everyone else's copy, including anything written while you were offline."}
             </p>
             {mode === "create" ? (
@@ -524,6 +559,45 @@ export default function Projects({
                 className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
                 onChange={(event) => setNewName(event.target.value)}
               />
+            ) : null}
+            {mode === "bring" ? (
+              <div className="flex gap-2">
+                <input
+                  value={source}
+                  placeholder="2301.01234, or https://github.com/you/paper"
+                  aria-label="An arXiv id, a git URL, or the zip chosen beside"
+                  data-testid="bring-source"
+                  className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
+                  onChange={(event) => {
+                    setSource(event.target.value);
+                    // Typing over a chosen zip's name means the zip is
+                    // no longer what is meant.
+                    if (zipFile) setZipFile(null);
+                  }}
+                  onKeyDown={(event) => event.key === "Enter" && add()}
+                />
+                <input
+                  ref={zipInput}
+                  type="file"
+                  accept=".zip,application/zip"
+                  className="hidden"
+                  data-testid="bring-zip"
+                  onChange={(event) => {
+                    const chosen = event.target.files?.[0] ?? null;
+                    setZipFile(chosen);
+                    if (chosen) setSource(chosen.name);
+                    event.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  className="ghost-button h-[28px] shrink-0 px-2 t-meta"
+                  data-testid="bring-choose-zip"
+                  onClick={() => zipInput.current?.click()}
+                >
+                  Choose a zip…
+                </button>
+              </div>
             ) : null}
             {mode === "join" ? (
               <textarea
@@ -550,6 +624,8 @@ export default function Projects({
                     ? "Where to put it, e.g. ~/writing/my-paper"
                     : mode === "add"
                     ? "/path/to/your/writing/project"
+                    : mode === "bring"
+                    ? "Where to put it, e.g. ~/writing/their-paper"
                     : "A folder to put it in, e.g. ~/writing/their-paper"
                 }
                 className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
@@ -571,8 +647,8 @@ export default function Projects({
             {picking ? (
               <Suspense fallback={null}>
                 <FolderPicker
-                  mode={mode}
-                  name={newName}
+                  mode={mode === "bring" ? "create" : mode}
+                  name={mode === "bring" ? nameFor(source, zipFile) : newName}
                   typed={path}
                   anchor={browseButton}
                   onPick={picked}
@@ -608,10 +684,14 @@ export default function Projects({
             >
               {busy === "add" && mode === "join"
                 ? "Joining…"
+                : busy === "add" && mode === "bring"
+                ? "Bringing…"
                 : mode === "create"
                 ? "Create project"
                 : mode === "add"
                 ? "Open folder"
+                : mode === "bring"
+                ? "Bring it"
                 : "Join"}
             </button>
             {error ? <p className="t-meta text-error">{error}</p> : null}
@@ -1092,6 +1172,15 @@ function Folder() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true">
       <path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.5 1.6h5.5a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1Z" />
+    </svg>
+  );
+}
+
+/** A tray with an arrow into it: something arriving. */
+function Inbox() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 2v7M5.5 6.5 8 9l2.5-2.5M2.5 9.5v2.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9.5M2.5 9.5h3l1 1.5h3l1-1.5h3" />
     </svg>
   );
 }

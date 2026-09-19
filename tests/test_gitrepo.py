@@ -356,3 +356,33 @@ def test_merge_three_never_answers_with_a_carriage_return(tmp_path, monkeypatch)
     # A CRLF that did reach git on some other path is still taken out.
     merged, _ = gitrepo.merge_three(tmp_path, "a\r\n", "a\r\n", "a\r\nb\r\n")
     assert "\r" not in merged
+
+
+def test_a_clone_puts_the_url_after_a_double_dash_and_forbids_file_transport(tmp_path, monkeypatch):
+    """The URL comes from a form: `--` keeps one that starts with a dash
+    from being read as an option, and `protocol.file.allow=never` keeps
+    anything the clone reads from pulling a repository off this disk."""
+    seen = {}
+
+    def fake_run(root, *arguments, timeout=gitrepo.TIMEOUT):
+        seen["root"], seen["arguments"], seen["timeout"] = root, arguments, timeout
+        return ""
+
+    monkeypatch.setattr(gitrepo, "_run", fake_run)
+    gitrepo.clone("https://example.org/paper.git", tmp_path)
+    assert seen["root"] == tmp_path
+    assert seen["arguments"] == ("-c", "protocol.file.allow=never", "clone", "--", "https://example.org/paper.git", ".")
+    assert seen["timeout"] == gitrepo.CLONE_TIMEOUT > gitrepo.TIMEOUT
+
+
+def test_a_real_clone_of_a_local_bare_repository_is_refused_by_the_transport_rule(tmp_path):
+    """The route never lets a path through, and even handed one the clone
+    itself refuses the file transport; both halves are checked."""
+    import subprocess
+
+    bare = tmp_path / "bare.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
+    into = tmp_path / "into"
+    into.mkdir()
+    with pytest.raises(gitrepo.GitError):
+        gitrepo.clone(f"file://{bare}", into)

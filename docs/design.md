@@ -8201,3 +8201,67 @@ opens a `.bib` with a duplicate key and an article with no journal, finds
 both rows, types the journal in and finds that row gone, completes
 `@inp` into an `@inproceedings` with its `booktitle`, and completes
 `\bibliographystyle{pl` to `plain`.
+
+## 46. The second roadmap run: in and out
+
+The second push of the second roadmap run: a project coming in from
+somewhere else, and a document going out in a format that is not PDF.
+
+### Bring one from elsewhere
+
+The projects rail had three ways in, and each began from nothing or from
+a folder already here. A paper that exists somewhere else, a zip a
+co-author mailed, the source arXiv keeps for a paper, a repository on
+GitHub, had to be unpacked or cloned by hand into a folder first and
+then pointed at. The roadmap item asked for the three ways to reach a
+new project directly, and said nothing about how many tiles; the rail's
+three tiles were chosen from five variants the writer was shown, so the
+answer is one more tile in the same row, *Bring one from elsewhere*,
+not three. Four fit: the visible word is short, the accessible name is
+the whole phrase, and the grid simply has four columns.
+
+Its form is one field and the folder. The field takes an arXiv id in
+any of its spellings, bare or as an abs or pdf URL, or a git URL on a
+transport that reaches a host; a *Choose a zip* button beside it fills
+the same field with the file's name, and typing over the name means the
+zip is no longer what is meant. What was typed decides the way, in the
+browser before a request is made and again on the server with the same
+patterns, and anything else is refused in a sentence that says what the
+field takes. Browse works as it does for a new project: the picked
+folder is the parent, and the project's own folder under it is named
+from the id, the repository or the zip. The button says *Bring it* and
+*Bringing…* while a clone runs.
+
+What arrives is fenced the way an upload is, because a zip into a new
+project is the same channel as a zip into an open one: an entry that
+would leave the folder, a symlink, and every control path, `.git`,
+`.claude`, `.nexttex`, a `latexmkrc`, a `Makefile`, an `.envrc`, is
+left out, and the names are said in a notice inside the project once it
+opens, since the projects screen is gone by then and a file the writer
+sent and did not get is something to know. A single top-level folder is
+stripped, so a zip made by zipping a folder is the folder. A clone
+brings its `.git`, which is the one control directory this way in
+accepts and the reason it is a clone rather than a download; the
+reasoning in `project.py` about a cloned folder being somebody else's
+already covers it, and the URL is held to `https`, `http`, `ssh`, `git`
+and `user@host:`, so a path on this machine and git's `ext::` transport
+are never handed to it. arXiv answers one of three things, and the
+PDF-only submission is refused with a sentence rather than unpacked as
+a project with nothing to edit. The fourth tile is not in the contrast
+spec's list: that spec measures the project view, and the tile and the
+field reuse the three tiles' and the other fields' own classes, whose
+pairs the rail review measured.
+
+`tests/test_arrive.py` builds archives with an escape, a symlink, every
+control path, a single root, too many entries and a member that inflates
+past the cap; reads the arXiv id in its spellings; hands `fetch_arxiv` a
+tar, a single file and a PDF; and refuses `file://`, a bare path and
+`ext::` as URLs. `tests/api/test_arrive_route.py` brings a zip, an id
+through the seam and a URL through a stubbed git, and finds the folder
+gone after a refusal. `tests/test_gitrepo.py` reads the clone's argv and
+finds a real clone of a local bare repository refused by the transport
+rule; a real clone of a public repository was run by hand during the
+run. `e2e/specs/arrive.spec.ts` brings a zip through the tile and finds
+the figure in the tree and the left-out names in the notice, serves a
+tar.gz from a stand-in for arXiv that `NEXTTEX_ARXIV_BASE` names, and
+finds nonsense refused in the form.

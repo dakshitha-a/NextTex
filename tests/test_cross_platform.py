@@ -397,6 +397,7 @@ OUTBOUND = {
     "api.openalex.org",
     "api.semanticscholar.org",
     "export.arxiv.org",
+    "arxiv.org",                # the source of a paper, when its id is typed
     "doi.org",
     "dx.doi.org",
     "claude.ai",                # the sign-in screen links to the download page
