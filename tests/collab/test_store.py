@@ -300,6 +300,28 @@ def test_a_document_survives_being_closed_and_opened(project):
     second.close()
 
 
+def test_a_closed_store_opens_no_document(project):
+    """`close` drops every subscription on the thread that made them, and
+    a document opened afterwards would make one more that nothing drops
+    until the garbage collector reaches it, on whichever thread that is.
+    The re-scan a session arms 0.3 s after a file lands was the caller
+    that reached a closed store; a document already open still answers,
+    since its text is what a late reader was after."""
+    store = CollabStore(project)
+    store.adopt()
+    open_id = store.file_id_for("main.tex")
+    assert store.body(open_id) is not None
+    # Adopted, so the manifest knows it, and never opened: `body` would
+    # open it, and after `close` must not.
+    later_id = store.file_id_for("chapters/one.tex")
+    assert later_id not in store.texts
+    store.close()
+    assert store.body(open_id) is not None, "what was open stays readable"
+    assert store.body(later_id) is None
+    assert later_id not in store.texts
+    assert store._subscriptions == []
+
+
 def test_a_truncated_log_still_loads(project):
     """A machine that lost power mid-append. Every prefix of an update log is
     a valid document, so what survived must still open."""

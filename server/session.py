@@ -864,6 +864,10 @@ class ProjectSession:
 
     async def _publish_documents(self, *, renamed: dict[str, str] | None = None,
                                  notice: str = "") -> None:
+        # Spawned from a timer, so it can land after `close`; a closed
+        # session has nobody to tell and no store to open documents in.
+        if self.closing:
+            return
         self.deps.invalidate()
         # A document whose file has gone leaves here, which is the path an
         # outside `mv`, an `rm`, a `git checkout` or the agent's own shell
@@ -1431,6 +1435,17 @@ class ProjectSession:
 
     async def close(self) -> None:
         self.closing = True
+        # A re-scan the watcher armed is cancelled before the store closes,
+        # not after: it fires 0.3 s after a file lands, and a session that
+        # closed inside that window had it fire into a closed store, open
+        # the new file's document there and subscribe to it, and that
+        # subscription was then dropped by the garbage collector on
+        # whatever thread ran next, which pycrdt says out loud.  The route
+        # tests wrote a file and finished in under 0.3 s often enough for
+        # the full suite to carry the warning for months.
+        if self._rescan is not None:
+            self._rescan.cancel()
+            self._rescan = None
         # First, so anything still only in a document reaches the disk
         # before the project stops being open.
         await self.peers.close()

@@ -22,6 +22,23 @@ os.environ["NEXTTEX_CLAUDE_BINARY"] = str(
 )
 
 
+def pytest_configure(config):
+    """A pycrdt object dropped on the wrong thread is a failure, not a note.
+
+    pycrdt's objects belong to the thread that made them and it says so at
+    the drop, as an exception nobody can catch, which pytest reports as a
+    `PytestUnraisableExceptionWarning` at the end of whichever test the
+    garbage collector happened to run in.  The full suite carried one for
+    months, filed under a test that had nothing to do with it: a session's
+    re-scan timer firing into a closed store.  Made an error here rather
+    than in a pytest.ini, so the rule lives beside the other rule this
+    file holds; a red on this is a leak to find, never a filter to relax.
+    """
+    config.addinivalue_line(
+        "filterwarnings", "error::pytest.PytestUnraisableExceptionWarning"
+    )
+
+
 @pytest.fixture(scope="session", autouse=True)
 def the_machines_own_login_is_untouched():
     """A tripwire around the whole run, not just around the CLI lookup.

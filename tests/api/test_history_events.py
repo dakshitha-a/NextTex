@@ -11,6 +11,7 @@ pull`'s forty files are one event rather than forty.
 
 from __future__ import annotations
 
+import asyncio
 import time
 
 from nexttex.history import History
@@ -105,5 +106,11 @@ def test_a_session_built_with_no_loop_records_without_complaint(tmp_path):
     (root / "main.tex").write_text("\\documentclass{article}\\begin{document}x\\end{document}")
     session = ProjectSession(Project.open(root))
     assert session._loop is None
-    session.record_version(root / "main.tex", "changed")
-    assert session.history.versions("main.tex")
+    try:
+        session.record_version(root / "main.tex", "changed")
+        assert session.history.versions("main.tex")
+    finally:
+        # Built on this thread, closed on this thread: a session left to
+        # the garbage collector is dropped on whichever thread runs next,
+        # and pycrdt objects to that out loud.
+        asyncio.run(session.close())

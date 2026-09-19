@@ -30,7 +30,13 @@ failures, and a path-escape assertion on everything that takes a path. The
 fixtures redirect `XDG_DATA_HOME` and `XDG_CONFIG_HOME` **before** importing
 anything under `server/`, because `server/main.py` builds its settings and
 its registry at import time and writing a config file there would hand a
-different token to whatever tab the writer has open.
+different token to whatever tab the writer has open. The `client` fixture
+closes every session the app built on the app's own loop before the test
+client goes away, and a test that built one itself on the main thread
+closes it there: pycrdt's objects belong to the thread that made them and
+say so at a drop on any other, and `tests/conftest.py` makes pytest's
+report of such a drop an error rather than a warning, so a red on it is a
+leak to find and never a filter to relax.
 
 The agent is replaced by `nexttex/scripted_agent.py`, which replays a list
 of steps from `tests/scripts/*.json` through the same event queue the real

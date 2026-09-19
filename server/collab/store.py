@@ -78,7 +78,7 @@ import re
 import secrets
 import threading
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from pycrdt import Doc, Map, Text
 
@@ -270,7 +270,17 @@ class CollabStore:
 
         self.texts: dict[str, Doc] = {}
         self._body: dict[str, Text] = {}
-        self._subscriptions: list = []
+        #: Each subscription with the document it is on, because ending
+        #: one is `doc.unobserve(subscription)` and not `subscription
+        #: .drop()`: pycrdt's `Doc` keeps every subscription in a list of
+        #: its own, so a dropped one stays alive in there until the
+        #: document dies, and the document sits in a reference cycle
+        #: (its observe callback holds it) that only the cyclic collector
+        #: breaks, on whichever thread that runs on.  pycrdt objects are
+        #: unsendable and say so at a drop on the wrong thread; the full
+        #: suite carried that warning for months.  `unobserve` frees the
+        #: subscription here, on this thread, at `close`.
+        self._subscriptions: list[tuple[Doc, Any]] = []
         # path -> file_id, built on demand and thrown away whenever the
         # manifest moves.  See `file_id_for`.
         self._by_path: dict[str, str] | None = None
@@ -491,7 +501,7 @@ class CollabStore:
         self.files = _root(self.manifest, "files", Map)
         self.meta = _root(self.manifest, "meta", Map)
         self._subscriptions.append(
-            self.manifest.observe(self._manifest_changed)
+            (self.manifest, self.manifest.observe(self._manifest_changed))
         )
 
     def _manifest_changed(self, event) -> None:
@@ -555,9 +565,16 @@ class CollabStore:
         return self.root / f"{file_id}.y"
 
     def body(self, file_id: str) -> Text | None:
-        """The shared text of a file, opening its document if it is not open."""
+        """The shared text of a file, opening its document if it is not open.
+
+        A closed store opens nothing: its subscriptions were dropped on the
+        thread that made them, and one made after that would be dropped
+        by the garbage collector on whichever thread ran next.
+        """
         if file_id in self._body:
             return self._body[file_id]
+        if self._closed:
+            return None
         record = self.files.get(file_id)
         if record is None or record.get("kind") != "text":
             return None
@@ -576,7 +593,7 @@ class CollabStore:
 
         self.texts[file_id] = doc
         self._body[file_id] = text
-        self._subscriptions.append(doc.observe(self._watcher_for(file_id)))
+        self._subscriptions.append((doc, doc.observe(self._watcher_for(file_id))))
         # What is on disk is the truth for a document being opened for the
         # first time; after that the document is.
         #
@@ -1764,9 +1781,9 @@ class CollabStore:
             self._timer.cancel()
             self._timer = None
         self.listeners.clear()
-        for subscription in self._subscriptions:
+        for doc, subscription in self._subscriptions:
             try:
-                subscription.drop()
+                doc.unobserve(subscription)
             except Exception:
                 pass
         self._subscriptions.clear()

@@ -38,13 +38,63 @@ def _cleanup():
     shutil.rmtree(_STATE, ignore_errors=True)
 
 
+def close_all_sessions(test_client: TestClient) -> None:
+    """Close every session the app built, on the app's own loop.
+
+    A session's CRDT objects belong to the thread that made them, and
+    pycrdt says so at the drop: a store the garbage collector reached on
+    some later test's thread was the `Subscription is unsendable, but is
+    being dropped on another thread` warning the full suite carried.
+    `_close_session` is what the app runs; the portal runs it where the
+    app would.  Sessions built on this thread, by a test that called
+    `asyncio.run` on the rejoin, are not the app's and are left to
+    `close_main_thread_sessions`.
+    """
+    import time
+
+    for project_id, session in list(server_main.SESSIONS.items()):
+        if session._loop is None or session._loop.is_closed():
+            continue
+        if session.closing:
+            # The eviction tests start a close and return while it is
+            # still under way; a second close beside it, cut short by the
+            # shutdown, is a store half closed.  Waited for instead.
+            deadline = time.monotonic() + 5
+            while (server_main.SESSIONS.get(project_id) is session
+                   and time.monotonic() < deadline):
+                time.sleep(0.02)
+            continue
+        test_client.portal.call(server_main._close_session, project_id, session)
+
+
+def close_main_thread_sessions() -> None:
+    """Close the sessions a test built on this thread with `asyncio.run`.
+
+    Their loop is gone, and a new one on the same thread is what pycrdt
+    requires: the thread is the constraint, not the loop.
+    """
+    import asyncio
+
+    for project_id, session in list(server_main.SESSIONS.items()):
+        if session._loop is not None and not session._loop.is_closed():
+            continue
+        asyncio.run(session.close())
+        server_main.SESSIONS.pop(project_id, None)
+
+
 @pytest.fixture
 def client(tmp_path):
     """A client whose every request carries the instance token."""
     with TestClient(server_main.app) as test_client:
         test_client.cookies.set(server_main.COOKIE, server_main.SETTINGS.token)
         yield test_client
-    # Each test starts from an empty world.
+        # Before the context closes: the app's loop is still up, so every
+        # session it built is closed where it was built.
+        close_all_sessions(test_client)
+    # Each test starts from an empty world.  What is left is a session
+    # some test built on this thread and did not close, which is closed
+    # here rather than dropped.
+    close_main_thread_sessions()
     for session in list(server_main.SESSIONS.values()):
         session.events._subscribers.clear()
     server_main.SESSIONS.clear()

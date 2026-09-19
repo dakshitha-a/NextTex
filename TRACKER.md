@@ -151,7 +151,6 @@ this checkout does not have, or are decisions, are where they were.
       theirs.
 
 
-
 - [ ] **A PNG download the writer reported as broken was not reproduced.**
       The file route answers a PNG with its bytes, `image/png` and an
       attachment disposition, and the tree's *Download*, the image
@@ -161,16 +160,6 @@ this checkout does not have, or are decisions, are where they were.
       have; the report asks which control, which browser and how large
       the file was, and the item waits on the answer.
 
-- [ ] **A full pytest run warns once that a pycrdt subscription was
-      dropped on another thread.** `PytestUnraisableExceptionWarning`
-      during `tests/api/test_download.py`, from a `Subscription` being
-      garbage collected on a worker thread rather than the loop's; it
-      does not appear when that file runs alone, so it is a store from an
-      earlier test whose last reference died in a thread. A warning and
-      not a panic, because it is a drop rather than a use, and the suite
-      is green with it; left because finding which test's store it is
-      means bisecting the order, and the cure is a `close()` that test is
-      not calling.
 - [ ] **A file that appears outside NextTex begins its history with the
       state it arrived in, never with what was there before.** True of a
       document that was not open when the change landed, and of one the

@@ -13,6 +13,8 @@ import pytest
 
 from server import main as server_main
 
+from conftest import close_all_sessions, close_main_thread_sessions
+
 
 def test_a_project_starts_private(client, opened):
     state = client.get(f"/api/projects/{opened['id']}/collab").json()
@@ -187,14 +189,19 @@ def test_a_shared_project_is_reopened_when_the_server_starts(client, opened):
     assert server_main.SESSIONS[project_id].peers.share.shared
 
     # A restart, as a new process sees it: no sessions at all, and the
-    # registry and `.nexttex/collab/share.json` still on disk. The sessions
-    # are dropped rather than closed, because a document belongs to the
-    # thread that made it and this test is not on that thread.
-    server_main.SESSIONS.clear()
+    # registry and `.nexttex/collab/share.json` still on disk. A document
+    # belongs to the thread that made it, and the route built this one on
+    # the app's loop, so it is closed there through the portal rather than
+    # dropped: a store dropped by the garbage collector on whatever thread
+    # runs next was the pycrdt warning the full suite carried for a while.
+    close_all_sessions(client)
 
     asyncio.run(server_main._rejoin_shared_projects())
     assert project_id in server_main.SESSIONS
     assert server_main.SESSIONS[project_id].peers.share.shared
+    # And this one was built here, on the main thread, so it is closed
+    # here, before the fixture's teardown reaches for it from the app's.
+    close_main_thread_sessions()
 
 
 def test_a_private_project_is_left_alone_at_startup(client, project):
@@ -202,7 +209,7 @@ def test_a_private_project_is_left_alone_at_startup(client, project):
     the feature being off until you ask for it."""
     import asyncio
 
-    server_main.SESSIONS.clear()
+    close_all_sessions(client)
     asyncio.run(server_main._rejoin_shared_projects())
     assert project["id"] not in server_main.SESSIONS
 
