@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import api, { type AuthState } from "../api";
-import { useDismiss } from "../useDismiss";
+import { Sheet } from "../ui/Sheet";
+import { Button } from "../ui/Button";
+import { Field as KitField, Heading as KitHeading } from "../ui/controls";
 import { ago } from "../when";
 
 /** The password, the name collaborators see, and every browser signed in.
@@ -49,12 +51,10 @@ export default function AccessCard({
   const [error, setError] = useState("");
   const [said, setSaid] = useState("");
   const [done, setDone] = useState("");
-  const sheet = useRef<HTMLDivElement | null>(null);
   const first = useRef<HTMLInputElement | null>(null);
   const leaving = useRef<number | null>(null);
   const alive = useRef(true);
 
-  useDismiss(sheet, true, onClose);
 
   // A card whose whole job is done should not need dismissing. Left open,
   // it re-rendered as *"Change the password"*, complete with a Current
@@ -181,43 +181,26 @@ export default function AccessCard({
   const others = (state?.sessions ?? []).filter((one) => !one.current).length;
 
   return (
-    <div
-      className="nx-scrim fixed inset-0 z-50 grid place-items-center p-6"
-      role="presentation"
-    >
-      <div
-        ref={sheet}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="access-heading"
-        data-testid="access-card"
-        className="nx-furniture nx-arrive max-h-full w-[380px] overflow-y-auto rounded-[5px] border border-line bg-surface shadow-float"
-      >
-        <div className="flex items-center justify-between px-[12px] pt-[10px] pb-[6px]">
-          <span id="access-heading" className="t-ui text-ink">
-            Access
-          </span>
-          <button
-            className="quiet t-micro"
-            data-testid="access-close"
-            onClick={onClose}
-          >
+    <Sheet open onClose={onClose} labelledBy="access-heading" testid="access-card" width={420}>
+        <div className="flex items-center justify-between pb-[6px]">
+          <KitHeading id="access-heading">Access</KitHeading>
+          <Button data-testid="access-close" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
 
         {done ? (
           <p
             role="status"
             data-testid="access-done"
-            className="t-meta px-[12px] pt-[2px] pb-[14px] text-ok"
+            className="t-meta pt-[2px] pb-[6px] text-ok"
           >
             {done}
           </p>
         ) : !state ? (
           // Reading, or the read failed. The second case used to be
           // indistinguishable from the first, for ever.
-          <div className="px-[12px] pb-[12px]">
+          <div className="pb-[4px]">
             {reading ? (
               <div className="t-meta text-ink-3">Reading…</div>
             ) : (
@@ -225,13 +208,14 @@ export default function AccessCard({
                 <p className="t-meta text-error" data-testid="access-error">
                   {error || "Could not read this install's settings."}
                 </p>
-                <button
-                  className="ghost-button mt-2 h-[26px] px-3 t-ui"
+                <Button
+                  variant="ghost"
+                  className="mt-2"
                   data-testid="access-retry"
                   onClick={() => read()}
                 >
                   Try again
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -239,19 +223,19 @@ export default function AccessCard({
           <>
             {/* --- the name ------------------------------------------- */}
             <Heading>Your name</Heading>
-            <div className="px-[12px] py-[8px]">
+            <div className="py-[4px]">
               <p className="t-micro mb-[6px] text-ink-3">
                 What collaborators see beside your cursor and your versions.
                 Nothing leaves this machine until you share a project.
               </p>
-              <input
+              <KitField
                 ref={focus === "name" ? first : undefined}
                 value={name}
                 data-testid="display-name"
                 aria-label="Your name"
                 placeholder="Your name"
                 maxLength={60}
-                className="w-full rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink"
+                frameClassName="w-full"
                 onChange={(event) => setName(event.target.value)}
                 onBlur={saveName}
                 onKeyDown={(event) => {
@@ -262,7 +246,7 @@ export default function AccessCard({
 
             {/* --- the password --------------------------------------- */}
             <Heading>{hasPassword ? "Change the password" : "Set a password"}</Heading>
-            <form className="px-[12px] py-[8px]" onSubmit={savePassword}>
+            <form className="py-[4px]" onSubmit={savePassword}>
               {!hasPassword ? (
                 <p className="t-micro mb-[8px] border-l-2 border-warn pl-[8px] text-ink-2">
                   Until you set one, the only way in is the link the server
@@ -292,14 +276,16 @@ export default function AccessCard({
                 autoComplete="new-password"
                 onChange={setConfirm}
               />
-              <button
+              <Button
                 type="submit"
+                variant="ghost"
+                size="md"
                 disabled={busy}
                 data-testid="save-password"
-                className="pen-button t-ui mt-[10px] h-[28px] w-full"
+                className="mt-[10px]"
               >
                 {busy ? "Saving…" : hasPassword ? "Change password" : "Set password"}
-              </button>
+              </Button>
               {hasPassword ? (
                 <p className="t-micro mt-[6px] text-ink-3">
                   Changing it signs every other browser out.
@@ -309,7 +295,7 @@ export default function AccessCard({
 
             {/* --- who is signed in ----------------------------------- */}
             <Heading>Signed-in browsers</Heading>
-            <ul className="px-[12px] py-[4px]">
+            <ul className="py-[2px]">
               {state.sessions.map((one) => (
                 <li
                   key={one.id}
@@ -337,23 +323,19 @@ export default function AccessCard({
                 </li>
               ) : null}
             </ul>
-            <div className="px-[12px] pt-[2px] pb-[12px]">
+            <div className="pt-[6px] pb-[4px]">
               {others === 0 ? (
                 <span className="t-micro text-ink-3">
                   No other browsers are signed in.
                 </span>
               ) : (
-                <button
-                  className="ghost-button t-micro h-[24px] px-2"
-                  data-testid="sign-out-others"
-                  onClick={signOutOthers}
-                >
+                <Button data-testid="sign-out-others" onClick={signOutOthers}>
                   {`Sign out ${others} other browser${others === 1 ? "" : "s"}`}
-                </button>
+                </Button>
               )}
             </div>
 
-            <div aria-live="polite" className="px-[12px] pb-[10px] empty:hidden">
+            <div aria-live="polite" className="pt-[8px] empty:hidden">
               {error ? (
                 <p className="t-micro text-error" data-testid="access-error">
                   {error}
@@ -366,17 +348,12 @@ export default function AccessCard({
             </div>
           </>
         )}
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
 function Heading({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="t-micro border-t border-line bg-surface-2 px-[12px] py-[3px] text-ink-3">
-      {children}
-    </div>
-  );
+  return <div className="nx-section-label">{children}</div>;
 }
 
 function Field({
@@ -397,12 +374,12 @@ function Field({
       {label ? (
         <span className="t-micro mb-[3px] block text-ink-3">{label}</span>
       ) : null}
-      <input
+      <KitField
         ref={inputRef}
         type="password"
         value={value}
         autoComplete={autoComplete}
-        className="w-full rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink"
+        frameClassName="w-full"
         onChange={(event) => onChange(event.target.value)}
       />
     </label>

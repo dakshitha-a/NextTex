@@ -1432,6 +1432,14 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-sheet[data-list] .nx-field { flex: none; margin: 0 0 6px; }
 .nx-sheet[data-list] ul { overflow-y: auto; margin: 0; padding: 0; list-style: none; }
 .nx-menu-kind { width: 64px; flex: none; color: var(--ink-3); font-size: 12px; }
+/* The small line above a group of things inside a sheet: what the group is. */
+.nx-section-label { padding: 12px 0 4px; color: var(--ink-3); font-size: 12.5px; line-height: 16px; }
+/* A question inside a sheet or a drawer that needs an answer before
+   something irreversible happens: on the second surface with a warning
+   rule at its left, never a red box. */
+.nx-confirm { margin-top: 6px; padding: 8px 10px; border-radius: var(--nx-radius-control); background: var(--surface-2); border-left: 2px solid var(--warn); }
+.nx-confirm p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 18px; }
+.nx-confirm-actions { display: flex; gap: 6px; margin-top: 8px; }
 .nx-sheet {
   max-height: 100%; max-width: 100%; overflow-y: auto;
   border-radius: var(--nx-radius-sheet);

@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import api, { type CollabState } from "../api";
-import { useDismiss } from "../useDismiss";
+import { Sheet } from "../ui/Sheet";
+import { Button } from "../ui/Button";
+import { Heading as KitHeading } from "../ui/controls";
 
 /** Sharing a project with somebody else's NextTex.
  *
@@ -40,9 +42,7 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState("");
-  const sheet = useRef<HTMLDivElement | null>(null);
 
-  useDismiss(sheet, true, onClose);
 
   const refresh = () =>
     api.collab(projectId)
@@ -137,27 +137,18 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
   );
 
   return (
-    <div className="nx-scrim fixed inset-0 z-50 grid place-items-center p-6"
-         role="presentation">
-      <div
-        ref={sheet}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="share-heading"
-        data-testid="share-panel"
-        className="nx-furniture nx-arrive max-h-full w-[420px] overflow-y-auto rounded-[5px] border border-line bg-surface shadow-float"
-      >
-        <div className="flex items-center justify-between px-[12px] pt-[10px] pb-[6px]">
-          <span id="share-heading" className="t-ui text-ink">Share this project</span>
-          <button className="quiet t-micro" data-testid="share-close" onClick={onClose}>
+    <Sheet open onClose={onClose} labelledBy="share-heading" testid="share-panel" width={420}>
+        <div className="flex items-center justify-between pb-[6px]">
+          <KitHeading id="share-heading">Share this project</KitHeading>
+          <Button data-testid="share-close" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
 
         {!state ? (
-          <div className="t-meta px-[12px] pb-[12px] text-ink-3">Reading…</div>
+          <div className="t-meta pb-[4px] text-ink-3">Reading…</div>
         ) : !state.available ? (
-          <div className="px-[12px] pb-[12px]">
+          <div className="pb-[4px]">
             <p className="t-meta text-ink-2">
               Peer-to-peer collaboration is not available on this platform yet.
             </p>
@@ -173,7 +164,7 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
              and nothing typed from now on reaches anyone. The dial loop
              has already stopped; without this the panel showed every
              member as away, which reads as a network problem. */
-          <div className="px-[12px] pb-[12px]" data-testid="removed-notice">
+          <div className="pb-[4px]" data-testid="removed-notice">
             <p className="t-meta text-ink-2">
               {state.removedBy ? (
                 <>
@@ -193,14 +184,16 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
             {/* The record of the share is still here, saying removed, and
                 it would say so on every visit. Keeping the copy makes the
                 project an ordinary one of this install's own. */}
-            <button
-              className="pen-button t-ui mt-[10px] h-[28px] w-full"
+            <Button
+              variant="pen"
+              size="md"
+              className="mt-[10px] w-full justify-center"
               disabled={busy}
               data-testid="keep-as-own"
               onClick={() => leave(false)}
             >
               {busy ? "Keeping…" : "Keep it as a project of my own"}
-            </button>
+            </Button>
           </div>
         ) : state.shared && !state.member ? (
           /* A project that was copied to this machine. The share record
@@ -209,7 +202,7 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
              member shows as not connected, and without this the honest
              reading of that is "nobody is here", which sends somebody to
              check their network for a problem that is not there. */
-          <div className="px-[12px] pb-[12px]">
+          <div className="pb-[4px]">
             <p className="t-meta text-ink-2">
               This copy of the project is not in its own share. That happens
               when a project folder is moved to another machine or restored
@@ -225,7 +218,7 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
             </p>
           </div>
         ) : !state.shared ? (
-          <div className="px-[12px] pb-[12px]">
+          <div className="pb-[4px]">
             {/* The consequence first. The paragraph that matters most here
                 is the one about there being no owner, and it was second and
                 dimmer than the one describing the mechanism. */}
@@ -241,32 +234,36 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
             {/* "Share this project" was the dialog's title repeated, and it
                 described something the press does not do -- nothing is sent
                 to anybody until an invite is made. */}
-            <button
-              className="pen-button t-ui mt-[10px] h-[28px] w-full"
+            <Button
+              variant="pen"
+              size="md"
+              className="mt-[10px] w-full justify-center"
               disabled={busy}
               data-testid="start-sharing"
               onClick={share}
             >
               {busy ? "Turning it on…" : "Turn on sharing"}
-            </button>
+            </Button>
           </div>
         ) : (
           <>
             <Heading>Invite somebody</Heading>
-            <div className="px-[12px] py-[8px]">
+            <div className="py-[4px]">
               <p className="t-micro text-ink-3">
                 An invite is a credential: whoever opens it joins. It works
                 once and expires after a week, so send it the way you would
                 send a password.
               </p>
-              <button
-                className="pen-button t-ui mt-[8px] h-[28px] w-full"
+              <Button
+                variant="pen"
+                size="md"
+                className="mt-[8px] w-full justify-center"
                 disabled={busy}
                 data-testid="make-invite"
                 onClick={makeInvite}
               >
                 {busy ? "Making…" : "Create an invite"}
-              </button>
+              </Button>
               {invite ? (
                 <div className="mt-[8px]">
                   {/* Not printed in full.  The paragraph above calls this a
@@ -284,23 +281,23 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
                       data-testid="invite-text"
                       aria-label="The invite to send"
                       rows={3}
-                      className="t-code-sm w-full resize-none overflow-auto rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink"
+                      className="t-code-sm w-full resize-none overflow-auto rounded-control bg-surface-2 px-[8px] py-[5px] text-ink outline-none focus:ring-2 focus:ring-hint-wash"
                       onFocus={(event) => event.currentTarget.select()}
                     />
                   ) : (
                     <div className="flex items-center gap-[8px]">
                       <code
                         data-testid="invite-chip"
-                        className="t-code-sm min-w-0 flex-1 truncate rounded-[3px] border border-line bg-surround px-[8px] py-[5px] text-ink-3"
+                        className="t-code-sm min-w-0 flex-1 truncate rounded-control bg-surface-2 px-[8px] py-[5px] text-ink-3"
                       >
                         invite · {invite.slice(-8)} · hidden
                       </code>
-                      <button
-                        className="quiet t-micro shrink-0"
+                      <Button
+                        size="inline" className="shrink-0"
                         onClick={() => setRevealed(true)}
                       >
                         Show it
-                      </button>
+                      </Button>
                     </div>
                   )}
                   <div className="mt-[5px] flex items-baseline gap-[10px]">
@@ -308,8 +305,8 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
                       {copied ? "Copied to your clipboard." : ""}
                     </span>
                     <span className="flex-1" />
-                    <button
-                      className="quiet t-micro shrink-0"
+                    <Button
+                      size="inline" className="shrink-0"
                       data-testid="copy-invite"
                       onClick={async () => {
                         try {
@@ -321,14 +318,14 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
                       }}
                     >
                       Copy again
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : null}
             </div>
 
             <Heading>In this project</Heading>
-            <ul className="px-[12px] py-[4px]">
+            <ul className="py-[2px]">
               {others.length === 0 ? (
                 <li className="t-micro py-[3px] text-ink-3">Only you.</li>
               ) : null}
@@ -346,37 +343,37 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
                       >
                         {member.connected ? "connected" : "away"}
                       </span>
-                      <button
-                        className="quiet t-micro"
+                      <Button
+                        size="inline"
                         onClick={() => setConfirming(
                           confirming === member.peer ? "" : member.peer,
                         )}
                       >
                         Remove
-                      </button>
+                      </Button>
                     </span>
                   </div>
                   {confirming === member.peer ? (
-                    <div className="mt-[4px] rounded-[3px] border border-warn/60 px-[8px] py-[6px]">
+                    <div className="nx-confirm">
                       <p className="t-micro text-ink-2">
                         This disconnects them. It does not take back the copy
                         they already have: they keep the files, the history
                         and any backup they have made.
                       </p>
-                      <div className="mt-[6px] flex gap-2">
-                        <button
-                          className="t-micro text-error"
+                      <div className="nx-confirm-actions">
+                        <Button
+                          variant="danger" size="inline"
                           data-testid="confirm-remove"
                           onClick={() => remove(member.peer)}
                         >
                           Disconnect them
-                        </button>
-                        <button
-                          className="quiet t-micro"
+                        </Button>
+                        <Button
+                          size="inline"
                           onClick={() => setConfirming("")}
                         >
                           Cancel
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : null}
@@ -385,18 +382,18 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
             </ul>
 
             <Heading>Leave</Heading>
-            <div className="px-[12px] py-[8px]">
+            <div className="py-[4px]">
               {!leaving ? (
-                <button
-                  className="quiet t-micro"
+                <Button
+                  size="inline"
                   data-testid="leave-share"
                   disabled={busy}
                   onClick={() => setLeaving(true)}
                 >
                   Leave this project
-                </button>
+                </Button>
               ) : (
-                <div className="rounded-[3px] border border-warn/60 px-[8px] py-[6px]">
+                <div className="nx-confirm">
                   <p className="t-micro text-ink-2" data-testid="leave-words">
                     {deleteCopy
                       ? "The others keep their copies and carry on without you. Your copy on this computer is deleted, with its history. To collaborate on it again you will need a new invite."
@@ -411,20 +408,20 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
                     />
                     and delete my copy from this computer
                   </label>
-                  <div className="mt-[6px] flex gap-2">
-                    <button
-                      className="t-micro text-error"
+                  <div className="nx-confirm-actions">
+                    <Button
+                      variant="danger" size="inline"
                       data-testid="confirm-leave"
                       onClick={() => leave(deleteCopy)}
                     >
                       {deleteCopy ? "Leave and delete my copy" : "Leave"}
-                    </button>
-                    <button
-                      className="quiet t-micro"
+                    </Button>
+                    <Button
+                      size="inline"
                       onClick={() => setLeaving(false)}
                     >
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -432,7 +429,7 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
 
             {/* The app has a name for you; answering "who am I here" with a
                 hash contradicted the field that asked for one. */}
-            <p className="t-micro px-[12px] pt-[2px] pb-[12px] text-ink-3">
+            <p className="t-micro pt-[10px] text-ink-3">
               {me ? (
                 <>
                   You are {me}{" "}
@@ -450,19 +447,14 @@ export default function SharePanel({ projectId, onClose, onLeft }: {
         )}
 
         {error ? (
-          <p className="t-micro px-[12px] pb-[10px] text-error" data-testid="share-error">
+          <p className="t-micro pt-[8px] text-error" data-testid="share-error">
             {error}
           </p>
         ) : null}
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
 function Heading({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="t-micro border-t border-line bg-surface-2 px-[12px] py-[3px] text-ink-3">
-      {children}
-    </div>
-  );
+  return <div className="nx-section-label">{children}</div>;
 }
