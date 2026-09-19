@@ -60,3 +60,4 @@ bench/report/
 # signed in as, and the permissions one person has granted.
 CLAUDE.local.md
 .claude/settings.local.json
+e2e/shots/fidelity/
