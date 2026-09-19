@@ -1,4 +1,4 @@
-import { Button } from "./ui/Button";
+import { Button, IconButton } from "./ui/Button";
 import { shellTheme } from "./ui/FloatingCard";
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import type { WordHint } from "./panes/locate-word";
@@ -2110,21 +2110,20 @@ export default function App() {
                 title="Switch project"
               >
                 <Logo size={18} />
-                <span className="t-ui-lg truncate font-serif">{projectName}</span>
+                <span className="t-ui-lg truncate">{projectName}</span>
                 <InstanceBadge />
               </button>
               <div className="flex items-center">
                 {/* Beside the project's own name, because sharing is a fact
                     about this project rather than about the install. */}
-                <button
-                  className="quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
+                <IconButton
+                  label="Share this project"
                   title="Share this project with other people running NextTex"
-                  aria-label="Share this project"
                   data-testid="open-share"
                   onClick={() => setSharing(true)}
                 >
                   <ShareIcon />
-                </button>
+                </IconButton>
                 <Settings
                   inProject
                   onTutorial={openTutorial}

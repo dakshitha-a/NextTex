@@ -14,6 +14,8 @@ import api, { saveBlob } from "./api";
 import { set, useStore } from "./store";
 import { under } from "./place-menu";
 import { Menu, MenuDivider } from "./ui/Menu";
+import { Button, IconButton } from "./ui/Button";
+import { Segmented as KitSegmented } from "./ui/controls";
 import Settings from "./panes/Settings";
 
 /** Sharing, as a glyph: two people, and the line between them.
@@ -142,18 +144,17 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
 
   return (
     <div className="relative flex items-center">
-      <button
+      <IconButton
         ref={trigger}
+        label="Download a copy"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Download a copy"
-        aria-label="Download a copy"
         data-testid="open-download"
-        className="quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
+        on={open}
         onClick={() => setOpen((value) => !value)}
       >
         <DownloadIcon />
-      </button>
+      </IconButton>
       {/* The kit's menu with the grid walk: a row per document, a chip per
           format, 320 wide so a stem gets a readable run beside four chips. */}
       <Menu
@@ -317,14 +318,10 @@ export function AppControls({
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1 pr-1">
-      <button
-        className="quiet t-meta flex h-[26px] max-w-[200px] items-center gap-1 rounded-[3px] px-2 font-serif hover:bg-surface-3"
-        onClick={onSwitch}
-        title="Switch project"
-      >
-        <span className="truncate text-ink">{projectName}</span>
+      <Button className="max-w-[200px] !text-ink" onClick={onSwitch} title="Switch project">
+        <span className="truncate">{projectName}</span>
         <Chevron direction="down" />
-      </button>
+      </Button>
       <Settings
         inProject
         onTutorial={onTutorial}
@@ -408,14 +405,9 @@ export function FoldButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      className="quiet flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded-[3px] hover:bg-surface-3"
-      title={label}
-      aria-label={label}
-      onClick={onClick}
-    >
+    <IconButton label={label} className="!w-[22px] shrink-0" onClick={onClick}>
       <Chevron direction={direction} />
-    </button>
+    </IconButton>
   );
 }
 
@@ -426,32 +418,21 @@ export function Segmented({
   value: "source" | "preview";
   onChange: (value: "source" | "preview") => void;
 }) {
+  // The kit's Segmented: a group of two buttons with a pressed state, not
+  // a tablist, because there is no panel associated with either and no
+  // arrow-key navigation between them.
   return (
-    // A group of two buttons with a pressed state, not a tablist: there is
-    // no panel associated with either and no arrow-key navigation between
-    // them, and claiming a role whose contract is not honoured tells a
-    // screen reader something untrue.
-    <div
-      role="group"
-      aria-label="Show the source or the preview"
-      data-testid="view-toggle"
-      className="mr-2 flex shrink-0 overflow-hidden rounded-[3px] border border-line"
-    >
-      {(["source", "preview"] as const).map((option) => (
-        <button
-          key={option}
-          aria-pressed={value === option}
-          className={`t-micro border-b-2 px-2 py-[3px] transition-colors duration-[90ms] ${
-            value === option
-              ? "border-hint bg-surface text-ink"
-              : "border-transparent text-ink-3 hover:text-hint"
-          }`}
-          onClick={() => onChange(option)}
-        >
-          {option === "source" ? "Source" : "Preview"}
-        </button>
-      ))}
-    </div>
+    <KitSegmented
+      label="Show the source or the preview"
+      testid="view-toggle"
+      className="mr-2 shrink-0"
+      value={value}
+      options={[
+        { value: "source", label: "Source" },
+        { value: "preview", label: "Preview" },
+      ]}
+      onChange={onChange}
+    />
   );
 }
 

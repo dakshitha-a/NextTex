@@ -1,3 +1,5 @@
+import { IconButton } from "../ui/Button";
+import { SettingsIcon } from "../ui/icons";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 
 /** Both of these are fetched when they are opened rather than before
@@ -48,18 +50,17 @@ export default function Settings({
 
   return (
     <div className="relative flex items-center">
-      <button
+      <IconButton
         ref={trigger}
+        label="Settings"
         aria-haspopup="dialog"
         aria-expanded={open}
         data-testid="appearance"
-        title="Settings"
-        aria-label="Settings"
-        className="quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
+        on={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <Cog />
-      </button>
+        <SettingsIcon />
+      </IconButton>
 
       {open ? (
         <Suspense fallback={null}>
@@ -84,26 +85,5 @@ export default function Settings({
   );
 }
 
-/** Six teeth, not eight, and filled rather than stroked.  A stroked gear at
- *  13px puts a 1.4px line either side of a 1.5px tooth and the teeth close
- *  up -- the same way the logo's two chevrons did at 18px.  Geometry, so it
- *  can be redrawn: centre (8,8), root radius 5.1, tip radius 7.1, six teeth
- *  at 60° with a 20° root half-angle and a 10.5° tip half-angle, hub radius
- *  2.4 knocked out with evenodd so the button's hover fill shows through. */
-function Cog() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        fill="currentColor"
-        fillRule="evenodd"
-        d="M6.26 3.21 L6.71 1.02 A7.10 7.10 0 0 1 9.29 1.02 L9.74 3.21 A5.10 5.10 0 0 1 11.28 4.09
-           L13.40 3.39 A7.10 7.10 0 0 1 14.69 5.63 L13.02 7.11 A5.10 5.10 0 0 1 13.02 8.89
-           L14.69 10.37 A7.10 7.10 0 0 1 13.40 12.61 L11.28 11.91 A5.10 5.10 0 0 1 9.74 12.79
-           L9.29 14.98 A7.10 7.10 0 0 1 6.71 14.98 L6.26 12.79 A5.10 5.10 0 0 1 4.72 11.91
-           L2.60 12.61 A7.10 7.10 0 0 1 1.31 10.37 L2.98 8.89 A5.10 5.10 0 0 1 2.98 7.11
-           L1.31 5.63 A7.10 7.10 0 0 1 2.60 3.39 L4.72 4.09 A5.10 5.10 0 0 1 6.26 3.21 Z
-           M5.60 8.00 a2.40 2.40 0 1 0 4.80 0 a2.40 2.40 0 1 0 -4.80 0 Z"
-      />
-    </svg>
-  );
-}
+/* The settings control is the kit's sliders glyph now (ui/icons.tsx); the
+   six-toothed cog that stood here is in the history if it is wanted. */

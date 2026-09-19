@@ -35,13 +35,13 @@ export default function PaneHeader({
       className="flex h-[32px] shrink-0 select-none items-stretch bg-surface-2"
     >
       {leading ? (
-        <div className="flex shrink-0 items-center border-b border-r border-line pl-1">
+        <div className="flex shrink-0 items-center pl-1">
           {leading}
         </div>
       ) : null}
       <div className="min-w-0 flex-1">{children}</div>
       {trailing ? (
-        <div className="flex shrink-0 items-center gap-1 border-b border-line pl-1 pr-1">
+        <div className="flex shrink-0 items-center gap-1 pl-1 pr-1">
           {trailing}
         </div>
       ) : null}

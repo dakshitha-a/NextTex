@@ -1,4 +1,4 @@
-import { Chevron } from "../chrome";
+import { ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
 
 /** A collapsed pane leaves a strip behind, so it is obvious that something
  *  is folded away and obvious how to get it back.  The chevron sits at the
@@ -25,21 +25,19 @@ export default function Collapsed({
 }) {
   return (
     <button
-      className={`${furniture ? "nx-furniture " : ""}group flex w-[26px] shrink-0 flex-col items-center gap-2 border-line bg-surface-3 pt-[10px] transition-colors duration-[90ms] hover:bg-surface-2`}
-      style={{
-        borderRightWidth: side === "left" ? 1 : 0,
-        borderLeftWidth: side === "right" ? 1 : 0,
-      }}
+      // A strip on the second surface with no hairline, the kit's plane;
+      // the chevron points at the pane it would bring back.
+      className={`${furniture ? "nx-furniture " : ""}group flex w-[28px] shrink-0 flex-col items-center gap-2 bg-surface-2 pt-[10px] transition-colors duration-[90ms] hover:bg-surface-3`}
       onClick={onExpand}
       data-testid={`collapsed-${label.toLowerCase()}`}
       title={`Show ${label.toLowerCase()}`}
       aria-label={`Show ${label.toLowerCase()}`}
     >
-      <span className="text-ink-3 group-hover:text-hint">
-        <Chevron direction={side === "left" ? "right" : "left"} />
+      <span className="text-ink-3 group-hover:text-ink">
+        {side === "left" ? <ChevronRightIcon size={14} /> : <ChevronLeftIcon size={14} />}
       </span>
       <span
-        className="t-micro whitespace-nowrap text-ink-3 group-hover:text-ink"
+        className="t-meta whitespace-nowrap text-ink-3 group-hover:text-ink"
         style={{ writingMode: "vertical-rl" }}
       >
         {label}
