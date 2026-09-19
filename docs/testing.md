@@ -495,6 +495,21 @@ because the bench builds a project the size of a real thesis. And the
 regression guard for it lives in `tests/collab/test_store.py` rather than in
 the bench, so an ordinary `scripts/check.sh` would catch it coming back.
 
+**And a bench row can measure nothing, which is worse than measuring the
+wrong thing.** `collab.edit_to_disk_ms` was meant to time a settled edit
+reaching the disk and for a while timed an `ingest` followed by a flush
+that wrote nothing: an ingest is the disk's own change arriving, it marks
+the file as already projected, and the observer never dirtied it. The row
+said a tenth of a millisecond and the tracker reasoned from that number
+about what a version record costs on the event loop. The edit is a
+keystroke's now, a transaction on the shared text, and a second row,
+`collab.edit_to_disk_with_history_ms`, makes the same edit on a store
+with a session attached so the flush records a version too; the
+difference between the two, about 1.5 ms on a 900-line chapter, is the
+number that argument had been missing. A row that is added to settle a
+question should be read once against what the code actually did, not
+only against its budget.
+
 ## The documents name things, and now something checks the things exist
 
 `tests/test_documents_match_the_code.py` reads every document in the repository and asserts that each file path, each `/api/` route and each `NEXTTEX_*` variable written as a name is real. It is not a test of the prose: a sentence can be wrong in ways no test can see, and catching that still means reading the passage next to the code. What it covers is the mechanical half, which is the half that rots silently when something is renamed. The README's own Contents index is in that half: `scripts/readme_index.py` generates it from the headings, and the test asserts the block in the file is the one the headings call for, and that every `#anchor` link in the README reaches a heading.

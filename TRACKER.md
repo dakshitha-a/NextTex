@@ -150,7 +150,6 @@ this checkout does not have, or are decisions, are where they were.
       again by hand, and the cost is paid then; the fix upstream is
       theirs.
 
-
 - [ ] **A PNG download the writer reported as broken was not reproduced.**
       The file route answers a PNG with its bytes, `image/png` and an
       attachment disposition, and the tree's *Download*, the image
@@ -295,9 +294,12 @@ this checkout does not have, or are decisions, are where they were.
 
 ### Deliberately not done, and worth revisiting only if something changes
 
-- [ ] **The project tree is walked twice per open.** Three milliseconds of the
-      ninety-five, so the plumbing to pass one walk into the other costs more
-      than it buys. Revisit if the walk gets more expensive.
+- [ ] **The project tree is walked twice per open.** `Project.tree` and
+      `DependencyGraph._source_files` each descend the project with the
+      same exclusions. Re-measured by the backlog close-out on the bench's
+      thesis: the tree walk is 4.6 ms and the whole open 31 ms, so the
+      plumbing to pass one walk into the other costs more than it buys.
+      Revisit if the walk gets more expensive.
 - [ ] **The Sections panel has no selection verbs.** Selecting the section in
       the editor already produces them, so a second entry point buys a shorter
       route to something reachable, at the cost of a hover control on every row
@@ -339,17 +341,20 @@ this checkout does not have, or are decisions, are where they were.
       `docs/architecture.md` is that those belong to the thread that built
       them, so the whole suite fails. Moving the walk alone means threading
       a pre-walked listing through `session_for` into `CollabStore.adopt`,
-      which is a change to a function called from about fifty routes, and
-      it is not worth 17 ms without somebody deciding it is.
-- [ ] **A collaborator's settled edit records its version from inside the
-      flush.** `CollabStore._write` calls `session.record_version`, which is
-      a sha256 and a zlib compression, on the event loop, once per settled
-      edit rather than once per burst. The bench does not measure it:
-      `collab.edit_to_disk_ms` is taken on a store with no session, so the
-      version record is outside that number, and `history.record_ms`, the
-      nearest, is about two milliseconds on ten-byte strings. On a thesis
-      chapter the sha256 and the zlib pass are a fraction of a millisecond
-      each, and the queue it would take to move them off the loop, an
-      ordered per-session queue consumed off it, is more machinery than
-      that justifies. Worth doing if a measurement ever says otherwise.
+      which is a change to a function called from ninety-nine places in
+      `server/main.py`, and it is not worth 17 ms once per cold open
+      without somebody deciding it is. Re-affirmed by the backlog
+      close-out, which had the widest brief and still left it.
+- [ ] **A settled edit records its version from inside the flush.**
+      `CollabStore._write` calls `session.record_version`, a sha256 and a
+      zlib pass over the whole file, on the event loop, once per settled
+      edit rather than once per burst. Measured by the backlog close-out,
+      which found the row that was supposed to say (`collab.edit_to_disk_ms`)
+      had been timing a no-op: on a 900-line chapter the write is 1.4 ms
+      and the write with the record is 3.0 ms
+      (`collab.edit_to_disk_with_history_ms`), so the record is about
+      1.5 ms held on the loop once per settled edit, which is once per
+      pause in typing. The ordered per-session queue it would take to
+      move that off the loop is more machinery than 1.5 ms justifies.
+      Worth doing if the number crosses about 5 ms on a chapter.
 

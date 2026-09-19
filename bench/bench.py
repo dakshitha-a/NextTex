@@ -158,32 +158,67 @@ def measure(root: Path) -> list[dict]:
             runs=5,
         ))
 
-        # The other half of that path, and the half that had never been
-        # measured. An edit that settles is written back to disk by a timer
-        # callback on the event loop, and that write is not one line: the
-        # document is materialised to a string, the file on disk is read to
-        # find what changed, the new text is written and flushed, and a
-        # version is recorded. Timed together with the edit that dirties it,
-        # because separating them would need a handle on the document that
-        # nothing outside the store has, and because an edit reaching the
-        # disk is the thing a writer actually waits for.
+        # The other half of that path. An edit that settles is written back
+        # to disk by a timer callback on the event loop, and that write is
+        # not one line: the document is materialised to a string, the file
+        # on disk is read to find what changed, the new text is written and
+        # flushed. Timed together with the edit that dirties it, because an
+        # edit reaching the disk is the thing a writer actually waits for.
         #
-        # What this does *not* cover: there is no session attached here, so
-        # the version record, the edit note and the compile schedule that a
-        # real flush also performs are absent. `history.record_ms` measures
-        # the largest of those three on its own. Read the two together
-        # rather than reading this one as the whole path.
-        results.append(timed(
-            "collab.edit_to_disk_ms",
-            lambda: (
-                store.ingest(
-                    store.path_for(biggest), f"{whole}\n% settled {next(edits)}\n",
-                ),
-                store.flush(),
-            ),
-            runs=5,
-        ))
+        # The edit is a keystroke's: a transaction on the shared text. It
+        # was an `ingest` for a while, which is the disk's own change
+        # arriving, and that path marks the file as already projected, so
+        # the observer never dirtied it and the flush wrote nothing; the
+        # tenth of a millisecond the row reported was an ingest and a
+        # no-op, and the tracker reasoned from it. This one writes.
+        text = store.body(biggest)
+
+        def settle() -> None:
+            text.insert(len(text), f"\n% settled {next(edits)}\n")
+            store.flush()
+
+        results.append(timed("collab.edit_to_disk_ms", settle, runs=5))
     store.close()
+
+    if biggest is not None:
+        # The same edit with a session attached, so the flush also does
+        # the four things every write in this app does, of which recording
+        # a version, a sha256 and a zlib pass over the whole file, is the
+        # one with a cost. The row above measures the write; this one is
+        # the write as the app performs it, and the difference is what the
+        # version record costs on a chapter this size. It was the number
+        # missing from the tracker's argument for leaving that record on
+        # the event loop.
+        class WithHistory:
+            def __init__(self, project: Project) -> None:
+                self.project = project
+                self.history = History(project.state_dir / "history")
+
+            def mark_written(self, path) -> None:
+                pass
+
+            def note_edit(self, *args) -> None:
+                pass
+
+            def schedule_compile(self) -> None:
+                pass
+
+            def record_version(self, path, text, *, previous=None, **_) -> None:
+                self.history.record(self.project.relative(path), text, source="bench")
+
+        session = WithHistory(project)
+        recorded = CollabStore(project, session)
+        recorded.adopt()
+        body = recorded.body(biggest)
+
+        def settle_and_record() -> None:
+            body.insert(len(body), f"\n% recorded {next(edits)}\n")
+            recorded.flush()
+
+        results.append(timed(
+            "collab.edit_to_disk_with_history_ms", settle_and_record, runs=5,
+        ))
+        recorded.close()
 
     history = History(root / ".nexttex" / "history")
     for index in range(VERSIONS):

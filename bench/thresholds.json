@@ -152,14 +152,18 @@
     "is the cost of the first keystroke in a file, once per file per session.",
     "",
     "collab.edit_to_disk_ms was added by the hardening run to settle a",
-    "finding rather than to guard a number.  The flush that writes a settled",
-    "edit back was described as expensive -- a sha256, a zlib pass over the",
-    "whole file, a log rewrite, four regex passes -- and it is all of those",
-    "things and it measures at about a tenth of a millisecond on a thesis,",
-    "against an ingest of three.  The budget is set well above both because",
-    "the point of having it is to notice that changing, not to hold a",
-    "record.  It runs with no session attached, so the version record is not",
-    "in it; history.record_ms is the rest and is about two milliseconds."
+    "finding rather than to guard a number, and for a while it settled it",
+    "with a number that measured nothing: the edit it made was an ingest,",
+    "which is the disk's own change arriving and marks the file as already",
+    "projected, so the flush wrote nothing and the row said a tenth of a",
+    "millisecond.  The edit is a keystroke's now, a transaction on the",
+    "shared text, and the write is 1.4 ms on a 900-line chapter.",
+    "collab.edit_to_disk_with_history_ms is the same edit with a session",
+    "attached, so the flush also records a version, a sha256 and a zlib",
+    "pass over the whole file: 3.0 ms, so the record costs about 1.5 ms,",
+    "which is the number the argument for leaving it on the event loop had",
+    "been missing.  Both budgets are well above their numbers because the",
+    "point of having them is to notice a change, not to hold a record."
   ],
   "symbols.scan_ms": 400,
   "symbols.cached_ms": 6,
@@ -177,5 +181,6 @@
   "bundle.initial_kb": 860,
   "collab.open_document_ms": 250,
   "collab.ingest_ms": 40,
-  "collab.edit_to_disk_ms": 120
+  "collab.edit_to_disk_ms": 40,
+  "collab.edit_to_disk_with_history_ms": 60
 }

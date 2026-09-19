@@ -529,6 +529,8 @@ makes typing slower on the day it happens.
 | Rebuilding a transcript | 13.5 ms | 120 ms |
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
+| A settled edit written to disk | 1.4 ms | 40 ms |
+| The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
 | Interface bundle | 842.6 kB | 860 kB |
 

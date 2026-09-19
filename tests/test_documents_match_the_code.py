@@ -184,6 +184,8 @@ def test_the_benchmark_table_quotes_the_budgets_that_are_set():
         "Rebuilding a transcript": "transcript.items_ms",
         "Project file tree": "project.tree_ms",
         "A collaborator's edit, applied": "collab.ingest_ms",
+        "A settled edit written to disk": "collab.edit_to_disk_ms",
+        "The same, with its version recorded": "collab.edit_to_disk_with_history_ms",
         "Whole project as a zip": "download.zip_ms",
         "Interface bundle": "bundle.initial_kb",
     }
