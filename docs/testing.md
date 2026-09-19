@@ -256,6 +256,14 @@ the TeX it found, which is the check a `systemd --user` unit with a minimal
 PATH fails and a shell never does. It runs on the runner's bare interpreter,
 imports only the standard library, and is not collected by pytest.
 
+The Monday schedule runs with `--tex=none`, so a CTAN mirror's bad day
+cannot paint the lane red for a reason that is not in the code. The
+TinyTeX shape is dispatched by hand, `gh workflow run install.yml -f
+tex=tinytex`, and the standing rule is to dispatch it after any change to
+the TeX step in `nexttex/install/steps.py`; it has been green on all
+three runners, and the step last changed on 10 September 2026, three days
+before the last dispatch.
+
 The update leg installs two commits back with the login service, updates by
 hand to the previous commit with `update.sh` or `update.ps1` and expects the
 hand-over to the pulled script and a restarted service, then moves the

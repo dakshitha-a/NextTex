@@ -141,34 +141,25 @@ this checkout does not have, or are decisions, are where they were.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **The Emacs keymap is a vendored copy of `@replit/codemirror-emacs`
-      6.1.0,** under `frontend/src/vendor/`, because the package's ESM
-      build marks its own key and command registration as pure and a
-      bundler drops it, so the keymap arrived with no keys; the CJS build
-      brought a second copy of CodeMirror. Two annotations are removed in
-      the copy and a licence header says so. An upgrade means vendoring
-      again by hand, and the cost is paid then; the fix upstream is
-      theirs.
+The backlog close-out worked every line here that this host could work.
+What stays needs a Windows machine, GitHub, or a report that names what
+this host could not reproduce; each says which.
 
-- [ ] **A PNG download the writer reported as broken was not reproduced.**
-      The file route answers a PNG with its bytes, `image/png` and an
-      attachment disposition, and the tree's *Download*, the image
-      viewer's and the History panel's each raise a real download in
-      Chromium, all under `e2e/specs/image-view.spec.ts` now. Whatever
-      failed did so in a browser or on a network this checkout did not
-      have; the report asks which control, which browser and how large
-      the file was, and the item waits on the answer.
-
-- [ ] **A file that appears outside NextTex begins its history with the
-      state it arrived in, never with what was there before.** True of a
-      document that was not open when the change landed, and of one the
-      browser's socket opened in the moment between the write and the
-      watcher's tick: the document is seeded from the file as it now is,
-      so the earlier state was never anywhere NextTex could see. Recorded
-      rather than fixed: the earlier state could only come from a copy
-      NextTex never took, and a file that already has a history keeps its
-      earlier states there, where the version before this one is exactly
-      that.
+- [ ] **A PNG download the writer reported as broken was not reproduced,
+      twice.** The report names the tree's row-menu *Download*, in Chrome.
+      The route answers the bytes with `image/png` and an attachment
+      disposition; the tree's, the viewer's and the History panel's
+      *Download* each raise a real download in Chromium under
+      `e2e/specs/image-view.spec.ts`; and the backlog close-out went
+      after the two things that tier lacks, the origin and the size: a
+      throwaway install behind a TLS front on this host, a 1 MB PNG and a
+      201 MB one, Playwright's full Chromium through the row menu, both
+      files landing with their full byte counts and a clean console,
+      twice. Google Chrome itself is not on this host. What would close
+      it: the words on Chrome's download bar when it fails ("Failed -
+      Network error", "Blocked", "Insecure download"), whether it was the
+      laptop or this machine, and whether the tab was on the tailnet's
+      HTTPS address or the token URL.
 - [ ] **A Windows install's server exited silently after an update's
       restart.** Seen on the laptop during the cross-machine check for
       2.3.0: the restart helper launched the Startup shortcut, the new
@@ -184,62 +175,31 @@ this checkout does not have, or are decisions, are where they were.
       with its window untouched and read the report's Windows events
       section in the morning, and if it is still up, to have the shortcut
       run the server without a console window at all.
-- [ ] **A script never runs on its own.** Not on save and not after the
-      agent edits it; the pane says the agent changed it and offers Run
-      again. The agent's runs pass the permission fence with the script as
-      the card's text, and a rerun from the pane of code the agent just
-      wrote would not, so an automatic rerun would be the fence's one
-      hole. Left deliberately.
-- [ ] **The OpenAI provider has no script tools.** It puts no permission
-      card up at all: everything it can do is confined by construction, and
-      a tool that runs Python needs the card before it can have the tool.
-      Parity is the card machinery on that provider, not a tool entry, and
-      it is a piece of work with a design in it. The Claude provider has
-      `run_script` since the backlog run.
-- [ ] **Captured figures are PNG only.** `plt.show()` is kept at 150 dpi;
-      a figure saved through the seeded helper is a PDF in `figures/` and
-      opens in the viewer, so the vector copy exists where it matters.
-- [ ] **A document dropped by an outside move comes back as a followed
-      one.** The watcher's re-scan drops a document whose file moved; the
-      open tab's follow effect asks for it under the new name and marks it
-      followed, so it can now leave with its last file where before the
-      move it stayed. Recorded rather than fixed: telling "asked for" from
-      "followed" for a document the strip lost and regained needs the
-      origin the strip itself does not keep, and the `previews.json`
-      format change section 34 declined is still the only place it could
-      live; the followed set surviving a reload does not change that.
-- [ ] **`password.spec.ts` "setting a password says so and closes itself"
-      timed out once in four full runs**, waiting on the done card for the
-      five second default, and passed on its retry in three seconds. The
-      hash it waits on takes fifty milliseconds here, so the wait was
-      somewhere else, on a machine running five browsers. Not reproduced
-      in isolation, and not in five consecutive runs of the spec with
-      retries off during the backlog run; if it recurs, trace it before
-      widening the timeout.
-- [ ] **The issue form's `where` field is an input rather than a dropdown**
-      because GitHub does not prefill dropdowns from a URL. If that changes,
-      a dropdown for the platform would make the field sortable.
-- [ ] **The scheduled lane runs with `--tex=none`.** The TinyTeX shape has
-      been dispatched by hand on all three runners and is green, with
-      `verify_install.py --tex tinytex` checking pdflatex, the five extras
-      and the service seeing them; the Monday schedule does not take it,
-      to keep a CTAN mirror's bad day from painting the lane red for a
-      reason that is not in the code. Dispatch `tex=tinytex` after any
-      change to the TeX step in `nexttex/install/steps.py`.
 - [ ] **The Windows restart helper on a machine where the task could not
       be registered.** `updates.windows_restart_argv` brings the server
       back after the update button on Windows. The lane drives it through
       the scheduled task and the per-push Windows job runs its command-line
       fallback for real under both PowerShells; the middle way back, the
       Startup shortcut on a non-admin account, has run nowhere.
-- [ ] **One small latch left standing on purpose, from the projects screen
-      sweep.** `PasswordNudge`'s persisted dismissal has no interface to undo
-      it, which is deliberate and argued in that file's own header, with the
-      action still reachable behind the cog. The two beside it, `error`
-      keeping a dismissed notice's text and the sign-in screen carrying its
-      chooser error into a provider's panel, are fixed: `error` now names
-      the last notice still standing, which is what it means once a list
-      exists.
+- [ ] **The update footer's long-reason line is held by a Linux browser
+      test and was not re-taken on Windows.** The wrapping that pushed Try
+      again off the footer strip was found on the Windows laptop, fixed in
+      `frontend/src/panes/UpdateFooter.tsx`, and confirmed there off the DOM
+      rather than off the screen: the laptop's session could not repoint its
+      checkout at the fixed commit, and was told to leave that refusal alone
+      rather than work around it. The browser test asserts the row's height;
+      a screenshot from a Windows machine at 125 percent is what would close
+      this.
+- [ ] **The issue form's `where` field is an input rather than a dropdown**
+      because GitHub does not prefill dropdowns from a URL. If that changes,
+      a dropdown for the platform would make the field sortable.
+- [ ] **The OpenAI provider has no script tools.** It puts no permission
+      card up at all: everything it can do is confined by construction, and
+      a tool that runs Python needs the card before it can have the tool.
+      Parity is the card machinery on that provider, not a tool entry, and
+      it is a piece of work with a design in it. The Claude provider has
+      `run_script` since the backlog run. In hand: the backlog close-out's
+      second push.
 
 ### Never run against the real thing
 
@@ -251,7 +211,6 @@ this checkout does not have, or are decisions, are where they were.
       has a MiKTeX to check either claim against. The tlmgr path is run
       for real on this machine's TinyTeX and against the stand-in in the
       browser tier.
-
 - [ ] **The OpenAI provider has never spoken to OpenAI, nor to a local
       server.** Everything above the transport runs for real against a
       stub: the streaming parser, the tool loop, the path fence, the
@@ -261,7 +220,8 @@ this checkout does not have, or are decisions, are where they were.
       the first real endpoint that provider could be exercised against
       without an account: install Ollama, point the form at
       `http://localhost:11434/v1` with a model it has pulled, and ask
-      for an edit; none of that has been done here either.
+      for an edit; none of that has been done here either. In hand: the
+      backlog close-out's second push takes the local half.
 - [ ] **Stop has not been pressed against the real CLI since the buffer
       fix.** The one-behind reply after Stop was diagnosed in a writing
       session's transcript and is reproduced by a stub with the SDK's
@@ -277,20 +237,13 @@ this checkout does not have, or are decisions, are where they were.
       run and answered in the shapes the code reads, and
       `tests/test_papers_live.py` asks them again under `NEXTTEX_LIVE`;
       what no test here can say is how a real library of PDFs behaves.
+      In hand: the backlog close-out's second push runs it over a folder
+      of real papers.
 - [ ] **Windows: no clean install on current master is on the record.** Four
       failures were found on a real Windows machine and fixed, the last in
       `e92a9d7`, but the verification run afterwards was never written down.
       The README says Windows is partly verified, which is honest; this is the
       check that would change that.
-- [ ] **The update footer's long-reason line is held by a Linux browser
-      test and was not re-taken on Windows.** The wrapping that pushed Try
-      again off the footer strip was found on the Windows laptop, fixed in
-      `frontend/src/panes/UpdateFooter.tsx`, and confirmed there off the DOM
-      rather than off the screen: the laptop's session could not repoint its
-      checkout at the fixed commit, and was told to leave that refusal alone
-      rather than work around it. The browser test asserts the row's height;
-      a screenshot from a Windows machine at 125 percent is what would close
-      this.
 
 ### Deliberately not done, and worth revisiting only if something changes
 
@@ -358,3 +311,55 @@ this checkout does not have, or are decisions, are where they were.
       move that off the loop is more machinery than 1.5 ms justifies.
       Worth doing if the number crosses about 5 ms on a chapter.
 
+- [ ] **A script never runs on its own.** Not on save and not after the
+      agent edits it; the pane says the agent changed it and offers Run
+      again. The agent's runs pass the permission fence with the script as
+      the card's text, and a rerun from the pane of code the agent just
+      wrote would not, so an automatic rerun would be the fence's one
+      hole. Left deliberately.
+- [ ] **Captured figures are PNG only.** `plt.show()` is kept at 150 dpi;
+      a figure saved through the seeded helper is a PDF in `figures/` and
+      opens in the viewer, so the vector copy exists where it matters. An
+      SVG capture would be a format choice in `script_runner.py`'s
+      snapshot and a second file per shown figure; nobody has asked for
+      the shown copy in vector form.
+- [ ] **A file that appears outside NextTex begins its history with the
+      state it arrived in, never with what was there before.** True of a
+      document that was not open when the change landed, and of one the
+      browser's socket opened in the moment between the write and the
+      watcher's tick: the document is seeded from the file as it now is,
+      so the earlier state was never anywhere NextTex could see. The
+      earlier state could only come from a copy NextTex never took, and a
+      file that already has a history keeps its earlier states there,
+      where the version before this one is exactly that.
+- [ ] **A document dropped by an outside move comes back as a followed
+      one.** The watcher's re-scan drops a document whose file moved; the
+      open tab's follow effect asks for it under the new name and marks it
+      followed, so it can now leave with its last file where before the
+      move it stayed. Telling "asked for" from "followed" for a document
+      the strip lost and regained needs the origin the strip itself does
+      not keep, and the `previews.json` format change section 34 declined
+      is still the only place it could live; the followed set surviving a
+      reload does not change that.
+- [ ] **`PasswordNudge`'s persisted dismissal has no interface to undo
+      it.** Deliberate and argued in that file's own header, with the
+      action still reachable behind the cog.
+- [ ] **The Emacs keymap is a vendored copy of `@replit/codemirror-emacs`
+      6.1.0,** under `frontend/src/vendor/`, because the package's ESM
+      build marks its own key and command registration as pure and a
+      bundler drops it, so the keymap arrived with no keys; the CJS build
+      brought a second copy of CodeMirror. Two annotations are removed in
+      the copy and a licence header says so. Checked against the registry
+      on 19 September 2026: 6.1.0 is still the newest release, so there is
+      nothing to move back to. An upgrade means vendoring again by hand,
+      and `keymaps.spec.ts`'s `C-k` against the real build is what says
+      the keys arrived.
+- [ ] **`password.spec.ts` "setting a password says so and closes itself"
+      timed out once in four full runs**, waiting on the done card for the
+      five second default, and passed on its retry in three seconds. The
+      hash it waits on is already off the loop and takes fifty
+      milliseconds here, and the spec starts a server of its own, so the
+      wait was a cold instance under five browsers. Not reproduced in
+      isolation, nor in five consecutive runs with retries off. If it
+      recurs, open the trace `playwright.config.ts` retains on failure
+      before touching the timeout.
