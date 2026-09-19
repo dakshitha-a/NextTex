@@ -24,19 +24,19 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The second roadmap run, after 2.13.0, takes eight items from `ROADMAP.md`
-in its order, in three pushes, each earning a y bump: the checks (the
-submission panel and the bibliography rows) as 2.14.0, in and out
-(arriving with a zip, an arXiv id or a git URL, and pandoc export) as
-2.15.0, editor and agent (the command palette, Vim and Emacs, paste as
-table or figure, slash commands) as 2.16.0. Each line below is struck by
-the commit that finishes it. Three of the roadmap's premises were found
+The second roadmap run, after 2.13.0, took eight items from `ROADMAP.md`
+in its order and went up as three pushes: the checks (the submission
+panel and the bibliography rows) as 2.14.0, in and out (arriving with a
+zip, an arXiv id or a git URL, and pandoc export) as 2.15.0, editor and
+agent (the command palette, Vim and Emacs, paste as table or figure,
+slash commands) as 2.16.0. Three of the roadmap's premises were found
 wrong on the way in and are corrected in the design sections: the
-required-field rules the bibliography check needs do not exist in
+required-field rules the bibliography check needs did not exist in
 `nexttex/vendor/verify_bib.py`, which checks an entry against a
 publisher's record; the context directory is under `.nexttex/`, which is
 never synced, so shared prompt files live at the project root; and the
-rail gains one tile, not three.
+rail gained one tile, not three. It left the roadmap's seven, the Emacs
+keymap as a vendored file rather than a dependency, and nothing else.
 
 The rail's first review, after 2.12.0, went up as 2.13.0. The three ways
 in were a stacked list with the chosen one unfolded in place, so the two
@@ -125,6 +125,14 @@ this checkout does not have, or are decisions, are where they were.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **The Emacs keymap is a vendored copy of `@replit/codemirror-emacs`
+      6.1.0,** under `frontend/src/vendor/`, because the package's ESM
+      build marks its own key and command registration as pure and a
+      bundler drops it, so the keymap arrived with no keys; the CJS build
+      brought a second copy of CodeMirror. Two annotations are removed in
+      the copy and a licence header says so. An upgrade means vendoring
+      again by hand, and the cost is paid then; the fix upstream is
+      theirs.
 - [ ] **Three hand-rolled `localStorage` try/catch copies remain,** in
       `UpdateFooter.tsx`, `PasswordNudge.tsx` and `PapersChooser.tsx`,
       now that `appearance.ts` exports `readStored` and `writeStored`

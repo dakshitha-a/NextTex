@@ -78,8 +78,8 @@ the reversal should have to answer it.
    proposes; the writer adds. *Small; y.*
 
 
-7. **Alt text and PDF metadata in the submission check.** After the
-   submission check, which is in hand: hyperref's title and author
+7. **Alt text and PDF metadata in the submission check.** On the
+   submission check that came with 2.14.0: hyperref's title and author
    metadata, a figure with no alternative text, and whether `pdfx` is in
    play for a venue that wants PDF/A. *Small; y.*
 
@@ -101,13 +101,13 @@ reason is what makes the decision revisitable.
   a build. NextTex is a LaTeX editor.
 - **A gallery of converters, PDF-to-LaTeX and a diagram canvas.** A tools
   gallery is a different product. The one conversion a paper needs on the
-  way out is the pandoc export, which is in hand.
+  way out is the pandoc export, here since 2.15.0.
 - **Snapshots after each successful compile.** The history already
   records every pause, per file, whether or not the build succeeded.
 - **Skill packs, a downloadable shelf of them and a catalogue of CLI
   agents.** The agent is one, and the handbook and the sample of your own
-  writing are the reusable-instruction mechanism; the slash commands,
-  in hand, cover the reusable prompt.
+  writing are the reusable-instruction mechanism, and the slash commands
+  since 2.16.0 cover the reusable prompt.
 - **An MCP server for outside clients.** The agent is the Claude CLI
   already, and somebody who wants it in a terminal runs it in the folder.
   Revisit if somebody asks.
