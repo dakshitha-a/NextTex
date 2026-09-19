@@ -228,6 +228,13 @@ this host could not reproduce; each says which.
       could expose as "this document is live" and have the spec wait on
       it, and to check whether a writer typing straight into a new file
       can lose a character the same way.
+- [ ] **A spec's own server once took longer to start than the harness
+      waits.** `tab-strips.spec.ts` failed at the backlog close-out's push
+      B check with "the server never answered on 127.0.0.1:36551" and
+      passed on retry; nothing in the spec ran. Two workers, each a real
+      server, beside a LaTeX build. One sighting; a second is the signal
+      to read what `startServer` in `e2e/server.ts` waits on and how
+      long, and to widen it or to have it say which step was slow.
 - [ ] **The issue form's `where` field is an input rather than a dropdown**
       because GitHub does not prefill dropdowns from a URL. If that changes,
       a dropdown for the platform would make the field sortable.
