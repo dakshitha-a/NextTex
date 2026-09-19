@@ -1,0 +1,17 @@
+herring-fed mice.
+Conclusion: This study shows that an integrated analysis of transcriptome data using metabolic networks resulted in the
+identification of signature pathways. This could not have been achieved using standard clustering methods. In particular,
+this systems biology analysis could enrich the information content of biomedical or nutritional data where subtle changes in
+several tissues together affects body metabolism or disease progression. This could be applied to improve diets for subjects
+exposed to health risks associated with obesity.
+Citation: Nookaew I, Gabrielsson BG, Holmäng A, Sandberg A-S, Nielsen J (2010) Identifying Molecular Effects of Diet through Systems Biology: Influence of
+Herring Diet on Sterol Metabolism and Protein Turnover in Mice. PLoS ONE 5(8): e12361. doi:10.1371/journal.pone.0012361
+Editor: Immo A. Hansen, New Mexico State University, United States of America
+Received February 9, 2010; Accepted July 6, 2010; Published August 24, 2010
+Copyright: ß 2010 Nookaew et al. This is an open-access article distributed under the terms of the Creative Commons Attribution License, which permits
+these samples. After statistical analysis of the data there was performed, in parallel, a standard clustering and dimension reduction analysis with the
+objective to identify gross patterns within the samples. In the integrated analysis different types of biological network graphs were used. Through
+this analysis specific metabolic pathways activated in the specific tissues in response to the diet were identified. This information was integrated
+together with histological data in order to gain new fundamental insight into the molecular effects of diet on whole body metabolism.
+doi:10.1371/journal.pone.0012361.g001
+

@@ -20,6 +20,11 @@ from nexttex.references import _load
 
 fold = _load("verify_bib").fold
 
+#: Text `pdftotext` produced from real papers, a page or two each, kept
+#: rather than the PDFs: the shapes that fooled the importer on a real
+#: folder are in the text.
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
 
 def pdf(root: Path, name: str, body: bytes = b"%PDF-1.4 fake") -> Path:
     target = root / name
@@ -90,6 +95,22 @@ class TestFindingTheDoi:
 
     def test_nothing_to_find_is_an_empty_list_rather_than_a_guess(self):
         assert dois_in("a scanned page with no identifier", "scan_0041.pdf") == []
+
+    def test_a_figures_doi_names_the_paper_it_is_in(self):
+        """PLOS prints `doi:...pone.0012361.g001` under Figure 1, on page
+        two of the real paper this text was taken from.  A figure's DOI is
+        the article's with a component after it, so the article is what
+        it names, and it must never be offered as a second paper."""
+        text = FIXTURES.joinpath("pdftotext-plos-pages-one-two.txt").read_text()
+        assert dois_in(text, "plos-0012361.pdf") == ["10.1371/journal.pone.0012361"]
+
+    def test_zero_width_spaces_inside_a_doi_are_not_part_of_it(self):
+        """eLife's typesetter breaks its DOI line with zero-width spaces
+        and `pdftotext` keeps them: the real paper this text came from was
+        reported as having no DOI printed in it."""
+        text = FIXTURES.joinpath("pdftotext-elife-page-one.txt").read_text()
+        assert "​" in text, "the fixture must keep the characters"
+        assert dois_in(text, "elife-110034.pdf") == ["10.7554/eLife.110034"]
 
 
 class TestBelievingTheRecord:
@@ -418,6 +439,93 @@ class TestScanning:
         scan.run(tmp_path / "papers")
         assert ("reading", 0, 1) in seen
         assert seen[-1][0] == "done"
+
+    def refusal(self, seconds: str | None):
+        """What `requests` raises for a 429, with the wait the server named."""
+        class Response:
+            status_code = 429
+            headers = {"Retry-After": seconds} if seconds is not None else {}
+
+        error = RuntimeError("429 Client Error: Too Many Requests")
+        error.response = Response()
+        return error
+
+    def test_a_refusal_that_names_a_wait_is_waited_out_and_asked_again(
+        self, tmp_path, monkeypatch,
+    ):
+        """Crossref answered 429 to the eleventh paper of a real folder and
+        every one after it, because the lookups went out back to back.
+        The wait it names is taken, the lookup made again, and the rest
+        of the folder keeps a distance from the answer before."""
+        pdf(tmp_path / "papers", "one.pdf")
+        pdf(tmp_path / "papers", "two.pdf", b"%PDF-1.4 another")
+        records = {
+            "10.1063/1.1": self.record("Author2019non", "Nonadiabatic dynamics"),
+            "10.1063/1.2": self.record("Author2019ele", "Electron transfer"),
+        }
+        scan, state = self.scan(
+            tmp_path, monkeypatch,
+            {"one.pdf": "Nonadiabatic dynamics\nDOI: 10.1063/1.1\n",
+             "two.pdf": "Electron transfer\nDOI: 10.1063/1.2\n"},
+            records,
+        )
+        refused = {"left": 1}
+        real = scan.fetch_metadata
+
+        def flaky(doi):
+            if refused["left"]:
+                refused["left"] -= 1
+                raise self.refusal("3")
+            return real(doi)
+
+        scan.fetch_metadata = flaky
+        waits: list[float] = []
+        scan.sleep = waits.append
+        progress = scan.run(tmp_path / "papers")
+        assert (progress.added, progress.unidentified) == (2, 0), [(p.name, p.reason) for p in scan.library.papers()]
+        assert waits[0] == 3.0, waits
+        # And a pace between the lookups that followed, rather than none.
+        assert scan._pace == 1.0
+
+    def test_a_refusal_that_never_clears_is_reported_as_unreachable(
+        self, tmp_path, monkeypatch,
+    ):
+        pdf(tmp_path / "papers", "one.pdf")
+        scan, state = self.scan(
+            tmp_path, monkeypatch,
+            {"one.pdf": "Nonadiabatic dynamics\nDOI: 10.1063/1.1\n"},
+            {"10.1063/1.1": self.record("Author2019non", "Nonadiabatic dynamics")},
+        )
+
+        def always(doi):
+            raise self.refusal(None)
+
+        scan.fetch_metadata = always
+        waits: list[float] = []
+        scan.sleep = waits.append
+        progress = scan.run(tmp_path / "papers")
+        assert progress.unidentified == 1
+        # Three retries at the default wait, then the honest reason.
+        assert waits == [2.0, 2.0, 2.0]
+        assert "Could not reach the publisher" in scan.library.papers()[0].reason
+
+    def test_an_error_that_is_not_a_refusal_is_not_retried(self, tmp_path, monkeypatch):
+        pdf(tmp_path / "papers", "one.pdf")
+        scan, state = self.scan(
+            tmp_path, monkeypatch,
+            {"one.pdf": "Nonadiabatic dynamics\nDOI: 10.1063/1.1\n"},
+            {"10.1063/1.1": self.record("Author2019non", "Nonadiabatic dynamics")},
+        )
+        calls = {"n": 0}
+
+        def down(doi):
+            calls["n"] += 1
+            raise RuntimeError("Connection reset by peer")
+
+        scan.fetch_metadata = down
+        scan.sleep = lambda seconds: pytest.fail("nothing to wait for")
+        scan.run(tmp_path / "papers")
+        assert calls["n"] == 1
 
 
 def test_a_publisher_that_cannot_be_reached_is_not_a_paper_that_does_not_exist(

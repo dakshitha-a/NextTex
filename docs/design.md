@@ -1864,6 +1864,32 @@ For the same reason, what `search_library` returns is framed as quotation
 rather than instruction, and snippets are capped so no long instruction
 block survives intact.
 
+**Run over a real folder at last, in the backlog close-out.** Fifty-four
+tests had covered the pipeline with the network and `pdftotext` stubbed;
+nothing had put it over real papers. Twenty-five files, nineteen of them
+genuine open-access papers fetched from JOSS, eLife, PLOS ONE and arXiv,
+six of them the decoys a downloads folder holds (a scan with no text
+layer, a thesis chapter whose first page cites three DOIs, a truncated
+download, a slide deck, a duplicate under another name, a text file with
+a `.pdf` suffix), through the real `pdftotext` and the real Crossref.
+Three things were wrong, each now a test over a page of `pdftotext` text
+kept in `tests/fixtures/`. Crossref answered `429 Too Many Requests` after
+ten papers, because two lookups per paper went out back to back with no
+pause, and the rest of the folder was lost to it; a refusal that names a
+wait is now waited out and asked again, up to three times, and once a
+publisher has refused once the run keeps a second between lookups. PLOS
+prints a DOI under every figure, `...pone.0012361.g001`, and a figure's
+DOI was offered as a paper of its own; a figure's or a table's component
+is stripped, since the paper is what it names. And eLife's typesetter
+breaks its DOI line with zero-width spaces, which `pdftotext` keeps, so
+`10.7554/eLife.110034` was "No DOI printed in it"; invisible characters
+are removed before the DOI is looked for. On the second run every one of
+the seventeen papers with a printed DOI was added, the chapter was
+refused because the cited paper's title is not on its page, the two arXiv
+preprints and the slides said "No DOI printed in it", the scan, the
+truncated file and the text file said nothing could be read, and the
+duplicate was counted once.
+
 ## 18. Two installs, updating from the page, and a size the reader chooses
 
 Three things, and each one turned on a fact that had to be measured rather

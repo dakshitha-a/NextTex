@@ -49,6 +49,20 @@ TRAILING = ".,;:)]}>"
 # cites a spreadsheet.
 SUPPLEMENTARY = re.compile(r"\.s\d{3}$", re.I)
 
+# And figures and tables, on the page they appear on: PLOS prints
+# `doi:10.1371/journal.pone.0012361.g001` under Figure 1.  That is the
+# paper's own DOI with a component after it, so the paper is what it names.
+# Found on a real folder of papers, where a figure's DOI was the candidate
+# left standing after the article's own lookup had failed.
+COMPONENT = re.compile(r"\.[gt]\d{3}$", re.I)
+
+# Characters a PDF can put inside a DOI that are not there to read: eLife's
+# typesetter breaks long URLs with zero-width spaces, and `pdftotext` keeps
+# them, so `10.<U+200B>7554/<U+200B>eLife.<U+200B>110034` was "No DOI printed in it"
+# until they were removed.  Also the soft hyphen and the word joiner, for
+# the same reason.
+INVISIBLE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad]")
+
 # Beyond this a folder is not a library, it is a disk.
 MAX_PDFS = 5000
 
@@ -63,6 +77,34 @@ TITLE_MATCH = 0.7
 # Written every so many entries, so a run that is stopped or crashes has
 # already put most of its work in the file.
 FLUSH_EVERY = 10
+
+# Crossref answers 429 when its anonymous pool is busy, with a Retry-After
+# saying how long, and a real folder of twenty-five papers reached that
+# after ten of them: two lookups per paper, back to back, with no pause.
+# A refusal that names a wait is waited out and the lookup made again, a
+# few times; and once a publisher has said so once, every later lookup in
+# the run keeps a small distance from the one before, so the rest of the
+# folder is not lost to the same answer.
+RETRIES = 3
+RETRY_AFTER_DEFAULT = 2.0
+RETRY_AFTER_CAP = 30.0
+PACE_AFTER_REFUSAL = 1.0
+
+
+def retry_after(error: BaseException) -> float | None:
+    """How long a refusal asked us to wait, or None for an error that is
+    not a refusal.  Read off the response `requests` attaches to its
+    errors, without importing `requests` here."""
+    response = getattr(error, "response", None)
+    status = getattr(response, "status_code", None)
+    if status not in (429, 503):
+        return None
+    headers = getattr(response, "headers", None) or {}
+    try:
+        wait = float(headers.get("Retry-After", RETRY_AFTER_DEFAULT))
+    except (TypeError, ValueError):
+        wait = RETRY_AFTER_DEFAULT
+    return min(max(wait, 0.5), RETRY_AFTER_CAP)
 
 
 @dataclass
@@ -154,11 +196,11 @@ def dois_in(text: str, name: str) -> list[str]:
     A DOI next to the word "doi" is the paper's own far more often than a
     bare one, which may well be something it cites.
     """
-    front = front_matter(text)
+    front = INVISIBLE.sub("", front_matter(text))
     labelled: list[str] = []
     bare: list[str] = []
     for match in DOI.finditer(front):
-        found = match.group(0).rstrip(TRAILING)
+        found = COMPONENT.sub("", match.group(0).rstrip(TRAILING))
         before = front[max(0, match.start() - 24):match.start()].lower()
         (labelled if ("doi" in before or "doi.org" in before) else bare).append(found)
 
@@ -396,6 +438,7 @@ class Scan:
         fetch_metadata: Callable[[str], dict],
         fold: Callable[[str], str],
         on_progress: Callable[[Progress], None] | None = None,
+        sleep: Callable[[float], None] = time.sleep,
     ):
         self.library = library
         self.bib = bib
@@ -406,11 +449,37 @@ class Scan:
         self.fetch_metadata = fetch_metadata
         self.fold = fold
         self.on_progress = on_progress or (lambda _p: None)
+        #: Handed in so a test can count the waits rather than take them.
+        self.sleep = sleep
         self.progress = Progress()
         self.stopped = False
+        #: The distance kept between lookups once a publisher has refused
+        #: one, and when the last lookup was made.
+        self._pace = 0.0
+        self._last_lookup = 0.0
 
     def stop(self) -> None:
         self.stopped = True
+
+    def _patient(self, call: Callable[[], object]):
+        """One lookup, waited out and made again when the publisher asks."""
+        for attempt in range(RETRIES + 1):
+            if self._pace:
+                due = self._last_lookup + self._pace - time.monotonic()
+                if due > 0:
+                    self.sleep(due)
+            self._last_lookup = time.monotonic()
+            try:
+                return call()
+            except Exception as error:
+                wait = retry_after(error)
+                if wait is None or attempt == RETRIES or self.stopped:
+                    raise
+                self._pace = max(self._pace, PACE_AFTER_REFUSAL)
+                self.sleep(wait)
+                # `sleep` may be a test's counter that takes no time.
+                self._last_lookup = 0.0
+        raise AssertionError("unreachable")
 
     def run(self, folder: Path) -> Progress:
         known = {paper.sha: paper for paper in self.library.papers()}
@@ -515,7 +584,7 @@ class Scan:
         unreachable = ""
         for doi in candidates:
             try:
-                meta = self.fetch_metadata(doi)
+                meta = self._patient(lambda: self.fetch_metadata(doi))
             except Exception as error:
                 # Remembered rather than swallowed. Every DOI in a paper
                 # failing to fetch, because the network is down or the
@@ -536,7 +605,7 @@ class Scan:
                 continue
 
             try:
-                found = self.entry_for(doi, text)
+                found = self._patient(lambda: self.entry_for(doi, text))
             except Exception as error:
                 paper.doi = doi
                 paper.reason = f"Could not fetch {doi}: {error}"

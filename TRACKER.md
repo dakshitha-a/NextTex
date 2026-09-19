@@ -40,6 +40,18 @@ writer asked for in place of a Zotero library nobody here has. What
 stays afterwards is only what needs a Windows machine, a MiKTeX, the
 real Claude CLI or OpenAI's own endpoint, each with its reason.
 
+The first push went up as 2.17.0. The papers run is done: twenty-five
+files, nineteen real open-access papers and six decoys, through the real
+`pdftotext` and Crossref from a throwaway install. The first pass added
+ten and lost the rest to Crossref's `429`; three defects came out of it
+(no pacing or retry on a refusal, a figure's component DOI offered as a
+paper, zero-width spaces inside an eLife DOI), each fixed with a test
+over a page of `pdftotext` text in `tests/fixtures/`. The second pass
+added all seventeen papers with a printed DOI, refused the thesis
+chapter on the title check, said "No DOI printed" of the two arXiv
+preprints and the slides, "nothing could be read" of the scan, the
+truncated file and the text file, and counted the duplicate once.
+
 The second roadmap run, after 2.13.0, took eight items from `ROADMAP.md`
 in its order and went up as three pushes: the checks (the submission
 panel and the bibliography rows) as 2.14.0, in and out (arriving with a
@@ -243,14 +255,6 @@ this host could not reproduce; each says which.
       `NEXTTEX_LIVE`. `tests/fake_claude.py` speaks the sign-in commands
       and not the stream protocol, and teaching it the protocol is a
       day's work that would still be a stand-in.
-- [ ] **The papers importer has not been run over a real Zotero library.**
-      Fifty-four tests cover the pipeline with the network and `pdftotext`
-      stubbed. Crossref and doi.org were asked by hand during the backlog
-      run and answered in the shapes the code reads, and
-      `tests/test_papers_live.py` asks them again under `NEXTTEX_LIVE`;
-      what no test here can say is how a real library of PDFs behaves.
-      In hand: the backlog close-out's second push runs it over a folder
-      of real papers.
 - [ ] **Windows: no clean install on current master is on the record.** Four
       failures were found on a real Windows machine and fixed, the last in
       `e92a9d7`, but the verification run afterwards was never written down.
