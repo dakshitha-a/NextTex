@@ -8404,6 +8404,20 @@ it back with `u`, reloads and finds Vim still on; picks Emacs, kills a
 line with `C-k`, finds the palette shut and `C-/` restoring the line;
 and back on Default types `dd` as two letters.
 
+**The status line was drawn over the sheet that switched it on.** The
+writer chose Vim and the Vim status line appeared across the bottom of
+the settings sheet, which was still open. CodeMirror gives its panels
+`z-index: 300` in its base theme, for an editor taller than the box
+that scrolls it, and nothing in NextTex isolates the editor, so that
+number reached the page's own stacking context, where every menu is 40
+and every sheet 50. The find panel had the same number and would have
+done the same over any sheet while open; the Vim line, which is always
+there once Vim is on, was the one that got noticed. `.cm-editor
+.cm-panels` is now `z-index: 1`, enough to stay above the scroller
+beside it and under everything the app draws over the editor.
+`keymaps.spec.ts` opens the sheet over the Vim line and over the find
+panel and asks the browser what is drawn on top at the panel's centre.
+
 ### Paste data as a table, paste an image as a figure
 
 A spreadsheet's copy is tab-separated text and a `.csv` is

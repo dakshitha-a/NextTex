@@ -958,7 +958,17 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    invisible; in the dark one it was light ink on white at 1.24:1, and the
    writer typed a word into it and saw nothing at all. */
 .cm-editor .cm-panels { background: var(--surface-2); color: var(--ink);
-  border-bottom: 1px solid var(--line); }
+  border-bottom: 1px solid var(--line);
+  /* CodeMirror's base theme gives its panels `position: sticky` and
+     z-index 300, for an editor taller than the box that scrolls it.  This
+     editor fills its pane, so the number buys nothing here, and nothing
+     isolates `.cm-editor`, so 300 landed in the page's own stacking
+     context: above every menu (40) and every sheet (50).  The Vim status
+     line, which is a bottom panel and is always there once Vim is on,
+     was drawn across the settings sheet that had just switched it on,
+     and the find panel would have done the same over any sheet.  One is
+     enough to stay above the scroller beside it. */
+  z-index: 1; }
 .cm-editor .cm-panels-bottom { border-top: 1px solid var(--line);
   border-bottom: 0; }
 .cm-editor .cm-panel.cm-search { padding: 6px 8px; display: flex;

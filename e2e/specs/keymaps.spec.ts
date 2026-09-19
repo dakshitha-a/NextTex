@@ -77,3 +77,43 @@ test("back on the default keymap, dd is two letters", async ({ tab }) => {
   await tab.keyboard.type("\ndd");
   await expect(editor).toContainText("dd");
 });
+
+/** What is drawn on top at a panel's centre once the settings sheet is
+ *  open over it: the sheet, never the panel.  CodeMirror gives its panels
+ *  z-index 300 for an editor taller than its scroller, and that number
+ *  was reaching the page, so the Vim status line was painted across the
+ *  sheet that had just switched it on. */
+async function topmostAt(tab: import("@playwright/test").Page, selector: string) {
+  return tab.evaluate((sel) => {
+    const box = document.querySelector(sel)?.getBoundingClientRect();
+    if (!box) return "missing";
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    if (!hit) return "nothing";
+    if (hit.closest('[role="dialog"]') || hit.closest(".nx-scrim")) return "sheet";
+    return hit.closest(sel) ? "panel" : hit.tagName.toLowerCase();
+  }, selector);
+}
+
+test("the Vim status bar stays under the settings sheet", async ({ tab }) => {
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await choose(tab, "keymap-vim");
+  await expect(tab.locator(".cm-vim-panel")).toBeVisible({ timeout: 15_000 });
+  await tab.getByTestId("appearance").first().click();
+  await expect(tab.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  expect(await topmostAt(tab, ".cm-vim-panel")).toBe("sheet");
+  await tab.getByTestId("settings-close").click();
+  await choose(tab, "keymap-default");
+  await expect(tab.locator(".cm-vim-panel")).toHaveCount(0, { timeout: 15_000 });
+});
+
+test("the find panel stays under the settings sheet too", async ({ tab }) => {
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+f");
+  await tab.locator(".cm-panel.cm-search").waitFor();
+  await tab.getByTestId("appearance").first().click();
+  await expect(tab.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  expect(await topmostAt(tab, ".cm-panel.cm-search")).toBe("sheet");
+  await tab.getByTestId("settings-close").click();
+  await tab.keyboard.press("Escape");
+});
