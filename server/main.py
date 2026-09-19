@@ -74,7 +74,7 @@ from nexttex.project import (
     ignored_directory, is_ours, kind_of, under_ignored_directory,
 )
 from nexttex.symbols import walk_project
-from nexttex import deps, lint_explain, search, updates
+from nexttex import bibcheck, deps, lint_explain, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -4499,6 +4499,11 @@ async def project_symbols(project_id: str):
             {**label, **known[label["name"]]} if label.get("name") in known else label
             for label in answer["labels"]
         ]
+    # The bibliography styles this TeX has, for `\bibliographystyle{}`:
+    # a property of the machine rather than the project, carried here
+    # because this is the one payload the editor already refetches.  The
+    # walk is once per process and off the loop the first time.
+    answer["styles"] = await asyncio.to_thread(texstyles.installed)
     return answer
 
 
@@ -4949,9 +4954,31 @@ async def words(
 
 @app.get("/api/projects/{project_id}/lint")
 async def lint(project_id: str, path: str):
-    """chktex findings for one file: syntax problems without a compile."""
+    """chktex findings for one `.tex` file, and `bibcheck`'s for a `.bib`:
+    what is wrong without a compile.
+
+    The `.bib` case reads the file and the documents from the session, the
+    open ones winning over the disk, because the editor asks again after
+    the last keystroke settles and the flush is on its own debounce; a
+    check that read the disk would keep showing the row the writer just
+    fixed.  Which keys the documents cite comes from `usage.cited_keys`,
+    None when a `\\nocite{*}` makes every entry cited.
+    """
     session = session_for(project_id)
     target = _safe(session, path)
+    if target.suffix.lower() == ".bib":
+        live = session.collab.open_texts()
+        texts = await asyncio.to_thread(_project_texts, session)
+        texts.update({name: body for name, body in live.items() if name in texts})
+        relative = session.project.relative(target)
+        text = texts.get(relative)
+        if text is None:
+            return {"diagnostics": []}
+        sources = {name: body for name, body in texts.items() if name.lower().endswith(".tex")}
+        rows = await asyncio.to_thread(
+            lambda: bibcheck.check(text, relative, usage.cited_keys(sources)),
+        )
+        return {"diagnostics": rows}
     if not shutil.which("chktex"):
         return {"diagnostics": []}
     rcfile = Path(__file__).resolve().parent.parent / ".chktexrc"

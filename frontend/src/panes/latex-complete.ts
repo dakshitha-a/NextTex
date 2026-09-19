@@ -307,6 +307,11 @@ export function latexSource(
         };
       }
 
+      if (command === "bibliographystyle") {
+        const options = (found?.styles ?? []).map((name) => ({ label: name, type: "constant" }));
+        return options.length ? { from, options, validFor: INSIDE_BRACES } : null;
+      }
+
       if (command === "usepackage" || command === "RequirePackage") {
         return {
           from,

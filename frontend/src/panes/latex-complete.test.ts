@@ -163,3 +163,18 @@ describe("the commands the floor has to hold", () => {
     expect(names.size).toBe(COMMANDS.length);
   });
 });
+
+describe("bibliography styles", () => {
+  test("inside \\bibliographystyle, the styles this TeX has", () => {
+    const state = EditorState.create({ doc: "\\bibliographystyle{pl" });
+    const withStyles = { ...SYMBOLS, styles: ["abbrv", "plain", "plainnat"] } as Symbols;
+    const result = latexSource(() => withStyles)(new CompletionContext(state, 21, false));
+    expect(result!.options.map((option) => option.label)).toEqual(["abbrv", "plain", "plainnat"]);
+    expect(result!.from).toBe(19);
+  });
+
+  test("with no styles known, nothing rather than an empty box", () => {
+    const state = EditorState.create({ doc: "\\bibliographystyle{" });
+    expect(latexSource(() => SYMBOLS)(new CompletionContext(state, 19, false))).toBeNull();
+  });
+});

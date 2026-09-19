@@ -8151,3 +8151,53 @@ one of everything, presses Check, finds a row per kind, follows the
 `\today` row to its line and the image row to its page, switches blind
 review on and finds the author line, sets a limit under the count and
 finds the row, and reads *Copy all* back off the clipboard.
+
+### Bibliography checks while you type
+
+A `.tex` file has had chktex rows in the drawer for as long as the
+drawer has existed, and a `.bib` file, which is where a paper's worst
+embarrassments live, had none. The roadmap item said the field rules
+were the ones `nexttex/vendor/verify_bib.py` already applies; reading
+the file found otherwise, since that script checks an entry against the
+publisher's record for the DOI it names and knows nothing of which
+fields an `@inproceedings` needs. The table is BibTeX's own, from the
+manual, and it is new in `nexttex/bibcheck.py`. What is reused is that
+script's parser, because it is the one `.bib` reader here that carries
+an entry's line, and the drawer's rows need one.
+
+The rows are the lint route's `.bib` case, so they arrive by the road
+chktex's do and sit in the same drawer with the same Copy and the same
+explanation under each: a key defined twice, at the second; a required
+field missing or empty, naming the field; a year that is not four
+digits, quoting what it is instead so "in press" and `\the\year` are
+told apart from a typo; the same DOI under two keys, which is one paper
+added twice; and, as an `info` row rather than a warning, an entry no
+document cites, which BibTeX would leave out and which is only wrong if
+the venue wants the file tidy. That last row is suppressed by a
+`\nocite{*}` anywhere, since then every entry is wanted. chktex is asked
+once, on open; the bibliography check is pure Python over the live text,
+so it is asked again once the keystrokes settle, and a row that says a
+field is missing leaves when the field is typed, which is what "while
+you type" means and what the spec asserts without reopening the file.
+
+Two completions came with it. `@` at the start of a line in a `.bib`
+offers the entry types, and each is a snippet with the key first and the
+type's required fields as tab stops in the order they are usually
+written; a word at the start of a line inside an entry offers that
+type's fields, required first, each landing with the caret inside its
+braces. The TypeScript table mirrors the Python one and a test on each
+side names the other's types, so they cannot drift apart silently.
+`\bibliographystyle{` in a `.tex` file offers the styles this TeX has,
+walked once per process from the trees `kpsewhich` names and carried on
+the symbols payload the editor already refetches; the four every BibTeX
+has stand in when there is no `kpsewhich`.
+
+`tests/test_bibcheck.py` reads each rule, the book's author or editor,
+the DOI prefix, and a type the table does not know; `tests/test_texstyles.py`
+walks a made-up tree and falls back; `tests/api/test_lint_bib.py` asks
+the route about a file with a document citing one of its entries, with
+`\nocite{*}`, and with a path outside the project. `e2e/specs/bib-check.spec.ts`
+opens a `.bib` with a duplicate key and an article with no journal, finds
+both rows, types the journal in and finds that row gone, completes
+`@inp` into an `@inproceedings` with its `booktitle`, and completes
+`\bibliographystyle{pl` to `plain`.

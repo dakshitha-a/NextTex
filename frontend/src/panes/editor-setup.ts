@@ -52,9 +52,10 @@ import { python } from "@codemirror/legacy-modes/mode/python";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import type { Diagnostic, Symbols } from "../api";
 import { latexCompletions } from "./latex-complete";
+import { bibCompletions } from "./bib-complete";
 import { environmentToClose, indentOf, opensEnvironment } from "./close-environment";
 import { isEscaped } from "./escaping";
-import { isScript } from "./file-kinds";
+import { isBib, isScript } from "./file-kinds";
 import { inputTarget, labelTarget, linkAt } from "./latex-links";
 import { mac } from "./math-hover";
 import { mathHover, type OnSymbol } from "./math-hover";
@@ -701,6 +702,17 @@ export function languageFor(
       // Four spaces, which is what the seeded helper and every script the
       // agent writes use, and what Tab inserts.
       indentUnit.of("    "),
+    ];
+  }
+  if (isBib(path)) {
+    // The stex mode reads a .bib well enough: braces pair and a field name
+    // is a word.  What a .bib needs of its own is the completion, since a
+    // LaTeX source offers \commands to a file that has none.
+    return [
+      LATEX,
+      LATEX.data.of({ closeBrackets: { brackets: ["(", "[", "{", '"'] } }),
+      familyHighlight,
+      ...(options.complete ? [bibCompletions()] : []),
     ];
   }
   return [

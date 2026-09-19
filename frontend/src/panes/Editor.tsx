@@ -467,6 +467,12 @@ export default function Editor({
       // main document stale, because no build of main would follow to
       // clear it and the preview would sit behind for the session.
       if (!viewing.current) markStale(path);
+      // A .bib file's rows follow the typing: the check is cheap and reads
+      // the live text, so it is asked again once the keystrokes settle.
+      if (path.endsWith(".bib")) {
+        const projectId = get().projectId;
+        if (projectId) lintFile(projectId, path, 800);
+      }
       // A tab is never "unsaved" any more. The keystroke is already in the
       // shared document, and the server writes it out a moment later, so a
       // dot meaning "not written yet" would be a dot that is never true.
@@ -1410,8 +1416,13 @@ function goneLines(old: string, live: string): number[] {
 }
 
 let lintTimer: number | null = null;
-function lintFile(projectId: string, path: string) {
-  if (!path.endsWith(".tex")) {
+/** chktex for a .tex, the bibliography check for a .bib, nothing for the
+ *  rest.  A .tex is asked once, on open; a .bib is asked again after the
+ *  last keystroke settles (see `onChange`), because its check is pure
+ *  Python over the live text and a row that says a field is missing
+ *  should leave when the field is typed. */
+function lintFile(projectId: string, path: string, delay = 600) {
+  if (!path.endsWith(".tex") && !path.endsWith(".bib")) {
     set({ lint: [] });
     return;
   }
@@ -1423,5 +1434,5 @@ function lintFile(projectId: string, path: string) {
     } catch {
       set({ lint: [] });
     }
-  }, 600);
+  }, delay);
 }

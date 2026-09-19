@@ -138,6 +138,8 @@ export type Symbols = {
   /** Which English each document's preamble declares, by file, when it
    *  declares one: "british" or "american". */
   english?: Record<string, "british" | "american">;
+  /** The bibliography styles this TeX has, for `\bibliographystyle{}`. */
+  styles?: string[];
 };
 
 export type Version = {

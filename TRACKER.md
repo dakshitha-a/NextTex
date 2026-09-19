@@ -38,10 +38,6 @@ publisher's record; the context directory is under `.nexttex/`, which is
 never synced, so shared prompt files live at the project root; and the
 rail gains one tile, not three.
 
-- [ ] **Bibliography checks while you type.** A `.bib` file gets drawer
-      rows the way a `.tex` file gets chktex rows; `@` completes the
-      entry types with their fields as tab stops; `\bibliographystyle{}`
-      completes the styles this TeX has.
 - [ ] **Arrive with a project.** A zip into a new project, an arXiv id
       fetched and unpacked, a git URL cloned, from a fourth tile.
 - [ ] **Word, HTML and Markdown export with pandoc**, in the download
