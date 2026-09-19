@@ -1,3 +1,6 @@
+import { Button, IconButton } from "../ui/Button";
+import { shellTheme } from "../ui/FloatingCard";
+import { CloseIcon } from "../ui/icons";
 import { useLayoutEffect, useRef } from "react";
 
 /** What to do with something you have selected.
@@ -86,7 +89,10 @@ export default function SelectionActions({
       // spelling menu beside it: the two things that float over the page
       // used to follow the page, and on a white page that made them a
       // pale card one step from the paper. See section 32.
-      className="nx-furniture nx-arrive absolute z-20 flex items-center gap-[2px] rounded-[5px] border border-line bg-surface p-1 shadow-float"
+      // The kit's card, in the shell's palette: the two things that float
+      // over the page used to follow the page, and on a white page that
+      // made them a pale card one step from the paper.  See section 32.
+      className={`nx-card nx-arrive absolute z-20 flex items-center gap-[2px] !px-[6px] !py-[4px] ${shellTheme()}`}
       style={{ left: at.left, top: at.top }}
       onMouseDown={(event) => {
         // The selection is the whole point of this control, and a press
@@ -94,35 +100,27 @@ export default function SelectionActions({
         event.preventDefault();
       }}
     >
-      <span className="t-micro px-1 tabular-nums text-ink-3">{span}</span>
-      <span className="mx-[2px] h-[14px] w-px bg-line" />
+      <span className="t-meta px-1 pr-2 tabular-nums text-ink-3">{span}</span>
       {VERBS.map((verb) => (
-        <button
+        <Button
           key={verb.label}
-          className="quiet h-[22px] rounded-[3px] px-2 t-micro hover:bg-surface-2"
+          size="inline"
+          className="!text-ink"
           data-testid={`selection-${verb.label.toLowerCase()}`}
           title={verb.hint}
           onClick={() => onPick(verb.prompt)}
         >
           {verb.label}
-        </button>
+        </Button>
       ))}
-      <button
-        className="quiet flex h-[22px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-2"
-        aria-label="Put this away"
-        title="Put this away"
+      <IconButton
+        label="Put this away"
         data-testid="selection-dismiss"
+        className="!h-6 !w-6"
         onClick={onDismiss}
       >
-        <svg width="9" height="9" viewBox="0 0 9 9" aria-hidden="true">
-          <path
-            d="M1 1 L8 8 M8 1 L1 8"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            fill="none"
-          />
-        </svg>
-      </button>
+        <CloseIcon size={12} />
+      </IconButton>
     </div>
   );
 }

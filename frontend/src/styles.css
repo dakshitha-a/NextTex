@@ -1443,6 +1443,10 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-confirm { margin-top: 6px; padding: 8px 10px; border-radius: var(--nx-radius-control); background: var(--surface-2); border-left: 2px solid var(--warn); }
 .nx-confirm p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 18px; }
 .nx-confirm-actions { display: flex; gap: 6px; margin-top: 8px; }
+/* A notice: something went wrong, said in the ink with a rule in the
+   error colour at its left, on a card, until it is dismissed. */
+.nx-notice { display: flex; align-items: center; gap: 12px; max-width: 52ch; padding: 10px 12px; border-radius: var(--nx-radius-card); border-left: 3px solid var(--error); background: var(--float-ground); color: var(--ink); box-shadow: var(--float); font-size: 13.5px; line-height: 19px; }
+.nx-notice > span { flex: 1; }
 .nx-sheet {
   max-height: 100%; max-width: 100%; overflow-y: auto;
   border-radius: var(--nx-radius-sheet);

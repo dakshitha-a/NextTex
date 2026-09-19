@@ -1,3 +1,5 @@
+import { Button } from "./ui/Button";
+import { shellTheme } from "./ui/FloatingCard";
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import type { WordHint } from "./panes/locate-word";
 import api, {
@@ -2844,20 +2846,11 @@ export default function App() {
         data-testid="notices"
       >
         {notices.map((notice) => (
-          <div
-            key={notice.id}
-            className="nx-arrive pointer-events-auto flex max-w-[52ch] items-start
-                       gap-3 rounded-[3px] border border-error bg-surface px-3 py-2
-                       shadow-float"
-          >
-            <span className="t-meta text-error">{notice.text}</span>
-            <button
-              className="t-micro shrink-0 text-ink-3 hover:text-ink"
-              onClick={() => dismissNotice(notice.id)}
-              aria-label={`Dismiss: ${notice.text}`}
-            >
+          <div key={notice.id} className={`nx-notice nx-arrive pointer-events-auto ${shellTheme()}`}>
+            <span>{notice.text}</span>
+            <Button onClick={() => dismissNotice(notice.id)} aria-label={`Dismiss: ${notice.text}`}>
               Dismiss
-            </button>
+            </Button>
           </div>
         ))}
       </div>
