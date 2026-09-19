@@ -354,7 +354,8 @@ export function latexCompletions(symbols: () => Symbols | null): Extension {
   return autocompletion({
     override: [latexSource(symbols)],
     activateOnTyping: true,
-    icons: false,
+    // The kind column: a glyph per kind, drawn by styles.css.
+    icons: true,
     maxRenderedOptions: 60,
     closeOnBlur: true,
   });

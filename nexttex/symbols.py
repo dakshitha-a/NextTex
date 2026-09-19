@@ -159,8 +159,29 @@ def _bib_entries(text: str) -> list[dict]:
             "title": _clean(fields.get("title", "")),
             "author": _first_author(fields.get("author", "")),
             "year": fields.get("year", "") or fields.get("date", "")[:4],
+            # The hover card draws the whole entry: everyone who wrote it,
+            # where it appeared, and its DOI in a face that says "literal".
+            "authors": _authors(fields.get("author", "")),
+            "venue": _clean(fields.get("journal", "") or fields.get("booktitle", "")
+                            or fields.get("publisher", "")),
+            "doi": _clean(fields.get("doi", "")),
         })
     return entries
+
+
+def _authors(value: str) -> str:
+    """Every author as surname, first to last, or the first three and how
+    many more: enough to recognise the paper, short enough for a card."""
+    if not value:
+        return ""
+    names = [part.strip() for part in value.split(" and ") if part.strip()]
+    surnames = [
+        _clean(name.split(",")[0] if "," in name else name.split()[-1])
+        for name in names
+    ]
+    if len(surnames) > 3:
+        return ", ".join(surnames[:3]) + f" and {len(surnames) - 3} more"
+    return ", ".join(surnames)
 
 
 def _clean(value: str) -> str:

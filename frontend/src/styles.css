@@ -985,8 +985,8 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 }
 .cm-line-fading { background: transparent; transition: background 450ms var(--ease); }
 .cm-editor .cm-lint-marker { display: none; }
-.cm-tooltip { background: var(--surface-2) !important; color: var(--ink);
-  border: 1px solid var(--line) !important; border-radius: 3px; font-size: 12px; }
+.cm-tooltip { background: var(--float-ground) !important; color: var(--ink);
+  border: 0 !important; border-radius: var(--nx-radius-card); font-size: 12px; box-shadow: var(--float); }
 
 /* Find and replace.  CodeMirror ships this panel unstyled, and the browser
    default controls read as somebody else's application inside this one.
@@ -1654,21 +1654,37 @@ button.nx-row { width: 100%; text-align: left; }
 }
 
 /* ---- equation previews -------------------------------------------------- */
+/* The kit's card, in the shell's palette (math-hover.ts adds both classes),
+   so a card over a white page under a dark shell is the shell's. */
 .nx-math-tooltip {
   max-width: 480px;
-  box-shadow: var(--float);
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 5px;
   color: var(--ink);
   overflow-wrap: anywhere;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+}
+/* The maths has 16 px of room on every side, so a sub- or superscript
+   never meets the edge; the source sits under it in the mono. */
+.nx-math-body {
+  padding: 16px;
+  border-radius: var(--nx-radius-control);
+  background: var(--surface-2);
+  text-align: center;
+}
+.nx-math-source {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: pre-wrap;
 }
 .nx-math-loading {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--ink-3);
   white-space: pre-wrap;
+  text-align: left;
 }
 .nx-math-failed {
   font-family: var(--font-sans);
@@ -1677,43 +1693,45 @@ button.nx-row { width: 100%; text-align: left; }
 }
 /* KaTeX ships its own colours; make it take the theme's ink instead. */
 .nx-math-tooltip .katex { color: var(--ink); font-size: 1.18em; }
-/* The same box, holding a sentence rather than an equation: where a
+/* The same card, holding a sentence rather than an equation: where a
    cross reference goes, and the gesture that follows it. */
-.nx-link-tooltip {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  line-height: 1.4;
-}
+.nx-link-tooltip { min-width: 200px; }
 .nx-link-image {
   display: block;
-  max-width: 240px;
-  max-height: 160px;
-  margin-bottom: 4px;
+  max-width: 260px;
+  max-height: 170px;
+  margin-bottom: 6px;
+  border-radius: var(--nx-radius-control);
   background: #fff;
 }
-.nx-link-hint { color: var(--ink-3); padding-top: 3px; }
-.nx-link-verbs { display: flex; gap: 10px; padding-top: 4px; }
+.nx-link-hint { color: var(--ink-3); padding-top: 3px; font-size: 12px; }
+.nx-link-verbs { display: flex; gap: 2px; padding-top: 6px; margin-left: -6px; }
+/* A citation: the record, structured. */
+.nx-cite-top { display: flex; gap: 8px; align-items: baseline; color: var(--ink-3); font-size: 12px; }
+.nx-cite-key { margin-left: auto; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
+.nx-cite-title { margin-top: 2px; color: var(--ink); font-weight: 500; }
+.nx-cite-who { color: var(--ink-2); }
+.nx-cite-doi { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 
 /* ---- autocomplete ------------------------------------------------------- */
-/* --surface-2, not --surface: this list floats over the page, and every
-   other floating surface in the editor -- the maths tooltip above, the find
-   panel below -- is a step off it.  Painted in --surface it was the page's
-   own colour, held apart by a hairline and a shadow alone, which is thin on
-   the proofing grey and thinner still on a white page where --line is
-   mixed against a brighter ground. */
+/* The kit's card: the float ground, no border, the radius of a menu.  A
+   kind column at the left says what each row is, the matched letters are
+   the hint colour, the detail sits at the right in the sans. */
 .cm-tooltip.cm-tooltip-autocomplete {
-  background: var(--surface-2) !important;
-  border: 1px solid var(--line) !important;
-  border-radius: 5px;
+  background: var(--float-ground) !important;
+  border: 0 !important;
+  border-radius: var(--nx-radius-card);
   box-shadow: var(--float);
   overflow: hidden;
+  padding: 6px;
   max-width: 340px;
 }
 .cm-tooltip-autocomplete > ul { max-height: 260px; }
-.cm-tooltip-autocomplete > ul { font-family: var(--font-mono); font-size: 12px; }
+.cm-tooltip-autocomplete > ul { font-family: var(--font-mono); font-size: 12.5px; }
 .cm-tooltip-autocomplete > ul > li {
-  padding: 3px 8px;
-  line-height: 18px;
+  display: flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 8px;
+  border-radius: var(--nx-radius-control);
   color: var(--ink);
 }
 /* CodeMirror's own theme sets the selected row to the browser's highlight
@@ -1735,6 +1753,21 @@ button.nx-row { width: 100%; text-align: left; }
 .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText {
   color: var(--ink);
 }
+/* The kind column, a glyph per kind of completion in place of CodeMirror's
+   emoji: a command, one of the writer's own macros, a citation key, a
+   label, a file, an environment, a package. */
+.cm-tooltip-autocomplete .cm-completionIcon {
+  width: 18px; flex: none; opacity: 1; padding: 0; text-align: center;
+  font-family: var(--font-sans); font-size: 11px; color: var(--ink-3);
+}
+.cm-tooltip-autocomplete .cm-completionIcon::after { content: ""; }
+.cm-tooltip-autocomplete .cm-completionIcon-keyword::after { content: "\\"; font-family: var(--font-mono); }
+.cm-tooltip-autocomplete .cm-completionIcon-macro::after { content: "\\"; font-family: var(--font-mono); color: var(--pen); }
+.cm-tooltip-autocomplete .cm-completionIcon-constant::after { content: "@"; }
+.cm-tooltip-autocomplete .cm-completionIcon-variable::after { content: "#"; }
+.cm-tooltip-autocomplete .cm-completionIcon-text::after { content: "f"; }
+.cm-tooltip-autocomplete .cm-completionIcon-type::after { content: "{ }"; font-family: var(--font-mono); }
+.cm-tooltip-autocomplete .cm-completionIcon-namespace::after { content: "pkg"; }
 .cm-completionLabel { color: inherit; }
 .cm-completionMatchedText {
   color: var(--hint);
@@ -1744,18 +1777,19 @@ button.nx-row { width: 100%; text-align: left; }
 .cm-completionDetail {
   font-family: var(--font-sans);
   font-style: normal;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
-  margin-left: 8px;
+  margin-left: auto;
+  padding-left: 12px;
 }
 .cm-completionInfo {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 12.5px;
   max-width: 280px;
-  padding: 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 5px;
+  padding: 8px 10px;
+  background: var(--float-ground);
+  border: 0;
+  border-radius: var(--nx-radius-card);
   box-shadow: var(--float);
   color: var(--ink-2);
 }

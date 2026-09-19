@@ -37,7 +37,62 @@ const escape = async (tab: Page) => {
   await tab.waitForTimeout(150);
 };
 
+/** Hover the character after `needle` on the line holding `lineText`, the
+ *  way writing.spec.ts does: measured and moved again until the card is
+ *  there, because CodeMirror refuses a hover whose pointer no longer
+ *  resolves to the position it measured. */
+async function hoverAt(tab: Page, lineText: string, needle: string, card: string): Promise<Locator> {
+  const editor = tab.locator(".cm-content");
+  await editor.click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type(`\n${lineText}`);
+  await tab.waitForTimeout(300);
+  const measure = () => tab.evaluate(({ lineText, needle }) => {
+    const line = [...document.querySelectorAll(".cm-line")].find((el) => el.textContent?.includes(lineText.slice(0, 12)));
+    if (!line) return null;
+    const target = line.textContent!.indexOf(needle) + 1;
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    let seen = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const length = node.textContent!.length;
+      if (seen + length > target) {
+        const range = document.createRange();
+        range.setStart(node, target - seen);
+        range.setEnd(node, target - seen + 1);
+        const box = range.getBoundingClientRect();
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      }
+      seen += length;
+    }
+    return null;
+  }, { lineText, needle });
+  for (let tries = 0; tries < 20; tries += 1) {
+    const point = await measure();
+    if (point) {
+      await tab.mouse.move(point.x - 4, point.y);
+      await tab.mouse.move(point.x, point.y);
+      await tab.mouse.move(point.x + 1, point.y);
+      await tab.waitForTimeout(450);
+      if (await tab.locator(card).count()) break;
+    }
+  }
+  await tab.waitForTimeout(600);
+  return tab.locator(card).first();
+}
+
 const SURFACES: Record<string, Surface> = {
+  "math-hover": {
+    open: (tab) => hoverAt(tab, "A gap of $E = mc^2$ appears.", "mc^2", ".nx-math-tooltip"),
+    close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
+  },
+  "cite-hover": {
+    open: (tab) => hoverAt(tab, "As shown by \\cite{knuth1984} once.", "knuth", ".nx-link-tooltip"),
+    close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
+  },
+  "ref-hover": {
+    open: (tab) => hoverAt(tab, "See Section~\\ref{sec:results} again.", "sec:res", ".nx-link-tooltip"),
+    close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
+  },
   "tab-menu": {
     open: async (tab) => {
       await tab.locator('[data-tab][aria-current="true"], [data-tab].nx-tab-on, [data-tab]').first().click({ button: "right" });

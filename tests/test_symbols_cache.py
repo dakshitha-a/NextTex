@@ -111,3 +111,33 @@ def test_the_scan_carries_each_documents_english(tmp_path):
     found = scan(tmp_path)
     assert found.english == {"main.tex": "british"}
     assert found.as_dict()["english"] == {"main.tex": "british"}
+
+
+def test_a_citation_carries_its_authors_venue_and_doi(tmp_path):
+    """The hover card draws the whole entry, so the scan keeps more of it
+    than the first author: everyone who wrote it, capped at three, the
+    journal (or the book, or the publisher), and the DOI."""
+    from nexttex.symbols import _bib_entries
+
+    entries = _bib_entries(
+        "@article{schuurman2018,\n"
+        "  author = {Schuurman, Michael S. and Stolow, Albert},\n"
+        "  title = {Dynamics at conical intersections},\n"
+        "  journal = {Annual Review of Physical Chemistry},\n"
+        "  year = {2018},\n"
+        "  doi = {10.1146/annurev-physchem-052516-050721},\n"
+        "}\n"
+        "@inproceedings{many2020,\n"
+        "  author = {A One and B Two and C Three and D Four and E Five},\n"
+        "  booktitle = {Proceedings of Something},\n"
+        "  year = {2020},\n"
+        "}\n"
+    )
+    first, second = entries
+    assert first["author"] == "Schuurman"
+    assert first["authors"] == "Schuurman, Stolow"
+    assert first["venue"] == "Annual Review of Physical Chemistry"
+    assert first["doi"] == "10.1146/annurev-physchem-052516-050721"
+    assert second["authors"] == "One, Two, Three and 2 more"
+    assert second["venue"] == "Proceedings of Something"
+    assert second["doi"] == ""

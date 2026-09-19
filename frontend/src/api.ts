@@ -130,7 +130,7 @@ export type Symbols = {
    *  and page from the `.aux` file and the kind hyperref's anchor names
    *  (`figure`, `section`, `equation`); absent before the first build. */
   labels: { name: string; file: string; line: number; number?: string; page?: string; kind?: string }[];
-  citations: { key: string; type: string; title: string; author: string; year: string }[];
+  citations: { key: string; type: string; title: string; author: string; year: string; authors?: string; venue?: string; doi?: string }[];
   images: string[];
   texfiles: string[];
   commands: { name: string; args: number; file: string; definition?: string }[];

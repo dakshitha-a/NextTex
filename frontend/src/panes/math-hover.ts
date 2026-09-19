@@ -8,6 +8,7 @@
  *  \npistar renders as the notation it stands for rather than as an error.
  */
 
+import { shellTheme } from "../ui/FloatingCard";
 import { hoverTooltip, type EditorView, type Tooltip } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
@@ -248,30 +249,40 @@ export function mathHover(
       end: span.to,
       above: true,
       create() {
+        // The kit's card in the shell's palette, with the maths in a body
+        // of its own that has room around it so nothing a sub- or
+        // superscript reaches is clipped, and the source beneath it.
         const dom = document.createElement("div");
-        dom.className = "nx-math-tooltip";
+        dom.className = `nx-math-tooltip nx-card ${shellTheme()}`;
+        const body = document.createElement("div");
+        body.className = "nx-math-body nx-math-loading";
         // The source, not a spinner: it is the right size, it is useful
         // while KaTeX loads, and the box does not jump when it lands.
-        dom.textContent = span.body.trim().slice(0, 200);
-        dom.classList.add("nx-math-loading");
+        const source = span.body.trim().slice(0, 200);
+        body.textContent = source;
+        dom.append(body);
         load()
           .then((renderer) => {
             try {
-              dom.classList.remove("nx-math-loading");
-              renderer.render(prepare(span.body), dom, {
+              body.classList.remove("nx-math-loading");
+              renderer.render(prepare(span.body), body, {
                 displayMode: span.display,
                 throwOnError: false,
                 macros: macrosFrom(symbols()),
                 trust: false,
                 strict: "ignore",
               });
+              const under = document.createElement("div");
+              under.className = "nx-math-source";
+              under.textContent = source;
+              dom.append(under);
             } catch {
-              dom.className = "nx-math-tooltip nx-math-failed";
-              dom.textContent = "This does not render on its own.";
+              body.className = "nx-math-body nx-math-failed";
+              body.textContent = "This does not render on its own.";
             }
           })
           .catch(() => {
-            dom.textContent = "Could not load the maths renderer.";
+            body.textContent = "Could not load the maths renderer.";
           });
         return { dom };
       },
@@ -301,8 +312,11 @@ function linkTooltip(
   let where: string | null = null;
   let image: string | null = null;
   let follow = true;
+  /** A citation card has a structure of its own, drawn below. */
+  let citation: ReturnType<typeof citationFor> = null;
   if (link.kind === "cite") {
     const entry = citationFor(link.name, table);
+    citation = entry;
     says = entry
       ? [entry.author, entry.year, entry.title].filter(Boolean).join(", ")
       : `${link.name} is not in the bibliography.`;
@@ -338,7 +352,7 @@ function linkTooltip(
     above: true,
     create() {
       const dom = document.createElement("div");
-      dom.className = "nx-math-tooltip nx-link-tooltip";
+      dom.className = `nx-math-tooltip nx-link-tooltip nx-card ${shellTheme()}`;
       if (image) {
         // The figure itself, at a size that stays a tooltip.  The same
         // route the file view reads, so a PDF figure shows as the browser
@@ -348,10 +362,53 @@ function linkTooltip(
         picture.alt = says;
         picture.className = "nx-link-image";
         dom.append(picture);
+        // The picture's size, once it has one.
+        const size = document.createElement("div");
+        size.className = "nx-link-hint";
+        picture.addEventListener("load", () => {
+          if (picture.naturalWidth) size.textContent = `${picture.naturalWidth} × ${picture.naturalHeight}`;
+        });
+        dom.append(size);
       }
-      const what = document.createElement("div");
-      what.textContent = says;
-      dom.append(what);
+      if (citation) {
+        // Kind and year at the top with the key in the mono at the right,
+        // the title, the authors and the venue, and the DOI in the mono:
+        // the record, so the writer knows which paper without opening the
+        // .bib file.
+        const top = document.createElement("div");
+        top.className = "nx-cite-top";
+        const kind = document.createElement("span");
+        kind.textContent = [citation.type ? citation.type[0].toUpperCase() + citation.type.slice(1) : "", citation.year]
+          .filter(Boolean).join(", ");
+        const key = document.createElement("code");
+        key.className = "nx-cite-key";
+        key.textContent = citation.key;
+        top.append(kind, key);
+        dom.append(top);
+        if (citation.title) {
+          const title = document.createElement("div");
+          title.className = "nx-cite-title";
+          title.textContent = citation.title;
+          dom.append(title);
+        }
+        const who = [citation.authors || citation.author, citation.venue].filter(Boolean).join(". ");
+        if (who) {
+          const line = document.createElement("div");
+          line.className = "nx-cite-who";
+          line.textContent = who + (who.endsWith(".") ? "" : ".");
+          dom.append(line);
+        }
+        if (citation.doi) {
+          const doi = document.createElement("code");
+          doi.className = "nx-cite-doi";
+          doi.textContent = citation.doi;
+          dom.append(doi);
+        }
+      } else {
+        const what = document.createElement("div");
+        what.textContent = says;
+        dom.append(what);
+      }
       if (where) {
         const place = document.createElement("div");
         place.className = "nx-link-hint";
@@ -374,7 +431,9 @@ function linkTooltip(
         for (const [label, rename] of [["Find references", false], ["Rename", true]] as const) {
           const button = document.createElement("button");
           button.type = "button";
-          button.className = "quiet t-micro";
+          button.className = "nx-button";
+          button.dataset.variant = "quiet";
+          button.dataset.size = "inline";
           button.textContent = label;
           button.dataset.testid = rename ? "link-rename" : "link-references";
           // `mousedown` rather than `click`: the tooltip closes on the
