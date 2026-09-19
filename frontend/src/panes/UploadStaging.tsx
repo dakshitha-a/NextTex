@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { viewportHeight, viewportWidth } from "../viewport";
 import api from "../api";
+import { writeStored } from "../appearance";
 import { get, set, useStore } from "../store";
 import { useDismiss } from "../useDismiss";
 import { collisions, keptBothName, namesIn } from "../tree";
@@ -115,11 +116,7 @@ export default function UploadStaging({
         staging.files.filter((file) => !skipped.has(file.name)),
         decisions,
       );
-      try {
-        window.localStorage.setItem(`nexttex.upload.${projectId}`, directory);
-      } catch {
-        /* private browsing: it just will not be remembered */
-      }
+      writeStored(`nexttex.upload.${projectId}`, directory);
       const trouble = whatDidNotLand(answer.results ?? []);
       if (trouble) set({ error: trouble });
       onDone(answer.written ?? []);

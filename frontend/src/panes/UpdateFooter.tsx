@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import api, { type Instance, type Report, type UpdateReport } from "../api";
+import { readStored, writeStored } from "../appearance";
 import { snapshot } from "../errors";
 import { standingOf } from "./update-standing";
 
@@ -48,22 +49,6 @@ type Trouble =
   | { kind: "fetching" }
   | { kind: "ready"; report: Report; copied: boolean; shown: boolean }
   | { kind: "error"; message: string };
-
-function remember(key: string, value: string) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    /* a private window: the choice lasts this session */
-  }
-}
-
-function recall(key: string): string {
-  try {
-    return window.localStorage.getItem(key) ?? "";
-  } catch {
-    return "";
-  }
-}
 
 export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => void }) {
   const [phase, setPhase] = useState<Phase>({ kind: "opening" });
@@ -546,7 +531,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     // a bare "Check for updates", which is indistinguishable from never
     // having checked: an update you set aside for a quieter afternoon should
     // leave something on screen to come back to.
-    if (!phase.asked && recall(DISMISSED) === report.head + ":" + report.behind) {
+    if (!phase.asked && readStored(DISMISSED) === report.head + ":" + report.behind) {
       return (
         <Line>
           <span className="t-micro text-ink-3">An update is waiting.</span>
@@ -639,7 +624,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
           <button
             className="quiet t-micro h-[28px] px-2"
             onClick={() => {
-              remember(DISMISSED, report.head + ":" + report.behind);
+              writeStored(DISMISSED, report.head + ":" + report.behind);
               // The report is kept rather than thrown away, and marked
               // unasked: that lands on the dismissed branch above, which is
               // also where a reload lands, so the two routes to "set aside"

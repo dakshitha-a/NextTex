@@ -7,6 +7,7 @@ import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
 import { iconFor, isBib, isData, isScript } from "./file-kinds";
 import api, { type TreeNode } from "../api";
+import { readStored } from "../appearance";
 import { download, downloadPdf } from "../chrome";
 import { get, set, useStore } from "../store";
 import { sizeOf } from "../size";
@@ -1220,11 +1221,7 @@ export default function FileTree({
 function rememberedUpload(): string {
   const projectId = get().projectId;
   if (!projectId) return "";
-  try {
-    return window.localStorage.getItem(`nexttex.upload.${projectId}`) ?? "";
-  } catch {
-    return "";
-  }
+  return readStored(`nexttex.upload.${projectId}`) ?? "";
 }
 
 function nameOf(path: string): string {

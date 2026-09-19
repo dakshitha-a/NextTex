@@ -149,11 +149,7 @@ this checkout does not have, or are decisions, are where they were.
       the copy and a licence header says so. An upgrade means vendoring
       again by hand, and the cost is paid then; the fix upstream is
       theirs.
-- [ ] **Three hand-rolled `localStorage` try/catch copies remain,** in
-      `UpdateFooter.tsx`, `PasswordNudge.tsx` and `PapersChooser.tsx`,
-      now that `appearance.ts` exports `readStored` and `writeStored`
-      for exactly that. Left for a tidy commit of its own so the rail's
-      commit stayed about the rail.
+
 - [ ] **The list's "last opened" order does not tie-break on name.** Two
       projects registered in the same millisecond keep the registry's
       order, which is stable and harmless, and the spec asserts only

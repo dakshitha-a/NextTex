@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOnScreen } from "../place-menu";
 import api, { type Listing } from "../api";
+import { readStored, writeStored } from "../appearance";
 import { get, set } from "../store";
 import { useDismiss } from "../useDismiss";
 import FolderBrowser from "./FolderBrowser";
@@ -55,12 +56,7 @@ export default function PapersChooser({
   }, [projectId]);
   // Where it was last read from, then home.
   const [starts] = useState<string[]>(() => {
-    let remembered = "";
-    try {
-      remembered = window.localStorage.getItem(`nexttex.papers.${projectId}`) ?? "";
-    } catch {
-      /* private browsing */
-    }
+    const remembered = readStored(`nexttex.papers.${projectId}`);
     return remembered ? [remembered, ""] : [""];
   });
 
@@ -71,11 +67,7 @@ export default function PapersChooser({
     setBusy(true);
     try {
       await api.scanPapers(projectId, where);
-      try {
-        window.localStorage.setItem(`nexttex.papers.${projectId}`, where);
-      } catch {
-        /* private browsing: it just will not be remembered */
-      }
+      writeStored(`nexttex.papers.${projectId}`, where);
       onStarted();
     } catch (error: any) {
       set({ error: error.message });

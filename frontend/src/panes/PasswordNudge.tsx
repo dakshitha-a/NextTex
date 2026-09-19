@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import api from "../api";
+import { readStored, writeStored } from "../appearance";
 
 const AccessCard = lazy(() => import("./AccessCard"));
 /** Named here rather than imported from the card, which is a lazy chunk:
@@ -30,13 +31,7 @@ const DISMISSED = "nexttex.password.dismissed";
 export default function PasswordNudge() {
   const [needed, setNeeded] = useState(false);
   const [open, setOpen] = useState(false);
-  const [gone, setGone] = useState(() => {
-    try {
-      return window.localStorage.getItem(DISMISSED) === "yes";
-    } catch {
-      return false;
-    }
-  });
+  const [gone, setGone] = useState(() => readStored(DISMISSED) === "yes");
 
   useEffect(() => {
     let live = true;
@@ -63,11 +58,7 @@ export default function PasswordNudge() {
 
   const dismiss = () => {
     setGone(true);
-    try {
-      window.localStorage.setItem(DISMISSED, "yes");
-    } catch {
-      /* a private window: the choice lasts this session */
-    }
+    writeStored(DISMISSED, "yes");
   };
 
   const recheck = () => {

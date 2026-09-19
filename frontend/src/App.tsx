@@ -1640,8 +1640,8 @@ export default function App() {
    *  everything -- a writer who had the agent hidden before does not want
    *  it back for having read a page.
    *
-   *  Deliberately not persisted. The folded state that reaches
-   *  localStorage is the arrangement the writer chose, so a reload in the
+   *  Deliberately not persisted. The folded state that is remembered in
+   *  the browser is the arrangement the writer chose, so a reload in the
    *  middle of a mode comes back to their real layout rather than to a
    *  collapsed window with no memory of what preceded it. */
   const toggleFocus = useCallback((pane: "editor" | "pdf") => {

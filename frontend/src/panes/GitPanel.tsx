@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../api";
+import { readStored, writeStored } from "../appearance";
 import { refreshGit, set, useStore } from "../store";
 import { Chevron } from "../chrome";
 import Patch from "./Patch";
@@ -44,9 +45,7 @@ export default function GitPanel({
 
   useEffect(() => {
     if (!projectId) return;
-    setDismissed(
-      window.localStorage.getItem(`nexttex.backup.dismissed.${projectId}`) === "1",
-    );
+    setDismissed(readStored(`nexttex.backup.dismissed.${projectId}`) === "1");
     // Everything else this panel holds belongs to the project that is
     // leaving, and only the dismissal was being re-read. A half-written
     // commit message, a pasted personal access token and a half-finished
@@ -185,10 +184,7 @@ export default function GitPanel({
                 className="t-micro ml-auto whitespace-nowrap text-ink-3 hover:text-ink"
                 onClick={() => {
                   setDismissed(true);
-                  window.localStorage.setItem(
-                    `nexttex.backup.dismissed.${projectId}`,
-                    "1",
-                  );
+                  writeStored(`nexttex.backup.dismissed.${projectId}`, "1");
                 }}
               >
                 Not now

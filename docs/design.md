@@ -8028,7 +8028,14 @@ walk that one list. The choice is kept per browser under
 the appearance settings use, now exported from `frontend/src/appearance.ts`
 rather than copied; a stored value that is not a known key is the
 default. The spec sorts by name, reloads and finds the order kept, and
-walks the sorted rows with the arrows.
+walks the sorted rows with the arrows. (Since the backlog close-out every
+per-browser choice goes through those two helpers or through
+`remember.ts`: seven panes had carried a copy of the try/catch and two,
+the git panel and the page pane, had none, the page pane reading its
+mode and zoom bare inside `useState`, so a storage that throws, which a
+private window or a blocked site does, took the pane down on mount.
+`stored-guard.test.ts` reads the source and names any file that reaches
+`localStorage` on its own.)
 
 ### A phone
 

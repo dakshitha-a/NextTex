@@ -7,7 +7,7 @@ import { uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
 import type { WordHint } from "./locate-word";
 import { findIn, spanFor, textOf, type PageHit } from "./pdf-find";
-import { APPEARANCE_CHANGED } from "../appearance";
+import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import {
   backingFor,
   pinchDelta,
@@ -206,8 +206,11 @@ export default function Pdf({
   const drawn = useRef(1);
   const raf = useRef(0);
 
+  // Read through the one guard, and in these initialisers above all: a
+  // storage that throws, which a private window or a blocked site does,
+  // threw out of `useState` here and took the whole page pane with it.
   const [mode, setMode] = useState<Mode>(
-    () => (window.localStorage.getItem("nexttex.pdf.mode") as Mode) || "scroll",
+    () => (readStored("nexttex.pdf.mode") as Mode) || "scroll",
   );
   // 0 means "fit the width", -1 means "fit a whole page"; anything else is
   // a zoom the reader chose.
@@ -215,7 +218,7 @@ export default function Pdf({
     // Beside the mode, which has been remembered all along. A reader who
     // works at 140 percent because of their eyes or their screen was
     // setting it again every session.
-    const saved = Number(window.localStorage.getItem("nexttex.pdf.zoom"));
+    const saved = Number(readStored("nexttex.pdf.zoom"));
     return Number.isFinite(saved) && saved !== 0 ? saved : 0;
   });
   const [fitScale, setFitScale] = useState(1);
@@ -721,11 +724,11 @@ export default function Pdf({
   }, [scale]);
 
   useEffect(() => {
-    window.localStorage.setItem("nexttex.pdf.zoom", String(scale));
+    writeStored("nexttex.pdf.zoom", String(scale));
   }, [scale]);
 
   useEffect(() => {
-    window.localStorage.setItem("nexttex.pdf.mode", mode);
+    writeStored("nexttex.pdf.mode", mode);
     applyMode(mode);
     if (mode === "page") {
       if (scroller.current) scroller.current.scrollTop = 0;
