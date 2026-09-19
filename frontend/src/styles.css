@@ -65,16 +65,20 @@
    highlighting and its error markers, resolves through these. */
 :root,
 .nx-theme-light {
-  /* Four surfaces, five L* apart each, from the pane down to the frame:
-     91.2 / 86.2 / 81.2 / 76.4.  --surface used to sit at #F0F3EF, eleven
-     luminance points off white, which made the panes almost as bright as
-     the PDF and the claim above false in its own file; and --surround sat
+  /* Four surfaces from the pane down to the frame: 93.0 / 89.0 / 83.7 /
+     78.3 L*.  The overhaul re-stepped them so that a drawer on --surface-2
+     and an editor on --surface separate by tone with no hairline between
+     them, which is what the light theme's rail and Claude column now do;
+     the frame came up one step with them so the ramp from frame to pane
+     stays under thirty luminance points, the rule contrast.test.ts holds.
+     --surface used to sit at #F0F3EF, eleven luminance points off white,
+     which made the panes almost as bright as the PDF; and --surround sat
      44 points below them, so the frame read as a separate darker object
      bolted around white boxes rather than as the table the page lies on. */
-  --surround: #B9BEB8;
-  --surface: #E3E7E2;
-  --surface-2: #D4D9D3;
-  --surface-3: #C6CBC5;
+  --surround: #BEC3BD;
+  --surface: #E8ECE7;
+  --surface-2: #DCE1DB;
+  --surface-3: #CDD2CC;
   /* Three inks, 7.4 / 24.3 / 34.7 L*.  --ink-2 and --ink-3 used to be 3.5
      apart -- two steps pretending to be three, which is why secondary and
      tertiary text were indistinguishable.  The gap could only be opened
@@ -195,6 +199,10 @@
 
   --paper: #ffffff;
   --line: color-mix(in oklab, var(--ink-3) 55%, transparent);
+  /* The wash a row, a menu item or a bar button takes when hovered or
+     chosen: the third ink at a twelfth, so it follows whichever palette is
+     in force the way --line does. */
+  --wash: color-mix(in oklab, var(--ink-3) 12%, transparent);
   --pen-wash: color-mix(in oklab, var(--pen) 12%, transparent);
   --hint-wash: color-mix(in oklab, var(--hint) 14%, transparent);
   --page-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
@@ -215,6 +223,17 @@
   --nx-ui-scale: 1;
   --nx-editor-size: 13.5px;
   --nx-editor-weight: 400;
+  /* The kit's scale, in the same block for the same reason: sizes are not
+     a palette's to override.  Three radii, one per kind of thing: a
+     control, a card or menu that floats, a sheet that covers.  Two
+     heights: a control, and a row or a field.  The names carry the kind
+     rather than a size word so that nothing collides with Tailwind's own
+     rounded-md and friends, and so a reader knows what a radius is for. */
+  --nx-radius-control: 4px;
+  --nx-radius-card: 8px;
+  --nx-radius-sheet: 12px;
+  --nx-control: 28px;
+  --nx-row: 32px;
 }
 
 /* The dark palette is declared once.  There used to be a second copy under
@@ -260,8 +279,8 @@
 .nx-theme-dark {
   --surround: #0A0C0B;
   --surface: #121614;
-  --surface-2: #1E2320;
-  --surface-3: #2A302C;
+  --surface-2: #1A1F1C;
+  --surface-3: #262C28;
   --ink: #E3E8E2;
   /* Lifted 4.4 L*, opening the --ink-2 / --ink-3 gap from 6.7 to 11.1.
      Upwards here for the same reason it went downwards in light: --ink-3
@@ -314,6 +333,10 @@
      reason, and the note beside it explains the arithmetic. That it was
      needed there and not done here is the whole finding. */
   --line: color-mix(in oklab, var(--ink-3) 55%, transparent);
+  /* The wash a row, a menu item or a bar button takes when hovered or
+     chosen: the third ink at a twelfth, so it follows whichever palette is
+     in force the way --line does. */
+  --wash: color-mix(in oklab, var(--ink-3) 12%, transparent);
   --pen-wash: color-mix(in oklab, var(--pen) 12%, transparent);
   --hint-wash: color-mix(in oklab, var(--hint) 14%, transparent);
   color-scheme: dark;
@@ -366,6 +389,7 @@
   --surface-3: #E3E6E2;
   --ink-3: #5C625B;
   --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
+  --wash: color-mix(in oklab, var(--ink-3) 12%, transparent);
 }
 .nx-theme-warm {
   --surround: #D3CEC2;
@@ -374,6 +398,7 @@
   --surface-3: #E5DFD2;
   --ink-3: #605C52;
   --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
+  --wash: color-mix(in oklab, var(--ink-3) 12%, transparent);
 }
 .nx-theme-cool {
   --surround: #C9CFD3;
@@ -382,6 +407,7 @@
   --surface-3: #DFE5E9;
   --ink-3: #5A6063;
   --line: color-mix(in oklab, var(--ink-3) 68%, transparent);
+  --wash: color-mix(in oklab, var(--ink-3) 12%, transparent);
 }
 
 /* `inline` is what makes bg-surface follow the theme rather than baking in
@@ -402,7 +428,13 @@
   --color-warn: var(--warn);
   --color-ok: var(--ok);
   --color-line: var(--line);
+  --color-wash: var(--wash);
   --shadow-float: var(--float);
+  --radius-control: var(--nx-radius-control);
+  --radius-card: var(--nx-radius-card);
+  --radius-sheet: var(--nx-radius-sheet);
+  --spacing-control: var(--nx-control);
+  --spacing-row: var(--nx-row);
   --color-paper: var(--paper);
 
   --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;

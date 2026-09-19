@@ -39,18 +39,27 @@ Relationship to NexusQC, the sibling app, is deliberate:
 
 ## 2. Palette
 
-Twelve tokens per theme. `--paper` is a constant `#FFFFFF` in both themes, it is painted by
-PDF.js and is never themed. `--line` and the washes are derived, not authored:
+Twelve authored colours per theme, plus the derived ones and the kit's sizes. `--paper` is a
+constant `#FFFFFF` in both themes, it is painted by PDF.js and is never themed. `--line` and
+the washes are derived, not authored:
 `--line: color-mix(in oklab, var(--ink-3) 55%, transparent)`,
+`--wash: color-mix(in oklab, var(--ink-3) 12%, transparent)` (a hovered or chosen row),
 `--pen-wash: color-mix(in oklab, var(--pen) 12%, transparent)`,
 `--hint-wash: color-mix(in oklab, var(--hint) 14%, transparent)`.
+The kit's sizes sit beside the palettes on `:root`, never inside one: three radii,
+`--nx-radius-control` 4 px, `--nx-radius-card` 8 px and `--nx-radius-sheet` 12 px, and two
+heights, `--nx-control` 28 px and `--nx-row` 32 px, bridged into Tailwind as
+`rounded-control`, `rounded-card`, `rounded-sheet`, `h-control` and `h-row`. The table is
+the palette as of the visual overhaul (3.0.0); the surfaces were re-stepped then so that a
+drawer on `--surface-2` and an editor on `--surface` separate by tone with no hairline
+between them, and the light frame came up one step with them to keep the ramp rule below.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--surround` | `#B9BEB8` | `#0A0C0B` | App background; the field the PDF sits on |
-| `--surface` | `#E3E7E2` | `#121614` | Panes: rail, editor body, chat column |
-| `--surface-2` | `#D4D9D3` | `#1E2320` | Raised/inset: tab bar, status strip, hover fills, code blocks |
-| `--surface-3` | `#C6CBC5` | `#2A302C` | Pressed and selected states inside a raised surface |
+| `--surround` | `#BEC3BD` | `#0A0C0B` | App background; the field the PDF sits on |
+| `--surface` | `#E8ECE7` | `#121614` | Panes: the editor body, the page field's neighbours |
+| `--surface-2` | `#DCE1DB` | `#1A1F1C` | The bar, the drawer, the Claude column, tab bars, strips, code blocks |
+| `--surface-3` | `#CDD2CC` | `#262C28` | Pressed states inside a raised surface; a switch's track |
 | `--ink` | `#141715` | `#E3E8E2` | Primary text |
 | `--ink-2` | `#373B36` | `#B0B5B0` | Secondary text, user messages, consequences |
 | `--ink-3` | `#4E534D` | `#909892` | Metadata, file extensions, line numbers, idle dot |
@@ -116,7 +125,7 @@ protecting, that the page is the brightest, most physical object on screen,
 is better served by the shadow than by its absence.
 
 Dark is **not** an inversion: inter-surface contrast steps are compressed
-(`#0A0C0B → #121614 → #1E2320`, ~6–8 L* apart, versus ~10–12 in light), and `--ink` is
+(`#0A0C0B → #121614 → #1A1F1C`, 3 to 6 L* apart, versus 4 to 5 in light), and `--ink` is
 `#E3E8E2`, never `#FFFFFF`, pure white text beside a pure white PDF page is the fastest way
 to make the page stop looking like paper.
 
