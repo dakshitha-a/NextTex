@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Chevron } from "../chrome";
+import { Field } from "../ui/controls";
+import { ChevronUpIcon, FolderIcon } from "../ui/icons";
 import api, { type Listing } from "../api";
 
 /** Walking the folders of the machine running NextTex.
@@ -76,15 +77,14 @@ export default function FolderBrowser({
 
   return (
     <>
-      <div className="border-t border-line px-[10px] py-1">
-        <input
+      <div className="pt-1">
+        <Field
           value={typed}
           spellCheck={false}
           aria-label="A folder on the machine running NextTex"
           data-testid={pathTestId}
-          className={`t-code-sm w-full border-b bg-transparent outline-none ${
-            problem ? "border-error" : "border-line focus:border-pen"
-          }`}
+          frameClassName={`w-full${problem ? " ring-1 ring-error" : ""}`}
+          className="font-mono text-[12.5px]"
           onChange={(event) => setTyped(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") void look(typed);
@@ -94,17 +94,15 @@ export default function FolderBrowser({
         {problem ? <p className="t-meta mt-1 text-error">{problem}</p> : null}
       </div>
 
-      <div className="max-h-[156px] overflow-auto border-t border-line">
+      <div className="nx-sheet-list">
         {listing?.parent ? (
           <button
-            className="flex h-[26px] w-full items-center gap-2 px-[10px] text-left hover:bg-surface-2"
+            className="nx-row"
             data-testid="folder-up"
             onClick={() => void look(listing.parent!)}
           >
-            <span className="shrink-0 rotate-180 text-ink-3">
-              <Chevron direction="down" />
-            </span>
-            <span className="t-ui truncate text-ink-2">
+            <ChevronUpIcon size={14} />
+            <span className="nx-row-label">
               {listing.parent.split("/").pop() || "/"}
             </span>
           </button>
@@ -113,21 +111,20 @@ export default function FolderBrowser({
           <button
             key={folder.path}
             data-folder={folder.path}
-            className="flex h-[26px] w-full items-center gap-2 px-[10px] text-left hover:bg-surface-2"
+            className="nx-row"
             onClick={() => void look(folder.path)}
           >
-            <span className="t-ui min-w-0 flex-1 truncate text-ink">
-              {folder.name}
-            </span>
+            <FolderIcon />
+            <span className="nx-row-label text-ink">{folder.name}</span>
             {folder.pdfs ? (
-              <span className="t-micro tnum shrink-0 text-ink-3">
+              <span className="nx-row-trailing nx-row-trailing-always tnum">
                 {folder.pdfs} PDF{folder.pdfs === 1 ? "" : "s"}
               </span>
             ) : null}
           </button>
         ))}
         {listing && !listing.folders.length ? (
-          <p className="t-meta px-[10px] py-1 text-ink-3">No folders in here.</p>
+          <p className="t-meta px-[8px] py-1 text-ink-3">No folders in here.</p>
         ) : null}
       </div>
     </>

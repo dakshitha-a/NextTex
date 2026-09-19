@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { forwardRef, useRef, type HTMLAttributes, type ReactNode } from "react";
 import { useDismiss } from "../useDismiss";
 
 /** A sheet that covers the app: settings, sharing, access, a chooser.
@@ -10,7 +10,7 @@ import { useDismiss } from "../useDismiss";
  *  sheet itself, not on the scrim, which is what every spec that opens one
  *  by name expects.  `labelledBy` names a heading inside the sheet when
  *  one exists; otherwise `label` is the name. */
-export type SheetProps = {
+export type SheetProps = Omit<HTMLAttributes<HTMLDivElement>, "children"> & {
   open: boolean;
   onClose: () => void;
   label?: string;
@@ -26,18 +26,22 @@ export type SheetProps = {
   children: ReactNode;
 };
 
-export function Sheet({
-  open,
-  onClose,
-  label,
-  labelledBy,
-  testid,
-  width = 540,
-  align = "center",
-  list = false,
-  className,
-  children,
-}: SheetProps) {
+export const Sheet = forwardRef<HTMLDivElement, SheetProps>(function Sheet(
+  {
+    open,
+    onClose,
+    label,
+    labelledBy,
+    testid,
+    width = 540,
+    align = "center",
+    list = false,
+    className,
+    children,
+    ...rest
+  },
+  outer,
+) {
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, onClose);
   if (!open) return null;
@@ -47,7 +51,11 @@ export function Sheet({
       role="presentation"
     >
       <div
-        ref={ref}
+        ref={(node) => {
+          ref.current = node;
+          if (typeof outer === "function") outer(node);
+          else if (outer) outer.current = node;
+        }}
         role="dialog"
         aria-modal="true"
         aria-label={labelledBy ? undefined : label}
@@ -56,9 +64,10 @@ export function Sheet({
         data-list={list || undefined}
         className={`nx-sheet nx-arrive${className ? ` ${className}` : ""}`}
         style={{ width }}
+        {...rest}
       >
         {children}
       </div>
     </div>
   );
-}
+});

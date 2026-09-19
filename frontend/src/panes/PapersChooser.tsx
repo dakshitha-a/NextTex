@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useOnScreen } from "../place-menu";
+import { useEffect, useState } from "react";
 import api, { type Listing } from "../api";
 import { readStored, writeStored } from "../appearance";
 import { get, set } from "../store";
-import { useDismiss } from "../useDismiss";
+import { Sheet } from "../ui/Sheet";
+import { Button } from "../ui/Button";
+import { Heading } from "../ui/controls";
 import FolderBrowser from "./FolderBrowser";
 
 /** Which folder of papers to read into the bibliography.
@@ -29,24 +30,16 @@ import FolderBrowser from "./FolderBrowser";
  */
 export default function PapersChooser({
   bibName,
-  at,
   onClose,
   onStarted,
 }: {
   bibName: string;
-  at: { x: number; y: number };
   onClose: () => void;
   onStarted: () => void;
 }) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [busy, setBusy] = useState(false);
   const [haveReader, setHaveReader] = useState(true);
-  const card = useRef<HTMLDivElement | null>(null);
-  useDismiss(card, true, onClose);
-  // Kept on the screen by measurement rather than by a guess at its
-  // height, the file menu's road; it used to be `min(at, viewport - 340)`.
-  const wanted = useMemo(() => ({ left: at.x, top: at.y }), [at.x, at.y]);
-  const placed = useOnScreen(card, wanted, listing) ?? wanted;
 
   const projectId = get().projectId;
   useEffect(() => {
@@ -83,17 +76,10 @@ export default function PapersChooser({
   const total = listing?.deep?.pdfs ?? 0;
 
   return (
-    <div
-      ref={card}
-      role="dialog"
-      aria-labelledby="papers-heading"
-      data-testid="papers-chooser"
-      className="nx-arrive fixed z-40 w-[320px] rounded-[5px] border border-line bg-surface shadow-float"
-      style={{ left: placed.left, top: placed.top }}
-    >
-      <div id="papers-heading" className="t-ui truncate px-[10px] pt-2 text-ink">
+    <Sheet open onClose={onClose} labelledBy="papers-heading" testid="papers-chooser" width={380}>
+      <Heading id="papers-heading" className="truncate pb-[8px]">
         Add papers to {bibName}
-      </div>
+      </Heading>
 
       <FolderBrowser
         starts={starts}
@@ -103,7 +89,7 @@ export default function PapersChooser({
         onEscape={onClose}
       />
 
-      <div className="border-t border-line px-[10px] py-2">
+      <div className="pt-2">
         {!haveReader ? (
           <p className="t-meta text-warn">
             NextTex needs pdftotext to read a PDF. It comes with poppler-utils.
@@ -127,18 +113,12 @@ export default function PapersChooser({
         )}
       </div>
 
-      <div className="flex h-[32px] items-center justify-end gap-2 border-t border-line px-[10px]">
-        <button
-          className="ghost-button h-[28px] px-3 t-ui"
-          disabled={!total || busy || !haveReader}
-          onClick={start}
-        >
+      <div className="nx-sheet-foot">
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" disabled={!total || busy || !haveReader} onClick={start}>
           Read {total} paper{total === 1 ? "" : "s"}
-        </button>
-        <button className="quiet h-[28px] px-2 t-ui" onClick={onClose}>
-          Cancel
-        </button>
+        </Button>
       </div>
-    </div>
+    </Sheet>
   );
 }

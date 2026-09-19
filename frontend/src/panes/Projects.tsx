@@ -654,7 +654,6 @@ export default function Projects({
                   mode={mode === "bring" ? "create" : mode}
                   name={mode === "bring" ? nameFor(source, zipFile) : newName}
                   typed={path}
-                  anchor={browseButton}
                   onPick={picked}
                   onClose={() => setPicking(false)}
                 />

@@ -1181,7 +1181,6 @@ export default function FileTree({
         <Suspense fallback={null}>
         <PapersChooser
           bibName={papersFor.name}
-          at={papersFor.at}
           onClose={() => setPapersFor(null)}
           onStarted={() => setPapersFor(null)}
         />

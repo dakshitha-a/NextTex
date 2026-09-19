@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { viewportHeight, viewportWidth } from "../viewport";
 import api from "../api";
 import { writeStored } from "../appearance";
 import { get, set, useStore } from "../store";
-import { useDismiss } from "../useDismiss";
+import { Sheet } from "../ui/Sheet";
+import { Button } from "../ui/Button";
+import { Heading, Segmented } from "../ui/controls";
 import { collisions, keptBothName, namesIn } from "../tree";
 import { whatDidNotLand } from "../upload-report";
 import FolderChooser from "./FolderChooser";
@@ -94,7 +95,6 @@ export default function UploadStaging({
     staging.returnTo?.focus();
     onClose();
   };
-  useDismiss(card, true, close);
 
   // The destination row is the first thing that matters, so it takes focus.
   useEffect(() => {
@@ -133,20 +133,10 @@ export default function UploadStaging({
   const sending = names.filter((name) => !skipped.has(name));
 
   return (
-    <div
-      ref={card}
-      role="dialog"
-      aria-labelledby="upload-heading"
-      className="nx-arrive fixed z-40 w-[264px] rounded-[5px] border border-line bg-surface shadow-float"
-      style={{
-        left: Math.min(staging.at.x, viewportWidth() - 272),
-        top: Math.min(staging.at.y, viewportHeight() - 260),
-      }}
-      data-testid="upload-staging"
-    >
-      <div id="upload-heading" className="t-ui truncate px-[10px] pt-2 text-ink">
+    <Sheet ref={card} open onClose={close} labelledBy="upload-heading" testid="upload-staging" width={380}>
+      <Heading id="upload-heading" className="truncate pb-[8px]">
         {heading}
-      </div>
+      </Heading>
 
       {staging.askDestination ? (
         <FolderChooser
@@ -161,15 +151,15 @@ export default function UploadStaging({
         />
       ) : null}
 
-      <div className="mt-1 border-t border-line">
-        <div className="max-h-[132px] overflow-auto py-1">
+      <div className="mt-1">
+        <div className="nx-sheet-list">
           {staging.files.map((file) => {
             const clash = clashing.includes(file.name);
             const skip = skipped.has(file.name);
             return (
               <div
                 key={file.name}
-                className="flex h-[22px] items-center gap-2 px-[10px]"
+                className="nx-row"
                 data-upload-row={file.name}
               >
                 <span
@@ -195,8 +185,9 @@ export default function UploadStaging({
                       : "replaces"}
                   </span>
                 ) : null}
-                <button
-                  className="quiet t-micro shrink-0"
+                <Button
+                  size="inline"
+                  className={`shrink-0${skip ? " text-ink" : ""}`}
                   aria-pressed={skip}
                   data-tone={skip ? "on" : undefined}
                   onClick={() =>
@@ -208,8 +199,8 @@ export default function UploadStaging({
                     })
                   }
                 >
-                  Skip
-                </button>
+                  {skip ? "Skipped" : "Skip"}
+                </Button>
               </div>
             );
           })}
@@ -217,35 +208,22 @@ export default function UploadStaging({
       </div>
 
       {wanted.length ? (
-        <div className="border-t border-line px-[10px] py-2">
+        <div className="pt-2">
           <p className="t-meta text-ink-2">
             {wanted.length === 1
               ? "1 file is already there."
               : `${wanted.length} files are already there.`}
           </p>
-          <div
-            role="group"
-            aria-label="What to do about files that are already there"
-            className="mt-2 flex w-fit overflow-hidden rounded-[3px] border border-line"
-          >
-            {[
-              [REPLACE, "Replace"],
-              [KEEP, "Keep both"],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                aria-pressed={policy === value}
-                className={`t-micro border-b-2 px-2 py-[3px] transition-colors duration-[90ms] ${
-                  policy === value
-                    ? "border-hint bg-surface text-ink"
-                    : "border-transparent text-ink-3 hover:text-hint"
-                }`}
-                onClick={() => setPolicy(value as typeof REPLACE)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            className="mt-2"
+            label="What to do about files that are already there"
+            value={policy}
+            options={[
+              { value: REPLACE, label: "Replace" },
+              { value: KEEP, label: "Keep both" },
+            ]}
+            onChange={(value) => setPolicy(value)}
+          />
           <p className="t-micro mt-2 text-ink-3">
             {policy === REPLACE
               ? "What it replaces stays in that file's history."
@@ -254,18 +232,12 @@ export default function UploadStaging({
         </div>
       ) : null}
 
-      <div className="flex h-[32px] items-center justify-end gap-2 border-t border-line px-[10px]">
-        <button
-          className="ghost-button h-[28px] px-3 t-ui"
-          disabled={!sending.length || busy}
-          onClick={send}
-        >
+      <div className="nx-sheet-foot">
+        <Button onClick={close}>Cancel</Button>
+        <Button variant="ghost" disabled={!sending.length || busy} onClick={send}>
           Upload
-        </button>
-        <button className="quiet h-[28px] px-2 t-ui" onClick={close}>
-          Cancel
-        </button>
+        </Button>
       </div>
-    </div>
+    </Sheet>
   );
 }

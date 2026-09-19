@@ -173,6 +173,37 @@ const SURFACES: Record<string, Surface> = {
     },
     close: escape,
   },
+  "papers-chooser": {
+    open: async (tab) => {
+      await tab.getByLabel("Actions for references.bib").click({ force: true });
+      await tab.getByRole("button", { name: /Add papers from a folder/ }).click();
+      return tab.getByTestId("papers-chooser");
+    },
+    close: escape,
+  },
+  upload: {
+    open: async (tab) => {
+      await tab.locator("#nx-upload").setInputFiles([
+        { name: "spectrum.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") },
+        { name: "main.tex", mimeType: "text/plain", buffer: Buffer.from("\\section{Again}\n") },
+        { name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from("# notes\n") },
+      ]);
+      return tab.getByTestId("upload-staging");
+    },
+    close: escape,
+  },
+  "folder-picker": {
+    open: async (tab) => {
+      await tab.getByTestId("switch-project").click();
+      await tab.getByTestId("ways-open").click().catch(() => {});
+      await tab.getByTestId("browse-folder").click();
+      return tab.getByTestId("folder-picker");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.goBack().catch(() => {});
+    },
+  },
   notices: {
     open: async (tab) => {
       await tab.evaluate(() => {

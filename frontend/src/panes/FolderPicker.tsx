@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
-import { useOnScreen, type Wanted } from "../place-menu";
-import { toShell } from "../viewport";
+import { useState } from "react";
 import { type Listing } from "../api";
-import { useDismiss } from "../useDismiss";
+import { Sheet } from "../ui/Sheet";
+import { Button } from "../ui/Button";
+import { Heading } from "../ui/controls";
 import { projectFolderFor, startingPoints, type WayIn } from "../project-path";
 import FolderBrowser from "./FolderBrowser";
 
@@ -25,7 +25,6 @@ export default function FolderPicker({
   mode,
   name,
   typed,
-  anchor,
   onPick,
   onClose,
 }: {
@@ -35,26 +34,11 @@ export default function FolderPicker({
   /** What the path field says, which is where the walk starts when it
    *  names a folder, or its parent when it names one not yet made. */
   typed: string;
-  anchor: React.RefObject<HTMLButtonElement | null>;
   onPick: (path: string) => void;
   onClose: () => void;
 }) {
-  const card = useRef<HTMLDivElement | null>(null);
-  useDismiss(card, true, onClose, anchor);
   const [listing, setListing] = useState<Listing | null>(null);
   const [starts] = useState(() => startingPoints(typed));
-  // Under the Browse button when there is room, above it when there is
-  // not, and inside the screen either way: the button stands in a rail
-  // whose foot is near the bottom of the window.
-  const [wanted] = useState<Wanted>(() => {
-    const box = anchor.current?.getBoundingClientRect();
-    if (!box) return { left: 120, top: 120 };
-    return { left: toShell(box.left), top: toShell(box.bottom) + 4, flip: toShell(box.top) - 4 };
-  });
-  // Measured again when the listing lands: the card is a heading and a
-  // footer until then, and a placement made at that height put the
-  // folders below the bottom of a phone once they arrived.
-  const placed = useOnScreen(card, wanted, listing) ?? wanted;
 
   const heading =
     mode === "add"
@@ -65,13 +49,12 @@ export default function FolderPicker({
   const commit = mode === "add" ? "Use this folder" : "Put it in here";
 
   return (
-    <div
-      ref={card}
-      role="dialog"
-      aria-labelledby="folder-picker-heading"
-      data-testid="folder-picker"
-      className="nx-arrive fixed z-40 w-[320px] rounded-[5px] border border-line bg-surface shadow-float"
-      style={{ left: placed.left, top: placed.top }}
+    <Sheet
+      open
+      onClose={onClose}
+      labelledBy="folder-picker-heading"
+      testid="folder-picker"
+      width={380}
       // Escape belongs to this card while it is open.  On a phone it
       // stands inside the ways-in drawer, itself a dialog listening on
       // the window; stopped here, one press closes the picker and leaves
@@ -82,9 +65,9 @@ export default function FolderPicker({
         onClose();
       }}
     >
-      <div id="folder-picker-heading" className="t-ui truncate px-[10px] pt-2 text-ink">
+      <Heading id="folder-picker-heading" className="truncate pb-[8px]">
         {heading}
-      </div>
+      </Heading>
 
       <FolderBrowser
         starts={starts}
@@ -94,7 +77,7 @@ export default function FolderPicker({
         onEscape={onClose}
       />
 
-      <div className="border-t border-line px-[10px] py-2">
+      <div className="pt-2">
         <p className="t-micro text-ink-3">
           {mode === "add"
             ? "The folder that already has the LaTeX document in it."
@@ -105,19 +88,17 @@ export default function FolderPicker({
         </p>
       </div>
 
-      <div className="flex h-[32px] items-center justify-end gap-2 border-t border-line px-[10px]">
-        <button
-          className="ghost-button h-[28px] px-3 t-ui"
+      <div className="nx-sheet-foot">
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="ghost"
           data-testid="pick-folder"
           disabled={!listing}
           onClick={() => listing && onPick(projectFolderFor(listing.path, name, mode))}
         >
           {commit}
-        </button>
-        <button className="quiet h-[28px] px-2 t-ui" onClick={onClose}>
-          Cancel
-        </button>
+        </Button>
       </div>
-    </div>
+    </Sheet>
   );
 }
