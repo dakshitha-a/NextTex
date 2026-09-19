@@ -49,6 +49,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable
 from .claude_auth import claude_binary
 from .lines import document_ends_at, first_changed_line
 from .modes import DEFAULT_MODE, MODES
+from . import permission_gate as gate
 from .project import is_control_path
 from .explain import compile_report
 from .writing import PROSE
@@ -75,12 +76,10 @@ log = logging.getLogger("nexttex.agent")
 SESSION_FILE = "session.json"
 
 # How long a permission card may sit unanswered before the turn gives up on
-# it.  A card that never reached a browser -- the tab was closed, the stream
-# dropped between the emit and the render -- used to block the turn for
-# ever, holding the lock and leaving the interface thinking.  Ten minutes is
-# long enough that nobody who stepped away for coffee loses their answer,
-# and short enough that a lost card is not a wedged project.
-PERMISSION_TIMEOUT = 600.0
+# it, defined beside the other things both providers' cards share and
+# re-exported here because `tests/test_agent_robustness.py` patches it on
+# this module.
+PERMISSION_TIMEOUT = gate.PERMISSION_TIMEOUT
 
 # How long a turn may produce nothing at all before it is declared stuck.
 # Measured between emitted events rather than from the start of the turn, so
@@ -743,14 +742,12 @@ class ProjectAgent:
             # later script run silently, while the agent's Write into
             # scripts/ passed the middle position without a card: the hole
             # was the whole of it.  The digest of what the card showed is
-            # what the writer agreed to, and exactly that.
-            text = self._script_text(tool_name, data)
-            if not text:
-                return ""
-            return f"{tool_name}:{hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]}"
+            # what the writer agreed to, and exactly that.  Spelled by
+            # `permission_gate` so the OpenAI provider's card remembers
+            # the same key for the same script.
+            return gate.script_rule(tool_name, self._script_text(tool_name, data))
         if tool_name == "mcp__nexttex__install_package":
-            name = str(data.get("name") or "").strip()
-            return f"install:{name}" if name else ""
+            return gate.install_rule(str(data.get("name") or ""))
         return tool_name
 
     def _script_text(self, tool_name: str, data: dict) -> str:
@@ -939,42 +936,26 @@ class ProjectAgent:
                 "consequence": "This file is not part of this writing project.",
                 "reason": self._reason(why, ""),
             }
+        # The three script tools' cards are spelled by `permission_gate`,
+        # so the OpenAI provider's card for the same script reads the same.
+        # The script itself is the detail, because that is the thing being
+        # agreed to; for `run_script` it is what is on disk now, since that
+        # is what runs.
         if tool_name == "mcp__nexttex__run_plot_script":
-            return {
-                "headline": "Run a script to draw a figure",
-                # The script itself, because that is the thing being agreed
-                # to. A summary of it would be a card about a description.
-                "detail": str(data.get("script") or ""),
-                "consequence": "This is Python, so it can do anything Python "
-                               "can: read files, write them, and reach the "
-                               "network. It is saved in scripts/ either way, "
-                               "so you can read it again afterwards.",
-                "reason": self._reason(why, ""),
-            }
+            return gate.script_card(
+                tool_name, self.mode, text=str(data.get("script") or ""),
+            )
         if tool_name == "mcp__nexttex__run_script":
-            name = str(data.get("name") or "")
-            return {
-                "headline": f"Run scripts/{name}.py",
-                # What is on disk now, since that is what runs: the card
-                # shows the code and not a name for it.
-                "detail": self._script_text(tool_name, data)
-                          or "(the script could not be read)",
-                "consequence": "This is Python, so it can do anything Python "
-                               "can: read files, write them, and reach the "
-                               "network. Nothing is rewritten; the file runs "
-                               "as it is.",
-                "reason": self._reason(why, ""),
-            }
+            return gate.script_card(
+                tool_name, self.mode, name=str(data.get("name") or ""),
+                text=self._script_text(tool_name, data),
+            )
         if tool_name == "mcp__nexttex__install_package":
             name = str(data.get("name") or "")
-            return {
-                "headline": f"Install a Python package: {name}",
-                "detail": f"{sys.executable} -m pip install --no-input {name}",
-                "consequence": "This downloads and runs installation code "
-                               "from PyPI, into the environment NextTex "
-                               "itself runs in.",
-                "reason": self._reason(why, ""),
-            }
+            return gate.script_card(
+                tool_name, self.mode, name=name,
+                command=f"{sys.executable} -m pip install --no-input {name}",
+            )
         if tool_name == "WebFetch":
             url = str(data.get("url") or data.get("prompt") or "")[:200]
             return {
@@ -1024,17 +1005,9 @@ class ProjectAgent:
                 "Asked at this setting: this is the one action that leaves "
                 "the project the agent was pointed at."
             )
-        if why == "network":
-            return (
-                "Asked at this setting, because what is sent and where it "
-                "goes are chosen from files that may not be yours."
-            )
-        if why == "script":
-            return (
-                "Asked at this setting: a script can do anything Python can, "
-                "which is more than any single command could."
-            )
-        return ""
+        # `network` and `script` are the two an OpenAI card can carry as
+        # well, so their sentences live in `permission_gate`.
+        return gate.reason_at(self.mode, why)
 
     @property
     def pending_cards(self) -> list[dict]:
@@ -1436,11 +1409,7 @@ class ProjectAgent:
             })
             await self._emit({
                 "type": "notice",
-                "message": (
-                    f"NextTex waited {int(PERMISSION_TIMEOUT // 60)} minutes for an "
-                    f"answer about {tool_name} and did not get one, so it said no. "
-                    "Ask again if you meant to allow it."
-                ),
+                "message": gate.expired_notice(tool_name),
             })
             return "deny"
         finally:
