@@ -24,6 +24,22 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+The backlog close-out, after 2.16.0, works through every line of the
+backlog below in two pushes. The first carries two things the writer
+asked for while the plan was being drawn, the Vim status bar painting
+over the settings sheet and a download menu with one row per document
+and a chip per format, and then every fix this host can make: the
+pycrdt warning, the `localStorage` copies, the last-opened tie, the two
+flaky specs at their real causes, a bench row that has been measuring a
+no-op, the vendored Emacs keymap checked against upstream, and a real
+attempt at the PNG download the writer reported from the tree menu in
+Chrome. The second gives the OpenAI provider the script tools behind
+the permission card, runs it against the Ollama on this host, and runs
+the papers importer over a folder of real papers, which is what the
+writer asked for in place of a Zotero library nobody here has. What
+stays afterwards is only what needs a Windows machine, a MiKTeX, the
+real Claude CLI or OpenAI's own endpoint, each with its reason.
+
 The second roadmap run, after 2.13.0, took eight items from `ROADMAP.md`
 in its order and went up as three pushes: the checks (the submission
 panel and the bibliography rows) as 2.14.0, in and out (arriving with a
