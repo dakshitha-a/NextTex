@@ -8,13 +8,12 @@
  *  control, a segmented toggle and a drag handle.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import api, { saveBlob } from "./api";
 import { set, useStore } from "./store";
-import { useDismiss } from "./useDismiss";
-import { focusFirst, walkGrid } from "./panes/menu-keys";
-import { fixedBelow } from "./panes/tab-overflow";
+import { under } from "./place-menu";
+import { Menu, MenuDivider } from "./ui/Menu";
 import Settings from "./panes/Settings";
 
 /** Sharing, as a glyph: two people, and the line between them.
@@ -106,7 +105,7 @@ function Chip({ label, title, testid, document, format, onChoose }: {
       data-document={document}
       data-format={format}
       title={title}
-      className="t-meta h-[22px] shrink-0 rounded-[3px] px-[6px] text-ink-2 hover:bg-surface-3 hover:text-ink focus:bg-hint-wash focus:text-ink"
+      className="nx-chip nx-chip-mono shrink-0 !bg-transparent hover:!bg-wash hover:text-ink focus:!bg-wash focus:text-ink focus:outline-none"
       onPointerMove={(event) => {
         if (event.movementX || event.movementY) event.currentTarget.focus();
       }}
@@ -126,11 +125,10 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
-  const menu = useRef<HTMLDivElement | null>(null);
-  useDismiss(menu, open, () => setOpen(false), trigger);
-  useEffect(() => {
-    if (open) focusFirst(menu.current);
-  }, [open]);
+  // Hung from the button's left edge: the button sits near the left of
+  // the rail, and a column wide enough for a file name hung from its right
+  // edge started off screen.  Measured once per opening.
+  const wanted = useMemo(() => (open ? under(trigger.current, 320, "left") : null), [open]);
   const previews = useStore((s) => s.previews);
   const candidates = useStore((s) => s.candidates);
   const pandoc = useStore((s) => s.tools?.pandoc === true);
@@ -140,7 +138,7 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
     setOpen(false);
     what();
   };
-  const row = "flex w-full items-center gap-[4px] px-[10px] py-[3px] text-ink";
+  const row = "flex w-full items-center gap-[4px] px-[10px] py-[2px] text-ink";
 
   return (
     <div className="relative flex items-center">
@@ -156,26 +154,17 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
       >
         <DownloadIcon />
       </button>
-      {open ? (
-        <div
-          ref={menu}
-          role="menu"
-          data-testid="download-menu"
-          // Fixed and clamped to the window rather than hung off the
-          // button's right edge: the button sits 40px from the left of the
-          // rail, and a column wide enough for a file name hung there
-          // started off screen.
-          // 320 wide: a stem beside four chips.  With pandoc the chips
-          // alone are about 150px, and the stem still gets a readable run
-          // before it truncates.
-          className="nx-furniture nx-arrive fixed z-40 max-h-[60vh] w-[320px] overflow-y-auto rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
-          style={fixedBelow(trigger.current, 320)}
-          onKeyDown={(event) => {
-            if (walkGrid(event, () => setOpen(false)) && event.key === "Escape") {
-              trigger.current?.focus();
-            }
-          }}
-        >
+      {/* The kit's menu with the grid walk: a row per document, a chip per
+          format, 320 wide so a stem gets a readable run beside four chips. */}
+      <Menu
+        open={open}
+        onClose={() => setOpen(false)}
+        wanted={wanted}
+        anchor={trigger}
+        testid="download-menu"
+        width={320}
+        grid
+      >
           <div role="none" data-menu-row data-testid="download-row" className={row}>
             <span className="t-ui min-w-0 flex-1 truncate">Whole project</span>
             <Chip
@@ -185,7 +174,7 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
               onChoose={choose(onZip)}
             />
           </div>
-          {documents.length ? <div className="my-1 border-t border-line" /> : null}
+          {documents.length ? <MenuDivider /> : null}
           {documents.map((path) => (
             <div
               key={path}
@@ -223,8 +212,7 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
                 : null}
             </div>
           ))}
-        </div>
-      ) : null}
+      </Menu>
     </div>
   );
 }

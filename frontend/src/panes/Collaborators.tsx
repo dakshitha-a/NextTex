@@ -2,6 +2,7 @@ import { useState } from "react";
 import { type Collaborator, useStore } from "../store";
 import { awayWords, peerStanding } from "./peer-standing";
 import { useDismiss } from "../useDismiss";
+import { MenuHeader } from "../ui/Menu";
 import { useRef } from "react";
 
 /** Who else is in this project, and whether they are working.
@@ -98,41 +99,34 @@ export default function Collaborators() {
           ref={card}
           role="dialog"
           aria-label="Who is here"
-          className="nx-arrive absolute top-[28px] right-0 z-40 w-[230px] rounded-[5px] border border-line bg-surface py-[4px] shadow-float"
+          className="nx-menu-anchored nx-arrive top-[34px] right-0 w-[260px]"
         >
           {/* Counting you as well. A list that omits the reader reads as
               one person when there are two. */}
-          <div className="t-micro border-b border-line px-[10px] pb-[4px] text-ink-3">
-            {people.length + 1} people in this project
-          </div>
+          <MenuHeader>{people.length + 1} people in this project</MenuHeader>
           {people.map((person) => (
-            <div
-              key={person.clientId}
-              className="flex items-baseline gap-[7px] px-[10px] py-[3px]"
-            >
+            <div key={person.clientId} className="nx-row" data-size="sm">
               <span
                 aria-hidden="true"
-                className="h-[7px] w-[7px] shrink-0 translate-y-[-1px] rounded-full"
+                className="h-[8px] w-[8px] shrink-0 rounded-full"
                 style={{
                   background: person.active ? person.colour : "transparent",
-                  border: `1px solid ${person.colour}`,
+                  border: `1.5px solid ${person.colour}`,
                 }}
               />
-              <span className="t-meta min-w-0 flex-1 truncate text-ink">
-                {person.name}
-              </span>
-              <span className="t-micro shrink-0 truncate text-ink-3" title={person.path}>
+              <span className="nx-row-label text-ink">{person.name}</span>
+              <span className="nx-row-trailing nx-row-trailing-always" title={person.path}>
                 {person.path ? shortPath(person.path) : "not in a file"}
                 {person.active ? "" : " · idle"}
               </span>
             </div>
           ))}
-          <div className="t-micro flex items-baseline gap-[7px] px-[10px] py-[3px] text-ink-3">
+          <div className="nx-row" data-size="sm">
             <span
               aria-hidden="true"
-              className="h-[7px] w-[7px] shrink-0 translate-y-[-1px] rounded-full border border-ink-3"
+              className="h-[8px] w-[8px] shrink-0 rounded-full border-[1.5px] border-ink-3"
             />
-            <span className="flex-1">you</span>
+            <span className="nx-row-label">you</span>
           </div>
         </div>
       ) : null}

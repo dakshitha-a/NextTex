@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { onFrame } from "../timing";
-import { toShell, viewportWidth } from "../viewport";
 import { under } from "../place-menu";
 import { Menu, MenuItem } from "../ui/Menu";
 
@@ -195,14 +194,3 @@ export function HiddenTabs({
   );
 }
 
-/** Where a fixed menu goes to hang under its button, right-aligned to it,
- *  in the zoomed shell's own pixels: see viewport.ts for why a measured
- *  rectangle has to be converted before it is written as a style. */
-export function fixedBelow(
-  anchor: HTMLElement | null, width = 220,
-): { left: number; top: number } | undefined {
-  if (!anchor) return undefined;
-  const box = anchor.getBoundingClientRect();
-  const left = Math.max(0, Math.min(toShell(box.right) - width, viewportWidth() - width));
-  return { left, top: toShell(box.bottom) };
-}
