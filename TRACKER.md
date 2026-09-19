@@ -151,23 +151,6 @@ this checkout does not have, or are decisions, are where they were.
       theirs.
 
 
-- [ ] **`history-panel.spec.ts`'s long-file-name test failed once under
-      the full browser tier and passed on its retry.** Seen once in the
-      projects rail run, while the tier ran beside a build: the wait for
-      the autosave to reach the disk timed out at fifteen seconds, with
-      the file still holding its first line. The same shape as the
-      sighting below; a second one is the signal to look at what the
-      autosave is waiting on under load.
-- [ ] **`writing.spec.ts`'s equation hover failed twice under the full
-      browser tier and passed on its retry both times.** The second
-      sighting was in the rail tiles run, again beside a build; that is
-      the signal the line below asked for, so the next session on this
-      file widens the tooltip's wait or finds what else it waits on. Seen once in the roadmap
-      run, while the machine was also building the bundle; the hover
-      polls the tooltip, so the likely cause is the typeset image
-      arriving after the assertion's window rather than not at all. A
-      second sighting is the signal to widen that wait or to find what
-      else it is waiting on.
 
 - [ ] **A PNG download the writer reported as broken was not reproduced.**
       The file route answers a PNG with its bytes, `image/png` and an

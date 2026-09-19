@@ -173,10 +173,30 @@ test("a long file name in the header truncates and keeps its full path as a titl
   await page.reload();
   await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
   await tab.locator(`[role="tree"] [data-path="${long}"]`).click();
+  // The long file has to be the document in front before the typing
+  // starts: the click asks the server for it and the editor swaps its
+  // document when the answer lands, and a keystroke before that goes into
+  // main.tex.  Once, under load, this spec timed out waiting for the
+  // long file to hold "More." while it still held only its first line;
+  // that was main.tex holding the sentence, not a slow autosave.
+  await expect(tab.locator(".cm-content")).toContainText("Long");
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");
   await tab.keyboard.type("\nMore.\n");
-  await landed(app, project, "More.", long);
+  try {
+    await landed(app, project, "More.", long);
+  } catch (failure) {
+    // Where the sentence went, for the next reader of a failure.
+    const other = await fetch(
+      `${app.base}/api/projects/${project.id}/file?path=main.tex`,
+      { headers: { "x-nexttex-token": app.token } },
+    );
+    await test.info().attach("main.tex", {
+      body: other.ok ? (await other.json()).text : "(unreadable)",
+      contentType: "text/plain",
+    });
+    throw failure;
+  }
   await openHistory(tab);
   const name = tab.getByTestId("history-header").getByTitle(long);
   await expect(name).toBeVisible();

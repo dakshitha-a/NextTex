@@ -171,7 +171,7 @@ test("hovering an equation shows it typeset", async ({ tab }) => {
 
   // The exact pixel of one character, since a .cm-line is as wide as the
   // pane and hovering the middle of it hovers empty space past the text.
-  const point = await tab.evaluate(() => {
+  const measure = () => tab.evaluate(() => {
     const line = [...document.querySelectorAll(".cm-line")].find((el) =>
       el.textContent?.includes("A gap of"),
     );
@@ -192,10 +192,25 @@ test("hovering an equation shows it typeset", async ({ tab }) => {
     }
     return null;
   });
-  expect(point).not.toBeNull();
-  await tab.mouse.move(point!.x, point!.y);
-  await tab.mouse.move(point!.x + 1, point!.y);
-  await expect(tab.locator(".nx-math-tooltip")).toBeVisible({ timeout: 10_000 });
+  // Measured and hovered again until the tooltip is there, rather than
+  // one hover and a long wait.  The tooltip's box is made the moment
+  // CodeMirror accepts the hover, with the source in it before KaTeX has
+  // loaded, so a tooltip that has not appeared after the hover's 250 ms
+  // is one CodeMirror refused: `hoverTooltip` checks that the pointer's
+  // coordinates still resolve to the position it hovered, and a layout
+  // that shifted between the measurement and the move, which the tier
+  // saw twice under load, fails that check for good.  A writer moves the
+  // mouse again; so does this.
+  await expect.poll(async () => {
+    const point = await measure();
+    if (!point) return 0;
+    await tab.mouse.move(point.x - 4, point.y);
+    await tab.mouse.move(point.x, point.y);
+    await tab.mouse.move(point.x + 1, point.y);
+    await tab.waitForTimeout(450);
+    return tab.locator(".nx-math-tooltip").count();
+  }, { timeout: 10_000, intervals: [100] }).toBeGreaterThan(0);
+  await expect(tab.locator(".nx-math-tooltip")).toBeVisible();
 });
 
 test("the two things a LaTeX writer types most now close themselves", async ({
