@@ -201,11 +201,12 @@ def test_no_implementation_offers_a_way_to_delegate():
 def test_every_agent_can_say_where_its_permission_control_is(kind, tmp_path):
     """A route reads this on every agent, so every agent has to answer.
 
-    `set_mode` is deliberately *not* on all four: only the Claude agent
-    ever puts a card up, and the interface decides whether to draw the
-    control by asking whether that method exists. So the probe and the
-    method have to agree, and the way to keep them agreeing is to say it
-    here rather than to trust that they do.
+    `set_mode` is deliberately *not* on all of them: the no-agent pair
+    never puts a card up, and the interface decides whether to draw the
+    control by asking whether that method exists. The Claude agent and,
+    since the backlog close-out, the OpenAI one ask before a script runs
+    and have it. So the probe and the method have to agree, and the way to
+    keep them agreeing is to say it here rather than to trust that they do.
     """
     agent = build(kind, tmp_path)
     assert agent.mode in MODES

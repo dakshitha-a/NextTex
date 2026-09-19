@@ -217,13 +217,6 @@ this host could not reproduce; each says which.
 - [ ] **The issue form's `where` field is an input rather than a dropdown**
       because GitHub does not prefill dropdowns from a URL. If that changes,
       a dropdown for the platform would make the field sortable.
-- [ ] **The OpenAI provider has no script tools.** It puts no permission
-      card up at all: everything it can do is confined by construction, and
-      a tool that runs Python needs the card before it can have the tool.
-      Parity is the card machinery on that provider, not a tool entry, and
-      it is a piece of work with a design in it. The Claude provider has
-      `run_script` since the backlog run. In hand: the backlog close-out's
-      second push.
 
 ### Never run against the real thing
 

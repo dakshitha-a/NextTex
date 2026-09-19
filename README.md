@@ -807,6 +807,10 @@ a log axis. So the script is a file in your project with a version history
 like any other, and re-drawing is running it again rather than asking again.
 You can run it from the source pane with Run, or the agent can run it by
 name without touching it, and is asked first, with the code on the card.
+That holds for whichever agent you chose: Claude, OpenAI or a local model
+draw the same card for the same script, and a script you allowed always
+under one is allowed under the other, because the answer is about the
+code and not about the model.
 
 **The first attempt is already the right shape for a paper**, which is the
 difference between a figure you keep and one you redraw by hand. The first

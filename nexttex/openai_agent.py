@@ -19,14 +19,28 @@ Two deliberate differences from the Anthropic one, both narrowing:
     resolved against the project root and refused if it escapes, so there
     is no out-of-project write to ask permission for.
 
+One thing is fenced, since the backlog close-out: a script.  A figure is
+drawn by running Python the model wrote, which can do anything Python
+can, and a package is installed by running what PyPI serves, so the three
+script tools go through a permission card before they run, the same card
+the Claude agent puts up for the same script, with the same rule
+remembered by an "always": `nexttex/permission_gate.py` spells both, and
+the mode and the remembered rules are read from and written to the same
+`agent-settings.json`, so the control has three positions here too and
+an answer given under one provider holds under the other.  Everything
+else on the tool list is still confined by construction and still asks
+about nothing.
+
 What it keeps is everything the interface promises: prose arrives as it is
 generated, an edit is a real versioned write with a diff and an undo, the
 build can be triggered, and what the turn cost is recorded.
 
-Nothing here is exercised against the live API in this repository -- there
-is no account to test with -- so it is covered the way the rest of the
+Nothing here is exercised against OpenAI itself in this repository, there
+is no account to test with, so it is covered the way the rest of the
 agent interface is: by driving it with a stubbed transport that replays
-recorded response shapes.  `tests/test_openai_agent.py` is that.
+recorded response shapes, `tests/test_openai_agent.py`.  Against a local
+server it is: `tests/test_openai_ollama.py` runs it against an Ollama on
+this machine when `NEXTTEX_OLLAMA` is set.
 """
 
 from __future__ import annotations
@@ -39,6 +53,7 @@ from typing import Any, AsyncIterator, Callable, Iterator
 
 import requests
 
+from . import permission_gate as gate
 from .atomic import read_text
 from .explain import compile_report
 from .references import appended, entry_for
@@ -68,8 +83,17 @@ def endpoint(base_url: str) -> str:
 DEFAULT_MODEL = "gpt-4o"
 
 # How long one turn may take before it is abandoned.  A writing turn that
-# has not finished in five minutes is not going to.
+# has not finished in five minutes is not going to.  Time spent waiting on
+# a permission card does not count, because the card has a timeout of its
+# own: this was one wait_for around the whole turn, and a card open for
+# longer than the turn's five minutes ended the turn under the writer's
+# cursor, since a card may wait ten.
 TURN_TIMEOUT = 300
+
+# How often the turn's clock is read.  Coarse on purpose: a card opened a
+# second into a tick costs the turn that second, which a five-minute budget
+# does not notice, and a tick per event would be a tick per token.
+BUDGET_TICK = 5.0
 
 # Text is emitted in batches rather than per token: sixty state updates a
 # second in the browser costs more than it shows.
@@ -89,6 +113,13 @@ How to work:
 - Match the document's own voice. Do not restructure prose that was not
   asked about.
 - When the user asks about an error, read the file around it first.
+- A figure is a script in scripts/ that draws it. run_plot_script writes
+  the script and runs it; run_script runs one that is already there,
+  which is how a figure is drawn again after its data or its style
+  changed. The user is asked before either runs, and the answer is theirs;
+  never run a script the user did not ask for something from. A missing
+  package is reported, and install_package installs it if the user says
+  yes.
 """
 
 #: The same writing standard the Claude agent is held to. It used to be in
@@ -284,7 +315,71 @@ TOOLS: list[dict] = [
             },
         },
     },
+    # The three that run code, and the three that go through a permission
+    # card before they do.  Their names are the Claude agent's MCP tools'
+    # without the prefix; the rule an "always" remembers carries the
+    # prefix for both, see permission_gate.
+    {
+        "type": "function",
+        "function": {
+            "name": "run_plot_script",
+            "description": (
+                "Write a Python script into scripts/ and run it to draw a "
+                "figure. Use matplotlib; a figure saved through the helper "
+                "the project seeds lands in figures/ as a PDF. The user is "
+                "asked before it runs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The script's name, without .py: letters, digits, dashes, underscores."},
+                    "script": {"type": "string", "description": "The whole script."},
+                    "output": {"type": "string", "description": "The file the script writes, relative to the project, if it writes one."},
+                },
+                "required": ["name", "script"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_script",
+            "description": (
+                "Run a script that is already in scripts/, by name, without "
+                "rewriting it: how a figure is drawn again after its data or "
+                "its style changed. The user is asked before it runs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The script's name, without .py."},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "install_package",
+            "description": (
+                "Install one Python package a script needs, when a run said "
+                "one is missing and the user said yes. The user is asked "
+                "before it runs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The package's name on PyPI."},
+                },
+                "required": ["name"],
+            },
+        },
+    },
 ]
+
+#: The tools that go through the card.
+SCRIPT_TOOLS = frozenset(gate.SCRIPT_TOOLS)
 
 
 class OpenAIAgent:
@@ -326,13 +421,16 @@ class OpenAIAgent:
         self.on_edit = on_edit
         self.reveal = reveal
         self.show_page = show_page
-        #: Accepted so the session can hand every provider the same
-        #: callbacks, and unused: this provider puts no card up, and a tool
-        #: that runs Python needs one.  See the tracker.
+        #: How the session runs a script, so the run lands in the writer's
+        #: pane with its figures; `plots.run` on its own when nobody gave
+        #: one, which is a test.
         self.run_script = run_script
         self.model = model or DEFAULT_MODEL
         self.api_key = api_key
         self.base_url = base_url
+        #: The card, the remembered rules and the control's position, on
+        #: the same file the Claude agent keeps them in.
+        self.gate = gate.PermissionGate(state_dir, self._emit, self.describe)
 
         self._why = ""
         self._last_used = 0.0
@@ -375,6 +473,9 @@ class OpenAIAgent:
         return None
 
     async def interrupt(self) -> None:
+        # A card left open would otherwise wait out its own ten minutes
+        # for an answer to a turn that is over.
+        self.gate.cancel_all()
         if self._turn is not None and not self._turn.done():
             self._turn.cancel()
         else:
@@ -399,34 +500,94 @@ class OpenAIAgent:
         self._ended = True
         await self._emit({"type": "done", "subtype": subtype, **rest})
 
+    # -- the permission card ----------------------------------------------
+    #
+    # Three tools run code, and those three go through the card; the rest
+    # of the list is confined by construction and asks about nothing, so
+    # the card, the rules and the control are the gate's, on the same file
+    # the Claude agent keeps them in.
     @property
     def pending_cards(self) -> list[dict]:
-        """Always empty, and that is a fact about the tool list.
-
-        Nothing here asks: there is no shell on it and every path is
-        resolved against the project root, so there is no card to be
-        waiting on.  Answered rather than absent, because the route that
-        asks is asking all four agents and a member missing from one of
-        them is how the four drift apart.
-        """
-        return []
+        """The cards waiting on an answer, for a browser that reloaded."""
+        return self.gate.pending_cards
 
     def resolve_permission(self, request_id: str, decision: str) -> bool:
-        """Nothing here asks.  Every tool is confined to the project by
-        construction, and no shell is offered, so there is no decision for
-        the browser to make -- and saying so honestly is better than
-        keeping a card that would never appear."""
-        return False
+        return self.gate.resolve(request_id, decision)
 
-    #: This agent never puts a card up, and that is a fact about its tool
-    #: list rather than a limitation: there is no shell on it and every path
-    #: is resolved against the project root, so there is nothing a fence
-    #: could hold back.  Readable so a route asking every agent where its
-    #: control is gets an answer; there is deliberately no `set_mode`, which
-    #: is what stops the interface offering a control that would change
-    #: nothing.
-    mode = "ask"
-    auto = False
+    @property
+    def mode(self) -> str:
+        return self.gate.mode
+
+    @property
+    def auto(self) -> bool:
+        return self.gate.auto
+
+    def set_mode(self, mode: str) -> None:
+        """Move the control; its existence is what tells the interface to
+        draw the three positions for this provider."""
+        self.gate.set_mode(mode)
+
+    def already_answered(self, tool_name: str, args: dict) -> str:
+        """Which remembered answer covers this call, or ""."""
+        return self.gate.already_answered(self._rule_for(tool_name, args))
+
+    def _rule_for(self, tool_name: str, args: dict) -> str:
+        if tool_name == "install_package":
+            return gate.install_rule(str(args.get("name") or ""))
+        if tool_name in SCRIPT_TOOLS:
+            return gate.script_rule(tool_name, self._script_text(tool_name, args))
+        return ""
+
+    def _script_text(self, tool_name: str, args: dict) -> str:
+        """The Python a script tool would run, as the card shows it: the
+        text handed over for a new script, what is on disk for a rerun."""
+        from . import plots
+
+        if tool_name == "run_plot_script":
+            return str(args.get("script") or "")
+        name = str(args.get("name") or "").strip()
+        target = plots.script_path(self.root, name) if name else None
+        if target is None or self._resolve(str(target)) is None:
+            return ""
+        try:
+            return target.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return ""
+
+    def describe(self, tool_name: str, args: dict) -> dict:
+        """Plain-English headline and detail for a card, the same words the
+        Claude agent's card for the same script carries."""
+        import sys
+
+        if tool_name == "run_plot_script":
+            return gate.script_card(
+                tool_name, self.mode, text=str(args.get("script") or ""),
+            )
+        if tool_name == "run_script":
+            return gate.script_card(
+                tool_name, self.mode, name=str(args.get("name") or ""),
+                text=self._script_text(tool_name, args),
+            )
+        name = str(args.get("name") or "")
+        return gate.script_card(
+            tool_name, self.mode, name=name,
+            command=f"{sys.executable} -m pip install --no-input {name}",
+        )
+
+    async def _permitted(self, name: str, args: dict, call_id: str) -> bool:
+        """Whether a script tool may run, by the control's position.
+
+        `all` asks about nothing and records instead; `project` still asks
+        about a script and an install, which are held back there because
+        a script can do anything Python can and an install runs what PyPI
+        serves; `ask` asks unless the answer is remembered.
+        """
+        rule = self._rule_for(name, args)
+        if self.mode == "all":
+            await self.gate.settled(name, args, rule, "auto", call_id)
+            return True
+        decision = await self.gate.ask(name, args, rule, call_id)
+        return decision in {"allow", "always", "conversation"}
 
     async def _replace_range(self, args: dict) -> str:
         """Replace exactly the lines the writer selected.
@@ -504,7 +665,7 @@ class OpenAIAgent:
             ),
         })
         try:
-            await asyncio.wait_for(self._converse(), timeout=TURN_TIMEOUT)
+            await self._within_budget(self._converse())
             subtype = "success"
         except asyncio.CancelledError:
             # Re-raised rather than swallowed: a task that returns normally
@@ -532,6 +693,41 @@ class OpenAIAgent:
         await self._finish(
             subtype, costUsd=self.usage["costUsd"], usage=self.usage
         )
+
+    async def _within_budget(self, work) -> None:
+        """Run the turn under TURN_TIMEOUT, not counting a card's wait.
+
+        One `wait_for` around the whole turn charged the writer's thinking
+        time against the model's: a card open for six minutes ended a
+        five-minute turn under their cursor, though a card may wait ten.
+        The clock here runs only while no card is open; the card has a
+        timeout of its own.  Checked every few seconds rather than on
+        every event, which is precise enough for a five-minute budget.
+        """
+        task = asyncio.ensure_future(work)
+        spent = 0.0
+        try:
+            while True:
+                tick = time.monotonic()
+                done, _ = await asyncio.wait(
+                    {task}, timeout=max(0.05, min(BUDGET_TICK, TURN_TIMEOUT - spent)),
+                )
+                if done:
+                    task.result()
+                    return
+                if not self.gate.pending_cards:
+                    spent += time.monotonic() - tick
+                if spent >= TURN_TIMEOUT:
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+                    raise asyncio.TimeoutError
+        except asyncio.CancelledError:
+            # The turn is being stopped: the work goes with it, and every
+            # card it left open is answered no rather than left to wait.
+            self.gate.cancel_all()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise
 
     async def _converse(self) -> None:
         """Stream, run whatever tools are asked for, and go round again."""
@@ -701,6 +897,10 @@ class OpenAIAgent:
         started = time.monotonic()
         ok = True
         try:
+            if name in SCRIPT_TOOLS and not await self._permitted(name, args, call["id"]):
+                # The same sentence the Claude agent's fence hands back,
+                # so the model reads a no the same way on either.
+                return "The user declined this action."
             return await self._dispatch(name, args)
         except Exception as error:
             ok = False
@@ -804,7 +1004,128 @@ class OpenAIAgent:
                 payload = {}
             return compile_report(named, payload)
 
+        if name == "run_plot_script":
+            return await self._plot(args)
+        if name == "run_script":
+            return await self._rerun(args)
+        if name == "install_package":
+            from . import plots
+
+            package = str(args.get("name") or "").strip()
+            if not package:
+                return "Which package? Give its name on PyPI."
+            result = await plots.install(package)
+            if result["ok"]:
+                return f"Installed {package}. Run the script again."
+            return f"Could not install {package}.\n\n{(result.get('err') or '').strip()}"
+
         return f"There is no tool called {name}."
+
+    # -- scripts ------------------------------------------------------------
+    #
+    # The same shape as the Claude agent's plot_tool and run_script_tool:
+    # the script is written through the ordinary edit path, so it gets a
+    # version, a chip and a place in the writer's history, and the run is
+    # verified rather than trusted, since a script that exits zero having
+    # written nothing is the common failure.
+    async def _plot(self, args: dict) -> str:
+        from . import plots
+
+        raw = str(args.get("name") or "").strip()
+        target = plots.script_path(self.root, raw)
+        if target is None:
+            return (f"{raw!r} is not a name I can save a script under. Use "
+                    "letters, digits, dots, dashes and underscores.")
+        script = str(args.get("script") or "")
+        if not script.strip():
+            return "There is no script to run."
+        seeded = plots.ensure_baseline(self.root)
+        before = read_text(target)
+        body = script if script.endswith("\n") else script + "\n"
+        if before != body:
+            await self._save(target, before, body)
+
+        wanted = str(args.get("output") or "").strip()
+        expected = None
+        if wanted:
+            expected = self._resolve(wanted)
+            if expected is None:
+                return f"{wanted} is outside this project."
+        stamp = expected.stat().st_mtime if expected and expected.exists() else 0.0
+
+        result = await self._run_script_file(target)
+        note = ""
+        if seeded:
+            note = (
+                "\n\nI also put " + " and ".join(seeded) + " in the project. "
+                "They set the figure's size, fonts and colours, and they are "
+                "yours to edit; nothing overwrites them again."
+            )
+        if result.get("missing"):
+            return (f"{result['missing']} is not installed, so the script could "
+                    "not run. Ask the writer whether to install it, and use "
+                    "install_package if they say yes." + note)
+        if not result["ok"]:
+            tail = (result.get("err") or result.get("out") or "").strip()
+            return f"The script failed (exit {result['code']}).\n\n{tail}" + note
+        if expected is not None:
+            if not expected.exists():
+                return (f"The script ran without complaining and there is no file "
+                        f"at {wanted}. Check the name you saved it under." + note)
+            if expected.stat().st_mtime <= stamp:
+                return (f"{wanted} was not written by this run; it is the file "
+                        "that was already there." + note)
+        said = (result.get("out") or "").strip()
+        where = wanted or "figures/"
+        shown = str(target.relative_to(self.root))
+        return (
+            f"Drew {where} and saved the script as {shown}. Reference it "
+            f"with \\includegraphics at width=\\linewidth, since it is "
+            f"already drawn at the width it will be printed at."
+            + (f"\n\n{said}" if said else "") + note
+        )
+
+    async def _rerun(self, args: dict) -> str:
+        from . import plots
+
+        name = str(args.get("name") or "").strip()
+        if not name:
+            return "Which script? Give its name, without the .py."
+        target = plots.script_path(self.root, name)
+        if target is None:
+            return (f"{name} is not a script name: letters, digits, dashes and "
+                    "underscores, without the .py.")
+        if self._resolve(str(target)) is None:
+            return f"{name} is outside this project."
+        if not target.is_file():
+            shown = str(target.relative_to(self.root))
+            return f"There is no {shown}. run_plot_script writes a new one."
+        result = await self._run_script_file(target)
+        if result.get("missing"):
+            return (f"{result['missing']} is not installed, so the script could "
+                    "not run. Ask the writer whether to install it, and use "
+                    "install_package if they say yes.")
+        if not result["ok"]:
+            tail = (result.get("err") or result.get("out") or "").strip()
+            return f"The script failed (exit {result['code']}).\n\n{tail}"
+        lines = [f"Ran {target.relative_to(self.root)}."]
+        figures = result.get("figures") or []
+        saved = result.get("saved") or []
+        if figures:
+            lines.append(f"It drew {len(figures)} figure(s), shown in the writer's pane.")
+        if saved:
+            lines.append("It wrote " + ", ".join(saved) + ".")
+        said = (result.get("out") or "").strip()
+        if said:
+            lines.extend(["", said])
+        return "\n".join(lines)
+
+    async def _run_script_file(self, target: Path) -> dict:
+        from . import plots
+
+        if self.run_script is not None:
+            return await self._maybe(self.run_script(target))
+        return await plots.run(self.root, self.state_dir, target)
 
     async def _write(self, name: str, args: dict) -> str:
         target = self._resolve(str(args.get("path") or ""))
@@ -934,6 +1255,9 @@ class OpenAIAgent:
             raise RuntimeError("a turn is still running")
         self._messages = []
         self.messages_path.unlink(missing_ok=True)
+        # An answer given "for this conversation" was for the one that has
+        # just ended.
+        self.gate.forget_conversation()
 
     @property
     def messages_path(self) -> Path:

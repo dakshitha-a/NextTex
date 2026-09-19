@@ -1778,6 +1778,12 @@ resolved against the project root, so there is no out-of-project write to
 ask permission about. `resolve_permission` returns `False` and says why,
 rather than keeping a card that would never appear.
 
+*Since the backlog close-out it puts one card up: a script. The three
+script tools are on its list, behind the same card the Claude agent
+draws for the same script, and the control has three positions for it
+too; §48 has the rule and the reason. Everything else on the list still
+asks about nothing.*
+
 It has never spoken to OpenAI. There is no account here, so the transport
 is stubbed and everything above it runs for real. What that cannot tell you
 is whether OpenAI still returns these shapes, which is the same honest
@@ -6778,6 +6784,7 @@ was shown and nothing shown later. OpenAI's provider gets neither
 script tool: it puts no card up at all, because everything it can do is
 confined by construction, and a tool that runs Python needs the card
 before it can have the tool. That is in the tracker with its reason.
+(It has the card and the tools since the backlog close-out, §48.)
 
 ### Which English
 
@@ -8597,3 +8604,54 @@ pointer as before. `menu-keys.test.ts` walks a three-row grid with one,
 four and one chips; `toolbar.spec.ts` opens the menu over two documents
 and walks it with the keyboard; `export.spec.ts` finds the three chips
 on the document's own row and downloads a `.docx` from the first.
+
+### The OpenAI provider draws figures, and asks first
+
+The OpenAI provider had no script tools, and the tracker said why: it
+put no card up at all, everything it could do was confined to the
+project by construction, and a tool that runs Python needs the card
+before it can have the tool. The card is the work, and it is done. The
+three script tools are on its list now, `run_plot_script`, `run_script`
+and `install_package`, named as the Claude agent's are without the
+prefix, and each goes through a permission card before it runs: the
+same card, with the same headline, the script itself as the detail, the
+same consequence sentence, and at the middle position the same reason.
+`nexttex/permission_gate.py` holds what the two providers' cards must
+agree on, so the browser and the transcript cannot tell which provider
+asked. Everything else on the OpenAI list is still confined by
+construction and still asks about nothing.
+
+**One rule for the project, whichever model proposed the script.** The
+rule an "always" remembers is the digest of the code the card showed,
+spelled the same way for both providers, and both read and write it in
+the same `agent-settings.json` under the project's `.nexttex/`. So a
+script allowed always under OpenAI runs without a card under Claude,
+and the other way round, and the control's position carries across a
+provider switch. That is deliberate: the rule is about the code the
+writer approved, not about the model that wrote it, and a fence that
+forgot every answer on a provider change would teach the writer to
+press "always" twice. What it does not do is widen: a different script
+is a different digest and asks again, on either provider, and the
+middle position still asks about a script and a package install on
+both, since a script can do anything Python can.
+
+**The control has three positions here too.** The bolt beside the
+composer, which the interface draws only for an agent that has
+`set_mode`, appears for this provider now; `all` records a script run as
+settled rather than asking, `project` and `ask` both ask. And the turn's
+clock stops while a card is open: the provider had one five-minute
+ceiling around the whole turn, so a card left open for six minutes ended
+the turn under the writer's cursor although a card may wait ten.
+`tests/test_openai_agent.py` puts a card up before a run, refuses on
+deny with the script never run, remembers an always on disk and skips
+the next card, still asks when a script written by `edit_file` is run
+(the digest rule), settles at the third position, asks at the middle,
+keeps a turn alive through a card open longer than the turn's budget,
+times out a turn with no card, and answers an open card with no on Stop.
+`tests/test_permission_parity.py` draws the same script on both
+providers and finds one card, one rule, one file, and an always given
+under one honoured by the other. `e2e/specs/openai-card.spec.ts` starts
+a server with the stand-in off and the provider pointed at a fake
+upstream speaking the chat-completions stream, sees the card with the
+script in it, presses Allow and finds the script in the tree, then
+presses Allow always, reloads, asks again and finds no card open.

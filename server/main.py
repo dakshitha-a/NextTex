@@ -5481,9 +5481,10 @@ async def agent_usage(project_id: str):
         # stream alone -- there is nothing to detect, which is the bug.
         "busy": session.agent.busy,
         # Whether this agent approves without asking, and whether it is the
-        # kind of agent that ever asks at all -- the OpenAI and no-agent
-        # paths never put a card up, so offering the switch there would
-        # promise a change that does not happen.
+        # kind of agent that ever asks at all: the no-agent path never puts
+        # a card up, so offering the switch there would promise a change
+        # that does not happen.  The OpenAI provider asks about a script
+        # since the backlog close-out, and has the control.
         "mode": str(getattr(session.agent, "mode", "ask")),
         "auto": bool(getattr(session.agent, "auto", False)),
         "asks": callable(getattr(session.agent, "set_mode", None)),

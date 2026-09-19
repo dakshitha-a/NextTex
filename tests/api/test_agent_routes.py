@@ -265,6 +265,31 @@ def test_an_unlisted_openai_model_is_allowed(client, opened, back_to_claude):
     assert response.status_code == 200, response.text
 
 
+def test_the_openai_provider_has_the_permission_control(
+    client, opened, back_to_claude, monkeypatch,
+):
+    """Since the backlog close-out the OpenAI provider asks before it runs
+    a script, so it has the three-position control: the state route says
+    it asks, and the mode route moves it rather than answering 400.
+
+    The stand-in is switched off for this one test, because it stands in
+    for every provider and this is about the real one's members; nothing
+    reaches a network, since nothing is asked.
+    """
+    monkeypatch.delenv("NEXTTEX_SCRIPTED_AGENT", raising=False)
+    client.post("/api/agent/provider", json={"provider": "openai", "key": "sk-test"})
+    project_id = opened["id"]
+    state = client.get(f"/api/projects/{project_id}/agent/usage").json()
+    assert state["asks"] is True and state["mode"] == "ask"
+    moved = client.post(f"/api/projects/{project_id}/agent/mode", json={"mode": "project"})
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["mode"] == "project"
+    assert client.get(f"/api/projects/{project_id}/agent/usage").json()["mode"] == "project"
+    refused = client.post(f"/api/projects/{project_id}/agent/mode", json={"mode": "nonsense"})
+    assert refused.status_code == 400
+    client.post(f"/api/projects/{project_id}/agent/mode", json={"mode": "ask"})
+
+
 def test_a_turn_that_vanishes_mid_answer_still_ends(client, opened):
     """The incident, driven through the routes.
 

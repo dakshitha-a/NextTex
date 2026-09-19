@@ -324,3 +324,228 @@ def test_the_preview_can_be_turned_to_a_page(tmp_path):
     refused = asyncio.run(made._dispatch("show_page", {"document": "nope.tex", "page": 1}))
     assert "nope.tex is not a document on the preview strip" in refused
     assert asked == [("", 2)]
+
+
+# -- the permission card ------------------------------------------------------
+#
+# Three tools run code, and those three go through a card before they do,
+# the same card the Claude agent puts up for the same script.  The
+# transport is stubbed as above; the script runner is a callback here, so
+# no matplotlib is needed and the run itself is the thing asserted on.
+
+SCRIPT = "import matplotlib.pyplot as plt\nplt.plot([1, 2])\nplt.show()\n"
+
+
+def plot_call(call_id: str = "c1", name: str = "fig") -> list[dict]:
+    return sse(tool_chunk(0, call_id, "run_plot_script", json.dumps({
+        "name": name, "script": SCRIPT,
+    })))
+
+
+def scripted(tmp_path, replies, **kwargs):
+    """An agent whose script runner records the runs and draws nothing."""
+    ran: list[Path] = []
+
+    async def run_script(target):
+        ran.append(target)
+        return {"ok": True, "code": 0, "out": "", "err": "", "figures": ["figure-1.png"]}
+
+    made = agent(tmp_path, replies, run_script=run_script, **kwargs)
+    made.ran = ran
+    return made
+
+
+async def run_answering(made: OpenAIAgent, prompt: str, decision: str) -> list[dict]:
+    """Drive a turn, answering every card that opens with `decision`."""
+    seen: list[dict] = []
+
+    async def drain() -> None:
+        async for event in made.events():
+            seen.append(event)
+            if event["type"] == "permission" and "decision" not in event:
+                made.resolve_permission(event["id"], decision)
+            if event["type"] == "done":
+                return
+
+    reader = asyncio.create_task(drain())
+    await made.ask(prompt)
+    await asyncio.wait_for(reader, timeout=10)
+    return seen
+
+
+def cards(seen: list[dict]) -> list[dict]:
+    return [event for event in seen if event["type"] == "permission"]
+
+
+def test_a_script_tool_puts_a_card_up_before_it_runs(tmp_path):
+    made = scripted(tmp_path, [plot_call(), sse(text_chunk("Drawn."))])
+    seen = asyncio.run(run_answering(made, "Draw a figure", "allow"))
+    opened = cards(seen)
+    assert len(opened) == 1, [e["type"] for e in seen]
+    card = opened[0]
+    assert card["headline"] == "Run a script to draw a figure"
+    assert card["detail"] == SCRIPT
+    assert card["tool"] == "run_plot_script" and card["toolId"] == "c1"
+    assert card["rule"].startswith("mcp__nexttex__run_plot_script:")
+    # The card came before the run, and the run happened.
+    kinds = [e["type"] for e in seen]
+    assert kinds.index("permission") < kinds.index("tool_done")
+    assert [p.name for p in made.ran] == ["fig.py"]
+    assert (made.root / "scripts" / "fig.py").read_text() == SCRIPT
+    assert seen[-1]["subtype"] == "success"
+
+
+def test_denying_the_card_refuses_and_the_script_never_runs(tmp_path):
+    made = scripted(tmp_path, [plot_call(), sse(text_chunk("All right."))])
+    seen = asyncio.run(run_answering(made, "Draw a figure", "deny"))
+    assert made.ran == []
+    # What the model was told, on the tool message it got back.
+    tool_messages = [m for m in made.sent if m.get("role") == "tool"]
+    assert tool_messages and tool_messages[-1]["content"] == "The user declined this action."
+    assert seen[-1]["subtype"] == "success"
+
+
+def test_always_is_remembered_on_disk_and_skips_the_next_card(tmp_path):
+    made = scripted(tmp_path, [plot_call(), sse(text_chunk("Drawn."))])
+    asyncio.run(run_answering(made, "Draw a figure", "always"))
+    stored = json.loads((tmp_path / "state" / "agent-settings.json").read_text())
+    assert stored["allow"] == [made._rule_for("run_plot_script", {"script": SCRIPT})]
+    assert stored["mode"] == "ask"
+
+    # A fresh agent over the same state, asked to run the same script:
+    # a settled card, not an open one, and the run goes ahead.
+    again = scripted(tmp_path, [plot_call("c2"), sse(text_chunk("Again."))])
+    seen = asyncio.run(run_answering(again, "Draw it again", "deny"))
+    opened = cards(seen)
+    assert len(opened) == 1 and opened[0]["decision"] == "always"
+    assert [p.name for p in again.ran] == ["fig.py"]
+
+
+def test_a_script_written_by_edit_file_still_asks_when_run(tmp_path):
+    """The rule is the digest of the code, never the tool's name: an
+    "always" on one script covers exactly that script."""
+    made = scripted(tmp_path, [plot_call(), sse(text_chunk("Drawn."))])
+    asyncio.run(run_answering(made, "Draw a figure", "always"))
+    (made.root / "scripts" / "fig.py").write_text("import os; os.system('rm -rf ~')\n")
+    again = scripted(tmp_path, [
+        sse(tool_chunk(0, "c3", "run_script", json.dumps({"name": "fig"}))),
+        sse(text_chunk("No.")),
+    ])
+    seen = asyncio.run(run_answering(again, "Run fig again", "deny"))
+    opened = cards(seen)
+    assert len(opened) == 1 and "decision" not in opened[0]
+    assert opened[0]["headline"] == "Run scripts/fig.py"
+    assert "rm -rf" in opened[0]["detail"]
+    assert again.ran == []
+
+
+def test_the_third_position_settles_a_script_without_asking(tmp_path):
+    made = scripted(tmp_path, [plot_call(), sse(text_chunk("Drawn."))])
+    made.set_mode("all")
+    seen = asyncio.run(run_answering(made, "Draw a figure", "deny"))
+    opened = cards(seen)
+    assert len(opened) == 1 and opened[0]["decision"] == "auto"
+    assert [p.name for p in made.ran] == ["fig.py"]
+
+
+def test_the_middle_position_still_asks_about_a_script(tmp_path):
+    made = scripted(tmp_path, [plot_call(), sse(text_chunk("Drawn."))])
+    made.set_mode("project")
+    seen = asyncio.run(run_answering(made, "Draw a figure", "allow"))
+    opened = cards(seen)
+    assert len(opened) == 1 and "decision" not in opened[0]
+    assert opened[0]["reason"].startswith("Asked at this setting: a script")
+
+
+def test_a_card_left_open_outlives_the_turn_timeout(tmp_path, monkeypatch):
+    """The turn's clock stops while a card is open: one wait_for around
+    the whole turn ended a five-minute turn under the writer's cursor."""
+    from nexttex import openai_agent as module
+
+    monkeypatch.setattr(module, "TURN_TIMEOUT", 0.3)
+    monkeypatch.setattr(module, "BUDGET_TICK", 0.05)
+    made = scripted(tmp_path, [plot_call(), sse(text_chunk("Drawn."))])
+
+    async def slow_answer() -> list[dict]:
+        seen: list[dict] = []
+
+        async def drain() -> None:
+            async for event in made.events():
+                seen.append(event)
+                if event["type"] == "permission" and "decision" not in event:
+                    await asyncio.sleep(0.6)          # twice the turn's budget
+                    made.resolve_permission(event["id"], "allow")
+                if event["type"] == "done":
+                    return
+
+        reader = asyncio.create_task(drain())
+        await made.ask("Draw a figure")
+        await asyncio.wait_for(reader, timeout=10)
+        return seen
+
+    seen = asyncio.run(slow_answer())
+    assert seen[-1]["subtype"] == "success", [e for e in seen if e["type"] in ("error", "done")]
+    assert [p.name for p in made.ran] == ["fig.py"]
+
+
+def test_a_turn_with_no_card_still_times_out(tmp_path, monkeypatch):
+    from nexttex import openai_agent as module
+
+    monkeypatch.setattr(module, "TURN_TIMEOUT", 0.2)
+    monkeypatch.setattr(module, "BUDGET_TICK", 0.05)
+    made = agent(tmp_path, [])
+
+    async def never():
+        await asyncio.sleep(5)
+        return "", []
+
+    made._stream_once = never
+    seen = asyncio.run(run(made, "Think for ever"))
+    assert seen[-1]["subtype"] == "error_during_execution"
+    assert any(e["type"] == "error" and "timed out" in e["message"] for e in seen)
+
+
+def test_stop_answers_an_open_card_with_no(tmp_path):
+    made = scripted(tmp_path, [plot_call(), sse(text_chunk("Drawn."))])
+
+    async def stop_on_card() -> list[dict]:
+        seen: list[dict] = []
+
+        async def drain() -> None:
+            async for event in made.events():
+                seen.append(event)
+                if event["type"] == "permission" and "decision" not in event:
+                    await made.interrupt()
+                if event["type"] == "done":
+                    return
+
+        reader = asyncio.create_task(drain())
+        await made.ask("Draw a figure")
+        await asyncio.wait_for(reader, timeout=10)
+        return seen
+
+    seen = asyncio.run(stop_on_card())
+    assert seen[-1]["subtype"] == "interrupted"
+    assert made.ran == []
+    assert made.pending_cards == []
+
+
+def test_install_package_asks_and_installs(tmp_path, monkeypatch):
+    from nexttex import plots
+
+    installed: list[str] = []
+
+    async def install(name):
+        installed.append(name)
+        return {"ok": True}
+
+    monkeypatch.setattr(plots, "install", install)
+    made = scripted(tmp_path, [
+        sse(tool_chunk(0, "c4", "install_package", json.dumps({"name": "numpy"}))),
+        sse(text_chunk("Installed.")),
+    ])
+    seen = asyncio.run(run_answering(made, "Install numpy", "allow"))
+    opened = cards(seen)
+    assert opened[0]["headline"] == "Install a Python package: numpy"
+    assert opened[0]["rule"] == "install:numpy"
+    assert installed == ["numpy"]
