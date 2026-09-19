@@ -128,12 +128,16 @@ const SURFACES: Record<string, Surface> = {
   },
   "spelling-menu": {
     open: async (tab) => {
+      // The checker is off by default; the settings sheet turns it on.
+      await tab.getByTestId("appearance").first().click();
+      await tab.getByTestId("spelling-on").click();
+      await tab.keyboard.press("Escape");
       const editor = tab.locator(".cm-content");
       await editor.click();
       await tab.keyboard.press("Control+End");
       await tab.keyboard.type("\n\nThe spaceing is wrong.\n");
-      await tab.waitForTimeout(1500);
       const word = tab.locator(".nx-misspelled").first();
+      await word.waitFor({ timeout: 20_000 });
       await word.click({ button: "right" });
       return tab.getByTestId("spelling-menu");
     },

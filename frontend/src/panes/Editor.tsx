@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import {
   EDITOR_SIZES,
   applyAppearance,
@@ -37,7 +37,7 @@ import {
   useSpellingVariety,
 } from "../use-editor-theme";
 import { toShell } from "../viewport";
-import { focusFirst, walkMenu } from "./menu-keys";
+import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
 import { locateWord, type WordHint } from "./locate-word";
@@ -231,8 +231,12 @@ export default function Editor({
   }, []);
   const [offer, setOffer] = useState<{
     word: string;
+    /** Where the menu wants to be, in the shell's own pixels on the screen:
+     *  under the word, or at the pointer, with the word's top as the edge
+     *  it flips above when there is no room below. */
     x: number;
     y: number;
+    flip: number;
     /** Where the word is in the document, so a suggestion can replace it.
      *  The decoration knows the text; only the position can put something
      *  else in its place. */
@@ -1146,12 +1150,11 @@ export default function Editor({
     };
     const word = marked(at) ?? marked(at + 1) ?? marked(at - 1);
     if (!word?.dataset.word) return false;
-    const box = root.getBoundingClientRect();
     const where = word.getBoundingClientRect();
     // Read in viewport pixels, written as a style inside the zoomed shell:
     // see viewport.ts for why the two are not the same number.
     setOffer(
-      offerFor(now, word, toShell(where.left - box.left), toShell(where.bottom - box.top) + 2),
+      offerFor(now, word, toShell(where.left), toShell(where.bottom) + 2, toShell(where.top) - 2),
     );
     return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- offerFor is
@@ -1164,7 +1167,7 @@ export default function Editor({
    *  because the search is a few hundred set lookups and the menu is
    *  re-rendered on every arrow key once it is open. */
   const offerFor = useCallback(
-    (now: EditorView, node: HTMLElement, x: number, y: number) => {
+    (now: EditorView, node: HTMLElement, x: number, y: number, flip: number) => {
       const word = node.dataset.word ?? "";
       const from = now.posAtDOM(node);
       const list = speller.current?.shipped() ?? null;
@@ -1174,7 +1177,7 @@ export default function Editor({
             list.has(candidate) || mine.has(candidate),
           )
         : [];
-      return { word, x, y, from, to: from + word.length, guesses };
+      return { word, x, y, flip, from, to: from + word.length, guesses };
     },
     [accepted],
   );
@@ -1212,13 +1215,14 @@ export default function Editor({
       const word = target.dataset.word;
       if (!word || !view.current) return;
       event.preventDefault();
-      const box = root.getBoundingClientRect();
+      const where = target.getBoundingClientRect();
       setOffer(
         offerFor(
           view.current,
           target,
-          toShell(event.clientX - box.left),
-          toShell(event.clientY - box.top),
+          toShell(event.clientX),
+          toShell(event.clientY),
+          toShell(where.top) - 2,
         ),
       );
     };
@@ -1254,28 +1258,6 @@ export default function Editor({
    *  again, so every re-render of this pane while the menu was open (the
    *  word list arriving, a cursor readout) put focus back on the first
    *  row a beat after an arrow key had moved it. */
-  const placeMenu = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (!node || !offer) return;
-      focusFirst(node);
-      const room = (host.current?.clientHeight ?? 0) - offer.y;
-      if (node.offsetHeight > room) {
-        node.style.top = `${Math.max(0, offer.y - node.offsetHeight)}px`;
-      }
-    },
-    [offer],
-  );
-
-  /** The pointer moves the menu's focus, so hover and the keyboard row are
-   *  one highlight.  Only a pointer that moved: the browser replays a move
-   *  at the resting position after layout settles, and with the menu open
-   *  under the pointer that replay put focus back on the first row a beat
-   *  after an arrow key had moved it. */
-  const moveFocus = useCallback((event: PointerEvent<HTMLElement>) => {
-    if (event.movementX === 0 && event.movementY === 0) return;
-    event.currentTarget.focus();
-  }, []);
-
   const accept = useCallback(async (word: string) => {
     setOffer(null);
     const projectId = get().projectId;
@@ -1361,90 +1343,67 @@ export default function Editor({
           />
         </Suspense>
       ) : null}
-      {offer ? (
-        <>
-          {/* A click anywhere else puts it away, including a click that is
-              doing something else -- which is the behaviour of every other
-              menu in the app. */}
-          <div
-            className="fixed inset-0 z-40"
-            onPointerDown={() => setOffer(null)}
-            onContextMenu={(event) => {
-              event.preventDefault();
+      {/* The kit's menu: placed on the screen from its measured size, put
+          away by a press anywhere else, and closed by Escape with focus
+          going back to the editor. */}
+      <Menu
+        open={offer !== null}
+        onClose={() => {
+          setOffer(null);
+          view.current?.focus();
+        }}
+        wanted={offer ? { left: offer.x, top: offer.y, flip: offer.flip } : null}
+        testid="spelling-menu"
+        width={232}
+        // A digit picks the guess with that number, which the hint beside
+        // each guess promises.
+        onKey={(event) => {
+          const digit = Number(event.key);
+          if (!offer || !Number.isInteger(digit) || digit < 1 || digit > offer.guesses.length) return false;
+          event.preventDefault();
+          const guess = offer.guesses[digit - 1];
+          const now = view.current;
+          setOffer(null);
+          now?.dispatch({
+            changes: { from: offer.from, to: offer.to, insert: guess },
+            selection: { anchor: offer.from + guess.length },
+          });
+          now?.focus();
+          return true;
+        }}
+      >
+        {/* The guesses first, because a typo is the common case and adding
+            a typo to the dictionary is the one outcome nobody wants; each
+            with its number, so the first is a keystroke away.  A word that
+            is nothing like anything in the list gets no guesses at all,
+            and then the item below is the whole menu. */}
+        {offer?.guesses.map((guess, index) => (
+          <MenuItem
+            key={guess}
+            hint={index < 9 ? String(index + 1) : undefined}
+            onClick={() => {
+              const now = view.current;
               setOffer(null);
+              now?.dispatch({
+                changes: { from: offer.from, to: offer.to, insert: guess },
+                selection: { anchor: offer.from + guess.length },
+              });
+              now?.focus();
             }}
-          />
-          <div
-            ref={placeMenu}
-            // A furniture card, like every other menu in the app.  It used
-            // to follow the page, on the argument that a dark card on a
-            // lit page reads as a hole punched in it; on a white page the
-            // pale card was the hole, one step from the page with a row
-            // nobody could see, and the writer asked for the furniture.
-            className="nx-furniture nx-arrive absolute z-50 w-[220px] rounded-[5px] border border-line bg-surface py-[3px] shadow-float"
-            style={{
-              left: Math.min(offer.x, (host.current?.clientWidth ?? 0) - 220),
-              top: offer.y,
-            }}
-            role="menu"
-            data-testid="spelling-menu"
-            // The arrow keys, Home, End and Escape: what the role promises,
-            // shared with the other menus that keep the promise.
-            onKeyDown={(event) =>
-              walkMenu(event, () => {
-                setOffer(null);
-                view.current?.focus();
-              })
-            }
           >
-            {/* The guesses first, because a typo is the common case and
-                adding a typo to the dictionary is the one outcome nobody
-                wants. A word that is nothing like anything in the list
-                gets no guesses at all, and then the item below is the
-                whole menu, which is what it was before. */}
-            {offer.guesses.map((guess) => (
-              <button
-                key={guess}
-                role="menuitem"
-                // `focus:` and not only `focus-visible:`: the first row is
-                // focused by script after a mouse gesture, which no browser
-                // paints as visible focus, so the row paints itself. No
-                // `hover:` beside it: the pointer moves the same focus, so
-                // hover and the keyboard row are one highlight rather than
-                // two, which they were the moment the menu opened under a
-                // pointer resting on its second row.
-                className="t-ui block w-full px-3 py-[3px] text-left text-ink focus:bg-hint-wash"
-                onPointerMove={moveFocus}
-                onClick={() => {
-                  const now = view.current;
-                  setOffer(null);
-                  now?.dispatch({
-                    changes: { from: offer.from, to: offer.to, insert: guess },
-                    selection: { anchor: offer.from + guess.length },
-                  });
-                  now?.focus();
-                }}
-              >
-                {guess}
-              </button>
-            ))}
-            {offer.guesses.length ? (
-              <div className="my-1 border-t border-line" />
-            ) : null}
-            <button
-              role="menuitem"
-              className="t-ui block w-full px-3 py-[3px] text-left text-ink-2 focus:bg-hint-wash focus:text-ink"
-              onPointerMove={moveFocus}
-              onClick={() => {
-                accept(offer.word);
-                view.current?.focus();
-              }}
-            >
-              Add “{offer.word}” to the dictionary
-            </button>
-          </div>
-        </>
-      ) : null}
+            {guess}
+          </MenuItem>
+        ))}
+        {offer?.guesses.length ? <MenuDivider /> : null}
+        <MenuItem
+          onClick={() => {
+            if (offer) accept(offer.word);
+            view.current?.focus();
+          }}
+        >
+          Add “{offer?.word}” to the dictionary
+        </MenuItem>
+      </Menu>
     </div>
   );
 }

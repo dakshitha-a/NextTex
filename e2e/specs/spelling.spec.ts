@@ -283,12 +283,19 @@ async function openMenuOn(tab: Page, sentence: string) {
   return menu;
 }
 
+// The menu is the shell's, not the page's.  It used to be furniture, a
+// dark card whatever the theme; the overhaul's rule is that a card opened
+// inside the editor takes the shell's palette explicitly, so on a light
+// shell it is a light card with dark text even over a white page, and on
+// a dark shell it is a dark card with light text even over a white page.
+// Either way it is never the page's own palette, which is what painted a
+// pale card on a pale page once.
 for (const ground of [
-  { theme: "light", editor: "white" },
-  { theme: "light", editor: "match" },
-  { theme: "dark", editor: "white" },
+  { theme: "light", editor: "white", dark: false },
+  { theme: "light", editor: "match", dark: false },
+  { theme: "dark", editor: "white", dark: true },
 ]) {
-  test(`the menu is a dark card on a light page (${ground.theme} shell, ${ground.editor} page)`, async ({
+  test(`the menu takes the shell's palette (${ground.theme} shell, ${ground.editor} page)`, async ({
     tab,
   }) => {
     await tab.getByTestId("appearance").first().click();
@@ -301,9 +308,14 @@ for (const ground of [
     const text = luminance(
       await menu.getByRole("menuitem").first().evaluate((el) => getComputedStyle(el).color),
     );
-    expect(card, "the card is not dark").toBeLessThan(0.2);
-    expect(text, "the text is not light").toBeGreaterThan(0.5);
-    // And the page behind it is light, which is the whole point.
+    if (ground.dark) {
+      expect(card, "the card is not dark").toBeLessThan(0.2);
+      expect(text, "the text is not light").toBeGreaterThan(0.5);
+    } else {
+      expect(card, "the card is not light").toBeGreaterThan(0.5);
+      expect(text, "the text is not dark").toBeLessThan(0.2);
+    }
+    // And the page behind it is light in every case here.
     const page = luminance(await tab.locator(".cm-editor").evaluate(background));
     expect(page).toBeGreaterThan(0.5);
   });

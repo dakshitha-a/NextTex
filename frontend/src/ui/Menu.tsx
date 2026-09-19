@@ -10,6 +10,7 @@ import {
 import { useOnScreen, type Wanted } from "../place-menu";
 import { useDismiss } from "../useDismiss";
 import { focusFirst, walkGrid, walkMenu } from "../panes/menu-keys";
+import { shellTheme } from "./FloatingCard";
 
 /** A menu that floats over a pane.
  *
@@ -44,6 +45,10 @@ export type MenuProps = {
   grid?: boolean;
   role?: "menu" | "none";
   className?: string;
+  /** A caller's own keys, asked first; returning true keeps the menu's
+   *  walk from also acting on the press.  The spelling menu's digits
+   *  pick a suggestion this way. */
+  onKey?: (event: KeyboardEvent<HTMLDivElement>) => boolean;
   children: ReactNode;
 };
 
@@ -59,6 +64,7 @@ export function Menu({
   grid = false,
   role = "menu",
   className,
+  onKey,
   children,
 }: MenuProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -73,9 +79,10 @@ export function Menu({
   }, [open]);
   const keys = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      if (onKey?.(event)) return;
       (grid ? walkGrid : walkMenu)(event, onClose);
     },
-    [grid, onClose],
+    [grid, onClose, onKey],
   );
   if (!open || !wanted) return null;
   const at = placed ?? { left: wanted.left, top: wanted.top };
@@ -85,7 +92,10 @@ export function Menu({
       role={role === "none" ? undefined : role}
       aria-label={label}
       data-testid={testid}
-      className={`nx-menu nx-arrive${className ? ` ${className}` : ""}`}
+      // The shell's palette, explicitly: a menu opened inside the editor is
+      // a child of the editor's ground, which may be a white page under a
+      // dark shell, and it is the shell's menu, not the page's.
+      className={`nx-menu nx-arrive ${shellTheme()}${className ? ` ${className}` : ""}`}
       style={{ left: at.left, top: at.top, width }}
       onKeyDown={keys}
     >
@@ -149,7 +159,9 @@ export function MenuItem({
         {children}
         {note !== undefined && note !== null ? <span className="nx-menu-note">{note}</span> : null}
       </span>
-      {hint !== undefined && hint !== null ? <span className="nx-menu-hint">{hint}</span> : null}
+      {/* Not part of the item's name: the digit or the chord is a visual
+          aid, and the key itself is what a keyboard user presses. */}
+      {hint !== undefined && hint !== null ? <span className="nx-menu-hint" aria-hidden="true">{hint}</span> : null}
     </button>
   );
 }
