@@ -102,19 +102,29 @@ export function Menu({
  *  on which item is current.  `danger` sets the label in the error ink,
  *  and a menu puts such an item last, after a divider.  `role` is
  *  `menuitem` unless the menu itself has no role, in which case the item
- *  is a plain button and a spec finds it by its name. */
+ *  is a plain button and a spec finds it by its name; a listbox's rows
+ *  are `option`s.  `note` adds a second line in the third ink under the
+ *  label, for a choice that needs a sentence, such as a mode or a model;
+ *  the item grows to hold it.  `hover` is what the pointer does when it
+ *  passes over the item: `focus`, so the arrows and the pointer agree on
+ *  the current item, or `none` for a list the composer drives, where
+ *  taking focus would take the caret out of the box. */
 export type MenuItemProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   hint?: ReactNode;
+  note?: ReactNode;
   danger?: boolean;
-  role?: "menuitem" | "menuitemradio" | "menuitemcheckbox" | "none";
+  role?: "menuitem" | "menuitemradio" | "menuitemcheckbox" | "option" | "none";
   icon?: ReactNode;
+  hover?: "focus" | "none";
 };
 
 export function MenuItem({
   hint,
+  note,
   danger = false,
   role = "menuitem",
   icon,
+  hover = "focus",
   className,
   children,
   type = "button",
@@ -126,18 +136,27 @@ export function MenuItem({
       type={type}
       role={role === "none" ? undefined : role}
       data-danger={danger || undefined}
+      data-note={note !== undefined && note !== null ? "true" : undefined}
       className={`nx-menu-item${className ? ` ${className}` : ""}`}
       onPointerMove={(event) => {
-        if (event.movementX || event.movementY) event.currentTarget.focus();
+        if (hover === "focus" && (event.movementX || event.movementY)) event.currentTarget.focus();
         onPointerMove?.(event);
       }}
       {...rest}
     >
       {icon}
-      <span className="nx-menu-label">{children}</span>
+      <span className="nx-menu-label">
+        {children}
+        {note !== undefined && note !== null ? <span className="nx-menu-note">{note}</span> : null}
+      </span>
       {hint !== undefined && hint !== null ? <span className="nx-menu-hint">{hint}</span> : null}
     </button>
   );
+}
+
+/** A line of small text above a group of items: what the menu is asking. */
+export function MenuHeader({ children }: { children: ReactNode }) {
+  return <div className="nx-menu-header">{children}</div>;
 }
 
 /** A rule between two groups of a menu. */

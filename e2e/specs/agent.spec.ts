@@ -816,9 +816,11 @@ test("the permission menu marks its position the way the model menu does", async
   await tab.getByTestId("auto-toggle").click();
   await expect(tab.getByTestId("mode-menu")).toBeVisible();
 
+  // The dot is the kit's: a ::before on the item, filled when the item is
+  // aria-checked, so it is read from the pseudo-element rather than a span.
   const filled = async (option: string) => {
-    const dot = tab.getByTestId(`mode-${option}`).locator("span").first();
-    return dot.evaluate((node) => getComputedStyle(node).backgroundColor);
+    const item = tab.getByTestId(`mode-${option}`);
+    return item.evaluate((node) => getComputedStyle(node, "::before").backgroundColor);
   };
 
   // "ask" is where a project starts.

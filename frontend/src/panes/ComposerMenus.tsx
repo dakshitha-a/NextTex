@@ -17,6 +17,7 @@
  */
 import { forwardRef, useEffect, useRef } from "react";
 import { focusFirst, walkMenu } from "./menu-keys";
+import { MenuHeader, MenuItem } from "../ui/Menu";
 import { WELCOME_ACTIONS } from "../welcome";
 import { MODE_NOTES, MODE_TITLES, type Mode } from "./mode-words";
 
@@ -30,31 +31,21 @@ export const ModelMenu = forwardRef<
     <div
       ref={ref}
       data-testid="model-menu"
-      className="nx-arrive absolute bottom-[30px] left-0 z-40 w-[230px] overflow-hidden rounded-[5px] border border-line bg-surface shadow-float"
+      className="nx-menu-anchored nx-arrive bottom-[34px] left-0 w-[260px]"
     >
-      <div className="t-micro px-[10px] pb-1 pt-2 text-ink-2">
-        Which model answers here
-      </div>
+      <MenuHeader>Which model answers here</MenuHeader>
       {(models.length ? models : [{ id: "", name: "Default", note: "" }]).map(
         (entry) => (
-          <button
+          <MenuItem
             key={entry.id}
-            className="flex w-full items-start gap-2 border-t border-line px-[10px] py-[6px] text-left transition-colors duration-[90ms] hover:bg-surface-2"
+            role="menuitemradio"
+            aria-checked={current === entry.id}
             aria-pressed={current === entry.id}
+            note={entry.note || undefined}
             onClick={() => onChoose(entry.id)}
           >
-            <span
-              className={`mt-[6px] h-[4px] w-[4px] shrink-0 rounded-full ${
-                current === entry.id ? "bg-pen" : "bg-transparent"
-              }`}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="t-ui block truncate text-ink">{entry.name}</span>
-              {entry.note ? (
-                <span className="t-meta block text-ink-2">{entry.note}</span>
-              ) : null}
-            </span>
-          </button>
+            {entry.name}
+          </MenuItem>
         ),
       )}
     </div>
@@ -86,47 +77,26 @@ export const ModeMenu = forwardRef<
       }}
       role="menu"
       data-testid="mode-menu"
-      className="nx-arrive absolute bottom-[30px] left-0 z-20 w-[288px] rounded-[5px] border border-line bg-surface-2 p-1 shadow-float"
+      className="nx-menu-anchored nx-arrive bottom-[34px] left-0 w-[300px]"
       // The role's promise, kept: arrows walk the three, Escape closes and
       // gives the bolt its focus back.
       onKeyDown={(event) => {
         if (walkMenu(event, onClose) && event.key === "Escape") onEscape();
       }}
     >
+      <MenuHeader>What it asks about</MenuHeader>
       {(["ask", "project", "all"] as const).map((option) => (
-        <button
+        <MenuItem
           key={option}
           role="menuitemradio"
           aria-checked={mode === option}
           data-testid={`mode-${option}`}
-          className={`flex w-full items-start gap-2 rounded-[3px] px-2 py-[6px] text-left transition-colors duration-[90ms] hover:bg-surface-3 ${
-            mode === option ? "bg-surface-3" : ""
-          }`}
+          note={MODE_NOTES[option]}
+          className={option === "all" ? "text-warn" : undefined}
           onClick={() => onChoose(option)}
         >
-          {/* The same 4px dot the model popover one icon along the strip
-              uses for its selection. This marked the current position
-              with a fill alone, and two popovers on the same strip saying
-              the same thing two different ways is a difference a reader
-              has to learn rather than read. */}
-          <span
-            className={`mt-[6px] h-[4px] w-[4px] shrink-0 rounded-full ${
-              mode === option ? "bg-pen" : "bg-transparent"
-            }`}
-          />
-          <span className="min-w-0 flex-1">
-            <span
-              className={`t-ui block ${
-                option === "all" ? "text-warn" : "text-ink"
-              }`}
-            >
-              {MODE_TITLES[option]}
-            </span>
-            <span className="t-micro mt-[2px] block text-ink-3">
-              {MODE_NOTES[option]}
-            </span>
-          </span>
-        </button>
+          {MODE_TITLES[option]}
+        </MenuItem>
       ))}
     </div>
   );
@@ -192,35 +162,26 @@ export const PromptMenu = forwardRef<
       role="listbox"
       aria-label="Reusable prompts"
       data-testid="prompt-menu"
-      className="absolute bottom-full left-0 right-0 z-40 mb-1 overflow-hidden rounded-[5px] border border-line bg-surface shadow-float"
+      className="nx-menu-anchored nx-arrive bottom-full left-0 right-0 mb-1"
     >
-      <div className="t-micro px-[10px] pb-1 pt-2 text-ink-2">
-        A reusable prompt: Enter fills it in, and you send when you are ready
-      </div>
+      <MenuHeader>A reusable prompt: Enter fills it in, and you send when you are ready</MenuHeader>
       {prompts.map((prompt, index) => (
-        <button
+        <MenuItem
           key={prompt.name}
-          type="button"
           role="option"
+          hover="none"
           aria-selected={index === selected}
           data-testid="prompt-row"
-          className={`flex w-full items-start gap-2 border-t border-line px-[10px] py-[6px] text-left transition-colors duration-[90ms] ${
-            index === selected ? "bg-hint-wash" : "hover:bg-surface-2"
-          }`}
+          note={prompt.hint}
           onPointerMove={() => onHover(index)}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => onPick(index)}
         >
-          <span className="min-w-0 flex-1">
-            <span className="t-ui block truncate text-ink">
-              /{prompt.said}
-              {prompt.source === "project" ? (
-                <span className="t-micro ml-2 text-ink-3">this project's</span>
-              ) : null}
-            </span>
-            <span className="t-meta block truncate text-ink-2">{prompt.hint}</span>
-          </span>
-        </button>
+          <span className="font-mono text-[13px]">/{prompt.said}</span>
+          {prompt.source === "project" ? (
+            <span className="t-micro ml-2 text-ink-3">this project's</span>
+          ) : null}
+        </MenuItem>
       ))}
     </div>
   );

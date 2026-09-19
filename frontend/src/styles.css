@@ -1411,6 +1411,16 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-menu-item:disabled { color: var(--ink-3); cursor: default; }
 .nx-menu-item[aria-checked="true"]::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--hint); margin-right: 3px; }
 .nx-menu-divider { height: 1px; margin: 6px 4px; background: var(--line); }
+/* A menu that is anchored inside a positioned parent rather than placed
+   on the screen: the composer's, which open above the box. */
+.nx-menu-anchored { position: absolute; z-index: 40; padding: 6px; border-radius: var(--nx-radius-card); background: var(--float-ground); color: var(--ink); box-shadow: var(--float); }
+.nx-menu-header { padding: 4px 10px 6px; color: var(--ink-3); font-size: 12px; line-height: 16px; }
+.nx-menu-item[data-note] { height: auto; align-items: flex-start; padding: 6px 10px; white-space: normal; }
+.nx-menu-item[data-note] .nx-menu-label { white-space: normal; }
+.nx-menu-note { display: block; color: var(--ink-3); font-size: 12px; line-height: 16px; margin-top: 1px; }
+.nx-menu-item[aria-selected="true"] { background: var(--wash); }
+.nx-menu-item[data-note][aria-checked="true"]::before { margin-top: 7px; }
+.nx-menu-item[data-note]:not([aria-checked="true"])::before { content: ""; width: 5px; height: 5px; margin-right: 3px; margin-top: 7px; }
 
 .nx-card {
   border-radius: var(--nx-radius-card);
