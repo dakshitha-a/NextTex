@@ -66,6 +66,11 @@ export function shellEscapeOf(raw: unknown): ShellEscape {
   return raw === "asked" || raw === "on" ? raw : "off";
 }
 
+/** A page limit off the wire: a whole number, or 0 for none. */
+export function countOf(raw: unknown): number {
+  return typeof raw === "number" && Number.isInteger(raw) && raw > 0 ? raw : 0;
+}
+
 export type CompileResult = {
   outcome: "ok" | "errors" | "cancelled" | "timeout" | "failed" | "no_engine";
   scope: string;
@@ -80,6 +85,33 @@ export type CompileResult = {
   summary?: BuildSummary | null;
   pdf?: string | null;
 };
+
+/** One row of the submission check: the drawer's row shape with a kind
+ *  to group by, and a page where the finding came off the PDF rather than
+ *  the source. */
+export type SubmitFinding = {
+  kind: string;
+  severity: "error" | "warning" | "note";
+  message: string;
+  file: string | null;
+  line: number | null;
+  page: number | null;
+  source: "submit";
+  explain: Explanation | null;
+};
+
+export type SubmitReport = {
+  document: string;
+  pages: number | null;
+  /** When the PDF was written, as a Unix time in seconds, or null. */
+  built: number | null;
+  engine: string;
+  findings: SubmitFinding[];
+  counts: Record<string, number>;
+};
+
+/** Which optional tools the machine running NextTex has. */
+export type Tools = Record<string, boolean>;
 
 /** A folder-read in flight, as it reports itself on the event stream. */
 export type LibraryProgress = {
@@ -761,6 +793,8 @@ const api = {
       markErrors: boolean;
       markWarnings: boolean;
       engine: Engine | "";
+      pageLimit: number;
+      blind: boolean;
     }>,
   ) =>
     request<{
@@ -771,6 +805,8 @@ const api = {
       markWarnings: boolean;
       engine: Engine | "";
       shellEscape: ShellEscape;
+      pageLimit: number;
+      blind: boolean;
     }>(`/projects/${id}/settings`, json(patch)),
   /** This machine's answer to a project that asks for shell escape. The
    *  project asks in its own toml; the answer is kept per project on the
@@ -885,6 +921,14 @@ const api = {
     request<{ diagnostics: Diagnostic[] }>(
       `/projects/${id}/lint?path=${encodeURIComponent(path)}`,
     ),
+  /** What a venue would send back, for one document, off its last build. */
+  submitCheck: (id: string, document = "") =>
+    request<SubmitReport>(
+      `/projects/${id}/submit?document=${encodeURIComponent(document)}`,
+    ),
+  /** Which optional tools this machine has: pandoc for the export rows,
+   *  pdffonts and pdfimages for the submission check. */
+  tools: () => request<Tools>("/tools"),
   /** `column` is what the server sends and synctex never fills: `-1` on
    *  every engine, which arrives as null.  Named here so the shape is the
    *  route's rather than a subset of it. */

@@ -38,10 +38,6 @@ publisher's record; the context directory is under `.nexttex/`, which is
 never synced, so shared prompt files live at the project root; and the
 rail gains one tile, not three.
 
-- [ ] **Before you submit.** One panel that reads the last build and
-      the sources and says what a venue would send back, with `pdffonts`
-      and `pdfimages` for what a log cannot say, a page limit and a
-      blind-review switch in `nexttex.toml`.
 - [ ] **Bibliography checks while you type.** A `.bib` file gets drawer
       rows the way a `.tex` file gets chktex rows; `@` completes the
       entry types with their fields as tab stops; `\bibliographystyle{}`

@@ -60,6 +60,8 @@ TOOLS = {
     "chktex":   ("optional", "syntax linting"),
     "texcount": ("optional", "word counts"),
     "pdftotext": ("optional", "reading uploaded PDFs"),
+    "pdffonts":  ("optional", "the submission check's font rows"),
+    "pdfimages": ("optional", "the submission check's image rows"),
     "git":      ("optional", "the version control panel"),
 }
 

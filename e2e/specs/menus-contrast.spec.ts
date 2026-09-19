@@ -318,6 +318,24 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "the submission panel",
+    open: async (tab) => {
+      const panel = tab.getByTestId("submit-panel");
+      await panel.getByRole("button", { name: /Before you submit/ }).click();
+      await panel.getByTestId("submit-check").click();
+      // Either the report's headline or the "build first" line: both are
+      // text this panel draws, and which one arrives depends on whether
+      // the open's build has finished.
+      await expect(
+        panel.getByTestId("submit-headline").or(panel.getByTestId("submit-said")),
+      ).toBeVisible({ timeout: 30_000 });
+      return panel.getByTestId("submit-body");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("submit-panel").getByRole("button", { name: /Before you submit/ }).click();
+    },
+  },
+  {
     name: "the share panel",
     open: async (tab) => {
       await tab.getByTestId("open-share").click();

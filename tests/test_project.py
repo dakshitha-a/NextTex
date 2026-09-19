@@ -200,3 +200,30 @@ def test_a_project_can_be_removed_from_the_list_without_opening_it(tmp_path):
     assert "REGISTRY.path_for(project_id)" in handler
     # The removal must not sit inside the "if session" branch.
     assert re.search(r"\n    REGISTRY\.remove\(root\)", handler)
+
+
+def test_the_venue_facts_round_trip_and_a_bad_one_is_the_default(tmp_path):
+    """`page_limit` and `blind` are the submission check's two settings,
+    in the project's own file so a co-author's check agrees with yours."""
+    (tmp_path / "nexttex.toml").write_text(
+        '[project]\nname = "T"\npage_limit = 8\nblind = true\n', encoding="utf-8"
+    )
+    config = ProjectConfig.load(tmp_path)
+    assert config.page_limit == 8 and config.blind is True
+    config.save(tmp_path)
+    written = (tmp_path / "nexttex.toml").read_text(encoding="utf-8")
+    assert "page_limit = 8" in written and "blind = true" in written
+    # Unset is unwritten, so a project that never asked does not gain lines.
+    config.page_limit, config.blind = 0, False
+    config.save(tmp_path)
+    written = (tmp_path / "nexttex.toml").read_text(encoding="utf-8")
+    assert "page_limit" not in written and "blind" not in written
+
+
+@pytest.mark.parametrize("raw", ['"8"', "true", "-3", "8.5", "1000000"])
+def test_a_page_limit_that_is_not_a_count_reads_as_none(tmp_path, raw):
+    (tmp_path / "nexttex.toml").write_text(
+        f'[project]\nname = "T"\npage_limit = {raw}\nblind = "yes"\n', encoding="utf-8"
+    )
+    config = ProjectConfig.load(tmp_path)
+    assert config.page_limit == 0 and config.blind is False

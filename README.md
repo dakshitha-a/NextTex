@@ -564,6 +564,19 @@ installs it and builds again. A failing install shows `tlmgr`'s own
 words under the row, which on a TinyTeX behind its mirror is the one
 sentence that says what to do.
 
+None of that stops a build, though, and neither does what a venue sends
+back. *Before you submit*, a panel at the foot of the file list, reads the
+last build and the sources for exactly that: undefined references, a
+`\today` in the footer, a `% TODO` beside a number, a `\todo` in the text,
+a duplicate label, a label or a bibliography entry nothing uses, a
+paragraph commented out and kept, a font that is not embedded and a
+figure at screen resolution, the last two through poppler's `pdffonts`
+and `pdfimages`. Type the venue's page limit and the count is checked
+against it; switch on *Blind review* and the author block, the
+affiliations and the acknowledgements become rows. Every row that has a
+line goes to it, every row that has a page turns to it, and *Copy all*
+puts the list on the clipboard for a co-author. No model is involved.
+
 ### Every pause is a version
 
 A version is the sha256 of the file's bytes, stored once and compressed on
@@ -1164,6 +1177,8 @@ mark_errors = true      # mark compile errors in the text itself
 mark_warnings = false   # and chktex warnings, which are noisier
 engine = "xelatex"      # or "lualatex"; pdflatex when the line is absent
 shell_escape = true     # asks for -shell-escape; each computer still says yes once
+page_limit = 8          # the venue's limit, for Before you submit; absent means none
+blind = true            # an author, an affiliation or an acknowledgement is a finding
 ```
 
 There is no main file to name. Every `.tex` with a `\documentclass` and a

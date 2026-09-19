@@ -252,6 +252,13 @@ class ProjectConfig:
     #: `Settings.shell_escape_allowed`.  The build passes the flag only
     #: when both hold.
     shell_escape: bool = False
+    #: Two facts about the venue, read by the submission check.  In this
+    #: file rather than the browser because a co-author submitting from
+    #: another machine needs the same answers.  A page limit of 0 is no
+    #: limit; `blind` makes an author, an affiliation or an
+    #: acknowledgement a row.
+    page_limit: int = 0
+    blind: bool = False
 
     @classmethod
     def load(cls, root: Path) -> "ProjectConfig":
@@ -279,7 +286,17 @@ class ProjectConfig:
             mark_warnings=bool(section.get("mark_warnings", False)),
             engine=cls._engine(section.get("engine")),
             shell_escape=section.get("shell_escape") is True,
+            page_limit=cls._count(section.get("page_limit")),
+            blind=section.get("blind") is True,
         )
+
+    @staticmethod
+    def _count(raw: object) -> int:
+        """A non-negative whole number from the config, or 0.  A bool is an
+        int in Python and is not a page count."""
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            return 0
+        return raw if 0 <= raw <= 100_000 else 0
 
     @staticmethod
     def _engine(raw: object) -> str:
@@ -342,6 +359,10 @@ class ProjectConfig:
             lines.append(f"engine = {_toml(self.engine)}")
         if self.shell_escape:
             lines.append("shell_escape = true")
+        if self.page_limit:
+            lines.append(f"page_limit = {int(self.page_limit)}")
+        if self.blind:
+            lines.append("blind = true")
         if self.check_command:
             lines.append(f"check_command = {_toml(self.check_command)}")
         if self.exclude:
@@ -508,6 +529,8 @@ class Project:
             "markWarnings": self.config.mark_warnings,
             "engine": self.config.engine,
             "shellEscapeAsked": self.config.shell_escape,
+            "pageLimit": self.config.page_limit,
+            "blind": self.config.blind,
         }
 
 

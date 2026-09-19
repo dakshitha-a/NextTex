@@ -11,6 +11,7 @@ import { agentChangedScript } from "./script-run";
 import { renamePaths } from "./tabs";
 import api, {
   clientId,
+  countOf,
   engineOf,
   shellEscapeOf,
   type CompileResult,
@@ -321,7 +322,16 @@ export type State = {
      *  in one word, since the interface only ever asks "is there a
      *  question to draw" and "is it on". */
     shellEscape: ShellEscape;
+    /** The submission check's two venue facts: a page count the build
+     *  must not exceed, 0 for none, and whether an author's name on the
+     *  page is a finding. */
+    pageLimit: number;
+    blind: boolean;
   };
+  /** Which optional tools the machine has, fetched once per load; null
+   *  until it answers.  The download menu and the submission panel read
+   *  it to offer only what will work. */
+  tools: Record<string, boolean> | null;
   /** A folder-read in flight, or the one that just finished. */
   library: import("./api").LibraryProgress | null;
   /** Set only on an install started with `--instance`: a second NextTex
@@ -429,7 +439,9 @@ const state: State = {
   contextStale: [],
   settings: {
     autocompile: true, markErrors: true, markWarnings: false, engine: "", shellEscape: "off",
+    pageLimit: 0, blind: false,
   },
+  tools: null,
   agent: null,
   library: null,
   cursor: { line: 1, column: 1 },
@@ -1245,6 +1257,8 @@ function receive(event: any) {
             markWarnings: event.markWarnings,
             engine: engineOf(event.engine),
             shellEscape: shellEscapeOf(event.shellEscape),
+            pageLimit: countOf(event.pageLimit),
+            blind: event.blind === true,
           },
         });
       }

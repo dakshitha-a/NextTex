@@ -382,8 +382,10 @@ def survey(
         add(Finding("pdftotext", "pdftotext", PRESENT, where=which("pdftotext")))
     else:
         add(Finding("pdftotext", "pdftotext", YOURS,
-                    why="only for reading a folder of papers into a .bib. "
-                        "NextTex works without it.",
+                    why="for reading a folder of papers into a .bib, and the "
+                        "submission check's font and image rows, which come "
+                        "with it as pdffonts and pdfimages. NextTex works "
+                        "without it.",
                     command=command_for("pdftotext")))
 
     result.tailscale = bool(which("tailscale"))

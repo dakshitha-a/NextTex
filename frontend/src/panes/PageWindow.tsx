@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import api, { captureToken, engineOf, shellEscapeOf } from "../api";
+import api, { captureToken, countOf, engineOf, shellEscapeOf } from "../api";
 import { connect, set, useStore } from "../store";
 import Boundary from "../Boundary";
 import Logo from "../Logo";
@@ -50,6 +50,8 @@ export default function PageWindow({ request }: { request: PageWindowRequest }) 
             markWarnings: project.markWarnings === true,
             engine: engineOf(project.engine),
             shellEscape: shellEscapeOf(project.shellEscape),
+            pageLimit: countOf(project.pageLimit),
+            blind: project.blind === true,
           },
         });
         connect(request.projectId);

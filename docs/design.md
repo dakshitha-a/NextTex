@@ -8081,3 +8081,73 @@ browses into a seeded folder and creates a project under it, finds the
 trailing slash and the caret with no title, opens an existing folder
 through the picker, and on a phone finds the card inside the window and
 the drawer still open after Escape.
+
+## 45. The second roadmap run: the checks
+
+The roadmap's second run, worked in September 2026, took eight items in
+three pushes; this section is the first push, the two checks. Each
+subsection says what the writer gets, why it is shaped that way, and the
+tests that hold it.
+
+### Before you submit
+
+The drawer says what stops a build. What a venue sends back is mostly
+what does not: a `\today` in the footer, a `% TODO` beside a number, a
+`\todo` printed in the margin, two figures with one label, an entry in
+the `.bib` nobody cites, a paragraph commented out in March and still
+there, a figure pasted from a screenshot at 75 ppi, a font the reader's
+machine has to guess at, and the author block on a paper the venue
+reviews blind. Nearly every input already existed: the log parser has
+carried the undefined keys, the overfull count and the page count since
+the compile tool learned to report them, `rename` knows every reference
+and cite family, and the vendored `.bib` reader knows each entry's line.
+The check is one function over those, plus the two things a log cannot
+say, which poppler's `pdffonts` and `pdfimages -list` answer in a table
+each; the roadmap had named both, and both arrive with the `pdftotext`
+the installer already names.
+
+It is a panel in the rail's footer, between the papers and the context,
+rather than rows in the drawer, because the drawer is a build's news and
+this is a question asked on purpose: *Check* reads the last build and
+the sources as they are now, the open documents winning over the disk
+so a `\today` deleted a moment ago is gone from the list before the
+flush. The findings are grouped by kind in the order a reviewer would
+notice them, a page limit first and an unused label last, each group
+with its count, each row with a severity bar the drawer's colours, its
+message, and its place. A row with a file and a line jumps to it; a row
+that came off the PDF has a page instead and turns the page, which is
+what `PdfHandle.goTo` was for; a row with neither opens to its
+explanation, the drawer's *What to do* shape. *Copy all* puts one line
+per row on the clipboard, `file:line: message`, which is the mail to a
+co-author. The header counts what was found and how many are errors,
+and an open panel checks again when the page redraws, so the list
+follows the build.
+
+The two venue facts live in the panel because they are read there. A
+page limit is typed into a field and *Blind review* is a switch, and both
+go into `nexttex.toml` as `page_limit` and `blind` rather than into this
+browser, because a co-author submitting from another machine needs the
+same answers; the settings route accepts them beside the switches and
+`project_changed` carries them. A limit of zero is no limit and is not
+written. A machine without poppler is told so in the panel before Check
+is pressed, from `GET /api/tools`, and the report carries one row per
+check that could not run rather than pretending it did. None of it
+involves a model, which the roadmap asked for and which is why every
+threshold is a number the row says: an image is flagged under 150 ppi
+with its ppi in the message, an overfull box over five points, a
+comment run at three lines and two hundred characters.
+
+`tests/test_usage.py` reads every reference and cite family, comma lists
+and optional arguments, a use in a comment ignored and `\nocite{*}`;
+`tests/test_submit.py` reads the two poppler tables from outputs
+captured on this machine, one from a PDF ghostscript re-distilled with
+embedding off, and a typed `Type 1C` row so a type with a space in it
+cannot shift the columns, gives every kind from a hand-written source,
+and runs the real tools over a real build where they exist;
+`tests/api/test_submit_route.py` reads a fixture log through the route,
+sets the two facts and finds them in the file, and refuses a document
+outside the project. `e2e/specs/submit.spec.ts` builds a document with
+one of everything, presses Check, finds a row per kind, follows the
+`\today` row to its line and the image row to its page, switches blind
+review on and finds the author line, sets a limit under the count and
+finds the row, and reads *Copy all* back off the clipboard.

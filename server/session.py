@@ -848,6 +848,8 @@ class ProjectSession:
             "markWarnings": config.mark_warnings,
             "engine": config.engine,
             "shellEscape": self.shell_escape_state(),
+            "pageLimit": config.page_limit,
+            "blind": config.blind,
         }
 
     def documents_payload(self) -> dict:

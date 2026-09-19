@@ -44,7 +44,7 @@ from pydantic import BaseModel, Field
 
 from nexttex import (
     attachments, auth, auxlabels, claude_auth, gitrepo, plots, rename, report,
-    synctex, texpkg,
+    submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
 from server.collab import identity as collab_identity
@@ -3794,6 +3794,69 @@ async def build_log(project_id: str, document: str = ""):
     }
 
 
+@app.get("/api/projects/{project_id}/submit")
+async def submit_check(project_id: str, document: str = ""):
+    """What a venue would send back, for one document: the last build's
+    log and PDF read for what a log cannot say, and the sources read for
+    what a build does not care about.
+
+    The sources are the same texts the rename route reads, the open
+    documents winning over the disk, so a `\\today` deleted a moment ago
+    is gone from the list without waiting for the flush.  The log and the
+    PDF are the last build's, whatever the sources say now; a document
+    with no build yet is a 409 rather than an empty report, because an
+    empty report reads as a clean one.
+    """
+    session = session_for(project_id)
+    if document and document not in session.documents:
+        raise HTTPException(404, "no such document")
+    state = _document(session, document)
+    paths = state.paths
+    if not paths.log.is_file():
+        raise HTTPException(409, "build the document first; the check reads the build")
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({path: body for path, body in live.items() if path in texts})
+    config = session.project.config
+    last = state.last_result
+
+    def run() -> dict:
+        log_text = paths.log.read_bytes()[-MAX_LOG_BYTES:].decode("utf-8", errors="replace")
+        report = submit.check(
+            document=state.path,
+            log_text=log_text,
+            project_root=session.project.root,
+            main=paths.main,
+            pdf=paths.pdf,
+            engine=last.engine if last else "",
+            texts=texts,
+            relative=lambda path: session.relative_or_none(str(path) if path else None),
+            blind=config.blind,
+            page_limit=config.page_limit,
+        )
+        return report.as_dict()
+
+    return await asyncio.to_thread(run)
+
+
+@app.get("/api/tools")
+async def optional_tools():
+    """Which optional tools this machine has, so the interface can offer
+    only what will work: the download menu lists Word, HTML and Markdown
+    when pandoc is here and nothing when it is not, and the submission
+    panel says which of its checks could not run.
+
+    Answered on each request rather than cached, since a tool installed
+    while NextTex runs should be seen without a restart; `which` is a
+    handful of stats.
+    """
+    ensure_tex_on_path()
+    return {
+        name: bool(shutil.which(name))
+        for name in ("pandoc", "pdffonts", "pdfimages", "pdftotext", "chktex")
+    }
+
+
 #: The publishers the search box offers, in the order the agent's tool
 #: tries them.  Named here so a source the route does not know is a 400
 #: rather than a KeyError inside the vendored script.
@@ -4553,13 +4616,17 @@ async def set_project_settings(
     markErrors: bool | None = Body(None),
     markWarnings: bool | None = Body(None),
     engine: str | None = Body(None),
+    pageLimit: int | None = Body(None),
+    blind: bool | None = Body(None),
 ):
-    """The three switches and the engine choice on the settings card.
+    """The three switches and the engine choice on the settings card, and
+    the two venue facts the submission panel sets.
 
     Any subset: the card sends the one that changed.  The engine is one
     of `compile.ENGINES` or "" for the default; anything else is refused
     rather than written, since the value goes into a file the project
-    carries to other machines.
+    carries to other machines.  A page limit is a whole number, 0 for
+    none, and is refused outside that rather than clamped.
     """
     session = session_for(project_id)
     config = session.project.config
@@ -4573,6 +4640,12 @@ async def set_project_settings(
         if engine and engine not in ENGINES:
             raise HTTPException(400, f"unknown engine: {engine!r}")
         config.engine = engine
+    if pageLimit is not None:
+        if isinstance(pageLimit, bool) or not 0 <= pageLimit <= 100_000:
+            raise HTTPException(400, "a page limit is a whole number, or 0 for none")
+        config.page_limit = int(pageLimit)
+    if blind is not None:
+        config.blind = bool(blind)
     try:
         config.save(session.project.root)
     except OSError as error:

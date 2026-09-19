@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
 import type { WordHint } from "./panes/locate-word";
 import api, {
-  captureToken, engineOf, landingAfter, shellEscapeOf,
+  captureToken, countOf, engineOf, landingAfter, shellEscapeOf,
   type ScriptResult, type WordScope,
 } from "./api";
 import { Followed } from "./followed";
@@ -128,6 +128,7 @@ import SectionsPanel, { includePath } from "./panes/SectionsPanel";
  *  exactly this before the budget was raised a third time. */
 const TrashPanel = lazy(() => import("./panes/TrashPanel"));
 const PapersPanel = lazy(() => import("./panes/PapersPanel"));
+const SubmitPanel = lazy(() => import("./panes/SubmitPanel"));
 const ContextPanel = lazy(() => import("./panes/ContextPanel"));
 const GitPanel = lazy(() => import("./panes/GitPanel"));
 import { isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
@@ -372,6 +373,11 @@ export default function App() {
             api.instance().catch(() => null),
           ]);
           set({ agent: status, instance: self?.instance ?? "" });
+          // Which optional tools the machine has, once: the download
+          // menu's export rows and the submission panel read it.  Not in
+          // the pair above, because a slow `which` must not hold up the
+          // first screen, and nothing on it needs the answer.
+          void api.tools().then((tools) => set({ tools })).catch(() => undefined);
           if (!status?.ready) setView("signin");
           else await resumeOrList();
           return;
@@ -466,6 +472,8 @@ export default function App() {
         markWarnings: project.markWarnings === true,
         engine: engineOf(project.engine),
         shellEscape: shellEscapeOf(project.shellEscape),
+        pageLimit: countOf(project.pageLimit),
+        blind: project.blind === true,
       },
       // The last project's import progress, which belongs to the last
       // project. It was left, so opening another one showed a papers
@@ -2205,6 +2213,10 @@ export default function App() {
               <Suspense fallback={null}>
                 <TrashPanel onRefresh={refreshTree} />
                 <PapersPanel onRefresh={refreshTree} />
+                <SubmitPanel
+                  onJump={(file, line) => openFile(file, line)}
+                  onPage={(page) => pdf.current?.goTo(page)}
+                />
                 {/* What the agent reads is nothing to offer when there is no
                     agent.  The trash, the papers and the git panel all stay:
                     none of them is about a model. */}
