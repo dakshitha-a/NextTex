@@ -15,7 +15,9 @@ import { beforeAll, describe, expect, test } from "vitest";
 import * as Y from "yjs";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import { EditorView, keymap, runScopeHandlers } from "@codemirror/view";
-import { extensions } from "./editor-setup";
+import { historyField } from "@codemirror/commands";
+import { extensions, keymapCompartment } from "./editor-setup";
+import { emacsExtension, vimExtension } from "./keymaps";
 import { remoteMarker } from "../collab";
 
 // jsdom has no layout, and CodeMirror measures its text in an animation
@@ -116,6 +118,59 @@ describe("undo in a live editor", () => {
 
     expect(text.toString()).toBe(CHAPTER);
     expect(text.toString()).toContain("\\documentclass");
+    view.destroy();
+  });
+});
+
+/** The keymaps a writer may choose keep the same owner.
+ *
+ *  Vim's `u` and Emacs's `C-/` are bound by their packages to CodeMirror's
+ *  `undo` command, which with no `history()` in the state does nothing;
+ *  `keymaps.ts` rebinds each to the document's undo manager.  A press in
+ *  each keymap must undo what this keyboard typed and nothing that came
+ *  from the socket, and `historyField` must still be absent.
+ */
+/** Both packages read the DOM's keydown through a view plugin rather
+ *  than a keymap, so the press goes to the content element as a real
+ *  event; `runScopeHandlers` would not reach them. */
+function press(view: EditorView, init: KeyboardEventInit) {
+  view.contentDOM.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+}
+
+describe("undo under a chosen keymap", () => {
+  test("Vim's u and Ctrl-r go to the document, not to a history the editor has not got", () => {
+    const { doc, text, view } = liveEditor();
+    view.dispatch({ effects: keymapCompartment.reconfigure(vimExtension()) });
+    arrivesFromTheSocket(doc, CHAPTER);
+    expect(view.state.field(historyField, false)).toBeUndefined();
+    const at = CHAPTER.indexOf("A paragraph");
+    view.dispatch({ changes: { from: at, insert: "Once more: " } });
+    expect(text.toString()).toContain("Once more: A paragraph");
+
+    press(view, { key: "Escape", code: "Escape" });
+    press(view, { key: "u", code: "KeyU" });
+    expect(text.toString()).toBe(CHAPTER);
+    // And redo brings it back.
+    press(view, { key: "r", code: "KeyR", ctrlKey: true });
+    expect(text.toString()).toContain("Once more: A paragraph");
+    // More presses than edits reach nothing the socket sent.
+    for (let again = 0; again < 6; again += 1) press(view, { key: "u", code: "KeyU" });
+    expect(text.toString()).toBe(CHAPTER);
+    view.destroy();
+  });
+
+  test("Emacs's C-/ goes to the document too", () => {
+    const { doc, text, view } = liveEditor();
+    view.dispatch({ effects: keymapCompartment.reconfigure(emacsExtension()) });
+    arrivesFromTheSocket(doc, CHAPTER);
+    expect(view.state.field(historyField, false)).toBeUndefined();
+    view.dispatch({ changes: { from: 0, insert: "% a note\n" } });
+    expect(text.toString()).toContain("% a note");
+
+    press(view, { key: "/", code: "Slash", ctrlKey: true });
+    expect(text.toString()).toBe(CHAPTER);
+    for (let again = 0; again < 6; again += 1) press(view, { key: "/", code: "Slash", ctrlKey: true });
+    expect(text.toString()).toBe(CHAPTER);
     view.destroy();
   });
 });

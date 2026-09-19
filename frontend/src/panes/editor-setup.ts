@@ -267,6 +267,10 @@ const familyHighlight = ViewPlugin.fromClass(
 
 /** Where the spell checker goes when it is switched on. */
 export const spellCompartment = new Compartment();
+/** Where Vim or Emacs goes when one is chosen; `[]` otherwise, so a
+ *  session that wants neither pays nothing.  First in the extensions so
+ *  its keys are seen before the app's own. */
+export const keymapCompartment = new Compartment();
 
 export type Mark = {
   line: number;
@@ -576,6 +580,7 @@ function renameKey(onSymbol: OnSymbol): Extension {
 
 function base(): Extension[] {
   return [
+    keymapCompartment.of([]),
     lineNumbers(),
     // The fold markers, drawn only where `latexFolding` answers, and a
     // placeholder that says how much is hidden rather than an ellipsis.

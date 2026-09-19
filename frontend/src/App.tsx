@@ -1845,6 +1845,11 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // A key the editor has already answered is not the app's: with the
+      // Emacs keymap on, Ctrl-K kills to the end of the line and must not
+      // also open the palette.  The editor's handlers run on the content
+      // element before this window listener sees the event.
+      if (event.defaultPrevented) return;
       const action = actionFor(event);
       if (action) {
         // Mod-Enter means nothing without a file in front, and must not

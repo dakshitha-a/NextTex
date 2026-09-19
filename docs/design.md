@@ -8354,3 +8354,44 @@ brackets, the function keys and Enter, and the README round trip;
 action, a setting and a file and finds each done, and presses three of
 the chords the registry took over. The palette is in the contrast
 spec's list.
+
+### Vim and Emacs, loaded only when chosen
+
+A keymap is a setting of the machine like spelling, chosen on the sheet
+in a Keymap row with three positions, Default, Vim and Emacs, and kept
+per browser; the palette lists the same three. Neither costs a session
+that wants neither anything: the compartment that holds a keymap is
+empty until one is chosen, and the two packages travel in a chunk of
+their own that the editor fetches the first time it is asked, then
+puts into the view, or takes out again when Default is chosen. Vim's
+status line and Emacs's mode class are the signs it has arrived.
+
+The one constraint is the one `docs/architecture.md` recorded before
+either keymap existed: undo belongs to the document. Both packages bind
+their undo to CodeMirror's own command, and a live editor has no
+CodeMirror history for it to act on, so `u` and `C-/` would have been
+dead keys; each is rebound, through the override its package offers, to
+the commands that already answer Ctrl-Z, which undo what this keyboard
+typed and never what a collaborator did. The sheet says so under the row
+when a keymap is on, because a writer who knows Vim expects `u` to mean
+Vim's undo and is owed the sentence about what it means here.
+
+Two things were found on the way. The Emacs package's published build
+installs its keys and its commands through calls its own bundler marked
+as pure, and a production build takes the annotation at its word and
+drops both, so the app as built had an Emacs mode with no keys in it
+while every unit test, on the unminified source, passed; the file is
+vendored under `frontend/src/vendor/` with the two annotations removed
+and its licence at the top, since the CommonJS build carries no
+annotation but importing it brings a second copy of CodeMirror. And
+`Ctrl-K`, the palette's chord, is Emacs's kill to the end of the line,
+which is why the app's keydown listener now yields to a key the editor
+has already answered.
+
+`editor-undo.test.ts` presses `u`, `Ctrl-r` and `C-/` on a document that
+arrived from the socket and finds only what this keyboard typed undone
+and `historyField` absent; `appearance.test.ts` reads the setting back.
+`e2e/specs/keymaps.spec.ts` picks Vim, removes a line with `dd` and puts
+it back with `u`, reloads and finds Vim still on; picks Emacs, kills a
+line with `C-k`, finds the palette shut and `C-/` restoring the line;
+and back on Default types `dd` as two letters.

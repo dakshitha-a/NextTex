@@ -14,6 +14,7 @@ import {
   extensions,
   flashRange,
   freshState,
+  keymapCompartment,
   languageFor,
   marksFor,
   setDiff,
@@ -30,6 +31,7 @@ import {
   useEditorTheme,
   useEditorEmphasis,
   useEditorSyntax,
+  useKeymap,
   useSpelling,
   useSpellingVariety,
 } from "../use-editor-theme";
@@ -127,6 +129,35 @@ export default function Editor({
   const emphasis = useEditorEmphasis();
   const spelling = useSpelling();
   const spellingVariety = useSpellingVariety();
+  const keymapChoice = useKeymap();
+  const keymapRef = useRef(keymapChoice);
+  keymapRef.current = keymapChoice;
+  /** Put Vim or Emacs into the view, or take it out, from the setting.
+   *  The module is fetched the first time either is chosen; a fresh
+   *  `EditorState` starts with the compartment empty, so this is asked
+   *  again when a buffer is opened, as the spell checker is. */
+  const applyKeymap = useCallback(async (now: EditorView) => {
+    const wanted = keymapRef.current;
+    if (wanted === "default") {
+      const configured = keymapCompartment.get(now.state);
+      if (Array.isArray(configured) && configured.length > 0) {
+        now.dispatch({ effects: keymapCompartment.reconfigure([]) });
+      }
+      return;
+    }
+    const module = await import("./keymaps");
+    // The setting may have moved while the chunk was on its way.
+    if (keymapRef.current !== wanted || view.current !== now) return;
+    now.dispatch({
+      effects: keymapCompartment.reconfigure(
+        wanted === "vim" ? module.vimExtension() : module.emacsExtension(),
+      ),
+    });
+  }, []);
+  useEffect(() => {
+    const now = view.current;
+    if (now) void applyKeymap(now);
+  }, [keymapChoice, applyKeymap]);
   // The document in front decides which English a chapter is held to.
   const activePreview = useStore((s) => s.activePreview);
   // The writer's own words, and the offer to add one.  Held here rather
@@ -699,7 +730,10 @@ export default function Editor({
     const afterSwap = () => {
       setActions((open) => (open === null ? open : null));
       setOffer((open) => (open === null ? open : null));
-      if (view.current) applySpelling(view.current);
+      if (view.current) {
+        applySpelling(view.current);
+        void applyKeymap(view.current);
+      }
       const state = view.current?.state;
       if (!state) return;
       const head = state.selection.main.head;

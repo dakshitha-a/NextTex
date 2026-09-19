@@ -100,9 +100,15 @@ export type Appearance = {
    *  ignore underlines.  Choosing a variety tightens it, so the other
    *  spelling is flagged. */
   spellingVariety: SpellingVariety;
+  /** Whose fingers the editor answers to.  `default` is CodeMirror's own
+   *  keymap and costs nothing; `vim` and `emacs` are fetched the first
+   *  time they are chosen, and each has its undo rebound to the shared
+   *  document's, the constraint `docs/architecture.md` records. */
+  keymap: Keymap;
 };
 
 export type SpellingVariety = "follow" | "american" | "british";
+export type Keymap = "default" | "vim" | "emacs";
 
 /** The steps the two size controls offer.  Discrete stops rather than a
  *  continuous range: there is no useful difference between 112% and 114%,
@@ -135,7 +141,7 @@ export const WEIGHT_NAMES: Record<number, string> = {
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
   weight: 400, syntax: "subtle", emphasis: "bold", preview: "balanced",
-  spelling: false, spellingVariety: "follow",
+  spelling: false, spellingVariety: "follow", keymap: "default",
 };
 
 const KEYS = {
@@ -149,6 +155,7 @@ const KEYS = {
   preview: "nexttex.preview.quality",
   spelling: "nexttex.editor.spelling",
   spellingVariety: "nexttex.editor.spelling.variety",
+  keymap: "nexttex.editor.keymap",
 };
 
 /** localStorage throws rather than returning null in a private window, or
@@ -203,6 +210,7 @@ export function storedAppearance(): Appearance {
   const preview = readStored(KEYS.preview);
   const spelling = readStored(KEYS.spelling);
   const spellingVariety = readStored(KEYS.spellingVariety);
+  const keymap = readStored(KEYS.keymap);
   return {
     // Dark by default: this is an instrument you sit in front of for hours,
     // beside a white page that supplies all the brightness the eye needs.
@@ -224,6 +232,7 @@ export function storedAppearance(): Appearance {
       spellingVariety === "american" || spellingVariety === "british"
         ? spellingVariety
         : DEFAULTS.spellingVariety,
+    keymap: keymap === "vim" || keymap === "emacs" ? keymap : DEFAULTS.keymap,
   };
 }
 
@@ -270,6 +279,7 @@ export function applyAppearance(appearance: Appearance): void {
   root.dataset.previewQuality = appearance.preview;
   root.dataset.spelling = appearance.spelling ? "on" : "off";
   root.dataset.spellingVariety = appearance.spellingVariety;
+  root.dataset.keymap = appearance.keymap;
 
   writeStored(KEYS.theme, appearance.theme);
   writeStored(KEYS.scale, String(appearance.scale));
@@ -281,6 +291,7 @@ export function applyAppearance(appearance: Appearance): void {
   writeStored(KEYS.preview, appearance.preview);
   writeStored(KEYS.spelling, appearance.spelling ? "on" : "off");
   writeStored(KEYS.spellingVariety, appearance.spellingVariety);
+  writeStored(KEYS.keymap, appearance.keymap);
 
   // The preview draws to a canvas whose backing store is sized for the
   // scale in force when it was drawn, so it has to be told rather than left

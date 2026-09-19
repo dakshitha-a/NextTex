@@ -10,7 +10,7 @@
 
 import {
   EDITOR_GROUNDS, EDITOR_SIZES, EDITOR_WEIGHTS, SCALES, WEIGHT_NAMES,
-  type Appearance, type EditorTheme, type SpellingVariety,
+  type Appearance, type EditorTheme, type Keymap, type SpellingVariety,
 } from "./appearance";
 import type { TreeNode } from "./api";
 
@@ -83,6 +83,14 @@ export function settingItems(): SettingItem[] {
       label: `Spelling variety: ${variety === "follow" ? "follow the document" : variety}`,
       current: (look) => look.spellingVariety === variety,
       apply: (look) => ({ ...look, spellingVariety: variety }),
+    });
+  }
+  for (const keymap of ["default", "vim", "emacs"] as Keymap[]) {
+    items.push({
+      id: `keymap:${keymap}`,
+      label: `Keymap: ${keymap === "default" ? "default" : keymap === "vim" ? "Vim" : "Emacs"}`,
+      current: (look) => look.keymap === keymap,
+      apply: (look) => ({ ...look, keymap }),
     });
   }
   return items;

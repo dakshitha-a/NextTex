@@ -256,6 +256,28 @@ export default function SettingsSheet({
                   <AddedWords />
                 </>
               ) : null}
+              {/* Whose fingers the editor answers to.  Fetched only when
+                  chosen, so a session that wants neither pays nothing; and
+                  each keymap's own undo is rebound to the shared document's,
+                  because two histories over one document once emptied a
+                  file for everyone (`docs/architecture.md`). */}
+              <Choice
+                label="Keymap"
+                name="Editor keymap"
+                value={look.keymap}
+                options={[
+                  { value: "default", text: "Default", id: "keymap-default" },
+                  { value: "vim", text: "Vim", id: "keymap-vim" },
+                  { value: "emacs", text: "Emacs", id: "keymap-emacs" },
+                ] as const}
+                onPick={(keymap) => change({ keymap })}
+              />
+              {look.keymap !== "default" ? (
+                <p className="t-micro border-t border-line px-[10px] py-[5px] text-ink-3">
+                  Undo stays the document's under either: it undoes what you
+                  typed, never what a collaborator did.
+                </p>
+              ) : null}
               {/* What the preview spends on a page.  The page is rasterised
                   at the device ratio times the interface scale, so a retina
                   screen or a scaled-up interface already costs several

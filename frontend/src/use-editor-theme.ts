@@ -3,6 +3,7 @@ import {
   APPEARANCE_CHANGED,
   type EditorTheme,
   type Emphasis,
+  type Keymap,
   type SpellingVariety,
   type SyntaxMode,
 } from "./appearance";
@@ -84,4 +85,19 @@ export function useSpelling(): boolean {
     return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
   }, []);
   return on;
+}
+
+/** Whose keymap the editor answers to, live.  Read like the others. */
+export function useKeymap(): Keymap {
+  const read = (): Keymap => {
+    const value = document.documentElement.dataset.keymap;
+    return value === "vim" || value === "emacs" ? value : "default";
+  };
+  const [keymap, setKeymap] = useState(read);
+  useEffect(() => {
+    const onChange = () => setKeymap(read());
+    window.addEventListener(APPEARANCE_CHANGED, onChange);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
+  }, []);
+  return keymap;
 }

@@ -20,6 +20,7 @@
     "@fontsource/source-sans-3": "^5.2.5",
     "@fontsource/source-serif-4": "^5.2.5",
     "@lezer/highlight": "^1.2.3",
+    "@replit/codemirror-vim": "^6.4.0",
     "@types/katex": "^0.16.8",
     "diff": "^7.0.0",
     "katex": "^0.18.6",

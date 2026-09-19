@@ -83,12 +83,12 @@ describe("what is remembered", () => {
     applyAppearance({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "british",
+      spelling: true, spellingVariety: "british", keymap: "vim",
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "british",
+      spelling: true, spellingVariety: "british", keymap: "vim",
     });
   });
 
@@ -102,10 +102,11 @@ describe("what is remembered", () => {
     applyAppearance({
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
       weight: 300, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "american",
+      spelling: true, spellingVariety: "american", keymap: "emacs",
     });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");
+    expect(root.dataset.keymap).toBe("emacs");
     expect(root.style.getPropertyValue("--nx-ui-scale")).toBe("1.5");
     expect(root.style.getPropertyValue("--nx-editor-size")).toBe("21px");
     expect(root.style.getPropertyValue("--nx-editor-weight")).toBe("300");
@@ -168,5 +169,14 @@ describe("what is remembered", () => {
   it("knows when nothing has been changed", () => {
     expect(isDefault(DEFAULTS)).toBe(true);
     expect(isDefault({ ...DEFAULTS, scale: 110 })).toBe(false);
+  });
+});
+
+describe("the keymap", () => {
+  it("is the default unless vim or emacs was stored", () => {
+    window.localStorage.setItem("nexttex.editor.keymap", "vi");
+    expect(storedAppearance().keymap).toBe("default");
+    window.localStorage.setItem("nexttex.editor.keymap", "emacs");
+    expect(storedAppearance().keymap).toBe("emacs");
   });
 });
