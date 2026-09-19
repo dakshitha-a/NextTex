@@ -3951,8 +3951,10 @@ async def library_add(project_id: str, doi: str = Body(..., embed=True)):
 async def library_verify(project_id: str):
     """Check every entry against the record it claims to come from.
 
-    Written, tested, called from the agent's tool, and reachable from the
-    interface nowhere at all. Nothing is written: this reports.
+    Called from the agent's tool and from the Papers panel's Check button,
+    which the backlog run added; this docstring said the interface could
+    not reach it until the second roadmap run read it. Nothing is
+    written: this reports.
     """
     session = session_for(project_id)
     bib = _bib_for(session)
