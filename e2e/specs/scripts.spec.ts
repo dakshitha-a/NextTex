@@ -123,8 +123,12 @@ test("the page keeps its place while the script tab is in front", async ({
 test("Ctrl-Enter in a script runs it", async ({ app, project, page }) => {
   await withScript({ app, project, page });
   await page.locator(".cm-content").click();
+  const lines = await page.locator(".cm-line").count();
   await page.keyboard.press("Control+Enter");
   await expect(page.getByTestId("script-stdout")).toContainText("hello world", { timeout: 20_000 });
+  // And only ran it: the editor's own Mod-Enter, a blank line, used to
+  // land under the caret with every run.
+  expect(await page.locator(".cm-line").count()).toBe(lines);
 });
 
 test("a failing run shows the traceback and hands it to the agent on one press", async ({

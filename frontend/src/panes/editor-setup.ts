@@ -647,7 +647,13 @@ function base(): Extension[] {
       // `\end{figure}`; that happened only when the completion list was
       // used, which is the case where the writer already knew the name.
       { key: "Enter", run: closeEnvironment },
-      ...defaultKeymap,
+      // Without its Mod-Enter, which inserts a blank line: that chord is
+      // the app's, reveal on the page or run the script, and the app
+      // yields to a key the editor has answered, so the editor's own
+      // binding took the key and a script stopped running from the
+      // keyboard. Before the app yielded, both ran, and every Ctrl-Enter
+      // run left a blank line under the caret that nobody noticed.
+      ...defaultKeymap.filter((binding) => binding.key !== "Mod-Enter"),
       ...searchKeymap,
       // Ahead of `indentWithTab`, which would otherwise take the key.
       // `acceptCompletion` returns false when no list is open or nothing

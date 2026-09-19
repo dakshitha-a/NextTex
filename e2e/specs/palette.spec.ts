@@ -74,6 +74,6 @@ test("the chords the registry took over still answer", async ({ tab }) => {
   else await expect(composer).toBeVisible({ timeout: 10_000 });
   await tab.keyboard.press("Control+Alt+a");
   // Mod-Shift-F opens the project search with the caret in its box.
-  await tab.keyboard.press("Control+Shift+f");
+  await tab.keyboard.press("Control+Shift+F");
   await expect(tab.getByTestId("project-search")).toBeFocused({ timeout: 10_000 });
 });

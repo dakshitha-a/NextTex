@@ -8386,7 +8386,15 @@ and its licence at the top, since the CommonJS build carries no
 annotation but importing it brings a second copy of CodeMirror. And
 `Ctrl-K`, the palette's chord, is Emacs's kill to the end of the line,
 which is why the app's keydown listener now yields to a key the editor
-has already answered.
+has already answered. That yielding found one chord the two had both
+been answering: CodeMirror's default keymap binds `Mod-Enter` to a
+blank line, so every `Ctrl-Enter` that ran a script or went to the page
+had also put a blank line under the caret, and once the app yielded the
+run stopped altogether. The editor's binding is left out of its keymap,
+since the chord is the app's; `editor-chords.test.ts` presses it and
+finds the document unchanged and the event unanswered, and presses
+`Ctrl-Shift-F` as a keyboard reports it, with the capital, and finds the
+editor's own find panel shut.
 
 `editor-undo.test.ts` presses `u`, `Ctrl-r` and `C-/` on a document that
 arrived from the socket and finds only what this keyboard typed undone

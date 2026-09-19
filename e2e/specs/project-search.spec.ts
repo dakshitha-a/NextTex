@@ -10,7 +10,7 @@ test("a string is found in files that are not open, and clicking goes there", as
   // Mod-Shift-F unfolds the rail, opens the panel and puts the caret in
   // the box, from wherever the keyboard was.
   await tab.locator(".cm-content").click();
-  await tab.keyboard.press("Control+Shift+f");
+  await tab.keyboard.press("Control+Shift+F");
   const box = tab.getByTestId("project-search");
   await expect(box).toBeFocused();
 
@@ -33,7 +33,7 @@ test("a string is found in files that are not open, and clicking goes there", as
 
 test("a bad pattern says so where it was typed", async ({ tab }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
-  await tab.keyboard.press("Control+Shift+f");
+  await tab.keyboard.press("Control+Shift+F");
   await tab.getByTestId("search-regex").click();
   await tab.getByTestId("project-search").fill("(unclosed");
   await expect(tab.getByTestId("search-problem")).toContainText("not a pattern", {
@@ -45,7 +45,7 @@ test("replacing everywhere is asked about first, and says what the undo is", asy
   tab,
 }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
-  await tab.keyboard.press("Control+Shift+f");
+  await tab.keyboard.press("Control+Shift+F");
   await tab.getByTestId("project-search").fill("bibliography");
   await expect(tab.getByTestId("search-hit").first()).toBeVisible({
     timeout: 10_000,
