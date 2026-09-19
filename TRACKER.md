@@ -24,7 +24,21 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing at the moment.
+The visual overhaul, after 2.18.0, rebuilds the interface on one kit and
+goes up as two pushes. It was planned over seventeen versions of a
+direction page the writer went through surface by surface, and that page
+is the specification: every surface is compared with it before its
+commit. The first push, 3.0.0, is the workspace: the tokens and the type
+roles on one family, a kit under every control, every menu and card on
+it, the light theme lit throughout, an activity bar and one drawer in
+place of the accordion rail, the Claude column, the strips, the editor's
+own chrome, and the settings sheet as master-detail; it is an x because
+the editor page goes from six grounds to two, the theme's own and the
+page's white. The second, 3.1.0, is the front door: the projects screen
+as a list under an app bar, with the writing agent chosen and set up
+there, a job application among the presets and Share on a row; the
+screenshots, README and design sections follow. What it leaves is
+written here as it is found.
 
 ## Backlog
 
