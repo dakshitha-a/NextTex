@@ -8,7 +8,6 @@ import api, {
 import Logo from "../Logo";
 import { downloadZip } from "../chrome";
 import Settings from "./Settings";
-import UpdateFooter from "./UpdateFooter";
 import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
 import { agentName } from "../agent-name";
@@ -30,6 +29,11 @@ const ScreenGuide = lazy(() => import("./tutorial/ScreenGuide"));
 const JoinOfferCard = lazy(() => import("./JoinOfferCard"));
 // And the folder picker, which is behind a button most visits never press.
 const FolderPicker = lazy(() => import("./FolderPicker"));
+/** The update footer draws nothing while it rests and asks the server
+ *  for its state on mount, which a lazy mount does a frame later; at
+ *  thirteen kilobytes it was the largest thing in the entry chunk that
+ *  most visits never draw. */
+const UpdateFooter = lazy(() => import("./UpdateFooter"));
 import { classify, nameFor } from "../arrive-source";
 
 /** What each template is, in the words somebody choosing one would use.
@@ -1114,7 +1118,9 @@ export default function Projects({
           "your projects", and the first thing on the screen that says
           Projects has to be the heading. */}
       <footer className="nx-projects-foot bg-surface">
-        <UpdateFooter onBusy={setLocked} />
+        <Suspense fallback={null}>
+          <UpdateFooter onBusy={setLocked} />
+        </Suspense>
         <PasswordNudge />
       </footer>
       {drawer ? <div className="nx-scrim nx-ways-scrim" /> : null}

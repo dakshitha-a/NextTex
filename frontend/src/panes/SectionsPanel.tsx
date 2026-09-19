@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { headingAt, type Heading } from "../outline";
 import { useStore } from "../store";
 import { Chevron } from "../chrome";
-import { findNode } from "../tree";
 
 /** The indent step, matching the file tree above it: the width of a Source
  *  Sans lowercase n at 13px, so the two lists sit on one grid. */
@@ -208,19 +207,3 @@ export default function SectionsPanel({
   );
 }
 
-/** Kept here so the panel and its caller agree on what a row points at. */
-export function includePath(
-  tree: Parameters<typeof findNode>[0] | null,
-  document: string,
-  path: string,
-): string | undefined {
-  // LaTeX resolves an included path against the document's directory, not
-  // against the file doing the including, so a project whose document sits
-  // in a subfolder still opens the right file.  The document is the one
-  // on the preview strip in front, which is the one the open file is a
-  // part of.
-  const cut = document.lastIndexOf("/");
-  const base = cut === -1 ? "" : document.slice(0, cut + 1);
-  if (!tree) return undefined;
-  return [base + path, path].find((candidate) => findNode(tree, candidate));
-}

@@ -78,6 +78,9 @@ const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 /** Lazily loaded, like the tutorial. Most sessions never open it, and the
  *  entry bundle is measured. */
 const SharePanel = lazy(() => import("./panes/SharePanel"));
+/** The sign-in screen is a whole screen, and a machine that is signed in
+ *  never draws it; fetched when it is shown. */
+const SignIn = lazy(() => import("./panes/SignIn"));
 /** The version panel and the strip that says you are looking at an old
  *  version.  Two exports of one module, so they arrive together in one
  *  chunk -- and the strip is only ever reachable through the panel, so by
@@ -111,7 +114,6 @@ const Diagnostics = lazy(() => import("./panes/Diagnostics"));
 import FileTree from "./panes/FileTree";
 import { countFiles } from "./tree";
 import Projects from "./panes/Projects";
-import SignIn from "./panes/SignIn";
 import Collapsed from "./panes/Collapsed";
 import Logo from "./Logo";
 import Settings from "./panes/Settings";
@@ -119,7 +121,7 @@ import InstanceBadge from "./panes/InstanceBadge";
 import { toShell, uiScale, viewportWidth } from "./viewport";
 import { APPEARANCE_CHANGED } from "./appearance";
 import { pageTitle } from "./page-title";
-import SectionsPanel, { includePath } from "./panes/SectionsPanel";
+import { includePath } from "./tree";
 /** The rail's four footer panels: the trash, the papers, the context and
  *  git.  Each draws nothing, or a header, in a project that has not used
  *  it, and each fetches its own state on mount, which a lazy mount does a
@@ -127,6 +129,12 @@ import SectionsPanel, { includePath } from "./panes/SectionsPanel";
  *  is what paid for the fold gutter; `bench/thresholds.json` had asked for
  *  exactly this before the budget was raised a third time. */
 const TrashPanel = lazy(() => import("./panes/TrashPanel"));
+/** The largest panel in the rail after the tree, and the last one that was
+ *  not lazy.  It draws headings a moment after a static one would, from
+ *  the same outline; taken out when the second roadmap run's fourth tile
+ *  and export rows brought the entry chunk to 858.9 of 860 kB, so the
+ *  push after it starts with room rather than a raise. */
+const SectionsPanel = lazy(() => import("./panes/SectionsPanel"));
 const PapersPanel = lazy(() => import("./panes/PapersPanel"));
 const SubmitPanel = lazy(() => import("./panes/SubmitPanel"));
 const ContextPanel = lazy(() => import("./panes/ContextPanel"));
@@ -2010,6 +2018,7 @@ export default function App() {
   }
   if (view === "signin") {
     return (
+      <Suspense fallback={null}>
       <SignIn
         // Present when this screen was opened rather than shown. At boot no
         // agent has been chosen and there is genuinely nowhere to go, and
@@ -2031,6 +2040,7 @@ export default function App() {
           void resumeOrList();
         }}
       />
+      </Suspense>
     );
   }
   if (view === "projects") {
@@ -2203,14 +2213,14 @@ export default function App() {
                   <SearchPanel onOpen={openFile} focusNonce={focusSearch} />
                 </Suspense>
               ) : null}
-              <SectionsPanel
-                open={railOpen.sections}
-                onToggle={() => toggleRail("sections")}
-                onJump={jumpToHeading}
-                grow={!railOpen.files}
-                resolve={resolveInclude}
-              />
               <Suspense fallback={null}>
+                <SectionsPanel
+                  open={railOpen.sections}
+                  onToggle={() => toggleRail("sections")}
+                  onJump={jumpToHeading}
+                  grow={!railOpen.files}
+                  resolve={resolveInclude}
+                />
                 <TrashPanel onRefresh={refreshTree} />
                 <PapersPanel onRefresh={refreshTree} />
                 <SubmitPanel

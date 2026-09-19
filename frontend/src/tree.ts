@@ -175,3 +175,23 @@ export function tabStopFor(
   }
   return null;
 }
+
+/** Where a heading row in the Sections panel points, resolved against the
+ *  document on the preview strip; here beside `findNode` rather than in the
+ *  panel, so `App` can ask without pulling the panel, which is lazy, into
+ *  the entry chunk. */
+export function includePath(
+  tree: TreeNode | null,
+  document: string,
+  path: string,
+): string | undefined {
+  // LaTeX resolves an included path against the document's directory, not
+  // against the file doing the including, so a project whose document sits
+  // in a subfolder still opens the right file.  The document is the one
+  // on the preview strip in front, which is the one the open file is a
+  // part of.
+  const cut = document.lastIndexOf("/");
+  const base = cut === -1 ? "" : document.slice(0, cut + 1);
+  if (!tree) return undefined;
+  return [base + path, path].find((candidate) => findNode(tree, candidate));
+}
