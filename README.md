@@ -528,7 +528,7 @@ makes typing slower on the day it happens.
 | Project file tree | 3.6 ms | 250 ms |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 838.6 kB | 860 kB |
+| Interface bundle | 841.4 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -660,6 +660,11 @@ If your fingers already know Vim or Emacs, the settings sheet's Keymap
 row gives the editor either, fetched only when chosen so a session that
 wants neither pays nothing. Undo stays the document's under both: `u` or
 `C-/` undoes what you typed, never what a collaborator did.
+
+Paste a spreadsheet's cells or a `.csv` into a chapter and they arrive as
+a booktabs table, cells escaped, numbers right-aligned, the caret in the
+caption; paste a screenshot and it is saved under `figures/` with a
+figure environment written for it. Neither happens inside `verbatim`.
 
 ### Panes, and two modes
 

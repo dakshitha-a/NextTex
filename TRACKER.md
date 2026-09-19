@@ -38,7 +38,6 @@ publisher's record; the context directory is under `.nexttex/`, which is
 never synced, so shared prompt files live at the project root; and the
 rail gains one tile, not three.
 
-- [ ] **Paste data as a table, paste an image as a figure.**
 - [ ] **Slash commands in the agent panel**, prompts as files in
       `prompts/`, with `/review friendly` and `/review critical` built
       in.

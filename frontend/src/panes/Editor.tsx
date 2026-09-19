@@ -22,7 +22,8 @@ import {
   spellCompartment,
   viewExtensions,
 } from "./editor-setup";
-import { isCode, isMarkdown } from "./file-kinds";
+import { isCode, isMarkdown, isTeX } from "./file-kinds";
+import { pasteExtension } from "./paste";
 import { reconciled } from "./parked";
 
 import { outline as sectionsOf, sameOutline } from "../outline";
@@ -594,7 +595,28 @@ export default function Editor({
       }, 400);
     };
 
-    const ext = extensions(onChange, onCursor, remoteMarker);
+    const ext = [
+      ...extensions(onChange, onCursor, remoteMarker),
+      // A pasted table or image, caught before CodeMirror's own paste; the
+      // upload goes through the same route as the tree's paste, under
+      // `figures/`, keeping both when the dated name is already taken.
+      pasteExtension({
+        isTex: () => isTeX(current.current ?? ""),
+        upload: async (image) => {
+          const projectId = get().projectId;
+          if (!projectId) throw new Error("no project is open");
+          const extension = image.type.split("/")[1]?.split("+")[0] ?? "png";
+          const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+          const name = `pasted-${stamp}.${extension}`;
+          const file = new File([image], name, { type: image.type });
+          const answer = await api.uploadFiles(projectId, "figures", [file], { [name]: "keep-both" });
+          const written = answer.written[0];
+          if (!written) throw new Error("nothing was written");
+          return written;
+        },
+        complain: (message) => set({ error: message }),
+      }),
+    ];
     const readOnlyExt = viewExtensions();
     /** The language for a live buffer of `path`: LaTeX with its
      *  completions and links, or Python for a script.  The link opener

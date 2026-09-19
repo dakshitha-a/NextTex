@@ -8395,3 +8395,43 @@ and `historyField` absent; `appearance.test.ts` reads the setting back.
 it back with `u`, reloads and finds Vim still on; picks Emacs, kills a
 line with `C-k`, finds the palette shut and `C-/` restoring the line;
 and back on Default types `dd` as two letters.
+
+### Paste data as a table, paste an image as a figure
+
+A spreadsheet's copy is tab-separated text and a `.csv` is
+comma-separated, and either pasted into a chapter arrived as lines the
+writer then retyped with ampersands; a screenshot on the clipboard
+could be pasted onto the file list since the backlog run, but not into
+the paragraph that was going to refer to it. Both are caught now before
+CodeMirror's own paste, in a `.tex` buffer and never inside `verbatim`,
+`lstlisting` or `minted`, where what was pasted is what was meant.
+
+Text is a table when it has at least two lines, every line has the same
+count of one delimiter, tab first, then comma, then semicolon, and at
+least two columns; a quoted field with a comma inside stays one cell,
+and a paragraph of prose with commas in it fails the same-count rule
+and is pasted as text. The table is booktabs, `\toprule`, `\midrule`
+and `\bottomrule`, the first row as its header, a column whose every
+body cell is a number right-aligned, every cell escaped so `50%` and
+`R&D` typeset as written, inside a `table` environment with an empty
+caption and label; it is one transaction, so one undo removes it, and
+the caret lands in the caption because that is what is typed next. An
+image is saved as `figures/pasted-<stamp>.png` through the upload route
+the tree's paste uses, keeping both when the name is taken, and a
+`figure` environment with the `\includegraphics` is written for it when
+the save answers, at the caret as it is then.
+
+The first build of a pasted table in a document without booktabs fails
+on `\toprule`, and the drawer said "find which package provides it";
+the context line TeX echoes names the command, so the explanation now
+names the package for the commands a paper pastes in before its
+preamble loads them: booktabs, graphicx, siunitx, cleveref, natbib,
+xcolor, hyperref and multirow. The summary card says the same.
+
+`paste-table.test.ts` reads the delimiters, a quoted field, a prose
+paragraph refused, the escaping and the alignment; `test_explain.py`
+reads the package rules; `e2e/specs/paste.spec.ts` dispatches a paste
+carrying tab-separated text and finds the table, the caret in the
+caption and two undos taking it away, dispatches one inside `verbatim`
+and finds no table, and dispatches one carrying a PNG and finds the file
+under `figures/` and the figure environment naming it.

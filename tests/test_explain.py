@@ -56,6 +56,28 @@ def test_every_rule_says_what_to_do_as_well_as_what_is_wrong():
         assert detail.endswith(".") and fix.endswith("."), title
 
 
+@pytest.mark.parametrize("context, package", [
+    ("l.12     \\toprule", "booktabs"),
+    ("l.40 \\includegraphics[width=0.8\\linewidth]{figures/a.png}", "graphicx"),
+    ("l.7 The value is \\SI{3}{\\metre}.", "siunitx"),
+    ("l.9 See \\cref{fig:one}.", "cleveref"),
+])
+def test_an_undefined_command_a_package_defines_names_the_package(context, package):
+    """A pasted booktabs table is \\toprule on the first build, and the
+    general rule said to go and find the package; the context line TeX
+    echoes says which command, and this says which package."""
+    found = explain("Undefined control sequence", context)
+    assert found and found["title"] == f"A command from the {package} package"
+    assert f"\\usepackage{{{package}}}" in found["fix"]
+    marked = annotate([{"severity": "error", "message": "Undefined control sequence", "context": context}])
+    assert marked[0]["explain"]["title"] == found["title"]
+
+
+def test_an_undefined_command_nobody_knows_gets_the_general_rule():
+    found = explain("Undefined control sequence", "l.3 \\frobnicate{x}")
+    assert found and found["title"] == "A command LaTeX does not know"
+
+
 def test_something_unrecognised_is_left_alone_rather_than_guessed_at():
     assert explain("! Something nobody has ever seen before.") is None
     marked = annotate([{"severity": "error", "message": "nonsense here"}])

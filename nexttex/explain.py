@@ -246,8 +246,41 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
 ]
 
 
-def explain(message: str) -> dict | None:
-    """What one message means, or None when there is nothing useful to add."""
+#: Commands a paper pastes in before its preamble loads the package that
+#: defines them.  A pasted booktabs table is `\toprule` on the first
+#: build, and the general rule above says "find which package provides
+#: it"; this names it.  Keyed on the command TeX echoed in the context
+#: line, since the message itself says only "Undefined control sequence".
+PACKAGE_FOR: list[tuple[re.Pattern, str, str]] = [
+    (re.compile(r"\\(?:top|mid|bottom|cmid)rule\b"), "booktabs", "a table with the three rules"),
+    (re.compile(r"\\includegraphics\b"), "graphicx", "an image"),
+    (re.compile(r"\\(?:si|SI|num|qty|unit)\b"), "siunitx", "a number with its unit"),
+    (re.compile(r"\\(?:cref|Cref)\b"), "cleveref", "a reference that names its kind"),
+    (re.compile(r"\\(?:citep|citet)\b"), "natbib", "an author-year citation"),
+    (re.compile(r"\\(?:textcolor|color)\b"), "xcolor", "coloured text"),
+    (re.compile(r"\\(?:url|href)\b"), "hyperref", "a link"),
+    (re.compile(r"\\multirow\b"), "multirow", "a cell spanning rows"),
+]
+UNDEFINED_COMMAND = re.compile(r"Undefined control sequence", re.I)
+
+
+def explain(message: str, context: str | None = None) -> dict | None:
+    """What one message means, or None when there is nothing useful to add.
+
+    `context` is the source line TeX echoed with the message, which is
+    where the command an "Undefined control sequence" is about appears;
+    when that command is one a known package defines, the answer names
+    the package rather than telling the writer to go and find it."""
+    if context and UNDEFINED_COMMAND.search(message or ""):
+        for pattern, package, what in PACKAGE_FOR:
+            found = pattern.search(context)
+            if found:
+                return {
+                    "title": f"A command from the {package} package",
+                    "detail": f"{found.group(0)} is {what}, and the {package} package that defines "
+                              "it is not loaded by this document's preamble.",
+                    "fix": f"Add \\usepackage{{{package}}} near the top of the main file.",
+                }
     for pattern, title, detail, fix in RULES:
         if pattern.search(message or ""):
             return {"title": title, "detail": detail, "fix": fix}
@@ -276,7 +309,7 @@ def annotate(diagnostics: Iterable[dict]) -> list[dict]:
     out = []
     for item in diagnostics:
         message = item.get("message", "")
-        found = explain(message)
+        found = explain(message, item.get("context"))
         row = {**item, "explain": found} if found else dict(item)
         missing = missing_file(message)
         if missing:
@@ -305,7 +338,7 @@ def summarise(diagnostics: list[dict]) -> dict | None:
     # order. `parse` appends in the order it reads the log, so this is
     # already the answer and the sort was undoing it.
     first = errors[0]
-    found = explain(first.get("message", ""))
+    found = explain(first.get("message", ""), first.get("context"))
     rest = len(errors) - 1
     headline = found["title"] if found else first.get("message", "The build failed")
     return {
