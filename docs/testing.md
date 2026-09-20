@@ -199,6 +199,15 @@ surfaces, comma-separated, or leaves it empty for all of them, and
 cannot open is written down as a `.failed.txt` beside the others and the
 run goes on, because the point is the pictures that came out, not a pass.
 
+`e2e/specs/kit.spec.ts` is the check that goes with it. The kit under
+`frontend/src/ui` has unit tests that render each primitive on its own;
+this spec opens the surfaces a writer sees, a menu, a sheet, the strips
+under the panes, a control, and reads what the browser painted against the
+scale the direction fixed: the three radii, the two control heights, the
+one family, and the two strips meeting at one height on one ground with no
+rule above either. A token that is defined and not applied measures nothing,
+which is why the numbers are read from real surfaces.
+
 ## The installer had no tests at all, which is why it had so many bugs
 
 For a long time this repository had four tiers of tests and nothing

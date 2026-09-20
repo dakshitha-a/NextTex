@@ -276,6 +276,10 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "the status strip under the source",
+    open: async (tab) => tab.getByTestId("status-strip"),
+  },
+  {
     name: "the page's footer, with the page number being typed",
     open: async (tab) => {
       const number = tab.getByTestId("page-number");

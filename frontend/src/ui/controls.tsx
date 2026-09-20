@@ -105,11 +105,15 @@ export type SegmentedProps<T extends string> = {
   label: string;
   testid?: string;
   className?: string;
+  /** `sm` is the strip's: 20 px segments with no tray, the chosen one on
+   *  the wash, as the direction page draws Scroll and Page under the
+   *  preview.  The default sits on its own tray at 24 px. */
+  size?: "md" | "sm";
 };
 
-export function Segmented<T extends string>({ value, options, onChange, label, testid, className }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ value, options, onChange, label, testid, className, size = "md" }: SegmentedProps<T>) {
   return (
-    <div role="group" aria-label={label} data-testid={testid} className={`nx-segmented${className ? ` ${className}` : ""}`}>
+    <div role="group" aria-label={label} data-testid={testid} data-size={size} className={`nx-segmented${className ? ` ${className}` : ""}`}>
       {options.map((option) => (
         <button
           key={option.value}

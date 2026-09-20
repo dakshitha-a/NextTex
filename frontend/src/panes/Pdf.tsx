@@ -3,6 +3,8 @@ import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import api from "../api";
 import { get, useStore } from "../store";
+import { Segmented } from "../ui/controls";
+import { ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
 import { uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
 import type { WordHint } from "./locate-word";
@@ -1378,35 +1380,26 @@ export default function Pdf({
         />
       </div>
 
-      {/* Furniture, like the status strip it sits beside.  The two are the
-          same 26px band along the bottom of the window, and with only one of
-          them dark the app ended in a plinth that changed colour halfway
-          across.  They are one edge, so they are one ground. */}
+      {/* The strip under the preview: 28 px on the second surface with no
+          rule above it, like the status strip it sits beside, so the two
+          read as one edge along the bottom of the window.  Scroll and Page
+          and the two fits are the kit's small segmented control; the page
+          number and the zoom are wells on the pane's surface; Download is
+          the one plain action at the right. */}
       <div
         data-testid="preview-footer"
-        className="@container flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]"
+        className="@container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3"
       >
-        <div className="flex shrink-0 overflow-hidden rounded-[3px] border border-line">
-          {(["scroll", "page"] as const).map((option) => (
-            <button
-              key={option}
-              className={`t-micro border-b-2 px-2 py-[2px] transition-colors duration-[90ms] ${
-                mode === option
-                  ? "border-hint bg-surface text-ink"
-                  : "border-transparent text-ink-3 hover:text-hint"
-              }`}
-              onClick={() => setMode(option)}
-              title={
-                option === "scroll"
-                  ? "One continuous document"
-                  : "One page at a time"
-              }
-            >
-              {option === "scroll" ? "Scroll" : "Page"}
-            </button>
-          ))}
-        </div>
-        <Rule />
+        <Segmented
+          size="sm"
+          label="How the pages are laid out"
+          value={mode}
+          options={[
+            { value: "scroll", label: "Scroll", title: "One continuous document" },
+            { value: "page", label: "Page", title: "One page at a time" },
+          ]}
+          onChange={setMode}
+        />
         {/* Both modes. The steppers were gated on page mode, so a reader
             in the scrolling one had no way to reach page 74 of a thesis
             except by dragging, and the readout was never an input in
@@ -1415,15 +1408,15 @@ export default function Pdf({
             whether you can name it. */}
         <span className="flex shrink-0 items-center gap-1">
           <button
-            className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
+            className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink disabled:text-ink-3"
             disabled={current <= 1}
             onClick={() => step(-1)}
             aria-label="Previous page"
           >
-            ‹
+            <ChevronLeftIcon size={12} />
           </button>
           {pageCount ? (
-            <span className="t-micro flex items-center gap-1 text-ink-2">
+            <span className="flex items-center gap-1">
               <input
                 type="number"
                 min={1}
@@ -1431,7 +1424,7 @@ export default function Pdf({
                 value={current}
                 aria-label="Page"
                 data-testid="page-number"
-                className="t-micro tnum w-[42px] rounded-[3px] border border-line bg-surface px-1 text-center text-ink outline-none focus:border-pen"
+                className="nx-strip-field w-[42px]"
                 onChange={(event) => {
                   const want = Number(event.target.value);
                   if (Number.isFinite(want) && want >= 1) goTo(want);
@@ -1440,84 +1433,74 @@ export default function Pdf({
               <span className="tnum">of {pageCount}</span>
             </span>
           ) : (
-            <span className="t-micro tnum w-[92px] text-center text-ink-2">–</span>
+            <span className="tnum w-[92px] text-center">–</span>
           )}
           <button
-            className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink disabled:text-ink-3"
+            className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink disabled:text-ink-3"
             disabled={current >= pageCount}
             onClick={() => step(1)}
             aria-label="Next page"
           >
-            ›
+            <ChevronRightIcon size={12} />
           </button>
         </span>
-        <Rule />
-        <button
-          className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
-          onClick={() =>
-            setScale((value) =>
-              Math.max(MIN_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) - 0.15).toFixed(2)),
-            )
-          }
-          aria-label="Zoom out"
-        >
-          −
-        </button>
-        <span
-          ref={zoomText}
-          className="t-micro tnum w-[38px] text-center text-ink-3"
-          data-testid="zoom"
-        />
-        <button
-          className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
-          onClick={() =>
-            setScale((value) =>
-              Math.min(MAX_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) + 0.15).toFixed(2)),
-            )
-          }
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-        <Rule />
+        <span className="flex shrink-0 items-center gap-1">
+          <button
+            className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
+            onClick={() =>
+              setScale((value) =>
+                Math.max(MIN_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) - 0.15).toFixed(2)),
+              )
+            }
+            aria-label="Zoom out"
+          >
+            −
+          </button>
+          <span ref={zoomText} className="nx-strip-field w-[44px]" data-testid="zoom" />
+          <button
+            className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
+            onClick={() =>
+              setScale((value) =>
+                Math.min(MAX_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) + 0.15).toFixed(2)),
+              )
+            }
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+        </span>
         {/* Dropped when the pane is too narrow for them, rather than
-            wrapped: this is a 26px strip, and a second line of it is
-            clipped by definition.  Dragging the chat handle wide was
-            enough to break "Fit width" across two lines. */}
-        <button
-          className="quiet t-micro hidden shrink-0 whitespace-nowrap @[330px]:block"
-          data-tone={scale === 0 ? "on" : undefined}
-          onClick={() => setScale(0)}
-        >
-          Fit width
-        </button>
-        <button
-          className="quiet t-micro hidden shrink-0 whitespace-nowrap @[400px]:block"
-          data-tone={scale === -1 ? "on" : undefined}
-          onClick={() => setScale(-1)}
-        >
-          Fit page
-        </button>
+            wrapped: this is a 28px strip, and a second line of it is
+            clipped by definition. */}
+        <span className="hidden shrink-0 @[400px]:inline-flex">
+          <Segmented
+            size="sm"
+            label="How the page fits the pane"
+            value={scale === 0 ? "width" : scale === -1 ? "page" : "free"}
+            options={[
+              { value: "width", label: "Fit width" },
+              { value: "page", label: "Fit page" },
+            ]}
+            onChange={(fit) => setScale(fit === "width" ? 0 : -1)}
+          />
+        </span>
+        <span className="min-w-0 flex-1" />
         {/* The page that is already rendered and already on disk. The
             header's download menu is the only other way to save it and
             its PDF item forces a full server rebuild first, which is a
             wait for a file the reader is looking at. */}
         {projectId && pageCount ? (
           <a
-            className="quiet t-micro hidden shrink-0 whitespace-nowrap @[430px]:block"
+            className="hidden shrink-0 whitespace-nowrap hover:text-ink @[430px]:block"
             href={api.pdfUrl(projectId, showing, stamp)}
             download
             data-testid="save-pdf"
             title="Save this PDF as it stands, without rebuilding it"
           >
-            Save
+            Download
           </a>
         ) : null}
       </div>
     </div>
   );
-}
-
-function Rule() {
-  return <span className="h-[10px] w-px shrink-0 bg-line" />;
 }

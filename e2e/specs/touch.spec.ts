@@ -94,7 +94,10 @@ test("a version's controls appear for the finger that chose it", async ({
   await tab.keyboard.press("Control+a");
   await tab.keyboard.type("the first draft, by touch");
   await landed(app, project, "by touch");
-  await tab.locator('button[title="What this file used to say"]').tap();
+  // From the row's menu: the status strip no longer carries History, and
+  // on a finger the row's actions button is always shown.
+  await tab.getByLabel("Actions for main.tex").tap();
+  await tab.getByRole("tree").getByRole("button", { name: "History", exact: true }).tap();
   const row = tab.getByTestId("version").last();
   await expect(row).toBeVisible({ timeout: 10_000 });
   const name = row.getByRole("button", { name: /name it/i });

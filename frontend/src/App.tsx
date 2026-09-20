@@ -1044,7 +1044,6 @@ export default function App() {
   // stamp is a number written once when a build lands, which is exactly
   // the event these three actually want.
   const builtAt = useStore((s) => s.pdfStamp);
-  const git = useStore((s) => s.git);
 
   // Roughly as often as the files on disk change, and it costs one
   // `git status`.
@@ -2478,11 +2477,6 @@ export default function App() {
             ) : null}
           </div>
           <Status
-            onHistory={() => (historyOpen ? closeHistory() : setHistoryOpen(true))}
-            historyOpen={historyOpen}
-            // §4: nothing is lost when the rail folds -- the dirty count
-            // comes here instead of disappearing with the git panel.
-            git={railFolded && git?.repository ? git : null}
             words={words}
             wordScope={wordScope}
             wordScopes={scopesFor(Boolean(selected && selected.path === activePath))}

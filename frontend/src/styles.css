@@ -1442,6 +1442,19 @@ button.nx-row { width: 100%; text-align: left; }
 }
 .nx-segment:hover:not([aria-pressed="true"]) { color: var(--ink); }
 .nx-segment[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; }
+/* The strip's size: no tray, 20 px segments a hair apart, the chosen one
+   on the wash rather than lifted to the surface. */
+.nx-segmented[data-size="sm"] { padding: 0; gap: 2px; background: transparent; }
+.nx-segmented[data-size="sm"] .nx-segment { height: 20px; padding: 0 6px; line-height: 20px; font-size: 12px; color: var(--ink-3); }
+.nx-segmented[data-size="sm"] .nx-segment[aria-pressed="true"] { background: var(--wash); color: var(--ink); font-weight: 400; }
+/* A number field in a strip: the page's own recipe, a 20 px well on the
+   pane's surface with an inset hairline, for the page number and the zoom. */
+.nx-strip-field {
+  min-width: 24px; height: 20px; padding: 0 4px; border-radius: 3px;
+  background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 12px; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.nx-strip-field:focus { outline: none; box-shadow: inset 0 0 0 1px var(--hint); }
 
 .nx-empty { padding: 4px 8px 12px; }
 .nx-empty p { margin: 0 0 8px; color: var(--ink-2); font-size: 13.5px; line-height: 19px; }

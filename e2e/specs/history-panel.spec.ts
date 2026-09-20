@@ -35,9 +35,12 @@ async function typeAndSave(page: Page, text: string, app: any, project: any) {
   await landed(app, project, text);
 }
 
-/** The status strip's button, which is the way in that is always there. */
-async function openHistory(page: Page) {
-  await page.locator('button[title="What this file used to say"]').click();
+/** The active file's row menu, which is the way in that is always there:
+ *  the status strip carried a History button until the overhaul, and the
+ *  bar's History drawer comes with it. */
+async function openHistory(page: Page, name = "main.tex") {
+  await page.getByLabel(`Actions for ${name}`).click({ force: true });
+  await page.getByRole("tree").getByRole("button", { name: "History", exact: true }).click();
   await expect(page.getByTestId("version").first()).toBeVisible({ timeout: 10_000 });
 }
 
@@ -197,7 +200,7 @@ test("a long file name in the header truncates and keeps its full path as a titl
     });
     throw failure;
   }
-  await openHistory(tab);
+  await openHistory(tab, long);
   const name = tab.getByTestId("history-header").getByTitle(long);
   await expect(name).toBeVisible();
   const close = await boxOf(tab, '[aria-label="Close the history"]');
@@ -218,7 +221,8 @@ test("a Markdown file's versions reach the open panel without a build", async ({
   await tab.locator('[role="tree"] [data-path="notes.md"]').click();
   await expect(tab.getByTestId("markdown-view")).toBeVisible({ timeout: 15_000 });
   const events = await watchEvents(app, project.id);
-  await tab.locator('button[title="What this file used to say"]').click();
+  await tab.getByLabel("Actions for notes.md").click({ force: true });
+  await tab.getByRole("tree").getByRole("button", { name: "History", exact: true }).click();
   await expect(tab.getByTestId("history-panel")).toBeVisible();
   const rows = tab.getByTestId("version");
   const before = await rows.count();

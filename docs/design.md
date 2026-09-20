@@ -672,6 +672,21 @@ on strip hover.
 digits changing during a compile shift nothing. A status bar that jitters makes the whole
 app feel loose.
 
+*Revised in the visual overhaul, 19 September 2026.* The strip is 28 px on `--surface-2`
+with no rule above it, `t-meta` in `--ink-3`, 12 px padding and 16 px between segments,
+with no vertical rules at all; the preview's strip is its twin, so the two read as one
+edge along the bottom of the window. The label carries weight (500, `--ink-2`) only when
+it is news, an error count or a failed build; a clean build sits in the third ink like the
+rest. What remains, left to right: the dot and its words, the duration when the label does
+not already say it, the caret, the scope only when it is not the whole document (with
+"references pending" in the warning colour), then at the right Rebuild or Compile, Rebuild
+everything while references are pending, and the word count. The path, the version control
+line and History left: the tab names the file, the repository drawer holds the branch, and
+History is a drawer of its own, reached from a file's row menu and, once the bar lands,
+from the bar. The preview's strip keeps Scroll and Page and the two fits as the kit's small
+segmented control, the page number and the zoom as 20 px wells on the pane's surface, and
+"Download" where it said "Save".
+
 ### Git panel (rail, last)
 
 A panel like the others in the rail: a 26 px header, `Git` in `micro`, the count of
