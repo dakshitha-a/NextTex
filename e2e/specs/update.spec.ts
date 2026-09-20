@@ -296,6 +296,18 @@ test("a tab that joins a running update reloads when the server comes back", asy
     await expect(page.getByText("Updating NextTex")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("update-now")).toHaveCount(0);
 
+    // The bar's button pulses its glyph while the job runs, and the button
+    // itself stays put: it used to shrink to 0.7 with the pulse, a control
+    // moving under the pointer reaching for it, which is also what timed
+    // the click above out under load.
+    const button = page.getByTestId("update-open");
+    await expect(button).toHaveAttribute("data-state", "busy");
+    const before = await button.boundingBox();
+    await page.waitForTimeout(350);
+    expect(await button.boundingBox()).toEqual(before);
+    await page.waitForTimeout(350);
+    expect(await button.boundingBox()).toEqual(before);
+
     // And when a different process answers, the page reloads itself.  The
     // counter is in sessionStorage, which a reload does not clear.
     await expect

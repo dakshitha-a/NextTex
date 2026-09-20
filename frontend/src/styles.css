@@ -1149,11 +1149,14 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-appbar-update[data-state="waiting"]::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; border: 1.5px solid var(--pen); animation: nx-ring 1.8s var(--ease) infinite; }
 .nx-appbar-update[data-state="waiting"]::after { content: ""; position: absolute; right: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--pen); }
 .nx-appbar-update[data-state="attention"] { color: var(--warn); }
-.nx-appbar-update[data-state="checking"], .nx-appbar-update[data-state="busy"] { animation: nx-working 1400ms var(--ease) infinite; }
+/* The glyph pulses, not the button: a control that shrinks while it works
+   moves under the pointer reaching for it (and a click on a moving target
+   is refused by anything that waits for it to settle). */
+.nx-appbar-update[data-state="checking"] > svg, .nx-appbar-update[data-state="busy"] > svg { animation: nx-working 1400ms var(--ease) infinite; }
 @keyframes nx-ring { 0% { transform: scale(0.7); opacity: 0.9; } 100% { transform: scale(1.35); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .nx-appbar-update[data-state="waiting"]::before { animation: none; opacity: 0.6; }
-  .nx-appbar-update[data-state="checking"], .nx-appbar-update[data-state="busy"] { animation: none; }
+  .nx-appbar-update[data-state="checking"] > svg, .nx-appbar-update[data-state="busy"] > svg { animation: none; }
 }
 .nx-projects-main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
 .nx-projects-head { display: flex; align-items: center; gap: 12px; padding: 22px 40px 12px; flex-wrap: wrap; }

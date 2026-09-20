@@ -8378,7 +8378,10 @@ second surface carries the mark, the name and the version at the left and,
 at the right, the agent control and icon buttons for everything the foot
 held: Check for updates, which is the one thing on the bar with a state of
 its own, pen-coloured with a dot and a pulsing ring while an update is
-waiting (the ring still, under reduced motion) and the warning colour when
+waiting (the ring still, under reduced motion), its glyph pulsing while a
+check or an update runs (the glyph, not the button: a control that shrinks
+with its pulse moves under the pointer reaching for it, which is how the
+first version timed a click out under load) and the warning colour when
 the install needs a hand, and which opens the update sheet; Report a
 problem, which opens the report as a sheet; the screen guide; and
 Settings. Under it the head: "Projects" at the display size, the find field
