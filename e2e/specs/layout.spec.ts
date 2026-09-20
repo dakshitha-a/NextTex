@@ -749,6 +749,8 @@ test("a docked column folds to a strip, and the pill belongs to the overlay", as
   await tab.getByRole("button", { name: "Fold this panel away" }).click();
   const strip = tab.getByTestId("collapsed-claude");
   await expect(strip).toBeVisible();
+  // A name, not a pane: "Show Claude", where the others say "Show source".
+  await expect(strip).toHaveAccessibleName("Show Claude");
   await expect(tab.getByTestId("agent-button-claude")).toHaveCount(0);
   // The strip is the right edge of the row, where the column was.
   const stripBox = (await strip.boundingBox())!;

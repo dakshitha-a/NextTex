@@ -2734,6 +2734,7 @@ export default function App() {
       {!noAgent && !chatOver && folded.chat ? (
         <Collapsed
           label="Claude"
+          shows="Claude"
           side="right"
           furniture
           mark={<AgentStateDot />}
