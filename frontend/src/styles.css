@@ -1397,6 +1397,47 @@ button.nx-row { width: 100%; text-align: left; }
   box-shadow: var(--float);
   padding: 8px 10px;
 }
+/* The settings sheet, master-detail: the four groups down a 200 px list
+   on the second surface, the chosen one on the wash, and one group's rows
+   at the right; below 720 px the list is a row of segments above the
+   rows.  The rows are 46 px with a hairline between them, the title at
+   the left with its subtitle under it and the control at the right, as
+   the direction page draws them. */
+.nx-sheet.nx-settings { padding: 0; overflow: hidden; display: grid; grid-template-columns: 200px 1fr; min-height: min(520px, 100%); }
+.nx-settings-nav { background: var(--surface-2); padding: 20px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nx-settings-title { padding: 0 10px 12px; }
+.nx-settings-tabs { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nx-settings-tab {
+  display: flex; flex-direction: column; align-items: flex-start; text-align: left;
+  padding: 7px 10px; border-radius: var(--nx-radius-control); color: var(--ink-2);
+  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+}
+.nx-settings-tab small { color: var(--ink-3); font-size: 12px; line-height: 15px; }
+.nx-settings-tab:hover { color: var(--ink); }
+.nx-settings-tab[data-on] { background: var(--wash); color: var(--ink); }
+.nx-settings-tab:focus-visible { outline: 2px solid var(--hint); outline-offset: -2px; }
+.nx-settings-grow { flex: 1; min-height: 12px; }
+.nx-settings-nav > .nx-button { justify-content: flex-start; margin: 0; }
+.nx-settings-pane { padding: 20px 26px 16px; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow-y: auto; }
+.nx-settings-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.nx-settings-head .nx-icon-button { align-self: center; }
+.nx-settings-where { color: var(--ink-3); font-size: 12.5px; line-height: 16px; min-width: 0; }
+.nx-settings-row { display: flex; align-items: center; gap: 16px; min-height: 46px; padding: 6px 0; }
+.nx-settings-row + .nx-settings-row { border-top: 1px solid color-mix(in oklab, var(--ink-3) 16%, transparent); }
+.nx-settings-text { flex: 1; min-width: 0; }
+.nx-settings-text small { display: block; color: var(--ink-3); font-size: 12.5px; line-height: 16px; }
+.nx-settings-foot { margin-top: auto; padding-top: 18px; }
+.nx-stepper { display: inline-flex; align-items: center; }
+.nx-stepper b { font-weight: 500; min-width: 56px; text-align: center; }
+.nx-settings[data-narrow] { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+.nx-settings[data-narrow] .nx-settings-nav { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 12px 8px; gap: 4px; }
+.nx-settings[data-narrow] .nx-settings-title { width: 100%; padding: 0 0 6px; }
+.nx-settings[data-narrow] .nx-settings-tabs { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+.nx-settings[data-narrow] .nx-settings-tab { padding: 3px 10px; }
+.nx-settings[data-narrow] .nx-settings-tab small { display: none; }
+.nx-settings[data-narrow] .nx-settings-grow { flex-basis: 100%; min-height: 0; }
+.nx-settings[data-narrow] .nx-settings-pane { padding: 12px 16px 12px; }
+
 /* A file's thumbnail on its card: a 3:2 box on white whatever the theme,
    since a figure is drawn for a white page, with a hairline where the
    white meets the card. */

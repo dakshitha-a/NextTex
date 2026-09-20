@@ -335,6 +335,7 @@ test("the colours follow the page, on a script as on a chapter", async ({ app, p
   await colourOn(page);
   const before = (await spanColour(page, "def"))!.colour;
   await page.getByTestId("appearance").click();
+  await page.getByTestId("settings-group-look").click();
   await page.getByTestId("editor-theme-white").click();
   await page.keyboard.press("Escape");
   // A different page is a different palette, and every token follows it.

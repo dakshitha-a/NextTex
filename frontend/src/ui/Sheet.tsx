@@ -47,7 +47,10 @@ export const Sheet = forwardRef<HTMLDivElement, SheetProps>(function Sheet(
   if (!open) return null;
   return (
     <div
-      className={`nx-scrim fixed inset-0 z-50 p-6 ${align === "top" ? "flex items-start justify-center pt-[12vh]" : "grid place-items-center"}`}
+      // A track that cannot grow: on an auto track the sheet's own width
+      // widened the cell and its max-width of 100% then bound nothing, so
+      // a 780 px sheet ran off a 600 px window.
+      className={`nx-scrim fixed inset-0 z-50 p-6 ${align === "top" ? "flex items-start justify-center pt-[12vh]" : "grid grid-cols-[minmax(0,1fr)] place-items-center"}`}
       role="presentation"
     >
       <div
@@ -63,7 +66,7 @@ export const Sheet = forwardRef<HTMLDivElement, SheetProps>(function Sheet(
         data-testid={testid}
         data-list={list || undefined}
         className={`nx-sheet nx-arrive${className ? ` ${className}` : ""}`}
-        style={{ width }}
+        style={{ width: "100%", maxWidth: width }}
         {...rest}
       >
         {children}

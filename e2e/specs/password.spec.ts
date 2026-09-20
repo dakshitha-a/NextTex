@@ -76,6 +76,7 @@ test("a password set from the cog stops the nudge asking for one", async ({
     // set from here left the line three inches below still saying the
     // install had none, for the rest of the visit.
     await page.getByTestId("appearance").first().click();
+    await page.getByTestId("settings-group-install").click();
     await page.getByTestId("open-access").click();
     const card = page.getByTestId("access-card");
     await expect(card).toBeVisible();

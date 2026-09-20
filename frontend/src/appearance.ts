@@ -130,7 +130,9 @@ export const EDITOR_WEIGHTS = [300, 400, 500];
 export const WEIGHT_NAMES: Record<number, string> = {
   300: "Lighter",
   400: "Normal",
-  500: "Bolder",
+  // "Heavier", as the settings sheet's segments read on the direction
+  // page: the pair of "Lighter", where "Bolder" was the pair of nothing.
+  500: "Heavier",
 };
 
 export const DEFAULTS: Appearance = {

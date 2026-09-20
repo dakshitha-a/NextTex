@@ -31,6 +31,7 @@ test("the engine is chosen on the settings card and the document's first line wi
   await tab.getByTestId("appearance").first().click();
   const sheet = tab.getByRole("dialog", { name: "Settings" });
   await expect(sheet).toBeVisible();
+  await sheet.getByTestId("settings-group-project").click();
   await expect(sheet.getByTestId("engine-pdflatex")).toHaveAttribute("aria-pressed", "true");
 
   await sheet.getByTestId("engine-xelatex").click();
@@ -63,6 +64,7 @@ test("the engine is chosen on the settings card and the document's first line wi
   await tab.reload();
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
   await tab.getByTestId("appearance").first().click();
+  // Remembered: the sheet was last closed on This project.
   await expect(tab.getByRole("dialog", { name: "Settings" }).getByTestId("engine-xelatex"))
     .toHaveAttribute("aria-pressed", "true");
 });
@@ -118,9 +120,10 @@ test("a project's request for shell escape is answered here, in two presses", as
 
   // The sheet shows the answer and takes it back in one press.
   await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("settings-group-project").click();
   const row = tab.getByRole("dialog", { name: "Settings" }).getByTestId("shell-escape-row");
-  await expect(row).toContainText("allowed on this computer");
+  await expect(row).toContainText("Allowed on this computer");
   await row.getByTestId("shell-escape-revoke").click();
-  await expect(row).toContainText("the project asks for it");
+  await expect(row).toContainText("The project asks for it");
   expect((await compile(app, project.id)).shellEscape).toBe("asked");
 });

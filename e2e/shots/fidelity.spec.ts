@@ -173,11 +173,34 @@ const SURFACES: Record<string, Surface> = {
     close: escape,
   },
   settings: {
+    // On How it looks, as the page draws it.
     open: async (tab) => {
       await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-look").click();
       return tab.getByTestId("settings-sheet");
     },
     close: escape,
+  },
+  "settings-project": {
+    open: async (tab) => {
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-project").click();
+      return tab.getByTestId("settings-sheet");
+    },
+    close: escape,
+  },
+  "settings-narrow": {
+    // Below 720 px: the groups as a row of segments above the rows.
+    open: async (tab) => {
+      await tab.setViewportSize({ width: 600, height: 800 });
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-write").click();
+      return tab.getByTestId("settings-sheet");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.setViewportSize({ width: 1600, height: 1000 });
+    },
   },
   share: {
     open: async (tab) => {
@@ -198,6 +221,7 @@ const SURFACES: Record<string, Surface> = {
     open: async (tab) => {
       // The checker is off by default; the settings sheet turns it on.
       await tab.getByTestId("appearance").first().click();
+      await tab.getByTestId("settings-group-write").click();
       await tab.getByTestId("spelling-on").click();
       await tab.keyboard.press("Escape");
       const editor = tab.locator(".cm-content");

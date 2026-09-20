@@ -96,7 +96,16 @@ export function Switch({ checked, onChange, className, type = "button", onClick,
  *  the role would tell a screen reader something untrue.  Each option
  *  carries `aria-pressed` and, when given, its own testid, which is how
  *  the appearance specs reach `theme-light` and `editor-theme-white`. */
-export type SegmentedOption<T extends string> = { value: T; label: ReactNode; testid?: string; title?: string };
+export type SegmentedOption<T extends string> = {
+  value: T;
+  label: ReactNode;
+  testid?: string;
+  title?: string;
+  /** A name for the accessibility tree when the label alone is ambiguous:
+   *  "Heavier" means one thing beside "Editor weight" and nothing on its
+   *  own. */
+  ariaLabel?: string;
+};
 
 export type SegmentedProps<T extends string> = {
   value: T;
@@ -125,6 +134,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, t
           aria-pressed={value === option.value}
           data-testid={option.testid}
           title={option.title}
+          aria-label={option.ariaLabel}
           className="nx-segment"
           onClick={() => onChange(option.value)}
         >

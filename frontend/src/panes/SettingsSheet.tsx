@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import api, { type Engine } from "../api";
 import { get, set, useStore } from "../store";
 import { agentName } from "../agent-name";
-import { useDismiss } from "../useDismiss";
 import {
   DEFAULTS,
   EDITOR_SIZES,
@@ -11,35 +10,53 @@ import {
   WEIGHT_NAMES,
   applyAppearance,
   isDefault,
+  readStored,
   step,
   storedAppearance,
+  writeStored,
   type Appearance,
 } from "../appearance";
 import { shortcut } from "../keys";
+import { Button, IconButton } from "../ui/Button";
+import { Chip, Heading, Segmented, Switch, useLabelId } from "../ui/controls";
+import { Sheet } from "../ui/Sheet";
+import { CloseIcon } from "../ui/icons";
 
-/** Everything the writer gets to choose, in one sheet.
+/** Everything the writer gets to choose, in one sheet, master-detail.
  *
- *  It was a popover 248 pixels wide, and by the time it held a theme, two
- *  sizes, six editor grounds, a highlighting mode, a preview quality, a
- *  spelling switch, a way into the access sheet, the agent, and three
- *  per-project switches, it was thirteen rows in a single column hanging
- *  off a 26 pixel cog.  That is a preferences window pretending to be a
- *  menu, and it had two costs beyond the length.  Rows that answer to
- *  entirely different things -- how this machine looks, who may open this
- *  install, how this project builds -- sat in one undifferentiated stack
- *  separated by hairlines.  And no control had room for the sentence it
- *  wanted, which is why the switches put theirs underneath and the rest
- *  went without.
+ *  It was a popover 248 pixels wide, then a two-column sheet, and by the
+ *  time it held a theme, two sizes, a weight, a ground, two highlighting
+ *  choices, spelling and its variety, a keymap, a preview quality, four
+ *  per-project switches and two ways out, two columns were twenty rows
+ *  to read before finding one. The direction page drew this instead: a
+ *  narrow list of the four groups at the left, each named for the
+ *  question it answers and saying where its choices live, and one group's
+ *  rows at the right, so the writer holds four things in mind and then
+ *  seven, never twenty. The group is remembered per browser, and opening
+ *  inside a project lands on "This project" when that is where the sheet
+ *  was last closed.
  *
- *  A sheet is what this app already does when something outgrows a row:
- *  access, sharing, the tutorial and the paper chooser are all sheets.  So
- *  is this now, in two columns, with each group named for the question it
- *  answers rather than for the part of the program it belongs to.
+ *  Below 720 px the list becomes a row of four segments above the rows.
+ *  The list is a tablist: arrows move between groups, Tab enters the
+ *  rows.
  *
- *  Split from its own trigger so it is fetched when it is opened.  The cog
+ *  Split from its own trigger so it is fetched when it is opened. The cog
  *  is on screen in every session and this is opened in very few of them,
  *  and `bundle.initial_kb` counts only what a first visit downloads.
  */
+
+type GroupId = "look" | "write" | "project" | "install";
+
+const GROUPS: { id: GroupId; title: string; where: string; whereLong: string }[] = [
+  { id: "look", title: "How it looks", where: "on this computer", whereLong: "on this computer, in every project" },
+  { id: "write", title: "While you write", where: "on this computer", whereLong: "on this computer, in every project" },
+  { id: "project", title: "This project", where: "kept with the project", whereLong: "kept with the project, on every computer" },
+  { id: "install", title: "This install", where: "", whereLong: "who may open it, and who writes with you" },
+];
+
+const GROUP_KEY = "nexttex.settings.group";
+const NARROW = 720;
+
 export default function SettingsSheet({
   onClose,
   onTutorial,
@@ -56,19 +73,52 @@ export default function SettingsSheet({
   onOpenAccess: () => void;
   /** Whether a project is on screen.  Asked of the mount point rather than
    *  read from the store: leaving the editor for the project list does not
-   *  clear `projectId` -- the app keeps it so a reload comes back to the
-   *  document -- so the store cannot tell the two screens apart, and this
-   *  would offer three per-project switches on a screen listing every
-   *  project. */
+   *  clear `projectId`, the app keeps it so a reload comes back to the
+   *  document, so the store cannot tell the two screens apart, and this
+   *  would offer four per-project rows on a screen listing every project. */
   inProject: boolean;
 }) {
   const [look, setLook] = useState<Appearance>(() => storedAppearance());
   const projectId = useStore((s) => s.projectId);
   const provider = useStore((s) => s.agent)?.provider;
   const project = useStore((s) => s.settings);
-  const sheet = useRef<HTMLDivElement | null>(null);
+  const hasProject = inProject && Boolean(projectId);
+  const groups = GROUPS.filter((group) => group.id !== "project" || hasProject);
+  const [group, setGroup] = useState<GroupId>(() => {
+    const kept = readStored(GROUP_KEY) as GroupId | null;
+    return kept && groups.some((candidate) => candidate.id === kept) ? kept : "look";
+  });
+  const tabs = useRef<Map<GroupId, HTMLButtonElement>>(new Map());
+  const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW);
+  const headingId = useLabelId();
 
-  useDismiss(sheet, true, onClose);
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < NARROW);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const choose = (next: GroupId, focus = false) => {
+    setGroup(next);
+    writeStored(GROUP_KEY, next);
+    if (focus) tabs.current.get(next)?.focus();
+  };
+
+  // Arrows move between the groups; Home and End to the ends. Tab leaves
+  // the list for the rows, which is what a tablist does.
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const at = groups.findIndex((candidate) => candidate.id === group);
+    const forward = narrow ? "ArrowRight" : "ArrowDown";
+    const back = narrow ? "ArrowLeft" : "ArrowUp";
+    let to = -1;
+    if (event.key === forward) to = (at + 1) % groups.length;
+    else if (event.key === back) to = (at - 1 + groups.length) % groups.length;
+    else if (event.key === "Home") to = 0;
+    else if (event.key === "End") to = groups.length - 1;
+    if (to < 0) return;
+    event.preventDefault();
+    choose(groups[to].id, true);
+  };
 
   const change = (patch: Partial<Appearance>) => {
     const next = { ...look, ...patch };
@@ -93,361 +143,452 @@ export default function SettingsSheet({
     });
   };
 
+  const current = groups.find((candidate) => candidate.id === group) ?? groups[0];
+
   return (
-    <div
-      className="nx-scrim fixed inset-0 z-50 grid place-items-center p-6"
-      role="presentation"
+    <Sheet
+      open
+      onClose={onClose}
+      label="Settings"
+      testid="settings-sheet"
+      width={780}
+      className="nx-settings"
+      data-narrow={narrow || undefined}
     >
-      <div
-        ref={sheet}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Settings"
-        data-testid="settings-sheet"
-        className="nx-arrive max-h-full w-[540px] max-w-full overflow-y-auto rounded-[5px] border border-line bg-surface shadow-float"
-      >
-        <div className="flex items-center justify-between px-[12px] pt-[10px] pb-[8px]">
-          <span className="t-ui text-ink">Settings</span>
-          <button className="quiet t-micro" data-testid="settings-close" onClick={onClose}>
-            Close
+      <div className="nx-settings-nav">
+        <Heading level={2} display className="nx-settings-title">Settings</Heading>
+        {/* The tabs alone in the tablist: a tablist may hold nothing else. */}
+        <div className="nx-settings-tabs" role="tablist" aria-label="Settings" aria-orientation={narrow ? "horizontal" : "vertical"}>
+        {groups.map((candidate) => (
+          <button
+            key={candidate.id}
+            ref={(node) => {
+              if (node) tabs.current.set(candidate.id, node);
+              else tabs.current.delete(candidate.id);
+            }}
+            type="button"
+            role="tab"
+            id={`settings-tab-${candidate.id}`}
+            aria-selected={candidate.id === current.id}
+            aria-controls="settings-pane"
+            tabIndex={candidate.id === current.id ? 0 : -1}
+            data-on={candidate.id === current.id || undefined}
+            data-testid={`settings-group-${candidate.id}`}
+            className="nx-settings-tab"
+            onClick={() => choose(candidate.id)}
+            onKeyDown={onTabKey}
+          >
+            <span>{candidate.title}</span>
+            {candidate.where ? <small>{candidate.where}</small> : null}
           </button>
+        ))}
+        </div>
+        <span className="nx-settings-grow" />
+        {/* What this sheet does rather than what it holds: the tutorial,
+            and a reset of this computer's choices, which is the two groups
+            that live here and never the project's. */}
+        {hasProject && onTutorial ? (
+          <Button
+            variant="quiet"
+            data-testid="tutorial-open"
+            onClick={() => {
+              onClose();
+              onTutorial();
+            }}
+          >
+            Tutorial
+          </Button>
+        ) : null}
+        <Button
+          variant="quiet"
+          disabled={isDefault(look)}
+          onClick={() => {
+            setLook(DEFAULTS);
+            applyAppearance(DEFAULTS);
+          }}
+        >
+          Reset this computer&rsquo;s choices
+        </Button>
+      </div>
+
+      <div
+        className="nx-settings-pane"
+        role="tabpanel"
+        id="settings-pane"
+        aria-labelledby={`settings-tab-${current.id}`}
+      >
+        <div className="nx-settings-head">
+          <Heading level={2} id={headingId} className="!text-[17px]">{current.title}</Heading>
+          <span className="nx-settings-where">{current.whereLong}</span>
+          <IconButton label="Close" data-testid="settings-close" className="ml-auto" onClick={onClose}>
+            <CloseIcon />
+          </IconButton>
         </div>
 
-        {/* Two columns on anything wide enough, and one below that, which
-            is the tablet in portrait and the phone-sized window nobody is
-            writing a thesis in but somebody will open. */}
-        <div className="grid grid-cols-1 gap-x-[14px] gap-y-[14px] px-[12px] pb-[12px] sm:grid-cols-2">
-          <div className="flex flex-col gap-[14px]">
-            <Group title="How it looks" note="On this computer, in every project.">
-              <Choice
+        {current.id === "look" ? (
+          <>
+            <SRow title="Theme">
+              <Segmented
                 label="Theme"
-                name="Theme"
                 value={look.theme}
                 options={[
-                  { value: "light", text: "Light", id: "theme-light" },
-                  { value: "dark", text: "Dark", id: "theme-dark" },
-                ] as const}
-                onPick={(theme) => change({ theme })}
+                  { value: "light", label: "Light", testid: "theme-light", ariaLabel: "Theme light" },
+                  { value: "dark", label: "Dark", testid: "theme-dark", ariaLabel: "Theme dark" },
+                ]}
+                onChange={(theme) => change({ theme })}
               />
-              <SizeRow
-                label="Interface"
+            </SRow>
+            <SRow title="Interface size" note="Everything but the typeset page.">
+              <Stepper
                 what="interface"
                 value={look.scale}
                 steps={SCALES}
                 display={`${look.scale}%`}
                 onChange={(scale) => change({ scale })}
               />
-              <SizeRow
-                label="Editor text"
+            </SRow>
+            <SRow title="Editor text">
+              <Stepper
                 what="editor text"
                 value={look.editor}
                 steps={EDITOR_SIZES}
-                display={`${look.editor}px`}
+                display={`${look.editor} px`}
                 onChange={(editor) => change({ editor })}
               />
-              {/* Dark type on a bright page looks thinner than light type on
-                  a dark one at the same weight, so the editor already sets
-                  its text a step heavier on any of the light grounds -- see
-                  --nx-editor-weight-lift in styles.css.  This is the writer
-                  saying that the compensation went too far or not far
-                  enough, on a face that has three usable steps and no more.
-                  Named rather than numbered for the same reason: the number
-                  would be true on one ground and wrong on the other five. */}
-              <SizeRow
+            </SRow>
+            {/* Dark type on a bright page looks thinner than light type on
+                a dark one at the same weight, so the editor already sets
+                its text a step heavier on a light ground; see
+                --nx-editor-weight-lift in styles.css.  This is the writer
+                saying that the compensation went too far or not far
+                enough, on a face that has three usable steps and no more.
+                Named rather than numbered for the same reason: the number
+                would be true on one ground and wrong on the other. */}
+            <SRow title="Editor weight">
+              <Segmented
                 label="Editor weight"
-                what="editor weight"
-                verbs={["Lighter", "Heavier"]}
-                value={look.weight}
-                steps={EDITOR_WEIGHTS}
-                display={WEIGHT_NAMES[look.weight] ?? "Normal"}
-                onChange={(weight) => change({ weight })}
+                value={String(look.weight)}
+                options={EDITOR_WEIGHTS.map((weight) => ({
+                  value: String(weight),
+                  label: WEIGHT_NAMES[weight] ?? String(weight),
+                  testid: `weight-${(WEIGHT_NAMES[weight] ?? String(weight)).toLowerCase()}`,
+                  ariaLabel: `${WEIGHT_NAMES[weight] ?? weight} editor weight`,
+                }))}
+                onChange={(weight) => change({ weight: Number(weight) })}
               />
-            </Group>
-
-            {/* The editor is lit separately because the two are answering
-                different questions.  The shell is chrome, and plenty of
-                people want it out of the way in the dark; the editor is the
-                page being written, and a writer who thinks in paper wants
-                that white whatever the frame is doing. */}
-            <Group
-              title="The page you write on"
-              note="The editor can be lit on its own terms, whatever the frame is doing."
-            >
-              {/* Two grounds, the theme's own and the page's white; the
-                  shades of white that sat between them went in the
-                  overhaul at the writer's request. */}
-              <Choice
+            </SRow>
+            {/* Two grounds, the theme's own and the page's white; the shades
+                of white that sat between them went in the overhaul at the
+                writer's request. */}
+            <SRow title="Editor page" note="The theme's own ground, or the white of the typeset page.">
+              <Segmented
                 label="Editor page"
-                name="Editor page"
                 value={look.editorTheme}
                 options={[
-                  { value: "match", text: "Theme", id: "editor-theme-match" },
-                  { value: "white", text: "White", id: "editor-theme-white" },
-                ] as const}
-                onPick={(editorTheme) => change({ editorTheme })}
+                  { value: "match", label: "Theme", testid: "editor-theme-match", ariaLabel: "Editor page theme" },
+                  { value: "white", label: "White", testid: "editor-theme-white", ariaLabel: "Editor page white" },
+                ]}
+                onChange={(editorTheme) => change({ editorTheme })}
               />
-              {/* Colouring the control sequences is a setting rather than
-                  the look, and it is off by default.  The rendered page is
-                  two panes away and has to stay the loudest thing on
-                  screen, so the source earns its colour only when somebody
-                  asks for it -- and then it earns it properly, because a
-                  long chapter is far easier to skim for its equations and
-                  its headings when they are not all one shade of ink. */}
-              <Choice
-                label="Highlighting"
-                name="Syntax highlighting"
+            </SRow>
+            {/* Colouring the control sequences is a setting rather than the
+                look, and it is off by default.  The rendered page is two
+                panes away and has to stay the loudest thing on screen, so
+                the source earns its colour only when somebody asks for it. */}
+            <SRow title="Highlighting" note="Colour gives each command family its own hue.">
+              <Segmented
+                label="Syntax highlighting"
                 value={look.syntax}
                 options={[
-                  { value: "subtle", text: "Subtle", id: "syntax-subtle" },
-                  { value: "colour", text: "Colour", id: "syntax-colour" },
-                ] as const}
-                onPick={(syntax) => change({ syntax })}
+                  { value: "subtle", label: "Subtle", testid: "syntax-subtle", ariaLabel: "Highlighting subtle" },
+                  { value: "colour", label: "Colour", testid: "syntax-colour", ariaLabel: "Highlighting colour" },
+                ]}
+                onChange={(syntax) => change({ syntax })}
               />
-              {/* The other half of highlighting: whether a command is set
-                  heavier than the prose.  Weight is what the subtle look
-                  runs on, so with it off a command takes a quiet colour
-                  instead, in either look; the two controls read as one
-                  pair, colour and weight, which is what highlighting is. */}
-              <Choice
-                label="Emphasis"
-                name="Command emphasis"
+            </SRow>
+            {/* The other half of highlighting: whether a command is set
+                heavier than the prose. */}
+            <SRow title="Emphasis">
+              <Segmented
+                label="Command emphasis"
                 value={look.emphasis}
                 options={[
-                  { value: "bold", text: "Bold commands", id: "emphasis-bold" },
-                  { value: "plain", text: "Plain", id: "emphasis-plain" },
-                ] as const}
-                onPick={(emphasis) => change({ emphasis })}
+                  { value: "bold", label: "Bold commands", testid: "emphasis-bold", ariaLabel: "Emphasis bold commands" },
+                  { value: "plain", label: "Plain", testid: "emphasis-plain", ariaLabel: "Emphasis plain" },
+                ]}
+                onChange={(emphasis) => change({ emphasis })}
               />
-            </Group>
-          </div>
+            </SRow>
+          </>
+        ) : null}
 
-          <div className="flex flex-col gap-[14px]">
-            <Group title="While you write">
-              {/* Off by default.  It fetches a word list, and until a
-                  writer has told it about the vocabulary of their own
-                  subject it has something to say about a great many
-                  correctly spelled words -- which is the state in which a
-                  checker gets switched off and never switched back on. */}
-              <Choice
-                label="Spelling"
-                name="Spell checking"
-                value={look.spelling}
+        {current.id === "write" ? (
+          <>
+            {/* Off by default.  It fetches a word list, and until a writer
+                has told it about the vocabulary of their own subject it has
+                something to say about a great many correctly spelled words,
+                which is the state in which a checker gets switched off and
+                never switched back on. */}
+            <SRow title="Spelling">
+              <Segmented
+                label="Spell checking"
+                value={look.spelling ? "on" : "off"}
                 options={[
-                  { value: false, text: "Off", id: "spelling-off" },
-                  { value: true, text: "On", id: "spelling-on" },
-                ] as const}
-                onPick={(spelling) => change({ spelling })}
+                  { value: "off", label: "Off", testid: "spelling-off", ariaLabel: "Spelling off" },
+                  { value: "on", label: "On", testid: "spelling-on", ariaLabel: "Spelling on" },
+                ]}
+                onChange={(spelling) => change({ spelling: spelling === "on" })}
               />
-              {look.spelling ? (
-                <>
-                  {/* Which English.  "Document" is the default and means
-                      what the open document's own preamble says, from its
-                      babel or polyglossia options, and both spellings of
-                      every word when it says nothing: half the literature
-                      a thesis cites is American, and an underline under
-                      every "colour" teaches people to ignore underlines.
-                      Choosing a variety tightens it.  The document's answer
-                      arrives with the symbol table, on open and after a
-                      build, rather than on the keystroke that typed the
-                      babel line. */}
-                  <Choice
-                    label="Variety"
-                    name="English variety"
+            </SRow>
+            {look.spelling ? (
+              <>
+                {/* Which English.  "Document" means what the open
+                    document's own preamble says, from its babel or
+                    polyglossia options, and both spellings of every word
+                    when it says nothing: half the literature a thesis
+                    cites is American. */}
+                <SRow title="Variety" note="Document follows the preamble's babel or polyglossia line.">
+                  <Segmented
+                    label="English variety"
                     value={look.spellingVariety}
                     options={[
-                      { value: "follow", text: "Document", id: "variety-follow" },
-                      { value: "british", text: "British", id: "variety-british" },
-                      { value: "american", text: "American", id: "variety-american" },
-                    ] as const}
-                    onPick={(spellingVariety) => change({ spellingVariety })}
+                      { value: "follow", label: "Document", testid: "variety-follow", ariaLabel: "Variety document" },
+                      { value: "british", label: "British", testid: "variety-british", ariaLabel: "Variety British" },
+                      { value: "american", label: "American", testid: "variety-american", ariaLabel: "Variety American" },
+                    ]}
+                    onChange={(spellingVariety) => change({ spellingVariety })}
                   />
-                  <AddedWords />
-                </>
-              ) : null}
-              {/* Whose fingers the editor answers to.  Fetched only when
-                  chosen, so a session that wants neither pays nothing; and
-                  each keymap's own undo is rebound to the shared document's,
-                  because two histories over one document once emptied a
-                  file for everyone (`docs/architecture.md`). */}
-              <Choice
-                label="Keymap"
-                name="Editor keymap"
+                </SRow>
+                {hasProject ? <AddedWords /> : null}
+              </>
+            ) : null}
+            {/* Whose fingers the editor answers to.  Fetched only when
+                chosen, so a session that wants neither pays nothing; and
+                each keymap's own undo is rebound to the shared document's,
+                because two histories over one document once emptied a file
+                for everyone (`docs/architecture.md`). */}
+            <SRow
+              title="Keymap"
+              note={
+                look.keymap !== "default"
+                  ? "Undo stays the document's under either: it undoes what you typed, never what a collaborator did."
+                  : undefined
+              }
+            >
+              <Segmented
+                label="Editor keymap"
                 value={look.keymap}
                 options={[
-                  { value: "default", text: "Default", id: "keymap-default" },
-                  { value: "vim", text: "Vim", id: "keymap-vim" },
-                  { value: "emacs", text: "Emacs", id: "keymap-emacs" },
-                ] as const}
-                onPick={(keymap) => change({ keymap })}
+                  { value: "default", label: "Default", testid: "keymap-default", ariaLabel: "Keymap default" },
+                  { value: "vim", label: "Vim", testid: "keymap-vim", ariaLabel: "Keymap Vim" },
+                  { value: "emacs", label: "Emacs", testid: "keymap-emacs", ariaLabel: "Keymap Emacs" },
+                ]}
+                onChange={(keymap) => change({ keymap })}
               />
-              {look.keymap !== "default" ? (
-                <p className="t-micro border-t border-line px-[10px] py-[5px] text-ink-3">
-                  Undo stays the document's under either: it undoes what you
-                  typed, never what a collaborator did.
-                </p>
-              ) : null}
-              {/* What the preview spends on a page.  The page is rasterised
-                  at the device ratio times the interface scale, so a retina
-                  screen or a scaled-up interface already costs several
-                  times the pixels of an ordinary one: that is where the
-                  work is, and that is what "Faster" caps.  "Sharper"
-                  oversamples instead, which keeps a figure crisp when a
-                  reader zooms into it. */}
-              <Choice
-                label="Preview"
-                name="Preview quality"
+            </SRow>
+            {/* What the preview spends on a page.  The page is rasterised
+                at the device ratio times the interface scale, which is
+                where the work is and what "Faster" caps; "Sharper"
+                oversamples instead, which keeps a figure crisp when a
+                reader zooms into it. */}
+            <SRow title="Preview">
+              <Segmented
+                label="Preview quality"
                 value={look.preview}
                 options={[
-                  { value: "faster", text: "Faster", id: "preview-faster" },
-                  { value: "balanced", text: "Balanced", id: "preview-balanced" },
-                  { value: "sharper", text: "Sharper", id: "preview-sharper" },
-                ] as const}
-                onPick={(preview) => change({ preview })}
+                  { value: "faster", label: "Faster", testid: "preview-faster", ariaLabel: "Preview faster" },
+                  { value: "balanced", label: "Balanced", testid: "preview-balanced", ariaLabel: "Preview balanced" },
+                  { value: "sharper", label: "Sharper", testid: "preview-sharper", ariaLabel: "Preview sharper" },
+                ]}
+                onChange={(preview) => change({ preview })}
               />
-            </Group>
+            </SRow>
+          </>
+        ) : null}
 
-            {/* Absent rather than disabled when there is no project open.
-                A control that cannot be enabled from where you are standing
-                advertises a capability and then refuses, and three switches
-                with no project would be lying about which project they
-                belonged to. */}
-            {inProject && projectId ? (
-              <Group title="This project" note="Kept in the project, not on this computer.">
-                <Switch
-                  label="Compile as you type"
-                  on={project.autocompile}
-                  off={`${shortcut("Mod-S").both} compiles. Or Compile in the strip.`}
-                  onChange={(autocompile) => toggle({ autocompile })}
-                />
-                <Switch
-                  label="Mark errors in the text"
-                  on={project.markErrors}
-                  off="The status strip still counts them."
-                  onChange={(markErrors) => toggle({ markErrors })}
-                />
-                <Switch
-                  label="Mark warnings in the text"
-                  on={project.markWarnings}
-                  off="They stay in the diagnostics list."
-                  onChange={(markWarnings) => toggle({ markWarnings })}
-                />
-                {/* "" is the default and is drawn as pdflatex, so the row
-                    never shows nothing pressed; picking pdflatex writes
-                    "" so the project's toml carries no key it does not
-                    need.  A `% !TeX program` line at the top of a document
-                    wins over this row, and the caption says so, because a
-                    writer who picks xelatex here and still gets pdflatex
-                    would otherwise have nothing to go on. */}
-                <Choice
-                  label="Engine"
-                  name="Engine"
-                  value={(project.engine || "pdflatex") as Engine}
-                  options={[
-                    { value: "pdflatex", text: "pdflatex", id: "engine-pdflatex" },
-                    { value: "xelatex", text: "xelatex", id: "engine-xelatex" },
-                    { value: "lualatex", text: "lualatex", id: "engine-lualatex" },
-                  ] as const}
-                  onPick={(engine) => toggle({ engine: engine === "pdflatex" ? "" : engine })}
-                />
-                <p className="t-micro border-t border-line px-[10px] py-[5px] text-ink-3">
-                  A <span className="font-mono">% !TeX program = xelatex</span> line at
-                  the top of a document wins over this.
-                </p>
-                {/* Shown only when the project asks, because a row that
-                    reads "Shell escape: off" on every project advertises
-                    a switch, and this is not a switch: the project asks in
-                    its own file and this machine answers, once, per
-                    project.  Revoke is the one thing the sheet adds over
-                    the drawer's row, since the drawer has nowhere to put
-                    a "no" once the answer was "yes". */}
-                {project.shellEscape !== "off" ? (
-                  <ShellEscapeRow state={project.shellEscape} projectId={projectId} />
-                ) : null}
-              </Group>
+        {current.id === "project" && projectId ? (
+          <>
+            {/* The off sentence answers the one question turning a switch
+                off raises: did I just stop being told? */}
+            <SwitchRow
+              title="Compile as you type"
+              checked={project.autocompile}
+              off={`${shortcut("Mod-S").both} compiles. Or Compile in the strip.`}
+              onChange={(autocompile) => toggle({ autocompile })}
+            />
+            <SwitchRow
+              title="Mark errors in the text"
+              checked={project.markErrors}
+              off="The status strip still counts them."
+              onChange={(markErrors) => toggle({ markErrors })}
+            />
+            <SwitchRow
+              title="Mark warnings in the text"
+              checked={project.markWarnings}
+              off="They stay in the diagnostics list."
+              onChange={(markWarnings) => toggle({ markWarnings })}
+            />
+            {/* "" is the default and is drawn as pdflatex, so the row never
+                shows nothing pressed; picking pdflatex writes "" so the
+                project's toml carries no key it does not need. */}
+            <SRow
+              title="Engine"
+              note={
+                <>
+                  A <span className="font-mono">% !TeX program = xelatex</span> line at the top
+                  of a document wins over this.
+                </>
+              }
+            >
+              <Segmented
+                label="Engine"
+                value={(project.engine || "pdflatex") as Engine}
+                options={[
+                  { value: "pdflatex", label: "pdflatex", testid: "engine-pdflatex" },
+                  { value: "xelatex", label: "xelatex", testid: "engine-xelatex" },
+                  { value: "lualatex", label: "lualatex", testid: "engine-lualatex" },
+                ]}
+                onChange={(engine) => toggle({ engine: engine === "pdflatex" ? "" : engine })}
+              />
+            </SRow>
+            {/* Shown only when the project asks, because a row that reads
+                "Shell escape: off" on every project advertises a switch,
+                and this is not a switch: the project asks in its own file
+                and this machine answers, once, per project. */}
+            {project.shellEscape !== "off" ? (
+              <ShellEscapeRow state={project.shellEscape} projectId={projectId} />
             ) : null}
+          </>
+        ) : null}
 
+        {current.id === "install" ? (
+          <>
             {/* Who may open this install and who is writing alongside you.
-                Both are one row and a way out of here, because what each of
-                them opens is bigger than a row. */}
-            <Group title="This install">
-              <Away
-                label="Password and browsers"
-                action="Open"
-                testId="open-access"
+                Both are one row and a way out of here, because what each
+                of them opens is bigger than a row. */}
+            <SRow title="Password and browsers">
+              <Button
+                variant="ghost"
+                data-testid="open-access"
                 onClick={() => {
                   onClose();
                   onOpenAccess();
                 }}
-              />
-              {onChangeAgent ? (
-                /* Named rather than described, and the verb follows the
-                   state.  This row used to read "Working on your own" with
-                   a "Change" beside it, which describes how things are
-                   without saying what the control does: somebody who wanted
-                   an agent had no reason to think this was the way to one.
-                   "Writing agent: not set up" with "Set up" says both. */
-                <Away
-                  label={
-                    provider === "none"
-                      ? "Writing agent: not set up"
-                      : `Writing agent: ${agentName(provider)}`
-                  }
-                  action={provider === "none" ? "Set up" : "Change"}
-                  emphasis={provider === "none"}
-                  testId="change-agent"
+              >
+                Open
+              </Button>
+            </SRow>
+            {onChangeAgent ? (
+              /* Named rather than described, and the verb follows the
+                 state: "Not set up" with "Set up" says what the control
+                 does, which "Working on your own" with "Change" did not. */
+              <SRow
+                title="Writing agent"
+                note={provider === "none" ? "Not set up." : `${agentName(provider)}.`}
+              >
+                <Button
+                  variant={provider === "none" ? "pen" : "ghost"}
+                  data-testid="change-agent"
                   onClick={() => {
                     onClose();
                     onChangeAgent();
                   }}
-                />
-              ) : null}
-            </Group>
-          </div>
-        </div>
+                >
+                  {provider === "none" ? "Set up" : "Change"}
+                </Button>
+              </SRow>
+            ) : null}
+          </>
+        ) : null}
 
-        {/* Appearance only, and it says so.  A reset that quietly turned
-            compile-as-you-type back on would be an action nobody asked for,
-            hiding inside a word that sounds harmless.  Tutorial sits beside
-            it rather than among the controls: it is something this sheet
-            does, not something it holds the state of. */}
-        <div className="flex h-[36px] items-center justify-between border-t border-line px-[12px]">
-          {inProject && projectId && onTutorial ? (
-            <button
-              className="quiet t-micro"
-              data-testid="tutorial-open"
-              onClick={() => {
-                onClose();
-                onTutorial();
-              }}
-            >
-              Tutorial
-            </button>
-          ) : (
-            <span />
-          )}
-          <button
-            className="quiet t-micro"
-            disabled={isDefault(look)}
-            onClick={() => {
-              setLook(DEFAULTS);
-              applyAppearance(DEFAULTS);
-            }}
-          >
-            Reset appearance
-          </button>
+        <div className="nx-sheet-foot nx-settings-foot">
+          <Button variant="ghost" onClick={onClose}>Done</Button>
         </div>
       </div>
+    </Sheet>
+  );
+}
+
+/** One setting: a title, a subtitle only where it earns its place, and
+ *  the control at the right. */
+function SRow({
+  title,
+  note,
+  children,
+  testid,
+}: {
+  title: string;
+  note?: ReactNode;
+  children: ReactNode;
+  testid?: string;
+}) {
+  return (
+    <div className="nx-settings-row" data-testid={testid}>
+      <div className="nx-settings-text">
+        <span>{title}</span>
+        {note ? <small>{note}</small> : null}
+      </div>
+      {children}
     </div>
   );
 }
 
-/** One subject, named for the question it answers.
- *
- *  The note is the room the old column did not have.  "Kept in the project,
- *  not on this computer" is the single most useful sentence in this sheet
- *  and there was nowhere to put it: a writer with two machines had no way
- *  to know which of these choices travelled with the project and which did
- *  not. */
+function SwitchRow({
+  title,
+  checked,
+  off,
+  onChange,
+}: {
+  title: string;
+  checked: boolean;
+  /** What still happens once this is off. */
+  off: string;
+  onChange: (checked: boolean) => void;
+}) {
+  const id = useLabelId();
+  return (
+    <div className="nx-settings-row">
+      <div className="nx-settings-text">
+        <span id={id}>{title}</span>
+        {checked ? null : <small>{off}</small>}
+      </div>
+      <Switch checked={checked} onChange={onChange} aria-labelledby={id} />
+    </div>
+  );
+}
+
+/** The stepper, twice: the shape the page draws for a size, minus, the
+ *  value, plus, with the readout wide enough to hold "13.5 px". */
+function Stepper({
+  what,
+  verbs = ["Smaller", "Larger"],
+  value,
+  steps,
+  display,
+  onChange,
+}: {
+  what: string;
+  verbs?: readonly [string, string];
+  value: number;
+  steps: number[];
+  display: string;
+  onChange: (value: number) => void;
+}) {
+  const first = value <= steps[0];
+  const last = value >= steps[steps.length - 1];
+  return (
+    <div className="nx-stepper">
+      <IconButton label={`${verbs[0]} ${what}`} disabled={first} onClick={() => onChange(step(value, steps, -1))}>
+        <span aria-hidden="true">−</span>
+      </IconButton>
+      <b className="tnum">{display}</b>
+      <IconButton label={`${verbs[1]} ${what}`} disabled={last} onClick={() => onChange(step(value, steps, 1))}>
+        <span aria-hidden="true">+</span>
+      </IconButton>
+    </div>
+  );
+}
+
 /** The project's request for shell escape, and this machine's answer. */
 function ShellEscapeRow({
   state,
@@ -478,259 +619,26 @@ function ShellEscapeRow({
     }
   };
   return (
-    <div
-      className="flex h-[30px] items-center justify-between border-t border-line px-[10px]"
-      data-testid="shell-escape-row"
+    <SRow
+      title="Shell escape"
+      note={state === "on" ? "Allowed on this computer." : "The project asks for it."}
+      testid="shell-escape-row"
     >
-      <span className="t-meta text-ink-2">
-        Shell escape
-        <span className="t-micro ml-2 text-ink-3">
-          {state === "on" ? "allowed on this computer" : "the project asks for it"}
-        </span>
-      </span>
       {state === "on" ? (
-        <button
-          className="quiet t-micro"
-          data-testid="shell-escape-revoke"
-          disabled={busy}
-          onClick={() => void answer(false)}
-        >
+        <Button variant="ghost" data-testid="shell-escape-revoke" disabled={busy} onClick={() => void answer(false)}>
           Revoke
-        </button>
+        </Button>
       ) : (
-        <button
-          className="quiet t-micro"
+        <Button
+          variant={asked ? "pen" : "ghost"}
           data-testid="shell-escape-allow"
           disabled={busy}
           onClick={() => void answer(true)}
         >
           {asked ? "Yes, allow it on this computer" : "Allow"}
-        </button>
+        </Button>
       )}
-    </div>
-  );
-}
-
-function Group({
-  title,
-  note,
-  children,
-}: {
-  title: string;
-  note?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <h3 className="t-meta text-ink">{title}</h3>
-      {/* Above the controls, not below them.  Under the box it sat closer
-          to the next group's heading than to the one it describes, which
-          for "Kept in the project, not on this computer" is the sentence
-          reading as a caption for the wrong thing. */}
-      {note ? <p className="t-micro mb-[5px] text-ink-3">{note}</p> : null}
-      <div
-        className={`overflow-hidden rounded-[3px] border border-line [&>*:first-child]:border-t-0 ${
-          note ? "" : "mt-[5px]"
-        }`}
-      >
-        {children}
-      </div>
-    </section>
-  );
-}
-
-/** A row that leaves rather than sets. */
-function Away({
-  label,
-  action,
-  testId,
-  onClick,
-  emphasis = false,
-}: {
-  label: string;
-  action: string;
-  testId: string;
-  onClick: () => void;
-  /** For a row offering something the writer does not have yet, rather than
-   *  reporting something they do.  One row in the sheet at most: an accent
-   *  spent on everything is an accent spent on nothing. */
-  emphasis?: boolean;
-}) {
-  return (
-    <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
-      <span
-        className={[
-          "t-meta min-w-0 truncate",
-          emphasis ? "text-ink" : "text-ink-2",
-        ].join(" ")}
-      >
-        {label}
-      </span>
-      <button
-        className={["quiet t-micro shrink-0", emphasis ? "text-pen" : ""].join(" ")}
-        data-testid={testId}
-        onClick={onClick}
-      >
-        {action}
-      </button>
-    </div>
-  );
-}
-
-/** A row offering two or three mutually exclusive settings.
- *
- *  The names have to be distinct in the accessibility tree -- "Light" means
- *  one thing in the Theme row and another among the editor grounds -- so
- *  each button is labelled with its group's name as well as its own.
- */
-function Choice<T extends string | boolean>({
-  label,
-  options,
-  value,
-  name,
-  onPick,
-}: {
-  label: string;
-  options: readonly { value: T; text: string; id: string }[];
-  value: T;
-  name: string;
-  onPick: (value: T) => void;
-}) {
-  return (
-    <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
-      <span className="t-meta text-ink-2">{label}</span>
-      <div
-        role="group"
-        aria-label={name}
-        className="flex shrink-0 overflow-hidden rounded-[3px] border border-line"
-      >
-        {options.map((option) => (
-          <button
-            key={option.id}
-            aria-pressed={value === option.value}
-            aria-label={`${label} ${option.text.toLowerCase()}`}
-            className={`t-micro px-2 py-[3px] transition-colors duration-[90ms] ${
-              value === option.value
-                ? "bg-surface-3 text-ink"
-                : "text-ink-3 hover:text-ink"
-            }`}
-            data-testid={option.id}
-            onClick={() => onPick(option.value)}
-          >
-            {option.text}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** A switch, and the app's first.  Radius 3 rather than a pill, because
- *  radius means something here -- 0 panes, 3 rows and controls, 5 cards --
- *  and a 999-radius toggle would be the only object in the interface
- *  encoding nothing.  `--hint` because this is live interactive state that
- *  is not the agent, which is what the second accent exists for.
- *
- *  The knob's position changes at 0ms.  A sliding knob would be the only
- *  sliding thing in the app, and reduced motion strips transform
- *  transitions anyway, so animating it would give two behaviours for no
- *  gain.
- *
- *  The sub-line exists only in the off position, and answers the one
- *  question turning a switch off raises: did I just stop being told?
- */
-function Switch({
-  label,
-  on,
-  off,
-  onChange,
-}: {
-  label: string;
-  on: boolean;
-  off: string;
-  onChange: (on: boolean) => void;
-}) {
-  return (
-    <div className="border-t border-line">
-      <button
-        role="switch"
-        aria-checked={on}
-        className="nx-hover flex h-[30px] w-full items-center justify-between px-[10px] hover:bg-surface-2"
-        onClick={() => onChange(!on)}
-      >
-        <span className="t-meta text-ink-2">{label}</span>
-        <span
-          className={`flex h-[12px] w-[22px] shrink-0 items-center rounded-[3px] border p-[1px] ${
-            on ? "border-hint bg-hint-wash" : "border-line"
-          }`}
-        >
-          <span
-            className={`h-[8px] w-[8px] rounded-[2px] ${
-              on ? "ml-auto bg-hint" : "bg-ink-3"
-            }`}
-          />
-        </span>
-      </button>
-      {on ? null : (
-        <div className="t-micro px-[10px] pb-[5px] text-ink-3">{off}</div>
-      )}
-    </div>
-  );
-}
-
-/** The stepper, three times.  Deliberately the same shape as the PDF pane's
- *  zoom control, which is the answer this app already gives to "make this
- *  bigger".
- *
- *  The readout is wide enough for a word because one of the three shows one:
- *  a weight is named rather than measured here, and the slot is fixed across
- *  all three so the plus and minus stay in a column. */
-function SizeRow({
-  label,
-  what,
-  verbs = ["Smaller", "Larger"],
-  value,
-  steps,
-  display,
-  onChange,
-}: {
-  label: string;
-  what: string;
-  /** What stepping down and up is called, for the accessibility tree.  Two
-   *  of these rows make a thing bigger and the third makes it heavier, and
-   *  "Larger editor weight" is a button that describes nothing a screen
-   *  reader could act on. */
-  verbs?: readonly [string, string];
-  value: number;
-  steps: number[];
-  display: string;
-  onChange: (value: number) => void;
-}) {
-  const first = value <= steps[0];
-  const last = value >= steps[steps.length - 1];
-  return (
-    <div className="flex h-[30px] items-center justify-between border-t border-line px-[10px]">
-      <span className="t-meta text-ink-2">{label}</span>
-      <div className="flex shrink-0 items-center">
-        <button
-          className="nx-hover t-ui px-[6px] text-ink-2 hover:text-ink disabled:text-ink-3 disabled:opacity-40"
-          disabled={first}
-          aria-label={`${verbs[0]} ${what}`}
-          onClick={() => onChange(step(value, steps, -1))}
-        >
-          −
-        </button>
-        <span className="t-micro tnum w-[54px] text-center text-ink-3">{display}</span>
-        <button
-          className="nx-hover t-ui px-[6px] text-ink-2 hover:text-ink disabled:text-ink-3 disabled:opacity-40"
-          disabled={last}
-          aria-label={`${verbs[1]} ${what}`}
-          onClick={() => onChange(step(value, steps, 1))}
-        >
-          +
-        </button>
-      </div>
-    </div>
+    </SRow>
   );
 }
 
@@ -772,34 +680,20 @@ function AddedWords() {
     }
   };
 
-  // Nothing at all until there is something to show. An empty list under
-  // the switch would be a permanent reminder of a feature nobody has used
-  // yet, in a sheet whose whole job is to be quiet.
+  // Nothing at all until there is something to show. An empty row would
+  // be a permanent reminder of a feature nobody has used yet, in a sheet
+  // whose whole job is to be quiet.
   if (!words || words.length === 0) return null;
 
   return (
-    <div className="border-t border-line px-[10px] py-[8px]">
-      <p className="t-micro mb-[6px] text-ink-3">
-        Words you added, kept with this project
-      </p>
-      <div className="flex flex-wrap gap-[6px]">
+    <SRow title="Words you added" note={problem ? <span className="text-error">{problem}</span> : "Kept with this project."}>
+      <div className="flex max-w-[60%] flex-wrap justify-end gap-[6px]">
         {words.map((word) => (
-          <span
-            key={word}
-            className="group flex items-center gap-1 rounded-[3px] border border-line px-[6px] py-[1px]"
-          >
-            <span className="t-micro text-ink">{word}</span>
-            <button
-              className="t-micro text-ink-3 hover:text-error"
-              aria-label={`Forget ${word}`}
-              onClick={() => forget(word)}
-            >
-              ×
-            </button>
-          </span>
+          <Chip key={word} onRemove={() => forget(word)} removeLabel={`Forget ${word}`}>
+            {word}
+          </Chip>
         ))}
       </div>
-      {problem ? <p className="t-micro mt-[6px] text-error">{problem}</p> : null}
-    </div>
+    </SRow>
   );
 }

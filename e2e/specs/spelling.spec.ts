@@ -13,6 +13,7 @@ import type { Page } from "@playwright/test";
 
 async function turnOn(tab: Page) {
   await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("settings-group-write").click();
   await tab.getByTestId("spelling-on").click();
   await tab.keyboard.press("Escape");
 }
@@ -243,6 +244,7 @@ test("a word added by mistake can be taken back", async ({ tab }) => {
   await expect(marked(tab)).toHaveCount(0);
 
   await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("settings-group-write").click();
   await expect(tab.getByText("Words you added")).toBeVisible();
   await tab.getByRole("button", { name: "Forget nitrophenol" }).click();
   await expect(tab.getByText("Words you added")).toHaveCount(0);
@@ -399,6 +401,7 @@ test("the menu opens beside the word at a larger interface size", async ({ tab }
  */
 async function pickVariety(tab: Page, id: "variety-follow" | "variety-british" | "variety-american") {
   await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("settings-group-write").click();
   await tab.getByTestId(id).click();
   await tab.keyboard.press("Escape");
 }

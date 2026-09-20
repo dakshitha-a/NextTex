@@ -166,6 +166,7 @@ test("the preview quality setting changes what a page is drawn with", async ({
   const balanced = await width();
 
   await open(tab);
+  await tab.getByTestId("settings-group-write").click();
   // A pressed-state button rather than a radio, so `check` cannot drive it.
   await tab.getByTestId("preview-sharper").click();
   await tab.keyboard.press("Escape");
@@ -173,6 +174,7 @@ test("the preview quality setting changes what a page is drawn with", async ({
 
   await open(tab);
   await tab.getByTestId("preview-faster").click();
+  // Remembered: the sheet reopened on While you write.
   await tab.keyboard.press("Escape");
   await expect.poll(width, { timeout: 15_000 }).toBeLessThanOrEqual(balanced);
 });
@@ -188,7 +190,7 @@ test("reset puts everything back", async ({ tab }) => {
     .getByRole("button", { name: "Light" })
     .click();
 
-  await tab.getByRole("button", { name: "Reset appearance" }).click();
+  await tab.getByRole("button", { name: /Reset this computer/ }).click();
   await expect(tab.locator(".cm-scroller")).toHaveCSS("font-size", "13.5px");
   await expect(tab.locator("#root")).toHaveCSS("zoom", "1");
   await expect(tab.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -232,6 +234,7 @@ test("the project switches are absent when there is no project", async ({ tab })
   // three switches with no project would be lying about which project they
   // belonged to.
   await open(tab);
+  await tab.getByTestId("settings-group-project").click();
   await expect(tab.getByRole("switch", { name: "Compile as you type" })).toBeVisible();
   await tab.keyboard.press("Escape");
 
@@ -245,7 +248,7 @@ test("the project switches are absent when there is no project", async ({ tab })
   await expect(card.getByText("This project")).toHaveCount(0);
   await expect(card.getByRole("switch")).toHaveCount(0);
   // The appearance half is still there, and still says what it resets.
-  await expect(card.getByRole("button", { name: "Reset appearance" })).toBeVisible();
+  await expect(card.getByRole("button", { name: /Reset this computer/ })).toBeVisible();
 });
 
 test("turning off compile as you type stops builds, and leaves a button", async ({
@@ -259,6 +262,8 @@ test("turning off compile as you type stops builds, and leaves a button", async 
     .toBe("built");
 
   await open(tab);
+  // The sheet is master-detail: the project's rows are one group of four.
+  await tab.getByTestId("settings-group-project").click();
   await tab.getByRole("switch", { name: "Compile as you type" }).click();
   await tab.keyboard.press("Escape");
 
@@ -304,6 +309,8 @@ test("a keystroke during a build is not forgotten when the build lands", async (
     .toBe("built");
 
   await open(tab);
+  // The sheet is master-detail: the project's rows are one group of four.
+  await tab.getByTestId("settings-group-project").click();
   await tab.getByRole("switch", { name: "Compile as you type" }).click();
   await tab.keyboard.press("Escape");
 

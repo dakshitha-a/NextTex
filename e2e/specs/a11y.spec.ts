@@ -78,6 +78,20 @@ for (const theme of ["light", "dark"] as const) {
     const found = await violations(tab);
     expect(describeAll(found)).toBe("");
   });
+
+  test(`the settings sheet is usable in the ${theme} theme, in every group`, async ({ page, tab }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await settle(tab);
+    await tab.getByTestId("appearance").click();
+    const sheet = tab.getByRole("dialog", { name: "Settings" });
+    await expect(sheet).toBeVisible();
+    for (const group of ["look", "write", "project", "install"]) {
+      await sheet.getByTestId(`settings-group-${group}`).click();
+      await expect(sheet.getByTestId(`settings-group-${group}`)).toHaveAttribute("aria-selected", "true");
+      const found = await violations(tab);
+      expect(describeAll(found), group).toBe("");
+    }
+  });
 }
 
 test("a permission card is announced, not just drawn", async ({ tab }) => {

@@ -2092,7 +2092,8 @@ in, under a command that can no longer outweigh it. 300/400/500 reaches
 usable range.
 
 Two consequences worth stating. The stops are **named**, Lighter, Normal,
-Bolder: rather than numbered, like the preview quality's and unlike the two
+Heavier (it read Bolder until the overhaul's sheet, where the direction page
+made it the pair of Lighter): rather than numbered, like the preview quality's and unlike the two
 size rows above them: "Regular" would be a lie on four of the six editor
 grounds, where the palette has already added a step. And the command weight
 had to stop being a hard-coded 600, in the `.nx-syn-*` rules and in
@@ -8874,3 +8875,73 @@ a server with the stand-in off and the provider pointed at a fake
 upstream speaking the chat-completions stream, sees the card with the
 script in it, presses Allow and finds the script in the tree, then
 presses Allow always, reloads, asks again and finds no card open.
+
+## 49. The settings sheet, master-detail
+
+The visual overhaul's first section on the sheet, since none existed: it
+had been a popover, then a two-column sheet described in passing under
+§23 and §45, and by the overhaul it held a theme, two sizes, a weight, a
+ground, two highlighting choices, spelling and its variety, the words
+added to the dictionary, a keymap, a preview quality, four per-project
+rows and two ways out. Two columns were twenty rows to read before
+finding one, which is the cognitive load the overhaul spends its
+boldness against. The direction page drew three shapes, one column, two
+columns and master-detail, and the writer chose master-detail.
+
+The sheet is 780 px on the kit's `Sheet`. A 200 px column at the left on
+the second surface lists the four groups, each named for the question it
+answers and saying under its name where its choices live: "How it looks,
+on this computer"; "While you write, on this computer"; "This project,
+kept with the project"; "This install". The chosen group sits on the
+wash; the column's foot holds Tutorial and "Reset this computer's
+choices", which are what the sheet does rather than what it holds, and
+the reset names its reach because a reset that quietly turned compile as
+you type back on would be an action nobody asked for. The right pane
+carries the group's heading with its where beside it in the third ink,
+the close at the right, the rows, and Done at the foot. A row is 46 px:
+a title, a subtitle only where it earns its place ("Everything but the
+typeset page", "The theme's own ground, or the white of the typeset
+page", "Colour gives each command family its own hue"), and the control
+at the right, with a hairline between rows and none around the group.
+Every control is the kit's: a segmented control for a choice among a
+few, a stepper for the two sizes, a switch for the project's three, a
+ghost button for a row that leaves. Editor weight is a segmented
+Lighter, Normal, Heavier rather than a stepper with verbs, since three
+named stops are a choice and not a scale.
+
+The rows, in order. How it looks: Theme; Interface size; Editor text;
+Editor weight; Editor page; Highlighting; Emphasis. While you write:
+Spelling; Variety, when spelling is on; Words you added, as chips with
+a remove, only when there are any; Keymap, with the note about undo
+under it only when a keymap is chosen; Preview. This project: Compile as
+you type, Mark errors in the text and Mark warnings in the text, each
+carrying as its subtitle, only while it is off, what still happens
+("The status strip still counts them"); Engine, with the `% !TeX
+program` note; and Shell escape, only when the project asks, with Allow
+in two presses and Revoke in one. This install: Password and browsers,
+with Open; Writing agent, naming the agent under the title, with Change
+or Set up. The group is remembered per browser under
+`nexttex.settings.group`, so a writer who lives in one of them opens on
+it; "This project" is not offered on the projects screen, where there
+is no project to keep anything with, and a remembered "This project"
+falls back to "How it looks" there. The column is a `tablist`: the
+arrows move between groups, Home and End to the ends, and Tab leaves
+the list for the rows. Below 720 px the column becomes a row of four
+segments above the rows, with the arrows walking sideways.
+
+Two things the page's drawing did not carry and the sheet keeps, as
+improvements: the off sentence under a switch, which answers the one
+question turning a switch off raises, and the engine note, because a
+writer who picks xelatex here and still gets pdflatex would otherwise
+have nothing to go on. The kit's `Sheet` was fixed for a narrow window
+on the way: on an auto grid track the sheet's own width widened the
+cell and its `max-width: 100%` then bound nothing, so a 780 px sheet ran
+off a 600 px window; the track is `minmax(0, 1fr)` now and the sheet
+`width: 100%` capped at its size. `e2e/specs/settings.spec.ts` walks the
+groups with the arrows, finds one group's rows at a time, finds the
+group remembered and This project absent on the projects screen, finds
+the segments side by side at 600 px with the rows inside the window, and
+reads a row's title, subtitle and control; `a11y.spec.ts` sweeps every
+group in both themes; the specs that reach a row (`appearance`,
+`keymaps`, `spelling`, `engine`, `password`) choose the row's group
+first.

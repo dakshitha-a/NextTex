@@ -12,6 +12,7 @@ async function choose(tab: import("@playwright/test").Page, id: string) {
   await tab.getByTestId("appearance").first().click();
   const sheet = tab.getByRole("dialog", { name: "Settings" });
   await expect(sheet).toBeVisible();
+  await sheet.getByTestId("settings-group-write").click();
   await sheet.getByTestId(id).click();
   await expect(sheet.getByTestId(id)).toHaveAttribute("aria-pressed", "true");
   await tab.getByTestId("settings-close").click();

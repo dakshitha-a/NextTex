@@ -467,8 +467,10 @@ async function prepare(app: any, project: any, page: Page, pairing: Pairing) {
   // the pairing is the one a writer can make rather than one only a test
   // can.  Spelling on, for the menu that needs a misspelling.
   await page.getByTestId("appearance").first().click();
+  await page.getByTestId("settings-group-look").click();
   await page.getByTestId(`theme-${pairing.shell}`).click();
   await page.getByTestId(`editor-theme-${pairing.page}`).click();
+  await page.getByTestId("settings-group-write").click();
   await page.getByTestId("spelling-on").click();
   await page.keyboard.press("Escape");
 
