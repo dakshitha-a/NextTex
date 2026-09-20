@@ -8469,6 +8469,19 @@ The rare states (this platform cannot, this install was removed, this
 copy is not in its share) keep their sentences on the same sheet, the
 removed one with "Keep it as a project of my own" at the foot's left.
 
+The access card (item 3.2's first half, 20 September) took the page's
+shape: "Access" with the close glyph at its right where a Close button
+stood, the three labels over what they label, the signed-in browsers as
+32 px rows with "this one" in the third ink beside the current browser
+and its time at the row's end, and a foot holding "Sign out N other
+browsers" at the left and the password button, "Set password" or "Change
+password", at the right, submitting the form above it by its id. The
+password fields keep small labels over them rather than the placeholders
+the drawing wrote inside them, since a placeholder is not a label to a
+screen reader and the spec reads the word "Password" as text. The lock on
+the app bar with its hover card, and the join offer inside its sheet, wait
+on the drawings of version 21.
+
 The writing agent (item 3.1c, 20 September, asked for by the writer in the
 projects round: "make it intuitive") is chosen and set up in one sheet,
 "What writes with you", drawn on version 12 of the page and built as drawn:

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import api, { type AuthState } from "../api";
 import { Sheet } from "../ui/Sheet";
-import { Button } from "../ui/Button";
+import { Button, IconButton } from "../ui/Button";
 import { Field as KitField, Heading as KitHeading } from "../ui/controls";
+import { CloseIcon } from "../ui/icons";
 import { ago } from "../when";
 
 /** The password, the name collaborators see, and every browser signed in.
@@ -182,11 +183,14 @@ export default function AccessCard({
 
   return (
     <Sheet open onClose={onClose} labelledBy="access-heading" testid="access-card" width={420}>
-        <div className="flex items-center justify-between pb-[6px]">
+        {/* As the page draws it: the heading with the close glyph at its
+            right, the labels over what they label, and the foot holding
+            the two actions. */}
+        <div className="flex items-center justify-between">
           <KitHeading id="access-heading">Access</KitHeading>
-          <Button data-testid="access-close" onClick={onClose}>
-            Close
-          </Button>
+          <IconButton label="Close" data-testid="access-close" onClick={onClose}>
+            <CloseIcon />
+          </IconButton>
         </div>
 
         {done ? (
@@ -246,7 +250,7 @@ export default function AccessCard({
 
             {/* --- the password --------------------------------------- */}
             <Heading>{hasPassword ? "Change the password" : "Set a password"}</Heading>
-            <form className="py-[4px]" onSubmit={savePassword}>
+            <form id="access-password" className="py-[4px]" onSubmit={savePassword}>
               {!hasPassword ? (
                 <p className="t-micro mb-[8px] border-l-2 border-warn pl-[8px] text-ink-2">
                   Until you set one, the only way in is the link the server
@@ -276,16 +280,6 @@ export default function AccessCard({
                 autoComplete="new-password"
                 onChange={setConfirm}
               />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="md"
-                disabled={busy}
-                data-testid="save-password"
-                className="mt-[10px]"
-              >
-                {busy ? "Saving…" : hasPassword ? "Change password" : "Set password"}
-              </Button>
               {hasPassword ? (
                 <p className="t-micro mt-[6px] text-ink-3">
                   Changing it signs every other browser out.
@@ -295,22 +289,17 @@ export default function AccessCard({
 
             {/* --- who is signed in ----------------------------------- */}
             <Heading>Signed-in browsers</Heading>
-            <ul className="py-[2px]">
+            <ul className="nx-members">
               {state.sessions.map((one) => (
-                <li
-                  key={one.id}
-                  className="flex items-baseline justify-between gap-2 py-[3px]"
-                >
-                  <span className="t-meta min-w-0 truncate text-ink-2">
+                <li key={one.id} className="nx-member">
+                  <span className="min-w-0 truncate text-ink">
                     {one.label || "A browser"}
                     {one.current ? (
-                      <span className="t-micro ml-[6px] rounded-[3px] bg-surface-3 px-[4px] text-ink-3">
-                        this one
-                      </span>
+                      <span className="t-meta ml-[8px] text-ink-3">this one</span>
                     ) : null}
                   </span>
                   <span
-                    className="t-micro tnum shrink-0 text-ink-3"
+                    className="nx-member-tail tnum"
                     title={`First signed in ${ago(one.created)}`}
                   >
                     {ago(one.lastSeen)}
@@ -318,22 +307,11 @@ export default function AccessCard({
                 </li>
               ))}
               {state.sessions.length === 0 ? (
-                <li className="t-micro py-[3px] text-ink-3">
+                <li className="t-meta py-[6px] text-ink-3">
                   None. This browser is using the printed link.
                 </li>
               ) : null}
             </ul>
-            <div className="pt-[6px] pb-[4px]">
-              {others === 0 ? (
-                <span className="t-micro text-ink-3">
-                  No other browsers are signed in.
-                </span>
-              ) : (
-                <Button data-testid="sign-out-others" onClick={signOutOthers}>
-                  {`Sign out ${others} other browser${others === 1 ? "" : "s"}`}
-                </Button>
-              )}
-            </div>
 
             <div aria-live="polite" className="pt-[8px] empty:hidden">
               {error ? (
@@ -345,6 +323,25 @@ export default function AccessCard({
                   {said}
                 </p>
               ) : null}
+            </div>
+
+            <div className="nx-sheet-foot">
+              {others > 0 ? (
+                <Button variant="quiet" className="mr-auto" data-testid="sign-out-others" onClick={signOutOthers}>
+                  {`Sign out ${others} other browser${others === 1 ? "" : "s"}`}
+                </Button>
+              ) : (
+                <span className="t-meta mr-auto text-ink-3">No other browsers are signed in.</span>
+              )}
+              <Button
+                type="submit"
+                form="access-password"
+                variant="ghost"
+                disabled={busy}
+                data-testid="save-password"
+              >
+                {busy ? "Saving…" : hasPassword ? "Change password" : "Set password"}
+              </Button>
             </div>
           </>
         )}
