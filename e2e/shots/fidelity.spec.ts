@@ -255,13 +255,20 @@ const SURFACES: Record<string, Surface> = {
       return tab.getByTestId("folder-picker");
     },
     close: async (tab) => {
+      // Back into the project from the list: leaving it is not a history
+      // entry, so there is nothing to go back to.
       await escape(tab);
-      await tab.goBack().catch(() => {});
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+      await tab.waitForTimeout(500);
     },
   },
   permission: {
     open: async (tab) => {
       // The fake Claude's "permission" script asks before it runs.
+      // The folder picker before this went to the projects screen and
+      // back, and the project takes a moment to be a workspace again.
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
       const composer = tab.locator("textarea");
       await composer.click();
       await composer.fill("#script:permission\nRun something.");
@@ -295,9 +302,13 @@ const SURFACES: Record<string, Surface> = {
       return tab.locator(".nx-shell");
     },
     close: async (tab) => {
-      await tab.reload();
+      // Unfolded by their strips rather than by a reload: the folds are
+      // remembered, so a reload would come back folded.
+      for (const strip of ["collapsed-source", "collapsed-preview", "collapsed-claude"]) {
+        await tab.getByTestId(strip).click().catch(() => undefined);
+        await tab.waitForTimeout(150);
+      }
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
-      await tab.waitForTimeout(500);
     },
   },
   pill: {
