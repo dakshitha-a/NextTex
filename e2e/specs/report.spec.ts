@@ -111,7 +111,11 @@ test("a 500 from the server is remembered and quoted", async ({ page }) => {
     await page.route("**/api/update?force=true", (route) =>
       route.fulfill({ status: 500, contentType: "application/json",
         body: JSON.stringify({ error: "Something went wrong inside NextTex. The server's log has the details, under deadbeef." }) }));
-    await page.getByRole("button", { name: /Check again|Check for updates|Try again/ }).first().click();
+    // The check is behind the update sheet now; the report behind its
+    // own button on the app bar.
+    await page.getByTestId("update-open").click();
+    await page.getByTestId("update-sheet").getByRole("button", { name: /Check again|Check for updates|Try again/ }).first().click();
+    await page.keyboard.press("Escape");
     await page.getByTestId("report-problem").click();
     await page.getByTestId("report-card").waitFor({ timeout: 15_000 });
     await page.getByText("Show the report").click();

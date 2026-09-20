@@ -345,9 +345,10 @@ pass; without it you are talking to the first install.
 neither script touches them.
 
 You can also update from the project list. NextTex checks once when that
-screen opens and, if the repository is ahead, says so at the foot of the rail
-on the left, with the commit subjects and an Update button. It restarts
-itself afterwards and the page comes back on its own.
+screen opens and, if the repository is ahead, the update button at the top
+right of the screen turns the pen colour with a small ring; press it for the
+commit subjects and an Update button. It restarts itself afterwards and the
+page comes back on its own.
 
 It is deliberately quiet. Commits that change only documentation or tests are
 reported as *"three new commits, none of which change NextTex"*, a grey line
@@ -617,8 +618,8 @@ your own business: thinning is a decision about your own disk.
 ### Four git commands, and the fifth one is a terminal
 
 See what changed, commit it, push it, pull it back on another machine. That is
-a paper's whole relationship with git, and each is one button in the rail
-footer. Seeing what changed means the patch, not only the file's name: the
+a paper's whole relationship with git, and each is one button in the Git
+drawer. Seeing what changed means the patch, not only the file's name: the
 chevron beside a changed file opens it, with the old lines and the new ones.
 The same patch is there for any version in a file's history, against the
 file as it stands or against any other version.
@@ -1371,8 +1372,8 @@ screen you are looking at, which is usually faster than the files below.
 
 Something broke, and the thing that makes the difference between a fix and a
 question back is knowing what this install is and what it saw. NextTex writes
-that down for you. On the projects screen, the foot of the rail has **Report
-a problem**: it puts the report on your clipboard, shows it to you, and offers
+that down for you. On the projects screen, the app bar's **Report a
+problem** button puts the report on your clipboard, shows it to you, and offers
 to open the issue form on GitHub with the platform and commit already filled
 in. From a terminal, the same text is:
 

@@ -54,9 +54,15 @@ test.afterEach(() => {
   if (sandbox) rmSync(sandbox, { recursive: true, force: true });
 });
 
-async function open(app: Instance, page: import("@playwright/test").Page) {
+async function open(app: Instance, page: import("@playwright/test").Page, sheet = true) {
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByRole("heading", { name: "NextTex" }).waitFor({ timeout: 20_000 });
+  // The states are drawn inside the sheet the app bar's update button
+  // opens; the button's own look is the only thing on the bar.
+  if (sheet) {
+    await page.getByTestId("update-open").click();
+    await expect(page.getByTestId("update-sheet")).toBeVisible();
+  }
 }
 
 test("an install level with its repository says so quietly", async ({ page }) => {
@@ -128,6 +134,8 @@ test("a commit that reaches the program is offered properly", async ({ page }) =
     );
     await expect(page.getByTestId("update-now")).toBeVisible();
     await expect(page.getByText("a real change")).toBeVisible();
+    // And the bar's button says so on its own, before the sheet is opened.
+    await expect(page.getByTestId("update-open")).toHaveAttribute("data-state", "waiting");
     // Written into the gitignored shots directory, for looking at.
     await page.screenshot({ path: "shots/out-update.png",
                             clip: { x: 440, y: 300, width: 800, height: 420 } });
@@ -146,6 +154,8 @@ test("a commit that reaches the program is offered properly", async ({ page }) =
     // And it survives a reload, because the check that runs when this screen
     // opens is the one a dismissal is about.
     await page.reload();
+    await page.getByTestId("update-open").click();
+    await expect(page.getByTestId("update-sheet")).toBeVisible();
     await expect(page.getByText("An update is waiting.")).toBeVisible({
       timeout: 15_000,
     });
@@ -189,7 +199,8 @@ test("an install that is not a checkout says nothing at all", async ({ page }) =
   const app = await startServer({ NEXTTEX_INSTALL_ROOT: plain });
   try {
     await open(app, page);
-    await expect(page.getByRole("button", { name: "Check for updates" })).toHaveCount(0);
+    await expect(page.getByText(/not a checkout/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("update-now")).toHaveCount(0);
     await expect(page.getByText(/new commit/)).toHaveCount(0);
   } finally {
     await app.stop();
@@ -317,6 +328,8 @@ test("an install updated on disk and not restarted says so", async ({ page }) =>
     git(clone, "pull", "--ff-only");
 
     await page.reload();
+    await page.getByTestId("update-open").click();
+    await expect(page.getByTestId("update-sheet")).toBeVisible();
     await expect(page.getByTestId("update-unrestarted")).toBeVisible({
       timeout: 20_000,
     });
@@ -343,6 +356,8 @@ test("the restart line offers a restart, not a reload", async ({ page }) => {
     commitUpstream("server/main.py", "a real change");
     git(clone, "pull", "--ff-only");
     await page.reload();
+    await page.getByTestId("update-open").click();
+    await expect(page.getByTestId("update-sheet")).toBeVisible();
     await expect(page.getByTestId("update-unrestarted")).toBeVisible({
       timeout: 20_000,
     });
@@ -388,6 +403,8 @@ test("with no supervisor the line asks for the restart in words", async ({ page 
     commitUpstream("server/main.py", "a real change");
     git(clone, "pull", "--ff-only");
     await page.reload();
+    await page.getByTestId("update-open").click();
+    await expect(page.getByTestId("update-sheet")).toBeVisible();
     const line = page.getByTestId("update-unrestarted");
     await expect(line).toBeVisible({ timeout: 20_000 });
     await expect(line).toContainText("Stop NextTex and start it again");
@@ -398,7 +415,7 @@ test("with no supervisor the line asks for the restart in words", async ({ page 
   }
 });
 
-test("a long reason from git does not carry Try again off the footer", async ({
+test("a long reason from git does not carry Try again off the sheet", async ({
   page,
 }) => {
   // The unreachable-repository line puts git's own words next to the
@@ -450,15 +467,14 @@ test("a long reason from git does not carry Try again off the footer", async ({
     await expect(message).toHaveAttribute("title", /Could not resolve host/);
     const said = await message.boundingBox();
     expect(said!.height).toBeLessThan(20);
-    const foot = await page.locator(".nx-projects-foot").boundingBox();
-    for (const name of ["Try again", "Report a problem"]) {
-      const control = row.getByRole("button", { name });
-      await expect(control).toBeVisible();
-      const box = (await control.boundingBox())!;
-      expect(box.x).toBeGreaterThanOrEqual(foot!.x);
-      expect(box.x + box.width).toBeLessThanOrEqual(foot!.x + foot!.width + 1);
-      expect(box.y + box.height).toBeLessThanOrEqual(foot!.y + foot!.height + 1);
-    }
+    // Inside the sheet, not carried off its edge.
+    const sheet = await page.getByTestId("update-sheet").boundingBox();
+    const control = row.getByRole("button", { name: "Try again" });
+    await expect(control).toBeVisible();
+    const box = (await control.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(sheet!.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(sheet!.x + sheet!.width + 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(sheet!.y + sheet!.height + 1);
   } finally {
     await app.stop();
   }

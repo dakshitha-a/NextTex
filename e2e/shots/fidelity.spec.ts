@@ -278,16 +278,62 @@ const SURFACES: Record<string, Surface> = {
     },
     close: escape,
   },
+  "projects": {
+    // The list as the screen: the app bar, the head, three rows with one
+    // under the pointer, and the other ways in open.
+    open: async (tab) => {
+      if (ctx) {
+        // Two more projects, so the list is a list: the seeded folder
+        // copied under a new name and registered.
+        for (const name of ["thesis", "applications"]) {
+          const root = `${ctx.root}-${name}`;
+          if (!fs.existsSync(root)) fs.cpSync(ctx.root, root, { recursive: true });
+          await fetch(`${ctx.base}/api/projects`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+            body: JSON.stringify({ path: root }),
+          }).catch(() => undefined);
+        }
+      }
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("project-row").first().hover();
+      await tab.getByTestId("ways-open").click();
+      await tab.getByTestId("ways-menu").waitFor();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  "projects-new": {
+    open: async (tab) => {
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("new-project").click();
+      await tab.getByPlaceholder("What is it called?").fill("Nonadiabatic dynamics review");
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
   "folder-picker": {
     open: async (tab) => {
       await tab.getByTestId("switch-project").click();
-      await tab.getByTestId("ways-open").click().catch(() => {});
+      await tab.getByTestId("new-project").click();
       await tab.getByTestId("browse-folder").click();
       return tab.getByTestId("folder-picker");
     },
     close: async (tab) => {
       // Back into the project from the list: leaving it is not a history
-      // entry, so there is nothing to go back to.
+      // entry, so there is nothing to go back to. Two Escapes: the
+      // picker's, then the sheet's.
+      await escape(tab);
       await escape(tab);
       await tab.getByTestId("project-row").first().click();
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });

@@ -1115,168 +1115,79 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   .nx-row-when { opacity: 1 !important; }
 }
 
-/* The projects screen: a rail beside the list.
-   Everything that is not a project stands in a column on the left, the
-   brand, the agent, the three ways in and, at its foot, help, the cog and
-   the update; the list has a header with the search and the sort, and the
-   list is the only thing that scrolls.  The screen used to be one sheet
-   that scrolled as a whole, and with fourteen projects on it the ways in,
-   the cog and the update were all above or below the window.
+/* The projects screen: the list is the screen.
 
-   Placement is by grid area, so the document order (rail, list, footer)
-   is the reading order at both widths: the footer says "your projects",
-   and the first thing on the screen that says Projects has to be the
-   heading, which every browser spec waits for.  The footer is its own
-   area under the rail rather than a child of it, for that reason.
-
-   The rail is 280px: the join invite box, the template chooser, the offer
-   card's outcome words and the update's wrapped lines all need it.  Every
-   pane here is --surface, not --surround, which is darker than the ground
-   the inks were certified against (docs/testing.md); the ground shows
-   only as the seams.
+   A 40 px app bar on the second surface carries the mark, the name and
+   the version at the left and, at the right, the agent and an icon
+   button for everything the old foot held: updates, a problem report,
+   the guide and the settings.  Under it the head: "Projects", the find
+   field, one filled "New project" and a quiet "Other ways in".  Then the
+   list, each project a card on the first surface, 8 px round, its name at
+   17 on 24 and 600, its place under the name, and at the right the time
+   it was last opened at rest giving way to its actions under the pointer.
+   Nothing here is a rail and nothing else takes a column.
 
    A phone is `data-phone`, set from the shell's width in `Projects.tsx`
    rather than a media query, because the interface size is a zoom and a
-   media query would judge the window instead of the shell.  The rail is
-   then a strip along the top, New appears, the ways in are hidden until
-   New opens them as a drawer from the bottom, and the footer keeps to
-   under half the window so the list is reachable. */
-.nx-projects {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
-  grid-template-areas: "rail main" "foot main";
+   media query would judge the window instead of the shell.  The app bar
+   keeps its icons, the head wraps, and a row stacks its tail under the
+   name. */
+.nx-projects { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+.nx-appbar { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 28px 0 40px; background: var(--surface-2); }
+.nx-appbar h1 { margin: 0; font-size: 14px; line-height: 20px; }
+.nx-appbar .nx-icon-button { color: var(--ink-3); }
+.nx-appbar .nx-icon-button:hover, .nx-appbar .nx-icon-button[data-on] { color: var(--ink); }
+.nx-appbar-agent { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; margin-right: 6px; border-radius: var(--nx-radius-control); color: var(--ink-2); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.nx-appbar-agent > svg:first-child { color: var(--pen); }
+.nx-appbar-agent:hover { background: var(--wash); color: var(--ink); }
+/* The update button's own state is the only thing on the bar: pen ink
+   with a dot and a pulsing ring while an update is waiting, the ring
+   still under reduced motion; the warning colour when the install needs
+   a hand. */
+.nx-appbar-update { position: relative; }
+.nx-appbar-update[data-state="waiting"] { color: var(--pen); }
+.nx-appbar-update[data-state="waiting"]::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; border: 1.5px solid var(--pen); animation: nx-ring 1.8s var(--ease) infinite; }
+.nx-appbar-update[data-state="waiting"]::after { content: ""; position: absolute; right: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--pen); }
+.nx-appbar-update[data-state="attention"] { color: var(--warn); }
+.nx-appbar-update[data-state="checking"], .nx-appbar-update[data-state="busy"] { animation: nx-working 1400ms var(--ease) infinite; }
+@keyframes nx-ring { 0% { transform: scale(0.7); opacity: 0.9; } 100% { transform: scale(1.35); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .nx-appbar-update[data-state="waiting"]::before { animation: none; opacity: 0.6; }
+  .nx-appbar-update[data-state="checking"], .nx-appbar-update[data-state="busy"] { animation: none; }
 }
-.nx-projects-rail {
-  grid-area: rail;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-right: 1px solid var(--line);
-}
-.nx-rail-brand { padding: 20px 16px 8px; }
-/* The ways in scroll inside the rail on a window too short for them, so
-   the tools at the foot never leave the screen; menus-on-screen.spec
-   opens this screen at 260px tall. */
-.nx-ways { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 16px 12px; }
-/* The three ways in as tiles: one row, the chosen one filled in the hint
-   wash, and the form under all three.  Plain rules because the chosen
-   state is carried as `aria-pressed`, which a utility cannot see. */
-.nx-way-tiles {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 12px;
-}
-.nx-way-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 4px 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface-2);
-  color: var(--ink-2);
-  font-size: 11px;
-  line-height: 14px;
-  font-weight: 500;
-  transition: border-color 90ms var(--ease), color 90ms var(--ease),
-    background-color 90ms var(--ease);
-}
-.nx-way-tile svg { color: var(--ink-3); transition: color 90ms var(--ease); }
-.nx-way-tile:hover { border-color: var(--hint); color: var(--hint); }
-.nx-way-tile:hover svg { color: var(--hint); }
-.nx-way-tile[aria-pressed="true"] {
-  background: var(--hint-wash);
-  border-color: var(--hint);
-  color: var(--ink);
-}
-.nx-way-tile[aria-pressed="true"] svg { color: var(--hint); }
-.nx-way-form { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-.nx-rail-tools {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--line);
-}
-.nx-rail-new { display: none; }
-/* The update and the password nudge, under the tools.  The update draws
-   nothing while it rests, and the nudge is not there at all once a
-   password is set, so a footer with nothing in it is not drawn either:
-   the rule above the tools is then the rail's last line, rather than two
-   rules with a blank strip between. */
-.nx-projects-foot {
-  grid-area: foot;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 50vh;
-  overflow-y: auto;
-  border-right: 1px solid var(--line);
-  padding: 12px 16px;
-}
-.nx-projects-foot > :empty { display: none; }
-.nx-projects-foot:not(:has(> :not(:empty))) { display: none; }
-.nx-projects-main {
-  grid-area: main;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 0;
-}
-.nx-projects-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  max-width: 880px;
-  padding: 20px 24px 12px;
-}
-.nx-projects-list {
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 24px 24px;
-}
+.nx-projects-main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
+.nx-projects-head { display: flex; align-items: center; gap: 12px; padding: 22px 40px 12px; flex-wrap: wrap; }
+.nx-projects-find { width: 300px; max-width: 100%; height: var(--nx-row); background: var(--surface); }
+.nx-projects-list { overflow-y: auto; padding: 0 40px 24px; }
 .nx-projects-list > * { max-width: 880px; }
-
-.nx-projects[data-phone] {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-areas: "rail" "main" "foot";
+.nx-projects-line { display: flex; align-items: center; gap: 14px; padding: 8px 12px 6px; color: var(--ink-3); font-size: 13px; }
+.nx-project-card {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name tail" "where tail" "form form";
+  gap: 0 16px; align-items: center; padding: 12px 14px; margin-bottom: 6px;
+  border-radius: var(--nx-radius-card); background: var(--surface);
+  transition: background-color 90ms var(--ease);
 }
-.nx-projects[data-phone] .nx-projects-rail {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-right: 0;
-  border-bottom: 1px solid var(--line);
-}
-.nx-projects[data-phone] .nx-rail-brand { padding: 0; }
-.nx-projects[data-phone] .nx-rail-tagline { display: none; }
-.nx-projects[data-phone] .nx-rail-new { display: inline-flex; align-items: center; margin-left: auto; }
-.nx-projects[data-phone] .nx-rail-tools { border-top: 0; padding: 0; }
-.nx-projects[data-phone] .nx-ways { display: none; }
-.nx-projects[data-phone] .nx-ways[data-open] {
-  display: block;
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-height: 80vh;
-  overflow-y: auto;
-  z-index: 40;
-  padding: 12px 16px 16px;
-  border-top: 1px solid var(--line);
-  background: var(--surface);
-}
-.nx-ways-scrim { position: fixed; inset: 0; z-index: 39; }
-.nx-projects[data-phone] .nx-projects-foot { max-height: 40vh; border-right: 0; }
+.nx-project-card:hover, .nx-project-card:focus-within { background: var(--surface-3); }
+.nx-project-card:focus-visible { outline: 2px solid var(--hint); outline-offset: 2px; }
+.nx-project-name { grid-area: name; display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 17px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em; }
+.nx-project-mark { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 400; color: var(--ink-3); white-space: nowrap; }
+.nx-project-where { grid-area: where; color: var(--ink-3); font-size: 13px; line-height: 18px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-project-tail { grid-area: tail; justify-self: end; }
+.nx-project-form { grid-area: form; margin-top: 8px; }
+.nx-projects-foot { padding: 0 40px 12px; }
+.nx-projects-foot:empty { display: none; }
+.nx-sheet-label { color: var(--ink-3); font-size: 12.5px; line-height: 16px; margin: 14px 0 4px; }
+.nx-textarea { display: block; padding: 6px 10px; border-radius: var(--nx-radius-control); background: var(--surface-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); outline: none; resize: none; }
+.nx-textarea:focus-visible { box-shadow: inset 0 0 0 1px var(--hint); }
+.nx-textarea::placeholder { color: var(--ink-3); }
+.nx-projects[data-phone] .nx-appbar { padding: 0 12px 0 16px; }
+.nx-projects[data-phone] .nx-appbar-agent { display: none; }
 .nx-projects[data-phone] .nx-projects-head { padding: 12px 16px 8px; }
+.nx-projects[data-phone] .nx-projects-find { width: 100%; order: 9; }
 .nx-projects[data-phone] .nx-projects-list { padding: 0 16px 16px; }
+.nx-projects[data-phone] .nx-project-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "name" "where" "tail" "form"; }
+.nx-projects[data-phone] .nx-project-tail { justify-self: start; margin-top: 6px; }
+.nx-projects[data-phone] .nx-projects-foot { padding: 0 16px 12px; }
 
 /* ---- the kit ---------------------------------------------------------------
    One primitive per kind of control, in frontend/src/ui/, and its rules

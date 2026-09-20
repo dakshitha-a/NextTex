@@ -3,12 +3,19 @@ import api, { type Instance, type Report, type UpdateReport } from "../api";
 import { readStored, writeStored } from "../appearance";
 import { snapshot } from "../errors";
 import { standingOf } from "./update-standing";
+import { Button } from "../ui/Button";
+import { Heading } from "../ui/controls";
+import { Sheet } from "../ui/Sheet";
 
 /** Whether this install is behind the repository it came from.
  *
- *  It sits at the foot of the projects rail, which is the only sensible
- *  place for it: updating exits the server, and offering that beside an
- *  open document with unsaved sentences in it would be wrong.
+ *  It was the foot of the projects rail; it is a sheet opened from the
+ *  app bar's update button now, and the button's own look is the only
+ *  thing on the bar: resting, checking, or waiting with a pen-coloured
+ *  dot and a pulsing ring. The check still runs once on mount, never on a
+ *  timer, whether or not the sheet is ever opened, because the button
+ *  has to know. Updating exits the server, so this lives on the projects
+ *  screen and nowhere near an open document.
  *
  *  The rule the whole thing turns on is that this must not become a nag.
  *  It is the first screen of every session.  So the check runs once, never
@@ -16,6 +23,9 @@ import { standingOf } from "./update-standing";
  *  when the writer asked; and commits that change nothing but documentation
  *  are mentioned in a grey line rather than presented as an update.
  */
+
+/** What the app bar's button shows. */
+export type UpdateState = "opening" | "resting" | "checking" | "waiting" | "busy" | "attention";
 
 const DISMISSED = "nexttex.update.dismissed";
 
@@ -50,7 +60,19 @@ type Trouble =
   | { kind: "ready"; report: Report; copied: boolean; shown: boolean }
   | { kind: "error"; message: string };
 
-export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => void }) {
+export default function UpdateFooter({
+  onBusy,
+  open,
+  onClose,
+  onState,
+}: {
+  onBusy: (busy: boolean) => void;
+  /** Which sheet is up: the update's, the problem report's, or none. */
+  open: "update" | "report" | null;
+  onClose: () => void;
+  /** The state for the app bar's button. */
+  onState: (state: UpdateState) => void;
+}) {
   const [phase, setPhase] = useState<Phase>({ kind: "opening" });
   const [log, setLog] = useState<string[]>([]);
   const [step, setStep] = useState("");
@@ -135,6 +157,15 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
   useEffect(() => {
     onBusy(phase.kind === "updating" || phase.kind === "restarting");
   }, [phase.kind, onBusy]);
+  useEffect(() => {
+    onState(stateOf(phase, self));
+  }, [phase, self, onState]);
+
+  // The report sheet asks for the report the moment it opens, once.
+  useEffect(() => {
+    if (open === "report" && trouble === null) void reportProblem();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   /** Follow an update that is already running, from any tab. */
   const watch = () => {
@@ -283,43 +314,51 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     setTrouble({ kind: "ready", report, copied, shown: false });
   };
 
-  const troubleControl = (
-    <Trouble
-      busy={trouble?.kind === "fetching"}
-      onReport={reportProblem}
-    />
-  );
 
+  if (open === "report") {
+    return (
+      <Sheet open onClose={onClose} label="Report a problem" testid="report-sheet" width={520}>
+        <Heading level={2} display>Report a problem</Heading>
+        {trouble === null || trouble.kind === "fetching" ? (
+          <p className="t-meta mt-2 text-ink-2">Gathering the report.</p>
+        ) : (
+          <ReportCard
+            trouble={trouble}
+            onCopied={(copied) =>
+              setTrouble((t) => (t?.kind === "ready" ? { ...t, copied } : t))
+            }
+            onShow={() =>
+              setTrouble((t) => (t?.kind === "ready" ? { ...t, shown: !t.shown } : t))
+            }
+            onClose={() => {
+              setTrouble(null);
+              onClose();
+            }}
+          />
+        )}
+      </Sheet>
+    );
+  }
+  if (open !== "update") return null;
   return (
-    // On --surface now, in the footer of the rail, so the inks need no
-    // stepping up; the footer sets the spacing around it, and hides this
-    // while it is empty, so no minimum height either.
-    <div className="nx-arrive">
-      {render()}
-      {trouble && trouble.kind !== "fetching" ? (
-        <ReportCard
-          trouble={trouble}
-          onCopied={(copied) =>
-            setTrouble((t) => (t?.kind === "ready" ? { ...t, copied } : t))
-          }
-          onShow={() =>
-            setTrouble((t) => (t?.kind === "ready" ? { ...t, shown: !t.shown } : t))
-          }
-          onClose={() => setTrouble(null)}
-        />
-      ) : null}
-    </div>
+    <Sheet open onClose={onClose} label="Updates" testid="update-sheet" width={520}>
+      <Heading level={2} display>Updates</Heading>
+      <div className="mt-2 nx-arrive">{render()}</div>
+      <div className="nx-sheet-foot">
+        <Button variant="quiet" onClick={onClose}>Done</Button>
+      </div>
+    </Sheet>
   );
 
   function render() {
-    if (phase.kind === "opening") return null;
+    if (phase.kind === "opening") {
+      return <p className="t-meta text-ink-3">Asking the repository.</p>;
+    }
 
     if (phase.kind === "checking") {
       return (
         <Line>
-          <button className="quiet t-micro" disabled>
-            Checking
-          </button>
+          <span className="t-meta text-ink-3">Checking.</span>
         </Line>
       );
     }
@@ -327,11 +366,11 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     if (phase.kind === "resting") {
       return (
         <Line>
-          <button className="quiet t-micro" onClick={() => check(true)}>
-            Check for updates
-          </button>
+          <span className="t-meta text-ink-2">Nothing has been checked yet.</span>
           <span className="flex-1" />
-          {troubleControl}
+          <Button variant="ghost" onClick={() => check(true)}>
+            Check for updates
+          </Button>
         </Line>
       );
     }
@@ -344,11 +383,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             This machine may be offline. Nothing here has changed. ({phase.message})
           </p>
           <div className="mt-3 flex items-center gap-2">
-            <button className="ghost-button h-[28px] px-3 t-ui" onClick={() => check(true)}>
-              Try again
-            </button>
-            <span className="flex-1" />
-            {troubleControl}
+            <Button variant="ghost" onClick={() => check(true)}>Try again</Button>
           </div>
         </Card>
       );
@@ -385,12 +420,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             reload this page.
           </p>
           <div className="mt-3">
-            <button
-              className="ghost-button h-[28px] px-3 t-ui"
-              onClick={() => window.location.reload()}
-            >
-              Reload
-            </button>
+            <Button variant="ghost" onClick={() => window.location.reload()}>Reload</Button>
           </div>
         </Card>
       );
@@ -410,9 +440,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
               install output wedged open above Try again. */}
           <Log lines={log} shown={showLog} onToggle={() => setShowLog(!showLog)} />
           <div className="mt-3 flex items-center gap-2">
-            <button className="ghost-button h-[28px] px-3 t-ui" onClick={start}>
-              Try again
-            </button>
+            <Button variant="ghost" onClick={start}>Try again</Button>
           </div>
         </Card>
       );
@@ -449,11 +477,8 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
               control to offer, so the first span says to do it by hand
               instead. */}
           {self?.supervised ? (
-            <button className="quiet t-micro" onClick={restartNow}>
-              Restart now
-            </button>
+            <Button variant="ghost" onClick={restartNow}>Restart now</Button>
           ) : null}
-          {troubleControl}
         </Line>
       );
     }
@@ -463,8 +488,9 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
     if (!report.checkout) {
       return (
         <Line>
-          <span className="flex-1" />
-          {troubleControl}
+          <span className="t-meta text-ink-2">
+            This install is not a checkout, so it cannot update itself.
+          </span>
         </Line>
       );
     }
@@ -497,10 +523,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             {report.error || "This machine may be offline."}
           </span>
           <span className="flex-1" />
-          <button className="quiet t-micro shrink-0" onClick={() => check(true)}>
-            Try again
-          </button>
-          {troubleControl}
+          <Button size="inline" onClick={() => check(true)}>Try again</Button>
         </Line>
       );
     }
@@ -512,10 +535,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             {report.version ? `NextTex ${report.version}, up to date.` : "Up to date."}
           </span>
           <span className="flex-1" />
-          <button className="quiet t-micro" onClick={() => check(true)}>
-            Check again
-          </button>
-          {troubleControl}
+          <Button size="inline" onClick={() => check(true)}>Check again</Button>
         </Line>
       );
     }
@@ -536,10 +556,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
         <Line>
           <span className="t-micro text-ink-3">An update is waiting.</span>
           <span className="flex-1" />
-          <button className="quiet t-micro" onClick={() => check(true)}>
-            Show it
-          </button>
-          {troubleControl}
+          <Button size="inline" onClick={() => check(true)}>Show it</Button>
         </Line>
       );
     }
@@ -555,14 +572,10 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
                 : `${report.behind} new commits, none of which change NextTex.`}
             </span>
             <span className="flex-1" />
-            <button className="quiet t-micro" onClick={() => setShowCommits(!showCommits)}>
+            <Button size="inline" onClick={() => setShowCommits(!showCommits)}>
               {showCommits ? "Hide them" : "Show them"}
-            </button>
-            <span className="h-[10px] w-px shrink-0 bg-line" />
-            <button className="quiet t-micro" onClick={start}>
-              Update
-            </button>
-            {troubleControl}
+            </Button>
+            <Button size="inline" onClick={start}>Update</Button>
           </Line>
           {showCommits ? <Commits commits={report.commits} /> : null}
         </>
@@ -593,9 +606,7 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             </div>
           ) : null}
           <div className="mt-3">
-            <button className="quiet t-micro" onClick={() => check(true)}>
-              Check again
-            </button>
+            <Button size="inline" onClick={() => check(true)}>Check again</Button>
           </div>
         </Card>
       );
@@ -614,15 +625,11 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
         </p>
         <Commits commits={report.commits} />
         <div className="mt-3 flex items-center gap-2">
-          <button
-            className="ghost-button h-[28px] px-3 t-ui"
-            data-testid="update-now"
-            onClick={start}
-          >
+          <Button variant="pen" data-testid="update-now" onClick={start}>
             Update
-          </button>
-          <button
-            className="quiet t-micro h-[28px] px-2"
+          </Button>
+          <Button
+            variant="quiet"
             onClick={() => {
               writeStored(DISMISSED, report.head + ":" + report.behind);
               // The report is kept rather than thrown away, and marked
@@ -633,11 +640,29 @@ export default function UpdateFooter({ onBusy }: { onBusy: (busy: boolean) => vo
             }}
           >
             Not now
-          </button>
+          </Button>
         </div>
       </Card>
     );
   }
+}
+
+/** The one word the app bar's button needs. "Waiting" is an update that
+ *  reaches the program and has not been set aside; "attention" is an
+ *  install updated on disk and not restarted, or a failed update; "busy"
+ *  is one running. */
+function stateOf(phase: Phase, self: Instance | null): UpdateState {
+  if (phase.kind === "opening") return "opening";
+  if (phase.kind === "checking") return "checking";
+  if (phase.kind === "updating" || phase.kind === "restarting") return "busy";
+  if (phase.kind === "failed" || phase.kind === "manual") return "attention";
+  if (standingOf(self) === "restart") return "attention";
+  if (phase.kind === "report") {
+    const report = phase.report;
+    if (!report.checkout || !report.checked) return "resting";
+    if (report.behind > 0 && report.changing > 0 && report.can_update) return "waiting";
+  }
+  return "resting";
 }
 
 /** The version on offer first, when upstream carries one and it is not
@@ -662,26 +687,6 @@ function headline(report: UpdateReport): string {
 }
 
 const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-
-/** The control, after a hairline so it reads as a second thing on the
- *  line rather than part of the update sentence.  On every quiet line and
- *  never inside a card: while an update runs there is nothing to report
- *  yet, and a failed one has its own card with the log in it. */
-function Trouble({ busy, onReport }: { busy: boolean; onReport: () => void }) {
-  return (
-    <>
-      <span className="h-[10px] w-px shrink-0 bg-line" />
-      <button
-        className="quiet t-micro shrink-0"
-        data-testid="report-problem"
-        disabled={busy}
-        onClick={onReport}
-      >
-        {busy ? "Gathering" : "Report a problem"}
-      </button>
-    </>
-  );
-}
 
 /** What the writer gets after pressing it.
  *
@@ -714,9 +719,7 @@ function ReportCard({
             the same text.
           </p>
           <div className="mt-3">
-            <button className="quiet t-micro" onClick={onClose}>
-              Close
-            </button>
+            <Button variant="quiet" onClick={onClose}>Close</Button>
           </div>
         </Card>
       </div>
@@ -754,7 +757,9 @@ function ReportCard({
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <a
-            className="ghost-button inline-flex h-[28px] items-center px-3 t-ui"
+            className="nx-button"
+            data-variant="ghost"
+            data-size="sm"
             data-testid="report-open"
             href={report.newIssue}
             target="_blank"
@@ -762,20 +767,18 @@ function ReportCard({
           >
             Open a new issue
           </a>
-          <button className="quiet t-micro h-[28px] px-2" data-testid="report-copy" onClick={copy}>
+          <Button variant="quiet" data-testid="report-copy" onClick={copy}>
             {said || "Copy"}
-          </button>
-          <button className="quiet t-micro h-[28px] px-2" onClick={onShow}>
+          </Button>
+          <Button variant="quiet" onClick={onShow}>
             {shown ? "Hide the report" : "Show the report"}
-          </button>
+          </Button>
           <span className="flex-1" />
-          <button className="quiet t-micro h-[28px] px-2" onClick={onClose}>
-            Close
-          </button>
+          <Button variant="quiet" onClick={onClose}>Close</Button>
         </div>
         {shown ? (
           <pre
-            className="t-code-sm mt-3 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-[3px] bg-surface-2 p-3 text-ink-2"
+            className="t-code-sm mt-3 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-control bg-surface p-3 text-ink-2"
             data-testid="report-text"
           >
             {report.text}
@@ -801,7 +804,7 @@ function Card({
   sweeping?: boolean;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[5px] border border-line bg-surface px-[10px] py-[10px]">
+    <div className="relative overflow-hidden rounded-card bg-surface-2 px-3 py-[10px]">
       {sweeping ? <div className="hairline absolute inset-x-0 top-0 h-[2px]" /> : null}
       {children}
     </div>
@@ -851,14 +854,14 @@ function Log({
   return (
     <>
       <div className="mt-2">
-        <button className="quiet t-micro" onClick={onToggle}>
+        <Button size="inline" onClick={onToggle}>
           {shown ? "Hide the log" : "Show what it is doing"}
-        </button>
+        </Button>
       </div>
       {shown ? (
         <pre
           ref={box}
-          className="t-code-sm mt-2 max-h-[220px] overflow-auto whitespace-pre-wrap rounded-[3px] bg-surface-2 p-3 text-ink-2"
+          className="t-code-sm mt-2 max-h-[220px] overflow-auto whitespace-pre-wrap rounded-control bg-surface p-3 text-ink-2"
         >
           {lines.join("\n")}
         </pre>

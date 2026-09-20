@@ -8349,6 +8349,41 @@ trailing slash and the caret with no title, opens an existing folder
 through the picker, and on a phone finds the card inside the window and
 the drawer still open after Escape.
 
+The overhaul's front door (item 3.1, 20 September) made the list the
+screen, as the direction page drew it on version 11 and the writer agreed.
+The rail, the tagline, the tiles and the foot went. A 40 px app bar on the
+second surface carries the mark, the name and the version at the left and,
+at the right, the agent control and icon buttons for everything the foot
+held: Check for updates, which is the one thing on the bar with a state of
+its own, pen-coloured with a dot and a pulsing ring while an update is
+waiting (the ring still, under reduced motion) and the warning colour when
+the install needs a hand, and which opens the update sheet; Report a
+problem, which opens the report as a sheet; the screen guide; and
+Settings. Under it the head: "Projects" at the display size, the find field
+with the search icon and the `/` hint (still reachable with `/`), one
+filled "New project", and a quiet "Other ways in" menu whose three items
+each carry a line saying what they do (Open a folder, one that already
+holds a document; Join a shared project, paste the invite; Bring one from
+elsewhere, a zip, an arXiv id or a git URL), a sheet on a phone. The list
+header line is the sort as a small segmented control, Last opened and Name,
+with the count at its right. A project is a card on the first surface,
+8 px round, the name at 17 on 24 and 600 with a shared project's mark
+beside it, the place under the name with home folded to `~`, and at the
+right the time it was last opened at rest, giving way under the pointer to
+Open, Zip, PDF and Remove (Share, Archive and Trash come with 3.1a and
+3.1d, which replace Remove and its confirm); a missing folder says so in
+the warning colour with "Find it" beside it, and its row keeps its actions
+shown. All four ways in open one sheet with their own title, field and
+copy: New project with Name, Where and Browse, and Start from as a
+segmented control of the templates; the others with the invite, the source
+and "Choose a zip", or the folder alone; the join offer draws inside the
+join sheet. The update foot's states are the same states inside the update
+sheet, with the same strings and testids; "Check for updates" is the
+sheet's first line before any check was asked for. The password nudge sits
+under the list until item 3.2 takes it into the bar's lock. On a phone the
+app bar keeps its icons, the agent control leaves it, the head wraps with
+the find field on its own line, and a card stacks its tail under the name.
+
 ## 45. The second roadmap run: the checks
 
 The roadmap's second run, worked in September 2026, took eight items in

@@ -47,9 +47,11 @@ test("a zip becomes a project, with what was left out named inside it", async ({
 }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: true }).waitFor();
-  const tiles = page.getByRole("group", { name: "Ways in" }).getByRole("button");
-  await expect(tiles).toHaveCount(4);
-  await page.getByRole("button", { name: BRING }).click();
+  // One filled button and three more behind the quiet menu.
+  await expect(page.getByTestId("new-project")).toBeVisible();
+  await page.getByTestId("ways-open").click();
+  await expect(page.getByTestId("ways-menu").getByRole("menuitem")).toHaveCount(3);
+  await page.getByTestId("ways-menu").getByRole("menuitem", { name: new RegExp(BRING) }).click();
 
   const archive = zip({
     "paper/main.tex": "\\documentclass{article}\n\\begin{document}\nArrived.\n\\end{document}\n",
@@ -95,7 +97,8 @@ test("an arXiv id is fetched and unpacked into a new project", async ({ page }) 
   try {
     await page.goto(`${app.base}/?token=${app.token}`);
     await page.getByText("Projects", { exact: true }).waitFor();
-    await page.getByRole("button", { name: BRING }).click();
+    await page.getByTestId("ways-open").click();
+  await page.getByTestId("ways-menu").getByRole("menuitem", { name: new RegExp(BRING) }).click();
     await page.getByTestId("bring-source").fill("https://arxiv.org/abs/2301.01234");
     const folder = join(app.projects, `arxiv-${Date.now()}`);
     await page.getByPlaceholder("Where to put it, e.g. ~/writing/their-paper").fill(folder);
@@ -113,7 +116,8 @@ test("something that is neither an id, a URL nor a zip is refused in the form", 
 }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: true }).waitFor();
-  await page.getByRole("button", { name: BRING }).click();
+  await page.getByTestId("ways-open").click();
+  await page.getByTestId("ways-menu").getByRole("menuitem", { name: new RegExp(BRING) }).click();
   await page.getByTestId("bring-source").fill("my thesis");
   await page.getByPlaceholder("Where to put it, e.g. ~/writing/their-paper").fill(join(app.projects, "nowhere"));
   await page.getByRole("button", { name: "Bring it" }).click();

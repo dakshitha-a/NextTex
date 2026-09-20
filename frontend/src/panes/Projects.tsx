@@ -10,6 +10,16 @@ import { downloadZip } from "../chrome";
 import Settings from "./Settings";
 import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
+import { Button, IconButton } from "../ui/Button";
+import { Empty, Field, Heading, Kbd, Segmented } from "../ui/controls";
+import { Menu, MenuItem } from "../ui/Menu";
+import { Sheet } from "../ui/Sheet";
+import {
+  ChevronDownIcon, HelpIcon, PlusIcon, ReportIcon, SearchIcon, ShareIcon, SparkIcon, UpdateIcon,
+} from "../ui/icons";
+import type { Wanted } from "../place-menu";
+import { toShell } from "../viewport";
+import type { UpdateState } from "./UpdateFooter";
 import { agentName } from "../agent-name";
 import { set, useStore } from "../store";
 import { openedWords, rowAfterKey, rowMarks, shortPath } from "../project-row";
@@ -19,7 +29,6 @@ import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import { breakpoints } from "../layout";
 import { viewportWidth } from "../viewport";
 import { onFrame } from "../timing";
-import { useDismiss } from "../useDismiss";
 
 // Lazy, like the in-project tutorial: help text is not something a first
 // visit should have to download before the project list appears.
@@ -48,16 +57,23 @@ const START_FROM: Record<string, string> = {
   letter: "A letter",
 };
 
-/** The four ways in: the word on the tile, and the whole phrase that is
- *  the button's name.  The fourth brings a project that exists somewhere
+/** The four ways in. New project is the one filled button on the
+ *  screen; the other three sit behind a quiet menu, each with a line
+ *  saying what it does, and all four open the same sheet with their own
+ *  field and copy. The fourth brings a project that exists somewhere
  *  else: a zip, an arXiv id or a git URL, into a new folder. */
-const WAYS = {
-  create: { word: "New", label: "Start something new" },
-  add: { word: "Folder", label: "Point at a folder" },
-  join: { word: "Join", label: "Join a shared project" },
-  bring: { word: "Bring", label: "Bring one from elsewhere" },
-} as const;
-type Way = keyof typeof WAYS;
+type Way = "create" | "add" | "join" | "bring";
+const WAY_TITLES: Record<Way, string> = {
+  create: "New project",
+  add: "Open a folder",
+  join: "Join a shared project",
+  bring: "Bring one from elsewhere",
+};
+const OTHER_WAYS: { key: Way; label: string; note: string }[] = [
+  { key: "add", label: "Open a folder", note: "One that already holds a LaTeX document. Nothing is copied or moved." },
+  { key: "join", label: "Join a shared project", note: "Paste the invite somebody sent you." },
+  { key: "bring", label: "Bring one from elsewhere", note: "A zip, an arXiv id, or a git URL." },
+];
 
 /** The project list.  Downloads live here as well as inside an open project:
  *  the moment a copy is most wanted is often before opening anything. */
@@ -111,19 +127,39 @@ export default function Projects({
     };
   }, []);
   const phone = breakpoints(width).phone;
+  /** The menu of the other ways in, and where it goes. */
   const [waysOpen, setWaysOpen] = useState(false);
-  const drawer = phone && waysOpen;
-  // A window widened past the breakpoint with the drawer open would keep
-  // `data-open` on a column that no longer needs it.
+  const [waysAt, setWaysAt] = useState<Wanted | null>(null);
+  const waysButton = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
-    if (!phone) setWaysOpen(false);
-  }, [phone]);
-  const waysRef = useRef<HTMLElement | null>(null);
-  const newButton = useRef<HTMLButtonElement | null>(null);
-  useDismiss(waysRef, drawer, () => setWaysOpen(false), newButton);
+    if (!waysOpen) return;
+    const box = waysButton.current?.getBoundingClientRect();
+    if (box) setWaysAt({ left: toShell(box.right) - 280, top: toShell(box.bottom) + 4, flip: toShell(box.top) - 4 });
+  }, [waysOpen]);
+  /** Which way in the sheet is open for, or none. */
+  const [way, setWay] = useState<Way | null>(null);
+  const mode: Way = way ?? "create";
+  const openWay = (chosen: Way) => {
+    setError(null);
+    setPicking(false);
+    setWaysOpen(false);
+    setWay(chosen);
+  };
+  const closeWay = () => {
+    setWay(null);
+    setPicking(false);
+    setError(null);
+  };
+  /** The update sheet or the problem report, opened from the app bar,
+   *  and the word the bar's update button shows. */
+  const [sheet, setSheet] = useState<"update" | "report" | null>(null);
+  const [updateState, setUpdateState] = useState<UpdateState>("opening");
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    api.instance().then((self) => setVersion(self.version ?? "")).catch(() => undefined);
+  }, []);
   const [path, setPath] = useState("");
   const pathBox = useRef<HTMLInputElement | null>(null);
-  const [mode, setMode] = useState<Way>("create");
   /** The fourth way's field: an arXiv id or a git URL, or the name of the
    *  zip chosen with the button beside it; and what the route left out. */
   const [source, setSource] = useState("");
@@ -191,10 +227,6 @@ export default function Projects({
   // one that went while the server was down, but not that this is the
   // project the writer was in a moment ago.
   const lost = useStore((s) => s.lostFolder);
-  const tagline =
-    provider === "none"
-      ? "Write LaTeX beside the typeset page."
-      : `Write LaTeX with ${agentName(provider)} beside the typeset page.`;
   const agentCopy =
     provider === "none"
       ? "A new project starts from one of the documents below, ready to write in."
@@ -231,10 +263,10 @@ export default function Projects({
 
   // `/` reaches the search box from anywhere on the screen that is not
   // already a field, the way it does in a browser's own find and on most
-  // sites with a list worth searching.  Not while the drawer is open on a
-  // phone: the box is behind the drawer then, and Escape is its key.
+  // sites with a list worth searching.  Not while a sheet is open: the
+  // box is behind it then, and Escape is its key.
   useEffect(() => {
-    if (drawer) return;
+    if (way || sheet) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
@@ -245,7 +277,7 @@ export default function Projects({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [drawer]);
+  }, [way, sheet]);
   // Filtered and then sorted, in `project-filter.ts`: the one list the
   // screen draws and the arrow keys walk.
   const shown = visibleProjects(projects, query, sort);
@@ -289,6 +321,7 @@ export default function Projects({
           // to offer, it is the project, reconnected.
           setPath("");
           setInvite("");
+          setWay(null);
           await refresh();
           onOpen(answer.project.id);
           return;
@@ -307,6 +340,7 @@ export default function Projects({
         setPath("");
         setSource("");
         setZipFile(null);
+        setWay(null);
         await refresh();
         if (arrived.id) onOpen(arrived.id);
         // What the archive carried and the project did not receive, said
@@ -337,6 +371,7 @@ export default function Projects({
       }
       setPath("");
       setNewName("");
+      setWay(null);
       await refresh();
       if (project.id) onOpen(project.id);
     } catch (problem: any) {
@@ -352,6 +387,7 @@ export default function Projects({
       setOffer(null);
       setPath("");
       setInvite("");
+      setWay(null);
       await refresh();
       if (project.id) onOpen(project.id);
     } catch (problem: any) {
@@ -402,9 +438,8 @@ export default function Projects({
         return;
       }
       setOffer(answer);
-      // The card is drawn under Join in the rail, which on a phone is the
-      // drawer: opened, so the offer is seen rather than waiting unseen.
-      setWaysOpen(true);
+      // The card is drawn in the join sheet, so the sheet opens on it.
+      setWay("join");
     } catch (problem: any) {
       setRowError(problem.message);
     } finally {
@@ -447,295 +482,90 @@ export default function Projects({
       // window and be wrong by the zoom.
       data-phone={phone ? "" : undefined}
     >
-      {/* The rail: everything on this screen that is not a project.  It
-          never scrolls away, which is the whole reason the sheet this
-          screen used to be is gone: with fourteen projects on it the ways
-          in, the cog and the update were all above or below the window,
-          and the only thing in view was the middle of the list.  On a
-          phone it is a strip along the top and the ways in open from New
-          as a drawer; the same elements, placed by the grid in
-          styles.css, so the cog and the help exist exactly once. */}
-      <aside className="nx-projects-rail bg-surface" aria-label="NextTex">
-        <div className="nx-rail-brand">
-          <h1 className="t-display flex items-center gap-3">
-            <Logo size={26} />
-            NextTex
-            <InstanceBadge />
-          </h1>
-          <p className="nx-rail-tagline t-meta mt-1 text-ink-2">{tagline}</p>
-        </div>
-        <button
-          ref={newButton}
-          type="button"
-          className="nx-rail-new pen-button h-[28px] px-3 t-ui"
-          aria-expanded={waysOpen}
-          aria-controls="nx-ways"
-          data-testid="ways-open"
-          onClick={() => setWaysOpen((open) => !open)}
-        >
-          New
-        </button>
-        <section
-          id="nx-ways"
-          ref={waysRef}
-          className="nx-ways"
-          aria-label="Ways in"
-          // A dialog only while it is a drawer on a phone: then Escape and
-          // a press outside close it and focus goes in and comes back to
-          // New, all of which `useDismiss` does for a dialog and none of
-          // which a column in a rail wants.
-          role={drawer ? "dialog" : undefined}
-          aria-modal={drawer ? true : undefined}
-          data-open={waysOpen ? "" : undefined}
-        >
-          {/* Which agent is writing with you, and the way to change it.  It
-              says which agent it is rather than only that there is one,
-              because that is the question somebody opening it has. */}
-          {onChangeAgent ? (
-            <button
-              className="quiet flex h-[26px] items-center gap-[5px] rounded-[3px] px-[5px] hover:bg-surface-3"
-              aria-label={
-                provider === "none"
-                  ? "Set up a writing agent"
-                  : `Writing agent: ${agentName(provider)}. Change it.`
-              }
-              title={
-                provider === "none"
-                  ? "Set up a writing agent"
-                  : `Writing with ${agentName(provider)}. Change it.`
-              }
-              data-testid="set-up-agent"
-              onClick={onChangeAgent}
-            >
-              <Nib />
-              <span className="t-micro">
-                {provider === "none" ? "No agent" : agentName(provider)}
-              </span>
-            </button>
-          ) : null}
-          {/* The three ways in as a row of tiles, the chosen one filled,
-              and one form under all three.  They were a stacked list with
-              the chosen one unfolded in place, which put the other two
-              under the Create button where they read as its children, and
-              a text label with a rule on its left did not say "press me".
-              The writer chose the tiles from five variants drawn for them.
-              The visible word is short so three fit across the rail; the
-              accessible name is the whole phrase, which contains the word,
-              so a screen reader hears the sentence and every spec that
-              finds the buttons by name still does.  The message under the
-              fields belongs to whichever of the three the writer was last
-              doing; carried across, it reads as an error about the one
-              they have just moved to, so a change clears it. */}
-          <div className="nx-way-tiles" role="group" aria-label="Ways in">
-            {(["create", "add", "join", "bring"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                className="nx-way-tile"
-                aria-pressed={mode === option}
-                aria-label={WAYS[option].label}
-                data-way={option}
-                onClick={() => {
-                  setError(null);
-                  setPicking(false);
-                  setMode(option);
-                }}
-              >
-                {option === "create" ? <Plus /> : option === "add" ? <Folder /> : option === "join" ? <Link /> : <Inbox />}
-                <span>{WAYS[option].word}</span>
-              </button>
-            ))}
-          </div>
-          <div className="nx-way-form" data-testid="way-form">
-            <p className="t-meta text-ink-2">
-              {mode === "create"
-                ? agentCopy
-                : mode === "add"
-                ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
-                : mode === "bring"
-                ? "A zip somebody sent, an arXiv id, or a git URL. The project arrives in a new folder; a zip's build files and anything that would run are left out."
-                : "Paste an invite somebody sent you. The whole project arrives here, the files and their history both, and stays in step with everyone else's copy, including anything written while you were offline."}
-            </p>
-            {mode === "create" ? (
-              <input
-                value={newName}
-                placeholder="What is it called?"
-                className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                onChange={(event) => setNewName(event.target.value)}
-              />
-            ) : null}
-            {mode === "bring" ? (
-              <div className="flex gap-2">
-                <input
-                  value={source}
-                  placeholder="2301.01234, or https://github.com/you/paper"
-                  aria-label="An arXiv id, a git URL, or the zip chosen beside"
-                  data-testid="bring-source"
-                  className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                  onChange={(event) => {
-                    setSource(event.target.value);
-                    // Typing over a chosen zip's name means the zip is
-                    // no longer what is meant.
-                    if (zipFile) setZipFile(null);
-                  }}
-                  onKeyDown={(event) => event.key === "Enter" && add()}
-                />
-                <input
-                  ref={zipInput}
-                  type="file"
-                  accept=".zip,application/zip"
-                  className="hidden"
-                  data-testid="bring-zip"
-                  onChange={(event) => {
-                    const chosen = event.target.files?.[0] ?? null;
-                    setZipFile(chosen);
-                    if (chosen) setSource(chosen.name);
-                    event.target.value = "";
-                  }}
-                />
-                <button
-                  type="button"
-                  className="ghost-button h-[28px] shrink-0 px-2 t-meta"
-                  data-testid="bring-choose-zip"
-                  onClick={() => zipInput.current?.click()}
-                >
-                  Choose a zip…
-                </button>
-              </div>
-            ) : null}
-            {mode === "join" ? (
-              <textarea
-                value={invite}
-                rows={3}
-                placeholder="Paste the invite here"
-                aria-label="The invite you were sent"
-                data-testid="invite-input"
-                className="t-code-sm w-full resize-none rounded-[3px] border border-line bg-surface px-2 py-1 outline-none placeholder:text-ink-3"
-                onChange={(event) => setInvite(event.target.value)}
-              />
-            ) : null}
-            {/* The folder, typed or browsed.  Browse walks the
-                machine's disk in a card, since a browser's own
-                folder dialog hands back files and not a path on
-                the server; what it fills in depends on the way
-                in (`FolderPicker`). */}
-            <div className="flex gap-2">
-              <input
-                ref={pathBox}
-                value={path}
-                placeholder={
-                  mode === "create"
-                    ? "Where to put it, e.g. ~/writing/my-paper"
-                    : mode === "add"
-                    ? "/path/to/your/writing/project"
-                    : mode === "bring"
-                    ? "Where to put it, e.g. ~/writing/their-paper"
-                    : "A folder to put it in, e.g. ~/writing/their-paper"
-                }
-                className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                onChange={(event) => setPath(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && add()}
-              />
-              <button
-                ref={browseButton}
-                type="button"
-                className="ghost-button h-[28px] shrink-0 px-2 t-meta"
-                aria-haspopup="dialog"
-                aria-expanded={picking}
-                data-testid="browse-folder"
-                onClick={() => setPicking((open) => !open)}
-              >
-                Browse…
-              </button>
-            </div>
-            {picking ? (
-              <Suspense fallback={null}>
-                <FolderPicker
-                  mode={mode === "bring" ? "create" : mode}
-                  name={mode === "bring" ? nameFor(source, zipFile) : newName}
-                  typed={path}
-                  onPick={picked}
-                  onClose={() => setPicking(false)}
-                />
-              </Suspense>
-            ) : null}
-            {mode === "create" && templates.length > 1 ? (
-              /* Hidden when there is only one, which is what an
-                 install with its templates trimmed looks like: a
-                 chooser offering a single choice is a control that
-                 asks a question with one answer. */
-              <select
-                value={template}
-                aria-label="What to start from"
-                data-testid="template-choice"
-                className="t-ui h-[28px] w-full rounded-[3px] border border-line bg-surface px-2 text-ink outline-none"
-                onChange={(event) => setTemplate(event.target.value)}
-              >
-                {templates.map((name) => (
-                  <option key={name} value={name}>
-                    {START_FROM[name] ?? name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-            <button
-              className={`h-[28px] self-start px-3 t-ui ${
-                mode === "join" ? "pen-button" : "ghost-button"
-              }`}
-              onClick={add}
-              disabled={busy === "add"}
-            >
-              {busy === "add" && mode === "join"
-                ? "Joining…"
-                : busy === "add" && mode === "bring"
-                ? "Bringing…"
-                : mode === "create"
-                ? "Create project"
-                : mode === "add"
-                ? "Open folder"
-                : mode === "bring"
-                ? "Bring it"
-                : "Join"}
-            </button>
-            {error ? <p className="t-meta text-error">{error}</p> : null}
-          </div>
-          {/* After the third item, so it sits under Join whatever is
-              chosen: a rejoin from a row can produce an offer while the
-              chosen way in is still Start something new. */}
-          {offer ? (
-            <Suspense fallback={null}>
-              <JoinOfferCard offer={offer} onAccept={acceptOffer} onDiscard={discardOffer} />
-            </Suspense>
-          ) : null}
-        </section>
-        {/* Understand, then adjust: help sits left of the cog and wears the
-            cog's own chrome so the two read as a pair. */}
-        <div className="nx-rail-tools">
+      {/* The app bar: the mark, the name and the version at the left; at
+          the right the agent, and icon buttons for everything the foot
+          used to hold, each naming itself on hover and by its label. The
+          list is the screen; nothing else takes a column. */}
+      <div className="nx-appbar" aria-label="NextTex">
+        <h1 className="flex items-center gap-2">
+          <Logo size={20} />
+          <span className="t-ui font-semibold text-ink">NextTex</span>
+          {version ? <span className="t-meta tnum text-ink-3">{version}</span> : null}
+          <InstanceBadge />
+        </h1>
+        <span className="flex-1" />
+        {/* Which agent is writing with you, and the way to change it. It
+            says which agent it is rather than only that there is one,
+            because that is the question somebody opening it has. */}
+        {onChangeAgent ? (
           <button
-            ref={helpButton}
-            className={`quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3 ${
-              guide ? "bg-surface-3" : ""
-            }`}
-            data-tone={guide ? "on" : undefined}
-            aria-label="About this screen"
-            title="About this screen"
-            aria-haspopup="dialog"
-            aria-expanded={guide}
-            data-testid="about-screen"
-            onClick={() => setGuide((open) => !open)}
+            type="button"
+            className="nx-appbar-agent"
+            aria-label={
+              provider === "none"
+                ? "Set up a writing agent"
+                : `Writing agent: ${agentName(provider)}. Change it.`
+            }
+            title={
+              provider === "none"
+                ? "Set up a writing agent"
+                : `Writing with ${agentName(provider)}. Change it.`
+            }
+            data-testid="set-up-agent"
+            onClick={onChangeAgent}
           >
-            <QuestionMark />
+            <SparkIcon size={14} />
+            {provider === "none" ? "No agent" : agentName(provider)}
+            <ChevronDownIcon size={11} />
           </button>
-          {guide ? (
-            <Suspense fallback={null}>
-              <ScreenGuide anchor={helpButton} onClose={() => setGuide(false)} />
-            </Suspense>
-          ) : null}
-          <Settings onChangeAgent={onChangeAgent} />
-        </div>
-      </aside>
+        ) : null}
+        <IconButton
+          label={
+            updateState === "waiting"
+              ? "An update is waiting"
+              : updateState === "attention"
+                ? "The update needs you"
+                : updateState === "busy"
+                  ? "Updating"
+                  : "Check for updates"
+          }
+          className="nx-appbar-update"
+          data-state={updateState}
+          data-testid="update-open"
+          on={sheet === "update"}
+          onClick={() => setSheet(sheet === "update" ? null : "update")}
+        >
+          <UpdateIcon size={18} />
+        </IconButton>
+        <IconButton
+          label="Report a problem"
+          data-testid="report-problem"
+          on={sheet === "report"}
+          onClick={() => setSheet(sheet === "report" ? null : "report")}
+        >
+          <ReportIcon size={18} />
+        </IconButton>
+        {/* Understand, then adjust: help sits left of the cog. */}
+        <IconButton
+          ref={helpButton}
+          label="About this screen"
+          aria-haspopup="dialog"
+          aria-expanded={guide}
+          on={guide}
+          data-testid="about-screen"
+          onClick={() => setGuide((open) => !open)}
+        >
+          <HelpIcon size={18} />
+        </IconButton>
+        {guide ? (
+          <Suspense fallback={null}>
+            <ScreenGuide anchor={helpButton} onClose={() => setGuide(false)} />
+          </Suspense>
+        ) : null}
+        <Settings onChangeAgent={onChangeAgent} />
+      </div>
 
-      <main className="nx-projects-main bg-surface" aria-label="Projects">
+      <main className="nx-projects-main" aria-label="Projects">
         {/* Drawn once the list has answered, so the heading, which is also
             what every spec waits for on this screen, appears when the rows
             do and not a moment before.  The search and the sort are here
@@ -743,19 +573,17 @@ export default function Projects({
             one nobody has learned by the time they need it. */}
         {loaded ? (
           <div className="nx-projects-head">
-            <div className="flex items-baseline gap-2">
-              <h2 className="t-meta text-ink-2">Projects</h2>
-              <span className="t-micro text-ink-3" data-testid="project-count">
-                {projects.length}
-              </span>
-            </div>
-            <input
+            <h2 className="t-display text-ink">Projects</h2>
+            <span className="flex-1" />
+            <Field
               ref={filterBox}
+              frameClassName="nx-projects-find"
+              leading={<SearchIcon size={16} />}
+              trailing={<Kbd>/</Kbd>}
               value={query}
               placeholder="Find a project"
               aria-label="Find a project"
               data-testid="project-filter"
-              className="t-ui h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
                 // Escape clears, then leaves; Enter opens the first row
@@ -776,31 +604,88 @@ export default function Projects({
                 }
               }}
             />
-            <select
-              value={sort}
-              aria-label="Sort projects"
-              data-testid="project-sort"
-              className="t-ui h-[28px] shrink-0 rounded-[3px] border border-line bg-surface px-2 text-ink outline-none"
-              onChange={(event) => chooseSort(sortKeyFrom(event.target.value))}
+            <Button
+              variant="pen"
+              size="md"
+              icon={<PlusIcon />}
+              data-testid="new-project"
+              onClick={() => openWay("create")}
             >
-              <option value="recent">Last opened</option>
-              <option value="name">Name, A to Z</option>
-            </select>
+              New project
+            </Button>
+            <div className="relative">
+              <Button
+                ref={waysButton}
+                variant="quiet"
+                size="md"
+                aria-haspopup={phone ? "dialog" : "menu"}
+                aria-expanded={waysOpen}
+                data-on={waysOpen || undefined}
+                data-testid="ways-open"
+                onClick={() => setWaysOpen((open) => !open)}
+              >
+                Other ways in <ChevronDownIcon size={12} />
+              </Button>
+              {/* The three other ways in, each with a line saying what it
+                  does: a menu under the button, and on a phone a sheet,
+                  where a menu would be a strip of the screen. */}
+              {waysOpen && !phone ? (
+                <Menu
+                  open
+                  wanted={waysAt}
+                  anchor={waysButton}
+                  label="Other ways in"
+                  testid="ways-menu"
+                  width={280}
+                  onClose={() => setWaysOpen(false)}
+                >
+                  {OTHER_WAYS.map((way) => (
+                    <MenuItem key={way.key} note={way.note} onClick={() => openWay(way.key)}>
+                      {way.label}
+                    </MenuItem>
+                  ))}
+                </Menu>
+              ) : null}
+            </div>
             {canClose ? (
-              <button className="t-ui shrink-0 text-ink-2 hover:text-ink" onClick={onClose}>
+              <Button variant="quiet" size="md" onClick={onClose}>
                 Back
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : null}
+        {waysOpen && phone ? (
+          <Sheet open onClose={() => setWaysOpen(false)} label="Other ways in" testid="ways-menu" width={420} list>
+            {OTHER_WAYS.map((way) => (
+              <MenuItem key={way.key} role="none" note={way.note} onClick={() => openWay(way.key)}>
+                {way.label}
+              </MenuItem>
+            ))}
+          </Sheet>
+        ) : null}
         {/* The one thing on the screen that scrolls. */}
         <div className="nx-projects-list" data-testid="project-list">
+          {loaded && projects.length ? (
+            <div className="nx-projects-line">
+              <Segmented
+                size="sm"
+                label="Sort projects"
+                testid="project-sort"
+                value={sort}
+                options={[
+                  { value: "recent", label: "Last opened", testid: "sort-recent" },
+                  { value: "name", label: "Name", testid: "sort-name" },
+                ]}
+                onChange={(key) => chooseSort(sortKeyFrom(key))}
+              />
+              <span className="flex-1" />
+              <span className="t-meta tnum text-ink-3" data-testid="project-count">
+                {projects.length} {projects.length === 1 ? "project" : "projects"}
+              </span>
+            </div>
+          ) : null}
           {lost ? (
-            <div
-              role="status"
-              data-testid="folder-lost"
-              className="mb-4 flex items-start gap-3 rounded-[3px] border border-line bg-surface-2 px-4 py-3"
-            >
+            <div role="status" data-testid="folder-lost" className="nx-confirm !mt-0 mb-3 flex items-start gap-3">
               <div className="t-ui min-w-0 flex-1 text-ink">
                 The folder for {lost.name ? <b className="font-medium">{lost.name}</b> : "that project"} is
                 gone from this disk, so it was closed.
@@ -809,31 +694,32 @@ export default function Projects({
                   : ""}{" "}
                 If you moved it, point NextTex at where it is now from its row below.
               </div>
-              <button
-                type="button"
-                className="h-[28px] shrink-0 px-2 t-meta text-ink-3 hover:text-ink"
-                onClick={() => set({ lostFolder: null })}
-              >
+              <Button variant="quiet" onClick={() => set({ lostFolder: null })}>
                 Dismiss
-              </button>
+              </Button>
             </div>
           ) : null}
           {/* A row's own failure, a PDF that did not typeset or a remove
-              the server refused, is said above the rows rather than under
-              the form in the rail, where it read as an error about
-              starting something. */}
+              the server refused, is said above the rows. */}
           {listError ? (
             <p className="t-meta mb-2 text-error" data-testid="list-error">{listError}</p>
           ) : null}
           {loaded && !projects.length ? (
-            <p className="t-ui text-ink-2" data-testid="no-projects">
-              Nothing here yet.{" "}
-              {phone ? "Press New to start something." : "Start something on the left."}
-            </p>
+            <Empty
+              action={
+                <Button variant="pen" onClick={() => openWay("create")}>
+                  New project
+                </Button>
+              }
+            >
+              Nothing here yet. Start something, open a folder that already holds a
+              document, or join a project somebody shared.
+            </Empty>
           ) : null}
-          {projects.length ? (
-        <div className="rounded-[3px] border border-line bg-surface-2">
-          {query.trim() && !shown.length ? (
+          {loaded && !projects.length ? (
+            <p className="t-ui hidden text-ink-2" data-testid="no-projects">Nothing here yet.</p>
+          ) : null}
+          {query.trim() && projects.length && !shown.length ? (
             <div className="t-meta px-4 py-3 text-ink-3" data-testid="no-match">
               Nothing matches “{query.trim()}”
             </div>
@@ -854,15 +740,8 @@ export default function Projects({
               onFocus={(event) => {
                 if (event.target === event.currentTarget) setFocusId(project.id);
               }}
-              // Wrapping, so that on a narrow screen the tail of the row
-              // (the time, the actions) drops under the name rather than
-              // squeezing it to ten characters beside three buttons.
-              className={`nx-project-row group flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-3 last:border-b-0 ${
-                locked
-                  ? "opacity-40"
-                  : !project.missing
-                    ? "cursor-pointer hover:bg-surface-3"
-                    : ""
+              className={`nx-project-row nx-project-card group ${
+                locked ? "opacity-40" : !project.missing ? "cursor-pointer" : ""
               }`}
               onClick={(event) => {
                 if (locked) return;
@@ -885,127 +764,127 @@ export default function Projects({
                 if (!project.missing) onOpen(project.id);
               }}
             >
-              <div className="min-w-0 flex-1 basis-[200px]">
-                <div className="flex min-w-0 items-baseline gap-2">
-                  <span
-                    data-testid="project-name"
-                    className={`t-ui-lg min-w-0 truncate ${
-                      project.missing ? "text-ink-3" : "text-ink group-hover:text-hint"
-                    }`}
-                  >
-                    {project.name}
+              <div className="nx-project-name">
+                <span
+                  data-testid="project-name"
+                  className={`min-w-0 truncate ${project.missing ? "text-ink-3" : "text-ink"}`}
+                >
+                  {project.name}
+                </span>
+                {/* Only a shared project wears a mark: a mark on every
+                    row is a mark on none. */}
+                {rowMarks({ ...project, open: watched.includes(project.id) }).map((mark) => (
+                  <span key={mark} className="nx-project-mark">
+                    {mark === "shared" ? <ShareIcon size={12} /> : null}
+                    {mark}
                   </span>
-                  {/* Only a shared project wears a mark: a mark on every
-                      row is a mark on none. */}
-                  {rowMarks({ ...project, open: watched.includes(project.id) }).map((mark) => (
-                    <span key={mark} className="t-micro shrink-0 text-ink-3">
-                      {mark}
-                    </span>
-                  ))}
-                </div>
-                {/* Home folded to `~`, the whole path in the title.  Twelve
-                    rows used to begin with the same forty characters and
-                    the truncation cut the part that differed. */}
-                <div className="t-code-sm truncate text-ink-3" title={project.path}>
-                  {shortPath(project.path, home)}
-                </div>
-                {project.missing ? (
-                  <div className="t-meta mt-1 text-warn">
-                    This folder is no longer there.
-                  </div>
-                ) : null}
-                {rejoining === project.path ? (
-                  <div className="mt-2">
-                    <div className="flex gap-2">
-                      <input
-                        autoFocus
-                        value={rejoinTo}
-                        placeholder="A folder for it to arrive in, empty or holding a copy"
-                        className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                        onChange={(event) => setRejoinTo(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") rejoin(project);
-                          if (event.key === "Escape") setRejoining(null);
-                        }}
-                      />
-                      <button
-                        className="ghost-button h-[28px] shrink-0 px-3 t-meta"
-                        data-testid="confirm-rejoin"
-                        disabled={busy === project.id}
-                        onClick={() => rejoin(project)}
-                      >
-                        {busy === project.id ? "Asking…" : "Rejoin"}
-                      </button>
-                      <button
-                        className="h-[28px] shrink-0 px-2 t-meta text-ink-3 hover:text-ink"
-                        onClick={() => setRejoining(null)}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                    <p className="t-meta mt-1 text-ink-3">
-                      Your collaborators send the project as it is now. Nothing
-                      is written until you accept what they offer.
-                    </p>
-                    {rowError ? (
-                      <p className="t-meta mt-1 text-error">{rowError}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {relocating === project.path ? (
-                  <div className="mt-2">
-                    <div className="flex gap-2">
-                      <input
-                        autoFocus
-                        value={movedTo}
-                        placeholder="Where is it now? e.g. ~/Papers/thesis"
-                        className="t-code-sm h-[28px] min-w-0 flex-1 rounded-[3px] border border-line bg-surface px-2 outline-none placeholder:text-ink-3"
-                        onChange={(event) => setMovedTo(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") relocate(project);
-                          if (event.key === "Escape") setRelocating(null);
-                        }}
-                      />
-                      <button
-                        className="ghost-button h-[28px] shrink-0 px-3 t-meta"
-                        data-testid="confirm-relocate"
-                        onClick={() => relocate(project)}
-                      >
-                        Use this folder
-                      </button>
-                      <button
-                        className="h-[28px] shrink-0 px-2 t-meta text-ink-3 hover:text-ink"
-                        onClick={() => setRelocating(null)}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                    {rowError ? (
-                      <p className="t-meta mt-1 text-error">{rowError}</p>
-                    ) : null}
-                  </div>
-                ) : null}
+                ))}
               </div>
+              {/* Home folded to `~`, the whole path in the title.  Twelve
+                  rows used to begin with the same forty characters and
+                  the truncation cut the part that differed. */}
+              <div className="nx-project-where" title={project.path}>
+                {project.missing ? (
+                  <span className="text-warn">
+                    This folder is no longer there.{" "}
+                    {relocating !== project.path ? (
+                      <button
+                        type="button"
+                        className="text-ink-2 hover:text-ink"
+                        data-testid="find-project"
+                        onClick={() => {
+                          setRowError(null);
+                          setMovedTo("");
+                          setRejoining(null);
+                          setRelocating(project.path);
+                        }}
+                      >
+                        Find it
+                      </button>
+                    ) : null}
+                  </span>
+                ) : (
+                  shortPath(project.path, home)
+                )}
+              </div>
+              {rejoining === project.path ? (
+                <div className="nx-project-form">
+                  <div className="flex gap-2">
+                    <Field
+                      autoFocus
+                      frameClassName="min-w-0 flex-1"
+                      value={rejoinTo}
+                      placeholder="A folder for it to arrive in, empty or holding a copy"
+                      className="font-mono text-[12.5px]"
+                      onChange={(event) => setRejoinTo(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") rejoin(project);
+                        if (event.key === "Escape") setRejoining(null);
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      data-testid="confirm-rejoin"
+                      disabled={busy === project.id}
+                      onClick={() => rejoin(project)}
+                    >
+                      {busy === project.id ? "Asking…" : "Rejoin"}
+                    </Button>
+                    <Button variant="quiet" size="md" onClick={() => setRejoining(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                  <p className="t-meta mt-1 text-ink-3">
+                    Your collaborators send the project as it is now. Nothing
+                    is written until you accept what they offer.
+                  </p>
+                  {rowError ? <p className="t-meta mt-1 text-error">{rowError}</p> : null}
+                </div>
+              ) : null}
+              {relocating === project.path ? (
+                <div className="nx-project-form">
+                  <div className="flex gap-2">
+                    <Field
+                      autoFocus
+                      frameClassName="min-w-0 flex-1"
+                      value={movedTo}
+                      placeholder="Where is it now? e.g. ~/Papers/thesis"
+                      className="font-mono text-[12.5px]"
+                      onChange={(event) => setMovedTo(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") relocate(project);
+                        if (event.key === "Escape") setRelocating(null);
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      data-testid="confirm-relocate"
+                      onClick={() => relocate(project)}
+                    >
+                      Use this folder
+                    </Button>
+                    <Button variant="quiet" size="md" onClick={() => setRelocating(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                  {rowError ? <p className="t-meta mt-1 text-error">{rowError}</p> : null}
+                </div>
+              ) : null}
               {forgetting === project.path ? (
-                <div className="flex shrink-0 items-center gap-2" data-testid="row-actions">
+                <div className="nx-project-tail flex items-center gap-2" data-testid="row-actions">
                   <span className="t-meta text-ink-2">
                     Remove from NextTex? The files stay where they are.
                   </span>
-                  <button
-                    className="h-[28px] rounded-[3px] px-2 t-meta text-error"
+                  <Button
+                    size="inline"
+                    className="!text-error"
                     onClick={async () => {
                       setForgetting(null);
                       // No guard on the id: a registry entry has one whether
-                      // or not its folder is still there.  There used to be
-                      // one, and because a missing project's id was null it
-                      // swallowed the only action left on a dead entry --
-                      // the confirmation collapsed and nothing happened.
-                      //
-                      // And the same symptom again from the other side: this
-                      // was the one file operation here with no catch, so a
-                      // refusal collapsed the confirmation, never reached
-                      // `refresh`, and said nothing at all.  Remove, Remove,
-                      // and apparently nothing happened.
+                      // or not its folder is still there.  Caught, so a
+                      // refusal is said rather than swallowed.
                       try {
                         await api.forgetProject(project.id);
                         await refresh();
@@ -1015,206 +894,275 @@ export default function Projects({
                     }}
                   >
                     Remove
-                  </button>
-                  <button
-                    className="h-[28px] px-2 t-meta text-ink-3 hover:text-ink"
-                    onClick={() => setForgetting(null)}
-                  >
+                  </Button>
+                  <Button size="inline" onClick={() => setForgetting(null)}>
                     Keep
-                  </button>
+                  </Button>
                 </div>
               ) : (
               /* One slot at the end of the row, two things in it.  At rest
                  it says when the project was last opened, which is also
                  why the list is in the order it is in; pointed at, or
-                 holding focus, it is Zip, PDF and Remove instead
-                 (styles.css, `.nx-row-tail`).  Twelve rows of three
-                 bordered buttons were thirty-six buttons, and the most
-                 visible thing on the right of the list was Remove.  The
-                 buttons stay in the DOM and the tab order; a missing
-                 folder's row keeps them shown, since they are the row's
-                 whole point, as does a row that is typesetting, and a
-                 screen with nothing to point with shows both. */
-              <div className="nx-row-tail ml-auto shrink-0">
-              <span className="nx-row-when t-micro text-ink-3" data-testid="row-opened">
-                {openedWords(project.lastOpened)}
-              </span>
-              <div
-                className="nx-row-actions flex items-center gap-1"
-                data-testid="row-actions"
-                data-always={project.missing || busy === project.id ? "" : undefined}
-              >
-                <button
-                  className="h-[28px] rounded-[3px] px-2 t-meta text-ink-2 hover:bg-surface-3 hover:text-ink disabled:opacity-40"
-                  disabled={locked || project.missing}
-                  onClick={() =>
-                    void downloadZip(project.id, `${project.name}.zip`)
-                  }
+                 holding focus, it is the actions instead (styles.css,
+                 `.nx-row-tail`).  The buttons stay in the DOM and the tab
+                 order; a missing folder's row keeps them shown, since they
+                 are the row's whole point, as does a row that is
+                 typesetting, and a screen with nothing to point with shows
+                 both. */
+              <div className="nx-row-tail nx-project-tail">
+                <span className="nx-row-when t-meta tnum text-ink-3" data-testid="row-opened">
+                  {openedWords(project.lastOpened)}
+                </span>
+                <div
+                  className="nx-row-actions flex items-center gap-[2px]"
+                  data-testid="row-actions"
+                  data-always={project.missing || busy === project.id ? "" : undefined}
                 >
-                  Zip
-                </button>
-                <button
-                  className="h-[28px] rounded-[3px] px-2 t-meta text-ink-2 hover:bg-surface-3 hover:text-ink disabled:opacity-40"
-                  disabled={locked || project.missing || busy === project.id}
-                  onClick={() => takePdf(project)}
-                >
-                  {busy === project.id ? "Typesetting" : "PDF"}
-                </button>
-                {/* Only on a dead entry.  Nothing is moved by this -- the
-                    folder already moved, and this is where you tell the app
-                    where it went -- so it is named for what the writer is
-                    doing rather than for what it does to the registry. */}
-                {project.missing && relocating !== project.path ? (
-                  <button
-                    className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink"
-                    data-testid="find-project"
-                    onClick={() => {
-                      setRowError(null);
-                      setMovedTo("");
-                      setRejoining(null);
-                      setRelocating(project.path);
-                    }}
+                  <Button
+                    size="inline"
+                    disabled={locked || project.missing}
+                    onClick={() => onOpen(project.id)}
                   >
-                    Find it…
-                  </button>
-                ) : null}
-                {/* The other way back for a shared project: the folder is
-                    really gone, and the collaborators still have theirs.
-                    Not offered to an install that was removed, which the
-                    share panel explains once the copy is opened elsewhere;
-                    a rejoin would only be refused after thirty seconds. */}
-                {project.missing && project.shared && !project.removed
-                  && rejoining !== project.path ? (
-                  <button
-                    className="h-[28px] rounded-[3px] border border-line px-2 t-meta text-ink-2 hover:text-ink"
-                    data-testid="rejoin-project"
-                    onClick={() => {
-                      setRowError(null);
-                      setRejoinTo(project.path);
-                      setRelocating(null);
-                      setRejoining(project.path);
-                    }}
+                    Open
+                  </Button>
+                  <Button
+                    size="inline"
+                    disabled={locked || project.missing}
+                    onClick={() => void downloadZip(project.id, `${project.name}.zip`)}
                   >
-                    Rejoin from collaborators…
-                  </button>
-                ) : null}
-                <button
-                  className="h-[28px] rounded-[3px] px-2 t-meta text-ink-3 hover:bg-surface-3 hover:text-error"
-                  onClick={() => setForgetting(project.path)}
-                >
-                  Remove
-                </button>
-              </div>
+                    Zip
+                  </Button>
+                  <Button
+                    size="inline"
+                    disabled={locked || project.missing || busy === project.id}
+                    onClick={() => takePdf(project)}
+                  >
+                    {busy === project.id ? "Typesetting" : "PDF"}
+                  </Button>
+                  {/* The other way back for a shared project: the folder is
+                      really gone, and the collaborators still have theirs. */}
+                  {project.missing && project.shared && !project.removed
+                    && rejoining !== project.path ? (
+                    <Button
+                      size="inline"
+                      data-testid="rejoin-project"
+                      onClick={() => {
+                        setRowError(null);
+                        setRejoinTo(project.path);
+                        setRelocating(null);
+                        setRejoining(project.path);
+                      }}
+                    >
+                      Rejoin from collaborators
+                    </Button>
+                  ) : null}
+                  <Button size="inline" onClick={() => setForgetting(project.path)}>
+                    Remove
+                  </Button>
+                </div>
               </div>
               )}
             </div>
           ))}
         </div>
-          ) : null}
+        {/* The nudge, until the app bar's lock takes it in (item 3.2). */}
+        <div className="nx-projects-foot">
+          <PasswordNudge />
         </div>
       </main>
 
-      {/* Under the rail, after the list in the document: the nudge says
-          "your projects", and the first thing on the screen that says
-          Projects has to be the heading. */}
-      <footer className="nx-projects-foot bg-surface">
-        <Suspense fallback={null}>
-          <UpdateFooter onBusy={setLocked} />
-        </Suspense>
-        <PasswordNudge />
-      </footer>
-      {drawer ? <div className="nx-scrim nx-ways-scrim" /> : null}
+      {/* The one sheet the four ways in share, each with its own field and
+          copy: New project with its name, where and what to start from; the
+          others with theirs. */}
+      {way ? (
+        <Sheet open onClose={closeWay} label={WAY_TITLES[way]} testid="way-form" width={520}>
+          <Heading level={2} display>{WAY_TITLES[way]}</Heading>
+          <p className="t-meta mt-1 text-ink-2">
+            {way === "create"
+              ? agentCopy
+              : way === "add"
+              ? "Point NextTex at a folder that already contains a LaTeX document. Nothing is copied or moved."
+              : way === "bring"
+              ? "A zip somebody sent, an arXiv id, or a git URL. The project arrives in a new folder; a zip's build files and anything that would run are left out."
+              : "Paste an invite somebody sent you. The whole project arrives here, the files and their history both, and stays in step with everyone else's copy, including anything written while you were offline."}
+          </p>
+          {way === "create" ? (
+            <>
+              <div className="nx-sheet-label">Name</div>
+              <Field
+                autoFocus
+                frameClassName="w-full"
+                value={newName}
+                placeholder="What is it called?"
+                onChange={(event) => setNewName(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && add()}
+              />
+            </>
+          ) : null}
+          {way === "bring" ? (
+            <>
+              <div className="nx-sheet-label">What to bring</div>
+              <div className="flex gap-2">
+                <Field
+                  autoFocus
+                  frameClassName="min-w-0 flex-1"
+                  value={source}
+                  placeholder="2301.01234, or https://github.com/you/paper"
+                  aria-label="An arXiv id, a git URL, or the zip chosen beside"
+                  data-testid="bring-source"
+                  className="font-mono text-[12.5px]"
+                  onChange={(event) => {
+                    setSource(event.target.value);
+                    // Typing over a chosen zip's name means the zip is
+                    // no longer what is meant.
+                    if (zipFile) setZipFile(null);
+                  }}
+                  onKeyDown={(event) => event.key === "Enter" && add()}
+                />
+                <input
+                  ref={zipInput}
+                  type="file"
+                  accept=".zip,application/zip"
+                  className="hidden"
+                  data-testid="bring-zip"
+                  onChange={(event) => {
+                    const chosen = event.target.files?.[0] ?? null;
+                    setZipFile(chosen);
+                    if (chosen) setSource(chosen.name);
+                    event.target.value = "";
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  size="md"
+                  data-testid="bring-choose-zip"
+                  onClick={() => zipInput.current?.click()}
+                >
+                  Choose a zip…
+                </Button>
+              </div>
+            </>
+          ) : null}
+          {way === "join" ? (
+            <>
+              <div className="nx-sheet-label">The invite</div>
+              <textarea
+                autoFocus
+                value={invite}
+                rows={3}
+                placeholder="Paste the invite here"
+                aria-label="The invite you were sent"
+                data-testid="invite-input"
+                className="nx-textarea w-full font-mono text-[12.5px]"
+                onChange={(event) => setInvite(event.target.value)}
+              />
+            </>
+          ) : null}
+          {/* The folder, typed or browsed.  Browse walks the machine's disk
+              in a card, since a browser's own folder dialog hands back
+              files and not a path on the server; what it fills in depends
+              on the way in (`FolderPicker`). */}
+          <div className="nx-sheet-label">{way === "add" ? "Folder" : "Where"}</div>
+          <div className="relative flex gap-2">
+            <Field
+              ref={pathBox}
+              autoFocus={way === "add"}
+              frameClassName="min-w-0 flex-1"
+              value={path}
+              placeholder={
+                way === "create"
+                  ? "Where to put it, e.g. ~/writing/my-paper"
+                  : way === "add"
+                  ? "/path/to/your/writing/project"
+                  : way === "bring"
+                  ? "Where to put it, e.g. ~/writing/their-paper"
+                  : "A folder to put it in, e.g. ~/writing/their-paper"
+              }
+              className="font-mono text-[12.5px]"
+              onChange={(event) => setPath(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && add()}
+            />
+            <Button
+              ref={browseButton}
+              variant="ghost"
+              size="md"
+              aria-haspopup="dialog"
+              aria-expanded={picking}
+              data-testid="browse-folder"
+              onClick={() => setPicking((open) => !open)}
+            >
+              Browse…
+            </Button>
+          </div>
+          {picking ? (
+            <Suspense fallback={null}>
+              <FolderPicker
+                mode={way === "bring" ? "create" : way}
+                name={way === "bring" ? nameFor(source, zipFile) : newName}
+                typed={path}
+                onPick={picked}
+                onClose={() => setPicking(false)}
+              />
+            </Suspense>
+          ) : null}
+          {way === "create" && templates.length > 1 ? (
+            /* Hidden when there is only one, which is what an install
+               with its templates trimmed looks like: a chooser offering a
+               single choice is a control that asks a question with one
+               answer. */
+            <>
+              <div className="nx-sheet-label">Start from</div>
+              <Segmented
+                label="What to start from"
+                testid="template-choice"
+                value={template}
+                options={templates.map((name) => ({
+                  value: name,
+                  label: START_FROM[name] ?? name,
+                  testid: `template-${name}`,
+                }))}
+                onChange={(name) => setTemplate(name)}
+              />
+            </>
+          ) : null}
+          {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}
+          {/* After the fields, so it sits under Join: a rejoin from a row
+              can produce an offer while the sheet is the join sheet. */}
+          {offer && way === "join" ? (
+            <Suspense fallback={null}>
+              <JoinOfferCard offer={offer} onAccept={acceptOffer} onDiscard={discardOffer} />
+            </Suspense>
+          ) : null}
+          <div className="nx-sheet-foot">
+            <Button variant="quiet" onClick={closeWay}>Cancel</Button>
+            <Button variant="pen" onClick={add} disabled={busy === "add"}>
+              {busy === "add" && way === "join"
+                ? "Joining…"
+                : busy === "add" && way === "bring"
+                ? "Bringing…"
+                : way === "create"
+                ? "Create project"
+                : way === "add"
+                ? "Open folder"
+                : way === "bring"
+                ? "Bring it"
+                : "Join"}
+            </Button>
+          </div>
+        </Sheet>
+      ) : null}
+      {/* The update sheet and the problem report, opened from the app bar;
+          the component mounts whatever is open, since its check on mount
+          is what tells the bar's button what to show. */}
+      <Suspense fallback={null}>
+        <UpdateFooter
+          onBusy={setLocked}
+          open={sheet}
+          onClose={() => setSheet(null)}
+          onState={setUpdateState}
+        />
+      </Suspense>
     </div>
-  );
-}
-
-/** A question mark, at the cog's weight.
- *
- *  1.7px stroke at this size is what keeps the bowl open at 100% and the
- *  counter clear at 150%; the dot is filled rather than stroked, because a
- *  ring that small closes up into a blob. */
-/** A nib, at the cog's weight.
- *
- *  Deliberately not the current provider's mark, which the floating agent
- *  button draws: that button opens the panel of the agent you have, and
- *  this one changes which agent you have. A control that wears Claude's
- *  mark and takes you to a screen offering ChatGPT and nothing is wearing
- *  the wrong thing.
- *
- *  A nib rather than a robot or a spark, for the reason the logo section
- *  gives about this app's own mark: what happens here is writing, and the
- *  only saturated colour in the chrome is the pen the agent writes with.
- */
-function Nib() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3.2 12.8 L6 12 L13 5 A1.6 1.6 0 0 0 11 3 L4 10 Z" />
-      <path d="M4 10 L6 12" />
-    </svg>
-  );
-}
-
-/** The three tiles' marks, at the cog's weight: a plus for something
- *  new, a folder for one that exists, a link for one that is shared. */
-function Plus() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-      <path d="M8 3v10M3 8h10" />
-    </svg>
-  );
-}
-
-function Folder() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true">
-      <path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.5 1.6h5.5a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1Z" />
-    </svg>
-  );
-}
-
-/** A tray with an arrow into it: something arriving. */
-function Inbox() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M8 2v7M5.5 6.5 8 9l2.5-2.5M2.5 9.5v2.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9.5M2.5 9.5h3l1 1.5h3l1-1.5h3" />
-    </svg>
-  );
-}
-
-function Link() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-      <path d="M6.5 9.5 9.5 6.5M7 4.5l1.2-1.2a2.5 2.5 0 0 1 3.5 3.5L10.5 8M5.5 8 4.3 9.2a2.5 2.5 0 0 0 3.5 3.5L9 11.5" />
-    </svg>
-  );
-}
-
-function QuestionMark() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5.3 5.9A2.75 2.75 0 1 1 8.6 9.0L8 9.9" />
-      <circle cx="8" cy="12.6" r="1.05" fill="currentColor" stroke="none" />
-    </svg>
   );
 }
 

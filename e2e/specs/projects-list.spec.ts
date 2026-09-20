@@ -4,11 +4,10 @@ import { seedProject } from "../server";
 /** The projects screen when there is a real number of projects on it.
  *
  *  Every other spec seeds one project, so nothing had ever looked at the
- *  screen with twelve, and then with thirty. The screen used to be one
- *  sheet that scrolled as a whole, so with that many the ways in, the cog
- *  and the update were above or below the window. It is a rail beside
- *  the list now, and the list is the only thing that scrolls: everything
- *  that is not a project is on screen however long the list is.
+ *  screen with twelve, and then with thirty. The list is the screen: an
+ *  app bar above, the head with the find field and New project, and the
+ *  list as the only thing that scrolls, so everything that is not a
+ *  project is on screen however long the list is.
  */
 
 const NAMES = [
@@ -24,7 +23,7 @@ const BY_NAME = [...NAMES].sort((a, b) =>
   a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }),
 );
 
-test("the rail stays put while thirty projects scroll", async ({ app, page }) => {
+test("the app bar and the head stay put while thirty projects scroll", async ({ app, page }) => {
   for (let i = 0; i < 30; i++) await seedProject(app, `paper-${String(i).padStart(2, "0")}`);
   await page.setViewportSize({ width: 1680, height: 1000 });
   await page.goto(`${app.base}/?token=${app.token}`);
@@ -45,10 +44,10 @@ test("the rail stays put while thirty projects scroll", async ({ app, page }) =>
   await list.evaluate((el) => el.scrollTo(0, el.scrollHeight));
   const top = await page.locator("h1").evaluate((h1) => h1.getBoundingClientRect().top);
   expect(top).toBeGreaterThanOrEqual(0);
-  await expect(page.getByRole("button", { name: "Start something new" })).toBeInViewport();
-  await expect(page.getByRole("button", { name: "Join a shared project" })).toBeInViewport();
+  await expect(page.getByTestId("new-project")).toBeInViewport();
+  await expect(page.getByTestId("ways-open")).toBeInViewport();
   await expect(page.getByTestId("project-filter")).toBeInViewport();
-  await expect(page.getByTestId("project-sort")).toBeInViewport();
+  await expect(page.getByTestId("update-open")).toBeInViewport();
   const cog = page.getByTestId("appearance");
   await expect(cog).toBeInViewport();
   await cog.click();
@@ -67,7 +66,7 @@ test("one project still has the search and the sort", async ({ app, project, pag
   await page.locator("h1").click();
   await page.keyboard.press("/");
   await expect(filter).toBeFocused();
-  await expect(page.getByTestId("project-sort")).toHaveValue("recent");
+  await expect(page.getByTestId("sort-recent")).toHaveAttribute("aria-pressed", "true");
 });
 
 
@@ -99,26 +98,29 @@ test("a row says when it was opened, and its actions are there without a hover",
   await expect(row.getByTestId("row-opened")).toHaveCSS("opacity", "0");
 });
 
-test("the ways in stand in the rail beside the list, and the search finds a row", async ({ app, page }) => {
+test("the other ways in are a menu with a line each, and the search finds a row", async ({ app, page }) => {
   for (const name of NAMES) await seedProject(app, name);
   await page.setViewportSize({ width: 1680, height: 1000 });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: true }).waitFor();
-  await expect(page.getByTestId("project-count")).toHaveText(String(NAMES.length));
+  await expect(page.getByTestId("project-count")).toHaveText(`${NAMES.length} projects`);
 
-  // Beside, not under: the create form and the brand are both on screen
-  // without a scroll, and the form sits to the left of the list.
-  const name = page.getByPlaceholder("What is it called?");
-  await expect(name).toBeInViewport();
-  await expect(page.locator("h1")).toBeInViewport();
-  const list = await page.getByTestId("project-row").first().boundingBox();
-  const form = await name.boundingBox();
-  expect(form!.x + form!.width).toBeLessThanOrEqual(list!.x);
-
-  // The three ways in are still the same three buttons.
-  for (const tab of ["Start something new", "Point at a folder", "Join a shared project"]) {
-    await expect(page.getByRole("button", { name: tab })).toBeVisible();
+  // One filled button, and the other three ways behind a quiet menu,
+  // each saying what it does; choosing one opens the sheet for it.
+  await expect(page.getByTestId("new-project")).toBeVisible();
+  await page.getByTestId("ways-open").click();
+  const menu = page.getByTestId("ways-menu");
+  await expect(menu).toBeVisible();
+  for (const way of ["Open a folder", "Join a shared project", "Bring one from elsewhere"]) {
+    await expect(menu.getByRole("menuitem", { name: new RegExp(way) })).toBeVisible();
   }
+  await expect(menu).toContainText("Nothing is copied or moved.");
+  await menu.getByRole("menuitem", { name: /Join a shared project/ }).click();
+  const sheet = page.getByTestId("way-form");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByTestId("invite-input")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
 
   // `/` reaches the filter from anywhere that is not a field; typing
   // narrows the rows; Enter opens the first one left.
@@ -139,7 +141,7 @@ test("the ways in stand in the rail beside the list, and the search finds a row"
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 });
 
-test("on a phone the rail is a strip and the ways in are a drawer behind New", async ({
+test("on a phone the head wraps, and the other ways in are a sheet", async ({
   app, page,
 }) => {
   for (const name of NAMES) await seedProject(app, name);
@@ -153,16 +155,15 @@ test("on a phone the rail is a strip and the ways in are a drawer behind New", a
   );
   expect(wide).toBe(0);
 
-  // The three ways in are behind New until asked for.
-  const start = page.getByRole("button", { name: "Start something new" });
-  await expect(start).toBeHidden();
+  // The other ways in are a sheet here, where a menu would be a strip
+  // of the screen.
   const open = page.getByTestId("ways-open");
   await expect(open).toBeVisible();
   await open.click();
-  const drawer = page.getByRole("dialog", { name: "Ways in" });
+  const drawer = page.getByRole("dialog", { name: "Other ways in" });
   await expect(drawer).toBeVisible();
-  for (const tab of ["Start something new", "Point at a folder", "Join a shared project"]) {
-    await expect(drawer.getByRole("button", { name: tab })).toBeVisible();
+  for (const way of ["Open a folder", "Join a shared project", "Bring one from elsewhere"]) {
+    await expect(drawer.getByRole("button", { name: new RegExp(way) })).toBeVisible();
   }
   // A dialog: focus is inside it, Escape closes it and hands focus back to
   // the button that opened it.
@@ -179,17 +180,19 @@ test("on a phone the rail is a strip and the ways in are a drawer behind New", a
   await expect(open).toBeInViewport();
 });
 
-test("the create form does not run off a phone", async ({ app, project, page }) => {
+test("the New project sheet does not run off a phone", async ({ app, project, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText(project.root.split("/").pop()!, { exact: true }).waitFor();
-  await page.getByTestId("ways-open").click();
-  // The folder field, the template chooser and the button were one row
-  // that could not shrink below 445px, so the sheet scrolled sideways.
+  await page.getByTestId("new-project").click();
+  const sheet = page.getByTestId("way-form");
+  await expect(sheet).toBeVisible();
   const wide = await page.locator(".nx-projects").evaluate(
     (root) => root.scrollWidth - root.clientWidth,
   );
   expect(wide).toBe(0);
+  const box = (await sheet.boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
   await expect(page.getByRole("button", { name: "Create project" })).toBeInViewport();
 });
 
@@ -247,7 +250,7 @@ test("the arrow keys walk the list, and the filter cannot strand the focus", asy
   await filter.focus();
   await page.keyboard.press("Escape");
   await expect(rows).toHaveCount(NAMES.length);
-  await page.getByTestId("project-sort").selectOption("name");
+  await page.getByTestId("sort-name").click();
   await expect(rows.first()).toContainText(BY_NAME[0]);
   await filter.focus();
   await page.keyboard.press("ArrowDown");
@@ -280,21 +283,20 @@ test("sort by name reorders the rows and is remembered", async ({ app, page }) =
   const BY_RECENT = [...NAMES].reverse();
 
   // The server's order first: most recently registered at the top.
-  const sort = page.getByTestId("project-sort");
-  await expect(sort).toHaveValue("recent");
+  await expect(page.getByTestId("sort-recent")).toHaveAttribute("aria-pressed", "true");
   expect(await names()).toEqual(BY_RECENT);
 
-  await sort.selectOption("name");
+  await page.getByTestId("sort-name").click();
   expect(await names()).toEqual(BY_NAME);
 
   // Kept on this browser: a reload comes back sorted the same way.
   await page.reload();
   await page.getByText("Projects", { exact: true }).waitFor();
   await expect(rows).toHaveCount(NAMES.length);
-  await expect(sort).toHaveValue("name");
+  await expect(page.getByTestId("sort-name")).toHaveAttribute("aria-pressed", "true");
   expect(await names()).toEqual(BY_NAME);
 
-  await sort.selectOption("recent");
+  await page.getByTestId("sort-recent").click();
   expect(await names()).toEqual(BY_RECENT);
 });
 

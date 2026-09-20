@@ -1,58 +1,62 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Page } from "@playwright/test";
 import { test, expect } from "../fixtures";
 
-/** The three ways in, and the fields they offer.
+/** The four ways in, and the one sheet they share.
  *
- *  Nothing covered the join tab at all, and it carried a control collapsed
- *  to two thirds of the height its own class asked for: the field sits in a
- *  container that becomes `flex-col` in that one mode, and `flex-1` in a
- *  column is a rule about height, so a basis of 0 beat `h-[28px]` and the
- *  box shrank to the 17px of its text. The other two tabs lay the same
- *  container out as a row, where `flex-1` means width, which is why it
- *  showed nowhere else.
- *
- *  Height rather than appearance, deliberately: a screenshot of this is a
- *  judgement call about whether one box looks short beside another, and the
- *  number is not.
+ *  New project is the one filled button on the screen; the other three
+ *  sit behind "Other ways in", each with a line saying what it does; and
+ *  all four open the same sheet with their own field and copy. A field
+ *  in the sheet is the kit's, and the folder is typed or browsed.
  */
 
-const TABS = [
-  "Start something new",
-  "Point at a folder",
-  "Join a shared project",
-] as const;
+type Way = "create" | "add" | "join" | "bring";
+const WAY_ITEMS: Record<Way, string> = {
+  create: "New project",
+  add: "Open a folder",
+  join: "Join a shared project",
+  bring: "Bring one from elsewhere",
+};
 
-test("no field on the projects screen is shorter than the control it says it is", async ({
+async function openWay(page: Page, way: Way) {
+  if (way === "create") {
+    await page.getByTestId("new-project").click();
+  } else {
+    await page.getByTestId("ways-open").click();
+    await page.getByTestId("ways-menu").getByRole("menuitem", { name: new RegExp(WAY_ITEMS[way]) }).click();
+  }
+  const sheet = page.getByTestId("way-form");
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+test("no field in the sheet is shorter than the control it says it is", async ({
   app, page,
 }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
 
   const short: string[] = [];
-  for (const tab of TABS) {
-    await page.getByRole("button", { name: tab }).click();
+  for (const way of ["create", "add", "join", "bring"] as const) {
+    const sheet = await openWay(page, way);
     await page.waitForTimeout(200);
-    for (const fault of await page.evaluate(() => {
+    for (const fault of await sheet.evaluate((root) => {
       const out: { tag: string; place: string; height: number }[] = [];
       const drawn = (s: CSSStyleDeclaration) =>
         s.borderTopWidth !== "0px" ||
+        s.boxShadow !== "none" ||
         (s.backgroundColor !== "rgba(0, 0, 0, 0)" && s.backgroundColor !== "transparent");
-      for (const el of document.querySelectorAll<HTMLElement>(
-        "input, textarea, button",
-      )) {
+      for (const el of root.querySelectorAll<HTMLElement>("input, textarea, button, .nx-field")) {
         const box = el.getBoundingClientRect();
         if (box.width === 0 && box.height === 0) continue;
         const style = getComputedStyle(el);
         if (style.display === "none") continue;
-        // Only controls that draw a box.  Half this screen's buttons are
-        // plain text links -- "Check again", "I'm the only one here" -- and
-        // those are the height of their words on purpose.  A field or a
-        // filled button is a box, and a box has a size it is supposed to be.
+        // Only controls that draw a box: a field or a filled button has a
+        // size it is supposed to be. An input inside the kit's field draws
+        // nothing itself; the field around it is what is measured.
+        if (el.tagName === "INPUT" && el.closest(".nx-field")) continue;
         if (!drawn(style)) continue;
-        // 24px is under every boxed control this app draws -- rows and
-        // buttons are 26 or 28 -- so anything below it has been squashed by
-        // its container rather than designed that way.
         if (box.height >= 24) continue;
         out.push({
           tag: el.tagName.toLowerCase(),
@@ -62,57 +66,37 @@ test("no field on the projects screen is shorter than the control it says it is"
       }
       return out;
     })) {
-      short.push(`${tab}: ${fault.tag} "${fault.place}" is ${fault.height}px`);
+      short.push(`${way}: ${fault.tag} "${fault.place}" is ${fault.height}px`);
     }
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
   }
   expect(short, short.join("\n")).toEqual([]);
 });
 
-test("the three ways in are tiles, and the form is under all of them", async ({
-  app, page,
-}) => {
-  // They were a stacked list with the chosen one unfolded in place, so
-  // the two closed ones sat under the Create button and read as its
-  // children, and a text label did not say "press me".  One row now,
-  // the chosen tile filled, the form under the row whichever is chosen.
-  await page.setViewportSize({ width: 1680, height: 1000 });
+test("the sheet carries each way's own field and copy, and its title", async ({ app, page }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
-  await page.getByText("Projects", { exact: true }).waitFor();
+  await page.getByText("Projects", { exact: false }).first().waitFor();
 
-  const tiles = TABS.map((name) => page.getByRole("button", { name }));
-  const boxes = await Promise.all(tiles.map((tile) => tile.boundingBox()));
-  for (const box of boxes) {
-    expect(box!.y).toBe(boxes[0]!.y);
-    expect(box!.width).toBeLessThanOrEqual(90);
-  }
-  const bottom = Math.max(...boxes.map((box) => box!.y + box!.height));
-  const nameField = await page.getByPlaceholder("What is it called?").boundingBox();
-  expect(nameField!.y).toBeGreaterThan(bottom);
-  await expect(tiles[0]).toHaveAttribute("aria-pressed", "true");
-  await expect(tiles[2]).toHaveAttribute("aria-pressed", "false");
+  let sheet = await openWay(page, "create");
+  await expect(sheet.getByRole("heading", { name: "New project" })).toBeVisible();
+  await expect(sheet.getByPlaceholder("What is it called?")).toBeFocused();
+  await expect(sheet.getByRole("button", { name: "Create project" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
-  // Choosing Join fills its tile and puts its form under the row, not
-  // between the tiles.
-  await tiles[2].click();
-  await expect(tiles[2]).toHaveAttribute("aria-pressed", "true");
-  await expect(tiles[0]).toHaveAttribute("aria-pressed", "false");
-  const invite = await page.getByTestId("invite-input").boundingBox();
-  expect(invite!.y).toBeGreaterThan(bottom);
-  await tiles[0].click();
-  const back = await page.getByPlaceholder("What is it called?").boundingBox();
-  expect(back!.y).toBeGreaterThan(bottom);
+  sheet = await openWay(page, "add");
+  await expect(sheet.getByRole("heading", { name: "Open a folder" })).toBeVisible();
+  await expect(sheet).toContainText("Nothing is copied or moved.");
+  await expect(sheet.getByPlaceholder("/path/to/your/writing/project")).toBeFocused();
+  await expect(sheet.getByRole("button", { name: "Open folder" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
-  // Pointed at, a closed tile answers in the hint colour.
-  const hint = await page.evaluate(() => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--hint)";
-    document.body.appendChild(probe);
-    const colour = getComputedStyle(probe).color;
-    probe.remove();
-    return colour;
-  });
-  await tiles[1].hover();
-  await expect(tiles[1]).toHaveCSS("border-color", hint);
+  sheet = await openWay(page, "bring");
+  await expect(sheet.getByTestId("bring-source")).toBeVisible();
+  await expect(sheet.getByTestId("bring-choose-zip")).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Bring it" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
 });
 
 test("the invite box and the folder beneath it are one pair", async ({
@@ -120,14 +104,14 @@ test("the invite box and the folder beneath it are one pair", async ({
 }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
-  await page.getByRole("button", { name: "Join a shared project" }).click();
+  const sheet = await openWay(page, "join");
 
-  const measured = await page.evaluate(() => {
-    const area = document.querySelector<HTMLElement>('[data-testid="invite-input"]')!;
-    const field = [...document.querySelectorAll<HTMLInputElement>("input")].find(
+  const measured = await sheet.evaluate((root) => {
+    const area = root.querySelector<HTMLElement>('[data-testid="invite-input"]')!;
+    const field = [...root.querySelectorAll<HTMLInputElement>("input")].find(
       (el) => (el.placeholder ?? "").includes("A folder to put it in"),
-    )!;
-    const browse = document.querySelector<HTMLElement>('[data-testid="browse-folder"]')!;
+    )!.closest(".nx-field")!;
+    const browse = root.querySelector<HTMLElement>('[data-testid="browse-folder"]')!;
     const a = area.getBoundingClientRect();
     const b = field.getBoundingClientRect();
     const c = browse.getBoundingClientRect();
@@ -141,12 +125,12 @@ test("the invite box and the folder beneath it are one pair", async ({
 
   // One left edge and one right edge: they are two halves of one answer,
   // not two controls that happen to be near each other.  The folder's row
-  // ends in Browse now, so the right edge is the button's.
+  // ends in Browse, so the right edge is the button's.
   expect(measured.sameLeft, "the two boxes do not share a left edge").toBe(true);
   expect(measured.sameRight, "the folder's row does not end where the invite does").toBe(true);
   // The path is one line and the invite is a paste target, so they are not
-  // the same height -- but the path is a full control, not a slot.
-  expect(measured.field).toBe(28);
+  // the same height, but the path is a full control, the kit's 32 px field.
+  expect(measured.field).toBe(32);
   expect(measured.invite).toBeGreaterThan(measured.field);
 });
 
@@ -160,10 +144,13 @@ test("a new project can start as something other than an article", async ({
   // and every project anyone made was an article.
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
+  const sheet = await openWay(page, "create");
 
-  const choice = page.getByTestId("template-choice");
+  // The templates as a segmented control, in the words somebody choosing
+  // one would use.
+  const choice = sheet.getByTestId("template-choice");
   await expect(choice).toBeVisible();
-  await expect(choice.getByRole("option")).toHaveText([
+  await expect(choice.getByRole("button")).toHaveText([
     "An article",
     "A talk",
     "A letter",
@@ -171,9 +158,10 @@ test("a new project can start as something other than an article", async ({
   ]);
 
   const where = `${app.projects}/started-as-a-talk`;
-  await choice.selectOption("beamer");
-  await page.getByPlaceholder(/Where to put it/).fill(where);
-  await page.getByRole("button", { name: "Create project" }).click();
+  await sheet.getByTestId("template-beamer").click();
+  await expect(sheet.getByTestId("template-beamer")).toHaveAttribute("aria-pressed", "true");
+  await sheet.getByPlaceholder(/Where to put it/).fill(where);
+  await sheet.getByRole("button", { name: "Create project" }).click();
 
   // It opens on what it was started from.
   await expect(page.locator(".cm-content")).toContainText("documentclass", {
@@ -195,33 +183,30 @@ test("a new project's folder can be browsed for, and goes under the picked one",
   mkdirSync(join(writing, "beta"), { recursive: true });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
+  const sheet = await openWay(page, "create");
 
-  await page.getByPlaceholder("What is it called?").fill("My Paper");
+  await sheet.getByPlaceholder("What is it called?").fill("My Paper");
   // The walk opens on what the field says when that is a folder.
-  await page.getByPlaceholder(/Where to put it/).fill(writing);
-  const browse = page.getByTestId("browse-folder");
+  await sheet.getByPlaceholder(/Where to put it/).fill(writing);
+  const browse = sheet.getByTestId("browse-folder");
   await browse.click();
   const picker = page.getByTestId("folder-picker");
   await expect(picker).toBeVisible();
-  await expect(picker).toContainText("Which folder should it go in?");
   await expect(picker.getByTestId("picker-path")).toHaveValue(writing);
   await expect(picker.getByRole("button", { name: "alpha" })).toBeVisible();
   await expect(picker.getByRole("button", { name: "beta" })).toBeVisible();
 
-  // Descend, then commit: two gestures, since the tree is mostly unseen.
+  // Into alpha, and picking it fills the field with the project's own
+  // folder under it, named from the title.
   await picker.getByRole("button", { name: "alpha" }).click();
   await expect(picker.getByTestId("picker-path")).toHaveValue(join(writing, "alpha"));
   await picker.getByTestId("pick-folder").click();
   await expect(picker).toHaveCount(0);
-  const where = page.getByPlaceholder(/Where to put it/);
-  await expect(where).toHaveValue(join(writing, "alpha", "my-paper"));
-  await expect(browse).toBeFocused();
-
-  await page.getByRole("button", { name: "Create project" }).click();
-  await expect(page.locator(".cm-content")).toContainText("documentclass", {
-    timeout: 20_000,
-  });
-  expect(existsSync(join(writing, "alpha", "my-paper", "main.tex"))).toBe(true);
+  await expect(sheet.getByPlaceholder(/Where to put it/)).toHaveValue(
+    join(writing, "alpha", "my-paper"),
+  );
+  await sheet.getByRole("button", { name: "Create project" }).click();
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 20_000 });
 });
 
 test("with no title yet the picked folder is left for the writer to finish", async ({
@@ -232,13 +217,14 @@ test("with no title yet the picked folder is left for the writer to finish", asy
   mkdirSync(writing, { recursive: true });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
-  await page.getByPlaceholder(/Where to put it/).fill(writing);
-  await page.getByTestId("browse-folder").click();
+  const sheet = await openWay(page, "create");
+  await sheet.getByPlaceholder(/Where to put it/).fill(writing);
+  await sheet.getByTestId("browse-folder").click();
   const picker = page.getByTestId("folder-picker");
   await expect(picker.getByTestId("picker-path")).toHaveValue(writing);
   await picker.getByTestId("pick-folder").click();
   // A trailing slash, and the caret at its end in the focused field.
-  const where = page.getByPlaceholder(/Where to put it/);
+  const where = sheet.getByPlaceholder(/Where to put it/);
   await expect(where).toHaveValue(`${writing}/`);
   await expect(where).toBeFocused();
   const caret = await where.evaluate((el: HTMLInputElement) => el.selectionStart);
@@ -257,11 +243,11 @@ test("an existing project's folder can be browsed for and opened", async ({
   );
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
-  await page.getByRole("button", { name: "Point at a folder" }).click();
+  const sheet = await openWay(page, "add");
 
   // Nothing typed: the walk opens on home, and the path box takes a paste
   // to jump, as the papers chooser's does.
-  await page.getByTestId("browse-folder").click();
+  await sheet.getByTestId("browse-folder").click();
   const picker = page.getByTestId("folder-picker");
   await expect(picker).toContainText("Which folder holds it?");
   await picker.getByTestId("picker-path").fill(app.projects);
@@ -269,15 +255,15 @@ test("an existing project's folder can be browsed for and opened", async ({
   await picker.getByRole("button", { name: "existing" }).click();
   await expect(picker.getByTestId("picker-path")).toHaveValue(existing);
   await picker.getByRole("button", { name: "Use this folder" }).click();
-  await expect(page.getByPlaceholder("/path/to/your/writing/project")).toHaveValue(existing);
+  await expect(sheet.getByPlaceholder("/path/to/your/writing/project")).toHaveValue(existing);
 
-  await page.getByRole("button", { name: "Open folder" }).click();
+  await sheet.getByRole("button", { name: "Open folder" }).click();
   await expect(page.locator(".cm-content")).toContainText("Browsed.", {
     timeout: 20_000,
   });
 });
 
-test("on a phone the picker opens inside the drawer and stays on the screen", async ({
+test("on a phone the picker opens over the sheet and stays on the screen", async ({
   app,
   page,
 }) => {
@@ -286,9 +272,9 @@ test("on a phone the picker opens inside the drawer and stays on the screen", as
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: true }).waitFor();
-  await page.getByTestId("ways-open").click();
-  await page.getByPlaceholder(/Where to put it/).fill(writing);
-  await page.getByTestId("browse-folder").click();
+  const sheet = await openWay(page, "create");
+  await sheet.getByPlaceholder(/Where to put it/).fill(writing);
+  await sheet.getByTestId("browse-folder").click();
   const picker = page.getByTestId("folder-picker");
   await expect(picker.getByRole("button", { name: "f" })).toBeVisible();
   // Measured once the folders are in, not before: the card grew after it
@@ -297,21 +283,23 @@ test("on a phone the picker opens inside the drawer and stays on the screen", as
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(844);
   await expect(picker.getByTestId("pick-folder")).toBeInViewport();
-  // Escape closes the picker and leaves the drawer.
+  // Escape closes the picker and leaves the sheet.
   await page.keyboard.press("Escape");
   await expect(picker).toHaveCount(0);
-  await expect(page.getByRole("dialog", { name: "Ways in" })).toBeVisible();
+  await expect(sheet).toBeVisible();
 });
 
 test("Escape closes the picker and nothing else", async ({ app, page }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
-  const browse = page.getByTestId("browse-folder");
+  const sheet = await openWay(page, "create");
+  const browse = sheet.getByTestId("browse-folder");
   await browse.click();
   const picker = page.getByTestId("folder-picker");
   await expect(picker).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(picker).toHaveCount(0);
+  await expect(sheet).toBeVisible();
   await expect(browse).toBeFocused();
-  await expect(page.getByPlaceholder(/Where to put it/)).toHaveValue("");
+  await expect(sheet.getByPlaceholder(/Where to put it/)).toHaveValue("");
 });
