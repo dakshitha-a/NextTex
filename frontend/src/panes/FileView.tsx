@@ -111,26 +111,29 @@ function ImageView({ source, name, path }: { source: string; name: string; path:
           />
         </div>
       </div>
-      <div className="flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]">
+      {/* The strip: the preview strip's recipe, 28 px on the second
+          surface with no rule, the pixel size at the left and the zoom
+          in a well at the right, Fit and Download beside it. */}
+      <div className="t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3">
         {natural ? (
-          <span className="t-micro tnum text-ink-3">
+          <span className="tnum">
             {natural.w} &times; {natural.h}
           </span>
         ) : null}
-        <span className="ml-auto flex items-center gap-1">
+        <span className="ml-auto flex shrink-0 items-center gap-1">
           <button
-            className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
+            className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
             aria-label="Zoom out"
             data-testid="image-zoom-out"
             onClick={() => setZoom((current) => stepFrom(current, fit, -1))}
           >
             &minus;
           </button>
-          <span className="t-micro tnum w-[38px] text-center text-ink-3" data-testid="image-zoom">
+          <span className="nx-strip-field w-[44px]" data-testid="image-zoom">
             {zoom === null ? "Fit" : `${Math.round(zoom * 100)}%`}
           </span>
           <button
-            className="nx-tap [--nx-tap-y:26px] nx-hover t-micro px-1 text-ink-2 hover:text-ink"
+            className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
             aria-label="Zoom in"
             data-testid="image-zoom-in"
             onClick={() => setZoom((current) => stepFrom(current, fit, 1))}
@@ -138,19 +141,11 @@ function ImageView({ source, name, path }: { source: string; name: string; path:
             +
           </button>
         </span>
-        {/* A rule and the footer's own gap between `+` and Fit, as the
-            page's footer has between its `+` and "Fit width".  The tap
-            area `nx-tap` draws is 44px wide around a 14px sign, and with
-            the two words 4px apart it lay over Fit, so a press on Fit was
-            answered by `+`, and Fit's own tap area, drawn later, took
-            presses meant for `+`.  Fit is `quiet` now, a word that is its
-            own target with the row's height for a finger, and the rule
-            puts the sign's reach short of it. */}
-        <Rule />
+        {/* Fit is a word that is its own target with the row's height for
+            a finger, clear of the sign's 44px reach by the gap. */}
         <button
-          className="quiet t-micro shrink-0"
+          className={`shrink-0 hover:text-ink ${zoom === null ? "text-ink" : ""}`}
           data-testid="image-fit"
-          data-tone={zoom === null ? "on" : undefined}
           onClick={() => setZoom(null)}
         >
           Fit
@@ -161,7 +156,7 @@ function ImageView({ source, name, path }: { source: string; name: string; path:
             person looking at the figure is looking. */}
         {projectId ? (
           <a
-            className="quiet t-micro shrink-0"
+            className="shrink-0 hover:text-ink"
             href={api.downloadUrl(projectId, { path })}
             download
             data-testid="image-download"
@@ -173,10 +168,6 @@ function ImageView({ source, name, path }: { source: string; name: string; path:
       </div>
     </>
   );
-}
-
-function Rule() {
-  return <span className="h-[10px] w-px shrink-0 bg-line" />;
 }
 
 export default function FileView({

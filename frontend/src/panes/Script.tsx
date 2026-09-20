@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import api from "../api";
 import type { ScriptResult } from "../api";
-import { RunIcon, StopIcon } from "../chrome";
+import { RunIcon, StopIcon } from "../ui/icons";
 import { useStore } from "../store";
 import { lastLine, outcomeLabel } from "../script-run";
 
@@ -95,29 +95,32 @@ export default function Script({
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="script-pane">
-      <div className="flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-b border-line bg-surface-2 px-[10px]">
-        <span className="t-micro truncate text-ink-2" title={path}>{path}</span>
+      {/* The strip: the preview strip's recipe, 28 px on the second
+          surface with no rule, the path in the mono, Run or Stop, and the
+          run's outcome at the right. */}
+      <div className="t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3">
+        <span className="t-code-sm truncate text-ink-2" title={path}>{path}</span>
         {running ? (
           <button
-            className="quiet nx-tap [--nx-tap-y:26px] t-micro flex items-center gap-1 text-ink-2 hover:text-ink"
+            className="nx-tap [--nx-tap-y:28px] flex shrink-0 items-center gap-1 hover:text-ink"
             data-testid="script-stop"
             onClick={() => onStop(path)}
           >
-            <StopIcon /> Stop
+            <StopIcon size={12} /> Stop
           </button>
         ) : (
           <button
-            className="quiet nx-tap [--nx-tap-y:26px] t-micro flex items-center gap-1 text-ink-2 hover:text-ink"
+            className="nx-tap [--nx-tap-y:28px] flex shrink-0 items-center gap-1 hover:text-ink"
             data-testid="script-run"
             title="Run this script"
             onClick={() => onRun(path)}
           >
-            <RunIcon /> Run
+            <RunIcon size={12} /> Run
           </button>
         )}
         <span
-          className={`t-micro tnum ml-auto ${
-            result && !result.ok && !running ? "text-error" : "text-ink-3"
+          className={`tnum ml-auto shrink-0 ${
+            result && !result.ok && !running ? "text-error" : ""
           }`}
           data-testid="script-outcome"
           aria-live="polite"

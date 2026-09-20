@@ -78,10 +78,13 @@ export default function PageWindow({ request }: { request: PageWindowRequest }) 
   }
   return (
     <div className="flex h-full flex-col bg-surface-2" data-testid="page-window">
-      <div className="flex h-[32px] shrink-0 items-center gap-2 border-b border-line bg-surface px-[10px]">
+      {/* The title row: 36 px on the second surface with no rule, like
+          the pane headers, the mark, the project at 500 and the document
+          in the third ink. */}
+      <div className="flex h-[36px] shrink-0 items-center gap-3 bg-surface-2 px-3">
         <Logo />
-        <span className="t-ui min-w-0 truncate text-ink">{projectName}</span>
-        <span className="t-micro min-w-0 truncate text-ink-3" data-testid="page-window-document">
+        <span className="t-ui min-w-0 truncate font-medium text-ink">{projectName}</span>
+        <span className="t-meta min-w-0 truncate text-ink-3" data-testid="page-window-document">
           {activePreview}
         </span>
       </div>
