@@ -205,6 +205,7 @@ const SURFACES: Record<string, Surface> = {
   access: {
     open: async (tab) => {
       await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-install").click();
       await tab.getByTestId("open-access").click();
       return tab.getByTestId("access-card");
     },

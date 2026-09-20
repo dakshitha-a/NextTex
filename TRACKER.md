@@ -40,6 +40,22 @@ there, a job application among the presets and Share on a row; the
 screenshots, README and design sections follow. What it leaves is
 written here as it is found.
 
+The workspace push went up as 3.0.0 on 20 September with every item of
+Phases 1 and 2 landed and compared with the page in both themes: the
+tokens, the type on one family, the kit and every overlay on it, the
+light theme lit throughout, the activity bar and one drawer with the
+eight instruments rebuilt, the strips and the tab strips, the master
+detail settings sheet, the Claude column with its views and composer,
+the editor's find strip and Vim bar, and the Git and Files drawers.
+Three things it left for the writer, on the tracker: the table hover
+card (item 2.10a) is drawn on the page as version 20 and waits on a
+yes before its code; the floating Claude pill keeps its earlier look
+because the page did not draw one; and the plan block in the column
+sits before the agent's words, as the transcript orders it, where the
+page drew it after. The CSS retirement of `.quiet` and `.ghost-button`
+follows the front door's rebuild (item 3.5), since those files still
+wear them.
+
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
