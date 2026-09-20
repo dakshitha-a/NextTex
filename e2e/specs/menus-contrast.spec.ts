@@ -153,6 +153,22 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "the card beside an image's row",
+    open: async (tab) => {
+      await filesDrawer(tab);
+      await openFolders(tab, "figures/plot.png");
+      await tab.locator('[role="tree"] [data-path="figures/plot.png"]').hover();
+      const card = tab.getByTestId("file-card");
+      await expect(card).toBeVisible({ timeout: 5_000 });
+      await expect(card.locator("img")).toBeVisible();
+      return card;
+    },
+    close: async (tab) => {
+      await tab.locator('[role="tree"] [data-path="main.tex"]').hover();
+      await expect(tab.getByTestId("file-card")).toHaveCount(0);
+    },
+  },
+  {
     name: "the papers chooser",
     open: async (tab) => {
       await rowMenu(tab, "references.bib", "Add papers from a folder…");

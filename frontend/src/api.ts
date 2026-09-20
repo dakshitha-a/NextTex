@@ -202,6 +202,8 @@ export type TreeNode = {
   /** For files only: how NextTex can show it. */
   kind?: "text" | "image" | "binary";
   size?: number;
+  /** For files only: when it last changed, as the server's clock has it. */
+  mtime?: number;
   children?: TreeNode[];
 };
 

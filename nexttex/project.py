@@ -498,15 +498,19 @@ class Project:
                 else:
                     suffix = child.suffix.lower()
                     try:
-                        size = child.stat().st_size
+                        stat = child.stat()
+                        size, mtime = stat.st_size, stat.st_mtime
                     except OSError:
-                        size = 0
+                        size, mtime = 0, 0.0
                     entries.append({
                         "name": child.name,
                         "path": self._relative_below(child),
                         "type": "file",
                         "kind": kind_of(child.name),
                         "size": size,
+                        # So a thumbnail cached per file is redrawn when
+                        # the file is, and not before.
+                        "mtime": mtime,
                     })
             return entries
 

@@ -331,6 +331,21 @@ the rows, which the page did not draw, is the one way to clear them. "Check the
 bibliography against its records" is the foot's one quiet action, there whenever there is
 a bibliography to check.
 
+A file the editor cannot edit has a card, raised by the writer in the same round. Resting
+the pointer on a tree row for an image, a PDF used as a figure or any other binary for
+400 ms, or moving the keyboard's focus to it, opens a card beside the row: a thumbnail in
+a 3:2 box on white whatever the theme, since a figure is drawn for a white page, the
+file's name, and one line with its size in pixels (points, for a page), its size in
+bytes and its folder, "1200 × 800, 145 KB, in figures". PNG, JPEG, GIF, WebP and SVG are
+the file itself; a PDF is its first page, drawn by the pdf.js the preview loads; anything
+else is the name and the size alone. It sits under the row's left edge, 48 px in, and
+moves above the row when the window has no room beneath. It takes no pointer events and
+has no controls, so it never sits between the pointer and the row; it goes when the
+pointer leaves, a key is pressed, the tree scrolls or a drag starts, and it never opens
+on a device that cannot hover, where a tap focuses a row and nothing would close it: the
+row's actions button is the way to the file there. A text file opens nothing, since the
+editor is where it is looked at.
+
 **Spacing scale:** 2 / 4 / 6 / 8 / 12 / 16 / 24 / 32; everything quantises to 4. Interactive
 row heights: 26 (tree rows, resolved cards), 28 (diagnostic rows, buttons), 32 (tabs), 26
 (status strip). Pane padding 8 horizontal / 6 vertical: this is an instrument, not a

@@ -25,6 +25,16 @@ const UploadStaging = lazy(() => import("./UploadStaging"));
 import { whatDidNotLand } from "../upload-report";
 import FolderChooser from "./FolderChooser";
 const PapersChooser = lazy(() => import("./PapersChooser"));
+const FileCard = lazy(() => import("./FileCard"));
+
+/** A row's box, as the card that opens beside it needs it. */
+type Anchor = { left: number; top: number; bottom: number; width: number };
+
+/** Whether this browser points with something that can hover.  A tablet
+ *  reports no hover, and there a tap that focuses a row must open nothing
+ *  it cannot dismiss; the row's actions button opens the file instead. */
+const CAN_HOVER = typeof window !== "undefined" && window.matchMedia?.("(hover: hover)").matches;
+const CARD_DELAY = 400;
 
 /** 13px is the width of a Source Sans lowercase n at 13px, so indentation
  *  reads as a typographic quad rather than an arbitrary gap. */
@@ -107,6 +117,35 @@ export default function FileTree({
   const [purged, setPurged] = useState<string>("");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
+  // The file a card is showing for, once a hover or a focus has rested on
+  // its row for long enough; only for a file the editor cannot edit.
+  const [card, setCard] = useState<{ node: TreeNode; anchor: Anchor } | null>(null);
+  const cardTimer = useRef<number | null>(null);
+  const armCard = (node: TreeNode, row: HTMLElement) => {
+    if (!CAN_HOVER || node.type !== "file" || node.kind === "text") return;
+    disarmCard();
+    cardTimer.current = window.setTimeout(() => {
+      cardTimer.current = null;
+      const box = row.getBoundingClientRect();
+      setCard({ node, anchor: { left: box.left, top: box.top, bottom: box.bottom, width: box.width } });
+    }, CARD_DELAY);
+  };
+  const disarmCard = () => {
+    if (cardTimer.current) window.clearTimeout(cardTimer.current);
+    cardTimer.current = null;
+    setCard(null);
+  };
+  // Gone when the tree scrolls under it, or the pointer leaves the tree.
+  useEffect(() => {
+    if (!card) return;
+    const hide = () => disarmCard();
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("keydown", hide, true);
+    return () => {
+      window.removeEventListener("scroll", hide, true);
+      window.removeEventListener("keydown", hide, true);
+    };
+  }, [card]);
   const [menuAt, setMenuAt] = useState<Wanted | null>(null);
   const [creating, setCreating] = useState<
     { parent: string; directory: boolean; fromBar?: boolean } | null
@@ -592,7 +631,14 @@ export default function FileTree({
         ].join(" ")}
         style={{ paddingLeft: 10 + depth * INDENT }}
         onClick={() => (isDirectory ? toggle(node.path) : onOpen(node.path))}
-        onFocus={() => setFocusPath(node.path)}
+        onFocus={(event) => {
+          setFocusPath(node.path);
+          if (event.target === event.currentTarget) armCard(node, event.currentTarget);
+        }}
+        onBlur={disarmCard}
+        onMouseEnter={(event) => armCard(node, event.currentTarget)}
+        onMouseLeave={disarmCard}
+        onMouseDown={disarmCard}
         onKeyDown={(event) => {
           // Only keys aimed at the row itself.  The rename box is a child
           // of it, so without this a space in a new name was swallowed and
@@ -626,6 +672,7 @@ export default function FileTree({
         draggable={renaming !== node.path}
         onDragStart={(event) => {
           event.stopPropagation();
+          disarmCard();
           event.dataTransfer.setData(NX_PATH, node.path);
           event.dataTransfer.effectAllowed = "move";
           dragging.current = node.path;
@@ -1197,6 +1244,11 @@ export default function FileTree({
             await moveEntry(path, to ?? "");
           }}
         />
+      ) : null}
+      {card && menu === null ? (
+        <Suspense fallback={null}>
+          <FileCard node={card.node} anchor={card.anchor} />
+        </Suspense>
       ) : null}
       {staging ? (
         <Suspense fallback={null}>

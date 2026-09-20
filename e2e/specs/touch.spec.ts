@@ -1,5 +1,8 @@
-import { expect, test } from "../fixtures";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { expect, test, openFolders } from "../fixtures";
 import { landed } from "../typing";
+import { png } from "../png";
 
 /** The tablet project: a real touch pointer, at a tablet's size and density.
  *
@@ -23,6 +26,22 @@ test("the controls that hide behind hover are visible without one", async ({
   const menu = tab.getByRole("button", { name: /^Actions for/ }).first();
   await expect(menu).toBeVisible();
   await expect(menu).toHaveCSS("opacity", "1");
+});
+
+test("a tap on a figure's row opens no card", async ({ tab, project }) => {
+  // The card beside an image row opens on hover and on focus, and a tap
+  // focuses a row; on a device that cannot hover there is no gesture that
+  // would close it again, so it is never opened.  The row's actions button
+  // is the way to the file here.
+  mkdirSync(join(project.root, "figures"), { recursive: true });
+  writeFileSync(join(project.root, "figures", "small.png"), png(120, 80));
+  await openFolders(tab, "figures/small.png");
+  const row = tab.locator('[role="tree"] [data-path="figures/small.png"]');
+  await row.waitFor();
+  await row.tap();
+  await row.focus();
+  await tab.waitForTimeout(700);
+  await expect(tab.getByTestId("file-card")).toHaveCount(0);
 });
 
 test("the smallest controls answer a finger", async ({ tab }) => {

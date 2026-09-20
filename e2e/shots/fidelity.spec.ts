@@ -2,6 +2,7 @@ import { test } from "../fixtures";
 import type { Locator, Page } from "@playwright/test";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { png as pngOf } from "../png";
 
 /** The fidelity pass: one surface at a time, beside the direction page.
  *
@@ -357,6 +358,28 @@ const SURFACES: Record<string, Surface> = {
      are full in the dark run and empty in the light one, as the page
      draws them; the harness cannot empty a project between themes, so
      the light Sections render is compared for its chrome only. */
+  "drawer-files-card": {
+    // The Files drawer with the card beside an image's row, as the page
+    // draws it: a 1200 by 800 plot named as the page names it.
+    open: async (tab) => {
+      if (ctx) {
+        fs.mkdirSync(path.join(ctx.root, "figures"), { recursive: true });
+        fs.writeFileSync(path.join(ctx.root, "figures", "decay-fit.png"), pngOf(1200, 800));
+      }
+      await showDrawer(tab, "files");
+      const folder = tab.locator('[role="tree"] [data-path="figures"]');
+      await folder.waitFor();
+      if ((await folder.getAttribute("aria-expanded")) !== "true") await folder.click();
+      const row = tab.locator('[role="tree"] [data-path="figures/decay-fit.png"]');
+      await row.waitFor({ timeout: 10_000 });
+      await row.hover();
+      await tab.getByTestId("file-card").locator("img").waitFor({ timeout: 10_000 });
+      return tab.locator(".nx-shell");
+    },
+    close: async (tab) => {
+      await tab.locator('[role="tree"] [data-path="main.tex"]').hover();
+    },
+  },
   "drawer-sections": {
     open: async (tab) => {
       await showDrawer(tab, "sections");

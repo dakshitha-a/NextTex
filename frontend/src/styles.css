@@ -1397,6 +1397,15 @@ button.nx-row { width: 100%; text-align: left; }
   box-shadow: var(--float);
   padding: 8px 10px;
 }
+/* A file's thumbnail on its card: a 3:2 box on white whatever the theme,
+   since a figure is drawn for a white page, with a hairline where the
+   white meets the card. */
+.nx-thumb {
+  width: 100%; aspect-ratio: 3 / 2; border-radius: var(--nx-radius-control);
+  background: #FFFFFF; box-shadow: inset 0 0 0 1px var(--line);
+  overflow: hidden; margin-bottom: 8px;
+}
+.nx-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .nx-sheet[data-list] { padding: 6px; display: flex; flex-direction: column; max-height: 70vh; }
 .nx-sheet[data-list] .nx-field { flex: none; margin: 0 0 6px; }
 .nx-sheet[data-list] ul { overflow-y: auto; margin: 0; padding: 0; list-style: none; }
