@@ -58,7 +58,7 @@ const Rendered = memo(function Rendered({ block, id }: { block: Block; id: strin
   if (block.kind === "code") {
     return (
       <pre
-        className="t-code-sm overflow-x-auto rounded-[3px] bg-surface-2 p-2 text-ink"
+        className="t-code-sm overflow-x-auto rounded-control bg-surface-2 p-2 text-ink"
         data-line={block.line}
       >
         {block.text}

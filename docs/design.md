@@ -9073,3 +9073,21 @@ with Replace and closes with Escape; `keymaps.spec.ts` reads NORMAL and
 INSERT on the bar with no dashes; the fidelity harness renders
 `find-vim`, the source pane with both, beside the page's dark strips
 drawing.
+
+## 52. The preview's find, the prose blocks and the empty states on the kit
+
+Item 2.11. The page field itself was already as the page draws it: the
+page on paper white with the one hairline and the one shadow the
+direction keeps, on the surround, with 16 px above and 24 px beside. The
+preview's find bar was a 30 px strip of its own idiom, a bordered input
+and three glyph buttons; it is the editor's find strip now, 40 px on the
+second surface with the kit's field and the search icon, the count ("1
+of 4", "Nothing found" in the warning colour), previous and next as icon
+buttons and the close, so the two finds read as one feature, which the
+page did not draw for the preview and which follows from drawing it for
+the editor. The two empty states that offer a basic document use the
+kit's ghost button. In Claude's prose and the Markdown pane a code
+block and an inline code span take the control radius, a quote a 2 px
+rule, and the copy control on a block is the kit's inline ghost button,
+shown on hover where hover exists. Collaborators was already on the
+kit's menu and rows. The fidelity harness renders `pdf-find`.

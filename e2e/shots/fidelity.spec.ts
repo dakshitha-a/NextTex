@@ -425,6 +425,20 @@ const SURFACES: Record<string, Surface> = {
       await tab.keyboard.press("Escape");
     },
   },
+  "pdf-find": {
+    // The preview's find bar over the page field: the same strip the
+    // editor's find is.
+    open: async (tab) => {
+      await tab.locator(".nx-page").first().waitFor({ timeout: 60_000 });
+      await tab.locator(".nx-page").first().click();
+      await tab.keyboard.press("Control+f");
+      await tab.getByTestId("pdf-find-bar").waitFor();
+      await tab.getByTestId("pdf-find").fill("section");
+      await tab.waitForTimeout(400);
+      return tab.getByTestId("preview-pane");
+    },
+    close: async (tab) => { await tab.getByTestId("pdf-find-close").click(); },
+  },
   "claude-welcome": {
     // An empty conversation: the welcome with its three cards, and "/rev"
     // typed so the prompt menu shows over the composer.

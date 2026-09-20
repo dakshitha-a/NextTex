@@ -3,8 +3,9 @@ import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import api from "../api";
 import { get, useStore } from "../store";
-import { Segmented } from "../ui/controls";
-import { ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
+import { Button, IconButton } from "../ui/Button";
+import { Field, Segmented } from "../ui/controls";
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon, SearchIcon } from "../ui/icons";
 import { uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
 import type { WordHint } from "./locate-word";
@@ -1221,13 +1222,17 @@ export default function Pdf({
         // Above the page rather than in the footer: the editor's own find
         // sits at the top of its pane, and the footer is a 26px strip that
         // already drops controls at narrow widths.
+        // The same strip the editor's find is: the field with the icon,
+        // the count, previous and next, and the close, on the second
+        // surface, so the two finds read as one feature.
         <div
-          className="flex h-[30px] shrink-0 items-center gap-2 border-b border-line bg-surface px-2"
+          className="flex h-[40px] shrink-0 items-center gap-[6px] bg-surface-2 px-[10px]"
           data-testid="pdf-find-bar"
         >
-          <input
+          <Field
             ref={findBox}
-            className="t-ui min-w-0 flex-1 rounded-[3px] border border-line bg-surface-2 px-[6px] py-[1px] text-ink"
+            frameClassName="h-[28px] min-w-0 flex-1 !bg-surface"
+            leading={<SearchIcon size={14} />}
             placeholder="Find on the page"
             data-testid="pdf-find"
             value={query}
@@ -1244,35 +1249,23 @@ export default function Pdf({
               }
             }}
           />
-          <span className="t-micro tnum shrink-0 text-ink-3" data-testid="pdf-find-count">
+          <span
+            className={`t-meta tnum shrink-0 ${query.trim() && !hits.length ? "text-warn" : "text-ink-3"}`}
+            data-testid="pdf-find-count"
+          >
             {query.trim()
               ? hits.length ? `${at + 1} of ${hits.length}` : "Nothing found"
               : ""}
           </span>
-          <button
-            className="quiet t-micro shrink-0"
-            onClick={() => stepHit(-1)}
-            disabled={!hits.length}
-            aria-label="Previous match"
-          >
-            ‹
-          </button>
-          <button
-            className="quiet t-micro shrink-0"
-            onClick={() => stepHit(1)}
-            disabled={!hits.length}
-            aria-label="Next match"
-          >
-            ›
-          </button>
-          <button
-            className="quiet t-micro shrink-0"
-            onClick={closeFind}
-            aria-label="Close find"
-            data-testid="pdf-find-close"
-          >
-            ×
-          </button>
+          <IconButton label="Previous match" onClick={() => stepHit(-1)} disabled={!hits.length}>
+            <ChevronUpIcon size={14} />
+          </IconButton>
+          <IconButton label="Next match" onClick={() => stepHit(1)} disabled={!hits.length}>
+            <ChevronDownIcon size={14} />
+          </IconButton>
+          <IconButton label="Close find" onClick={closeFind} data-testid="pdf-find-close">
+            <CloseIcon size={14} />
+          </IconButton>
         </div>
       ) : null}
       <div
@@ -1331,12 +1324,9 @@ export default function Pdf({
                 that already works.
               </p>
               {onLoadTemplate ? (
-                <button
-                  className="ghost-button mt-4 px-3 py-2 t-ui"
-                  onClick={onLoadTemplate}
-                >
+                <Button variant="ghost" className="mt-4" onClick={onLoadTemplate}>
                   Load a basic document
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
@@ -1352,12 +1342,9 @@ export default function Pdf({
                 under + as soon as it exists.
               </p>
               {onLoadTemplate ? (
-                <button
-                  className="ghost-button mt-4 px-3 py-2 t-ui"
-                  onClick={onLoadTemplate}
-                >
+                <Button variant="ghost" className="mt-4" onClick={onLoadTemplate}>
                   Start a basic document
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>

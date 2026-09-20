@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, type ReactNode } from "react";
+import { Button } from "../ui/Button";
 
 /** Just enough Markdown for what an agent writes about a document.
  *
@@ -116,7 +117,7 @@ export function inline(text: string, keyPrefix: string): ReactNode[] {
       nodes.push(
         <code
           key={key}
-          className="t-code-sm rounded-[3px] bg-surface-2 px-[3px] py-[1px]"
+          className="t-code-sm rounded-control bg-surface-2 px-[3px] py-[1px]"
         >
           {token.slice(1, -1)}
         </code>,
@@ -182,7 +183,7 @@ const Rendered = memo(function Rendered(
   if (block.kind === "code") {
     return (
       <div className="group relative">
-        <pre className="t-code-sm overflow-x-auto rounded-[3px] bg-surface-2 p-2">
+        <pre className="t-code-sm overflow-x-auto rounded-control bg-surface-2 p-2">
           {block.text}
         </pre>
         <CopyButton text={block.text} />
@@ -210,7 +211,7 @@ const Rendered = memo(function Rendered(
   }
   if (block.kind === "quote") {
     return (
-      <blockquote className="border-l border-line pl-3 italic text-ink-2">
+      <blockquote className="border-l-2 border-line pl-3 italic text-ink-2">
         {inline(block.text, key)}
       </blockquote>
     );
@@ -233,8 +234,10 @@ const Rendered = memo(function Rendered(
 function CopyButton({ text }: { text: string }) {
   const [said, setSaid] = useState<"" | "Copied" | "Could not copy">("");
   return (
-    <button
-      className="ghost-button absolute right-1 top-1 h-[22px] px-2 t-micro hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100"
+    <Button
+      variant="ghost"
+      size="inline"
+      className="absolute right-1 top-1 hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100"
       data-testid="code-copy"
       onClick={() => {
         const clipboard = navigator.clipboard;
@@ -250,7 +253,7 @@ function CopyButton({ text }: { text: string }) {
       }}
     >
       {said || "Copy"}
-    </button>
+    </Button>
   );
 }
 
