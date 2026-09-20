@@ -345,6 +345,20 @@ const SURFACES: Record<string, Surface> = {
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
     },
   },
+  "agent-sheet": {
+    open: async (tab) => {
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("set-up-agent").click();
+      await tab.getByTestId("agent-sheet").waitFor();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
   "folder-picker": {
     open: async (tab) => {
       await tab.getByTestId("switch-project").click();

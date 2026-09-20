@@ -13,7 +13,7 @@ test("sign-in choices", async ({ app, page }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.evaluate(() => window.localStorage.setItem("nexttex.theme", "dark"));
   await page.reload();
-  await expect(page.getByText("How would you like to work?")).toBeVisible({
+  await expect(page.getByRole("dialog", { name: "What writes with you" })).toBeVisible({
     timeout: 20_000,
   });
   await page.screenshot({ path: "shots/out-signin.png",

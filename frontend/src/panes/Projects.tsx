@@ -220,6 +220,7 @@ export default function Projects({
   // The strapline names whichever agent is configured, and says nothing
   // about one at all when the writer chose to work on their own.
   const provider = useStore((s) => s.agent?.provider);
+  const agentReady = useStore((s) => s.agent?.ready);
   // Why the editor just closed on its own: the folder went away from
   // under it.  The row below says the folder is missing, as it does for
   // one that went while the server was down, but not that this is the
@@ -513,7 +514,7 @@ export default function Projects({
             onClick={onChangeAgent}
           >
             <SparkIcon size={14} />
-            {provider === "none" ? "No agent" : agentName(provider)}
+            {provider === "none" ? "No agent" : agentReady === false ? "Not set up" : agentName(provider)}
             <ChevronDownIcon size={11} />
           </button>
         ) : null}

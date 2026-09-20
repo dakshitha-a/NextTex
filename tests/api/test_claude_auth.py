@@ -86,14 +86,14 @@ def test_a_whole_sign_in_runs_from_the_url_to_the_done(monkeypatch, tmp_path):
     assert "exit" not in kinds
 
 
-def test_the_screen_waits_for_the_event_the_server_sends(client):
-    """Text, not behaviour: it reads SignIn.tsx and checks which event name
-    it waits for.  The behaviour is covered above and by the browser tier
-    (`e2e/specs/sign-in.spec.ts`); this is only here to fail loudly if the
-    name is changed on one side of the wire and not the other."""
+def test_the_sheet_waits_for_the_event_the_server_sends(client):
+    """Text, not behaviour: it reads AgentSheet.tsx and checks which event
+    name it waits for.  The behaviour is covered above and by the browser
+    tier (`e2e/specs/sign-in.spec.ts`); this is only here to fail loudly if
+    the name is changed on one side of the wire and not the other."""
     screen = (
         __import__("pathlib").Path(__file__).resolve().parents[2]
-        / "frontend" / "src" / "panes" / "SignIn.tsx"
+        / "frontend" / "src" / "panes" / "AgentSheet.tsx"
     ).read_text(encoding="utf-8")
     assert 'payload.type === "done"' in screen
     assert 'payload.type === "exit"' not in screen

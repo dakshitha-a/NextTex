@@ -50,30 +50,37 @@ copied out of it, does not carry your credentials.
 *Asserted by: the token in a link gets the writer in, and leaves the bar
 clean.*
 
-## 2. Choose how you want to work
+## 2. Choose what writes with you
 
-Three options, and the third is a real one:
+A sheet, "What writes with you", opens over the projects list with three
+choices as rows, and the third is a real one:
 
-- **With Claude**: signs in through the Claude CLI's own login, driven from
-  this page. You never touch a terminal, which is the point: NextTex is often
+- **Claude**: signs in through the Claude CLI's own login, driven from the
+  row. You never touch a terminal, which is the point: NextTex is often
   running on a machine you reach from a laptop.
-- **With ChatGPT**: an OpenAI API key. This is an API key rather than a
-  ChatGPT subscription; usage bills your OpenAI account.
-- **On my own**: no agent. The editor, the preview, the version history, the
-  trash, the diagnostics, the reference tools and the git panel all work
-  exactly the same. The chat column is not there at all rather than sitting
-  greyed out.
+- **ChatGPT, or a model on this machine**: an OpenAI API key. This is an API
+  key rather than a ChatGPT subscription; usage bills your OpenAI account. A
+  local server such as Ollama is the same row with its address and the
+  model's name instead of a key.
+- **No agent**: the editor, the preview, the version history, the trash, the
+  diagnostics, the reference tools and the git panel all work exactly the
+  same. The chat column is not there at all rather than sitting greyed out.
 
-You can change this later, and nothing you write depends on the choice. Two
-routes come back to this screen: the projects screen names the agent beside
-the cog, and *Settings → Change* goes to the same place. If you installed
-with no agent, both read *Set up* instead. Choosing Claude on a machine that
-has no `claude` on it offers to install it there and then, running the same
-vendor installer the terminal installer runs, with its output on the page.
+The chosen row opens to hold its own setup; the filled button at the foot
+says what it will do, *Use no agent* or *Keep Claude*. You can change this
+later, and nothing you write depends on the choice. Three routes come back
+to the same sheet: the control in the projects screen's app bar that names
+the agent, *Settings → Writing agent → Change*, and the name at the top of
+the Claude column inside a project. If you installed with no agent, the bar
+reads *No agent* and the row reads *Set up* instead. Choosing Claude on a
+machine that has no `claude` on it offers to install it there and then,
+running the same vendor installer the terminal installer runs, with its
+output in the row.
 
-*Asserted by: a fresh install asks how you want to work, not who you are;
-choosing to work alone gets straight to the projects; signing in shows the
-link, takes the code, and lets the writer in.*
+*Asserted by: a fresh install asks what writes with you, over its list, and
+cannot be left unanswered; choosing to work alone closes the sheet and
+leaves the list; signing in shows the link, takes the code, and lets the
+writer in.*
 
 ## 3. Add a project
 

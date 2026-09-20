@@ -8439,6 +8439,39 @@ The rare states (this platform cannot, this install was removed, this
 copy is not in its share) keep their sentences on the same sheet, the
 removed one with "Keep it as a project of my own" at the foot's left.
 
+The writing agent (item 3.1c, 20 September, asked for by the writer in the
+projects round: "make it intuitive") is chosen and set up in one sheet,
+"What writes with you", drawn on version 12 of the page and built as drawn:
+the title at the display size, one paragraph saying it is one choice for
+the install and that NextTex is a LaTeX editor first, then the three choices
+as rows of a radio group, each a title and its one-line explanation, the
+chosen one on the wash and opening to hold its own setup under the
+explanation. Claude's row has "Sign in" as a ghost button beside the
+sentence saying it opens a page to authorise and comes back, or, once
+signed in, who as; "Console or SSO instead" sits at the end of that sentence
+as an inline button, since the page's one button did not draw the console
+flow the screen had, and the streamed CLI output, the authorise link and
+the code field appear in the row while a sign-in runs, as they did on the
+screen. A machine without the CLI gets "Install the Claude CLI" in the same
+place. The ChatGPT row holds the key, the model and the base URL as three
+fields with the two sentences the screen had. The foot is Cancel and one
+filled button that says what it does, "Keep Claude" when nothing changed,
+"Use ChatGPT" or "Use no agent" when the choice moved; Claude is chosen by
+signing in inside its row, so its button only keeps. The sheet is one
+component, `AgentSheet.tsx`, where `SignIn.tsx` was a screen: the `signin`
+view in `App.tsx` and the `signinReturnable` dance that told the boot case
+from the opened case are gone, and the three doors, the app bar's agent
+control, the settings sheet's Writing agent row and the Claude column's own
+name (now a control with its chevron on hover), open the same dialog. At
+first boot it opens over the empty list rather than being a screen of its
+own; nothing writes with you yet and there is nothing to go back to, so
+that one time it has no Cancel and Escape does nothing, and "Use no agent"
+is one press; the bar's control reads "Not set up" until a choice is made.
+A browser the server no longer knows (a password changed, a session signed
+out) used to be sent to this screen, which could do nothing for it; it now
+asks for the page again without the stale token, and the server's own
+sign-in page answers.
+
 ## 45. The second roadmap run: the checks
 
 The roadmap's second run, worked in September 2026, took eight items in

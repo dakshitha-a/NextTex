@@ -90,6 +90,30 @@ const OPENED: {
     },
   },
   {
+    name: "agent-sheet",
+    open: async (tab) => {
+      // Through the settings sheet's row, which is there at every width;
+      // the column's own door is off screen while the column overlays.
+      // The settings entry before this one can leave its sheet open, or
+      // opening, when the lazy sheet was not yet visible as it looked; the
+      // cog's own aria-expanded says which, so it is pressed only when
+      // the sheet is really closed.
+      const cog = tab.getByTestId("appearance").first();
+      if ((await cog.getAttribute("aria-expanded")) !== "true") await cog.click();
+      const settings = tab.getByTestId("settings-sheet");
+      await settings.waitFor({ state: "visible", timeout: 10_000 });
+      await tab.getByTestId("settings-group-install").click();
+      await tab.getByTestId("change-agent").click();
+      return tab
+        .getByTestId("agent-sheet")
+        .isVisible()
+        .catch(() => false);
+    },
+    close: async (tab) => {
+      await tab.getByTestId("agent-cancel").click().catch(() => undefined);
+    },
+  },
+  {
     name: "row-menu",
     open: async (tab) => {
       const row = tab.getByLabel(/^Actions for /).first();
@@ -223,6 +247,6 @@ test("no surface clips text without saying so, at any width", async ({
   // run, so if one stops opening the locator has rotted rather than the
   // surface having become clean.
   expect([...visited].sort()).toEqual([
-    "diagnostics", "download-menu", "row-menu", "settings",
+    "agent-sheet", "diagnostics", "download-menu", "row-menu", "settings",
   ]);
 });

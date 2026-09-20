@@ -179,11 +179,14 @@ export default function Chat({
   onHoverEdit,
   onFold,
   onAddContext,
+  onChangeAgent,
   handleRef,
 }: {
   onShowEdit: (path: string, line: number) => void;
   onHoverEdit: (path: string, range: [number, number] | null) => void;
   onFold?: () => void;
+  /** The header's name opens the sheet that chooses the writing agent. */
+  onChangeAgent?: () => void;
   onAddContext?: (kind: "style" | "voice" | "template") => void;
   handleRef: (handle: ChatHandle) => void;
 }) {
@@ -542,6 +545,8 @@ export default function Chat({
         <ColumnHeader
           title={name}
           testid="chat-header"
+          onTitle={onChangeAgent}
+          titleLabel={`Writing with ${name}. Change it.`}
           onFold={onFold}
           onClick={(event) => {
             // The whole row folds the column, as a pane header does, but a

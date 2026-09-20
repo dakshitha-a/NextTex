@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { IconButton } from "../ui/Button";
 import { Heading } from "../ui/controls";
-import { ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
 
 /** The Claude column's header row, as the direction page draws it: the
  *  title at the left, whatever the row carries, and the icon buttons at
@@ -18,8 +18,14 @@ export function ColumnHeader({
   children,
   testid,
   onClick,
+  onTitle,
+  titleLabel,
 }: {
   title: string;
+  /** The title is a control: inside a project it is how the sheet that
+   *  chooses the writing agent is reached. */
+  onTitle?: () => void;
+  titleLabel?: string;
   onBack?: () => void;
   backLabel?: string;
   backTestid?: string;
@@ -36,7 +42,23 @@ export function ColumnHeader({
           <ChevronLeftIcon />
         </IconButton>
       ) : null}
-      <Heading level={2} className="mr-2 shrink-0">{title}</Heading>
+      {onTitle ? (
+        <Heading level={2} className="shrink-0">
+          <button
+            type="button"
+            className="nx-column-agent"
+            aria-label={titleLabel}
+            title={titleLabel}
+            data-testid="agent-open"
+            onClick={onTitle}
+          >
+            {title}
+            <ChevronDownIcon size={11} />
+          </button>
+        </Heading>
+      ) : (
+        <Heading level={2} className="mr-2 shrink-0">{title}</Heading>
+      )}
       {children}
       {onFold ? (
         <IconButton label="Fold this panel away" onClick={onFold}>

@@ -11,7 +11,7 @@ describe("what the browser tab says", () => {
     // The store keeps the last project's name while the list shows, so the
     // screen decides, not the name.
     expect(pageTitle("projects", "Thesis", "")).toBe("NextTex");
-    expect(pageTitle("signin", "Thesis", "")).toBe("NextTex");
+    expect(pageTitle("offline", "Thesis", "")).toBe("NextTex");
     expect(pageTitle("loading", "", "")).toBe("NextTex");
   });
 

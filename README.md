@@ -239,7 +239,7 @@ tried separately so a platform it has no build for loses sharing rather than
 the install. TinyTeX if you want one, or MiKTeX on Windows, and `tlmgr` to
 add whichever of the five tools are missing. A writing agent, if any.
 Nothing is installed unless you say Claude, the default is none, and the app
-asks again on its first screen. The interface built for this commit,
+asks again, in a sheet over its projects list, the first time it opens. The interface built for this commit,
 downloaded rather than built, with Node 20+ used only if that download
 fails. Whether the server answers on localhost only or also on your tailnet.
 And a `systemd --user` unit on Linux, a launchd agent on macOS, or a logon

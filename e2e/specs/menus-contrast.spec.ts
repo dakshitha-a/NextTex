@@ -433,6 +433,20 @@ const SURFACES: Surface[] = [
       await tab.getByTestId("share-close").click();
     },
   },
+  {
+    name: "the agent sheet",
+    open: async (tab) => {
+      // Through the settings sheet's row: the column is an overlay at
+      // this width, so its own door is not on screen.
+      await tab.getByTestId("appearance").first().click();
+      await tab.getByTestId("settings-group-install").click();
+      await tab.getByTestId("change-agent").click();
+      return tab.getByTestId("agent-sheet");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("agent-cancel").click();
+    },
+  },
 ];
 
 /** Put the project in the state the surfaces expect: a figure to collide

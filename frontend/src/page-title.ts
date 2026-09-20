@@ -9,7 +9,7 @@
  *  this reading the store.  A named install (`--instance`) keeps its name
  *  at the end, where it was. */
 export function pageTitle(
-  view: "loading" | "offline" | "signin" | "projects" | "editor",
+  view: "loading" | "offline" | "projects" | "editor",
   projectName: string,
   instance: string,
 ): string {

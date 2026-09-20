@@ -83,7 +83,7 @@ const SharePanel = lazy(() => import("./panes/SharePanel"));
 const CommandPalette = lazy(() => import("./panes/CommandPalette"));
 /** The sign-in screen is a whole screen, and a machine that is signed in
  *  never draws it; fetched when it is shown. */
-const SignIn = lazy(() => import("./panes/SignIn"));
+const AgentSheet = lazy(() => import("./panes/AgentSheet"));
 /** The version panel and the strip that says you are looking at an old
  *  version.  Two exports of one module, so they arrive together in one
  *  chunk -- and the strip is only ever reachable through the panel, so by
@@ -205,7 +205,7 @@ function pathsIn(node: any): string[] {
 
 export default function App() {
   const [view, setView] = useState<
-    "loading" | "offline" | "signin" | "projects" | "editor"
+    "loading" | "offline" | "projects" | "editor"
   >(
     "loading",
   );
@@ -310,7 +310,9 @@ export default function App() {
   /** Whether the agent screen was opened by somebody, as opposed to being
    *  shown at boot because no agent has been chosen yet. Only the second
    *  has nowhere to go back to. */
-  const [signinReturnable, setSigninReturnable] = useState(false);
+  // "What writes with you", the one sheet the agent is chosen and set up
+  // in, over whichever screen is showing.
+  const [agentOpen, setAgentOpen] = useState(false);
   const pdf = useRef<PdfHandle | null>(null);
   /** Tabs closed in this session, newest last, so the last one can come
    *  back. A ref rather than state: nothing draws it, and putting it in
@@ -415,13 +417,20 @@ export default function App() {
           // the pair above, because a slow `which` must not hold up the
           // first screen, and nothing on it needs the answer.
           void api.tools().then((tools) => set({ tools })).catch(() => undefined);
-          if (!status?.ready) setView("signin");
-          else await resumeOrList();
+          // An install whose agent is not set up yet gets the sheet over
+          // its list rather than a screen of its own; the list, and
+          // everything but the Claude column, works without one.
+          if (!status?.ready) setAgentOpen(true);
+          await resumeOrList();
           return;
         } catch (problem: any) {
           if (landingAfter(problem) === "signin") {
-            set({ agent: null });
-            setView("signin");
+            // The server no longer knows this browser: the password
+            // changed, or the session was signed out.  Its own sign-in
+            // page is the way back, and it draws before the bundle is
+            // authorised, so the page is asked for again without the
+            // stale token in the address.
+            window.location.replace(window.location.pathname);
             return;
           }
           // A server that answered said something; a server that is not
@@ -1314,15 +1323,23 @@ export default function App() {
    *  exists.  `onDone` puts the writer back where they were. */
   const changeAgent = useCallback(() => {
     setTutorialOpen(false);
-    // Opened by somebody, so there is somewhere to go back to. The screen
-    // is also shown at boot, when there is not, and the two cases have to
-    // be told apart exactly rather than guessed at from whether a project
-    // happens to exist: an install that chose no agent and has not made a
-    // project yet reached this screen from the project list and had no way
-    // back off it.
-    setSigninReturnable(true);
-    setView("signin");
+    setAgentOpen(true);
   }, []);
+  const agentStanding = useStore((s) => s.agent);
+
+  /** The one sheet the agent is chosen in, over the list or the editor. */
+  const agentSheet = agentOpen ? (
+    <Suspense fallback={null}>
+      <AgentSheet
+        standing={agentStanding}
+        onClose={() => setAgentOpen(false)}
+        onDone={async () => {
+          setAgentOpen(false);
+          set({ agent: await api.agentStatus().catch(() => null) });
+        }}
+      />
+    </Suspense>
+  ) : null;
 
   /** Hand a question about the selection to the agent.
    *
@@ -2060,41 +2077,17 @@ export default function App() {
       </div>
     );
   }
-  if (view === "signin") {
-    return (
-      <Suspense fallback={null}>
-      <SignIn
-        // Present when this screen was opened rather than shown. At boot no
-        // agent has been chosen and there is genuinely nowhere to go, and
-        // that is the only case without a way out.
-        onCancel={
-          signinReturnable
-            ? () => {
-                setSigninReturnable(false);
-                void resumeOrList();
-              }
-            : undefined
-        }
-        onDone={async () => {
-          setSigninReturnable(false);
-          set({ agent: await api.agentStatus().catch(() => null) });
-          // Back to whatever was being written, the same way a reload
-          // gets there.  Signing in again after a session expires should
-          // not cost the writer their place.
-          void resumeOrList();
-        }}
-      />
-      </Suspense>
-    );
-  }
   if (view === "projects") {
     return (
-      <Projects
-        onOpen={openProject}
-        canClose={Boolean(projectId)}
-        onClose={() => setView("editor")}
-        onChangeAgent={changeAgent}
-      />
+      <>
+        <Projects
+          onOpen={openProject}
+          canClose={Boolean(projectId)}
+          onClose={() => setView("editor")}
+          onChangeAgent={changeAgent}
+        />
+        {agentSheet}
+      </>
     );
   }
 
@@ -2792,6 +2785,7 @@ export default function App() {
             window.setTimeout(() => chat.current?.showReads(kind), 60);
           }}
           onFold={() => (chatOver ? setChatOpen(false) : fold("chat"))}
+          onChangeAgent={changeAgent}
           handleRef={(handle) => (chat.current = handle)}
           onShowEdit={(path, line) => openFile(path, line)}
           onHoverEdit={(path, range) => {
@@ -2812,6 +2806,7 @@ export default function App() {
           />
         </Suspense>
       ) : null}
+      {agentSheet}
       {sharing && projectId ? (
         <Suspense fallback={null}>
           <SharePanel
