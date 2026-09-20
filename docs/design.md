@@ -9000,3 +9000,29 @@ ninth button from the bar's arrival until this, which the tracker
 carried as a deviation from the page's eight; the welcome's actions
 reach it through the column's handle, opening the column first when it
 was folded or away.
+
+The composer is one card on the first surface, 8 px round, with what
+goes with the question as chips at its top (the selection, "Lines 43 to
+45 of main.tex go with this", and any attached image with its
+thumbnail and a remove), the box with no border of its own and the
+placeholder "Ask Claude, or type / for a prompt" ("or answer above"
+while a card waits), and one row of tools under it: Attach an image,
+and one chip naming the model and what it asks about, "Sonnet 5, asks
+first" or "Sonnet 5, without asking" in the warning colour, which opens
+the one menu holding the model rows above a rule and the three
+positions below it, the arrows walking both as one list; an agent that
+never asks gets a chip with the model alone and a menu with one half.
+Two controls where there were six icons and a Send button. The status
+line sits between the chip and the send glyph and says something only
+when there is something to say: "Waiting on your answer", "Claude is
+working, yours will go next", "Enter to send" while a draft is typed.
+The send glyph is the pen's, a 28 px round with the arrow, grey while
+the draft is empty; Enter sends and Shift-Enter breaks a line. The
+"Template and voice" button went with the row it sat in: its three
+actions are the sections of What Claude reads. The new-conversation
+question and the sentence that lowers the fence entirely open above the
+card in the kit's confirmation block, the safe answer first and
+focused. The welcome keeps its text and its three actions as cards on
+the first surface, each naming what it adds and why; its second
+paragraph still names the control under the box rather than promising
+to ask, since the promise is true at one position and false at two.

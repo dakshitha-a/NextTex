@@ -149,17 +149,10 @@ const SURFACES: Record<string, Surface> = {
       await tab.waitForTimeout(150);
     },
   },
-  "mode-menu": {
-    open: async (tab) => {
-      await tab.getByTestId("auto-toggle").click();
-      return tab.getByTestId("mode-menu");
-    },
-    close: escape,
-  },
-  "model-menu": {
+  "composer-menu": {
     open: async (tab) => {
       await tab.getByTestId("model-open").click();
-      return tab.getByTestId("model-menu");
+      return tab.getByTestId("composer-menu");
     },
     close: escape,
   },
@@ -403,6 +396,21 @@ const SURFACES: Record<string, Surface> = {
       await tab.getByTestId("clear-chat").click();
       await tab.getByTestId("clear-confirm").click();
       await tab.getByTestId("permission-card").waitFor({ state: "detached" });
+    },
+  },
+  "claude-welcome": {
+    // An empty conversation: the welcome with its three cards, and "/rev"
+    // typed so the prompt menu shows over the composer.
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("/rev");
+      await tab.getByTestId("prompt-menu").waitFor({ timeout: 10_000 }).catch(() => undefined);
+      return tab.getByTestId("chat");
+    },
+    close: async (tab) => {
+      await tab.locator("textarea").fill("");
+      await tab.locator(".cm-content").click();
     },
   },
   "claude-past": {

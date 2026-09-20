@@ -203,7 +203,7 @@ test("the agent column, mid-turn and at rest", async ({ tab }) => {
     await shot(tab, "16-card-answered", theme, 1600);
 
     // Auto mode: the chip, and a card that arrives already answered.
-    await tab.getByTestId("auto-toggle").click();
+    await tab.getByTestId("model-open").click();
     await tab.getByTestId("mode-project").click();
     await tab.waitForTimeout(200);
     await shot(tab, "17-auto-on", theme, 1600);
@@ -239,8 +239,8 @@ test("the agent panel's new surfaces", async ({ app, project, tab }) => {
     // The control, open, with all three positions and what each one says.
     // It is drawn only once the panel has heard back that this agent is the
     // kind that ever asks, which is one round trip after the first paint.
-    await tab.getByTestId("auto-toggle").waitFor({ timeout: 20_000 });
-    await tab.getByTestId("auto-toggle").click();
+    await tab.getByTestId("model-open").waitFor({ timeout: 20_000 });
+    await tab.getByTestId("model-open").click();
     await tab.waitForTimeout(250);
     await shot(tab, "21-mode-menu", theme, 1600);
 

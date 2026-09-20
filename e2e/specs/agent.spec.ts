@@ -193,7 +193,7 @@ test("a new conversation empties the panel and keeps the tally", async ({
   await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
   // The welcome message is what an empty conversation looks like, so a
   // cleared one lands on the right surface without anything extra.
-  await expect(tab.getByRole("button", { name: /voice/i }).first()).toBeVisible();
+  await expect(tab.getByRole("button", { name: /sample of your writing/ })).toBeVisible();
 
   // Cleared conversations do not clear what the project has cost: the
   // sum is one sentence at the foot of the past conversations.
@@ -231,7 +231,7 @@ test("what the project has cost is read at the foot of the past conversations", 
 });
 
 async function setMode(page: Page, option: "ask" | "project" | "all") {
-  await page.getByTestId("auto-toggle").click();
+  await page.getByTestId("model-open").click();
   await page.getByTestId(`mode-${option}`).click();
 }
 
@@ -272,7 +272,7 @@ test("the middle position still asks about what leaves the machine", async ({
 });
 
 test("the quietest position is behind a sentence, not a click", async ({ tab }) => {
-  await tab.getByTestId("auto-toggle").click();
+  await tab.getByTestId("model-open").click();
   await tab.getByTestId("mode-all").click();
   // Not switched on yet: the confirmation is open, and the safe answer has
   // focus because this one ends the fence.
@@ -285,7 +285,7 @@ test("the quietest position is behind a sentence, not a click", async ({ tab }) 
   await expect(tab.getByTestId("auto-chip")).toHaveCount(0);
 
   // And through it, the chip says which position it landed in.
-  await tab.getByTestId("auto-toggle").click();
+  await tab.getByTestId("model-open").click();
   await tab.getByTestId("mode-all").click();
   await tab.getByTestId("all-confirm").click();
   await expect(tab.getByTestId("auto-chip")).toHaveText("Auto, all");
@@ -300,26 +300,26 @@ test("the mode menu closes from the button that opened it", async ({ tab }) => {
   // Every toggle popover in this app has to pass its trigger to
   // `useDismiss`, or the press that dismisses arrives in the capture phase
   // and it closes and immediately reopens.
-  const control = tab.getByTestId("auto-toggle");
+  const control = tab.getByTestId("model-open");
   await control.click();
   await expect(tab.getByTestId("mode-menu")).toBeVisible();
   await control.click();
   await expect(tab.getByTestId("mode-menu")).toBeHidden();
 });
 
-test("the mode menu keeps the promise of its role", async ({ tab }) => {
-  // It claimed role="menu" and offered none of what that means, which
-  // TRACKER.md carried for a year.  Focus goes to the current choice's
-  // row when it opens, the arrows walk the three, and Escape gives the
-  // bolt its focus back.
-  const control = tab.getByTestId("auto-toggle");
+test("the menu under the chip keeps the promise of its role", async ({ tab }) => {
+  // One menu holds the model rows and, below a rule, the three positions.
+  // Focus lands on the model in use when it opens, the arrows walk both
+  // halves as one list, and Escape gives the chip its focus back.
+  const control = tab.getByTestId("model-open");
   await control.click();
+  await expect(tab.getByTestId("model-menu")).toBeVisible();
   await expect(tab.getByTestId("mode-menu")).toBeVisible();
-  await expect(tab.getByTestId("mode-ask")).toBeFocused();
-  await tab.keyboard.press("ArrowDown");
-  await expect(tab.getByTestId("mode-project")).toBeFocused();
+  await expect(tab.getByTestId("model-menu").getByRole("menuitemradio", { checked: true })).toBeFocused();
   await tab.keyboard.press("End");
   await expect(tab.getByTestId("mode-all")).toBeFocused();
+  await tab.keyboard.press("ArrowUp");
+  await expect(tab.getByTestId("mode-project")).toBeFocused();
   await tab.keyboard.press("Escape");
   await expect(tab.getByTestId("mode-menu")).toBeHidden();
   await expect(control).toBeFocused();
@@ -692,7 +692,7 @@ test("an image can be attached to a question, and taken off again", async ({
   await expect(chips).toContainText("table.png");
   await expect(chips.locator("img")).toBeVisible();
 
-  await tab.getByTestId("attachment-remove").click();
+  await chips.getByRole("button", { name: /Take table.png off/ }).click();
   await expect(tab.getByTestId("attachments")).toHaveCount(0);
 });
 
@@ -855,7 +855,7 @@ test("the permission menu marks its position the way the model menu does", async
   // the current choice with a four-pixel dot; this one marked it with a
   // background fill alone, so the same question was answered two different
   // ways and a reader had to learn the second one rather than read it.
-  await tab.getByTestId("auto-toggle").click();
+  await tab.getByTestId("model-open").click();
   await expect(tab.getByTestId("mode-menu")).toBeVisible();
 
   // The dot is the kit's: a ::before on the item, filled when the item is
@@ -873,7 +873,7 @@ test("the permission menu marks its position the way the model menu does", async
 
   // And it follows the choice.
   await tab.getByTestId("mode-project").click();
-  await tab.getByTestId("auto-toggle").click();
+  await tab.getByTestId("model-open").click();
   expect(await filled("project")).toBe(chosen);
   expect(await filled("ask")).toBe("rgba(0, 0, 0, 0)");
 });
@@ -926,7 +926,7 @@ test("a conversation that was filed away can be read, and not acted on", async (
   await tab.getByTestId("past-back").click();
   await tab.getByTestId("past-back").click();
   await expect(tab.getByTestId("past-conversations")).toHaveCount(0);
-  await expect(tab.getByRole("button", { name: /voice/i }).first()).toBeVisible();
+  await expect(tab.getByRole("button", { name: /sample of your writing/ })).toBeVisible();
   await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
 });
 

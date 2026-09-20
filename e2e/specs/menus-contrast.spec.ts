@@ -321,17 +321,10 @@ const SURFACES: Surface[] = [
     },
   },
   {
-    name: "the model menu",
+    name: "the menu under the composer's chip",
     open: async (tab) => {
       await tab.getByTestId("model-open").click();
-      return tab.getByTestId("model-menu");
-    },
-  },
-  {
-    name: "the mode menu",
-    open: async (tab) => {
-      await tab.getByTestId("auto-toggle").click();
-      return tab.getByTestId("mode-menu");
+      return tab.getByTestId("composer-menu");
     },
   },
   {

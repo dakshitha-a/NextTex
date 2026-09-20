@@ -19,16 +19,10 @@ import Prose from "./prose";
 // conversation, and the list and its renderers should not ship ahead of that.
 const PastConversation = lazy(() => import("./PastConversation"));
 const ContextPanel = lazy(() => import("./ContextPanel"));
-// The three popovers under the composer, for the same reason: each draws
-// nothing until its trigger is pressed, and most sessions press none.
-const ModelMenu = lazy(() =>
-  import("./ComposerMenus").then((m) => ({ default: m.ModelMenu })),
-);
-const ModeMenu = lazy(() =>
-  import("./ComposerMenus").then((m) => ({ default: m.ModeMenu })),
-);
-const SetupPanel = lazy(() =>
-  import("./ComposerMenus").then((m) => ({ default: m.SetupPanel })),
+// The menu under the composer's chip, for the same reason: it draws
+// nothing until the chip is pressed, and most sessions never press it.
+const ComposerMenu = lazy(() =>
+  import("./ComposerMenus").then((m) => ({ default: m.ComposerMenu })),
 );
 // And the prompt menu, which draws only while the draft starts with `/`.
 const PromptMenu = lazy(() =>
@@ -45,7 +39,10 @@ import { shortRule } from "./short-rule";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
 import { agentName } from "../agent-name";
 import { foldTools, foldedSentence, type ShownItem, type ToolGroup } from "./tool-fold";
-import { ChevronDownIcon, ChevronRightIcon, ContextIcon, HistoryIcon, PlusIcon } from "../ui/icons";
+import {
+  ChevronDownIcon, ChevronRightIcon, ClipIcon, ContextIcon, HistoryIcon, PlusIcon, SendIcon, SlidersIcon,
+} from "../ui/icons";
+import { Chip } from "../ui/controls";
 import { IconButton } from "../ui/Button";
 import { ColumnHeader } from "./column-header";
 import { MODE_TITLES } from "./mode-words";
@@ -232,18 +229,23 @@ export default function Chat({
   // A ref does not re-render, so the "yours will go next" line read a count
   // that only changed when something else happened to redraw the panel.
   const [queuedCount, setQueuedCount] = useState(0);
-  const [setupOpen, setSetupOpen] = useState(false);
   const projectId = useStore((s) => s.projectId);
   const [usage, setUsage] = useState<Awaited<ReturnType<typeof api.usage>> | null>(null);
-  const [modelOpen, setModelOpen] = useState(false);
+  /** The chip's word for the model in use. */
+  const modelName =
+    usage?.models?.find((entry) => entry.id === usage?.model)?.name ?? "Default";
+  /** The one menu under the chip: the model, and what the agent asks
+   *  about. */
+  const [menuOpen, setMenuOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   /** Which of the column's three views is up: the conversation, the
    *  filed-away ones, or what the agent reads. */
   const [view, setView] = useState<"live" | "past" | "reads">("live");
   const [readsFor, setReadsFor] = useState<"style" | "voice" | null>(null);
   const readsButton = useRef<HTMLButtonElement | null>(null);
-  const modelRef = useRef<HTMLDivElement | null>(null);
-  const modelButton = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  /** The chip, which the menu and the "all" confirmation give focus back to. */
+  const modeButton = useRef<HTMLButtonElement | null>(null);
   // The two blocks that open *above* the composer.  They come before the
   // box in the DOM and their buttons come after it, so Tab from a trigger
   // walks away from the thing it just opened -- focus has to be moved by
@@ -251,8 +253,6 @@ export default function Chat({
   const confirmRef = useRef<HTMLDivElement | null>(null);
   const clearButton = useRef<HTMLButtonElement | null>(null);
   const keepButton = useRef<HTMLButtonElement | null>(null);
-  const setupRef = useRef<HTMLDivElement | null>(null);
-  const setupButton = useRef<HTMLButtonElement | null>(null);
   // Every focus inside this panel is `preventScroll`, for the reason given
   // over `handleRef` below: the panel can be outside the shell when one of
   // these runs, and a focus that scrolls takes the whole window with it.
@@ -260,24 +260,18 @@ export default function Chat({
     setConfirmClear(false);
     clearButton.current?.focus({ preventScroll: true });
   }, []);
-  const closeSetup = useCallback(() => {
-    setSetupOpen(false);
-    setupButton.current?.focus({ preventScroll: true });
-  }, []);
   useDismiss(confirmRef, confirmClear, closeConfirm, clearButton);
-  useDismiss(setupRef, setupOpen, closeSetup, setupButton);
   useDismiss(
-    modelRef,
-    modelOpen,
-    useCallback(() => setModelOpen(false), []),
-    modelButton,
+    menuRef,
+    menuOpen,
+    useCallback(() => setMenuOpen(false), []),
+    modeButton,
   );
   const mode = useStore((s) => s.mode);
   // Only the Claude agent ever puts a card up, so only it is offered the
   // control: one on the others would promise a change that does not
   // happen.
   const [asks, setAsks] = useState(false);
-  const [modeOpen, setModeOpen] = useState(false);
   /** Images waiting to go with the next question. Local state rather than
    *  the store, because nothing outside this panel needs them and they are
    *  gone the moment Send is pressed. `url` is an object URL for the
@@ -298,8 +292,6 @@ export default function Chat({
   // confirmation opens above the composer, in the same idiom as the
   // new-conversation question, and the popover closes on the way.
   const [confirmAll, setConfirmAll] = useState(false);
-  const modeRef2 = useRef<HTMLDivElement | null>(null);
-  const modeButton = useRef<HTMLButtonElement | null>(null);
   const confirmAllRef = useRef<HTMLDivElement | null>(null);
   const keepAskingButton = useRef<HTMLButtonElement | null>(null);
   const closeConfirmAll = useCallback(() => {
@@ -308,7 +300,7 @@ export default function Chat({
   }, []);
   const chooseMode = async (chosen: "ask" | "project" | "all") => {
     if (!projectId) return;
-    setModeOpen(false);
+    setMenuOpen(false);
     if (chosen === "all" && mode !== "all") {
       setConfirmAll(true);
       // Into the block and onto the safe half of it. The block opens
@@ -330,17 +322,11 @@ export default function Chat({
       set({ error: error.message });
     }
   };
-  useDismiss(
-    modeRef2,
-    modeOpen,
-    useCallback(() => setModeOpen(false), []),
-    modeButton,
-  );
   useDismiss(confirmAllRef, confirmAll, closeConfirmAll, modeButton);
   /** Switch the model this project's agent answers on. */
   const chooseModel = async (chosen: string) => {
     if (!projectId) return;
-    setModelOpen(false);
+    setMenuOpen(false);
     try {
       const answer = await api.setModel(projectId, chosen);
       setUsage(await api.usage(projectId));
@@ -704,21 +690,22 @@ export default function Chat({
       >
         {chat.length === 0 ? (
           <div className="nx-arrive flex">
-            <span className="w-[3px] shrink-0 bg-pen" />
-            <div className="ml-3 min-w-0 flex-1">
-              <div className="t-micro mb-1 text-pen">{name}</div>
-              <div className="t-prose text-ink">
+            <div className="nx-turn min-w-0 flex-1">
+              <div className="nx-turn-who"><span>{name}</span></div>
+              <div className="t-prose mt-[2px] text-ink">
                 <Prose text={welcome(name, provider !== "openai")} />
               </div>
-              <div className="mt-3 flex flex-col gap-2">
+              {/* The three things that most improve the help, as cards on
+                  the first surface: each names what it adds and why. */}
+              <div className="mt-1 flex flex-col gap-[6px]">
                 {WELCOME_ACTIONS.map((action) => (
                   <button
                     key={action.kind}
-                    className="ghost-button nx-press px-3 py-2 text-left"
+                    className="nx-welcome-card"
                     onClick={() => onAddContext?.(action.kind)}
                   >
-                    <span className="t-ui block">{action.label}</span>
-                    <span className="t-meta block text-ink-2">{action.detail}</span>
+                    <b>{action.label}</b>
+                    <span>{action.detail}</span>
                   </button>
                 ))}
               </div>
@@ -737,64 +724,7 @@ export default function Chat({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-line p-[8px]">
-        {setupOpen ? (
-          <Suspense fallback={null}>
-            <SetupPanel
-              ref={setupRef}
-              onPick={(kind) => {
-                setSetupOpen(false);
-                onAddContext?.(kind);
-              }}
-            />
-          </Suspense>
-        ) : null}
-        {/* What is going with the question. Above the composer beside the
-            selection chip, with a thumbnail, because an image attached by
-            accident to a question about something else is worse than no
-            attachment and the only way to notice is to see it. */}
-        {attached.length || attaching ? (
-          <div
-            className="mb-[6px] flex flex-wrap items-center gap-[6px]"
-            data-testid="attachments"
-          >
-            {attached.map((one) => (
-              <span
-                key={one.path}
-                className="flex h-[26px] items-center gap-[6px] rounded-[3px] bg-surface-2 pl-[3px] pr-1"
-              >
-                <img
-                  src={one.url}
-                  alt=""
-                  className="h-[20px] w-[20px] rounded-[2px] object-cover"
-                />
-                <span className="t-micro max-w-[14ch] truncate text-ink-2">
-                  {one.name}
-                </span>
-                <button
-                  className="quiet flex h-[16px] w-[16px] items-center justify-center rounded-[2px] hover:bg-surface-3"
-                  aria-label={`Take ${one.name} off this question`}
-                  data-testid="attachment-remove"
-                  onClick={() => drop(one.path)}
-                >
-                  <svg width="8" height="8" viewBox="0 0 9 9" aria-hidden="true">
-                    <path
-                      d="M1 1 L8 8 M8 1 L1 8"
-                      stroke="currentColor"
-                      strokeWidth="1.2"
-                      fill="none"
-                    />
-                  </svg>
-                </button>
-              </span>
-            ))}
-            {attaching ? (
-              <span className="t-micro text-ink-3">
-                {attaching === 1 ? "Adding an image" : `Adding ${attaching} images`}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
+      <div className="shrink-0 px-3 pb-[10px] pt-2">
         {/* Turning the fence off entirely is answered in place above the
             composer, in the same idiom as the new-conversation question and
             for the same reason: the sentence needs room, and this app has
@@ -810,51 +740,48 @@ export default function Chat({
             id="nx-all-confirm"
             role="group"
             aria-label="Stop asking about anything"
-            className="mb-2 flex rounded-[5px] border border-line bg-surface-2"
+            className="nx-confirm !mt-0 mb-2 !bg-surface"
           >
-            <span className="w-[3px] shrink-0 rounded-l-[5px] bg-warn" />
-            <div className="min-w-0 flex-1 p-2">
-              <p className="t-meta text-ink">
-                Nothing will ask. The agent will be able to write outside this
-                project, run any command and reach the internet, with no card.
-              </p>
-              <p className="t-meta mt-2 text-ink-2">
-                Some of its instructions come from this project&rsquo;s own
-                files, and those arrive from templates, clones and co-authors.
-                A sentence in somebody else&rsquo;s .bib file is an
-                instruction it may follow.
-              </p>
-              <p className="t-meta mt-2 text-ink-2">
-                Everything is still recorded in this conversation, so you can
-                read afterwards what was done.
-              </p>
-              <div className="mt-2 flex flex-wrap gap-[6px]">
-                <button
-                  ref={keepAskingButton}
-                  className="ghost-button h-[26px] shrink-0 whitespace-nowrap px-3 t-ui"
-                  data-testid="all-keep"
-                  onClick={closeConfirmAll}
-                >
-                  Keep asking about those two
-                </button>
-                <button
-                  className="h-[26px] shrink-0 whitespace-nowrap rounded-[3px] border border-warn px-3 t-ui text-warn"
-                  data-testid="all-confirm"
-                  onClick={async () => {
-                    if (!projectId) return;
-                    setConfirmAll(false);
-                    try {
-                      await api.setMode(projectId, "all");
-                      set({ mode: "all" });
-                    } catch (error: any) {
-                      set({ error: error.message });
-                    }
-                    modeButton.current?.focus({ preventScroll: true });
-                  }}
-                >
-                  Stop asking
-                </button>
-              </div>
+            <p className="t-meta text-ink">
+              Nothing will ask. The agent will be able to write outside this
+              project, run any command and reach the internet, with no card.
+            </p>
+            <p className="t-meta mt-2 text-ink-2">
+              Some of its instructions come from this project&rsquo;s own
+              files, and those arrive from templates, clones and co-authors.
+              A sentence in somebody else&rsquo;s .bib file is an
+              instruction it may follow.
+            </p>
+            <p className="t-meta mt-2 text-ink-2">
+              Everything is still recorded in this conversation, so you can
+              read afterwards what was done.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-[6px]">
+              <Button
+                ref={keepAskingButton}
+                variant="ghost"
+                data-testid="all-keep"
+                onClick={closeConfirmAll}
+              >
+                Keep asking about those two
+              </Button>
+              <Button
+                className="!text-warn"
+                data-testid="all-confirm"
+                onClick={async () => {
+                  if (!projectId) return;
+                  setConfirmAll(false);
+                  try {
+                    await api.setMode(projectId, "all");
+                    set({ mode: "all" });
+                  } catch (error: any) {
+                    set({ error: error.message });
+                  }
+                  modeButton.current?.focus({ preventScroll: true });
+                }}
+              >
+                Stop asking
+              </Button>
             </div>
           </div>
         ) : null}
@@ -864,7 +791,7 @@ export default function Chat({
             id="nx-clear-confirm"
             role="group"
             aria-label="Start a new conversation"
-            className="mb-2 rounded-[3px] border border-line bg-surface-2 p-2"
+            className="nx-confirm !mt-0 mb-2 !bg-surface"
           >
             <p className="t-meta text-ink-2">
               Start a new conversation? The record of this one is kept on
@@ -872,25 +799,18 @@ export default function Chat({
             </p>
             {/* The safe answer carries the weight, and it is the one that
                 takes focus, because the default answer to "shall I throw
-                this away" is no. It was the other way round: `Start new`
-                was the ghost-button at --ink and `Keep this one` was quiet
-                at --ink-3, which is the ink section 19 gives to `\include`
-                rows that cannot be chosen. The app was drawing the answer
-                it recommends in the colour it uses for things you cannot
-                pick, on the confirmation that ends a conversation. */}
+                this away" is no. */}
             <div className="mt-2 flex gap-[6px]">
-              <button
+              <Button
                 ref={keepButton}
-                className="ghost-button h-[26px] px-3 t-ui"
+                variant="ghost"
                 autoFocus
                 data-testid="clear-keep"
                 onClick={closeConfirm}
               >
                 Keep this one
-              </button>
-              <button
-                className="quiet t-ui h-[26px] rounded-[3px] border border-line px-3"
-                data-tone="danger"
+              </Button>
+              <Button
                 data-testid="clear-confirm"
                 onClick={async () => {
                   if (!projectId) return;
@@ -906,203 +826,154 @@ export default function Chat({
                 }}
               >
                 Start new
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
-        {/* What the question is about to carry. Shown because the agent
-            answering about a passage the writer no longer has in mind is
-            baffling if there was never anything on screen saying it had
-            been attached -- and because seeing it is how you learn that
-            selecting a paragraph first is worth doing. */}
-        {selected && selected.text.trim() ? (
-          <div
-            data-testid="selection-chip"
-            className="t-micro mb-[6px] flex items-baseline gap-[6px] rounded-[3px] border border-line bg-surface-2 px-[8px] py-[4px] text-ink-3"
-          >
-            <span className="text-ink-2">
-              {selected.fromLine === selected.toLine
-                ? `Line ${selected.fromLine}`
-                : `Lines ${selected.fromLine}\u2013${selected.toLine}`}
-            </span>
-            <span className="min-w-0 truncate">
-              of {selected.path.split("/").pop()} goes with this
-            </span>
-          </div>
-        ) : null}
-        <div className="relative">
-          {promptMenuOpen ? (
-            <Suspense fallback={null}>
-              <PromptMenu
-                prompts={offered}
-                selected={promptChosen}
-                onPick={pickPrompt}
-                onHover={setPromptRow}
-              />
-            </Suspense>
-          ) : null}
-          <textarea
-            ref={composer}
-            rows={3}
-            value={draft}
-            // Not disabled while a card is open, which is a deviation from
-            // the specification and is recorded in section 28. The writer's
-            // next question is very often about the thing the card is asking
-            // about, and a box that will not take typing has taken the
-            // conversation away at the one moment they have something to
-            // say. The queue that makes this safe already existed for a
-            // question asked mid-turn; a card open means a turn is running,
-            // so the question goes next rather than nowhere.
-            //
-            // The card's own keys stay bound to the card and not to the
-            // window, which is what makes a live composer safe: typing `a`
-            // into a textarea cannot answer a gate.
-            // A screenshot arrives as a file on the clipboard on all three
-            // platforms, so this is the whole of "paste an image": no
-            // permission, no dialog. A paste that is text falls through to
-            // the browser's own handling, which is what `take` returning
-            // early does.
-            onPaste={(event) => {
-              const files = Array.from(event.clipboardData?.files ?? []);
-              if (files.some((file) => file.type.startsWith("image/"))) {
-                event.preventDefault();
-                void take(files);
-              }
-            }}
-            onDragOver={(event) => {
-              if (Array.from(event.dataTransfer.types).includes("Files")) {
-                event.preventDefault();
-              }
-            }}
-            onDrop={(event) => {
-              const files = Array.from(event.dataTransfer.files ?? []);
-              if (files.some((file) => file.type.startsWith("image/"))) {
-                event.preventDefault();
-                void take(files);
-              }
-            }}
-            placeholder={blocked ? `Ask ${name}, or answer above` : `Ask ${name}`}
-            className={`t-ui w-full resize-none rounded-[3px] border bg-surface-2 px-2 py-[6px] outline-none transition-colors duration-[90ms] placeholder:text-ink-3 ${
-              blocked ? "border-warn" : "border-line"
-            }`}
-            onFocus={() => setFocusedComposer(true)}
-            onBlur={() => setFocusedComposer(false)}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              setPromptRow(0);
-              setPromptsAway(false);
-            }}
-            onKeyDown={(event) => {
-              // The prompt menu takes the keys a list takes while it is up;
-              // Enter completes the name rather than sending, which is the
-              // selection toolbar's rule: the writer sends on their own.
-              if (promptMenuOpen) {
-                if (event.key === "ArrowDown") {
-                  event.preventDefault();
-                  setPromptRow((promptChosen + 1) % offered.length);
-                  return;
-                }
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
-                  setPromptRow(
-                    (promptChosen - 1 + offered.length) % offered.length,
-                  );
-                  return;
-                }
-                if (event.key === "Enter" || event.key === "Tab") {
-                  event.preventDefault();
-                  pickPrompt(promptChosen);
-                  return;
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  setPromptsAway(true);
-                  return;
-                }
-              }
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                send();
-              }
-            }}
-          />
-        </div>
-        {/* The controls sit under the box rather than in the header: the
-            header is a 32px bar that already carries the name, what the
-            agent is doing, and the usage tally, and each of these is
-            something you reach for while writing the question. */}
-        <div className="mt-[6px] flex items-center gap-2">
-          <div className="flex shrink-0 items-center">
-            <div className="relative">
-              <button
-                ref={modelButton}
-                className={`${ICON} ${modelOpen ? ICON_ON : ""}`}
-                data-tone={modelOpen ? "on" : undefined}
-                aria-label="Which model answers here"
-                aria-expanded={modelOpen}
-                title={`Model: ${
-                  usage?.models?.find((entry) => entry.id === usage?.model)
-                    ?.name ?? "default"
-                }`}
-                data-testid="model-open"
-                onClick={() => setModelOpen((open) => !open)}
-              >
-                <Sliders />
-              </button>
-              {modelOpen ? (
-                <Suspense fallback={null}>
-                  <ModelMenu
-                    ref={modelRef}
-                    models={usage?.models ?? []}
-                    current={usage?.model ?? ""}
-                    onChoose={chooseModel}
-                  />
-                </Suspense>
+        {/* The composer is one card on the first surface, as the page
+            draws it: what goes with the question as chips at the top, the
+            box, and one row of tools under it. */}
+        <div className="nx-composer">
+          {attached.length || attaching || (selected && selected.text.trim()) ? (
+            <div className="flex flex-wrap items-center gap-[6px]" data-testid={attached.length || attaching ? "attachments" : undefined}>
+              {/* What the question is about to carry. Shown because the
+                  agent answering about a passage the writer no longer has
+                  in mind is baffling if nothing on screen said it had been
+                  attached, and because seeing it is how you learn that
+                  selecting a paragraph first is worth doing. */}
+              {selected && selected.text.trim() ? (
+                <Chip data-testid="selection-chip">
+                  {selected.fromLine === selected.toLine
+                    ? `Line ${selected.fromLine}`
+                    : `Lines ${selected.fromLine} to ${selected.toLine}`}{" "}
+                  of <span className="font-mono text-[11.5px]">{selected.path.split("/").pop()}</span> go
+                  {selected.fromLine === selected.toLine ? "es" : ""} with this
+                </Chip>
+              ) : null}
+              {/* An image attached by accident to a question about
+                  something else is worse than no attachment, and the only
+                  way to notice is to see it. */}
+              {attached.map((one) => (
+                <Chip
+                  key={one.path}
+                  className="!pl-[3px]"
+                  onRemove={() => drop(one.path)}
+                  removeLabel={`Take ${one.name} off this question`}
+                  data-testid="attachment"
+                >
+                  <img src={one.url} alt="" className="h-[16px] w-[16px] rounded-[2px] object-cover" />
+                  <span className="max-w-[14ch] truncate">{one.name}</span>
+                </Chip>
+              ))}
+              {attaching ? (
+                <span className="t-micro text-ink-3">
+                  {attaching === 1 ? "Adding an image" : `Adding ${attaching} images`}
+                </span>
               ) : null}
             </div>
-            {/* Only the Claude agent ever puts a card up, so only it is
-                offered the control: one on the others would promise a
-                change that does not happen.
-
-                Three positions rather than two, so this is a popover and
-                not a switch: `role="switch"` with `aria-checked` cannot
-                describe three states, and a control that cycles through
-                them on click makes the writer press it twice to find out
-                where they are. The popover opens upward and passes its
-                anchor to `useDismiss`, without which it would close on
-                `pointerdown` and reopen on `click`. */}
-            {asks ? (
-              <div className="relative">
-                <button
-                  ref={modeButton}
-                  className={`${ICON} ${mode !== "ask" ? ICON_ON : ""}`}
-                  data-tone={mode !== "ask" ? "warn" : undefined}
-                  aria-haspopup="menu"
-                  aria-expanded={modeOpen}
-                  aria-label={`What to ask about: ${MODE_TITLES[mode]}`}
-                  title="What to ask about"
-                  data-testid="auto-toggle"
-                  onClick={() => setModeOpen((open) => !open)}
-                >
-                  <Bolt />
-                </button>
-                {modeOpen ? (
-                  <Suspense fallback={null}>
-                    <ModeMenu
-                      ref={modeRef2}
-                      mode={mode}
-                      onChoose={chooseMode}
-                      onClose={() => setModeOpen(false)}
-                      onEscape={() => modeButton.current?.focus()}
-                    />
-                  </Suspense>
-                ) : null}
-              </div>
+          ) : null}
+          <div className="relative">
+            {promptMenuOpen ? (
+              <Suspense fallback={null}>
+                <PromptMenu
+                  prompts={offered}
+                  selected={promptChosen}
+                  onPick={pickPrompt}
+                  onHover={setPromptRow}
+                />
+              </Suspense>
             ) : null}
-            {/* The third route in. Pasting is how most images will arrive
-                and dropping is how the rest will, but neither is how
-                everybody works, and a control is also the only thing that
-                says the feature exists. */}
+            <textarea
+              ref={composer}
+              rows={2}
+              value={draft}
+              // Not disabled while a card is open, which is a deviation
+              // from the specification and is recorded in section 28. The
+              // writer's next question is very often about the thing the
+              // card is asking about, and a box that will not take typing
+              // has taken the conversation away at the one moment they
+              // have something to say. The queue that makes this safe
+              // already existed for a question asked mid-turn; a card
+              // open means a turn is running, so the question goes next
+              // rather than nowhere.
+              //
+              // The card's own keys stay bound to the card and not to the
+              // window, which is what makes a live composer safe: typing
+              // `a` into a textarea cannot answer a gate.
+              // A screenshot arrives as a file on the clipboard on all
+              // three platforms, so this is the whole of "paste an image":
+              // no permission, no dialog. A paste that is text falls
+              // through to the browser's own handling.
+              onPaste={(event) => {
+                const files = Array.from(event.clipboardData?.files ?? []);
+                if (files.some((file) => file.type.startsWith("image/"))) {
+                  event.preventDefault();
+                  void take(files);
+                }
+              }}
+              onDragOver={(event) => {
+                if (Array.from(event.dataTransfer.types).includes("Files")) {
+                  event.preventDefault();
+                }
+              }}
+              onDrop={(event) => {
+                const files = Array.from(event.dataTransfer.files ?? []);
+                if (files.some((file) => file.type.startsWith("image/"))) {
+                  event.preventDefault();
+                  void take(files);
+                }
+              }}
+              placeholder={blocked ? `Ask ${name}, or answer above` : `Ask ${name}, or type / for a prompt`}
+              className="nx-composer-box"
+              data-blocked={blocked || undefined}
+              onFocus={() => setFocusedComposer(true)}
+              onBlur={() => setFocusedComposer(false)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setPromptRow(0);
+                setPromptsAway(false);
+              }}
+              onKeyDown={(event) => {
+                // The prompt menu takes the keys a list takes while it is
+                // up; Enter completes the name rather than sending, which
+                // is the selection toolbar's rule: the writer sends on
+                // their own.
+                if (promptMenuOpen) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setPromptRow((promptChosen + 1) % offered.length);
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setPromptRow(
+                      (promptChosen - 1 + offered.length) % offered.length,
+                    );
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    pickPrompt(promptChosen);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setPromptsAway(true);
+                    return;
+                  }
+                }
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  send();
+                }
+              }}
+            />
+          </div>
+          {/* Two controls where there were six icons and a Send button:
+              Attach, and one chip naming the model and what it asks about,
+              which opens the one menu. The send glyph is the pen's, grey
+              while the draft is empty; Enter sends. */}
+          <div className="nx-composer-tools">
             <input
               ref={picker}
               type="file"
@@ -1115,64 +986,81 @@ export default function Chat({
                 event.target.value = "";
               }}
             />
-            <button
-              className={ICON}
-              aria-label="Attach an image"
+            <IconButton
+              label="Attach an image"
               title="Attach an image. You can also paste or drop one."
               data-testid="attach"
               onClick={() => picker.current?.click()}
             >
-              <Picture />
-            </button>
-            {/* The two things that most improve the help, kept reachable.
-                They used to live only in the welcome message, which
-                disappears the moment anything is asked -- so after the
-                first question there was no way back to them at all. */}
+              <ClipIcon />
+            </IconButton>
+            <div className="relative min-w-0">
+              <button
+                ref={modeButton}
+                type="button"
+                className="nx-mode-chip"
+                data-warn={mode !== "ask" || undefined}
+                data-on={menuOpen || undefined}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label={
+                  asks
+                    ? `Model and what to ask about: ${modelName}, ${MODE_TITLES[mode].toLowerCase()}`
+                    : `Which model answers here: ${modelName}`
+                }
+                title="Which model answers, and what it asks about"
+                data-testid="model-open"
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <SlidersIcon size={13} />
+                <span className="truncate">
+                  {modelName}
+                  {asks ? `, ${mode === "ask" ? "asks first" : "without asking"}` : ""}
+                </span>
+              </button>
+              {menuOpen ? (
+                <Suspense fallback={null}>
+                  <ComposerMenu
+                    ref={menuRef}
+                    models={usage?.models ?? []}
+                    current={usage?.model ?? ""}
+                    onChooseModel={chooseModel}
+                    asks={asks}
+                    mode={mode}
+                    onChooseMode={chooseMode}
+                    onClose={() => setMenuOpen(false)}
+                    onEscape={() => modeButton.current?.focus()}
+                  />
+                </Suspense>
+              ) : null}
+            </div>
+            {/* The change announces itself once rather than being
+                discovered. A card open used to print nothing here, because
+                the box beside it was dead. */}
+            <span className="nx-composer-hint">
+              {blocked
+                ? queuedCount
+                  ? "Waiting on your answer, yours will go next"
+                  : "Waiting on your answer"
+                : thinking
+                  ? queuedCount
+                    ? `${name} is working, yours will go next`
+                    : ""
+                  : focusedComposer && draft.trim()
+                    ? "Enter to send"
+                    : ""}
+            </span>
             <button
-              ref={setupButton}
-              className={`${ICON} ${setupOpen ? ICON_ON : ""}`}
-              data-tone={setupOpen ? "on" : undefined}
-              aria-label="Template and voice"
-              aria-expanded={setupOpen}
-              aria-controls={setupOpen ? "nx-setup" : undefined}
-              title="Give the agent a template to follow, or writing of yours to sound like"
-              data-testid="setup-open"
-              onClick={() => {
-                setConfirmClear(false);
-                // The panel puts focus on its first choice when it mounts.
-                setSetupOpen((open) => !open);
-              }}
+              type="button"
+              className="nx-send"
+              aria-label="Send"
+              data-testid="send"
+              disabled={!draft.trim()}
+              onClick={send}
             >
-              <Page />
+              <SendIcon size={14} />
             </button>
           </div>
-          {/* The change announces itself once rather than being
-              discovered. A card open used to print nothing here, because
-              the box beside it was dead. */}
-          <span className="t-micro min-w-0 flex-1 truncate text-ink-3">
-            {blocked
-              ? queuedCount
-                ? "Waiting on your approval · yours will go next"
-                : "Waiting on your approval"
-              : thinking
-                ? queuedCount
-                  ? `${name} is working · yours will go next`
-                  : ""
-                : focusedComposer
-                  ? "Enter to send"
-                  : ""}
-          </span>
-          <button
-            className={
-              draft.trim()
-                ? "pen-button h-[28px] shrink-0 px-3 t-ui"
-                : "h-[28px] shrink-0 rounded-[3px] border border-line px-3 t-ui text-ink-3"
-            }
-            disabled={!draft.trim()}
-            onClick={send}
-          >
-            Send
-          </button>
         </div>
       </div>
       </>
@@ -1180,63 +1068,6 @@ export default function Chat({
     </div>
   );
 }
-
-/** The shared box for a control under the composer: the size, the corner
- *  and the hover, in one place so the four of them cannot drift apart. */
-const ICON =
-  "quiet flex h-[26px] w-[26px] items-center justify-center rounded-[3px] transition-colors duration-[90ms] hover:bg-surface-3 disabled:opacity-40 disabled:hover:bg-transparent";
-const ICON_ON = "bg-surface-3";
-
-/** The shared attributes of the four icons under the composer.  They are
- *  drawn here rather than pulled from an icon set because four of them cost
- *  a few hundred bytes and a library costs tens of kilobytes on a bundle
- *  that is already close to its budget. */
-const stroke = {
-  width: 13,
-  height: 13,
-  viewBox: "0 0 13 13",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.3,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-};
-
-function Sliders() {
-  return (
-    <svg {...stroke} aria-hidden="true">
-      <path d="M1.8 3.4h9.4M1.8 6.5h9.4M1.8 9.6h9.4" />
-      <circle cx="4.3" cy="3.4" r="1.15" />
-      <circle cx="8.4" cy="6.5" r="1.15" />
-      <circle cx="5.4" cy="9.6" r="1.15" />
-    </svg>
-  );
-}
-
-/** A bolt: the fence is down and nothing stops to ask. */
-function Bolt() {
-  return (
-    <svg {...stroke} aria-hidden="true">
-      <path d="M7.4 1.4 3.2 7.2h2.9l-.5 4.4 4.2-5.8H7z" />
-    </svg>
-  );
-}
-
-/** A page: the template to follow and the writing to sound like. */
-function Page() {
-  return (
-    <svg {...stroke} aria-hidden="true">
-      <path d="M3 1.6h4.4L10 4.2v7.2H3z" />
-      <path d="M7.4 1.6v2.6H10" />
-      <path d="M4.6 7h3.8M4.6 9.1h2.6" />
-    </svg>
-  );
-}
-
-/** What the tool did, in the words a writer would use.
- *
- *  `mcp__nexttex__insert_at_cursor` is how the protocol names it; nobody
- *  writing a thesis should have to read that. */
 
 /** A path or a command, cut to something that fits a 32px header beside
  *  the agent's name.  The tail of a path is the part that identifies it. */
@@ -1259,31 +1090,6 @@ function shorten(text: string, limit = 28): string {
  *  turn's plan, replaced in place as later calls revise it. `ToolSearch`
  *  genuinely is plumbing, and stays. */
 const HIDDEN_TOOLS = new Set(["ToolSearch"]);
-
-/** A picture, at the weight of the other four icons under the composer.
- *
- *  Hand drawn like the rest of them, for the reason section 19 gives: an
- *  icon set would have been faster and would have cost tens of kilobytes on
- *  a bundle with very little headroom. */
-function Picture() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="2" y="3.5" width="12" height="9" rx="1.2" />
-      <path d="M2.6 11 L6 7.8 L8.4 10" />
-      <circle cx="10.4" cy="6.6" r="1.05" />
-    </svg>
-  );
-}
 
 const Item = memo(function Item({
   item,

@@ -1426,6 +1426,48 @@ button.nx-reads-x:hover { color: var(--error); }
 button.nx-reads-x[data-always]:hover { color: var(--pen); }
 @media (hover: none) { .nx-reads-x { opacity: 1; } }
 
+/* The composer: one card on the first surface with the chips, the box
+   and one row of tools; the chip naming the model and what it asks about;
+   the send glyph in the pen colour, grey while there is nothing to send. */
+.nx-composer {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px 8px; border-radius: var(--nx-radius-card); background: var(--surface);
+}
+.nx-composer-box {
+  width: 100%; resize: none; min-height: 40px; padding: 0; margin: 0;
+  background: transparent; border: 0; outline: none; color: var(--ink);
+  font: inherit; line-height: 20px;
+}
+.nx-composer-box::placeholder { color: var(--ink-3); }
+.nx-composer-tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.nx-composer-tools .nx-icon-button { color: var(--ink-3); }
+.nx-composer-tools .nx-icon-button:hover { color: var(--ink); }
+.nx-composer-hint { flex: 1; min-width: 0; text-align: right; color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; }
+.nx-mode-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; height: 26px; padding: 0 8px;
+  border-radius: var(--nx-radius-control); color: var(--ink-3); font-size: 12.5px; white-space: nowrap;
+  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+}
+.nx-mode-chip > svg { flex: none; }
+.nx-mode-chip:hover, .nx-mode-chip[data-on] { background: var(--wash); color: var(--ink); }
+.nx-mode-chip[data-warn] { color: var(--warn); }
+.nx-send {
+  width: 28px; height: 28px; flex: none; border-radius: 14px;
+  background: var(--pen); color: var(--on-pen);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+}
+.nx-send:disabled { background: var(--surface-3); color: var(--ink-3); }
+.nx-welcome-card {
+  display: flex; flex-direction: column; text-align: left; width: 100%;
+  padding: 8px 12px; border-radius: var(--nx-radius-card); background: var(--surface);
+  transition: background-color 90ms var(--ease);
+}
+.nx-welcome-card b { font-weight: 500; color: var(--ink); }
+.nx-welcome-card span { color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
+.nx-welcome-card:hover { background: var(--wash); }
+.nx-welcome-card:focus-visible { outline: 2px solid var(--hint); outline-offset: 2px; }
+
 /* The Claude column's turns, as the direction page draws them: a tool
    call or a folded run of them as one line in the third ink at 12.5 on
    17, flush with the column; the agent's turn behind a 2 px pen rule with
