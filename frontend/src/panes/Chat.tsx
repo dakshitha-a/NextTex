@@ -545,7 +545,7 @@ export default function Chat({
   }, [thinking, projectId]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface" data-testid="chat">
+    <div className="flex h-full min-h-0 flex-col bg-surface-2" data-testid="chat">
       <div
         className={`flex h-[32px] shrink-0 items-center gap-2 border-b border-line px-[10px] ${
           onFold ? "cursor-pointer transition-colors duration-[90ms] hover:bg-surface-2" : ""

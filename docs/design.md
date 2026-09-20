@@ -28,6 +28,17 @@ white chrome around a white page makes the page stop reading as an object. It gi
 a light theme no other code editor has, keeps the UI permanently subordinate to the typeset
 page, and leaves violet free to mean exactly one thing: *Claude touched this*.
 
+*Revised in the visual overhaul, 19 September 2026.* The dark furniture is
+gone and the light theme is lit throughout: the rail, the agent column and
+the strips on `--surface-2`, the editor on `--surface`, the page field on
+`--surround`, all from the light palette. The argument above is about the
+field the page lies on, which stays a neutral grey and still makes the page
+read as an object; it was never about the rail, which does not touch the
+page, and a light editor bracketed by two black columns read as dark mode
+with a hole cut in it. Separation between chrome and editor is now a step
+of tone rather than a change of palette, which is what the light surfaces
+were re-stepped for in §2's table.
+
 Relationship to NexusQC, the sibling app, is deliberate:
 
 | Same hand | Different tool |
@@ -3341,6 +3352,13 @@ even inside a subtree that has since redeclared `--ink` for a dark ground.
 One line, `.nx-furniture { color: var(--ink) }`, retires the whole class
 of it. Anything else handed a palette by a class needs the same line.
 
+*Reversed in the visual overhaul, 19 September 2026.* The furniture selector
+and the class are gone from the stylesheet and from every mount; the light
+theme is light throughout, and the reasoning is appended to §1. What this
+section keeps as a record is the rule that a subtree handed a palette by a
+class restates its ink, which the kit's `nx-theme-light` and `nx-theme-dark`
+classes still obey.
+
 **`theme-color` was the wrong token.** The meta tag declared `#121614`, the
 dark theme's `--surface`, in both themes. The browser paints its own chrome
 with it, so it should be the app's outermost ground and it should follow the
@@ -3477,6 +3495,11 @@ of them and nothing on them is a document, so they take `.nx-furniture`
 whole rather than in parts. Leaving them out made the project list the one
 pale field in a light theme that had gone dark everywhere else: you set up
 a project in a dark interface, pressed Back, and the room changed colour.
+
+*Revised in the visual overhaul, 19 September 2026.* With the furniture
+gone these four screens take the theme's own palette like everything else,
+on `--surround`, and the room no longer changes colour on the way in or
+out because there is one palette per theme again.
 
 The project list needed more than a palette, though. It was a masthead, a
 form and a status line centred in an empty field, with nothing under any of
@@ -5898,7 +5921,10 @@ pale card in an app whose every other menu is dark furniture reads as
 unfinished rather than as considered.
 
 Both cards are furniture now, with the downloads menu's recipe. Three
-things came with the change:
+things came with the change (the first of which the visual overhaul has
+since undone with the furniture itself: a card over the editor now takes
+the shell's palette through the kit's `nx-theme-light` or `nx-theme-dark`
+class, which reaches the same case by a different route):
 
 - **The furniture selector is the bare class.** It was keyed on the light
   root, `:root[data-theme="light"] .nx-furniture`, and that missed one

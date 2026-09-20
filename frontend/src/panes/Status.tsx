@@ -92,7 +92,7 @@ export default function Status({
     // editor pane, which the user drags.  Segments drop out in order of how
     // little they are missed -- the path first, since the tab above says it.
     <div
-      className="nx-furniture @container group flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]"
+      className="@container group flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]"
     >
       {/* In four of the seven states this opens nothing, and it was a
           focusable button either way: somebody tabbing through the editor

@@ -105,7 +105,7 @@ export default function SettingsSheet({
         aria-modal="true"
         aria-label="Settings"
         data-testid="settings-sheet"
-        className="nx-furniture nx-arrive max-h-full w-[540px] max-w-full overflow-y-auto rounded-[5px] border border-line bg-surface shadow-float"
+        className="nx-arrive max-h-full w-[540px] max-w-full overflow-y-auto rounded-[5px] border border-line bg-surface shadow-float"
       >
         <div className="flex items-center justify-between px-[12px] pt-[10px] pb-[8px]">
           <span className="t-ui text-ink">Settings</span>

@@ -440,7 +440,7 @@ export default function Projects({
 
   return (
     <div
-      className="nx-furniture nx-projects h-full bg-surround"
+      className="nx-projects h-full bg-surround"
       // Whether this is a phone is decided in shell pixels, the way the
       // editor decides its narrow layouts, so the interface size counts
       // (`layout.ts`, `BREAKPOINTS.phone`).  A media query would judge the

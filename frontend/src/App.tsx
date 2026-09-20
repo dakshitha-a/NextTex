@@ -2005,7 +2005,7 @@ export default function App() {
     // it is an absence. This is the first thing anybody sees, and on a slow
     // first connection it was the only thing, for as long as it took.
     return (
-      <div className="nx-furniture flex h-full items-center justify-center bg-surround">
+      <div className="flex h-full items-center justify-center bg-surround">
         <p className="t-ui text-ink-3" role="status">
           Opening NextTex
         </p>
@@ -2019,7 +2019,7 @@ export default function App() {
     // by "not answering", which would be a false statement about a machine
     // that is listening.
     return (
-      <div className="nx-furniture flex h-full items-center justify-center bg-surround">
+      <div className="flex h-full items-center justify-center bg-surround">
         <div className="text-center">
           <p className="t-ui text-ink">Waiting for NextTex</p>
           <p className="t-meta mt-1 text-ink-2">
@@ -2087,7 +2087,6 @@ export default function App() {
         <Collapsed
           label="Files"
           side="left"
-          furniture
           onExpand={() => {
             railByHand.current = true;
             setRailHidden(false);
@@ -2097,7 +2096,7 @@ export default function App() {
       ) : (
         <>
           <div
-            className="nx-furniture nx-pane flex min-h-0 shrink-0 flex-col bg-surface"
+            className="nx-pane flex min-h-0 shrink-0 flex-col bg-surface-2"
             style={{ width: widths.rail }}
           >
             {/* No rule under this: the Files header below carries it, so
@@ -2736,7 +2735,6 @@ export default function App() {
           label="Claude"
           shows="Claude"
           side="right"
-          furniture
           mark={<AgentStateDot />}
           onExpand={toggleChat}
         />
@@ -2744,12 +2742,11 @@ export default function App() {
       {noAgent ? null : (
       <div
         className={
-          "nx-furniture " +
-          (chatOver
+          chatOver
             ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)]"
             : folded.chat
               ? "hidden"
-              : "nx-pane min-h-0 shrink-0")
+              : "nx-pane min-h-0 shrink-0"
         }
         style={{
           width: widths.chat,

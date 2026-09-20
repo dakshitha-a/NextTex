@@ -106,7 +106,7 @@ const BODY_TEXT: [string, string][] = [
   // A filled --pen button writes its label in --on-pen.  White on the light
   // violet, near-black on the pale dark one; the token exists so the button
   // asks the palette in force rather than the root's theme, which is the
-  // wrong question inside the light theme's dark furniture.
+  // wrong question for a card carrying the page's palette in a dark shell.
   ["on-pen", "pen"],
 ];
 
@@ -176,7 +176,6 @@ const MEASURED = [
   ":root",
   ".nx-theme-light",
   ':root[data-theme="dark"]',
-  ".nx-furniture",
   ".nx-theme-dark",
   ".nx-theme-white",
   ".nx-theme-warm",
@@ -274,9 +273,9 @@ test("every block that moves an ink moves what is derived from it", () => {
   // where it is declared, not where it is used. `--line` is `color-mix`
   // over `--ink-3` and is declared once, on `:root`, so a block that gives
   // the element a different `--ink-3` inherits a `--line` already computed
-  // from the old one. Every border, separator and drag handle in a light
-  // theme's furniture was drawn at about half the contrast of the same
-  // furniture in a whole-dark theme, on the identical background.
+  // from the old one. Every border, separator and drag handle in the light
+  // theme's then-dark chrome was drawn at about half the contrast of the
+  // same chrome in a whole-dark theme, on the identical background.
   //
   // Nothing here can measure that, because `color-mix` is not resolvable
   // without a browser and this file works on hexes. What it can hold is

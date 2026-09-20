@@ -97,9 +97,9 @@
      luminance reads as dirty grey-green rather than as caution. */
   --pen: #6F2998;
   /* What a filled --pen button writes its label in.  A token rather than a
-     rule keyed on the theme, because the palette is now also handed to a
-     subtree -- the light theme's furniture and the editor's own ground --
-     and a rule that asks the *root* what theme it is gets the wrong answer
+     rule keyed on the theme, because the palette is also handed to a
+     subtree, the editor's own ground and a card carrying the shell's, and
+     a rule that asks the *root* what theme it is gets the wrong answer
      inside one.  Asking the palette in force is always right. */
   --on-pen: #FFFFFF;
   --hint: #00626D;
@@ -250,36 +250,22 @@
    data-theme before this stylesheet is applied, which is both a smaller
    flash and an honest one.
 
-   The furniture selector in the middle is what gives the light theme its
-   contrast.  A light theme in which every surface is light is a cloud: the
-   rail, the agent column, the status strip and everything that floats are
-   the app's furniture rather than the page being written, and they are
-   drawn from this palette even while the theme is light.  It is one
-   selector rather than a third palette on purpose.  A third palette would
-   have to be authored, measured and then kept in step, and the comment
-   above records what happens when two copies of a palette are free to
-   drift; reusing this one means every pair contrast.test.ts already
-   certifies for dark holds verbatim, and there is nothing new to certify.
+   There used to be a third selector here, `.nx-furniture`, which handed
+   this palette to the rail, the agent column, the status strip, every
+   floating card and the four screens with no document on them, so that
+   the light theme was a lit editor and a lit page set into dark chrome.
+   The visual overhaul removed it: that light theme read as dark mode with
+   a hole cut in it, and the separation the dark chrome bought is bought
+   now by tone, the chrome on --surface-2 against the editor on --surface
+   and the page field on --surround, with the four light surfaces
+   re-stepped for it (see the light block above).  A card that floats
+   inside the editor host takes the shell's palette through
+   `nx-theme-light` or `nx-theme-dark`, applied by the kit from the root's
+   theme, which is the case the old selector existed to catch.
 
-   It goes *before* `.nx-theme-dark` because contrast.test.ts finds this
-   block by searching for the literal string `.nx-theme-dark {`, and a
-   selector appended after that one would take the brace with it.
-
-   It is the bare class, not `:root[data-theme="light"] .nx-furniture`,
-   which it was.  Furniture is dark in every shell, and the case the keyed
-   selector missed was a card inside an editor host carrying
-   `.nx-theme-light` under a dark root, a white page in a dark shell: the
-   root did not match, the host's class won, and the spelling menu came out
-   as a pale card on a pale page.  Under a dark root the bare class changes
-   nothing, since the root already handed the subtree this palette.
-
-   The screens with no document on them -- the project list, signing in,
-   waiting to reconnect, and the error boundary -- take it whole rather than
-   in parts.  There is no page being written on any of them, so all four are
-   chrome from edge to edge, and leaving them out made the project list the
-   one pale field in a light theme that had gone dark everywhere else. */
+   `.nx-theme-dark` stays last because contrast.test.ts finds this block by
+   searching for the literal string `.nx-theme-dark {`. */
 :root[data-theme="dark"],
-.nx-furniture,
 .nx-theme-dark {
   --surround: #0A0C0B;
   --surface: #121614;
@@ -327,9 +313,9 @@
      A custom property whose value contains `var()` is substituted where it
      is *declared*, not where it is used, so `--line` computed once on
      `:root` against the light `--ink-3` and was then inherited into this
-     block already resolved. Every border, separator and drag handle in a
-     light theme's furniture was therefore drawn from the light ink on the
-     dark surfaces this block supplies: the status strip's top border
+     block already resolved. Every border, separator and drag handle in the
+     light theme's then-dark chrome was therefore drawn from the light ink
+     on the dark surfaces this block supplies: the status strip's top border
      measured 1.44:1 here against 2.56:1 in a whole-dark theme, on the
      identical background, and the composer's separator 1.32 against 2.34.
      Half the contrast, in the theme most people use.
@@ -637,15 +623,6 @@ button { font: inherit; color: inherit; }
    ground show only as the seams between them.  The rule that stepped the
    dimmest ink up on that plane, `.nx-on-surround`, went with the sheet it
    served. */
-/* Furniture restates the ink it inherits.  `color` inherits as a resolved
-   value, not as the var() that produced it: body computes `color` from the
-   light --ink once, and every descendant inherits that dark grey even
-   inside a subtree that has since redeclared --ink for a dark ground.  So
-   the project name, the agent column's heading and every button that takes
-   its colour from its parent went invisible the moment the furniture
-   arrived.  One line, and the whole class of that bug goes away. */
-.nx-furniture { color: var(--ink); }
-
 /* A ground offered as itself.
  *
  *  The swatch carries one of the app's own palette classes and fills with
@@ -678,9 +655,9 @@ button { font: inherit; color: inherit; }
 /* A filled --pen button.  The light --pen is dark enough to carry white;
    the dark one is a pale violet on which white is 2.6:1, so the label goes
    dark instead.  Which of those applies is a question about the palette in
-   force, not about the root's theme -- the Send button sits in the agent
-   column, which is furniture and therefore dark even in the light theme --
-   so it is carried by --on-pen rather than by a selector. */
+   force, not about the root's theme, since a card in the editor host can
+   carry the page's palette, so it is carried by --on-pen rather than by a
+   selector. */
 .pen-button {
   background: var(--pen);
   color: var(--on-pen);

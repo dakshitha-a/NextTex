@@ -20,8 +20,8 @@ import { png } from "../png";
  *  4.55.  Four pairings, because the app has two palettes that can be
  *  mixed: the shell's theme and the editor page's, and a surface that
  *  lives inside the editor host takes the page's palette while one that
- *  floats over it is furniture.  The find box failed in exactly one of
- *  the four.
+ *  floats over it takes the shell's.  The find box failed in exactly one
+ *  of the four.
  *
  *  A surface that cannot be reached in a run is reported rather than
  *  skipped: a missing menu is a broken recipe, and a recipe that has
@@ -281,7 +281,7 @@ const SURFACES: Surface[] = [
       const number = tab.getByTestId("page-number");
       await number.click();
       await number.fill("1");
-      return number.locator("xpath=ancestor::*[contains(@class,'nx-furniture')][1]");
+      return tab.getByTestId("preview-footer");
     },
   },
   {

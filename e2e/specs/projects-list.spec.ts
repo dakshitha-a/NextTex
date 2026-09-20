@@ -35,7 +35,7 @@ test("the rail stays put while thirty projects scroll", async ({ app, page }) =>
   const list = page.getByTestId("project-list");
   const scrolls = await list.evaluate((el) => el.scrollHeight > el.clientHeight);
   expect(scrolls).toBe(true);
-  const screen = await page.locator(".nx-furniture").evaluate(
+  const screen = await page.locator(".nx-projects").evaluate(
     (root) => root.scrollHeight - root.clientHeight,
   );
   expect(screen).toBe(0);
@@ -148,7 +148,7 @@ test("on a phone the rail is a strip and the ways in are a drawer behind New", a
   await page.getByText("Projects", { exact: true }).waitFor();
   await expect(page.getByTestId("project-row")).toHaveCount(NAMES.length);
 
-  const wide = await page.locator(".nx-furniture").evaluate(
+  const wide = await page.locator(".nx-projects").evaluate(
     (root) => root.scrollWidth - root.clientWidth,
   );
   expect(wide).toBe(0);
@@ -186,7 +186,7 @@ test("the create form does not run off a phone", async ({ app, project, page }) 
   await page.getByTestId("ways-open").click();
   // The folder field, the template chooser and the button were one row
   // that could not shrink below 445px, so the sheet scrolled sideways.
-  const wide = await page.locator(".nx-furniture").evaluate(
+  const wide = await page.locator(".nx-projects").evaluate(
     (root) => root.scrollWidth - root.clientWidth,
   );
   expect(wide).toBe(0);

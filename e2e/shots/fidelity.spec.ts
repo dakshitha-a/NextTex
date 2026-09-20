@@ -283,6 +283,11 @@ const SURFACES: Record<string, Surface> = {
       await tab.waitForTimeout(300);
     },
   },
+  workspace: {
+    // The shell at rest, at the page's width: the rail, the two panes and
+    // the column, with nothing open.
+    open: async (tab) => tab.locator(".nx-shell"),
+  },
   strips: {
     // The three folded strips at once: Source, Preview and Claude, as the
     // page draws them side by side.  The shell is the photograph, so the

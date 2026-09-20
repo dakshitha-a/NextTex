@@ -111,7 +111,7 @@ function ImageView({ source, name, path }: { source: string; name: string; path:
           />
         </div>
       </div>
-      <div className="nx-furniture flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]">
+      <div className="flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t border-line bg-surface-2 px-[10px]">
         {natural ? (
           <span className="t-micro tnum text-ink-3">
             {natural.w} &times; {natural.h}

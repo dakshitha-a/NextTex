@@ -95,7 +95,7 @@ export default function Script({
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="script-pane">
-      <div className="nx-furniture flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-b border-line bg-surface-2 px-[10px]">
+      <div className="flex h-[26px] shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-b border-line bg-surface-2 px-[10px]">
         <span className="t-micro truncate text-ink-2" title={path}>{path}</span>
         {running ? (
           <button
