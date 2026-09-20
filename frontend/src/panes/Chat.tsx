@@ -1415,14 +1415,14 @@ function EditChip({
         </span>
         <span className="flex shrink-0 gap-2">
           <button
-            className="quiet text-ink-2"
+            className="text-ink-2 hover:text-ink"
             onClick={() => onShowEdit(item.path, changedLine)}
           >
             Show
           </button>
           {undoable ? (
             <button
-              className="quiet text-ink-2"
+              className="text-ink-2 hover:text-ink"
               onClick={async () => {
                 const projectId = get().projectId;
                 if (!projectId) return;

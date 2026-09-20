@@ -1451,13 +1451,9 @@ function MoveTo({
           if (confirm) setOpen(false);
         }}
       />
-      <div className="flex h-[32px] items-center justify-end gap-2 border-t border-line px-[10px]">
-        <button className="ghost-button h-[28px] px-3 t-ui" onClick={onMove}>
-          Move
-        </button>
-        <button className="quiet h-[28px] px-2 t-ui" onClick={onCancel}>
-          Cancel
-        </button>
+      <div className="nx-sheet-foot">
+        <Button variant="quiet" onClick={onCancel}>Cancel</Button>
+        <Button variant="ghost" onClick={onMove}>Move</Button>
       </div>
     </div>
   );

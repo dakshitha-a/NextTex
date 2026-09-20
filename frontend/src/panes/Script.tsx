@@ -4,6 +4,7 @@ import type { ScriptResult } from "../api";
 import { RunIcon, StopIcon } from "../ui/icons";
 import { useStore } from "../store";
 import { lastLine, outcomeLabel } from "../script-run";
+import { Button } from "../ui/Button";
 
 /** What a script did the last time it ran, in the preview pane.
  *
@@ -144,12 +145,9 @@ export default function Script({
                 Run to see what it prints and draws. What it saves into the
                 project is listed here too.
               </p>
-              <button
-                className="ghost-button mt-4 h-[28px] px-3 t-ui"
-                onClick={() => onRun(path)}
-              >
+              <Button variant="ghost" className="mt-4" onClick={() => onRun(path)}>
                 Run {name}
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -178,13 +176,9 @@ export default function Script({
             {script.changedByAgent ? (
               <div className="flex items-center gap-3 rounded-[3px] border border-line bg-surface px-3 py-2">
                 <span className="t-meta text-ink-2">The agent changed this script.</span>
-                <button
-                  className="ghost-button h-[24px] px-2 t-micro"
-                  data-testid="script-run-again"
-                  onClick={() => onRun(path)}
-                >
+                <Button variant="ghost" size="inline" data-testid="script-run-again" onClick={() => onRun(path)}>
                   Run again
-                </button>
+                </Button>
               </div>
             ) : null}
             {result.figures.map((figure) => (
@@ -231,17 +225,13 @@ export default function Script({
             {!result.ok && !result.stopped ? (
               <div className="flex flex-wrap items-center gap-2" data-testid="script-actions">
                 {onAsk ? (
-                  <button
-                    className="ghost-button h-[28px] px-3 t-ui"
-                    data-testid="script-ask-agent"
-                    onClick={() => onAsk(path, result)}
-                  >
+                  <Button variant="ghost" data-testid="script-ask-agent" onClick={() => onAsk(path, result)}>
                     Ask the agent
-                  </button>
+                  </Button>
                 ) : null}
                 {result.missing ? (
-                  <button
-                    className="ghost-button h-[28px] px-3 t-ui"
+                  <Button
+                    variant="ghost"
                     data-testid="script-install"
                     disabled={installing === "running"}
                     onClick={install}
@@ -251,7 +241,7 @@ export default function Script({
                       : installing === "asked"
                         ? `Yes, install ${result.missing}`
                         : `Install ${result.missing}`}
-                  </button>
+                  </Button>
                 ) : null}
                 {installing === "asked" && result.missing ? (
                   <span className="t-meta text-ink-2">

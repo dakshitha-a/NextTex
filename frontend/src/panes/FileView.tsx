@@ -4,6 +4,7 @@ import { download } from "../chrome";
 import { useStore } from "../store";
 import { kindOf } from "./file-kinds";
 import { fitScale, nextStep } from "./image-zoom";
+import { Button } from "../ui/Button";
 
 const Pdf = lazy(() => import("./Pdf"));
 
@@ -236,14 +237,15 @@ export default function FileView({
         {name}
         {size ? ` · ${readableSize(size)}` : ""}
       </p>
-      <button
-        className="ghost-button mt-3 h-[28px] px-3 t-ui"
+      <Button
+        variant="ghost"
+        className="mt-3"
         onClick={() =>
           projectId && void download(api.downloadUrl(projectId, { path }), name)
         }
       >
         Download
-      </button>
+      </Button>
     </div>
   );
 }
