@@ -352,11 +352,13 @@ test("F8 walks the errors without a mouse", async ({ tab }) => {
   // And it chose one: the selection bar is drawn on exactly one row,
   // which is the difference between stepping and merely opening.
   await expect(tab.getByTestId("diagnostic-copy").first()).toBeVisible();
-  const selected = tab.locator('[data-selected="true"]');
+  // Scoped to the drawer: the tree's active row carries the kit's
+  // data-selected as well.
+  const selected = tab.getByTestId("diagnostics").locator('[data-selected="true"]');
   await expect(selected).toHaveCount(1);
 
   await tab.keyboard.press("F8");
-  await expect(tab.locator('[data-selected="true"]')).toHaveCount(1);
+  await expect(selected).toHaveCount(1);
 });
 
 test("the caret readout belongs to the file on screen", async ({ tab }) => {

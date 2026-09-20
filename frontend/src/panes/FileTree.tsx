@@ -2,9 +2,16 @@ import {
   Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
-import { useOnScreen, type Wanted } from "../place-menu";
+import { type Wanted } from "../place-menu";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
+import { Button, IconButton } from "../ui/Button";
+import { Field, Heading } from "../ui/controls";
+import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
+import {
+  ChevronDownIcon, ChevronRightIcon, FolderIcon as FolderGlyph, MoreIcon, PlusIcon, SearchIcon, UploadIcon,
+} from "../ui/icons";
+import { countFiles } from "../tree";
 import { iconFor, isBib, isData, isScript } from "./file-kinds";
 import api, { type TreeNode } from "../api";
 import { readStored } from "../appearance";
@@ -38,7 +45,7 @@ const CARD_DELAY = 400;
 
 /** 13px is the width of a Source Sans lowercase n at 13px, so indentation
  *  reads as a typographic quad rather than an arbitrary gap. */
-const INDENT = 13;
+const INDENT = 16;
 
 /** The drop target that is not a row.  The project root has no node of its
  *  own, which is also why nothing could be created there until now. */
@@ -174,9 +181,8 @@ export default function FileTree({
    *  `focusPath` harmless: see `tabStopFor`. */
   const shown = useRef<Set<string>>(new Set());
   const uploadInput = useRef<HTMLInputElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   // Only one menu is open at a time, so one ref is enough: the row that is
-  // open claims it, and the dismiss hook leaves that button's own press
+  // open claims it, and the kit's menu leaves that button's own press
   // alone so the trigger can close what it opened.
   const menuButton = useRef<HTMLButtonElement | null>(null);
   const previews = useStore((s) => s.previews);
@@ -189,10 +195,6 @@ export default function FileTree({
     setMenu(null);
     setPurging(null);
   }, []);
-  useDismiss(menuRef, menu !== null, closeMenu, menuButton);
-  // Measured after it is drawn, and again when the question inside it
-  // opens or closes, since that changes its height.
-  const menuPlaced = useOnScreen(menuRef, menu !== null ? menuAt : null, purging);
   const uploadTo = useRef<string>("");
   // Where the picker was started from, so focus can go back there when the
   // chooser closes, and whether that gesture named a folder of its own.
@@ -377,17 +379,15 @@ export default function FileTree({
           `Plot ${node.path}. Read it first, then say what you plotted and why: `,
         );
       } else if (action === "papers") {
-        const box = menuRef.current?.getBoundingClientRect();
         setPapersFor({
           name: node.name,
-          at: { x: box ? toShell(box.left) : 120, y: box ? toShell(box.top) : 120 },
+          at: { x: menuAt?.left ?? 120, y: menuAt?.top ?? 120 },
         });
       } else if (action === "move") {
-        const box = menuRef.current?.getBoundingClientRect();
         setMoving({
           path: node.path,
           to: dirname(node.path),
-          at: { x: box ? toShell(box.left) : 120, y: box ? toShell(box.top) : 120 },
+          at: { x: menuAt?.left ?? 120, y: menuAt?.top ?? 120 },
         });
       } else if (action === "upload") {
         uploadTo.current = isDir(node) ? node.path : dirname(node.path);
@@ -571,6 +571,7 @@ export default function FileTree({
     if (!query.trim()) return null;
     return searchTree(tree, query);
   }, [tree, query]);
+  const fileCount = useMemo(() => countFiles(tree), [tree]);
   const found = hits
     ? `${hits.matches.size} ${hits.matches.size === 1 ? "match" : "matches"}`
     : "";
@@ -624,13 +625,19 @@ export default function FileTree({
         // them. The chevron has been saying so to everybody else all along.
         aria-expanded={isDirectory ? isOpen : undefined}
         className={[
-          "group relative flex h-[26px] shrink-0 cursor-pointer items-center rounded-[3px] pr-1",
-          active ? "bg-surface-2" : "hover:bg-surface-2",
-          dropTarget === node.path ? "bg-pen-wash border-b border-pen" : "",
+          "nx-row group relative shrink-0 cursor-pointer !gap-[6px]",
           draggingPath === node.path ? "opacity-50" : "",
         ].join(" ")}
-        style={{ paddingLeft: 10 + depth * INDENT }}
-        onClick={() => (isDirectory ? toggle(node.path) : onOpen(node.path))}
+        data-selected={active || undefined}
+        data-drop={dropTarget === node.path || undefined}
+        style={{ paddingLeft: 8 + depth * INDENT }}
+        onClick={(event) => {
+          // The menu is a child of the row in React's tree, so a press on
+          // one of its items would open the file as well.
+          if ((event.target as HTMLElement).closest('[data-testid="file-menu"]')) return;
+          if (isDirectory) toggle(node.path);
+          else onOpen(node.path);
+        }}
         onFocus={(event) => {
           setFocusPath(node.path);
           if (event.target === event.currentTarget) armCard(node, event.currentTarget);
@@ -689,30 +696,17 @@ export default function FileTree({
         onDragLeave={(event) => leaveDrag(event, node)}
         onDrop={(event) => drop(event, node)}
       >
-        {active ? (
-          <span className="absolute left-0 top-0 h-full w-[2px] bg-pen" />
-        ) : null}
-        {/* Two slots for a directory and one for a file, and the file's is
-            the same width as the directory's icon so every name in the tree
-            starts on one line whatever depth it is at.  The chevron is kept
-            beside the folder rather than replaced by it: the folder says
+        {/* A folder carries a chevron before its icon: the folder says
             what the row is, the chevron says what will happen if you click
             it, and a folder that has to be interpreted as a state is slower
             to read than an arrow that only ever means one thing. */}
-        <span className="flex w-3 shrink-0 items-center justify-center text-ink-3">
-          {isDirectory ? (
-            <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden>
-              <path
-                d={isOpen ? "M0 2 L4 6 L8 2" : "M2 0 L6 4 L2 8"}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.4"
-              />
-            </svg>
-          ) : null}
-        </span>
+        {isDirectory ? (
+          <span className="flex shrink-0 items-center text-ink-3">
+            {isOpen ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+          </span>
+        ) : null}
         <span
-          className={`mr-[6px] flex w-[14px] shrink-0 items-center justify-center ${
+          className={`flex w-[16px] shrink-0 items-center justify-center ${
             isDirectory ? "text-ink-2" : "text-ink-3"
           }`}
         >
@@ -739,21 +733,21 @@ export default function FileTree({
           />
         ) : (
           <span className="t-ui min-w-0 flex-1 truncate">
-            <span className="text-ink">{stem}</span>
+            <span className={active ? "text-ink" : "text-ink-2"}>{stem}</span>
             <span className="text-ink-3">{extension}</span>
           </span>
         )}
-        <span className="flex w-4 shrink-0 items-center justify-end">
+        {/* The tail: the error count at rest, in the error colour, giving
+            way to the actions button under the pointer, in the one cell
+            the projects rows introduced; always visible where nothing
+            can hover. */}
+        <span className="nx-row-tail shrink-0">
           {errors > 0 ? (
-            <span className="t-micro text-error group-hover:hidden">{errors}</span>
+            <span className="nx-row-when t-meta tnum text-error">{errors}</span>
           ) : null}
           <button
             ref={menu === node.path ? menuButton : undefined}
-            // Gated on a pointer that can hover: without that this control is not
-              // small on a touch device, it is invisible.  The row is 22px, so the
-              // tap area takes the row's height rather than 44 and steals nothing
-              // from its neighbours.
-              className="nx-tap quiet hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100 [--nx-tap-y:22px]"
+            className="nx-row-actions nx-tap flex h-[24px] w-[24px] items-center justify-center rounded-control text-ink-3 hover:text-ink [--nx-tap-y:30px]"
             aria-label={`Actions for ${node.name}`}
             aria-expanded={menu === node.path}
             onClick={(event) => {
@@ -778,12 +772,19 @@ export default function FileTree({
               setPurging(null);
             }}
           >
-            ⋯
+            <MoreIcon size={14} />
           </button>
         </span>
         {menu === node.path ? (
-          <div
-            ref={menuRef}
+          <Menu
+            open
+            wanted={menuAt}
+            anchor={menuButton}
+            testid="file-menu"
+            role="none"
+            width={232}
+            revision={purging}
+            onClose={closeMenu}
             // Deliberately still not `role="menu"`, having tried it. The
             // three menus this was supposed to match carry the roles and
             // none of them implements the arrow-key navigation the role
@@ -795,22 +796,9 @@ export default function FileTree({
             // ("button")` is what made the difference visible: the role
             // does change what this is, and it should not change it until
             // it is true.
-            data-testid="file-menu"
-            // Fixed, not absolute: an absolute menu is clipped by the
-            // tree's own scroll box, so the last row's menu was cut in half.
-            // Capped at the window's height and scrolling past it, for the
-            // window shorter than the menu; `useOnScreen` handles every
-            // taller one.
-            className="fixed z-40 max-h-[calc(100vh-16px)] w-[184px] overflow-y-auto rounded-[5px] border border-line bg-surface py-1 shadow-float"
-            style={
-              menuPlaced ? { left: menuPlaced.left, top: menuPlaced.top }
-              : menuAt ? { left: menuAt.left, top: menuAt.top }
-              : undefined
-            }
-            onClick={(event) => event.stopPropagation()}
           >
             {purging === node.path ? (
-              <div className="px-3 py-2" data-testid="purge-confirm">
+              <div className="nx-confirm !mt-0" data-testid="purge-confirm">
                 {/* Says what goes and what stays, in that order, because
                     "delete version history" beside a file reads a great
                     deal like "delete the file" and the writer has to be
@@ -833,10 +821,10 @@ export default function FileTree({
                     Only on this computer. Collaborators keep their own copies.
                   </p>
                 ) : null}
-                <div className="mt-2 flex gap-2">
-                  <button
-                    className="ghost-button h-[26px] px-2 t-micro"
-                    data-tone="danger"
+                <div className="nx-confirm-actions">
+                  <Button
+                    variant="ghost"
+                    className="!text-error"
                     data-testid="purge-confirm-yes"
                     onClick={async () => {
                       const projectId = get().projectId;
@@ -868,9 +856,9 @@ export default function FileTree({
                     }}
                   >
                     Delete history
-                  </button>
-                  <button
-                    className="ghost-button h-[26px] px-2 t-micro"
+                  </Button>
+                  <Button
+                    variant="quiet"
                     data-testid="purge-confirm-no"
                     onClick={() => {
                       setPurging(null);
@@ -878,7 +866,7 @@ export default function FileTree({
                     }}
                   >
                     Keep
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -943,20 +931,19 @@ export default function FileTree({
               // are about: this file's name and place, its past, getting a
               // copy out, putting something new in, and taking it away.
               key.startsWith("rule:") ? (
-                <div key={key} className="my-1 border-t border-line" />
+                <MenuDivider key={key} />
               ) : (
-              <button
+              <MenuItem
                 key={key}
-                className={[
-                  "block w-full px-3 py-[3px] text-left t-ui hover:bg-surface-2",
-                  key === "delete" || key === "purge" ? "hover:text-error" : "",
-                ].join(" ")}
+                role="none"
+                danger={key === "delete"}
+                hint={key === "rename" ? "F2" : key === "delete" ? "Del" : undefined}
                 onClick={() => act(key, node)}
               >
                 {label}
-              </button>
+              </MenuItem>
             )))}
-          </div>
+          </Menu>
         ) : null}
       </div>,
     );
@@ -1078,34 +1065,62 @@ export default function FileTree({
     // toolbar and a couple of rows visible; past that the panel stack
     // scrolls, which is where the height has to come from.
     <div className="flex min-h-[104px] flex-1 flex-col overflow-hidden">
-      <FilesBar
-        onNewFile={() => startCreate(false)}
-        onNewFolder={() => startCreate(true)}
-        searching={searching}
-        onSearch={() => {
-          if (searching) {
-            setSearching(false);
-            setQuery("");
-            return;
-          }
-          setSearching(true);
-          window.requestAnimationFrame(() => searchInput.current?.focus());
-        }}
-        dropping={dropTarget === ROOT_DROP}
-        onUpload={(event) => {
-          uploadTo.current = rememberedUpload();
-          uploadAsked.current = true;
-          uploadFrom.current = event.currentTarget;
-          uploadInput.current?.click();
-        }}
+      {/* The drawer's heading row, drawn here rather than by the drawer
+          because its four buttons are this tree's: New file, New folder,
+          Upload and Find a file, as the page draws them, with the count
+          of files before them. A drag over the row lands at the root. */}
+      <div
+        className={`flex shrink-0 items-center gap-[2px] pb-[6px] pl-[14px] pr-2 pt-[10px] ${
+          dropTarget === ROOT_DROP ? "bg-pen-wash" : ""
+        }`}
         onDragEnter={(event) => overDrag(event, null)}
         onDragOver={(event) => overDrag(event, null)}
         onDragLeave={(event) => leaveDrag(event, null)}
         onDrop={(event) => drop(event, null)}
-      />
+      >
+        <Heading level={2} className="flex-1 truncate">Files</Heading>
+        {fileCount ? <span className="t-meta tnum pr-1 text-ink-3">{fileCount}</span> : null}
+        <IconButton label="New file" title="Create a new file in the project" data-testid="new-file" onClick={() => startCreate(false)}>
+          <PlusIcon />
+        </IconButton>
+        <IconButton label="New folder" title="Create a new folder in the project" data-testid="new-folder" onClick={() => startCreate(true)}>
+          <FolderGlyph />
+        </IconButton>
+        <IconButton
+          label="Upload"
+          title="Upload files into the project"
+          data-testid="upload"
+          onClick={(event) => {
+            uploadTo.current = rememberedUpload();
+            uploadAsked.current = true;
+            uploadFrom.current = event.currentTarget;
+            uploadInput.current?.click();
+          }}
+        >
+          <UploadIcon />
+        </IconButton>
+        <IconButton
+          label="Find a file"
+          title="Find a file"
+          on={searching}
+          aria-expanded={searching}
+          data-testid="file-search-open"
+          onClick={() => {
+            if (searching) {
+              setSearching(false);
+              setQuery("");
+              return;
+            }
+            setSearching(true);
+            window.requestAnimationFrame(() => searchInput.current?.focus());
+          }}
+        >
+          <SearchIcon />
+        </IconButton>
+      </div>
       {searching ? (
-        <div className="flex h-[26px] shrink-0 items-center gap-2 border-b border-line px-[10px]">
-          <input
+        <div className="shrink-0 px-2 pb-[6px]">
+          <Field
             ref={(node) => {
               searchInput.current = node;
               if (node && wantsCaret.current) {
@@ -1114,7 +1129,9 @@ export default function FileTree({
                 node.select();
               }
             }}
-            className="t-ui h-[20px] min-w-0 flex-1 rounded-[3px] bg-surface-2 px-1 text-ink outline-none placeholder:text-ink-3 focus:outline-1 focus:outline-pen"
+            frameClassName="w-full"
+            leading={<SearchIcon size={14} />}
+            trailing={query ? <span className="t-meta shrink-0 tnum text-ink-3">{found}</span> : undefined}
             placeholder="Find a file"
             aria-label="Find a file"
             data-testid="file-search"
@@ -1137,11 +1154,6 @@ export default function FileTree({
               }
             }}
           />
-          {query ? (
-            <span className="t-micro shrink-0 tabular-nums text-ink-3">
-              {found}
-            </span>
-          ) : null}
         </div>
       ) : null}
       {purged ? (
@@ -1153,7 +1165,7 @@ export default function FileTree({
         </div>
       ) : null}
       <div
-        className="min-h-0 flex-1 overflow-auto py-[6px]"
+        className="min-h-0 flex-1 overflow-auto px-2 py-[2px]"
         role="tree"
         onDragEnter={(event) => overDrag(event, null)}
         onDragOver={(event) => overDrag(event, null)}
@@ -1200,6 +1212,7 @@ export default function FileTree({
       >
         {rows}
       </div>
+      <p className="nx-note shrink-0">Drop files here to add them to the project.</p>
       {/* Named, because it is no longer the only file input in the app: the
           agent panel has one for attaching an image, and a spec reaching
           for "the file input" was relying on there being exactly one, which
@@ -1277,123 +1290,6 @@ function rememberedUpload(): string {
 
 function nameOf(path: string): string {
   return (path.split("/").pop() ?? "").toLowerCase();
-}
-
-/** The bar under the project name.
- *
- *  Every file operation used to hang off a row's menu, which means there
- *  had to *be* a row: a new project holds one empty document, so its first
- *  folder could only be made by opening the menu on `main.tex` and knowing
- *  that "New folder here" resolves to the folder holding it.  That is a
- *  reachability hole rather than a convenience gap, and it is worth 26px
- *  of a rail -- one tree row -- to close.
- *
- *  The project root has no row of its own, so a drop aimed at it has
- *  nowhere to show a highlight.  This bar stands in as that row. */
-function FilesBar({
-  onNewFile,
-  onNewFolder,
-  onUpload,
-  onSearch,
-  searching,
-  dropping,
-  onDragEnter,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-}: {
-  onNewFile: () => void;
-  onNewFolder: () => void;
-  onUpload: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onSearch: () => void;
-  searching: boolean;
-  dropping: boolean;
-  onDragEnter: (event: React.DragEvent) => void;
-  onDragOver: (event: React.DragEvent) => void;
-  onDragLeave: (event: React.DragEvent) => void;
-  onDrop: (event: React.DragEvent) => void;
-}) {
-  const button = "quiet t-micro h-[26px] rounded-[3px] px-2 hover:bg-surface-3";
-  return (
-    <div
-      className={`@container flex h-[26px] shrink-0 items-center border-b border-line px-[10px] ${
-        dropping ? "bg-pen-wash" : ""
-      }`}
-      onDragEnter={onDragEnter}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-    >
-      <button
-        className={button}
-        aria-label="New file"
-        title="Create a new file in the project"
-        data-testid="new-file"
-        onClick={onNewFile}
-      >
-        {/* The short forms are substrings of the accessible name, so a
-            voice command matching what is on screen still works. */}
-        <span className="hidden @[208px]:inline">New file</span>
-        <span className="@[208px]:hidden">File</span>
-      </button>
-      <button
-        className={button}
-        aria-label="New folder"
-        title="Create a new folder in the project"
-        data-testid="new-folder"
-        onClick={onNewFolder}
-      >
-        <span className="hidden @[208px]:inline">New folder</span>
-        <span className="@[208px]:hidden">Folder</span>
-      </button>
-      <button
-        className={`${button} ${dropping ? "border-b border-pen text-hint" : ""}`}
-        title="Upload files into the project"
-        data-testid="upload"
-        onClick={onUpload}
-      >
-        Upload
-      </button>
-      <span className="flex-1" />
-      <button
-        className={`quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3 ${
-          searching ? "bg-surface-3 text-ink" : ""
-        }`}
-        aria-label="Find a file"
-        title="Find a file"
-        aria-expanded={searching}
-        data-testid="file-search-open"
-        onClick={onSearch}
-      >
-        <Magnifier />
-      </button>
-    </div>
-  );
-}
-
-/** Small enough to draw rather than depend on. */
-function Magnifier() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-      <circle
-        cx="5"
-        cy="5"
-        r="3.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <line
-        x1="7.7"
-        y1="7.7"
-        x2="10.5"
-        y2="10.5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }
 
 /** A file without an extension is almost always a .tex file somebody was

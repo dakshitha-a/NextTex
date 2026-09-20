@@ -347,8 +347,8 @@ row's actions button is the way to the file there. A text file opens nothing, si
 editor is where it is looked at.
 
 **Spacing scale:** 2 / 4 / 6 / 8 / 12 / 16 / 24 / 32; everything quantises to 4. Interactive
-row heights: 26 (tree rows, resolved cards), 28 (diagnostic rows, buttons), 32 (tabs), 26
-(status strip). Pane padding 8 horizontal / 6 vertical: this is an instrument, not a
+row heights: 26 (resolved cards), 28 (diagnostic rows, buttons, status strip), 30 (tree
+rows and every drawer row, since the overhaul), 36 (tabs). Pane padding 8 horizontal / 6 vertical: this is an instrument, not a
 document.
 
 **Radius is a hierarchy, not a constant:** 0 on panes and drawers, 3 px on rows, chips,
@@ -9116,3 +9116,30 @@ surface, additions on the ok wash and removals on the error wash at 18
 percent, context in the third ink. The wizard's fields and buttons are
 the kit's. `git.spec.ts` reads the offer's sentence and its note; the
 fidelity harness renders `drawer-git` and `drawer-git-offer`.
+
+## 54. The Files drawer on the kit
+
+The second half of item 2.12, and the last pane the overhaul rebuilt. The
+drawer draws its own heading row now, as History does, because its four
+buttons are the tree's own: "Files", the count of files, then New file,
+New folder, Upload and Find a file as the kit's icon buttons, the last
+marked when the field is open; the 26 px bar of three worded buttons and
+a magnifier went. A drag over the heading still lands at the root. The
+find field is the kit's, with the search icon and the count of matches
+at its right end, "3 matches", where the count used to sit outside the
+box. The rows are the kit's 30 px rows at 16 px a level: a folder
+carries a chevron before its icon, the active file sits on the wash
+rather than behind a pen stripe, the name in the ink and the extension
+in the third ink, and the tail is the one cell the projects rows
+introduced, the error count in the error colour at rest giving way to
+the actions button under the pointer, always shown where nothing can
+hover. A row something is dragged over takes the pen wash. The
+file-row menu is the kit's, at 232 px with the items in their groups,
+Rename carrying F2 and Move to trash carrying Del as hints, the trash
+item in the error ink, and the question about deleting a file's history
+inside the menu as the kit's confirmation block; its items are still
+plain buttons a spec reaches by name, since the roving focus the role
+promises is not there. The items array is the one `docs/design.md` is
+checked against. Under the rows, at the drawer's foot, one line: "Drop
+files here to add them to the project." The fidelity harness renders
+`drawer-files` beside the page's Files drawer.

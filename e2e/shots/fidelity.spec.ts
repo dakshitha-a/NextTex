@@ -612,6 +612,28 @@ const SURFACES: Record<string, Surface> = {
       await showDrawer(tab, "files");
     },
   },
+  "drawer-files": {
+    // The Files drawer as the page draws it full: the heading's four
+    // buttons, the find field with its count, and a row under the pointer.
+    open: async (tab) => {
+      await showDrawer(tab, "files");
+      await tab.getByTestId("file-search-open").click();
+      await tab.getByTestId("file-search").fill("fig");
+      await tab.waitForTimeout(200);
+      const folder = tab.locator('[role="tree"] [data-path="figures"]');
+      if (await folder.count()) {
+        if ((await folder.getAttribute("aria-expanded")) !== "true") await folder.click();
+      }
+      const rows = tab.locator('[role="tree"] [role="treeitem"][data-path]');
+      await rows.last().hover();
+      await tab.waitForTimeout(150);
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("file-search").fill("");
+      await tab.getByTestId("file-search-open").click();
+    },
+  },
   "drawer-git": {
     // A repository with a change, its patch open, as the page's dark
     // drawer has it; the light drawer is the offer.

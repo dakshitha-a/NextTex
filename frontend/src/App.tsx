@@ -120,7 +120,7 @@ import Status from "./panes/Status";
  *  review's fixes went in. */
 const Diagnostics = lazy(() => import("./panes/Diagnostics"));
 import FileTree from "./panes/FileTree";
-import { bibIn, countFiles } from "./tree";
+import { bibIn } from "./tree";
 import Projects from "./panes/Projects";
 import Collapsed from "./panes/Collapsed";
 import Logo from "./Logo";
@@ -2001,7 +2001,6 @@ export default function App() {
    */
   const tree = useStore((s) => s.tree);
   /** How many files the project holds, for the Files header. */
-  const fileCount = useMemo(() => countFiles(tree), [tree]);
   const bibName = useMemo(() => bibIn(tree), [tree]);
   const gitStatus = useStore((s) => s.git);
   const gitDirty = gitStatus?.repository ? gitStatus.changes.length : 0;
@@ -2205,10 +2204,31 @@ export default function App() {
             ref={drawerEl}
             tabIndex={-1}
           >
-            {drawerId === "history" ? (
-              // History draws its own heading row: the title, the file it
-              // is about, and the close control.
+            {drawerId === "history" || drawerId === "files" ? (
+              // History and Files draw their own heading rows: History's
+              // carries the file it is about and the close control, Files'
+              // the four buttons that are the tree's own.
               <Suspense fallback={null}>
+            {drawerId === "files" ? (
+            <FileTree
+            onPreview={startPreviewing}
+            onUnpreview={stopPreviewing}
+              onOpen={openFile}
+              onRefresh={refreshTree}
+              onRename={renameOpenFile}
+              onDeleted={(path) => {
+                const closing = tabsUnder(get().tabs, [path]);
+                if (closing.length) void closeMany(closing);
+              }}
+              onDuplicate={duplicateFile}
+              onHistory={() => openDrawer("history")}
+              onAskAbout={noAgent ? undefined : askAboutSelection}
+              onRunScript={(path) => {
+                openFile(path);
+                void runScript(path);
+              }}
+            />
+            ) : (
             <HistoryPanel
               onCompare={async (other) => {
                 const pair = editor.current?.viewed();
@@ -2244,6 +2264,7 @@ export default function App() {
               onOpen={(path) => openFile(path)}
               onClose={closeHistory}
             />
+            )}
               </Suspense>
             ) : (
               <>
@@ -2251,9 +2272,6 @@ export default function App() {
                   <span className="t-ui-lg flex-1 truncate text-ink">
                     {BAR_ITEMS.find((item) => item.id === drawerId)?.title ?? `What ${agentName(agentProvider as Provider | undefined)} reads`}
                   </span>
-                  {drawerId === "files" && fileCount ? (
-                    <span className="t-meta tnum pr-1 text-ink-3">{fileCount}</span>
-                  ) : null}
                   {drawerId === "git" && gitDirty ? (
                     <span className="t-meta tnum pr-1 text-ink-3">{gitDirty}</span>
                   ) : null}
@@ -2264,29 +2282,6 @@ export default function App() {
                   ) : null}
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                  {drawerId === "files" ? (
-            <FileTree
-            onPreview={startPreviewing}
-            onUnpreview={stopPreviewing}
-              onOpen={openFile}
-              onRefresh={refreshTree}
-              onRename={renameOpenFile}
-              onDeleted={(path) => {
-                // Closed here as well as on the event, so the window
-                // that did the deleting does not show the dead tab for
-                // the round trip.
-                const closing = tabsUnder(get().tabs, [path]);
-                if (closing.length) void closeMany(closing);
-              }}
-              onDuplicate={duplicateFile}
-              onHistory={() => openDrawer("history")}
-              onAskAbout={noAgent ? undefined : askAboutSelection}
-              onRunScript={(path) => {
-                openFile(path);
-                void runScript(path);
-              }}
-            />
-                  ) : null}
                   {drawerId === "search" ? (
                     <Suspense fallback={null}>
                       <SearchPanel onOpen={openFile} focusNonce={focusSearch} />

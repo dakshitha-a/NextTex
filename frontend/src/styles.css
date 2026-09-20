@@ -1346,6 +1346,8 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-row-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nx-row:hover, .nx-row:focus-within { background: var(--wash); }
 .nx-row[data-selected] { background: var(--wash); color: var(--ink); }
+/* A row something is being dragged over: the pen wash, over the hover's. */
+.nx-row[data-drop] { background: var(--pen-wash); }
 .nx-row[data-selected] > svg { color: var(--ink); }
 .nx-row-trailing { display: none; align-items: center; gap: 2px; margin-left: auto; color: var(--ink-3); font-size: 12px; }
 .nx-row:hover .nx-row-trailing, .nx-row:focus-within .nx-row-trailing, .nx-row-trailing-always { display: inline-flex; }

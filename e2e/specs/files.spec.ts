@@ -319,7 +319,7 @@ test("a search that finds nothing says so", async ({ tab }) => {
  *  folder glyph leaning open. */
 async function litAsTarget(tab: Page, path: string): Promise<boolean> {
   return row(tab, path).evaluate((element) => {
-    const washed = element.classList.contains("bg-pen-wash");
+    const washed = element.hasAttribute("data-drop");
     // The open folder is the two-path glyph; shut is one path.
     const open = element.querySelectorAll("svg path").length >= 3;
     return washed && open;
@@ -377,7 +377,7 @@ test("a folder lights for files from the desktop, and not the root", async ({ ta
         new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer, relatedTarget }),
       );
     const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const lit = () => element.classList.contains("bg-pen-wash");
+    const lit = () => element.hasAttribute("data-drop");
     const spans = element.querySelectorAll("span");
     const icon = spans[1];
     const name = Array.from(spans).find((span) => span.textContent === "appendices")!;
