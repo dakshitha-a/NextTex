@@ -25,9 +25,8 @@ import { inline, parseBlocks, type Block } from "./prose";
  *  the prose while writing it.  What the parser does not know it leaves
  *  as the literal text, which is the honest failure.
  *
- *  On paper, like the typeset page and a figure, with the reading serif
- *  and a measure of about seventy characters: it is a page being read,
- *  not a panel.  Unlike the chat's rendering the headings keep their
+ *  On paper, like the typeset page and a figure, with a measure of about
+ *  seventy characters: it is a page being read, not a panel.  Unlike the chat's rendering the headings keep their
  *  levels, because a document's structure is what a preview of it is for.
  *
  *  And like the page, a double-click on it goes to the source.  The page
@@ -41,9 +40,9 @@ import { inline, parseBlocks, type Block } from "./prose";
 const HEADING = [
   "",
   "t-display mt-2 first:mt-0",
-  "font-serif text-[18px] leading-[24px] font-semibold mt-3",
-  "font-serif text-[16px] leading-[22px] font-semibold mt-2",
-  "font-serif text-[14.5px] leading-[22px] font-semibold uppercase tracking-[0.02em] mt-2",
+  "text-[18px] leading-[24px] font-semibold mt-3",
+  "text-[16px] leading-[22px] font-semibold mt-2",
+  "text-[14.5px] leading-[22px] font-semibold mt-2",
 ];
 
 const Rendered = memo(function Rendered({ block, id }: { block: Block; id: string }) {

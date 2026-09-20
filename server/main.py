@@ -1053,7 +1053,7 @@ def _sign_in_page() -> str:
   main {{ background:var(--surface); border:1px solid var(--surface-3);
           border-radius:5px; padding:16px; width:min(23rem,100%); }}
   .top {{ display:flex; align-items:center; gap:8px; }}
-  h1 {{ font:600 15px/1.3 ui-serif,Georgia,serif; margin:0; }}
+  h1 {{ font:600 15px/1.3 ui-sans-serif,system-ui,sans-serif; margin:0; }}
   .lead {{ color:var(--ink-3); margin:6px 0 14px; font-size:12.5px; }}
   label {{ display:block; font-size:12.5px; color:var(--ink-3);
            margin-bottom:4px; }}

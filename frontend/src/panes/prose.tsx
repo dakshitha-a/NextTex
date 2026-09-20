@@ -3,9 +3,9 @@ import { memo, useMemo, useState, type ReactNode } from "react";
 /** Just enough Markdown for what an agent writes about a document.
  *
  *  A library would be 40 KB to render six constructs, and would bring its
- *  own opinions about typography into the one column of this app that is
- *  set in a serif on purpose.  Anything not handled here is left as the
- *  literal text the model wrote, which is the honest failure mode.
+ *  own opinions about typography into a column whose type is the app's
+ *  own.  Anything not handled here is left as the literal text the model
+ *  wrote, which is the honest failure mode.
  */
 
 /** Every block carries `line`, the 1-based source line it starts on, and
@@ -191,7 +191,7 @@ const Rendered = memo(function Rendered(
   }
   if (block.kind === "heading") {
     return (
-      <div className="t-ui-lg font-serif text-ink">{inline(block.text, key)}</div>
+      <div className="t-ui-lg text-ink">{inline(block.text, key)}</div>
     );
   }
   if (block.kind === "list") {

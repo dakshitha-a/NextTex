@@ -274,7 +274,9 @@ test("sort by name reorders the rows and is remembered", async ({ app, page }) =
   const rows = page.getByTestId("project-row");
   await expect(rows).toHaveCount(NAMES.length);
   const names = async () =>
-    rows.evaluateAll((els) => els.map((el) => el.querySelector(".font-serif")!.textContent));
+    rows.evaluateAll((els) =>
+      els.map((el) => el.querySelector("[data-testid=project-name]")!.textContent),
+    );
   const BY_RECENT = [...NAMES].reverse();
 
   // The server's order first: most recently registered at the top.

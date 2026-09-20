@@ -888,7 +888,8 @@ export default function Projects({
               <div className="min-w-0 flex-1 basis-[200px]">
                 <div className="flex min-w-0 items-baseline gap-2">
                   <span
-                    className={`t-ui-lg min-w-0 truncate font-serif ${
+                    data-testid="project-name"
+                    className={`t-ui-lg min-w-0 truncate ${
                       project.missing ? "text-ink-3" : "text-ink group-hover:text-hint"
                     }`}
                   >

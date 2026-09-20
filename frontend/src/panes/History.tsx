@@ -233,7 +233,7 @@ export default function History({
           onClose();
         }}
       >
-        <span className="t-ui-lg shrink-0 font-serif">History</span>
+        <span className="t-ui-lg shrink-0">History</span>
         {scope === "file" && name ? (
           <span className="t-meta min-w-0 flex-1 truncate text-ink-3" title={activePath ?? undefined}>
             {name}

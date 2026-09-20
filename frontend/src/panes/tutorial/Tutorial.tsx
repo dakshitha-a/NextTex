@@ -93,7 +93,7 @@ export default function Tutorial({
       style={{ right }}
     >
       <div className="flex h-[32px] shrink-0 items-center justify-between border-b border-line bg-surface-3 px-[10px]">
-        <span id="tutorial-heading" className="t-ui-lg font-serif text-ink">
+        <span id="tutorial-heading" className="t-ui-lg text-ink">
           Tutorial
         </span>
         <button

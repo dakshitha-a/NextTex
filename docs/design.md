@@ -142,16 +142,18 @@ to make the page stop looking like paper.
 
 ## 3. Typography
 
-Google Fonts only. One superfamily, three roles.
+Google Fonts only. One superfamily, two roles.
 
-- **UI chrome, Source Sans 3** (400/500/600). Humanist, Adobe's publishing programme,
-  drawn for small sizes, with genuine tabular figures. Not Inter.
-- **Authored prose, Source Serif 4** (400/400 italic/600). Used for exactly one thing: the
-  agent's replies, plus the project name in the switcher. Everything the *machine* says is
-  sans; everything that is *prose about a document* is serif. Typeface becomes structure
-  rather than decoration, and the chat reads as marginalia on a manuscript rather than a
-  messaging app. Source Serif is Fournier-derived, so it will never be mistaken for the
-  PDF's Times sitting two panes away.
+- **Everything the interface says, Source Sans 3** (400/400 italic/500/600). Humanist,
+  Adobe's publishing programme, drawn for small sizes, with genuine tabular figures. Not
+  Inter. The roles are sizes and weights of this one face: `t-ui` 14/20, `t-meta` 12/16,
+  `t-micro` 11/14 at 500, `t-ui-lg` 15/20 at 600, `t-display` 22/28 at 600, `t-prose`
+  15/24 at 66ch for the agent's replies and the Markdown pane. Until the visual overhaul
+  (19 September 2026) the agent's replies, the display headings and the project name were
+  set in Source Serif 4, on the argument that everything the *machine* says is sans and
+  everything that is *prose about a document* is serif. The writer found the serif dated
+  and the two faces inconsistent, and chose one family throughout, with the hierarchy
+  carried by size and weight; the serif is no longer loaded.
 - **Editor and literal machine strings, Source Code Pro** (300 to 700, upright and italic).
   Chosen over JetBrains Mono because it shares the Source skeleton, and because **it ships
   no ligatures**. That is non-negotiable for LaTeX: `--` and `---` must never fuse on screen

@@ -558,7 +558,7 @@ export default function Chat({
           onFold();
         }}
       >
-        <span className="t-ui-lg shrink-0 font-serif">{name}</span>
+        <span className="t-ui-lg shrink-0">{name}</span>
         {thinking || blocked ? (
           <span
             className="flex min-w-0 flex-1 items-center gap-[6px]"

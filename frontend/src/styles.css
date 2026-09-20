@@ -8,11 +8,12 @@
 @custom-variant hoverable (@media (hover: hover));
 
 @import "@fontsource/source-sans-3/400.css";
+/* The italic is for the agent's replies and the Markdown pane, which set
+   <em> and quotations in it; without a drawn italic the browser shears
+   the upright, which is what fonts.test.ts guards against. */
+@import "@fontsource/source-sans-3/400-italic.css";
 @import "@fontsource/source-sans-3/500.css";
 @import "@fontsource/source-sans-3/600.css";
-@import "@fontsource/source-serif-4/400.css";
-@import "@fontsource/source-serif-4/400-italic.css";
-@import "@fontsource/source-serif-4/600.css";
 /* Five monospace weights rather than two.  The editor's weight is a
    setting now, and a light ground adds a step to whatever it is set to
    -- see --nx-editor-weight-lift below -- so the reachable body weights
@@ -433,7 +434,6 @@
   --color-paper: var(--paper);
 
   --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
   --font-mono: "Source Code Pro", ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -443,23 +443,28 @@ body {
   background: var(--surround);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 20px;
   overflow: hidden;
 }
 
-/* ---- type roles from the spec, as utilities ---------------------------- */
-.t-micro { font-size: 11px; line-height: 16px; font-weight: 500;
+/* ---- type roles, as utilities --------------------------------------------
+   One family, Source Sans 3, with the hierarchy carried by size and weight.
+   The overhaul stepped the interface up one size (UI 14/20 from 13/20,
+   meta 12/16, micro 11/14) and set the display and the prose in the sans:
+   the serif that carried the agent's replies and the headings read as
+   dated and as a second voice, and the writer chose one family throughout.
+   The editor's ladder is its own (see .cm-editor) and is untouched. */
+.t-micro { font-size: 11px; line-height: 14px; font-weight: 500;
   letter-spacing: 0.004em; font-variant-numeric: tabular-nums; }
-.t-meta  { font-size: 12px; line-height: 18px; }
-.t-ui    { font-size: 13px; line-height: 20px; }
-.t-ui-lg { font-size: 15px; line-height: 22px; font-weight: 600; }
-.t-prose { font-family: var(--font-serif); font-size: 14.5px; line-height: 23.5px;
-  max-width: 68ch; }
+.t-meta  { font-size: 12px; line-height: 16px; }
+.t-ui    { font-size: 14px; line-height: 20px; }
+.t-ui-lg { font-size: 15px; line-height: 20px; font-weight: 600; }
+.t-prose { font-size: 15px; line-height: 24px; max-width: 66ch; }
 .t-code  { font-family: var(--font-mono); font-size: 13.5px; line-height: 22px; }
 .t-code-sm { font-family: var(--font-mono); font-size: 12px; line-height: 18px; }
-.t-display { font-family: var(--font-serif); font-size: 22px; line-height: 28px;
-  font-weight: 600; letter-spacing: -0.01em; }
+.t-display { font-size: 22px; line-height: 28px; font-weight: 600;
+  letter-spacing: -0.01em; }
 .tnum { font-variant-numeric: tabular-nums; }
 /* The status strip is the densest surface in the app; its literal strings
    are a point smaller than code elsewhere. */

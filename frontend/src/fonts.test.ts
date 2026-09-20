@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -58,11 +58,26 @@ describe("the editor's faces", () => {
     );
   });
 
-  test("the chat's serif italic is imported, since its prose uses one", () => {
-    // `prose.tsx` renders <em> and a blockquote inside `.t-prose`, which is
-    // Source Serif 4.  This one was already right; it is asserted so it
-    // stays right.
+  test("the prose italic is imported in the sans, since the chat uses one", () => {
+    // `prose.tsx` renders <em> and a blockquote inside `.t-prose`, which
+    // is Source Sans 3 since the overhaul set the agent's replies in the
+    // one family; the italic has to be a drawn one, not a shear.
     expect(read("panes/prose.tsx")).toContain('className="italic"');
-    expect(CSS).toContain('@import "@fontsource/source-serif-4/400-italic.css"');
+    expect(CSS).toContain('@import "@fontsource/source-sans-3/400-italic.css"');
+  });
+
+  test("no serif is loaded, since none is used", () => {
+    // Source Serif 4 carried the agent's replies and the headings until
+    // the overhaul; a face that is loaded and unused is a download for
+    // nothing, and a `font-serif` that crept back would fall to Georgia.
+    expect(CSS).not.toContain("source-serif");
+    expect(CSS).not.toContain("--font-serif");
+    const walk = (dir: string): string[] =>
+      readdirSync(join(here, dir), { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory() ? walk(join(dir, entry.name)) : entry.name.endsWith(".tsx") ? [join(dir, entry.name)] : [],
+      );
+    for (const file of walk(".")) {
+      expect(read(file), file).not.toContain("font-serif");
+    }
   });
 });
