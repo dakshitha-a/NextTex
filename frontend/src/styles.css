@@ -1291,6 +1291,21 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-member:hover .nx-member-remove, .nx-member:focus-within .nx-member-remove { opacity: 1; }
 @media (hover: none) { .nx-member-remove { opacity: 1; } }
 
+/* The floating pill: the way to the Claude column while it is an overlay
+   and parked.  The kit's card, on the first surface with the float shadow
+   and no border; the mark and the name, and the shortcut only in its
+   tooltip. */
+.nx-agent-button {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 32px; padding: 0 12px 0 10px;
+  border-radius: var(--nx-radius-card);
+  background: var(--surface); color: var(--ink);
+  box-shadow: var(--float);
+  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+}
+.nx-agent-button:hover { background: var(--surface-2); }
+.nx-agent-button .nx-agent-working { animation: nx-working 1400ms var(--ease) infinite; }
+
 /* "What writes with you": three choices as rows, the chosen one on the
    wash holding its own setup under its explanation.  The radio is the
    row's head, a button, so the setup's controls are beside it rather than

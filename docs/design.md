@@ -2862,8 +2862,20 @@ stands at the right edge, as the Source and Preview strips stand for their
 panes, and it carries the same state dot (`AgentStateDot`, exported from
 `AgentButton.tsx`) so that *the agent is waiting for you* survives the
 fold. `layout.spec.ts` pins the three states in one case. The three
-screenshots under `docs/` still show the pill beside a docked column; they
-are regenerated at the end of the overhaul.
+screenshots under `docs/` were regenerated at the end of the overhaul and
+show no pill, since the column is docked at their width.
+
+*Revised again, 20 September 2026 (item 3.2a).* The page had never drawn
+the pill in the new look, so it kept its bordered capsule through the
+overhaul until the writer chose between the two on the page's "Deviations
+to settle": "Use the new version. don't put in the shortcut. have the
+windows and mac shortcuts appear as a tooltip on hover." So the pill is the
+kit's card, 32 px on `--surface` with the float shadow and no border, the
+provider's mark in the pen colour with the state dot on it, and the name at
+`t-ui`; the shortcut, `⌘⌥A / Ctrl-Alt-A`, is the tooltip its `title` gives
+on hover and what its `aria-label` says, not a hint on its face.
+`layout.spec.ts` reads the face, the title in both forms, the radius, the
+absent border and the height.
 
 ### The rail scrolls rather than pushing its panels out
 

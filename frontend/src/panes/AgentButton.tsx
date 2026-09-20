@@ -91,14 +91,14 @@ export default function AgentButton({ onShow }: { onShow: () => void }) {
   const name = agentName(provider);
   const label = `Show ${name} (${shortcut("Mod-Alt-A").both})`;
 
+  // The kit's card, as the direction page redrew it and the writer chose
+  // (20 September): the provider's mark in the pen colour with the state
+  // dot on it, and the name, nothing else on its face.  The shortcut, in
+  // both its forms, is the tooltip the title gives on hover and what a
+  // screen reader hears, not a hint drawn on the button.
   return (
     <button
-      className={[
-        "nx-agent-button group fixed z-[35] flex h-[34px] items-center gap-[7px]",
-        "rounded-full border border-line pl-[11px] pr-[13px]",
-        "shadow-[var(--float)] transition-[background-color,color] duration-150",
-        "bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-ink",
-      ].join(" ")}
+      className="nx-agent-button fixed z-[35]"
       style={{ right: 14, bottom: 34 }}
       data-testid={`agent-button-${name.toLowerCase()}`}
       // Only ever rendered while the column it opens is parked.
@@ -111,7 +111,7 @@ export default function AgentButton({ onShow }: { onShow: () => void }) {
         {provider === "openai" ? <OpenAIMark /> : <ClaudeMark />}
         <AgentStateDot className="absolute -bottom-[2px] -right-[3px]" />
       </span>
-      <span className="t-meta">{name}</span>
+      <span className="t-ui">{name}</span>
     </button>
   );
 }

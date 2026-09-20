@@ -449,6 +449,26 @@ test("the same shortcut works on the overlay, and leaves the caret in the box", 
   await chatAway(tab);
 });
 
+test("the pill says its shortcut on hover, in both forms, and not on its face", async ({ tab }) => {
+  // The writer's choice on the direction page: the redrawn pill, without
+  // the shortcut drawn on it, and the Windows and Mac forms as a tooltip.
+  await tab.setViewportSize({ width: 1200, height: 1000 });
+  const pill = tab.getByTestId("agent-button-claude");
+  await expect(pill).toBeVisible();
+  await expect(pill).toHaveText("Claude");
+  await expect(pill).toHaveAttribute("title", /Ctrl-Alt-A/);
+  await expect(pill).toHaveAttribute("title", /⌘⌥A/);
+  await expect(pill).toHaveAttribute("aria-label", /Show Claude/);
+  // The kit's card: the card's radius and the float, no border.
+  const box = await pill.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { radius: s.borderTopLeftRadius, border: s.borderTopWidth, height: el.getBoundingClientRect().height };
+  });
+  expect(box.radius).toBe("8px");
+  expect(box.border).toBe("0px");
+  expect(Math.round(box.height)).toBe(32);
+});
+
 test("reaching for the preview puts the overlay away", async ({ tab }) => {
   await tab.setViewportSize({ width: 1200, height: 1000 });
   await tab.getByTestId("agent-button-claude").click();
