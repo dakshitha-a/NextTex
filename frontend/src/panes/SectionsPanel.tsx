@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { headingAt, type Heading } from "../outline";
 import { useStore } from "../store";
 import { Chevron } from "../chrome";
+import { Empty } from "../ui/controls";
 
 /** The indent step, matching the file tree above it: the width of a Source
  *  Sans lowercase n at 13px, so the two lists sit on one grid. */
-const INDENT = 13;
+/** Sixteen pixels a level, as the page draws the drawer's indents. */
+const INDENT = 16;
 
 /** The table of contents for the file in the editor.
  *
@@ -123,18 +125,14 @@ export default function SectionsPanel({
       {shown ? (
         <div
           ref={list}
-          className={`py-[4px] ${
+          className={`flex flex-col px-2 py-[4px] ${
             grow ? "min-h-0 flex-1 overflow-auto" : "max-h-[240px] overflow-auto"
           }`}
         >
           {!activePath ? (
-            <p className="t-micro px-[10px] py-1 text-ink-3">
-              Open a file to see its sections.
-            </p>
+            <Empty>Open a file to see its sections.</Empty>
           ) : !headings.length ? (
-            <p className="t-micro px-[10px] py-1 text-ink-3">
-              No sections in this file yet.
-            </p>
+            <Empty>No sections in this file yet.</Empty>
           ) : (
             headings.map((heading, index) => {
               const current = index === here && !heading.path;
@@ -143,22 +141,23 @@ export default function SectionsPanel({
                 heading.kind === "chapter" || heading.kind === "part"
                   ? "font-medium"
                   : "";
-              // One colour, computed: three competing text utilities in one
-              // string leave the winner to stylesheet order.
-              const ink = gone ? "text-ink-3" : current ? "text-ink" : "text-ink-2";
               return (
+                // The kit's row, as the page draws the drawer: 30 px, the
+                // wash under the pointer and the chosen one, 16 px per
+                // level, the pen dot on the heading under the caret, and a
+                // heading whose file is not in the project yet greyed with
+                // the reason as its tail.
                 <button
                   key={`${heading.line}:${heading.title}`}
                   data-testid="section-row"
                   aria-current={current ? "true" : undefined}
+                  data-selected={current || undefined}
                   data-line={heading.line}
                   data-kind={heading.kind}
                   disabled={gone}
                   tabIndex={index === stop ? 0 : -1}
-                  className={`flex h-[26px] w-full items-center gap-[6px] pr-2 text-left transition-colors duration-[90ms] ${
-                    gone ? "cursor-default" : "hover:bg-surface-2"
-                  }`}
-                  style={{ paddingLeft: 10 + (heading.level - base) * INDENT }}
+                  className={`nx-row shrink-0 ${gone ? "cursor-default !text-ink-3 hover:!bg-transparent" : ""}`}
+                  style={{ paddingLeft: 8 + (heading.level - base) * INDENT }}
                   title={
                     heading.path
                       ? gone
@@ -189,25 +188,28 @@ export default function SectionsPanel({
                       size would shift every row below it several times a
                       minute.  A fill would also take the row's own hover. */}
                   <span
-                    className={`h-[4px] w-[4px] shrink-0 rounded-full ${
+                    className={`h-[5px] w-[5px] shrink-0 rounded-full ${
                       current ? "bg-pen" : "bg-transparent"
                     }`}
                   />
-                  <span className={`t-ui min-w-0 flex-1 truncate ${ink} ${weight}`}>
-                    {heading.title}
-                  </span>
-                  {mixed && heading.path ? (
-                    <span className="t-micro shrink-0 text-ink-3">file</span>
+                  <span className={`nx-row-label ${weight}`}>{heading.title}</span>
+                  {gone ? (
+                    <span className="nx-row-trailing nx-row-trailing-always">not in the project yet</span>
+                  ) : mixed && heading.path ? (
+                    <span className="nx-row-trailing nx-row-trailing-always">file</span>
                   ) : null}
                 </button>
               );
             })
           )}
           {viewing ? (
-            <p className="t-micro px-[10px] pt-1 text-ink-3">
+            <p className="nx-note">
               Sections of the old version. Clicking one returns to the live
               file.
             </p>
+          ) : null}
+          {activePath && headings.length ? (
+            <p className="nx-note mt-auto pt-3">Click a heading to go there.</p>
           ) : null}
         </div>
       ) : null}

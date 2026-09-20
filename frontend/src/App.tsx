@@ -2307,11 +2307,10 @@ export default function App() {
                   resolve={resolveInclude}
                 />
                     ) : null}
-                    {drawerId === "trash" ? <TrashPanel drawer onRefresh={refreshTree} /> : null}
+                    {drawerId === "trash" ? <TrashPanel onRefresh={refreshTree} /> : null}
                     {drawerId === "papers" ? <PapersPanel drawer onRefresh={refreshTree} /> : null}
                     {drawerId === "submit" ? (
                 <SubmitPanel
-                  drawer
                   onJump={(file, line) => openFile(file, line)}
                   onPage={(page) => pdf.current?.goTo(page)}
                 />

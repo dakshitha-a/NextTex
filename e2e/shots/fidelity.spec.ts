@@ -32,6 +32,13 @@ type Surface = {
   close?: (tab: Page) => Promise<void>;
 };
 
+/** Show a drawer from the bar; a press on the one showing would fold it. */
+async function showDrawer(tab: Page, id: string) {
+  const drawer = tab.getByTestId("drawer");
+  const showing = (await drawer.count()) > 0 && (await drawer.getAttribute("data-drawer")) === id;
+  if (!showing) await tab.getByTestId(`bar-${id}`).click();
+}
+
 const escape = async (tab: Page) => {
   await tab.keyboard.press("Escape");
   await tab.waitForTimeout(150);
@@ -339,6 +346,59 @@ const SURFACES: Record<string, Surface> = {
       await tab.getByRole("button", { name: "Back to now" }).click().catch(() => undefined);
       await tab.getByLabel("Close the history").click().catch(() => undefined);
     },
+  },
+  /* The drawers, one surface each: the drawer's own element, so the
+     heading row and the body are in the picture.  Sections and Search
+     are full in the dark run and empty in the light one, as the page
+     draws them; the harness cannot empty a project between themes, so
+     the light Sections render is compared for its chrome only. */
+  "drawer-sections": {
+    open: async (tab) => {
+      await showDrawer(tab, "sections");
+      await tab.getByTestId("section-row").first().waitFor();
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
+  "drawer-search": {
+    open: async (tab) => {
+      await showDrawer(tab, "search");
+      await tab.getByTestId("project-search").fill("section");
+      await tab.getByTestId("search-hit").first().waitFor({ timeout: 10_000 });
+      await tab.getByTestId("search-hit").nth(1).hover();
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("project-search").fill("");
+      await showDrawer(tab, "files");
+    },
+  },
+  "drawer-trash": {
+    open: async (tab) => {
+      await showDrawer(tab, "files");
+      await tab.getByLabel("Actions for appendix.tex").click({ force: true });
+      await tab.getByRole("tree").getByRole("button", { name: "Move to trash", exact: true }).click();
+      await showDrawer(tab, "trash");
+      await tab.getByTestId("trash-entry").first().waitFor({ timeout: 10_000 });
+      await tab.getByTestId("trash-entry").first().hover();
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("trash-entry").first().hover();
+      await tab.getByRole("button", { name: "Restore" }).first().click();
+      await showDrawer(tab, "files");
+    },
+  },
+  "drawer-submit": {
+    open: async (tab) => {
+      await showDrawer(tab, "submit");
+      await tab.getByTestId("submit-check").click();
+      await tab.getByTestId("submit-row").first().waitFor({ timeout: 60_000 });
+      await tab.getByTestId("submit-row").first().click();
+      await tab.waitForTimeout(300);
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
   },
   workspace: {
     // The shell at rest, at the page's width: the rail, the two panes and

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Chevron } from "../chrome";
+import { Button } from "../ui/Button";
+import { Empty, Field, Switch } from "../ui/controls";
 import api, { type SubmitFinding, type SubmitReport } from "../api";
 import { set, useStore } from "../store";
 
@@ -71,14 +72,9 @@ export function asText(report: SubmitReport): string {
 }
 
 export default function SubmitPanel({
-  drawer = false,
   onJump,
   onPage,
 }: {
-  /** Inside the activity bar's drawer, which draws the heading row and
-   *  holds one instrument at a time: the panel's own header is not drawn
-   *  and its body is always open. */
-  drawer?: boolean;
   onJump: (file: string, line: number) => void;
   onPage: (page: number) => void;
 }) {
@@ -87,8 +83,8 @@ export default function SubmitPanel({
   const settings = useStore((s) => s.settings);
   const stamp = useStore((s) => s.pdfStamp);
   const tools = useStore((s) => s.tools);
-  const [open, setOpen] = useState(false);
-  const shown = drawer || open;
+  // Always shown: the drawer holds it.
+  const shown = true;
   const [report, setReport] = useState<SubmitReport | null>(null);
   const [checking, setChecking] = useState(false);
   const [said, setSaid] = useState("");
@@ -142,185 +138,170 @@ export default function SubmitPanel({
   };
 
   const groups = useMemo(() => (report ? grouped(report.findings) : []), [report]);
-  const errors = report ? report.findings.filter((row) => row.severity === "error").length : 0;
   const missingTools = tools && (!tools.pdffonts || !tools.pdfimages);
 
-  const label = !report
-    ? "Before you submit"
-    : report.findings.length === 0
-      ? "Before you submit · nothing found"
-      : `Before you submit · ${report.findings.length}${errors ? ` (${errors} to fix)` : ""}`;
+  // The drawer as the page draws it: empty, one sentence and Check;
+  // checked, the line with Check again, Copy all and what was read, the
+  // two venue facts as lines, then the groups with their counts and the
+  // findings on the grid with the severity bar, the message and the
+  // place in the mono.
+  const facts = (
+    <>
+      <div className="nx-line">
+        <label htmlFor="submit-page-limit">Page limit</label>
+        <span className="flex-1" />
+        <Field
+          id="submit-page-limit"
+          data-testid="submit-page-limit"
+          inputMode="numeric"
+          value={limitDraft}
+          placeholder="none"
+          frameClassName="w-[72px] !h-[28px]"
+          className="text-right"
+          onChange={(event) => setLimitDraft(event.target.value.replace(/[^0-9]/g, ""))}
+          onBlur={saveLimit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+          }}
+        />
+      </div>
+      <div className="nx-line">
+        <span>Blind review</span>
+        <span className="flex-1" />
+        <Switch
+          checked={settings.blind}
+          data-testid="submit-blind"
+          aria-label="Blind review"
+          onChange={(blind) => {
+            if (!projectId) return;
+            void api.setProjectSettings(projectId, { blind }).catch(
+              (error: any) => set({ error: error.message }),
+            );
+          }}
+        />
+      </div>
+    </>
+  );
 
   return (
-    <div className={drawer ? "flex min-h-0 flex-1 flex-col" : "shrink-0 border-t border-line"} data-testid="submit-panel">
-      {drawer ? null : (
-        <button
-          className="flex h-[26px] w-full items-center gap-2 px-[10px] text-left hover:bg-surface-2"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <span className="t-meta min-w-0 flex-1 truncate text-ink-2">{label}</span>
-          <span className={`shrink-0 text-ink-3 ${open ? "rotate-90" : ""}`}>
-            <Chevron direction="right" />
-          </span>
-        </button>
-      )}
-
-      {shown ? (
-        <div className={drawer ? "min-h-0 flex-1 overflow-auto px-[10px] py-2" : "border-t border-line px-[10px] py-2"} data-testid="submit-body">
-          <div className="flex items-center gap-2">
-            <button
-              className="ghost-button h-[22px] px-2 t-micro"
+    <div className="flex min-h-0 flex-1 flex-col px-2 pb-1" data-testid="submit-panel">
+      <div className="min-h-0 flex-1 overflow-auto" data-testid="submit-body">
+        {report ? (
+          <div className="nx-line">
+            <Button
+              variant="ghost"
+              size="inline"
               data-testid="submit-check"
               disabled={checking || !projectId}
               onClick={() => void check()}
             >
-              {checking ? "Checking…" : report ? "Check again" : "Check"}
-            </button>
-            {report ? (
-              <button
-                className="quiet t-micro"
-                data-testid="submit-copy-all"
-                onClick={() => {
-                  void navigator.clipboard
-                    ?.writeText(asText(report))
-                    .then(() => {
-                      setCopied(true);
-                      window.setTimeout(() => setCopied(false), 1500);
-                    })
-                    .catch(() => undefined);
-                }}
-              >
-                {copied ? "Copied" : "Copy all"}
-              </button>
-            ) : null}
-          </div>
-          {report ? (
-            <p className="t-meta mt-2 text-ink-2" data-testid="submit-headline">
-              {headline(report) || "No build to read"}
-            </p>
-          ) : (
-            <p className="t-micro mt-2 text-ink-3">
-              Reads the last build and the sources for what a venue would send back:
-              undefined references, a <span className="t-code-sm">\today</span>, a note
-              to self, a font that is not embedded, a figure at screen resolution.
-            </p>
-          )}
-          {said ? (
-            <p className="t-meta mt-2 text-warn" data-testid="submit-said">{said}</p>
-          ) : null}
-
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-2">
-            <label className="t-micro flex items-center gap-2 text-ink-2" htmlFor="submit-page-limit">
-              Page limit
-              <input
-                id="submit-page-limit"
-                data-testid="submit-page-limit"
-                inputMode="numeric"
-                value={limitDraft}
-                placeholder="none"
-                className="t-code-sm w-[3.5em] border-b border-line bg-transparent text-right outline-none placeholder:text-ink-3 focus:border-pen"
-                onChange={(event) => setLimitDraft(event.target.value.replace(/[^0-9]/g, ""))}
-                onBlur={saveLimit}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-                }}
-              />
-            </label>
-            <button
-              role="switch"
-              aria-checked={settings.blind}
-              data-testid="submit-blind"
-              className="t-micro flex items-center gap-2 text-ink-2"
+              {checking ? "Checking…" : "Check again"}
+            </Button>
+            <Button
+              size="inline"
+              data-testid="submit-copy-all"
               onClick={() => {
-                if (!projectId) return;
-                void api.setProjectSettings(projectId, { blind: !settings.blind }).catch(
-                  (error: any) => set({ error: error.message }),
-                );
+                void navigator.clipboard
+                  ?.writeText(asText(report))
+                  .then(() => {
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1500);
+                  })
+                  .catch(() => undefined);
               }}
             >
-              <span
-                className={`flex h-[12px] w-[22px] shrink-0 items-center rounded-[3px] border p-[1px] ${
-                  settings.blind ? "border-hint bg-hint-wash" : "border-line"
-                }`}
-              >
-                <span
-                  className={`h-[8px] w-[8px] rounded-[2px] ${
-                    settings.blind ? "ml-auto bg-hint" : "bg-ink-3"
-                  }`}
-                />
-              </span>
-              Blind review
-            </button>
+              {copied ? "Copied" : "Copy all"}
+            </Button>
           </div>
-          {missingTools ? (
-            <p className="t-micro mt-2 text-ink-3">
-              Fonts and image resolution need pdffonts and pdfimages, which come with
-              poppler-utils; they are not installed here.
-            </p>
-          ) : null}
+        ) : (
+          <Empty
+            action={
+              <Button
+                variant="ghost"
+                data-testid="submit-check"
+                disabled={checking || !projectId}
+                onClick={() => void check()}
+              >
+                {checking ? "Checking…" : "Check"}
+              </Button>
+            }
+          >
+            Reads the last build and the sources for what a venue would send back:
+            undefined references, a <span className="t-code-sm">\today</span>, a note
+            to self, a font that is not embedded, a figure at screen resolution.
+          </Empty>
+        )}
+        {report ? (
+          // On its own line: beside the two buttons it truncated at the
+          // drawer's width, and what was read is worth the whole line.
+          <p className="nx-note" data-testid="submit-headline">
+            {headline(report) || "No build to read"}
+          </p>
+        ) : null}
+        {said ? (
+          <p className="nx-note !text-warn" data-testid="submit-said">{said}</p>
+        ) : null}
+        {facts}
+        {missingTools ? (
+          <p className="nx-note">
+            Fonts and image resolution need pdffonts and pdfimages, which come with
+            poppler-utils; they are not installed here.
+          </p>
+        ) : null}
 
-          {report && groups.length ? (
-            <div className="mt-3" data-testid="submit-groups">
-              {groups.map((group) => (
-                <div key={group.kind} className="mb-2" data-kind={group.kind}>
-                  <p className="t-micro flex items-baseline gap-2 text-ink-2">
-                    <span>{group.title}</span>
-                    <span className="text-ink-3 tnum">{group.rows.length}</span>
-                  </p>
-                  <ul className="mt-1">
-                    {group.rows.map((row, index) => {
-                      const key = `${group.kind}:${row.file ?? ""}:${row.line ?? ""}:${row.page ?? ""}:${index}`;
-                      const isOpen = expanded === key;
-                      const bar =
-                        row.severity === "error" ? "bg-error"
-                        : row.severity === "warning" ? "bg-warn"
-                        : "bg-ink-3";
-                      const where = row.file
-                        ? `${row.file.split("/").pop()}:${row.line ?? ""}`
-                        : row.page ? `p. ${row.page}` : "";
-                      return (
-                        <li key={key} className="relative">
-                          <span className={`absolute left-0 top-[6px] h-[12px] w-[3px] ${bar}`} />
-                          <button
-                            className="flex w-full min-w-0 items-start gap-2 py-[3px] pl-[8px] text-left hover:bg-surface-2"
-                            data-testid="submit-row"
-                            data-kind={row.kind}
-                            aria-expanded={isOpen}
-                            onClick={() => {
-                              setExpanded(isOpen ? null : key);
-                              if (row.file && row.line) onJump(row.file, row.line);
-                              else if (row.page) onPage(row.page);
-                            }}
-                          >
-                            <span className="t-meta min-w-0 flex-1 text-ink">{row.message}</span>
-                            {where ? (
-                              <span className="t-micro shrink-0 text-ink-3 tnum">{where}</span>
-                            ) : null}
-                          </button>
-                          {isOpen && row.explain ? (
-                            <div className="ml-[8px] border-l border-line bg-surface-2 px-2 py-1">
-                              <p className="t-micro text-ink-2">{row.explain.detail}</p>
-                              <p className="t-micro mt-1 text-ink-2">
-                                <span className="text-ink-3">What to do: </span>
-                                {row.explain.fix}
-                              </p>
-                            </div>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
+        {report && groups.length ? (
+          <div data-testid="submit-groups">
+            {groups.map((group) => (
+              <div key={group.kind} data-kind={group.kind}>
+                <div className="nx-group">
+                  <span>{group.title}</span>
+                  <span className="nx-group-count">{group.rows.length}</span>
                 </div>
-              ))}
-            </div>
-          ) : report ? (
-            <p className="t-meta mt-3 text-ink-2" data-testid="submit-clean">
-              Nothing a venue would send back.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+                <ul>
+                  {group.rows.map((row, index) => {
+                    const key = `${group.kind}:${row.file ?? ""}:${row.line ?? ""}:${row.page ?? ""}:${index}`;
+                    const isOpen = expanded === key;
+                    const where = row.file
+                      ? `${row.file.split("/").pop()}:${row.line ?? ""}`
+                      : row.page ? `p. ${row.page}` : "";
+                    return (
+                      <li key={key}>
+                        <button
+                          className="nx-find"
+                          data-testid="submit-row"
+                          data-kind={row.kind}
+                          data-severity={row.severity}
+                          data-open={isOpen || undefined}
+                          aria-expanded={isOpen}
+                          onClick={() => {
+                            setExpanded(isOpen ? null : key);
+                            if (row.file && row.line) onJump(row.file, row.line);
+                            else if (row.page) onPage(row.page);
+                          }}
+                        >
+                          <span className="nx-find-bar" />
+                          <span className="nx-find-text">{row.message}</span>
+                          {where ? <span className="nx-find-loc">{where}</span> : <span />}
+                          {isOpen && row.explain ? (
+                            <span className="nx-find-why">
+                              {row.explain.detail}{" "}
+                              <b>What to do:</b> {row.explain.fix}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : report ? (
+          <p className="nx-note" data-testid="submit-clean">
+            Nothing a venue would send back.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -1107,9 +1107,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-row-actions { position: relative; opacity: 0; }
 .nx-project-row:hover .nx-row-actions,
 .nx-project-row:focus-within .nx-row-actions,
+.nx-row:hover .nx-row-actions,
+.nx-row:focus-within .nx-row-actions,
 .nx-row-actions[data-always] { opacity: 1; }
 .nx-project-row:hover .nx-row-when,
 .nx-project-row:focus-within .nx-row-when,
+.nx-row:hover .nx-row-when,
+.nx-row:focus-within .nx-row-when,
 .nx-row-tail:has([data-always]) .nx-row-when { opacity: 0; pointer-events: none; }
 @media (hover: none) {
   .nx-row-tail { display: flex; align-items: center; gap: 8px; }
@@ -1483,6 +1487,46 @@ button.nx-row { width: 100%; text-align: left; }
 }
 .nx-strip-field:focus { outline: none; box-shadow: inset 0 0 0 1px var(--hint); }
 
+/* The drawer's furniture, from the direction page's drawer round: a
+   group heading with its count, a search hit, a finding on a grid with
+   its severity bar, a line of controls, a note, a foot, and the small
+   toggles that sit inside a field.  One set for Sections, Search, Trash
+   and Before you submit, so the four cannot drift. */
+.nx-group { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; margin-top: 6px; color: var(--ink); font-weight: 500; font-size: 13px; }
+.nx-group-ext { color: var(--ink-3); font-weight: 400; }
+.nx-group-count { margin-left: auto; color: var(--ink-3); font-weight: 400; font-variant-numeric: tabular-nums; }
+.nx-hit {
+  display: flex; gap: 8px; align-items: baseline; width: 100%;
+  padding: 3px 8px 3px 16px; border-radius: var(--nx-radius-control);
+  color: var(--ink-2); font-size: 13px; line-height: 18px; text-align: left;
+}
+.nx-hit:hover, .nx-hit:focus-visible { background: var(--wash); }
+.nx-hit-line { flex: none; width: 22px; text-align: right; color: var(--ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.nx-hit-text { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12.5px; }
+.nx-hit-text mark { background: var(--hint-wash); color: var(--ink); border-radius: 2px; }
+.nx-hit-comment { flex: none; color: var(--ink-3); font-size: 11px; }
+.nx-find {
+  display: grid; grid-template-columns: 3px 1fr auto; gap: 0 10px; align-items: start; width: 100%;
+  padding: 5px 8px 5px 6px; border-radius: var(--nx-radius-control);
+  color: var(--ink-2); font-size: 13px; line-height: 18px; text-align: left;
+}
+.nx-find:hover, .nx-find[data-open] { background: var(--wash); }
+.nx-find-bar { width: 3px; height: 100%; min-height: 18px; border-radius: 2px; background: var(--ink-3); }
+.nx-find[data-severity="error"] .nx-find-bar { background: var(--error); }
+.nx-find[data-severity="warning"] .nx-find-bar { background: var(--warn); }
+.nx-find-text { color: var(--ink); min-width: 0; }
+.nx-find-loc { color: var(--ink-3); font-size: 12px; font-family: var(--font-mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nx-find-why { grid-column: 2 / span 2; color: var(--ink-3); font-size: 12.5px; line-height: 17px; margin-top: 2px; }
+.nx-find-why b { color: var(--ink); font-weight: 500; }
+.nx-line { display: flex; align-items: center; gap: 8px; padding: 4px 8px; color: var(--ink-2); font-size: 13px; line-height: 18px; }
+.nx-line-meta { color: var(--ink-3); font-size: 12px; }
+.nx-note { padding: 4px 8px; color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
+.nx-foot { display: flex; align-items: center; gap: 6px; padding: 6px 8px 10px; margin-top: auto; }
+.nx-field-toggle {
+  padding: 0 5px; line-height: 20px; border-radius: 3px;
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 11.5px;
+}
+.nx-field-toggle[aria-pressed="true"] { background: var(--wash); color: var(--ink); }
 .nx-empty { padding: 4px 8px 12px; }
 .nx-empty p { margin: 0 0 8px; color: var(--ink-2); font-size: 13.5px; line-height: 19px; }
 .nx-empty-action { display: flex; gap: 6px; align-items: center; }

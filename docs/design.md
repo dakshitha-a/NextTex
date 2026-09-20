@@ -288,6 +288,23 @@ reading as VS Code: the bar sits on the same plane as the drawer rather than bei
 strip, its icons are the one hand-drawn set at one stroke weight, nothing on it carries a
 badge or a coloured dot, and the active button is marked by ink weight and the wash.
 
+The four instruments the drawer holds besides Files, History, Papers and the repository
+are drawn from one set of furniture, as the direction page's drawer round has them.
+Sections lists its headings as 30 px rows at 16 px per level, the pen dot on the heading
+under the caret, a heading whose file is not in the project yet greyed with the reason as
+its tail, and one sentence at the foot; its counts left the heading, since the rows are the
+count. Search is the kit's field with Aa and .* inside it, a summary line with Replace
+beside it, and the hits grouped under file rows, each hit its line number and the match on
+the hint wash, with a % marker for a hit in a comment; empty, it says how matches are
+grouped. Deleted never hides itself: empty, it is one sentence; otherwise rows with the
+file's mark, the time at rest giving way to Restore and Delete under the pointer, and
+"Empty the trash" as one quiet action at the foot. Before you submit reads as one sentence
+and Check when nothing has been checked; afterwards the line with Check again and Copy all,
+what was read on its own line, Page limit and Blind review as lines with the kit's field
+and switch, and the findings grouped under headings with their counts, each on a grid with
+its severity bar, its message and its place in the mono, opening on the wash with "What to
+do".
+
 **Spacing scale:** 2 / 4 / 6 / 8 / 12 / 16 / 24 / 32; everything quantises to 4. Interactive
 row heights: 26 (tree rows, resolved cards), 28 (diagnostic rows, buttons), 32 (tabs), 26
 (status strip). Pane padding 8 horizontal / 6 vertical: this is an instrument, not a

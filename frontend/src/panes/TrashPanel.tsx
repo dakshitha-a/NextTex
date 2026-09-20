@@ -1,34 +1,27 @@
 import { useEffect, useState } from "react";
 import api from "../api";
 import { refreshTrash, set, useStore } from "../store";
-import { Chevron } from "../chrome";
+import { Button } from "../ui/Button";
+import { Empty, Row } from "../ui/controls";
+import { FileIcon, ImageIcon } from "../ui/icons";
+import { kindOf } from "./file-kinds";
 
 /** What has been deleted, and how to get it back.
  *
  *  Nothing here is ever cleaned up on a timer: a trash that empties itself
- *  is a trash that loses the thing you went looking for. */
-export default function TrashPanel({ onRefresh, drawer = false }: { onRefresh: () => void; drawer?: boolean }) {
+ *  is a trash that loses the thing you went looking for.  It is the
+ *  activity bar's Deleted drawer, and it never hides itself: empty, it is
+ *  one sentence, as the direction page draws it. */
+export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
   const entries = useStore((s) => s.trash);
   const failed = useStore((s) => s.trashFailed);
   const projectId = useStore((s) => s.projectId);
-  const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
 
   useEffect(() => {
     if (projectId) refreshTrash(projectId);
   }, [projectId]);
-
-  if (!entries.length && failed) {
-    return (
-      <div className="shrink-0 border-t border-line px-[10px] py-[6px]">
-        <span className="t-micro text-ink-3" data-testid="trash-unavailable">
-          Could not read the trash.
-        </span>
-      </div>
-    );
-  }
-  if (!entries.length) return null;
 
   const act = async (what: "restore" | "purge" | "empty", id = "") => {
     if (!projectId) return;
@@ -58,99 +51,89 @@ export default function TrashPanel({ onRefresh, drawer = false }: { onRefresh: (
     }
   };
 
-  const shown = drawer || open;
   return (
-    <div className={drawer ? "flex min-h-0 flex-1 flex-col" : "shrink-0 border-t border-line"} data-testid="trash-panel">
-      {drawer ? null : (
-        <button
-          className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          <span className="t-micro text-ink-2">
-            {entries.length} deleted
-          </span>
-          <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
-            <Chevron direction="down" />
-          </span>
-        </button>
-      )}
-      {shown ? (
-        <div className={drawer ? "min-h-0 flex-1 overflow-auto pb-2" : "max-h-[220px] overflow-auto pb-2"}>
+    <div className="flex min-h-0 flex-1 flex-col px-2 pb-1" data-testid="trash-panel">
+      {!entries.length && failed ? (
+        <Empty data-testid="trash-unavailable">Could not read the trash.</Empty>
+      ) : !entries.length ? (
+        <Empty>
+          Nothing deleted. A file you move to the trash waits here, with its
+          history, until you empty it.
+        </Empty>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto">
           {entries.map((entry) => {
             const [stem, extension] = splitName(entry.name);
+            const image = kindOf(entry.name) === "image";
             return (
-              <div
+              // The kit's row: the file's mark, the name with its extension
+              // in the third ink, and at the right the time at rest,
+              // giving way to Restore and Delete under the pointer; the
+              // "for good" question takes the row's tail when asked.
+              <Row
                 key={entry.id}
                 data-testid="trash-entry"
                 data-path={entry.path}
-                className="group flex h-[26px] items-center gap-2 rounded-[3px] pl-[10px] pr-1 hover:bg-surface-2"
                 title={entry.path}
-              >
-                <span className="t-ui min-w-0 flex-1 truncate">
-                  <span className="text-ink">{stem}</span>
-                  <span className="text-ink-3">{extension}</span>
-                </span>
-                {confirming === entry.id ? (
-                  <>
-                    <span className="t-micro shrink-0 text-ink-2">For good?</span>
-                    <button
-                      className="quiet t-micro shrink-0"
-                      data-tone="danger"
-                      onClick={() => act("purge", entry.id)}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      className="quiet t-micro shrink-0"
-                      onClick={() => setConfirming(null)}
-                    >
-                      Keep
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="t-micro shrink-0 text-ink-3 group-hover:hidden">
-                      {when(entry.at)}
+                leading={image ? <ImageIcon /> : <FileIcon />}
+                trailingAlways
+                trailing={
+                  <span className="nx-row-tail">
+                    <span className="nx-row-when tabular-nums">{when(entry.at)}</span>
+                    <span className="nx-row-actions flex items-center gap-[2px]" data-always={confirming === entry.id || undefined}>
+                      {confirming === entry.id ? (
+                        <>
+                          <span className="pr-1 text-ink-2">For good?</span>
+                          <Button size="inline" variant="danger" onClick={() => act("purge", entry.id)}>
+                            Delete
+                          </Button>
+                          <Button size="inline" onClick={() => setConfirming(null)}>
+                            Keep
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="inline"
+                            disabled={busy === entry.id}
+                            onClick={() => act("restore", entry.id)}
+                          >
+                            {busy === entry.id ? "Restoring" : "Restore"}
+                          </Button>
+                          <Button size="inline" variant="danger" onClick={() => setConfirming(entry.id)}>
+                            Delete
+                          </Button>
+                        </>
+                      )}
                     </span>
-                    <button
-                      className="quiet t-micro hidden shrink-0 group-hover:block"
-                      disabled={busy === entry.id}
-                      onClick={() => act("restore", entry.id)}
-                    >
-                      {busy === entry.id ? "Restoring" : "Restore"}
-                    </button>
-                    <button
-                      className="quiet t-micro hidden shrink-0 group-hover:block"
-                      data-tone="danger"
-                      onClick={() => setConfirming(entry.id)}
-                    >
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
+                  </span>
+                }
+              >
+                <span className="text-ink">{stem}</span>
+                <span className="text-ink-3">{extension}</span>
+              </Row>
             );
           })}
+        </div>
+      )}
+      {entries.length ? (
+        <div className="nx-foot">
           {confirming === "all" ? (
-            <div className="mt-2 flex items-center gap-2 px-[10px]">
-              <span className="t-micro flex-1 text-ink-2">
+            <>
+              <span className="t-meta flex-1 text-ink-2">
                 Delete all {entries.length} for good, with their history?
               </span>
-              <button className="t-micro text-error" onClick={() => act("empty")}>
+              <Button size="inline" variant="danger" onClick={() => act("empty")}>
                 Empty
-              </button>
-              <button className="quiet t-micro" onClick={() => setConfirming(null)}>
+              </Button>
+              <Button size="inline" onClick={() => setConfirming(null)}>
                 Keep
-              </button>
-            </div>
+              </Button>
+            </>
           ) : (
-            <button
-              className="quiet t-micro mt-2 px-[10px]"
-              onClick={() => setConfirming("all")}
-            >
+            <Button size="inline" onClick={() => setConfirming("all")}>
               Empty the trash
-            </button>
+            </Button>
           )}
         </div>
       ) : null}
