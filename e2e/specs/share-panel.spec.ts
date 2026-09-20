@@ -27,9 +27,11 @@ test("a removed install is told so, and the strip draws nobody", async ({
   await expect(notice).toBeVisible({ timeout: 10_000 });
   await expect(notice).toContainText("removed you from this project");
   await expect(notice).toContainText("Your copy stays on this machine");
-  // Not the invite form, and no member drawn as away.
+  // Not the invite form, no member drawn, and the one way on is to keep
+  // the copy as a project of this install's own.
   await expect(tab.getByTestId("make-invite")).toHaveCount(0);
-  await expect(tab.getByTestId("peer-away")).toHaveCount(0);
+  await expect(tab.getByTestId("member-row")).toHaveCount(0);
+  await expect(tab.getByTestId("keep-as-own")).toBeVisible();
 });
 
 test("leaving keeps the copy as a project of its own", async ({ app, project, tab }) => {
@@ -45,8 +47,11 @@ test("leaving keeps the copy as a project of its own", async ({ app, project, ta
   await tab.getByTestId("leave-delete").uncheck();
   await tab.getByTestId("confirm-leave").click();
 
-  // Private again, in the same panel, with the editor still underneath.
-  await expect(tab.getByTestId("start-sharing")).toBeVisible({ timeout: 10_000 });
+  // Private again, in the same sheet, with the editor still underneath:
+  // the one filled button offers an invite and there is nothing to stop.
+  await expect(tab.getByTestId("share-panel")).toHaveAttribute("data-state", "private", { timeout: 10_000 });
+  await expect(tab.getByTestId("make-invite")).toBeVisible();
+  await expect(tab.getByTestId("leave-share")).toHaveCount(0);
   await expect(tab.locator(".cm-editor")).toBeVisible();
   const state = await (await tab.request.get(base)).json();
   expect(state.shared).toBe(false);
@@ -86,6 +91,7 @@ test("a removed install can keep its copy as a project of its own", async ({
   await tab.getByTestId("open-share").click();
   await expect(tab.getByTestId("removed-notice")).toBeVisible({ timeout: 10_000 });
   await tab.getByTestId("keep-as-own").click();
-  await expect(tab.getByTestId("start-sharing")).toBeVisible({ timeout: 10_000 });
+  await expect(tab.getByTestId("share-panel")).toHaveAttribute("data-state", "private", { timeout: 10_000 });
+  await expect(tab.getByTestId("make-invite")).toBeVisible();
   await expect(tab.getByTestId("removed-notice")).toHaveCount(0);
 });

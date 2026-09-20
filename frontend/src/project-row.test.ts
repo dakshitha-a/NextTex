@@ -39,6 +39,13 @@ describe("the marks after a name", () => {
   it("marks a shared one, and says when this install was removed from it", () => {
     expect(rowMarks({ shared: true, removed: false })).toEqual(["shared"]);
     expect(rowMarks({ shared: true, removed: true })).toEqual(["removed from the share"]);
+    // The count is the others, said the way a sentence says it.
+    expect(rowMarks({ shared: true, removed: false, people: 0 })).toEqual(["shared"]);
+    expect(rowMarks({ shared: true, removed: false, people: 1 })).toEqual(["shared with one person"]);
+    expect(rowMarks({ shared: true, removed: false, people: 2 })).toEqual(["shared with two people"]);
+    expect(rowMarks({ shared: true, removed: false, people: 12 })).toEqual(["shared with 12 people"]);
+    // Removed wins: the count is of a share this install is not in.
+    expect(rowMarks({ shared: true, removed: true, people: 3 })).toEqual(["removed from the share"]);
   });
 });
 

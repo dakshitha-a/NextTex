@@ -975,9 +975,11 @@ already have. It stops the two of you syncing. It cannot unsend a paper. The
 button says so, next to itself. Somebody who is removed is told so, once,
 and their copy stays theirs.
 
-You can leave from the share panel. The others carry on without you, and
-your copy stays on your computer as a project of your own, with its
-history, or is deleted if you tick the box that says so. Deleting the
+You can stop sharing from the share sheet, which opens from the Share
+button inside a project or from the project's row in the list. The others
+carry on without you, and your copy stays on your computer as a project of
+your own, with its history, or is deleted if you tick the box that says
+so. The row says "shared", and with whom, once you have. Deleting the
 folder by hand is never the way out: NextTex would take that as this copy
 being gone, which is what it is, and nobody else would notice anything.
 

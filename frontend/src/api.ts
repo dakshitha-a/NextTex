@@ -351,6 +351,8 @@ export type ProjectSummary = {
   shareId: string;
   /** This install was removed from that share. */
   removed: boolean;
+  /** How many others are in the share, for "shared with two people". */
+  people: number;
 };
 
 export type ContextDocument = {

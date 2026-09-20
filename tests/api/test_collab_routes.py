@@ -97,6 +97,49 @@ def test_only_the_hash_of_an_invite_is_kept(client, opened):
     assert share.invites
 
 
+def test_sharing_from_the_list_needs_no_open_editor(client, project):
+    """The projects screen shares a project from its row without opening
+    it: the routes open a session on demand, and the registry's last-opened
+    time is untouched, so the list does not reorder."""
+    from server.collab.peers import INVITE_PREFIX
+
+    project_id = project["id"]
+    before = client.get("/api/projects").json()["projects"]
+    opened_at = next(p for p in before if p["id"] == project_id)["lastOpened"]
+    assert next(p for p in before if p["id"] == project_id)["people"] == 0
+
+    invite = client.post(f"/api/projects/{project_id}/collab/invite").json()["invite"]
+    assert invite.startswith(INVITE_PREFIX)
+    state = client.get(f"/api/projects/{project_id}/collab").json()
+    assert state["shared"] is True
+
+    after = client.get("/api/projects").json()["projects"]
+    row = next(p for p in after if p["id"] == project_id)
+    assert row["shared"] is True
+    assert row["removed"] is False
+    # Nobody has joined yet, so the row says "shared" and no more.
+    assert row["people"] == 0
+    assert row["lastOpened"] == opened_at
+
+
+def test_the_list_counts_the_others_in_the_share(client, opened):
+    """The count on the row is the others: not this install, and not
+    anyone with a tombstone."""
+    project_id = opened["id"]
+    state = client.post(f"/api/projects/{project_id}/collab/share",
+                        json={"name": "A"}).json()
+    session = server_main.SESSIONS[project_id]
+    session.peers.share.members["peer-b"] = {"name": "B", "joined_at": 1.0}
+    session.peers.share.members["peer-c"] = {"name": "C", "joined_at": 1.0}
+    session.peers.share.members["peer-d"] = {"name": "D", "joined_at": 1.0, "removed_at": 2.0}
+    session.peers.share.save()
+    assert state["me"] in session.peers.share.members
+
+    row = next(p for p in client.get("/api/projects").json()["projects"]
+               if p["id"] == project_id)
+    assert row["people"] == 2
+
+
 def test_inviting_shares_the_project_if_it_was_not_already(client, opened):
     """The one-step path: a person who wants to invite somebody has already
     decided to share, and being made to press two buttons for one intention

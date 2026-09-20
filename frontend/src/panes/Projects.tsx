@@ -38,6 +38,7 @@ const ScreenGuide = lazy(() => import("./tutorial/ScreenGuide"));
 const JoinOfferCard = lazy(() => import("./JoinOfferCard"));
 // And the folder picker, which is behind a button most visits never press.
 const FolderPicker = lazy(() => import("./FolderPicker"));
+const SharePanel = lazy(() => import("./SharePanel"));
 /** The update footer draws nothing while it rests and asks the server
  *  for its state on mount, which a lazy mount does a frame later; at
  *  thirteen kilobytes it was the largest thing in the entry chunk that
@@ -194,6 +195,9 @@ export default function Projects({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgetting, setForgetting] = useState<string | null>(null);
+  // The project whose share sheet is open, from its row.  The routes open
+  // a session on demand, so the project itself stays closed.
+  const [sharing, setSharing] = useState<ProjectSummary | null>(null);
   // Saying where a folder went, keyed by the entry's old path.  The error
   // belongs to the row rather than to the screen: the shared message at the
   // bottom sits under the create form, where it reads as a create error.
@@ -928,6 +932,14 @@ export default function Projects({
                   <Button
                     size="inline"
                     disabled={locked || project.missing}
+                    data-testid="row-share"
+                    onClick={() => setSharing(project)}
+                  >
+                    Share
+                  </Button>
+                  <Button
+                    size="inline"
+                    disabled={locked || project.missing}
                     onClick={() => void downloadZip(project.id, `${project.name}.zip`)}
                   >
                     Zip
@@ -1150,6 +1162,22 @@ export default function Projects({
             </Button>
           </div>
         </Sheet>
+      ) : null}
+      {/* Share from a row: the same sheet the workspace uses, over the list.
+          The list is read again when it closes, so the row's mark says
+          "shared" the moment it is. */}
+      {sharing ? (
+        <Suspense fallback={null}>
+          <SharePanel
+            projectId={sharing.id}
+            name={sharing.name}
+            onClose={() => {
+              setSharing(null);
+              void refresh();
+            }}
+            onLeft={() => void refresh()}
+          />
+        </Suspense>
       ) : null}
       {/* The update sheet and the problem report, opened from the app bar;
           the component mounts whatever is open, since its check on mount

@@ -1253,6 +1253,24 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 button.nx-row { width: 100%; text-align: left; }
 .nx-sheet-list { max-height: 180px; overflow: auto; margin: 4px -4px 0; }
 .nx-sheet-foot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding-top: 14px; }
+
+/* The share sheet's members: a 32 px row each, "You" plain with "this
+   computer" at its end, the others taking the wash under the pointer
+   with Remove appearing there (always on a screen with nothing to point
+   with).  The remove confirm opens under the name as the row's second
+   line. */
+.nx-members { margin: 0; padding: 0; list-style: none; }
+.nx-member {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  min-height: var(--nx-row); padding: 0 10px; margin: 0 -10px;
+  border-radius: var(--nx-radius-control);
+  font-size: 14px; line-height: 20px; color: var(--ink);
+}
+.nx-member:hover, .nx-member:focus-within { background: var(--wash); }
+.nx-member-tail { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: var(--ink-3); font-size: 12.5px; }
+.nx-member-remove { opacity: 0; transition: opacity 90ms var(--ease); }
+.nx-member:hover .nx-member-remove, .nx-member:focus-within .nx-member-remove { opacity: 1; }
+@media (hover: none) { .nx-member-remove { opacity: 1; } }
 .nx-row > svg { flex: none; color: var(--ink-3); }
 .nx-row-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nx-row:hover, .nx-row:focus-within { background: var(--wash); }

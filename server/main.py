@@ -2177,10 +2177,19 @@ def _share_cards() -> dict[str, dict]:
             except Exception:
                 me = ""
         members = card.get("members") or {}
-        mine = members.get(me) if isinstance(members, dict) else None
+        if not isinstance(members, dict):
+            members = {}
+        mine = members.get(me)
         cards[path] = {
             "shareId": entry.stem,
             "removed": bool(isinstance(mine, dict) and mine.get("removed_at")),
+            # The others still in the share, for the row's "shared with two
+            # people": everyone on the card but this install and anyone
+            # with a tombstone.
+            "people": sum(
+                1 for peer, record in members.items()
+                if peer != me and isinstance(record, dict) and not record.get("removed_at")
+            ),
         }
     return cards
 
@@ -2194,6 +2203,7 @@ async def list_projects():
         entry["shared"] = card is not None
         entry["shareId"] = card["shareId"] if card else ""
         entry["removed"] = bool(card and card["removed"])
+        entry["people"] = card["people"] if card else 0
     # Where home is, so the rows can write a path the way a person does,
     # `~/writing/thesis`.  The browser cannot know it: the machine running
     # NextTex is not always the one the page is open on.

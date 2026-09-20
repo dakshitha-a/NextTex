@@ -35,11 +35,28 @@ export function rowMarks(project: {
   shared: boolean;
   removed: boolean;
   open?: boolean;
+  /** The others in the share; a share nobody has joined yet is "shared". */
+  people?: number;
 }): string[] {
   const marks: string[] = [];
   if (project.open) marks.push("open in another window");
-  if (project.shared) marks.push(project.removed ? "removed from the share" : "shared");
+  if (project.shared) {
+    marks.push(
+      project.removed ? "removed from the share"
+      : project.people ? `shared with ${peopleWords(project.people)}`
+      : "shared",
+    );
+  }
   return marks;
+}
+
+const SMALL = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+
+/** "one person", "two people", "12 people": a count of collaborators as a
+ *  sentence says it. */
+export function peopleWords(count: number): string {
+  const number = count < SMALL.length ? SMALL[count] : String(count);
+  return `${number} ${count === 1 ? "person" : "people"}`;
 }
 
 /** Where an arrow key takes the focus in the list: the id of the row to

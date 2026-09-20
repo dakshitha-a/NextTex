@@ -322,6 +322,29 @@ const SURFACES: Record<string, Surface> = {
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
     },
   },
+  "projects-share": {
+    open: async (tab) => {
+      // Shared through the route first, as the page drew it: the sheet
+      // in its shared state, with the invite field and Stop sharing.
+      await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/collab/share`, {
+        data: { name: "Dakshitha" },
+      });
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      const row = tab.getByTestId("project-row").first();
+      await row.hover();
+      await row.getByTestId("row-share").click();
+      const sheet = tab.getByTestId("share-panel");
+      await sheet.getByTestId("make-invite").click();
+      await sheet.getByTestId("invite-text").waitFor();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
   "folder-picker": {
     open: async (tab) => {
       await tab.getByTestId("switch-project").click();

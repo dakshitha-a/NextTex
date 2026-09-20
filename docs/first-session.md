@@ -270,9 +270,10 @@ are recoverable.
 Only worth doing if there is a second machine to try it from: a laptop
 beside you, or a colleague on the phone. Both ends need NextTex installed.
 
-Press **Share** beside the project's name, then **Create an invite**. That is
-one string, copied to your clipboard. Send it however you would send a
-password: whoever opens it joins, once, and it stops working after a week.
+Press **Share** beside the project's name, or on the project's row in the
+list, then **Make an invite**. That is one string, copied to your clipboard.
+Send it however you would send a password: whoever opens it joins, once, and
+it stops working after a week.
 
 On the other machine, from the project list, choose **Join a shared project**,
 paste the invite, and give it an *empty* folder. The whole project arrives:

@@ -8370,8 +8370,8 @@ with the count at its right. A project is a card on the first surface,
 8 px round, the name at 17 on 24 and 600 with a shared project's mark
 beside it, the place under the name with home folded to `~`, and at the
 right the time it was last opened at rest, giving way under the pointer to
-Open, Zip, PDF and Remove (Share, Archive and Trash come with 3.1a and
-3.1d, which replace Remove and its confirm); a missing folder says so in
+Open, Share, Zip, PDF and Remove (Archive and Trash come with 3.1d, which
+replaces Remove and its confirm); a missing folder says so in
 the warning colour with "Find it" beside it, and its row keeps its actions
 shown. All four ways in open one sheet with their own title, field and
 copy: New project with Name, Where and Browse, and Start from as a
@@ -8383,6 +8383,39 @@ sheet's first line before any check was asked for. The password nudge sits
 under the list until item 3.2 takes it into the bar's lock. On a phone the
 app bar keeps its icons, the agent control leaves it, the head wraps with
 the find field on its own line, and a card stacks its tail under the name.
+
+Share from a row (item 3.1a, 20 September, asked for by the writer in the
+projects round) opens the same sheet the workspace's Share button opens,
+over the list, without opening the project: the collaboration routes open
+a session on demand, and only the open route touches the registry's
+last-opened time, so the sort does not move. The sheet is one layout
+whether the project is shared yet or not, as the page drew it: "Share
+Thesis" at the display size, two sentences saying what sharing is
+(everyone with an invite edits the same project, online or off, and keeps
+a whole copy; there is no owner, every member can invite and every member
+can remove), then, once one has been made, "An invite for one person,
+usable once" over a read-only mono field with Copy at its end, then
+Members as 32 px rows, "You" with "this computer" at the right and each
+collaborator taking the wash under the pointer with Remove appearing
+there, the disconnect confirm opening under the name. The foot is "Stop
+sharing" in the error colour at the left, only while there is something
+to stop, then Done and the one filled button, "Make an invite". "Turn on
+sharing" went: it was a step that did nothing anyone could see, since
+nothing reaches anybody until an invite is made and the invite route
+shares the project on the way, so the filled button is the same in both
+states and a private project is the same sheet with no invite and no
+Stop sharing. Stop sharing asks first, with the leave words and the
+"and delete my copy" box the panel already had, so leaving and deleting
+the copy is still one press away; "connected" is said beside a member
+only while it is true, since "away" on every row read as a network
+problem, and the hash a collaborator would see is said only while no
+name is set. A project shared this way wears its mark the moment the
+sheet closes, "shared" while nobody has joined and "shared with two
+people" once they have, the count being the others on the share card who
+carry no tombstone, which `GET /api/projects` now carries as `people`.
+The rare states (this platform cannot, this install was removed, this
+copy is not in its share) keep their sentences on the same sheet, the
+removed one with "Keep it as a project of my own" at the foot's left.
 
 ## 45. The second roadmap run: the checks
 

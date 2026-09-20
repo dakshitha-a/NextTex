@@ -2816,6 +2816,7 @@ export default function App() {
         <Suspense fallback={null}>
           <SharePanel
             projectId={projectId}
+            name={projectName}
             onClose={() => setSharing(false)}
             onLeft={leaveProject}
           />
