@@ -59,7 +59,7 @@ import { isEscaped } from "./escaping";
 import { isBib, isScript } from "./file-kinds";
 import { inputTarget, labelTarget, linkAt } from "./latex-links";
 import { mac } from "./math-hover";
-import { mathHover, type OnSymbol } from "./math-hover";
+import { mathHover, type FigureFacts, type OnSymbol } from "./math-hover";
 import {
   braceAfter,
   commentStart,
@@ -702,8 +702,8 @@ export function languageFor(
   options: {
     follow?: (path: string, line?: number) => void;
     complete?: boolean;
-    /** Where a figure's bytes are, for the hover on `\includegraphics`. */
-    imageUrl?: (path: string) => string;
+    /** The facts for a figure, for the hover on `\includegraphics`. */
+    figure?: (path: string) => FigureFacts | null;
     /** The tooltip's Find references and Rename, and F2 on a name. */
     onSymbol?: OnSymbol;
   } = {},
@@ -742,7 +742,7 @@ export function languageFor(
     // in `base()` so a Python script, which has no sections, gets no
     // gutter, and the read-only version view folds like the live one.
     latexFolding(),
-    mathHover(symbols, options.imageUrl, options.onSymbol),
+    mathHover(symbols, options.figure, options.onSymbol),
     ...(options.onSymbol ? [renameKey(options.onSymbol)] : []),
     ...(options.follow ? [followLinks(symbols, options.follow)] : []),
     ...(options.complete ? [latexCompletions(symbols)] : []),

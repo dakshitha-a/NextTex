@@ -108,6 +108,21 @@ const SURFACES: Record<string, Surface> = {
     open: (tab) => hoverAt(tab, "A gap of $E = mc^2$ appears.", "mc^2", ".nx-math-tooltip"),
     close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
   },
+  "image-hover": {
+    // The figure's card over `\\includegraphics`, as the page draws it:
+    // the same 1200 by 800 plot the Files drawer's card shows.
+    open: async (tab) => {
+      if (ctx) {
+        fs.mkdirSync(path.join(ctx.root, "figures"), { recursive: true });
+        fs.writeFileSync(path.join(ctx.root, "figures", "decay-fit.png"), pngOf(1200, 800));
+      }
+      await tab.locator('[role="tree"] [data-path="figures"]').waitFor({ timeout: 10_000 }).catch(() => undefined);
+      const card = await hoverAt(tab, "See \\includegraphics[width=0.8\\linewidth]{figures/decay-fit} here.", "decay-fit", ".nx-figure-tooltip");
+      await card.locator("img").waitFor({ timeout: 10_000 });
+      return card;
+    },
+    close: escape,
+  },
   "cite-hover": {
     open: (tab) => hoverAt(tab, "As shown by \\cite{knuth1984} once.", "knuth", ".nx-link-tooltip"),
     close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },

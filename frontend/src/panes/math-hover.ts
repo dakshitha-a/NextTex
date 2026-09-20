@@ -12,6 +12,7 @@ import { shellTheme } from "../ui/FloatingCard";
 import { hoverTooltip, type EditorView, type Tooltip } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
+import { sizeOf } from "../size";
 import {
   citationFor, imageTarget, inputTarget, labelSays, labelTarget, linkAt,
 } from "./latex-links";
@@ -228,11 +229,18 @@ const HOVER_WINDOW = 20_000;
  *  references to a label, a key or a macro, or open the rename. */
 export type OnSymbol = (kind: "label" | "cite" | "macro", name: string, rename: boolean) => void;
 
+/** What the hover on `\includegraphics` needs to draw the figure: the
+ *  project the file is in, a stamp that changes when the file does (its
+ *  modification time, so a regenerated plot is redrawn), and its size on
+ *  disk when the tree knows it. */
+export type FigureFacts = { projectId: string; stamp: number; size?: number };
+
 export function mathHover(
   symbols: () => Symbols | null,
-  /** Where a project file's bytes can be fetched from, for the image a
-   *  hover on `\includegraphics` shows.  Absent in the read-only panes. */
-  imageUrl?: (path: string) => string,
+  /** The facts for a figure the hover on `\includegraphics` shows, or
+   *  null for a file the tree does not hold.  Absent in the read-only
+   *  panes, which show the name alone. */
+  figure?: (path: string) => FigureFacts | null,
   /** Absent in the read-only panes, which offer no rename. */
   onSymbol?: OnSymbol,
 ): Extension {
@@ -242,7 +250,7 @@ export function mathHover(
     const to = Math.min(doc.length, pos + HOVER_WINDOW);
     const near = mathAt(doc.sliceString(from, to), pos - from);
     const span = near && { ...near, from: near.from + from, to: near.to + from };
-    if (!span || !span.body.trim()) return linkTooltip(view, pos, symbols, imageUrl, onSymbol);
+    if (!span || !span.body.trim()) return linkTooltip(view, pos, symbols, figure, onSymbol);
 
     return {
       pos: span.from,
@@ -300,7 +308,7 @@ export function mathHover(
  */
 function linkTooltip(
   view: EditorView, pos: number, symbols: () => Symbols | null,
-  imageUrl?: (path: string) => string,
+  figure?: (path: string) => FigureFacts | null,
   onSymbol?: OnSymbol,
 ): Tooltip | null {
   const line = view.state.doc.lineAt(pos);
@@ -310,7 +318,8 @@ function linkTooltip(
   let says: string;
   /** A second, quieter line: where the label is, under what it says. */
   let where: string | null = null;
-  let image: string | null = null;
+  /** The figure to draw, when the link is an image the project holds. */
+  let image: { path: string; facts: FigureFacts } | null = null;
   let follow = true;
   /** A citation card has a structure of its own, drawn below. */
   let citation: ReturnType<typeof citationFor> = null;
@@ -339,7 +348,8 @@ function linkTooltip(
   } else if (link.kind === "image") {
     const target = imageTarget(link.name, table);
     says = target ?? `${link.name} is not a figure in this project.`;
-    image = target && imageUrl ? imageUrl(target) : null;
+    const facts = target && figure ? figure(target) : null;
+    image = target && facts ? { path: target, facts } : null;
     follow = false;
   } else {
     const target = inputTarget(link.name, table);
@@ -354,21 +364,43 @@ function linkTooltip(
       const dom = document.createElement("div");
       dom.className = `nx-math-tooltip nx-link-tooltip nx-card ${shellTheme()}`;
       if (image) {
-        // The figure itself, at a size that stays a tooltip.  The same
-        // route the file view reads, so a PDF figure shows as the browser
-        // shows a PDF: not at all, and the name beneath says which file.
-        const picture = document.createElement("img");
-        picture.src = image;
-        picture.alt = says;
-        picture.className = "nx-link-image";
-        dom.append(picture);
-        // The picture's size, once it has one.
-        const size = document.createElement("div");
-        size.className = "nx-link-hint";
-        picture.addEventListener("load", () => {
-          if (picture.naturalWidth) size.textContent = `${picture.naturalWidth} × ${picture.naturalHeight}`;
-        });
-        dom.append(size);
+        // The same card the file tree opens beside a figure's row, from
+        // the same thumbnail service: the picture in a 3:2 box (a PDF's
+        // first page, drawn by the pdf.js the preview already loads), the
+        // path in the mono, and one line with its pixel size and its size
+        // on disk.  The service is fetched when a figure is first hovered
+        // and never before, so the editor's chunk does not carry it.
+        dom.classList.add("nx-figure-tooltip");
+        const box = document.createElement("div");
+        box.className = "nx-thumb";
+        dom.append(box);
+        const { path, facts } = image;
+        const meta = document.createElement("div");
+        meta.className = "nx-link-hint";
+        meta.textContent = facts.size !== undefined ? sizeOf(facts.size) : "";
+        import("./thumbnails")
+          .then(({ thumbnail }) => thumbnail(facts.projectId, path, facts.stamp))
+          .then((made) => {
+            if (made.url) {
+              const picture = document.createElement("img");
+              picture.src = made.url;
+              picture.alt = says;
+              box.append(picture);
+            } else {
+              box.remove();
+            }
+            const facts2 = [
+              made.width ? `${made.width} × ${made.height}${made.unit === "pt" ? " pt" : ""}` : "",
+              facts.size !== undefined ? sizeOf(facts.size) : "",
+            ].filter(Boolean);
+            meta.textContent = facts2.join(", ");
+          })
+          .catch(() => box.remove());
+        const name = document.createElement("div");
+        name.className = "nx-link-name";
+        name.textContent = says;
+        dom.append(name, meta);
+        return { dom };
       }
       if (citation) {
         // Kind and year at the top with the key in the mono at the right,

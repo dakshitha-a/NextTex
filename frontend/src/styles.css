@@ -1859,14 +1859,9 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 /* The same card, holding a sentence rather than an equation: where a
    cross reference goes, and the gesture that follows it. */
 .nx-link-tooltip { min-width: 200px; }
-.nx-link-image {
-  display: block;
-  max-width: 260px;
-  max-height: 170px;
-  margin-bottom: 6px;
-  border-radius: var(--nx-radius-control);
-  background: #fff;
-}
+/* A figure's hover: the tree's card, from the same thumbnail service. */
+.nx-figure-tooltip { width: 260px; }
+.nx-link-name { font-family: var(--font-mono); font-size: 12.5px; line-height: 18px; color: var(--ink); overflow-wrap: anywhere; }
 .nx-link-hint { color: var(--ink-3); padding-top: 3px; font-size: 12px; }
 .nx-link-verbs { display: flex; gap: 2px; padding-top: 6px; margin-left: -6px; }
 /* A citation: the record, structured. */

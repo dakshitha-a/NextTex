@@ -9,6 +9,7 @@ import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { diffLines } from "diff";
 import api, { type Symbols } from "../api";
+import { findNode } from "../tree";
 import {
   clearFlash,
   extensions,
@@ -660,11 +661,14 @@ export default function Editor({
     const languageOf = (path: string) => languageFor(path, () => symbols.current, {
       follow: (target, line) => opener.current?.(target, line),
       complete: true,
-      // The same route the figure view reads, so the hover shows the file
-      // as it is on disk now.
-      imageUrl: (target) => {
+      // The tree's entry for the figure: its modification time is the
+      // stamp the thumbnail is cached under, so a regenerated plot is
+      // redrawn and one that is not is drawn once.
+      figure: (target) => {
         const id = get().projectId;
-        return id ? api.downloadUrl(id, { path: target }) : "";
+        const node = findNode(get().tree, target);
+        if (!id || !node) return null;
+        return { projectId: id, stamp: node.mtime ?? node.size ?? 0, size: node.size };
       },
       // The search panel answers: it lists the references and holds the
       // rename box, since it already has the file-by-file list and the

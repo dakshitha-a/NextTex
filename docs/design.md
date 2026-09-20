@@ -7803,8 +7803,17 @@ in place of the file name once a build has given them.
 Hovering `\includegraphics{figures/plot}` shows the figure itself, at
 a size that stays a tooltip, above its resolved path, with the suffix
 the call leaves off found among the images the symbol scan collected.
-A PDF figure shows as the browser shows a PDF in an image tag, which is
-not at all, and the path beneath still says which file it is.
+A PDF figure showed as the browser shows a PDF in an image tag, which is
+not at all, and the path beneath still said which file it was. Since the
+overhaul (item 3.6, 20 September) the hover is the card the Files drawer
+opens beside a figure's row (§4), from the same thumbnail service: the
+picture in a 3:2 box, a PDF's first page drawn by the pdf.js the preview
+already loads, the path in the mono under it, and one line with the
+pixel size (points for a page) and the size on disk, which the editor
+reads from the tree's entry for the file along with the modification
+time the thumbnail is cached under. The service is fetched when a figure
+is first hovered, so the editor's chunk does not carry it. The fidelity
+harness renders `image-hover` beside the page's image card.
 
 `tests/test_auxlabels.py` parses fixtures copied from a real build,
 follows an included chapter, refuses an input outside the build

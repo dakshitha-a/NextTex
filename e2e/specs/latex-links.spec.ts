@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures";
+import { test, expect, openFolders } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -169,4 +169,48 @@ test("after a build, hovering a reference says what it will say, and a figure sh
     (el) => (el as HTMLImageElement).naturalWidth,
   );
   expect(natural).toBe(40);
+  // The tree's card, from the same thumbnail service: the picture in its
+  // box, the path in the mono, the pixel size and the size on disk.
+  await expect(tab.locator(".nx-figure-tooltip .nx-thumb img")).toBeVisible();
+  await expect(tab.locator(".nx-figure-tooltip .nx-link-hint")).toHaveText(/^40 × 30, \d+ B$/);
+});
+
+test("a PDF figure shows its first page on hover, like the tree's card", async ({
+  project, tab,
+}) => {
+  // The hover used to hand the browser the PDF's bytes as an image, which
+  // it draws as nothing; the thumbnail service renders the first page.
+  // One blank page, 300 by 200 points, the file-card spec's fixture.
+  writeFileSync(join(project.root, "figures", "scan.pdf"), [
+    "%PDF-1.4",
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] >> endobj",
+    "trailer << /Root 1 0 R >>",
+    "%%EOF",
+  ].join("\n"));
+  await write(tab, "A scan: \\includegraphics{figures/scan.pdf} here.");
+  // The tree, which the hover reads the file's size and stamp from, has
+  // heard of the file once the folder lists it.
+  await openFolders(tab, "figures/scan.pdf");
+  await expect(tab.locator('[role="tree"] [data-path="figures/scan.pdf"]')).toBeVisible({ timeout: 10_000 });
+  // The symbols the hover resolves the file through are refetched when
+  // the typed line's build lands, so the hover is asked for until the
+  // figure is known, as the reference case above does.
+  const tip = tab.locator(".nx-figure-tooltip");
+  await expect.poll(async () => {
+    await tab.mouse.move(5, 5);
+    await tab.waitForTimeout(200);
+    const image = await pointAt(tab, "A scan", "figures/scan");
+    await tab.mouse.move(image!.x, image!.y);
+    await tab.mouse.move(image!.x + 1, image!.y);
+    await tip.waitFor({ timeout: 3_000 }).catch(() => undefined);
+    return tip.count();
+  }, { timeout: 60_000, intervals: [1000] }).toBe(1);
+  await expect(tip.locator(".nx-thumb img")).toBeVisible({ timeout: 15_000 });
+  await expect(tip).toContainText("figures/scan.pdf");
+  // A page's size is in points, and the picture is a rendering, not the file.
+  await expect(tip.locator(".nx-link-hint")).toHaveText(/^300 × 200 pt, \d+ B$/);
+  const src = await tip.locator(".nx-thumb img").getAttribute("src");
+  expect(src?.startsWith("data:image/png")).toBe(true);
 });
