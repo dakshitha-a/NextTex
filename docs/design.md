@@ -292,6 +292,19 @@ is the one worth reading.
 The strip and the gutter carry the news instead, which is the general rule: say it where
 the writer already is, and let them come to the detail.
 
+*Revised in the visual overhaul, 19 September 2026.* The tray is drawn as the direction
+page has it: no rule above (the drag handle is the divider), a 32 px header on
+`--surface-2` with the summary, the document filter when there is more than one document
+and Close; "Start here" and the shell escape question as cards on `--surface-2` with the
+card radius rather than bands with rules; rows on a grid, the 3 px severity bar with a
+2 px radius, the line number in the mono, the message in `--ink`, and at the right the
+file in the mono only when it is not the one in front, replaced under the pointer by Fix
+and Copy, the two sharing one slot so the row never moves; the open row and the chosen
+row on the wash, with the explanation, the context and the raw log under the message in
+the row's own columns. The kit's ghost Button carries Install, Allow and "Show the raw
+log". The row's disclosure chevron is gone: the row opens on a click, and the wash says
+which one is open.
+
 ## 5. Component specs
 
 ### File tree row

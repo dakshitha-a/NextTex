@@ -283,6 +283,37 @@ const SURFACES: Record<string, Surface> = {
       await tab.waitForTimeout(300);
     },
   },
+  diagnostics: {
+    // A bad command and a missing citation, so the tray has an error, a
+    // "Start here" card and a warning, as the page draws it.
+    open: async (tab) => {
+      // Inside the document: after the first line, which is a comment.
+      // Past \end{document} LaTeX reads nothing, and no error would come.
+      const editor = tab.locator(".cm-content");
+      await editor.click();
+      await tab.keyboard.press("Control+Home");
+      await tab.keyboard.press("End");
+      await tab.keyboard.type("\n\\badcommand{x} and \\cite{nothere}\n");
+      await tab.getByTestId("status").waitFor();
+      await tab.waitForFunction(() => /error|warn/.test(document.querySelector("[data-testid=status]")?.getAttribute("data-state") ?? ""), null, { timeout: 60_000 });
+      await tab.getByTestId("status").click();
+      const tray = tab.getByTestId("diagnostics");
+      await tray.waitFor();
+      await tray.getByRole("button", { name: /badcommand|Undefined/i }).first().click().catch(() => undefined);
+      await tab.waitForTimeout(300);
+      return tray;
+    },
+    close: async (tab) => {
+      await tab.getByTestId("diagnostics-header").getByRole("button", { name: "Close" }).click().catch(() => undefined);
+      const editor = tab.locator(".cm-content");
+      await editor.click();
+      await tab.keyboard.press("Control+Home");
+      await tab.keyboard.press("ArrowDown");
+      await tab.keyboard.press("Shift+End");
+      await tab.keyboard.press("Backspace");
+      await tab.keyboard.press("Backspace");
+    },
+  },
   workspace: {
     // The shell at rest, at the page's width: the rail, the two panes and
     // the column, with nothing open.

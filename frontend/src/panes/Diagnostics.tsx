@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { orderRows, rowKey } from "./diagnostic-rows";
 import { uiScale } from "../viewport";
 import { Handle } from "../chrome";
+import { Button } from "../ui/Button";
 import { onFrame } from "../timing";
 import { get, set, useStore } from "../store";
 import api from "../api";
@@ -75,8 +76,9 @@ function InstallPackage({ file }: { file: string }) {
           {pkg} is installed; building again.
         </span>
       ) : (
-        <button
-          className="ghost-button h-[24px] px-3 t-micro"
+        <Button
+          variant="ghost"
+          size="inline"
           data-testid="tex-install"
           disabled={installing === "running"}
           onClick={(event) => {
@@ -89,7 +91,7 @@ function InstallPackage({ file }: { file: string }) {
             : installing === "asked"
               ? `Yes, install ${pkg}`
               : `Install ${pkg}`}
-        </button>
+        </Button>
       )}
       {installing === "asked" ? (
         <span className="t-meta text-ink-2">
@@ -213,8 +215,12 @@ export default function Diagnostics({
   if (height === 0) return null;
 
   return (
+    // As the page draws it: no rule above (the handle is the divider), a
+    // 32 px header on the second surface, "Start here" as a card, rows on
+    // a grid with the severity bar, the line in the mono, the message, the
+    // file only when it differs, and Fix and Copy on hover.
     <div
-      className="flex shrink-0 flex-col border-t border-line bg-surface"
+      className="flex shrink-0 flex-col bg-surface"
       data-testid="diagnostics"
       style={{ height }}
     >
@@ -254,20 +260,18 @@ export default function Diagnostics({
           agent's headers fold their panes. The button stays: it is what
           says the bar is a control, and it is what a keyboard reaches. */}
       <div
-        className="flex h-[26px] shrink-0 cursor-pointer items-center justify-between border-b border-line px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+        className="flex h-[32px] shrink-0 cursor-pointer items-center gap-3 bg-surface-2 px-3 text-[13px] leading-[18px] text-ink"
         data-testid="diagnostics-header"
         title="Close the list"
         onClick={(event) => {
-          if ((event.target as HTMLElement).closest("button")) return;
+          if ((event.target as HTMLElement).closest("button, select")) return;
           onClose();
         }}
       >
         {/* Named, not counted: "3 findings" tells a writer nothing, and
             severity carried only by a coloured bar is severity carried by
             colour alone. */}
-        <span className="t-micro text-ink-2">
-          {summarise(rows)}
-        </span>
+        <span>{summarise(rows)}</span>
         {documents.length > 1 ? (
           /* One flat list of every previewed document's diagnostics, with
              nothing saying which was which. Offered only where it is a
@@ -277,7 +281,7 @@ export default function Diagnostics({
             value={only}
             aria-label="Which document"
             data-testid="diagnostics-document"
-            className="t-micro ml-auto mr-2 rounded-[3px] border border-line bg-surface px-1 text-ink-2"
+            className="rounded-control bg-transparent text-ink-2 hover:text-ink"
             onClick={(event) => event.stopPropagation()}
             onChange={(event) => setOnly(event.target.value)}
           >
@@ -289,22 +293,24 @@ export default function Diagnostics({
             ))}
           </select>
         ) : null}
-        <button className="t-micro text-ink-3 hover:text-ink" onClick={onClose}>
+        <span className="flex-1" />
+        <button className="text-ink-2 hover:text-ink" onClick={onClose}>
           Close
         </button>
       </div>
       {shellEscape === "asked" ? (
         <div
-          className="shrink-0 border-b border-line bg-surface-2 px-3 py-2"
+          className="mx-3 mb-1 mt-2 shrink-0 rounded-card bg-surface-2 px-3 py-2 text-[13px] leading-[18px]"
           data-testid="shell-escape-ask"
         >
-          <p className="t-ui text-ink">
+          <p className="text-ink">
             This project asks for shell escape, which lets the build run
             programs.
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-3">
-            <button
-              className="ghost-button h-[24px] px-3 t-micro"
+            <Button
+              variant="ghost"
+              size="inline"
               data-testid="shell-escape-allow"
               disabled={allowing === "running"}
               onClick={() => void allowShellEscape()}
@@ -314,7 +320,7 @@ export default function Diagnostics({
                 : allowing === "asked"
                   ? "Yes, allow it on this computer"
                   : "Allow"}
-            </button>
+            </Button>
             <span className="t-meta text-ink-2">
               {allowing === "asked"
                 ? "Every build of this project here may run any program the document names, until you revoke it in Settings."
@@ -326,15 +332,15 @@ export default function Diagnostics({
       ) : null}
       {summary ? (
         <div
-          className="shrink-0 border-b border-line bg-surface-2 px-3 py-2"
+          className="mx-3 mb-1 mt-2 shrink-0 rounded-card bg-surface-2 px-3 py-2 text-[13px] leading-[18px] text-ink-2"
           data-testid="build-summary"
         >
-          <p className="t-ui text-ink">
-            <span className="text-error">Start here. </span>
+          <p>
+            <span className="font-medium text-error">Start here. </span>
             {summary.headline}
             {summary.file ? (
               <button
-                className="quiet t-micro ml-2"
+                className="ml-2 text-ink-3 hover:text-ink"
                 onClick={() =>
                   summary.file && onJump(summary.file, summary.line ?? 1)
                 }
@@ -348,13 +354,13 @@ export default function Diagnostics({
               row's own expansion shows, and repeating it here cost the
               list the room it needed to show the row. */}
           {summary.fix ? (
-            <p className="t-meta mt-1 text-ink-2">
+            <p>
               <span className="text-ink-3">What to do: </span>
               {summary.fix}
             </p>
           ) : null}
           {summary.note ? (
-            <p className="t-micro mt-1 text-ink-3">{summary.note}</p>
+            <p className="t-meta mt-1 text-ink-3">{summary.note}</p>
           ) : null}
         </div>
       ) : null}
@@ -363,59 +369,48 @@ export default function Diagnostics({
           const bar = item.severity === "error" ? "bg-error" : "bg-warn";
           const key = rowKey(item);
           const open = expanded === key;
+          const lit = open || selected === key;
           return (
-            <div key={key} className="group">
-              {/* A plain div holding two siblings, rather than a
-                  role="button" with a real button inside it. That shape is
-                  the axe rule `nested-interactive`, impact serious: the
-                  outer element is announced as one button and the inner
-                  one is either unreachable or folded into its name. The
-                  row's own job, opening the diagnostic and jumping to it,
-                  belongs to a real button covering the part of the row
-                  that says what the error is; Fix sits beside it. */}
-              <div
-                data-selected={selected === key ? "true" : undefined}
-                className={`relative flex h-[28px] items-center hover:bg-surface-2 ${
-                  selected === key ? "bg-surface-2" : ""
-                }`}
+            // The row is a grid: the severity bar, the line in the mono,
+            // the message, and at the right the file (only when it is not
+            // the one in front) at rest or Fix and Copy under the pointer.
+            // A plain div holding siblings rather than a role="button" with
+            // buttons inside it, which is axe's `nested-interactive`: the
+            // row's own job, opening the diagnostic and jumping to it,
+            // belongs to a real button over the line and the message.
+            <div
+              key={key}
+              data-selected={selected === key ? "true" : undefined}
+              className={`group grid grid-cols-[3px_36px_1fr_auto] items-start gap-x-[10px] py-[5px] pl-[10px] pr-3 text-[13px] leading-[18px] text-ink-2 hover:bg-wash ${
+                lit ? "bg-wash" : ""
+              }`}
+            >
+              <span className={`h-full min-h-[18px] w-[3px] rounded-[2px] ${bar}`} />
+              <button
+                className="col-span-2 grid min-w-0 cursor-pointer grid-cols-[36px_1fr] gap-x-[10px] text-left"
+                aria-expanded={open}
+                onClick={() => {
+                  setSelected(key);
+                  setExpanded(open ? null : key);
+                  if (item.file && item.line) onJump(item.file, item.line);
+                }}
               >
-                <span className={`absolute left-0 h-full w-[3px] ${bar}`} />
-                {selected === key ? (
-                  <span className="absolute left-[3px] h-full w-[2px] bg-pen" />
-                ) : null}
-                <button
-                  className="flex h-full min-w-0 flex-1 cursor-pointer items-center text-left"
-                  aria-expanded={open}
-                  onClick={() => {
-                    setSelected(key);
-                    setExpanded(open ? null : key);
-                    if (item.file && item.line) onJump(item.file, item.line);
-                  }}
-                >
-                <span className="ml-[6px] w-2 shrink-0 text-ink-3 opacity-0 group-hover:opacity-100">
-                  <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden>
-                    <path
-                      d={open ? "M0 2 L4 6 L8 2" : "M2 0 L6 4 L2 8"}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                    />
-                  </svg>
-                </span>
-                <span className="t-code-sm w-[40px] shrink-0 pr-1 text-right text-ink-3 tnum">
-                  {item.line ?? ""}
-                </span>
-                <span className="t-meta ml-2 min-w-0 flex-1 truncate text-ink">
-                  {item.message}
-                </span>
+                <span className="t-code-sm text-right text-ink-3 tnum">{item.line ?? ""}</span>
+                <span className="min-w-0 truncate text-ink">{item.message}</span>
+              </button>
+              {/* One slot, two things in it: the file at rest, Fix and
+                  Copy under the pointer, sharing a grid cell so the row
+                  does not move.  On a finger both are drawn side by side,
+                  since there is no pointer to reveal with. */}
+              <span className="grid shrink-0 items-center justify-items-end">
                 {item.file && item.file !== activePath ? (
-                  <span className="t-micro shrink-0 px-2 text-ink-3">
+                  <span className="t-code-sm text-ink-3 [grid-area:1/1] hoverable:group-hover:opacity-0">
                     {item.file.split("/").pop()}
                   </span>
                 ) : null}
-                </button>
+                <span className="flex items-center gap-[2px] [grid-area:1/1] hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-within:opacity-100">
                 <button
-                  className="ghost-button mr-2 h-[22px] nx-tap [--nx-tap-y:22px] shrink-0 px-2 t-micro hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100"
+                  className="px-[6px] text-[12.5px] text-ink-2 hover:text-ink"
                   onClick={(event) => {
                     event.stopPropagation();
                     onFix(
@@ -432,7 +427,7 @@ export default function Diagnostics({
                     inside a button, which means selecting it opened the
                     row and jumped the editor. */}
                 <button
-                  className="ghost-button mr-2 h-[22px] nx-tap [--nx-tap-y:22px] shrink-0 px-2 t-micro hoverable:opacity-0 hoverable:group-hover:opacity-100 focus:opacity-100"
+                  className="px-[6px] text-[12.5px] text-ink-2 hover:text-ink"
                   data-testid="diagnostic-copy"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -446,41 +441,45 @@ export default function Diagnostics({
                 >
                   Copy
                 </button>
-              </div>
-              {open && item.explain ? (
-                <div className="ml-[40px] border-l border-line bg-surface-2 px-3 py-2">
-                  <p className="t-ui text-ink">{item.explain.title}</p>
-                  <p className="t-meta mt-1 text-ink-2">{item.explain.detail}</p>
-                  <p className="t-meta mt-2 text-ink-2">
-                    <span className="text-ink-3">What to do: </span>
-                    {item.explain.fix}
-                  </p>
-                  {item.missingFile ? (
-                    <InstallPackage file={item.missingFile} />
-                  ) : null}
-                </div>
-              ) : null}
-              {open && item.context ? (
-                <pre className="t-code-sm ml-[40px] max-h-[54px] overflow-auto border-l border-line bg-surface-2 px-2 py-1 text-ink-2">
-                  {item.context}
-                </pre>
-              ) : null}
-              {/* The raw log, in the place a few lines of it already go.
-                  Section 7 of the design document rejects a bottom console
-                  with Problems, Output and Terminal tabs; this is what
-                  keeping the log reachable looks like without one. */}
+                </span>
+              </span>
               {open ? (
-                <div className="ml-[40px] border-l border-line bg-surface-2 px-2 py-1">
+                <div className="col-span-2 col-start-3 mt-[2px] text-[12.5px] leading-[17px] text-ink-2">
+                  {item.explain ? (
+                    <>
+                      <p className="font-medium text-ink">{item.explain.title}</p>
+                      <p>{item.explain.detail}</p>
+                      <p className="mt-1">
+                        <span className="font-medium text-ink">What to do: </span>
+                        {item.explain.fix}
+                      </p>
+                      {item.missingFile ? (
+                        <InstallPackage file={item.missingFile} />
+                      ) : null}
+                    </>
+                  ) : null}
+                  {item.context ? (
+                    <pre className="t-code-sm mt-1 max-h-[54px] overflow-auto rounded-control bg-surface-2 px-2 py-1 text-ink-2">
+                      {item.context}
+                    </pre>
+                  ) : null}
+                  {/* The raw log, in the place a few lines of it already go.
+                      Section 7 of the design document rejects a bottom
+                      console with Problems, Output and Terminal tabs; this
+                      is what keeping the log reachable looks like without
+                      one. */}
                   {rawLog[item.document ?? ""] === undefined ? (
-                    <button
-                      className="quiet t-micro"
+                    <Button
+                      variant="ghost"
+                      size="inline"
+                      className="mt-[6px]"
                       data-testid="show-raw-log"
                       onClick={() => void showLog(item.document ?? "")}
                     >
                       Show the raw log
-                    </button>
+                    </Button>
                   ) : (
-                    <pre className="t-code-sm max-h-[220px] overflow-auto whitespace-pre-wrap text-ink-3">
+                    <pre className="t-code-sm mt-1 max-h-[220px] overflow-auto whitespace-pre-wrap rounded-control bg-surface-2 px-2 py-1 text-ink-3">
                       {rawLog[item.document ?? ""] || "The log is empty."}
                     </pre>
                   )}
