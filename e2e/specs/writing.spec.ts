@@ -111,6 +111,44 @@ test("find and replace opens on the first press", async ({ tab }) => {
   await expect(tab.locator(".cm-panel.cm-search input").first()).toBeFocused();
 });
 
+test("find counts its matches, steps through them, and replaces behind its own control", async ({ tab }) => {
+  // The kit's panel: one field with the toggles inside it, "1 of N",
+  // previous and next, Replace adding the second field, and the
+  // library's keys throughout.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+f");
+  const panel = tab.locator(".cm-panel.cm-search");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator("input[name=replace]")).toHaveCount(0);
+  await tab.keyboard.type("section");
+  const count = panel.locator(".nx-find-count");
+  await expect(count).toContainText(/of \d+/);
+  const said = (await count.textContent()) ?? "";
+  const total = Number(said.split("of ")[1]);
+  expect(total).toBeGreaterThan(1);
+  // Enter steps forward from the caret, and the count says where the
+  // selection is; the next Enter moves it on, and Previous brings it back.
+  await tab.keyboard.press("Enter");
+  await expect(count).toHaveText(new RegExp(`^\\d+ of ${total}$`));
+  const first = (await count.textContent()) ?? "";
+  await tab.keyboard.press("Enter");
+  await expect(count).not.toHaveText(first);
+  await panel.getByRole("button", { name: "Previous match" }).click();
+  await expect(count).toHaveText(first);
+  // Match case is a toggle inside the field, and it narrows the count.
+  await panel.getByRole("button", { name: "Match case" }).click();
+  await expect(panel.getByRole("button", { name: "Match case" })).toHaveAttribute("aria-pressed", "true");
+  await tab.locator(".cm-panel.cm-search input[name=search]").fill("SECTION");
+  await expect(count).toHaveText("No matches");
+  await tab.locator(".cm-panel.cm-search input[name=search]").fill("section");
+  // Replace adds the second field; Escape closes the whole panel.
+  await panel.getByRole("button", { name: "Replace", exact: true }).first().click();
+  await expect(panel.locator("input[name=replace]")).toBeVisible();
+  await expect(panel.locator("input[name=replace]")).toBeFocused();
+  await tab.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+});
+
 test("completion offers the project's own labels", async ({ tab }) => {
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");

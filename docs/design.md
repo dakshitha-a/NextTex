@@ -9026,3 +9026,50 @@ focused. The welcome keeps its text and its three actions as cards on
 the first surface, each naming what it adds and why; its second
 paragraph still names the control under the box rather than promising
 to ask, since the promise is true at one position and false at two.
+
+## 51. The editor's own chrome: find and replace on the kit, the Vim bar
+
+Item 2.10 of the overhaul. Most of what the page drew for the source
+pane was already in place from earlier rounds: the gutter with its fold
+chevron on the hovered and current line and its 3 px error and 2 px
+warning bars, the active line wash, the fold pill, the dotted spelling
+underline, the spelling menu and the selection bar on the kit's card in
+the shell's palette, the viewing banner as a 32 px strip in the pen
+wash, tooltips at the card's radius, and the diagnostics of §2.4. Two
+things were not.
+
+Find and replace was CodeMirror's own panel markup, restyled: two
+labelled fields, three checkboxes with words beside them and four
+buttons, on two lines, which is a form. The page draws one strip: a
+field with the search icon, the query in the mono, and the three
+toggles inside the field's right end as Aa, .* and ab, on the wash when
+pressed; "2 of 12" beside it, saying which match the selection is on
+and how many there are ("No matches" in the warning colour, "…" for the
+first before any match is chosen, "10000+" past the cap); previous and
+next as icon buttons; Replace, which adds a second field with Replace
+and All; and the close. `frontend/src/panes/find-panel.ts` is that
+strip, handed to `search({createPanel})`, in plain DOM because a
+CodeMirror panel is a DOM node the editor mounts and a React root
+inside the editor for four controls would be a second renderer for one
+strip. The commands and the keys stay the library's: Enter is the next
+match and Shift-Enter the previous, Enter in the replace field replaces
+one, and Escape, Mod-f and F3 reach `searchKeymap` through the
+`search-panel` scope. Two things the strip turned up. The section bar
+that names the heading above the top of the pane sat at the pane's very
+top and covered the find panel once the editor had scrolled past a
+heading; it sits under the editor's top panels now, measured. And a row
+that will not wrap has a min-content width the editor's column grew to,
+forty pixels past its pane the first time the count read "No matches";
+the panel contains its inline size.
+
+The Vim status bar was the library's unstyled panel. It is a 24 px
+strip on the second surface in the mono at 12 px, the mode in weight and
+the command line at the right, and the mode is a word: the library
+writes `--INSERT--`, the dashes being the emphasis a terminal needed,
+and an observer on the bar takes them off each time the library rewrites
+it. `writing.spec.ts` counts a query's matches, steps through them with
+Enter and Previous, narrows them with Match case, opens the second field
+with Replace and closes with Escape; `keymaps.spec.ts` reads NORMAL and
+INSERT on the bar with no dashes; the fidelity harness renders
+`find-vim`, the source pane with both, beside the page's dark strips
+drawing.

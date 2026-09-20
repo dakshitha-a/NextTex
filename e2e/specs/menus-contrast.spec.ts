@@ -253,6 +253,8 @@ const SURFACES: Surface[] = [
       const panel = tab.locator(".cm-panel.cm-search");
       await panel.waitFor();
       await tab.keyboard.type("Introduction");
+      // The second field comes with Replace.
+      await panel.getByRole("button", { name: "Replace", exact: true }).first().click();
       await tab.locator(".cm-panel.cm-search input[name=replace]").fill("Overture");
       return panel;
     },

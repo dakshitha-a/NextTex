@@ -107,6 +107,20 @@ test("the Vim status bar stays under the settings sheet", async ({ tab }) => {
   await expect(tab.locator(".cm-vim-panel")).toHaveCount(0, { timeout: 15_000 });
 });
 
+test("the Vim bar names the mode in a word, without the terminal's dashes", async ({ tab }) => {
+  await choose(tab, "keymap-vim");
+  const bar = tab.locator(".cm-vim-panel");
+  await expect(bar).toBeVisible({ timeout: 15_000 });
+  await expect(bar).toContainText("NORMAL");
+  await expect(bar).not.toContainText("--");
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("i");
+  await expect(bar).toContainText("INSERT");
+  await expect(bar).not.toContainText("--");
+  await tab.keyboard.press("Escape");
+  await choose(tab, "keymap-default");
+});
+
 test("the find panel stays under the settings sheet too", async ({ tab }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
   await tab.locator(".cm-content").click();

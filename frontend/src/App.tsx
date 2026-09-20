@@ -2332,6 +2332,7 @@ export default function App() {
         ) : null}
         <div
           ref={editorPane}
+          data-testid="editor-pane"
           className={`nx-pane flex min-h-0 flex-col bg-surface ${
             tight
               ? showing === "source"

@@ -1,5 +1,5 @@
 import type { Extension } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import { ViewPlugin, type EditorView } from "@codemirror/view";
 import { vim, Vim } from "@replit/codemirror-vim";
 import { emacs, EmacsHandler } from "../vendor/codemirror-emacs";
 import { yUndoManagerKeymap } from "y-codemirror.next";
@@ -55,8 +55,28 @@ export function vimExtension(): Extension {
     Vim.defineAction("redo", (cm: { cm6: EditorView }) => { redoDocument(cm.cm6); });
     vimBound = true;
   }
-  return vim({ status: true });
+  return [vim({ status: true }), vimStatusWords];
 }
+
+/** The status bar's mode, as a word: the library writes `--INSERT--`, the
+ *  direction page draws `INSERT` in weight, and the dashes were the
+ *  emphasis a terminal needed. The bar's text is rewritten by the library
+ *  on every mode change, outside any view update, so an observer on the
+ *  bar takes the dashes off each time; its own edit no longer matches,
+ *  so it does not loop. */
+const vimStatusWords = ViewPlugin.define((view) => {
+  const tidy = () => {
+    for (const span of view.dom.querySelectorAll<HTMLElement>(".cm-vim-panel > span")) {
+      const said = span.textContent ?? "";
+      const bare = /^--(.+)--$/.exec(said);
+      if (bare) span.textContent = bare[1];
+    }
+  };
+  const observer = typeof MutationObserver === "undefined" ? null : new MutationObserver(tidy);
+  observer?.observe(view.dom, { childList: true, subtree: true, characterData: true });
+  tidy();
+  return { destroy: () => observer?.disconnect() };
+});
 
 export function emacsExtension(): Extension {
   if (!emacsBound) {

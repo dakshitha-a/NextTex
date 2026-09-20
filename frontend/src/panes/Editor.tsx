@@ -120,6 +120,34 @@ export default function Editor({
   onOpen?: (path: string, line?: number) => void;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
+  // How tall the editor's top panels are, when there are any: the section
+  // bar sits over the scroller, and with find open it sat over the find
+  // panel instead, covering its controls once the pane had scrolled past
+  // a heading. Watched rather than assumed, since the panel is one row or
+  // two and comes and goes.
+  const [panelsHeight, setPanelsHeight] = useState(0);
+  useEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    let sized: ResizeObserver | null = null;
+    const measure = () => {
+      const panels = element.querySelector<HTMLElement>(".cm-panels-top");
+      setPanelsHeight(panels?.offsetHeight ?? 0);
+      sized?.disconnect();
+      sized = null;
+      if (panels && typeof ResizeObserver !== "undefined") {
+        sized = new ResizeObserver(measure);
+        sized.observe(panels);
+      }
+    };
+    measure();
+    const seen = new MutationObserver(measure);
+    seen.observe(element, { childList: true, subtree: true });
+    return () => {
+      seen.disconnect();
+      sized?.disconnect();
+    };
+  }, []);
   /** `jump`, for the section bar, which is rendered outside the effect
    *  that defines it. */
   const jumpRef = useRef<((line: number) => void) | null>(null);
@@ -1301,7 +1329,8 @@ export default function Editor({
           data-testid="section-bar"
           data-line={atTop.line}
           title={`Go to line ${atTop.line}`}
-          className="nx-section-bar absolute left-0 right-0 top-0 z-10 flex h-[22px] items-center gap-[6px] overflow-hidden whitespace-nowrap border-b border-line bg-surface px-[10px] text-left"
+          className="nx-section-bar absolute left-0 right-0 z-10 flex h-[22px] items-center gap-[6px] overflow-hidden whitespace-nowrap border-b border-line bg-surface px-[10px] text-left"
+          style={{ top: panelsHeight }}
           onClick={() => jumpRef.current?.(atTop.line)}
         >
           {trailTo(outlineNow, atTop).map((heading, index, trail) => (

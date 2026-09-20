@@ -398,6 +398,33 @@ const SURFACES: Record<string, Surface> = {
       await tab.getByTestId("permission-card").waitFor({ state: "detached" });
     },
   },
+  "find-vim": {
+    // The source pane with find open and the Vim bar under it, as the
+    // page's dark strips drawing has them.
+    open: async (tab) => {
+      // Find first: under Vim, Ctrl-f is a page down.
+      await tab.locator(".cm-content").click();
+      await tab.keyboard.press("Control+f");
+      const panel = tab.locator(".cm-panel.cm-search");
+      await panel.waitFor();
+      await tab.keyboard.type("citation");
+      await tab.keyboard.press("Enter");
+      await panel.getByRole("button", { name: "Match case" }).click();
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-write").click();
+      await tab.getByTestId("keymap-vim").click();
+      await tab.keyboard.press("Escape");
+      await tab.locator(".cm-vim-panel").waitFor({ timeout: 15_000 });
+      await tab.waitForTimeout(200);
+      return tab.getByTestId("editor-pane");
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("keymap-default").click();
+      await tab.keyboard.press("Escape");
+    },
+  },
   "claude-welcome": {
     // An empty conversation: the welcome with its three cards, and "/rev"
     // typed so the prompt menu shows over the composer.

@@ -35,6 +35,7 @@ import {
 } from "@codemirror/commands";
 import { acceptCompletion } from "@codemirror/autocomplete";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
+import { createFindPanel } from "./find-panel";
 import {
   HighlightStyle,
   bracketMatching,
@@ -638,7 +639,8 @@ function base(): Extension[] {
     // transaction that asks to show it, and a field added in a transaction
     // does not see that transaction's effects.  The second press worked.
     // A LaTeX editor with no find and replace, one line away from having it.
-    search({ top: true }),
+    // The panel is the kit's; the commands and the keys stay the library's.
+    search({ top: true, createPanel: createFindPanel }),
     keymap.of([
       ...closeBracketsKeymap,
       // Ahead of the default Enter, and it only claims the key when there

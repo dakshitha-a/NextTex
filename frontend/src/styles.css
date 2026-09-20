@@ -927,54 +927,48 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .cm-tooltip { background: var(--float-ground) !important; color: var(--ink);
   border: 0 !important; border-radius: var(--nx-radius-card); font-size: 12px; box-shadow: var(--float); }
 
-/* Find and replace.  CodeMirror ships this panel unstyled, and the browser
-   default controls read as somebody else's application inside this one.
-
-   The two fields are matched by their class and not by `input[type="text"]`,
-   which is what the rule said for a long time and never matched anything:
-   @codemirror/search builds its inputs without a `type` attribute, so the
-   attribute selector found nothing and CodeMirror's own `.cm-textfield`,
-   white, was the box the writer typed into.  In the light theme that was
-   invisible; in the dark one it was light ink on white at 1.24:1, and the
-   writer typed a word into it and saw nothing at all. */
+/* Find and replace, on the kit: the strip on the second surface, one
+   field with the three toggles inside it, the count, previous and next,
+   Replace and the close; a second row while replacing. The markup is the
+   app's (`find-panel.ts`), the commands and keys the library's. */
 .cm-editor .cm-panels { background: var(--surface-2); color: var(--ink);
-  border-bottom: 1px solid var(--line);
   /* CodeMirror's base theme gives its panels `position: sticky` and
      z-index 300, for an editor taller than the box that scrolls it.  This
      editor fills its pane, so the number buys nothing here, and nothing
      isolates `.cm-editor`, so 300 landed in the page's own stacking
-     context: above every menu (40) and every sheet (50).  The Vim status
-     line, which is a bottom panel and is always there once Vim is on,
-     was drawn across the settings sheet that had just switched it on,
-     and the find panel would have done the same over any sheet.  One is
-     enough to stay above the scroller beside it. */
-  z-index: 1; }
-.cm-editor .cm-panels-bottom { border-top: 1px solid var(--line);
-  border-bottom: 0; }
-.cm-editor .cm-panel.cm-search { padding: 6px 8px; display: flex;
-  flex-wrap: wrap; align-items: center; gap: 5px; font-size: 12px; }
-.cm-editor .cm-panel.cm-search br { display: none; }
-.cm-editor .cm-panel.cm-search label { display: inline-flex; align-items: center;
-  gap: 4px; color: var(--ink-2); font-size: 11px; }
-.cm-editor .cm-panel.cm-search input.cm-textfield {
-  background: var(--surface); color: var(--ink);
-  border: 1px solid var(--line); border-radius: 3px;
-  padding: 3px 6px; font-family: var(--font-mono); font-size: 12px;
-  min-width: 160px; }
-.cm-editor .cm-panel.cm-search input.cm-textfield:focus-visible {
-  outline: 2px solid var(--hint); outline-offset: -1px; }
-.cm-editor .cm-panel.cm-search button:not([name="close"]) {
-  background: var(--surface); color: var(--ink-2);
-  border: 1px solid var(--line); border-radius: 3px;
-  padding: 3px 8px; font-size: 11px; font-weight: 500;
-  transition: color 90ms var(--ease), background-color 90ms var(--ease); }
-.cm-editor .cm-panel.cm-search button:not([name="close"]):hover {
-  color: var(--ink); background: var(--surface-3); }
-.cm-editor .cm-panel.cm-search [name="close"] {
-  position: absolute; right: 6px; top: 4px;
-  background: transparent; border: 0; color: var(--ink-3);
-  font-size: 16px; line-height: 1; padding: 2px 5px; cursor: pointer; }
-.cm-editor .cm-panel.cm-search [name="close"]:hover { color: var(--ink); }
+     context: above every menu (40) and every sheet (50). One is enough
+     to stay above the scroller beside it. */
+  z-index: 1; border: 0; }
+.cm-editor .cm-panels-top { border-bottom: 0; }
+.cm-editor .cm-panels-bottom { border-top: 0; }
+/* `contain: inline-size`, because a row that will not wrap has a
+   min-content width the editor's column would otherwise grow to, and the
+   editor grew forty pixels past its pane the first time the count read
+   "No matches". */
+.nx-find-panel { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; contain: inline-size; }
+.nx-find-input { width: 0; }
+.nx-find-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nx-find-field { flex: 1; min-width: 0; height: 28px; gap: 6px; background: var(--surface); }
+.nx-find-field > svg { flex: none; }
+.nx-find-input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: var(--ink); font-family: var(--font-mono); font-size: 12.5px; }
+.nx-find-input::placeholder { color: var(--ink-3); font-family: var(--font-sans); font-size: 13px; }
+.nx-find-toggles { display: inline-flex; gap: 2px; margin-left: auto; }
+.nx-find-toggle { font-family: var(--font-mono); font-size: 11.5px; line-height: 20px; padding: 0 5px; border-radius: 3px; color: var(--ink-3); }
+.nx-find-toggle:hover { color: var(--ink); }
+.nx-find-toggle[aria-pressed="true"] { background: var(--wash); color: var(--ink); }
+.nx-find-count { color: var(--ink-3); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nx-find-count-none { color: var(--warn); }
+.nx-find-button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: var(--nx-radius-control); color: var(--ink-3); flex: none; }
+.nx-find-button:hover { background: var(--wash); color: var(--ink); }
+.nx-find-quiet { color: var(--ink-2); font-size: 13px; padding: 0 6px; height: 26px; border-radius: var(--nx-radius-control); white-space: nowrap; flex: none; }
+.nx-find-quiet:hover, .nx-find-quiet-on { background: var(--wash); color: var(--ink); }
+.nx-find-input:focus-visible, .nx-find-toggle:focus-visible, .nx-find-button:focus-visible, .nx-find-quiet:focus-visible { outline: 2px solid var(--hint); outline-offset: -2px; }
+.nx-find-field:focus-within { box-shadow: inset 0 0 0 1px var(--hint); }
+/* The Vim status bar: a 24 px strip in the mono, the mode in weight and
+   the command line at the right. The library's own panel, restyled. */
+.cm-editor .cm-vim-panel { height: 24px; min-height: 0; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--surface-2); font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+.cm-editor .cm-vim-panel > span:first-child { font-weight: 600; color: var(--ink); }
+.cm-editor .cm-vim-panel input { color: var(--ink); font-family: var(--font-mono); font-size: 12px; }
 .cm-editor .cm-searchMatch {
   background: color-mix(in oklab, var(--warn) 30%, transparent); }
 .cm-editor .cm-searchMatch-selected {
