@@ -1071,6 +1071,22 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   height: max(100%, var(--nx-tap-y, 44px));
   transform: translate(-50%, -50%);
 }
+/* The same target, on a coarse pointer only.  For a control that sits
+   beside the thing a click means (a tab's close beside its name), a
+   44 px zone under a mouse reaches the name and takes the click; a
+   finger has no hover to reveal the control with and needs the zone. */
+.nx-tap-coarse { position: relative; }
+@media (pointer: coarse) {
+  .nx-tap-coarse::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, var(--nx-tap-y, 44px));
+    transform: translate(-50%, -50%);
+  }
+}
 
 /* The end of a project row: one slot, two things in it.  At rest it says
    when the project was last opened; pointed at, or holding focus, it is

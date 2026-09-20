@@ -349,8 +349,10 @@ test("the two headers are one object", async ({ app, project, tab }) => {
     );
   const source = await measure("editor-header", '[data-tab][data-path="second.tex"]');
   const preview = await measure("preview-header", '[data-preview-tab][data-path="main.tex"]');
-  expect(source.height).toBe(32);
-  expect(preview.height).toBe(32);
+  // 36 since the overhaul: the page draws the row at 36 with a 2 px
+  // underline inside it rather than a border under it.
+  expect(source.height).toBe(36);
+  expect(preview.height).toBe(36);
   expect(source.rowBottom).toBe("0px");
   expect(preview.rowBottom).toBe("0px");
   expect(source.activeBottom).toBe("0px");
@@ -371,6 +373,9 @@ test("the two headers are one object", async ({ app, project, tab }) => {
     (el) => getComputedStyle(el).backgroundColor,
   );
   await expect.poll(() => tint("tabs-blank")).not.toBe(rest);
+  // Past the 90 ms colour transition, so the value read is the resting
+  // hover colour and not a frame of the fade.
+  await tab.waitForTimeout(200);
   const sourceTint = await tint("tabs-blank");
   await expect.poll(() => tint("preview-blank")).toBe(sourceTint);
 });

@@ -1,0 +1,8 @@
+[
+  {"kind": "tool", "name": "Edit", "input": {"file_path": "main.tex"}},
+  {"kind": "edit", "path": "main.tex",
+   "find": "A numbered equation",
+   "replace": "A sentence the scripted agent is still working on. A numbered equation"},
+  {"kind": "text", "text": "Still working on the section.", "pieces": 1},
+  {"kind": "wait", "seconds": 30}
+]

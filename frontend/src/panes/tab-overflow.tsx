@@ -154,16 +154,18 @@ export function HiddenTabs({
   if (!hidden.length) return null;
   return (
     <div className="relative flex shrink-0">
+      {/* "+3", the way the page draws it: a count in the third ink with
+          no box of its own, on the same row as the tabs it stands for. */}
       <button
         ref={button}
-        className="flex w-6 shrink-0 items-center justify-center border-b border-l border-line bg-surface-2 t-micro tnum text-ink-3 hover:text-ink"
+        className="t-meta tnum flex shrink-0 items-center px-2 text-ink-3 hover:text-ink"
         title={`${hidden.length} more ${label}`}
         aria-label={`${hidden.length} more ${label}, list them`}
         aria-expanded={open}
         data-testid={testId}
         onClick={() => setOpen((value) => !value)}
       >
-        {hidden.length}
+        +{hidden.length}
       </button>
       {/* The kit's menu, hung from the button's right edge so it opens
           inward, and capped at the window's height: a strip with forty

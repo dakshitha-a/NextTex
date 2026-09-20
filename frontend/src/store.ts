@@ -290,6 +290,10 @@ export type State = {
     since: number;
   } | null;
   awaitingPermission: boolean;
+  /** The project paths Claude has edited in the turn that is running,
+   *  emptied when the next turn starts.  The source strip draws the pen
+   *  underline on their tabs while `thinking` holds. */
+  turnEdits: string[];
   /** Where the permission control is, of its three positions.
    *
    *  `ask` cards every shell call, every network call and every write that
@@ -430,6 +434,7 @@ const state: State = {
   selectedDiagnostic: null,
   chat: [],
   thinking: false,
+  turnEdits: [],
   activity: null,
   awaitingPermission: false,
   mode: "ask",
@@ -1282,7 +1287,7 @@ function receive(event: any) {
                 text: String(event.prompt ?? ""), at: Date.now(),
               },
             ];
-      set({ thinking: true, activity: null, chat });
+      set({ thinking: true, activity: null, chat, turnEdits: [] });
       break;
     }
     case "text":
@@ -1398,6 +1403,9 @@ function receive(event: any) {
         removed,
         state: "live",
       });
+      if (!state.turnEdits.includes(event.path)) {
+        set({ turnEdits: [...state.turnEdits, event.path] });
+      }
       handlers.onAgentEdit?.(event.path, firstChangedLine(event.before ?? "", event.after ?? ""));
       break;
     }

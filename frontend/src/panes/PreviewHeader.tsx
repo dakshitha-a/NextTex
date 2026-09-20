@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { PlusIcon } from "../chrome";
+import { IconButton } from "../ui/Button";
+import { PlusIcon } from "../ui/icons";
 import { get, set, useStore } from "../store";
 import { pageWindowUrl } from "../page-window";
 import { under } from "../place-menu";
@@ -92,13 +93,13 @@ export default function PreviewHeader({
       active: showing === "document" && path === active,
       closeLabel: previews.length > 1 ? `Stop previewing ${path.split("/").pop() ?? path}` : undefined,
       testId: `preview-tab-${path}`,
-      // Building, or behind the source.  Without this a background
-      // document gives no sign it is out of date until you switch to it
-      // and find an old page.
-      badge: build?.compiling ? (
-        <span className="ml-[5px] h-[5px] w-[5px] shrink-0 rounded-full bg-hint" />
+      // Building, or behind the source, drawn before the name as the
+      // page has it.  Without this a background document gives no sign it
+      // is out of date until you switch to it and find an old page.
+      leading: build?.compiling ? (
+        <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-hint" />
       ) : build?.stale ? (
-        <span className="ml-[5px] h-[5px] w-[5px] shrink-0 rounded-full border border-ink-3" />
+        <span className="h-[6px] w-[6px] shrink-0 rounded-full shadow-[inset_0_0_0_1.5px_var(--ink-3)]" />
       ) : undefined,
     };
   });
@@ -117,9 +118,9 @@ export default function PreviewHeader({
       closeLabel: `Close ${name}`,
       testId: `script-tab-${script.path}`,
       badge: script.running ? (
-        <span className="ml-[5px] h-[5px] w-[5px] shrink-0 rounded-full bg-hint" />
+        <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-hint" />
       ) : script.result && !script.result.ok ? (
-        <span className="ml-[5px] h-[5px] w-[5px] shrink-0 rounded-full bg-error" />
+        <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-error" />
       ) : undefined,
     });
   }
@@ -209,20 +210,20 @@ export default function PreviewHeader({
           <>
             {candidates.length ? (
               <div className="relative flex shrink-0 items-center">
-                <button
+                <IconButton
                   ref={plus}
-                  className="quiet relative flex h-[26px] w-[26px] items-center justify-center rounded-[3px] hover:bg-surface-3"
-                  aria-label="Preview another document"
-                  title="Preview another document"
+                  label="Preview another document"
                   aria-expanded={open}
                   data-testid="add-preview"
+                  on={open}
+                  className="relative"
                   onClick={() => setOpen((value) => !value)}
                 >
                   <PlusIcon />
                   {activePath && candidates.includes(activePath) ? (
-                    <span className="absolute right-[3px] top-[3px] h-[4px] w-[4px] rounded-full bg-hint" />
+                    <span className="absolute right-[4px] top-[4px] h-[4px] w-[4px] rounded-full bg-hint" />
                   ) : null}
-                </button>
+                </IconButton>
                 {/* The kit's menu, hung from the button's right edge. */}
                 <Menu
                   open={open}

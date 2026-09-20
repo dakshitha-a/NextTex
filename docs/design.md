@@ -488,6 +488,20 @@ could look at it, and the ring it specified could never have appeared.
 
 Tab switching is instantaneous: content swaps in the same frame, no crossfade.
 
+*Revised in the visual overhaul, 19 September 2026.* The row is 36 px on `--surface-2`
+with no rule under it and none between the tabs; the tabs sit 2 px apart at 12 px
+padding, at `t-ui` 14 px. The tab in front is told by ink weight (500, `--ink`) and a 2 px
+ink underline drawn as an inset shadow, so it takes no height from the row; the others are
+`--ink-3` with the extension in `--ink-3` (`--ink-2` on the tab in front), and hover is
+the wash. The 2 px `--pen` bar the tab in front used to carry along its top edge is gone:
+the pen is reserved for a tab whose file Claude is editing in the turn that is running,
+a 2 px pen underline fed by `turnEdits` in the store, which the `edit` event fills and the
+next turn empties. The close control shows on the tab in front and the hovered one only,
+and always on a finger. The count of tabs out of sight reads "+3" in the third ink with no
+box of its own. The preview's tabs carry their build dot before the name, 6 px in `--hint`
+while compiling and a hollow ring while stale. The empty run and the tab in front remain
+the pane's handle.
+
 **Right-clicking the tab in front opens a menu**: *Close the others*, *Close all to the
 right*, *Close all*, a rule, then *Duplicate* and *Download* (§39). Only the tab in front,
 because the items are about the file being written and a menu on any other tab would have

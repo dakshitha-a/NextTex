@@ -36,8 +36,8 @@ test("the smallest controls answer a finger", async ({ tab }) => {
     return { width: parseFloat(after.width), height: parseFloat(after.height) };
   });
   expect(area.width).toBeGreaterThanOrEqual(44);
-  // The tab strip is 26px tall, so that is the honest ceiling on this axis.
-  expect(area.height).toBeGreaterThanOrEqual(26);
+  // The tab strip is 36px tall, so that is the honest ceiling on this axis.
+  expect(area.height).toBeGreaterThanOrEqual(36);
 });
 
 test("a pinch zooms the page the way the trackpad does", async ({ tab }) => {

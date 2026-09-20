@@ -1,6 +1,8 @@
 import { Suspense, lazy, useMemo, type ReactNode } from "react";
 import api from "../api";
-import { RunIcon, StopIcon, download } from "../chrome";
+import { download } from "../chrome";
+import { Button } from "../ui/Button";
+import { RunIcon, StopIcon } from "../ui/icons";
 import { useStore } from "../store";
 import { isScript } from "./file-kinds";
 import PaneHeader from "./PaneHeader";
@@ -59,6 +61,10 @@ export default function SourceHeader({
   const connection = useStore((s) => s.connection);
   const anybodyElse = others > 0 || connection === "offline";
   const script = useStore((s) => s.script);
+  // The files Claude has edited in the turn that is running, for the pen
+  // underline: the one place the pen appears on a strip.
+  const thinking = useStore((s) => s.thinking);
+  const turnEdits = useStore((s) => s.turnEdits);
   const runnable = activePath !== null && isScript(activePath);
   const runningThis = runnable && script?.path === activePath && script.running;
 
@@ -86,12 +92,13 @@ export default function SourceHeader({
         ? `${tab.path}, ${errors} ${errors === 1 ? "error" : "errors"}`
         : tab.path,
       active: tab.path === activePath,
+      pen: thinking && turnEdits.includes(tab.path),
       closeLabel: `Close ${name}`,
       // A number, not a coloured dot: the count says the same thing
       // without depending on being able to see the colour.
       badge: errors ? (
         <span
-          className="t-micro tnum ml-[6px] text-error"
+          className="t-meta tnum font-medium text-error"
           title={`${errors} ${errors === 1 ? "error" : "errors"} in this file`}
         >
           {errors}
@@ -132,23 +139,23 @@ export default function SourceHeader({
                 the editor.  Stop replaces it while the run is going. */}
             {runnable && activePath ? (
               runningThis ? (
-                <button
-                  className="quiet nx-tap [--nx-tap-y:26px] t-micro mr-1 flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3"
+                <Button
+                  size="inline"
                   data-testid="stop-script"
                   title="Stop this script"
                   onClick={() => onStopScript(activePath)}
                 >
-                  <StopIcon /> Stop
-                </button>
+                  <StopIcon size={13} /> Stop
+                </Button>
               ) : (
-                <button
-                  className="quiet nx-tap [--nx-tap-y:26px] t-micro mr-1 flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3"
+                <Button
+                  size="inline"
                   data-testid="run-script"
                   title={`Run this script (${shortcut("Mod-Enter").both})`}
                   onClick={() => onRunScript(activePath)}
                 >
-                  <RunIcon /> Run
-                </button>
+                  <RunIcon size={13} /> Run
+                </Button>
               )
             ) : null}
             {/* Who else is here, at the strip's end. A project with one

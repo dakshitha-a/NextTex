@@ -61,6 +61,23 @@ test("an edit lands in the file and offers to be undone", async ({
     .not.toContain("A sentence the scripted agent inserted.");
 });
 
+test("a tab whose file Claude is editing carries the pen, only while the turn runs", async ({
+  tab,
+}) => {
+  // The pen underline is reserved on the strip for exactly this: the file
+  // Claude is in, during the turn.  The scripted turn edits main.tex and
+  // then keeps working, so the mark can be read while it holds; Escape
+  // stops the turn, and the mark goes with it.
+  const front = tab.locator('[data-tab][data-path="main.tex"]');
+  await expect(front).not.toHaveAttribute("data-pen", "true");
+  await ask(tab, "editing", "Keep working on the section.");
+  await expect(front).toHaveAttribute("data-pen", "true", { timeout: 20_000 });
+  await expect(tab.getByTestId("stop")).toBeVisible({ timeout: 20_000 });
+  await tab.locator("textarea").press("Escape");
+  await expect(tab.getByTestId("stop")).toBeHidden({ timeout: 20_000 });
+  await expect(front).not.toHaveAttribute("data-pen", "true");
+});
+
 test("an agent edit is a version of its own, kept apart from yours", async ({
   app, project, tab,
 }) => {

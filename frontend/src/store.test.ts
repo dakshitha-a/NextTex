@@ -400,6 +400,21 @@ describe("what the agent is doing", () => {
     expect(get().activity).toBeNull();
     expect(get().thinking).toBe(false);
   });
+
+  test("the files edited this turn are kept, once each, until the next turn", () => {
+    // The source strip draws the pen underline on these while the turn
+    // runs: the one place the pen appears on a strip, and it has to say
+    // "in this turn", not "ever".
+    __receive({ type: "turn_start", prompt: "go" });
+    __receive({ type: "edit", id: "e1", path: "main.tex", before: "a", after: "ab" });
+    __receive({ type: "edit", id: "e2", path: "main.tex", before: "ab", after: "abc" });
+    __receive({ type: "edit", id: "e3", path: "chapters/02.tex", before: "", after: "x" });
+    expect(get().turnEdits).toEqual(["main.tex", "chapters/02.tex"]);
+    __receive({ type: "done", subtype: "success" });
+    expect(get().turnEdits).toEqual(["main.tex", "chapters/02.tex"]);
+    __receive({ type: "turn_start", prompt: "again" });
+    expect(get().turnEdits).toEqual([]);
+  });
 });
 
 /** The model's plan for the turn, which used to be discarded as plumbing. */

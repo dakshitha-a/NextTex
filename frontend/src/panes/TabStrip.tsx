@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toShell } from "../viewport";
 import { Menu, MenuDivider, MenuItem as Item } from "../ui/Menu";
+import { CloseIcon } from "../ui/icons";
 import {
   HiddenTabs, useFollowActive, useHiddenTabs, useWheelScroll,
 } from "./tab-overflow";
@@ -15,10 +16,13 @@ import {
  *  should not have to do, so there is one strip now and each pane says
  *  only what its tabs are.
  *
- *  The rule under the row is composed rather than drawn on the header:
- *  inactive tabs, the empty run and the trailing controls each carry a
- *  bottom border and the active tab does not, so the tab in front opens
- *  into the pane below it on both sides.
+ *  As the direction page draws it: a 36 px row on the second surface with
+ *  no rule under it and none between the tabs; the tab in front by ink
+ *  weight and a 2 px ink underline, the extension in the third ink, the
+ *  close control on the tab in front and the hovered one only, the hover
+ *  as a wash; and a 2 px pen underline reserved for a tab whose file
+ *  Claude is editing in the current turn, which is the one place the pen
+ *  appears on a strip.
  *
  *  The gesture.  A click on the tab in front, or on the empty run past the
  *  last tab, is a click on the pane's header: it folds the pane, and a
@@ -39,8 +43,12 @@ export type StripTab = {
   active: boolean;
   /** The close control's label; absent when the tab cannot go. */
   closeLabel?: string;
-  /** After the label: an error count, a build dot. */
+  /** Before the label: the preview's build dot. */
+  leading?: ReactNode;
+  /** After the label: an error count, a script's state. */
   badge?: ReactNode;
+  /** Claude is editing this file in the current turn: the pen underline. */
+  pen?: boolean;
   testId?: string;
 };
 
@@ -107,7 +115,7 @@ export default function TabStrip({
   const items = menu && menuFor ? menuFor(menu.path) : [];
 
   return (
-    <div className="relative flex h-[32px] shrink-0">
+    <div className="relative flex h-[36px] shrink-0">
       {/* A labelled group of buttons rather than an ARIA tablist.  The tab
           pattern promises arrow-key navigation between tabs and a panel
           associated with each one, and this strip has neither; claiming
@@ -117,7 +125,7 @@ export default function TabStrip({
         role="group"
         aria-label={ariaLabel}
         data-testid={kind === "source" ? "source-strip" : "preview-strip"}
-        className="no-scrollbar flex h-[32px] min-w-0 flex-1 overflow-x-auto"
+        className="no-scrollbar flex h-[36px] min-w-0 flex-1 gap-[2px] overflow-x-auto"
       >
         {tabs.map((tab) => {
           const handle = tab.active && onHeaderClick !== undefined;
@@ -129,14 +137,25 @@ export default function TabStrip({
               key={tab.path}
               {...{ [dataAttribute]: "1" }}
               data-path={tab.path}
-              // A tab squeezes from 200px down to 72px before the strip
-              // overflows, the way a browser's do: a writer with eight
-              // files open sees eight names, shortened, rather than four
-              // and a count.  The count is for when even that is not room.
+              data-pen={tab.pen ? "true" : undefined}
+              // A tab is as wide as its name, as the page draws it, up to
+              // 200px, and squeezes down to 72px before the strip overflows,
+              // the way a browser's do: a writer with eight files open sees
+              // eight names, shortened, rather than four and a count.  The
+              // count is for when even that is not room.
               className={[
-                "relative flex h-[32px] min-w-[72px] max-w-[200px] basis-[200px] shrink items-center",
-                "gap-2 border-r border-line pr-[10px] transition-colors duration-[90ms]",
-                tab.active ? "bg-surface" : "border-b border-line hover:bg-surface-3",
+                "group relative flex h-[36px] min-w-[72px] max-w-[200px] basis-auto shrink items-center",
+                "gap-[6px] rounded-none pr-2 transition-colors duration-[90ms] hover:bg-wash",
+                tab.active ? "text-ink" : "text-ink-3",
+                // The underline is an inset shadow rather than a border, so
+                // it takes no height from the row and the two rows stay
+                // one object.  The pen wins over the ink: while Claude is
+                // in the file, that is the thing to know.
+                tab.pen
+                  ? "shadow-[inset_0_-2px_0_var(--pen)]"
+                  : tab.active
+                    ? "shadow-[inset_0_-2px_0_var(--ink)]"
+                    : "",
                 handle ? "cursor-pointer" : "",
               ].join(" ")}
               title={handle ? headerTitle : undefined}
@@ -164,38 +183,58 @@ export default function TabStrip({
                 });
               }}
             >
-              {tab.active ? (
-                <span className="absolute left-0 top-0 h-[2px] w-full bg-pen" />
-              ) : null}
               <button
                 aria-current={tab.active ? "true" : undefined}
                 title={tab.title}
                 data-testid={tab.testId}
-                className="t-meta flex min-w-0 flex-1 cursor-pointer items-center truncate pl-[10px] text-left"
+                // The tab's left padding is the button's, so a click on the
+                // tab's edge is a click on the tab.
+                className={`t-ui flex min-w-0 flex-1 cursor-pointer items-center gap-[6px] truncate pl-3 text-left ${
+                  tab.active ? "font-medium" : ""
+                }`}
                 onClick={() => {
                   // The tab in front is the header's handle, and the click
                   // reaches the row above; any other tab is selected.
                   if (!tab.active) onSelect(tab.path);
                 }}
               >
-                <span className={tab.active ? "text-ink" : "text-ink-2"}>{tab.label}</span>
-                {tab.extension ? (
-                  <span className={tab.extensionTone === "error" ? "text-error" : "text-ink-3"}>
-                    {tab.extension}
-                  </span>
-                ) : null}
+                {tab.leading}
+                <span className="truncate">
+                  {tab.label}
+                  {tab.extension ? (
+                    <span
+                      className={
+                        tab.extensionTone === "error"
+                          ? "text-error"
+                          : tab.active
+                            ? "text-ink-2"
+                            : "text-ink-3"
+                      }
+                    >
+                      {tab.extension}
+                    </span>
+                  ) : null}
+                </span>
                 {tab.badge}
               </button>
               {tab.closeLabel ? (
+                // Shown on the tab in front and under the pointer, and
+                // always on a finger, which has no pointer to hover with.
+                // Its finger target is drawn on a coarse pointer only: a
+                // tab is as wide as its name now, and a 44px zone under a
+                // mouse reached the name and closed what a click meant to
+                // select.
                 <button
-                  className="quiet nx-tap flex h-4 w-4 shrink-0 items-center justify-center [--nx-tap-y:26px]"
+                  className={`nx-tap-coarse flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] text-ink-3 hover:text-ink [--nx-tap-y:36px] ${
+                    tab.active ? "" : "hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-visible:opacity-100"
+                  }`}
                   aria-label={tab.closeLabel}
                   onClick={(event) => {
                     event.stopPropagation();
                     onClose(tab.path);
                   }}
                 >
-                  ×
+                  <CloseIcon size={11} />
                 </button>
               ) : null}
             </div>
@@ -206,8 +245,8 @@ export default function TabStrip({
             front is a handle as well. */}
         <div
           className={[
-            "flex-1 border-b border-line transition-colors duration-[90ms]",
-            onHeaderClick ? "cursor-pointer hover:bg-surface-3" : "",
+            "flex-1 transition-colors duration-[90ms]",
+            onHeaderClick ? "cursor-pointer hover:bg-wash" : "",
           ].join(" ")}
           data-testid={blankTestId}
           title={onHeaderClick ? headerTitle : undefined}

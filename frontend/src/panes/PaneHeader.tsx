@@ -1,15 +1,14 @@
 import type { ReactNode } from "react";
 
-/** The 32px row at the top of the source pane and of the preview pane.
+/** The 36px row at the top of the source pane and of the preview pane.
  *
  *  One shell for both, so they cannot drift: the same height, the same
- *  ground, the same rule under the row, the same place for the strip and
- *  for the controls at either end.  The header itself carries no bottom
- *  border and no hover of its own.  The rule is composed by what sits in
- *  the row, inactive tabs, the empty run and the two slots here, and the
- *  tab in front carries none, so it opens into the pane below it.  Hover
- *  belongs to the things that answer a click, which the row as a whole
- *  does not.
+ *  ground, the same place for the strip and for the controls at either
+ *  end.  The header carries no rule under it and no hover of its own: the
+ *  row sits on the second surface and the pane below on the first, and
+ *  the step of tone is the whole separation, as the direction page draws
+ *  it.  Hover belongs to the things that answer a click, which the row as
+ *  a whole does not.
  *
  *  `select-none`, because the row answers a double-click by entering a
  *  mode, and a double-click on text also selects the word under it, which
@@ -32,16 +31,16 @@ export default function PaneHeader({
   return (
     <div
       data-testid={testId}
-      className="flex h-[32px] shrink-0 select-none items-stretch bg-surface-2"
+      className="flex h-[36px] shrink-0 select-none items-stretch bg-surface-2 px-[6px]"
     >
       {leading ? (
-        <div className="flex shrink-0 items-center pl-1">
+        <div className="flex shrink-0 items-center gap-[2px]">
           {leading}
         </div>
       ) : null}
       <div className="min-w-0 flex-1">{children}</div>
       {trailing ? (
-        <div className="flex shrink-0 items-center gap-1 pl-1 pr-1">
+        <div className="flex shrink-0 items-center gap-[2px] pl-1">
           {trailing}
         </div>
       ) : null}
