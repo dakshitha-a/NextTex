@@ -1,5 +1,8 @@
-import { test, expect } from "../fixtures";
+import { test as base, expect, openProject } from "../fixtures";
 import type { Page } from "@playwright/test";
+import { cpSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { ROOT } from "../server";
 
 /** The README's screenshots, captured against a real instance rather than
  *  mocked up.
@@ -11,6 +14,30 @@ import type { Page } from "@playwright/test";
  *
  *      cd e2e && node_modules/.bin/playwright test --config shots.config.ts
  */
+
+/** The harness's project is named after its folder, `p0-1789929422349`,
+ *  which no README should carry.  This one is seeded by hand with a
+ *  `nexttex.toml` naming it before it is registered, since the name is
+ *  read as the project is added, and opened the way the `tab` fixture
+ *  opens its own. */
+const test = base.extend<{ tab: Page }>({
+  tab: async ({ app, page }, use) => {
+    const root = join(app.projects, "nonadiabatic-dynamics-review");
+    cpSync(join(ROOT, "nexttex", "templates", "basic"), root, { recursive: true });
+    mkdirSync(join(root, "figures"), { recursive: true });
+    writeFileSync(join(root, "nexttex.toml"), '[project]\nname = "Nonadiabatic dynamics review"\nbuild_dir = "build"\n');
+    const added = await fetch(`${app.base}/api/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+      body: JSON.stringify({ path: root }),
+    });
+    if (!added.ok) throw new Error(`could not register the project: ${added.status}`);
+    await page.goto(`${app.base}/?token=${app.token}`);
+    await page.getByText("Projects", { exact: false }).first().waitFor();
+    await openProject(page, root);
+    await use(page);
+  },
+});
 
 async function stage(tab: Page) {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
