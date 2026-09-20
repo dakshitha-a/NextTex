@@ -2,18 +2,21 @@ import { useStore } from "../store";
 import { agentName, type Provider } from "../agent-name";
 import { shortcut } from "../keys";
 
-/** The way to the agent, in one place at every width.
+/** The way to the agent while the column is an overlay and parked.
  *
- *  It used to be two controls that were never both present: a vertical
- *  strip at the right edge above 1400px, and a button in the editor's tab
- *  row below it. The tab-row button lives inside the editor pane, which is
- *  hidden when the source is folded away and when the preview has the
- *  window below 900px -- so in two ordinary layouts there was no way to
- *  reach the agent with a mouse at all, only the keyboard shortcut.
+ *  Below the `narrow` breakpoint the column slides in over the page, and
+ *  when it is slid away nothing on screen stands for it: no strip, no
+ *  header, no tab.  This pill is that thing, in the same corner whatever
+ *  the panes are doing, floating over whichever of them is open.
  *
- *  So: one control, in the shell rather than in any pane, in the same
- *  corner whatever the layout is doing. It floats over whatever is open,
- *  which is the point -- it belongs to the window, not to a pane.
+ *  It is not shown in the other two states.  While the column is open, in
+ *  either form, the column's own fold control closes it and a second
+ *  control for the same act is one more thing to hold in mind.  While the
+ *  column is docked and folded, the `Collapsed` strip labelled "Claude"
+ *  stands in for it, as the Source and Preview strips stand in for theirs,
+ *  and the strip carries the same state dot.  It used to float in all
+ *  three, which is what the three screenshots under `docs/` show; the
+ *  overhaul's direction is that the pill goes while the column is docked.
  */
 
 /** The provider's mark, drawn rather than fetched.
@@ -52,57 +55,61 @@ function OpenAIMark() {
   );
 }
 
-export default function AgentButton({
-  open,
-  onToggle,
-  right,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  /** How far in from the window's edge, so the pill travels with the panel
-   *  rather than being covered by it. */
-  right: number;
-}) {
-  const provider = useStore((s) => s.agent?.provider) as Provider | undefined;
+/** The agent's state as a dot: waiting for an answer, or working.
+ *
+ *  "The agent is waiting for you to allow something" was invisible whenever
+ *  the column was closed, which is exactly when it needed saying, so the
+ *  dot sits on whatever stands for the closed column: the pill's mark on
+ *  the overlay, the folded strip when the column is docked.  Nothing while
+ *  the agent is idle; a dot that is always there says nothing. */
+export function AgentStateDot({ className = "" }: { className?: string }) {
   const thinking = useStore((s) => s.thinking);
   const waiting = useStore((s) => s.awaitingPermission);
+  if (waiting) {
+    return (
+      <span
+        data-testid="agent-state"
+        data-state="waiting"
+        className={`h-[8px] w-[8px] rounded-full border-2 border-surface-2 bg-warn ${className}`}
+      />
+    );
+  }
+  if (thinking) {
+    return (
+      <span
+        data-testid="agent-state"
+        data-state="working"
+        className={`nx-agent-working h-[8px] w-[8px] rounded-full border-2 border-surface-2 bg-hint ${className}`}
+      />
+    );
+  }
+  return null;
+}
+
+export default function AgentButton({ onShow }: { onShow: () => void }) {
+  const provider = useStore((s) => s.agent?.provider) as Provider | undefined;
   const name = agentName(provider);
+  const label = `Show ${name} (${shortcut("Mod-Alt-A").both})`;
 
   return (
     <button
       className={[
         "nx-agent-button group fixed z-[35] flex h-[34px] items-center gap-[7px]",
         "rounded-full border border-line pl-[11px] pr-[13px]",
-        "shadow-[var(--float)] transition-[background-color,color,right] duration-150",
-        open
-          ? "bg-surface-3 text-ink"
-          : "bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-ink",
+        "shadow-[var(--float)] transition-[background-color,color] duration-150",
+        "bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-ink",
       ].join(" ")}
-      style={{ right, bottom: 34 }}
+      style={{ right: 14, bottom: 34 }}
       data-testid={`agent-button-${name.toLowerCase()}`}
-      aria-expanded={open}
-      aria-label={open ? `Hide ${name}` : `Show ${name} (${shortcut("Mod-Alt-A").both})`}
-      title={open ? `Hide ${name}` : `Show ${name} (${shortcut("Mod-Alt-A").both})`}
-      onClick={onToggle}
+      // Only ever rendered while the column it opens is parked.
+      aria-expanded={false}
+      aria-label={label}
+      title={label}
+      onClick={onShow}
     >
       <span className="relative flex items-center text-pen">
         {provider === "openai" ? <OpenAIMark /> : <ClaudeMark />}
-        {/* The state, on the mark rather than beside it.  "The agent is
-            waiting for you to allow something" was invisible whenever the
-            panel was closed, which is exactly when it needed saying. */}
-        {waiting ? (
-          <span
-            data-testid="agent-state"
-            data-state="waiting"
-            className="absolute -bottom-[2px] -right-[3px] h-[8px] w-[8px] rounded-full border-2 border-surface-2 bg-warn"
-          />
-        ) : thinking ? (
-          <span
-            data-testid="agent-state"
-            data-state="working"
-            className="nx-agent-working absolute -bottom-[2px] -right-[3px] h-[8px] w-[8px] rounded-full border-2 border-surface-2 bg-hint"
-          />
-        ) : null}
+        <AgentStateDot className="absolute -bottom-[2px] -right-[3px]" />
       </span>
       <span className="t-meta">{name}</span>
     </button>

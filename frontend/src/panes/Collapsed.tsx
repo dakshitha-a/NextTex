@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
 
 /** A collapsed pane leaves a strip behind, so it is obvious that something
@@ -7,11 +8,16 @@ export default function Collapsed({
   label,
   side,
   onExpand,
+  mark,
   furniture = false,
 }: {
   label: string;
   side: "left" | "right";
   onExpand: () => void;
+  /** Something the folded pane still has to say, drawn between the
+   *  chevron and the label: the Claude strip carries the agent's state dot
+   *  here, so "waiting for you" is not lost by folding the column. */
+  mark?: ReactNode;
   /** Whether this strip stands in for furniture or for a page.
    *
    *  Three mount points, two answers.  The folded file rail is furniture
@@ -36,6 +42,7 @@ export default function Collapsed({
       <span className="text-ink-3 group-hover:text-ink">
         {side === "left" ? <ChevronRightIcon size={14} /> : <ChevronLeftIcon size={14} />}
       </span>
+      {mark}
       <span
         className="t-meta whitespace-nowrap text-ink-3 group-hover:text-ink"
         style={{ writingMode: "vertical-rl" }}

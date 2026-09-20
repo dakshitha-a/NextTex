@@ -153,8 +153,12 @@ test("every pane at every width, in both themes", async ({
           // By testid.  This used to match a button whose text was
           // "Claude"; the control is a pill with an aria-label now, so the
           // old locator quietly matched nothing and every narrow shot was
-          // of a panel that had never opened.
-          await tab.getByTestId("agent-button-claude").click().catch(() => undefined);
+          // of a panel that had never opened.  The pill stands for the
+          // parked overlay and the strip for the folded docked column.
+          const pill = tab.getByTestId("agent-button-claude");
+          const strip = tab.getByTestId("collapsed-claude");
+          if (await pill.count()) await pill.click().catch(() => undefined);
+          else if (await strip.count()) await strip.click().catch(() => undefined);
           await tab.waitForTimeout(250);
         }
         if (await model.isVisible()) {

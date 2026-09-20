@@ -276,6 +276,42 @@ const SURFACES: Record<string, Surface> = {
       await tab.waitForTimeout(300);
     },
   },
+  strips: {
+    // The three folded strips at once: Source, Preview and Claude, as the
+    // page draws them side by side.  The shell is the photograph, so the
+    // strips are seen against the row they sit in.
+    open: async (tab) => {
+      // The folds are remembered across the reload between themes, so a
+      // pane may already be a strip when this runs.
+      const fold = async (label: string, strip: string) => {
+        if (await tab.getByTestId(strip).count()) return;
+        await tab.getByRole("button", { name: label }).click();
+        await tab.getByTestId(strip).waitFor();
+      };
+      await fold("Fold this panel away", "collapsed-claude");
+      await fold("Fold the source away", "collapsed-source");
+      await fold("Fold the preview away", "collapsed-preview");
+      await tab.waitForTimeout(200);
+      return tab.locator(".nx-shell");
+    },
+    close: async (tab) => {
+      await tab.reload();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+      await tab.waitForTimeout(500);
+    },
+  },
+  pill: {
+    // Only on the parked overlay, so the window narrows first.
+    open: async (tab) => {
+      await tab.setViewportSize({ width: 1200, height: 1000 });
+      await tab.waitForTimeout(300);
+      return tab.getByTestId("agent-button-claude");
+    },
+    close: async (tab) => {
+      await tab.setViewportSize({ width: 1600, height: 1000 });
+      await tab.waitForTimeout(300);
+    },
+  },
   notices: {
     open: async (tab) => {
       await tab.evaluate(() => {

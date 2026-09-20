@@ -2696,6 +2696,21 @@ panel was closed, which is precisely when it needed saying. It breathes
 rather than spins: a turn can run for a minute, and something spinning for a
 minute reads as an error long before it reads as progress.
 
+*Revised, 19 September 2026, in the visual overhaul.* The pill no longer
+floats in every layout. It shows in one state only: the column is an
+overlay (below 1400 shell pixels) and is parked, when nothing else on
+screen stands for it. While the column is open, in either form, its own
+fold control closes it, and a second control for the same act was one more
+thing to hold in mind; so the pill is not in the document then, and the
+`right` offset that moved it aside by the panel's width is gone with it.
+While the column is docked and folded, a `Collapsed` strip labelled Claude
+stands at the right edge, as the Source and Preview strips stand for their
+panes, and it carries the same state dot (`AgentStateDot`, exported from
+`AgentButton.tsx`) so that *the agent is waiting for you* survives the
+fold. `layout.spec.ts` pins the three states in one case. The three
+screenshots under `docs/` still show the pill beside a docked column; they
+are regenerated at the end of the overhaul.
+
 ### The rail scrolls rather than pushing its panels out
 
 Every expanded panel in the rail is `shrink-0`, which is right: a list

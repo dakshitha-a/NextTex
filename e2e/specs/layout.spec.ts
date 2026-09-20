@@ -417,7 +417,7 @@ test("the agent panel opens and closes from the keyboard, docked", async ({
   // before the browser sees it, Cmd/Ctrl-A alone is Select All, and
   // Cmd/Ctrl-Shift-A is Chrome's own tab search.  Alt keeps the A.
   await tab.keyboard.press("Control+Alt+KeyA");
-  await expect(tab.getByTestId("agent-button-claude")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-claude")).toBeVisible();
   await tab.keyboard.press("Control+Alt+KeyA");
   await expect(composer(tab)).toBeVisible();
 });
@@ -490,7 +490,7 @@ test("escape closes the agent panel from its composer", async ({ tab }) => {
   await chatThere(tab);
   await composer(tab).last().focus();
   await tab.keyboard.press("Escape");
-  await expect(tab.getByTestId("agent-button-claude")).toBeVisible();
+  await expect(tab.getByTestId("collapsed-claude")).toBeVisible();
 });
 
 test("the shortcut opens it and escape closes it, on the overlay", async ({
@@ -636,8 +636,12 @@ const placement = (page: any) =>
       // as the panel itself.
       gap: Math.round(shell.getBoundingClientRect().right - box.right),
       // The pill is `position: fixed`, so it cannot move.  If it ends up
-      // over the panel, the panel moved out from under it.
-      pillInsidePanel: pill.getBoundingClientRect().right > box.left + 1,
+      // over the panel, the panel moved out from under it.  It leaves the
+      // document while the overlay is open, so there is nothing to sit
+      // inside the panel then.
+      pillInsidePanel: pill
+        ? pill.getBoundingClientRect().right > box.left + 1
+        : false,
     };
   });
 
@@ -707,20 +711,60 @@ for (const scale of [100, 110]) {
   });
 }
 
-test("the agent button never sits on top of the panel it opens", async ({
+test("the agent button leaves while the panel it opens is showing", async ({
   tab,
 }) => {
-  // Only the docked case moved it aside, so on a narrow window the pill
-  // landed inside the overlay -- over the model popover, two pixels above
-  // Send, and across the corner of the box you type into.
+  // It used to stay, moved aside by the panel's width, and on a narrow
+  // window it once landed inside the overlay: over the model popover, two
+  // pixels above Send, and across the corner of the box you type into.
+  // Now the open column's own fold control is the one way to close it, so
+  // the pill is not in the document at all while the column shows, and
+  // is back the moment it is parked.
   await tab.setViewportSize({ width: 1300, height: 900 });
+  await expect(tab.getByTestId("agent-button-claude")).toBeVisible();
   await openTheAgentPanel(tab);
-  const pill = (await tab.getByTestId("agent-button-claude").boundingBox())!;
-  const panel = (await tab.getByTestId("chat-panel").boundingBox())!;
-  expect(
-    pill.x + pill.width,
-    "the pill overlaps the agent panel",
-  ).toBeLessThanOrEqual(panel.x + 1);
+  await expect(tab.getByTestId("agent-button-claude")).toHaveCount(0);
+  await tab.getByRole("button", { name: "Fold this panel away" }).click();
+  await chatAway(tab);
+  await expect(tab.getByTestId("agent-button-claude")).toBeVisible();
+});
+
+/** The three states of the agent column, and what stands for it in each.
+ *
+ *  Open, in either form: the column itself, with its fold control, and no
+ *  pill.  Docked and folded: a strip at the right edge, like the Source
+ *  and Preview strips, and no pill.  Overlaid and parked: the pill, since
+ *  nothing else on screen stands for the column then.  Before this the
+ *  pill floated in all three, which made it a second control for closing
+ *  an open column and left a folded docked column with no strip at all.
+ */
+test("a docked column folds to a strip, and the pill belongs to the overlay", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 1600, height: 1000 });
+  await chatThere(tab);
+  await expect(tab.getByTestId("agent-button-claude")).toHaveCount(0);
+  await expect(tab.getByTestId("collapsed-claude")).toHaveCount(0);
+
+  await tab.getByRole("button", { name: "Fold this panel away" }).click();
+  const strip = tab.getByTestId("collapsed-claude");
+  await expect(strip).toBeVisible();
+  await expect(tab.getByTestId("agent-button-claude")).toHaveCount(0);
+  // The strip is the right edge of the row, where the column was.
+  const stripBox = (await strip.boundingBox())!;
+  expect(Math.round(stripBox.x + stripBox.width)).toBe(1600);
+
+  await strip.click();
+  await chatThere(tab);
+  await expect(strip).toHaveCount(0);
+  // Opening from the strip is opening on purpose, so the caret goes in.
+  await expect(composer(tab)).toBeFocused();
+
+  // Narrower, the same column overlays, and the strip gives way to the pill.
+  await tab.setViewportSize({ width: 1200, height: 1000 });
+  await chatAway(tab);
+  await expect(tab.getByTestId("collapsed-claude")).toHaveCount(0);
+  await expect(tab.getByTestId("agent-button-claude")).toBeVisible();
 });
 
 test("the rail's handle resizes the rail rather than selecting the editor", async ({

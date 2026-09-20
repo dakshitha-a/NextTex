@@ -1,9 +1,11 @@
 import { test, expect } from "../fixtures";
 
-/** Not a check -- a look.  The pill, its mark and its state dot. */
+/** Not a check, a look.  The pill, its mark and its state dot.  Below
+ *  1400 the column overlays and starts parked, which is the one state the
+ *  pill shows in. */
 for (const theme of ["light", "dark"]) {
   test(`agent button ${theme}`, async ({ tab }) => {
-    await tab.setViewportSize({ width: 1400, height: 800 });
+    await tab.setViewportSize({ width: 1200, height: 800 });
     await tab.evaluate((t) => window.localStorage.setItem("nexttex.theme", t), theme);
     await tab.reload();
     await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });

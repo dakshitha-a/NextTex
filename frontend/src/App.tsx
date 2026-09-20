@@ -104,7 +104,7 @@ import { type PdfHandle } from "./panes/Pdf";
 import Chat, { type ChatHandle } from "./panes/Chat";
 import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
-import AgentButton from "./panes/AgentButton";
+import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import Status from "./panes/Status";
 /** The error drawer, fetched when something opens it.
  *
@@ -2708,24 +2708,13 @@ export default function App() {
           onReset={() => setWidths((current) => ({ ...current, chat: DEFAULTS.chat }))}
         />
       ) : null}
-      {/* One way to the agent, in the same corner at every width.  It
-          travels left when the panel is docked so the panel never covers
-          the thing that closes it. */}
-      {noAgent ? null : (
-        <AgentButton
-          open={chatOver ? chatOpen : !folded.chat}
-          onToggle={toggleChat}
-          // Left of the panel whenever the panel is showing -- docked or
-          // overlaid.  Only the docked case was handled, so on a narrow
-          // window the pill landed inside the overlay: over the model
-          // popover, two pixels above Send, and across the corner of the
-          // box you type into.  The control that closes a panel must not
-          // be covered by it, and must not cover it either.
-          right={
-            (chatOver ? chatOpen : !folded.chat) ? widths.chat + 14 : 14
-          }
-        />
-      )}
+      {/* The pill is the way to the agent only while the column is an
+          overlay and parked: then nothing else on screen stands for it.
+          While the column is open its own fold control closes it, and
+          while it is docked and folded the strip below stands in for it,
+          so in both of those the pill would be a second control for one
+          act, and it goes. */}
+      {!noAgent && chatOver && !chatOpen ? <AgentButton onShow={toggleChat} /> : null}
       {tutorialOpen ? (
         <Suspense
           fallback={
@@ -2739,6 +2728,18 @@ export default function App() {
         </Suspense>
       ) : null}
 
+      {/* Docked and folded, the column leaves a strip behind like the
+          Source and Preview panes do, carrying the agent's state dot so
+          that "waiting for you" survives the fold. */}
+      {!noAgent && !chatOver && folded.chat ? (
+        <Collapsed
+          label="Claude"
+          side="right"
+          furniture
+          mark={<AgentStateDot />}
+          onExpand={toggleChat}
+        />
+      ) : null}
       {noAgent ? null : (
       <div
         className={
