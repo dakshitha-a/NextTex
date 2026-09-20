@@ -54,6 +54,43 @@ test("the chooser browses the machine running NextTex", async ({ tab }) => {
   ).toBeEnabled();
 });
 
+test("a folder's outcome reads as prose, and a PDF with no DOI is a row that can be given one", async ({
+  tab,
+}) => {
+  // Two PDFs with nothing in them to find a DOI by: the scan runs, adds
+  // nothing, and the drawer says so in words rather than as "2 not
+  // identified", with a row per PDF and the one thing to do about it.
+  const folder = join(tmpdir(), `nexttex-papers-${Date.now()}`);
+  mkdirSync(join(folder, "scans"), { recursive: true });
+  // Two different files: the scan folds identical bytes into one paper.
+  writeFileSync(join(folder, "scans", "scan-2019-03.pdf"), "%PDF-1.4\n% scan");
+  writeFileSync(join(folder, "scans", "preprint.pdf"), "%PDF-1.4\n% preprint");
+  await tab.getByLabel("Actions for references.bib").click();
+  await tab.getByRole("button", { name: /Add papers from a folder/ }).click();
+  const chooser = tab.getByTestId("papers-chooser");
+  await chooser.getByTestId("papers-path").fill(join(folder, "scans"));
+  await tab.keyboard.press("Enter");
+  await chooser.getByRole("button", { name: "Read 2 papers" }).click();
+
+  await tab.getByTestId("bar-papers").click();
+  const panel = tab.getByTestId("papers-panel");
+  await expect(panel).toContainText("From the scans folder", { timeout: 30_000 });
+  await expect(panel).toContainText("2 PDFs carry no DOI NextTex could find", { timeout: 30_000 });
+  // One row per PDF, each with "Give a DOI" under the pointer (hidden at
+  // rest, so counted by the element rather than by role).
+  await expect(panel.locator("button", { hasText: "Give a DOI" })).toHaveCount(2);
+  const preprint = panel.locator(".nx-row", { hasText: "preprint" });
+  await preprint.hover();
+  await expect(preprint.getByRole("button", { name: "Give a DOI" })).toBeVisible();
+  await expect(panel).not.toContainText(/not identified|unidentified/);
+  // Reading a folder is the heading's one button, as the page draws it;
+  // the foot is the record check alone.
+  await expect(panel).not.toContainText("Read a folder of PDFs");
+  await tab.getByTestId("drawer").getByRole("button", { name: "Read a folder of PDFs" }).click();
+  await expect(tab.getByTestId("papers-chooser")).toContainText("Add papers to references.bib");
+  await tab.keyboard.press("Escape");
+});
+
 test("a folder with no papers cannot be read by accident", async ({ tab }) => {
   const empty = join(tmpdir(), `nexttex-empty-${Date.now()}`);
   mkdirSync(empty, { recursive: true });
@@ -77,7 +114,10 @@ test("a folder that is not there says so, in place", async ({ tab }) => {
   await expect(chooser.getByText("There is no folder at that path.")).toBeVisible();
 });
 
-test("Escape closes the chooser without reading anything", async ({ tab }) => {
+test("Escape closes the chooser without reading anything", async ({ tab, project }) => {
+  // The template's bibliography holds one entry; emptied, so the drawer
+  // has nothing to say but its one sentence.
+  writeFileSync(join(project.root, "references.bib"), "");
   await tab.getByLabel("Actions for references.bib").click();
   await tab.getByRole("button", { name: /Add papers from a folder/ }).click();
   await expect(tab.getByTestId("papers-chooser")).toBeVisible();
@@ -88,7 +128,17 @@ test("Escape closes the chooser without reading anything", async ({ tab }) => {
   // been read. What must not have happened is a read: no papers, and no
   // account of a run.
   await tab.getByTestId("bar-papers").click();
-  await expect(tab.getByTestId("papers-panel")).toContainText("Papers (0)");
+  // Empty, the drawer is one sentence and the offer to read a folder; and
+  // no account of a run, since none ran.
+  await expect(tab.getByTestId("papers-panel")).toContainText("Nothing in the bibliography yet");
+  await expect(tab.getByTestId("papers-panel")).not.toContainText("added");
+  // With entries somebody typed, the sentence would be untrue, so the
+  // drawer says what the file holds instead.
+  writeFileSync(join(project.root, "references.bib"), "@book{knuth1984,\n  title = {The TeXbook},\n}\n");
+  await tab.getByTestId("bar-files").click();
+  await tab.getByTestId("bar-papers").click();
+  await expect(tab.getByTestId("papers-panel")).toContainText("references.bib holds 1 entry.");
+  await expect(tab.getByTestId("papers-panel")).not.toContainText("Nothing in the bibliography yet");
   await expect(tab.getByText(/not identified/)).toHaveCount(0);
 });
 
@@ -113,6 +163,22 @@ test("a DOI on its own is enough, and the entries can be checked", async ({
       }),
     }),
   );
+  // A pasted DOI goes through the one field: the server resolves it to a
+  // row, and the row's Add is the same Add a search result has.
+  await page.route("**/library/search?*", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        source: "doi",
+        results: [{
+          doi: "10.1038/nature14539", title: "Deep learning", first: "LeCun", authors: 3,
+          year: "2015", journal: "Nature", names: ["Yann LeCun", "Yoshua Bengio", "Geoffrey Hinton"],
+          abstract: "Deep learning allows computational models that are composed of multiple processing layers to learn representations of data.",
+        }],
+      }),
+    }),
+  );
   await page.route("**/library/verify", (route) =>
     route.fulfill({
       status: 200,
@@ -129,12 +195,22 @@ test("a DOI on its own is enough, and the entries can be checked", async ({
   const panel = tab.getByTestId("papers-panel");
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
-  await tab.getByTestId("papers-doi").fill("10.1038/nature14539");
-  await tab.getByRole("button", { name: "Add", exact: true }).click();
-  // What was added, so it can be checked against the page rather than
-  // taken on trust.
-  await expect(tab.getByTestId("papers-added")).toContainText("Deep learning");
-  await expect(tab.getByTestId("papers-added")).toContainText("2015");
+  await tab.getByTestId("papers-search").fill("10.1038/nature14539");
+  await tab.keyboard.press("Enter");
+  const row = tab.getByTestId("papers-result").first();
+  await expect(row).toContainText("Deep learning");
+  await expect(row).toContainText("LeCun et al., 2015, Nature");
+  // The hover card carries what the row has no room for: every author,
+  // the DOI in the mono, and the abstract.
+  await row.hover();
+  const card = tab.getByTestId("papers-card");
+  await expect(card).toBeVisible({ timeout: 5_000 });
+  await expect(card).toContainText("Yann LeCun, Yoshua Bengio, Geoffrey Hinton");
+  await expect(card).toContainText("10.1038/nature14539");
+  await expect(card).toContainText("Deep learning allows");
+  await row.getByTestId("papers-result-add").click();
+  // What it was added as, beside the row, so the key can be typed at once.
+  await expect(row.getByTestId("papers-result-added")).toHaveText("added as LeCun2015deep");
 
   await tab.getByTestId("papers-verify").click();
   await expect(tab.getByTestId("papers-report")).toContainText("knuth1984");
@@ -173,9 +249,11 @@ test("the literature can be searched without an agent, and a result added by its
   await tab.getByTestId("bar-papers").click();
   const panel = tab.getByTestId("papers-panel");
   await expect(panel).toBeVisible({ timeout: 20_000 });
-  await tab.getByTestId("papers-source").selectOption("openalex");
+  // The publisher chooser appears once there is something to ask.
+  await expect(tab.getByTestId("papers-source")).toHaveCount(0);
   await tab.getByTestId("papers-search").fill("deep learning");
-  await tab.keyboard.press("Enter");
+  await tab.getByTestId("papers-source").selectOption("openalex");
+  await tab.getByTestId("papers-search").press("Enter");
 
   const rows = tab.getByTestId("papers-result");
   await expect(rows).toHaveCount(2);
@@ -186,5 +264,5 @@ test("the literature can be searched without an agent, and a result added by its
   expect(asked[0]).toContain("source=openalex");
 
   await rows.nth(0).getByTestId("papers-result-add").click();
-  await expect(rows.nth(0).getByTestId("papers-result-added")).toHaveText("LeCun2015deep");
+  await expect(rows.nth(0).getByTestId("papers-result-added")).toHaveText("added as LeCun2015deep");
 });

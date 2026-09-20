@@ -39,6 +39,11 @@ async function showDrawer(tab: Page, id: string) {
   if (!showing) await tab.getByTestId(`bar-${id}`).click();
 }
 
+/** The running instance and its project, for a surface that has to
+ *  reach the server itself. */
+let ctx: { base: string; token: string; id: string; root: string } | null = null;
+let scanned = false;
+
 const escape = async (tab: Page) => {
   await tab.keyboard.press("Escape");
   await tab.waitForTimeout(150);
@@ -389,6 +394,76 @@ const SURFACES: Record<string, Surface> = {
       await showDrawer(tab, "files");
     },
   },
+  "drawer-papers-empty": {
+    // Before anything has been searched or read: the field and the one
+    // sentence with its action, as the page draws the light drawer.
+    // Rendered in a run of its own, since drawer-papers reads a folder
+    // and the outcome stays for the rest of the fixture.
+    open: async (tab) => {
+      // The template's bibliography holds an entry; emptied, so the
+      // drawer's sentence is true and it is shown.
+      if (ctx) fs.writeFileSync(path.join(ctx.root, "references.bib"), "");
+      await showDrawer(tab, "papers");
+      await tab.getByTestId("papers-panel").getByRole("button", { name: "Read a folder of PDFs" }).waitFor();
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
+  "drawer-papers": {
+    // The search half stubbed, since the harness never reaches a
+    // publisher: three rows, the second already added, the first under
+    // the pointer with its card; the folder half read for real from two
+    // PDFs no DOI can be found in, once, the first time this opens.
+    open: async (tab) => {
+      if (!scanned && ctx) {
+        scanned = true;
+        fs.mkdirSync(path.join(ctx.root, "figures"), { recursive: true });
+        fs.writeFileSync(path.join(ctx.root, "figures", "scan-2019-03.pdf"), "%PDF-1.4\n% scan");
+        fs.writeFileSync(path.join(ctx.root, "figures", "preprint.pdf"), "%PDF-1.4\n% preprint");
+        await fetch(`${ctx.base}/api/projects/${ctx.id}/library/scan`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+          body: JSON.stringify({ path: path.join(ctx.root, "figures") }),
+        });
+      }
+      await tab.route("**/library/search?*", (route) => route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ source: "crossref", results: [
+          { doi: "10.1146/annurev-physchem-052516-050721", title: "Dynamics at conical intersections",
+            first: "Schuurman", authors: 2, year: "2018", journal: "Annu. Rev. Phys. Chem.",
+            names: ["Michael S. Schuurman", "Albert Stolow"],
+            abstract: "Conical intersections are the dominant mechanism for nonadiabatic transitions between electronic states in polyatomic molecules. We review the time-resolved spectroscopies and the ab initio dynamics that together reveal how a wavepacket passes through the seam, and what the passage leaves in the product distribution." },
+          { doi: "10.1021/ar970149x", title: "Conical intersections: diabolical and often misunderstood",
+            first: "Yarkony", authors: 1, year: "1998", journal: "Acc. Chem. Res.", names: ["David R. Yarkony"], abstract: "" },
+          { doi: "10.1063/1.3700152", title: "Ultrafast dynamics through a conical intersection in pyrazine",
+            first: "Suzuki", authors: 1, year: "2012", journal: "J. Chem. Phys.", names: ["Toshinori Suzuki"], abstract: "" },
+        ] }),
+      }));
+      await tab.route("**/library/add", (route) => route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ added: true, key: "yarkony1998", title: "Conical intersections", author: "Yarkony", year: "1998" }),
+      }));
+      await showDrawer(tab, "papers");
+      const panel = tab.getByTestId("papers-panel");
+      // Hidden until the row is hovered, so waited for as attached.
+      await panel.locator("button", { hasText: "Give a DOI" }).nth(1).waitFor({ state: "attached", timeout: 30_000 });
+      if ((await panel.getByTestId("papers-result").count()) === 0) {
+        await panel.getByTestId("papers-search").fill("conical intersection dynamics");
+        await tab.keyboard.press("Enter");
+        await panel.getByTestId("papers-result").nth(2).waitFor();
+        await panel.getByTestId("papers-result").nth(1).getByTestId("papers-result-add").click();
+        await panel.getByTestId("papers-result-added").waitFor();
+      }
+      await panel.getByTestId("papers-result").first().hover();
+      await tab.getByTestId("papers-card").waitFor({ timeout: 5_000 });
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => {
+      await tab.unroute("**/library/search?*");
+      await tab.unroute("**/library/add");
+      await showDrawer(tab, "files");
+    },
+  },
   "drawer-submit": {
     open: async (tab) => {
       await showDrawer(tab, "submit");
@@ -489,6 +564,7 @@ test("the named surfaces, in both themes, beside the page", async ({ app, projec
     headers: { "content-type": "application/json", "x-nexttex-token": app.token },
     body: JSON.stringify({ path: "supplement.tex" }),
   });
+  ctx = { base: app.base, token: app.token, id: project.id, root: project.root };
   const names = WANTED.length ? WANTED : Object.keys(SURFACES);
   for (const theme of THEMES) {
     await dress(tab, theme);

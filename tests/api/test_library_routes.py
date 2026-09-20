@@ -90,6 +90,18 @@ def test_a_bibliography_can_be_checked_against_the_publishers(client, bib, monke
     assert body["problems"][0]["key"] == "knuth1984"
 
 
+def test_the_library_state_counts_the_bibliography_s_own_entries(client, bib):
+    """The drawer says "nothing in the bibliography yet" only when that is
+    true of the file, not only of what NextTex added to it."""
+    opened, path = bib
+    state = client.get(f"/api/projects/{opened['id']}/library").json()
+    assert state["entries"] == 1 and state["count"] == 0
+    path.write_text(path.read_text(encoding="utf-8") + "\n\n" + ENTRY + "\n", encoding="utf-8")
+    assert client.get(f"/api/projects/{opened['id']}/library").json()["entries"] == 2
+    path.unlink()
+    assert client.get(f"/api/projects/{opened['id']}/library").json()["entries"] == 0
+
+
 def test_neither_route_works_without_a_bibliography(client, opened, monkeypatch):
     session = server_main.SESSIONS[opened["id"]]
     (session.project.root / "references.bib").unlink()
@@ -128,7 +140,7 @@ def test_the_search_box_asks_a_publisher_and_hands_back_rows_with_dois(client, o
     assert body["source"] == "openalex"
     assert body["results"][0] == {
         "doi": "10.1038/nature14539", "title": "Deep learning", "first": "LeCun",
-        "authors": 3, "year": "2015", "journal": "Nature",
+        "authors": 3, "year": "2015", "journal": "Nature", "names": [], "abstract": "",
     }
     assert body["results"][1]["doi"] == "" and body["results"][1]["year"] == ""
 
@@ -144,6 +156,66 @@ def test_a_search_that_cannot_be_asked_is_refused(client, opened, monkeypatch, p
     assert client.get(
         f"/api/projects/{opened['id']}/library/search", params=params
     ).status_code == 400
+
+
+def test_a_doi_in_the_search_box_resolves_to_one_row(client, opened, monkeypatch):
+    """One box for a query or a DOI: a string that is a DOI goes to the
+    resolver and comes back as one row the drawer draws like any other."""
+    asked = {}
+
+    def fake_record(doi):
+        asked["doi"] = doi
+        return {"doi": doi, "title": "Deep learning", "first": "LeCun", "n_authors": 3,
+                "year": 2015, "journal": "Nature", "cites": 60000,
+                "authors": ["Yann LeCun", "Yoshua Bengio", "Geoffrey Hinton"],
+                "abstract": "Deep learning allows computational models..."}
+
+    monkeypatch.setattr(references, "record_for", fake_record)
+    monkeypatch.setattr(references, "search", lambda *a, **k: pytest.fail("searched a DOI"))
+    for pasted in ["10.1038/nature14539", "https://doi.org/10.1038/nature14539", "  10.1038/nature14539 "]:
+        answer = client.get(
+            f"/api/projects/{opened['id']}/library/search", params={"q": pasted}
+        )
+        assert answer.status_code == 200, answer.text
+        body = answer.json()
+        assert body["source"] == "doi"
+        assert asked["doi"] == "10.1038/nature14539"
+        assert len(body["results"]) == 1
+        row = body["results"][0]
+        assert row["doi"] == "10.1038/nature14539"
+        assert row["names"] == ["Yann LeCun", "Yoshua Bengio", "Geoffrey Hinton"]
+        assert row["abstract"].startswith("Deep learning allows")
+
+
+def test_a_doi_nobody_has_is_no_rows_rather_than_an_invented_one(client, opened, monkeypatch):
+    monkeypatch.setattr(references, "record_for", lambda doi: {})
+    answer = client.get(
+        f"/api/projects/{opened['id']}/library/search", params={"q": "10.9999/nothing.here"}
+    )
+    assert answer.status_code == 200
+    assert answer.json() == {"source": "doi", "results": []}
+
+
+def test_a_search_row_carries_its_authors_and_abstract_when_the_record_has_them(
+    client, opened, monkeypatch,
+):
+    def fake_search(query, *, source="crossref", author="", years="", limit=10):
+        return [
+            {"doi": "10.1/a", "title": "A", "first": "One", "n_authors": 2, "year": 2020,
+             "journal": "J", "cites": 1, "authors": ["A. One", "B. Two"], "abstract": "Says a thing."},
+            {"doi": "10.1/b", "title": "B", "first": "Two", "n_authors": 1, "year": 2021,
+             "journal": "K", "cites": 0},
+        ]
+
+    monkeypatch.setattr(references, "search", fake_search)
+    body = client.get(
+        f"/api/projects/{opened['id']}/library/search", params={"q": "a thing"}
+    ).json()
+    assert body["results"][0]["names"] == ["A. One", "B. Two"]
+    assert body["results"][0]["abstract"] == "Says a thing."
+    # A record without them is still a row, with nothing to hover for.
+    assert body["results"][1]["names"] == []
+    assert body["results"][1]["abstract"] == ""
 
 
 def test_a_publisher_that_will_not_answer_is_a_502_with_its_words(client, opened, monkeypatch):

@@ -902,7 +902,11 @@ const api = {
   searchLiterature: (id: string, q: string, source: string) =>
     request<{
       source: string;
-      results: { doi: string; title: string; first: string; authors: number; year: string; journal: string }[];
+      results: {
+        doi: string; title: string; first: string; authors: number; year: string; journal: string;
+        /** The full author list and the abstract, where the record has them. */
+        names: string[]; abstract: string;
+      }[];
     }>(`/projects/${id}/library/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(source)}`),
   /** Every use of a label, a citation key or a macro, by the syntax. */
   references: (id: string, kind: SymbolKind, name: string) =>
@@ -1249,6 +1253,7 @@ const api = {
   library: (id: string) =>
     request<{
       count: number;
+      entries: number;
       sources: string[];
       lastRun: { at?: number; added?: number; duplicate?: number;
                  unidentified?: number; stopped?: boolean };

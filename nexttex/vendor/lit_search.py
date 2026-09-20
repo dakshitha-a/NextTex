@@ -63,9 +63,35 @@ def year_filter(spec):
     raise ValueError(f"cannot read year range {spec!r}")
 
 
+def _names(parts):
+    """Author names as people write them, from Crossref's given/family."""
+    out = []
+    for a in parts or []:
+        name = " ".join(filter(None, [a.get("given"), a.get("family")])).strip()
+        if name:
+            out.append(name)
+    return out
+
+
+def _untag(text):
+    """An abstract as plain text: Crossref wraps them in JATS tags."""
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text or "")).strip()
+
+
+def _uninvert(index):
+    """OpenAlex ships abstracts as a word-to-positions index."""
+    if not index:
+        return ""
+    slots = {}
+    for word, positions in index.items():
+        for at in positions:
+            slots[at] = word
+    return " ".join(slots[k] for k in sorted(slots))
+
+
 def search_crossref(query, author, years, rows):
     params = {"rows": rows, "select":
-              "DOI,title,author,issued,container-title,is-referenced-by-count,type"}
+              "DOI,title,author,issued,container-title,is-referenced-by-count,type,abstract"}
     if query:
         params["query.bibliographic"] = query
     if author:
@@ -94,6 +120,10 @@ def search_crossref(query, author, years, rows):
             "year": parts[0] if parts else None,
             "journal": clean((w.get("container-title") or [""])[0]),
             "cites": w.get("is-referenced-by-count"),
+            # Additive, for NextTex's hover card: the full author list and
+            # the abstract where the record carries one.
+            "authors": _names(authors),
+            "abstract": _untag(w.get("abstract")),
         })
     return out
 
@@ -128,6 +158,8 @@ def search_openalex(query, author, years, rows):
             "year": w.get("publication_year"),
             "journal": clean(source.get("display_name")),
             "cites": w.get("cited_by_count"),
+            "authors": [a["author"]["display_name"] for a in auths if a.get("author")],
+            "abstract": _uninvert(w.get("abstract_inverted_index")),
         })
     return out
 
@@ -135,7 +167,7 @@ def search_openalex(query, author, years, rows):
 def search_semanticscholar(query, author, years, rows):
     params = {"query": " ".join(filter(None, [query, author])),
               "limit": rows,
-              "fields": "title,year,authors,venue,externalIds,citationCount"}
+              "fields": "title,year,authors,venue,externalIds,citationCount,abstract"}
     lo, hi = years
     if lo or hi:
         params["year"] = f"{lo or ''}-{hi or ''}"
@@ -155,6 +187,8 @@ def search_semanticscholar(query, author, years, rows):
             "year": w.get("year"),
             "journal": clean(w.get("venue")),
             "cites": w.get("citationCount"),
+            "authors": [a.get("name", "") for a in auths if a.get("name")],
+            "abstract": (w.get("abstract") or "").strip(),
         })
     return out
 

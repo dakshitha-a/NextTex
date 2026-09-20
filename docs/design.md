@@ -305,6 +305,32 @@ and switch, and the findings grouped under headings with their counts, each on a
 its severity bar, its message and its place in the mono, opening on the wash with "What to
 do".
 
+Papers is rebuilt whole rather than restyled, because the drawer round found it "very
+unintuitive": a section that hid itself until a `.bib` existed, a search box over a
+separate DOI box, and a folder scan whose outcome was a count of "not identified" files.
+The drawer never hides itself now. Empty, it is one sentence and "Read a folder of PDFs";
+a bibliography with entries NextTex did not put there and nothing searched or read says
+what the file holds instead, since "nothing yet" would be untrue of it. Reading a folder
+is the heading row's one icon button, as the page draws it. One field takes a search
+phrase or a pasted DOI, with the publisher chooser appearing inside it once there is
+something to ask: a string starting `10.`, with or without the `doi.org/` a paper's page
+puts in front of it, goes to the resolver and comes back as one row, anything else to the
+chosen publisher.
+Each result is a row with its title and "First et al., year, journal", both of two
+authors named as the page names them; resting the pointer
+on it for 400 ms opens a card beside the drawer with every author, the venue and year, the
+DOI in the mono and the abstract where the publisher returned one (Crossref sometimes,
+OpenAlex as an inverted index the server rebuilds, Semantic Scholar usually), clamped to
+six lines. Add sits on the row and becomes "added as Key" once done, so the key can be
+typed at once. A folder's outcome reads as prose under a group heading naming the folder
+with the count added at its right: "2 were already in the bibliography. 2 PDFs carry no
+DOI NextTex could find:", and the leftovers are rows with the file's mark and "Give a DOI"
+under the pointer, which opens a field under the row; "Forget these" clears them. The
+words "not identified" and "unidentified" have left the interface; "Forget these" under
+the rows, which the page did not draw, is the one way to clear them. "Check the
+bibliography against its records" is the foot's one quiet action, there whenever there is
+a bibliography to check.
+
 **Spacing scale:** 2 / 4 / 6 / 8 / 12 / 16 / 24 / 32; everything quantises to 4. Interactive
 row heights: 26 (tree rows, resolved cards), 28 (diagnostic rows, buttons), 32 (tabs), 26
 (status strip). Pane padding 8 horizontal / 6 vertical: this is an instrument, not a

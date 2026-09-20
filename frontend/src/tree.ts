@@ -50,6 +50,25 @@ export function countFiles(tree: TreeNode | null): number {
   return found;
 }
 
+/** The project's bibliography, if it has one: the first `.bib` in the
+ *  tree, by name.  The Papers drawer's field and its check write to one
+ *  or read one, and the heading's folder button reads PDFs into one, so
+ *  none of the three is offered where there is none. */
+export function bibIn(tree: TreeNode | null): string | null {
+  const walk = (node: TreeNode): string | null => {
+    for (const child of node.children ?? []) {
+      if (child.type === "dir") {
+        const found = walk(child);
+        if (found) return found;
+      } else if (child.name.toLowerCase().endsWith(".bib")) {
+        return child.name;
+      }
+    }
+    return null;
+  };
+  return tree ? walk(tree) : null;
+}
+
 export function findNode(tree: TreeNode | null, path: string): TreeNode | null {
   if (!tree) return null;
   if (path === "") return tree;

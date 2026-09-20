@@ -105,7 +105,7 @@ import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import {
-  ContextIcon, FileIcon, FoldIcon, GitIcon, HistoryIcon, PapersIcon, SearchIcon,
+  ContextIcon, FileIcon, FoldIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, SearchIcon,
   SectionsIcon, SubmitIcon, TrashIcon,
 } from "./ui/icons";
 import { agentName, type Provider } from "./agent-name";
@@ -120,7 +120,7 @@ import Status from "./panes/Status";
  *  review's fixes went in. */
 const Diagnostics = lazy(() => import("./panes/Diagnostics"));
 import FileTree from "./panes/FileTree";
-import { countFiles } from "./tree";
+import { bibIn, countFiles } from "./tree";
 import Projects from "./panes/Projects";
 import Collapsed from "./panes/Collapsed";
 import Logo from "./Logo";
@@ -256,6 +256,9 @@ export default function App() {
   // A nonce rather than a flag, so a second press of the shortcut while
   // the panel is already open puts the caret back in the box.
   const [focusSearch, setFocusSearch] = useState(0);
+  // Bumped by the Papers heading's folder button; the drawer opens its
+  // chooser on each change.
+  const [choosePapers, setChoosePapers] = useState(0);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   /** The command palette, and a count the settings trigger watches so
@@ -2004,6 +2007,7 @@ export default function App() {
   const tree = useStore((s) => s.tree);
   /** How many files the project holds, for the Files header. */
   const fileCount = useMemo(() => countFiles(tree), [tree]);
+  const bibName = useMemo(() => bibIn(tree), [tree]);
   const activeBinary = useMemo(() => {
     if (!activePath) return null;
     const find = (node: any): any =>
@@ -2268,6 +2272,11 @@ export default function App() {
                   {drawerId === "files" && fileCount ? (
                     <span className="t-meta tnum pr-1 text-ink-3">{fileCount}</span>
                   ) : null}
+                  {drawerId === "papers" && bibName ? (
+                    <IconButton label="Read a folder of PDFs" onClick={() => setChoosePapers((n) => n + 1)}>
+                      <FolderIcon />
+                    </IconButton>
+                  ) : null}
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                   {drawerId === "files" ? (
@@ -2308,7 +2317,9 @@ export default function App() {
                 />
                     ) : null}
                     {drawerId === "trash" ? <TrashPanel onRefresh={refreshTree} /> : null}
-                    {drawerId === "papers" ? <PapersPanel drawer onRefresh={refreshTree} /> : null}
+                    {drawerId === "papers" ? (
+                      <PapersPanel onRefresh={refreshTree} chooseNonce={choosePapers} />
+                    ) : null}
                     {drawerId === "submit" ? (
                 <SubmitPanel
                   onJump={(file, line) => openFile(file, line)}

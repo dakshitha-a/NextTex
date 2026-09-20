@@ -7,8 +7,11 @@ agent can search, and it can add an entry *by DOI* -- but the bibliography
 text always comes from the publisher's own record, never from the model.
 
 The three scripts this wraps came from the dissertation project, where they
-already ran as a command-line pipeline; they are vendored unchanged so the
-two copies cannot drift apart in behaviour.
+already ran as a command-line pipeline; they are vendored so the two copies
+cannot drift apart in behaviour.  One addition has been made here and
+nowhere else: each search result carries `authors` (the full list) and
+`abstract` beside the fields the pipeline reads, for the Papers drawer's
+hover card.
 """
 
 from __future__ import annotations
@@ -66,6 +69,52 @@ def search(
         if not re.search(r"\.s\d{3}$", str(item.get("doi") or ""))
         and item.get("type") != "component"
     ]
+
+
+_DOI = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/)?(10\.\d{4,9}/\S+)$", re.I)
+
+
+def doi_in(text: str) -> str:
+    """The DOI a search box holds, or nothing.
+
+    A string starting `10.` with a registrant and a suffix is a DOI, with or
+    without the doi.org prefix a paper's page puts in front of it; anything
+    else is a query for a publisher.  One box for both, so the writer does
+    not have to know which they are holding.
+    """
+    match = _DOI.match((text or "").strip())
+    return match.group(1) if match else ""
+
+
+def record_for(doi: str) -> dict:
+    """One search result for one DOI, from the publisher's record.
+
+    The same shape `search` returns, so the Papers drawer draws it as a row
+    like any other and its Add goes through the same path.  Nothing is
+    invented: a DOI nobody has comes back as no record.
+    """
+    fetch = _load("bib_from_doi")
+    clean = fetch.normalise_doi(doi)
+    meta = fetch.fetch_metadata(clean)
+    if not meta:
+        return {}
+    authors = []
+    for author in meta.get("author") or []:
+        name = " ".join(filter(None, [author.get("given"), author.get("family")])).strip()
+        if name:
+            authors.append(name)
+    parts = (meta.get("issued", {}).get("date-parts") or [[None]])[0]
+    return {
+        "doi": clean,
+        "title": (meta.get("title") or [""])[0],
+        "first": (meta.get("author") or [{}])[0].get("family", ""),
+        "n_authors": len(meta.get("author") or []),
+        "year": parts[0] if parts else None,
+        "journal": (meta.get("container-title") or [""])[0],
+        "cites": meta.get("is-referenced-by-count"),
+        "authors": authors,
+        "abstract": re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", meta.get("abstract") or "")).strip(),
+    }
 
 
 def cited_by(doi: str, limit: int = 20) -> list[dict]:

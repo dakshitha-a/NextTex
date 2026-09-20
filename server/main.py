@@ -3639,8 +3639,19 @@ async def library_state(project_id: str):
     shelf = _library(session)
     papers = shelf.papers()
     running = LIBRARY_JOBS.get(project_id)
+    # How many entries the bibliography holds, however they got there, so
+    # the drawer says "nothing yet" only when that is true of the file
+    # and not only of what NextTex added to it.
+    bib = _bib_for(session)
+    entries = 0
+    if bib is not None:
+        try:
+            entries = len(re.findall(r"^\s*@\w+\s*[{(]", bib.read_text(encoding="utf-8", errors="replace"), re.M))
+        except OSError:
+            entries = 0
     return {
         "count": sum(1 for paper in papers if paper.state == "added"),
+        "entries": entries,
         "sources": shelf.sources(),
         "lastRun": shelf.last_run(),
         "running": running.progress.as_dict() if running else None,
@@ -3947,8 +3958,16 @@ async def library_search(project_id: str, q: str, source: str = "crossref"):
         raise HTTPException(400, f"a search is at most {SEARCH_QUERY_MAX} characters")
     if source not in SEARCH_SOURCES:
         raise HTTPException(400, f"source must be one of {', '.join(SEARCH_SOURCES)}")
+    # One box for both: a string that is a DOI goes to the resolver and comes
+    # back as one row, anything else to the chosen publisher.
+    doi = references.doi_in(query)
     try:
-        found = await asyncio.to_thread(references.search, query, source=source, limit=10)
+        if doi:
+            record = await asyncio.to_thread(references.record_for, doi)
+            found = [record] if record else []
+            source = "doi"
+        else:
+            found = await asyncio.to_thread(references.search, query, source=source, limit=10)
     except Exception as error:
         raise HTTPException(502, f"{source} did not answer: {error}")
     return {
@@ -3961,6 +3980,10 @@ async def library_search(project_id: str, q: str, source: str = "crossref"):
                 "authors": int(item.get("n_authors") or 0),
                 "year": str(item.get("year") or ""),
                 "journal": str(item.get("journal") or ""),
+                # The full author list and the abstract, where the record
+                # carries them, for the row's hover card.
+                "names": [str(name) for name in (item.get("authors") or [])],
+                "abstract": str(item.get("abstract") or ""),
             }
             for item in found
         ],
