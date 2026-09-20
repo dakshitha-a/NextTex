@@ -64,12 +64,14 @@ const escape = async (tab: Page) => {
  *  way writing.spec.ts does: measured and moved again until the card is
  *  there, because CodeMirror refuses a hover whose pointer no longer
  *  resolves to the position it measured. */
-async function hoverAt(tab: Page, lineText: string, needle: string, card: string): Promise<Locator> {
+async function hoverAt(tab: Page, lineText: string, needle: string, card: string, type = true): Promise<Locator> {
   const editor = tab.locator(".cm-content");
   await editor.click();
   await tab.keyboard.press("Control+End");
-  await tab.keyboard.type(`\n${lineText}`);
-  await tab.waitForTimeout(300);
+  if (type) {
+    await tab.keyboard.type(`\n${lineText}`);
+    await tab.waitForTimeout(300);
+  }
   const measure = () => tab.evaluate(({ lineText, needle }) => {
     const line = [...document.querySelectorAll(".cm-line")].find((el) => el.textContent?.includes(lineText.slice(0, 12)));
     if (!line) return null;
@@ -120,6 +122,24 @@ const SURFACES: Record<string, Surface> = {
       const card = await hoverAt(tab, "See \\includegraphics[width=0.8\\linewidth]{figures/decay-fit} here.", "decay-fit", ".nx-figure-tooltip");
       await card.locator("img").waitFor({ timeout: 10_000 });
       return card;
+    },
+    close: escape,
+  },
+  "table-hover": {
+    // The page's table: solvents, permittivity and lifetime, booktabs,
+    // typed line by line as a writer types one, then hovered on a cell.
+    open: async (tab) => {
+      const editor = tab.locator(".cm-content");
+      await editor.click();
+      await tab.keyboard.press("Control+End");
+      await tab.keyboard.type([
+        "", "", "\\begin{tabular}{lcr}", "\\toprule",
+        "Solvent & $\\varepsilon$ & $\\tau$ (ps) \\\\", "\\midrule",
+        "Hexane & 1.9 & 12.4 \\\\", "Acetonitrile & 37.5 & 3.1 \\\\", "Water & 80.1 & 0.8 \\\\",
+        "\\bottomrule", "\\end{tabular}",
+      ].join("\n"));
+      await tab.waitForTimeout(300);
+      return hoverAt(tab, "Acetonitrile & 37.5", "Aceto", ".nx-table-tooltip", false);
     },
     close: escape,
   },

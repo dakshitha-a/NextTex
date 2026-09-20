@@ -1856,6 +1856,21 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 }
 /* KaTeX ships its own colours; make it take the theme's ink instead. */
 .nx-math-tooltip .katex { color: var(--ink); font-size: 1.18em; }
+/* A table in the same card: drawn as the page would set it, in the face
+   KaTeX brings for the maths beside it, the columns as the spec aligns
+   them, the booktabs rules as rules and a header where one follows the
+   first row. */
+.nx-table-tooltip { max-width: 560px; }
+.nx-table-body { padding: 12px 16px; overflow: auto; text-align: center; }
+.nx-table { border-collapse: collapse; margin: 0 auto; font-family: KaTeX_Main, "Times New Roman", serif; font-size: 13px; line-height: 18px; color: var(--ink); white-space: nowrap; }
+.nx-table th, .nx-table td { padding: 3px 10px; font-weight: 400; }
+.nx-table th { font-weight: 600; }
+.nx-table tr.nx-table-rule > * { border-top: 1px solid var(--ink); }
+.nx-table tr:first-child.nx-table-rule > * { border-top-width: 1.5px; }
+.nx-table.nx-table-bottom tr:last-child > * { border-bottom: 1.5px solid var(--ink); }
+.nx-table-l { text-align: left; } .nx-table-c { text-align: center; } .nx-table-r { text-align: right; }
+.nx-table .katex { font-size: 1em; }
+.nx-table-more { margin-top: 4px; font-size: 12px; color: var(--ink-3); }
 /* The same card, holding a sentence rather than an equation: where a
    cross reference goes, and the gesture that follows it. */
 .nx-link-tooltip { min-width: 200px; }

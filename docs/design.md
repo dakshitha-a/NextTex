@@ -9240,6 +9240,39 @@ INSERT on the bar with no dashes; the fidelity harness renders
 `find-vim`, the source pane with both, beside the page's dark strips
 drawing.
 
+**A table renders on hover, like a formula** (item 2.10a, raised by the
+writer mid-run, "on the editor, can you preview tables on hover too?",
+drawn on version 20 of the page and built on 20 September once they said
+yes). Resting the pointer inside a `tabular`, `tabular*`, `tabularx` or
+`longtable` opens the formula card with the table drawn as a table in the
+card's body: the columns aligned as the spec says (`p`, `m`, `b` and `X`
+read as left, `*{3}{c}` unrolled), the booktabs and `\hline` rules as
+rules over the row that follows and under the last, a header row where a
+rule follows the first row, a `\multicolumn` cell spanning its columns
+with its own alignment, `\textbf` and `\emph` as weight and slant, and
+maths in a cell, alone or beside text, set through KaTeX with the source
+standing in until it loads; any other command reduces to its arguments'
+text, a bare one to its name, so `\SI{2.7}{\electronvolt}` reads "2.7
+electronvolt". The reader is fetched on the first table hovered, as the
+thumbnail service is, so the entry chunk does not carry it; the first
+version imported it statically and the bundle grew five kilobytes. Under the drawing sits the environment's opening line in
+the mono and, when the body holds more than the thirty rows the card
+draws, "and N more rows"; twelve columns is the other limit. The table is
+set in the face KaTeX brings for the maths beside it, since the drawing
+is of typeset output and no serif is loaded for the chrome. Maths inside a
+cell still wins the hover: `mathAt` is asked first and `tableAt` only when
+it says no, so a formula in a cell shows as a formula. `tableAt` scans the
+hover's window rather than the paragraph, since a long table can hold a
+blank line. `table-hover.test.ts` covers the parser (a booktabs table, a
+`\multicolumn` header, an escaped `\&`, a `\\` inside braces, a cell
+holding `$x^2$`, the three environments' specs, an optional space after
+`\\`, and the row limit) and the finder; `table-hover.spec.ts` hovers a
+cell of a typed table and finds the header, the counts, the alignment
+classes, the rules, the KaTeX in the header and the source line, hovers a
+formula inside a cell and finds the maths, and reads "and 4 more rows"
+on a long one; the fidelity harness renders `table-hover` beside the
+page's table card.
+
 ## 52. The preview's find, the prose blocks and the empty states on the kit
 
 Item 2.11. The page field itself was already as the page draws it: the

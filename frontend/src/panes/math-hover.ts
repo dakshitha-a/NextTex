@@ -17,6 +17,7 @@ import {
   citationFor, imageTarget, inputTarget, labelSays, labelTarget, linkAt,
 } from "./latex-links";
 import { shortcut } from "../keys";
+import type { Cell, Table } from "./table-hover";
 
 type Katex = typeof import("katex");
 let katex: Katex | null = null;
@@ -62,6 +63,30 @@ export function mathAt(whole: string, pos: number): Span | null {
   const span = scan(whole.slice(start, end), pos - start);
   if (!span) return null;
   return { ...span, from: span.from + start, to: span.to + start };
+}
+
+const TABLES = ["tabular", "tabular*", "tabularx", "longtable"];
+
+/** The table environment the cursor is inside, if it is inside one: the
+ *  whole environment, `\begin` to `\end`.  Scanned over the window the
+ *  hover already slices rather than the paragraph, since a long table
+ *  can hold a blank line, and asked only after `mathAt` has said no, so
+ *  maths inside a cell still wins. */
+export function tableAt(whole: string, pos: number): Span | null {
+  for (const name of TABLES) {
+    const open = `\\begin{${name}}`;
+    const close = `\\end{${name}}`;
+    let index = 0;
+    while ((index = whole.indexOf(open, index)) !== -1) {
+      const end = whole.indexOf(close, index);
+      if (end === -1) break;
+      if (pos > index && pos < end + close.length) {
+        return { from: index, to: end + close.length, body: whole.slice(index, end + close.length), display: true };
+      }
+      index = end + close.length;
+    }
+  }
+  return null;
 }
 
 const BLOCK_BREAK = /\n[ \t]*\n/g;
@@ -248,9 +273,14 @@ export function mathHover(
     const doc = view.state.doc;
     const from = Math.max(0, pos - HOVER_WINDOW);
     const to = Math.min(doc.length, pos + HOVER_WINDOW);
-    const near = mathAt(doc.sliceString(from, to), pos - from);
+    const window_ = doc.sliceString(from, to);
+    const near = mathAt(window_, pos - from);
     const span = near && { ...near, from: near.from + from, to: near.to + from };
-    if (!span || !span.body.trim()) return linkTooltip(view, pos, symbols, figure, onSymbol);
+    if (!span || !span.body.trim()) {
+      const table = tableAt(window_, pos - from);
+      if (table) return tableTooltip(table.from + from, table.to + from, table.body, symbols);
+      return linkTooltip(view, pos, symbols, figure, onSymbol);
+    }
 
     return {
       pos: span.from,
@@ -296,6 +326,117 @@ export function mathHover(
       },
     };
   }, { hoverTime: 250 });
+}
+
+/** The table under the pointer, drawn as a table in the formula card's
+ *  body: the columns aligned as the spec says, the booktabs rules as rules,
+ *  a header row where a rule follows the first row, maths in a cell set
+ *  through KaTeX, and under it the environment's opening line in the mono
+ *  and, when the body holds more than the card draws, how many more. */
+function tableTooltip(from: number, to: number, source: string, symbols: () => Symbols | null): Tooltip {
+  return {
+    pos: from,
+    end: to,
+    above: true,
+    create() {
+      // The reader is fetched on the first table hovered, as the thumbnail
+      // service is, so the editor's chunk does not carry it; the source's
+      // first line stands in the card until it lands, a moment.
+      const dom = document.createElement("div");
+      dom.className = `nx-math-tooltip nx-table-tooltip nx-card ${shellTheme()}`;
+      const body = document.createElement("div");
+      body.className = "nx-math-body nx-table-body nx-math-loading";
+      body.textContent = source.split("\n")[0].trim().slice(0, 200);
+      dom.append(body);
+      import("./table-hover")
+        .then(({ parseTabular }) => {
+          const table = parseTabular(source);
+          if (!table) {
+            body.className = "nx-math-body nx-math-failed";
+            body.textContent = "This table does not read on its own.";
+            return;
+          }
+          body.className = "nx-math-body nx-table-body";
+          body.textContent = "";
+          drawTable(dom, body, table, symbols);
+        })
+        .catch(() => {
+          body.className = "nx-math-body nx-math-failed";
+          body.textContent = "Could not load the table reader.";
+        });
+      return { dom };
+    },
+  };
+}
+
+function drawTable(dom: HTMLElement, body: HTMLElement, table: Table, symbols: () => Symbols | null) {
+  const element = document.createElement("table");
+  element.className = "nx-table";
+  const headed = table.rows.length > 1 && table.rows[1].rule;
+  table.rows.forEach((row, at) => {
+    const tr = document.createElement("tr");
+    if (row.rule) tr.classList.add("nx-table-rule");
+    let column = 0;
+    for (const cell of row.cells) {
+      const td = document.createElement(headed && at === 0 ? "th" : "td");
+      const align = cell.align ?? table.columns[column] ?? "l";
+      td.className = `nx-table-${align}`;
+      if (cell.span > 1) td.colSpan = cell.span;
+      if (cell.bold) td.style.fontWeight = "600";
+      if (cell.italic) td.style.fontStyle = "italic";
+      fill(td, cell, symbols);
+      tr.append(td);
+      column += cell.span;
+    }
+    element.append(tr);
+  });
+  if (table.bottom) element.classList.add("nx-table-bottom");
+  body.append(element);
+  const head = document.createElement("div");
+  head.className = "nx-math-source";
+  head.textContent = table.head;
+  dom.append(head);
+  if (table.more) {
+    const more = document.createElement("div");
+    more.className = "nx-table-more";
+    more.textContent = `and ${table.more} more ${table.more === 1 ? "row" : "rows"}`;
+    dom.append(more);
+  }
+}
+
+/** A cell's content: its text, with any `$…$` in it set through KaTeX
+ *  once that has loaded, the source standing in until then as the
+ *  formula card does.  A cell that is maths alone is one such span. */
+function fill(td: HTMLElement, cell: Cell, symbols: () => Symbols | null) {
+  const text = cell.math ? `$${cell.math}$` : cell.text;
+  const parts = text.split(/(\$[^$]+\$)/);
+  const pending: [HTMLElement, string][] = [];
+  for (const part of parts) {
+    if (!part) continue;
+    const maths = /^\$([^$]+)\$$/.exec(part);
+    if (!maths) {
+      td.append(document.createTextNode(part));
+      continue;
+    }
+    const span = document.createElement("span");
+    span.textContent = maths[1];
+    td.append(span);
+    pending.push([span, maths[1]]);
+  }
+  if (!pending.length) return;
+  load()
+    .then((renderer) => {
+      for (const [span, source] of pending) {
+        renderer.render(source, span, {
+          displayMode: false,
+          throwOnError: false,
+          macros: macrosFrom(symbols()),
+          trust: false,
+          strict: "ignore",
+        });
+      }
+    })
+    .catch(() => undefined);
 }
 
 /** What a cross reference points at, and how to follow it.
