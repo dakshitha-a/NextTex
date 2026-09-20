@@ -25,6 +25,7 @@ import { set, useStore } from "../store";
 import { openedWords, rowAfterKey, rowMarks, shortPath } from "../project-row";
 import { tabStopFor } from "../tree";
 import { SORT_STORAGE, sortKeyFrom, visibleProjects, type SortKey } from "../project-filter";
+import { START_FROM, templateOrder } from "../templates";
 import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import { breakpoints } from "../layout";
 import { viewportWidth } from "../viewport";
@@ -51,13 +52,6 @@ import { classify, nameFor } from "../arrive-source";
  *  people this chooser is for are exactly the ones who may not. Anything
  *  the server lists that is not here falls back to its own name, so an
  *  install with a template of its own is offered it rather than hidden. */
-const START_FROM: Record<string, string> = {
-  basic: "An article",
-  report: "A report, in chapters",
-  beamer: "A talk",
-  letter: "A letter",
-};
-
 /** The four ways in. New project is the one filled button on the
  *  screen; the other three sit behind a quiet menu, each with a line
  *  saying what it does, and all four open the same sheet with their own
@@ -220,7 +214,7 @@ export default function Projects({
   useEffect(() => {
     api
       .templates()
-      .then((answer) => setTemplates(answer.templates))
+      .then((answer) => setTemplates(templateOrder(answer.templates)))
       .catch(() => setTemplates([]));
   }, []);
   // The strapline names whichever agent is configured, and says nothing
@@ -360,7 +354,7 @@ export default function Projects({
       }
       const project =
         mode === "create"
-          ? await api.createProject(path.trim(), newName.trim())
+          ? await api.createProject(path.trim(), newName.trim(), template)
           : await api.addProject(path.trim());
       // Before the project opens, so the writer arrives in a document
       // rather than in an empty one that fills in a moment later. A

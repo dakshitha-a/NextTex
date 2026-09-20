@@ -1,0 +1,43 @@
+% A cover letter, addressed from the same name and contact line as the
+% resume beside it.
+%
+% One page, three paragraphs.  Whoever reads it reads the first two
+% sentences carefully and the rest quickly, so the first two say which
+% job and why you.  The listing's summary is in posting.md; write to what
+% it asks for, in the words it uses.
+
+\documentclass[11pt]{letter}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1.15in]{geometry}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{hyperref}
+\hypersetup{colorlinks, urlcolor=blue}
+
+\signature{Your Name}
+\address{Your Name \\ City, Country \\ your.name@example.edu \\ +1 555 010 0100}
+
+\begin{document}
+
+\begin{letter}{Hiring Manager \\ Team or Department \\ Company Name \\ City}
+
+\opening{Dear Hiring Manager,}
+
+I am writing to apply for the \emph{Job Title} position advertised on
+\emph{where you saw it}. One sentence on the one thing about you that fits
+the listing best.
+
+One paragraph on what you have done that the listing asks for: the work,
+what came of it, and the number that shows it. The resume lists everything;
+this paragraph picks the two things that matter for this job.
+
+One paragraph on why this company and this team, said in a way that could
+not be pasted into any other letter, and when you could start.
+
+\closing{Yours sincerely,}
+
+\end{letter}
+
+\end{document}

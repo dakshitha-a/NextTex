@@ -2247,7 +2247,14 @@ BLANK_DOCUMENT = """\\documentclass[12pt]{article}
 async def create_project(
     path: str = Body(...),
     name: str = Body(""),
+    template: str = Body("basic"),
 ):
+    """An empty folder with a blank document in it, ready for a template.
+
+    `template` names what the caller loads next, so the folder is shaped
+    for it: a job application has no `main.tex`, no bibliography and no
+    figures, and would otherwise arrive with all three beside its resume.
+    """
     root = Path(path).expanduser()
     if not root.is_absolute():
         root = Path.home() / root
@@ -2258,9 +2265,10 @@ async def create_project(
     except OSError as error:
         raise HTTPException(400, f"could not make that folder: {error}")
 
-    (root / "main.tex").write_text(BLANK_DOCUMENT, encoding="utf-8")
-    (root / "references.bib").write_text("", encoding="utf-8")
-    (root / "figures").mkdir(exist_ok=True)
+    if template_scaffolds(template):
+        (root / "main.tex").write_text(BLANK_DOCUMENT, encoding="utf-8")
+        (root / "references.bib").write_text("", encoding="utf-8")
+        (root / "figures").mkdir(exist_ok=True)
     title = name.strip() or root.name
     ProjectConfig(name=title, build_dir="build").save(root)
     project = REGISTRY.add(root)
@@ -4692,6 +4700,26 @@ async def project_symbols(project_id: str):
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "nexttex" / "templates"
 
+# What a template is beyond its files, for the ones that are not one
+# document with a bibliography and a figures folder.  `lead` is the file
+# that becomes the project's first document, `main.tex` unless said
+# otherwise; `scaffold` says whether the New button's blank `main.tex`,
+# empty `references.bib` and `figures/` belong with it.  The job
+# application is a resume and a cover letter, two documents with their own
+# names and the resume first, with the listing's notes beside them and no
+# bibliography or figures.
+TEMPLATE_SHAPE: dict[str, dict] = {
+    "application": {"lead": "resume.tex", "scaffold": False},
+}
+
+
+def template_lead(name: str) -> str:
+    return TEMPLATE_SHAPE.get(name, {}).get("lead", "main.tex")
+
+
+def template_scaffolds(name: str) -> bool:
+    return TEMPLATE_SHAPE.get(name, {}).get("scaffold", True)
+
 
 @app.get("/api/templates")
 async def list_templates():
@@ -4711,12 +4739,14 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
     source = TEMPLATES / name
     if not source.is_dir() or ".." in name or "/" in name:
         raise HTTPException(404, "no such template")
+    lead = template_lead(name)
 
-    # Into the document on screen when there is one, and into a fresh
-    # `main.tex` when the folder has no document yet, which is the state a
-    # project made from the New button is in until this runs.
+    # Into the document on screen when there is one, and into a fresh file
+    # named as the template names its lead when the folder has no document
+    # yet, which is the state a project made from the New button is in
+    # until this runs.
     document = session.visible_document
-    main = document.paths.main if document else session.project.root / "main.tex"
+    main = document.paths.main if document else session.project.root / lead
     if main.exists():
         body = main.read_text(encoding="utf-8", errors="replace")
         body = body.split("\\begin{document}", 1)[-1]
@@ -4733,9 +4763,9 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
         if not path.is_file() or path.name == ".gitkeep":
             continue
         relative = path.relative_to(source)
-        # The template's main.tex becomes *this* project's main file,
-        # whatever it is called.
-        target = main if relative.name == "main.tex" else session.project.root / relative
+        # The template's lead document becomes *this* project's first
+        # document, whatever it is called.
+        target = main if str(relative) == lead else session.project.root / relative
         if target.exists() and target.stat().st_size > 0 and target != main:
             continue          # never overwrite a file the writer already has
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -4751,7 +4781,8 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
         session.collab.ingest(session.project.relative(target), text)
         written.append(session.project.relative(target))
 
-    (session.project.root / "figures").mkdir(exist_ok=True)
+    if template_scaffolds(name):
+        (session.project.root / "figures").mkdir(exist_ok=True)
     if document is None:
         # The file the template wrote is the project's first document.
         await session.register_preview(session.project.relative(main))

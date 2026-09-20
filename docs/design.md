@@ -5459,6 +5459,28 @@ preamble. Its chapters are separate files, because NextTex builds the document
 that owns the file being typed in rather than the whole project, and that is
 what makes a long report editable at all.
 
+The fifth, a job application (item 3.1b of the visual overhaul, 20
+September), is the other shape: two documents rather than one. The writer
+asked for a resume preset in the projects round and chose the bundle, which
+is what their own application folders look like, a directory per listing
+holding the resume, the cover letter and the posting's summary. So the
+template is `resume.tex` on `article` (geometry, parskip, microtype,
+enumitem and hyperref, four commands for the heading rule, an entry, a
+paper and the itemised lines; no CV class, so it typesets on the TeX the
+installer sets up like the others), `cover-letter.tex` on the letter
+template's body addressed from the same name and contact line, and
+`posting.md` with headings for the listing, what it asks for and the notes
+kept per listing; no bibliography and no figures folder, because neither
+belongs in an application. There is no `main.tex`: the resume is the lead
+document, the one on the strip when the project opens, and the letter is a
+document of its own that opening it pulls forward, which the two-document
+rule already handles. The New button's folder is made in the template's
+shape, so the blank `main.tex`, the empty `references.bib` and `figures/`
+that every document-shaped project starts with are not written beside a
+resume. The chooser lists the five in the order the direction page draws
+them, the article first and the application last, rather than the
+directories' alphabet.
+
 ### One item on the menu, and it was the wrong one for the common case
 
 An underlined word offered "Add to the dictionary" and nothing else. That is

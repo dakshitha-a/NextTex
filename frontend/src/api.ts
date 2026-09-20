@@ -554,8 +554,10 @@ const api = {
    *  back, which is why the footer only offers it when `supervised`. */
   restart: () => request<{ restarting: boolean }>("/update/restart", json({})),
   addProject: (path: string) => request<any>("/projects", json({ path })),
-  createProject: (path: string, name: string) =>
-    request<any>("/projects/create", json({ path, name })),
+  /** `template` is what `loadTemplate` will be asked for next, so the
+   *  folder is made in its shape. */
+  createProject: (path: string, name: string, template = "basic") =>
+    request<any>("/projects/create", json({ path, name, template })),
   /** A project from somewhere else into a new folder: a zip, an arXiv id
    *  or a git URL.  Multipart because the zip is a file; the answer is the
    *  project, with the archive entries that were left out by name. */

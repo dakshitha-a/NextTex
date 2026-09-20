@@ -150,11 +150,13 @@ test("a new project can start as something other than an article", async ({
   // one would use.
   const choice = sheet.getByTestId("template-choice");
   await expect(choice).toBeVisible();
+  // In the order the page draws them, not the directories' alphabet.
   await expect(choice.getByRole("button")).toHaveText([
     "An article",
+    "A report, in chapters",
     "A talk",
     "A letter",
-    "A report, in chapters",
+    "A job application",
   ]);
 
   const where = `${app.projects}/started-as-a-talk`;
@@ -168,6 +170,30 @@ test("a new project can start as something other than an article", async ({
     timeout: 20_000,
   });
   await expect(page.locator(".cm-content")).toContainText("beamer");
+});
+
+test("a job application starts as a resume, with the cover letter and the listing beside it", async ({
+  app,
+  page,
+}) => {
+  // Asked for by the writer in the projects round: the shape their own
+  // application folders take, a resume and a cover letter per listing
+  // with the posting's notes beside them.  There is no main.tex; the
+  // resume is the lead document and the letter is a document of its own.
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const sheet = await openWay(page, "create");
+  await sheet.getByTestId("template-application").click();
+  await sheet.getByPlaceholder(/Where to put it/).fill(`${app.projects}/acme-postdoc`);
+  await sheet.getByRole("button", { name: "Create project" }).click();
+
+  // It opens on the resume, and the tree holds all three files.
+  await expect(page.locator(".cm-content")).toContainText("Your Name", { timeout: 20_000 });
+  await expect(page.getByTestId("source-strip").locator('[data-path="resume.tex"]')).toBeVisible();
+  await expect(page.getByTestId("preview-strip").locator('[data-path="resume.tex"]')).toBeVisible();
+  await expect(page.getByRole("treeitem", { name: /cover-letter\.tex/ })).toBeVisible();
+  await expect(page.getByRole("treeitem", { name: /posting\.md/ })).toBeVisible();
+  await expect(page.getByRole("treeitem", { name: /main\.tex/ })).toHaveCount(0);
 });
 
 test("a new project's folder can be browsed for, and goes under the picked one", async ({

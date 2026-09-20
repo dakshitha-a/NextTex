@@ -1,0 +1,79 @@
+% A resume, for a job application.
+%
+% On the article class rather than a CV class, so it typesets on the TeX
+% the installer sets up with the same packages every other template uses.
+% The whole layout is four commands defined below; there is nothing to
+% learn and nothing that stops you changing it.  The cover letter beside
+% this file starts from the same name and contact line, so change both.
+%
+% One page is the rule for most listings.  The page follows as you type,
+% so you can see when it spills.
+
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks, urlcolor=blue}
+
+\pagestyle{empty}
+\setlist[itemize]{leftmargin=1.2em, nosep, itemsep=2pt}
+
+% A heading with a rule under it.
+\newcommand{\heading}[1]{%
+  \vspace{6pt}{\large\bfseries #1}\\[-9pt]\rule{\linewidth}{0.4pt}\par}
+% What, when, where and in what role: two lines, dates and places at the right.
+\newcommand{\entry}[4]{%
+  \textbf{#1}\hfill #2\\\emph{#3}\hfill #4\par}
+% A publication: authors, title, venue and year, hanging.
+\newcommand{\paper}[1]{\hangindent=1.2em #1\par\vspace{2pt}}
+
+\begin{document}
+
+{\LARGE\bfseries Your Name}\par
+\vspace{2pt}
+City, Country \quad your.name@example.edu \quad +1 555 010 0100 \quad
+\href{https://example.edu/~you}{example.edu/\textasciitilde you}
+
+\heading{Education}
+
+\entry{PhD in Chemistry}{2020 to 2025}{University Name}{City}
+\begin{itemize}
+  \item Thesis: \emph{A Working Title}, advised by Name.
+\end{itemize}
+
+\entry{BSc in Chemistry, first class}{2016 to 2020}{University Name}{City}
+
+\heading{Experience}
+
+\entry{Research assistant}{2019 to 2020}{Group Name, University Name}{City}
+\begin{itemize}
+  \item One line on what you did, starting with the verb.
+  \item One line on what came of it, with a number where there is one.
+\end{itemize}
+
+\entry{Teaching assistant, Physical Chemistry}{2021 to 2023}{University Name}{City}
+\begin{itemize}
+  \item Tutorials for 60 second-year students; marked the term's problem sets.
+\end{itemize}
+
+\heading{Publications}
+
+\paper{\textbf{Your Name}, Coauthor Name and Coauthor Name. A working title.
+  \emph{Journal Name}, 2024.}
+\paper{Coauthor Name and \textbf{Your Name}. Another working title.
+  \emph{Conference Name}, 2023.}
+
+\heading{Skills}
+
+\begin{itemize}
+  \item Methods: the techniques and instruments the listing asks for, named as it names them.
+  \item Software: Python, LaTeX, and whatever else is true.
+  \item Languages: English, and any other, with the level.
+\end{itemize}
+
+\end{document}

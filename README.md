@@ -1214,8 +1214,12 @@ localhost and skip it.
 Point NextTex at any folder containing a LaTeX document, typed into the
 projects screen or picked with its Browse button, which walks the disk of
 the machine NextTex is running on. `examples/minimal-article` is there to
-try it on. A project that exists somewhere else is brought here from the
-fourth tile: choose a zip somebody sent, type an arXiv id, or paste a git
+try it on. A new project starts from one of five templates: an article, a
+report in chapters, a talk, a letter, or a job application, which is a
+resume and a cover letter as two documents with a `posting.md` beside them
+for the listing's notes, the shape a folder per application takes. A
+project that exists somewhere else is brought here from the "Other ways in"
+menu: choose a zip somebody sent, type an arXiv id, or paste a git
 URL, and it arrives in a new folder. A zip's entries that would run or
 leave the folder, a `Makefile`, a `.claude/`, a `../`, are left out and
 named; a clone keeps its `.git`. A project can carry a `nexttex.toml`:
