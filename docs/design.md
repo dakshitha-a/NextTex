@@ -194,7 +194,7 @@ so there is no CSS feature to fall off and a whole number to assert.
 
 **Three things were measured and left alone**, and are recorded here so they are not
 measured again. `e2e/shots/text-clarity.spec.ts` renders the same comment-heavy source
-across all six grounds at one and two device pixels, which is how these were decided; the
+across the grounds (six then, two since the overhaul) at one and two device pixels, which is how these were decided; the
 caveat in its header is that headless Chromium has no LCD subpixel antialiasing, so it
 compares weight, fit and letterform honestly and subpixel rendering not at all.
 
@@ -3320,6 +3320,16 @@ measuring four hexes in isolation.
 Two tokens move with the surfaces, and both move opposite to the obvious
 direction.
 
+*Revised in the visual overhaul, 19 September 2026.* The six grounds are
+two: `match`, the theme's own, and `white`, the same `#FFFFFF` PDF.js paints
+the typeset page in. The proofing grey and the dark surface as choices in
+the other theme, and the warm and cool whites, went at the writer's request:
+shades of white were more to hold in mind than they were worth, and the
+settings row is a two-way choice. A stored value naming a retired ground
+reads as `match`; `.nx-theme-warm` and `.nx-theme-cool` left the stylesheet
+and `contrast.test.ts`'s list. What follows is kept for the arithmetic,
+which still holds for the one paper.
+
 **`--ink-3` gets louder on a brighter page, not fainter.** It measures
 6.2:1 on the proofing grey and 7.9:1 on white. Left alone, a comment would
 have outranked the prose it annotates, so the papers lift it back to roughly
@@ -3379,6 +3389,11 @@ hexes here to go stale, the swatch *is* the token. `Match` is drawn as both
 palettes at once, split down the middle, because that is what it means, and
 a caption names the current choice so the row reads as a sentence rather than
 as six grey rectangles to guess between.
+
+*Reversed in the visual overhaul, 19 September 2026.* With two grounds left,
+"Theme" and "White" are two words that mean one thing each, so the row is a
+`Choice` again and the swatches are gone. The problem this section solved
+was six choices, and the answer the writer chose was fewer of them.
 
 ## 24. Clearing a file's history, and one registry for what a file is
 
@@ -8443,7 +8458,7 @@ lists the actions and a few files; typing ranks everything as a
 case-folded subsequence with a bonus for a word start and for a run of
 letters, within each kind, so a setting is never buried under forty
 chapters that share a letter with it. A setting is one row per value,
-"Editor ground: warm", "Spelling: on", with the current one marked, so
+"Editor ground: white", "Spelling: on", with the current one marked, so
 choosing is one press and the row says what it will do; it goes through
 `applyAppearance` as the sheet's own control would. A file opens in a
 tab. The registry also carries actions with no chord, Build, the

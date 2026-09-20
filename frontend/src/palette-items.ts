@@ -23,7 +23,7 @@ export type SettingItem = {
 };
 
 const GROUND_NAMES: Record<EditorTheme, string> = {
-  match: "follow the theme", light: "light", white: "white", warm: "warm", cool: "cool", dark: "dark",
+  match: "follow the theme", white: "white",
 };
 
 export function settingItems(): SettingItem[] {

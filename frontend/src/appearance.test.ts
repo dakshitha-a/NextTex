@@ -92,6 +92,18 @@ describe("what is remembered", () => {
     });
   });
 
+  it("reads a retired editor ground as the theme's own", () => {
+    // Six grounds became two in the visual overhaul; a browser that had
+    // chosen one of the four that went must not come back on a ground
+    // the stylesheet no longer has.
+    for (const retired of ["light", "dark", "warm", "cool"]) {
+      window.localStorage.setItem("nexttex.editor.theme", retired);
+      expect(storedAppearance().editorTheme, retired).toBe("match");
+    }
+    window.localStorage.setItem("nexttex.editor.theme", "white");
+    expect(storedAppearance().editorTheme).toBe("white");
+  });
+
   it("ignores a stored value that is not a size", () => {
     window.localStorage.setItem("nexttex.ui.scale", "banana");
     window.localStorage.setItem("nexttex.theme", "sepia");

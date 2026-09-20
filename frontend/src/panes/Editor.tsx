@@ -1275,16 +1275,11 @@ export default function Editor({
   // because what changes is the palette handed to this subtree: everything
   // inside resolves its colours through the same tokens, so the syntax
   // highlighting and the gutter markers follow without knowing about it.
-  // The three paper grounds are the light palette with its four surfaces
-  // moved up, so they are applied on top of it rather than instead of it:
-  // one class carries the inks, the accents and the syntax hues, the other
-  // carries the page.  See the note beside them in styles.css.
-  const skin =
-    editorTheme === "match"
-      ? ""
-      : editorTheme === "light" || editorTheme === "dark"
-        ? ` nx-theme-${editorTheme}`
-        : ` nx-theme-light nx-theme-${editorTheme}`;
+  // The white page is the light palette with its four surfaces moved up,
+  // so it is applied on top of it rather than instead of it: one class
+  // carries the inks, the accents and the syntax hues, the other carries
+  // the page.  See the note beside it in styles.css.
+  const skin = editorTheme === "white" ? " nx-theme-light nx-theme-white" : "";
   // Nothing is styled when this is absent: the subtle look is the absence
   // of a rule rather than a reproduction of one.
   const colour = syntax === "colour" ? " nx-syntax-colour" : "";

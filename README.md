@@ -94,10 +94,10 @@ close the tab. No database, no Docker, no nginx.
 - **Reading and writing modes**: double-click the tab in front of either pane
   to give it the window, and again to get your layout back; one click on it
   folds the pane away.
-- **The editor is lit on its own terms.** Six pages to choose from,
-  matching the interface, the proofing grey, white, warm white, cool white,
-  or dark, so a dark shell can hold a white page. The syntax colours, the
-  gutter and the text's weight all follow the page rather than the frame.
+- **The editor is lit on its own terms.** The page you write on is either
+  the theme's own or white, the same white as the typeset page, so a dark
+  shell can hold a white page. The syntax colours, the gutter and the
+  text's weight all follow the page rather than the frame.
 - **Colour the commands, if you want them coloured.** Off by default, because
   the typeset page two panes away has to stay the loudest thing on screen.
   Turned on, sectioning, environments, mathematics, citations and the
@@ -636,10 +636,10 @@ are better and the mistakes are recoverable.
 The editor is lit on its own terms, because the shell and the page are
 answering different questions. The frame is chrome and plenty of people want
 it out of the way in the dark; the page is the thing being typeset, and a
-writer who thinks in paper wants that white whatever the frame is doing. Six
-grounds: the interface, the proofing grey, white, warm white, cool
-white and dark. The syntax colours, the gutter and the text's weight all
-follow the page rather than the frame. Dark type on a bright ground looks
+writer who thinks in paper wants that white whatever the frame is doing. Two
+grounds: the theme's own, and white, the same white as the typeset page.
+The syntax colours, the gutter and the text's weight all follow the page
+rather than the frame. Dark type on a bright ground looks
 thinner than light type on a dark one, so a light page sets the text a step
 heavier on its own; the weight is a control of its own if that lands wrong.
 

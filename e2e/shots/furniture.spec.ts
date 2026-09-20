@@ -36,8 +36,6 @@ The energy $E = mc^2$ appears in the middle of a sentence.
 const GROUNDS = [
   { name: "light", theme: "light", editor: "match" },
   { name: "white", theme: "light", editor: "white" },
-  { name: "warm", theme: "light", editor: "warm" },
-  { name: "cool", theme: "light", editor: "cool" },
   { name: "dark", theme: "dark", editor: "match" },
 ] as const;
 

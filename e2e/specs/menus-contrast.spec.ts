@@ -17,11 +17,12 @@ import { png } from "../png";
  *  `e2e/contrast.ts`, which composites the colour actually painted behind
  *  each run of text.  The floor is 4.5:1, WCAG's for ordinary text, and
  *  the app's own tightest pair (`--ink-3` on `--surface-3`) clears it at
- *  4.55.  Four pairings, because the app has two palettes that can be
+ *  4.55.  Three pairings, because the app has two palettes that can be
  *  mixed: the shell's theme and the editor page's, and a surface that
  *  lives inside the editor host takes the page's palette while one that
  *  floats over it takes the shell's.  The find box failed in exactly one
- *  of the four.
+ *  of them.  There were four while a light shell could hold a dark page;
+ *  that ground went with the overhaul.
  *
  *  A surface that cannot be reached in a run is reported rather than
  *  skipped: a missing menu is a broken recipe, and a recipe that has
@@ -34,14 +35,13 @@ type Pairing = {
   name: string;
   shell: "light" | "dark";
   /** The editor page's own palette, or `match` for the shell's. */
-  page: "match" | "white" | "dark";
+  page: "match" | "white";
 };
 
 const PAIRINGS: Pairing[] = [
   { name: "dark shell", shell: "dark", page: "match" },
   { name: "light shell", shell: "light", page: "match" },
   { name: "dark shell, white page", shell: "dark", page: "white" },
-  { name: "light shell, dark page", shell: "light", page: "dark" },
 ];
 
 type Surface = {

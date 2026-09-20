@@ -325,7 +325,7 @@ test("the editor can be lit apart from the rest of the app", async ({ tab }) => 
   // differently is the document, not the app around it.
   await tab.getByTestId("appearance").click();
   await tab.getByRole("group", { name: "Theme" }).getByRole("button", { name: "Dark" }).click();
-  await tab.getByTestId("editor-theme-light").click();
+  await tab.getByTestId("editor-theme-white").click();
 
   const editorBackground = await tab
     .locator(".cm-editor")
@@ -353,7 +353,7 @@ test("matching is the default, and putting it back matches again", async ({
 }) => {
   await tab.getByTestId("appearance").click();
   await tab.getByRole("group", { name: "Theme" }).getByRole("button", { name: "Dark" }).click();
-  await tab.getByTestId("editor-theme-light").click();
+  await tab.getByTestId("editor-theme-white").click();
   await tab.getByTestId("editor-theme-match").click();
 
   const editorBackground = await tab
@@ -366,7 +366,7 @@ test("matching is the default, and putting it back matches again", async ({
 
 test("an editor lit on its own terms survives a reload", async ({ tab }) => {
   await tab.getByTestId("appearance").click();
-  await tab.getByTestId("editor-theme-light").click();
+  await tab.getByTestId("editor-theme-white").click();
   await tab.reload();
   await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
   const editorBackground = await tab
@@ -452,7 +452,7 @@ test("the colours follow the page, not the frame", async ({ tab }) => {
 
   // A white page inside a dark shell has to take the light palette's
   // syntax colours, or they are the dark theme's brights on white.
-  await tab.getByTestId("editor-theme-light").click();
+  await tab.getByTestId("editor-theme-white").click();
   const onLight = await tab.locator(".nx-syn-structure").first().evaluate(colourOf);
   expect(lightness(onLight)).toBeLessThan(lightness(onDark));
 });

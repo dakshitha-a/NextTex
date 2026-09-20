@@ -47,8 +47,6 @@ const DARK = palette(".nx-theme-dark {");
  *  `no such block` throw, it is simply never checked. */
 const ground = (block: string) => ({ ...LIGHT, ...palette(block) });
 const WHITE = ground(".nx-theme-white {");
-const WARM = ground(".nx-theme-warm {");
-const COOL = ground(".nx-theme-cool {");
 
 function channel(hex: string, index: number): number {
   const value = parseInt(hex.slice(1 + index * 2, 3 + index * 2), 16) / 255;
@@ -178,8 +176,6 @@ const MEASURED = [
   ':root[data-theme="dark"]',
   ".nx-theme-dark",
   ".nx-theme-white",
-  ".nx-theme-warm",
-  ".nx-theme-cool",
 ];
 
 /** The stylesheet with its comments taken out.
@@ -236,8 +232,6 @@ const PALETTES = [
   ["light", LIGHT],
   ["dark", DARK],
   ["white page", WHITE],
-  ["warm page", WARM],
-  ["cool page", COOL],
 ] as const;
 
 describe.each(PALETTES)("%s theme", (_name, tokens) => {
@@ -515,9 +509,8 @@ test("a light page sets the editor heavier and a dark one does not", () => {
   expect(lift(".nx-theme-light {"), "the light palette lifts the editor weight")
     .toBe(100);
   expect(lift(".nx-theme-dark {"), "the dark palette lifts nothing").toBe(0);
-  for (const paper of [".nx-theme-white {", ".nx-theme-warm {", ".nx-theme-cool {"]) {
-    expect(lift(paper), `${paper} should inherit the light palette's lift`).toBe(null);
-  }
+  expect(lift(".nx-theme-white {"), "the white page should inherit the light palette's lift")
+    .toBe(null);
 });
 
 test("every weight the editor can reach has a font file behind it", () => {

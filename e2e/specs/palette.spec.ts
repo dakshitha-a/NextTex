@@ -34,12 +34,12 @@ test("an action, a setting and a file are each one box away", async ({ tab }) =>
 
   // A setting: the editor's ground, applied on the root.
   palette = await open(tab);
-  await tab.keyboard.type("ground warm");
-  const warm = palette.getByTestId("palette-row").first();
-  await expect(warm).toContainText("Editor ground: warm");
-  await expect(warm).toHaveAttribute("data-kind", "setting");
+  await tab.keyboard.type("ground white");
+  const white = palette.getByTestId("palette-row").first();
+  await expect(white).toContainText("Editor ground: white");
+  await expect(white).toHaveAttribute("data-kind", "setting");
   await tab.keyboard.press("Enter");
-  await expect.poll(() => tab.evaluate(() => document.documentElement.dataset.editorTheme)).toBe("warm");
+  await expect.poll(() => tab.evaluate(() => document.documentElement.dataset.editorTheme)).toBe("white");
 
   // A file: the bibliography opens in a tab.
   palette = await open(tab);

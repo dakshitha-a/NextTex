@@ -41,9 +41,9 @@ describe("the palette's settings", () => {
   });
 
   it("applies one value and leaves the rest", () => {
-    const warm = settingItems().find((item) => item.id === "ground:warm")!;
-    const next = warm.apply(DEFAULTS);
-    expect(next.editorTheme).toBe("warm");
+    const white = settingItems().find((item) => item.id === "ground:white")!;
+    const next = white.apply(DEFAULTS);
+    expect(next.editorTheme).toBe("white");
     expect(next.theme).toBe(DEFAULTS.theme);
   });
 

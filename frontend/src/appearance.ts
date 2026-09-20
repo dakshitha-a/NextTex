@@ -11,27 +11,22 @@ export type Theme = "light" | "dark";
 
 /** The ground the editor draws its page on.
  *
- *  Separate from the interface theme because the two are answering
- *  different questions.  The shell is chrome and some people want it out of
- *  the way in the dark; the editor is the page being written, and a writer
- *  who thinks in paper wants that white whatever the frame is doing.
- *  `match` is the default and means exactly that: follow the theme.
+ *  `match` follows the theme: the dark surface in the dark theme, the
+ *  proofing grey in the light one.  `white` is exactly #FFFFFF, the white
+ *  PDF.js paints the typeset page in, for the writer who has only ever
+ *  composed on white; a dark shell can hold a white page.  It is not a
+ *  separate palette but the light palette with its four surfaces moved up
+ *  (see styles.css), which is why the syntax highlighting comes with it.
  *
- *  `light` is the proofing grey the light theme is built on, which is still
- *  the right answer for most people and is what `match` gives them.  The
- *  three after it are brighter pages for the writer who has only ever
- *  composed on white: `white` is exactly #FFFFFF, `warm` is the colour of
- *  book paper, `cool` is white with the yellow taken out.  They are not
- *  separate palettes -- see the note in styles.css -- they are the light
- *  palette with its four surfaces moved up, which is why the syntax
- *  highlighting comes with them rather than having to be redrawn. */
-export type EditorTheme = "match" | "light" | "dark" | "white" | "warm" | "cool";
+ *  There were six: the proofing grey and the dark surface as choices in
+ *  the other theme, and a warm and a cool white beside the plain one.  The
+ *  visual overhaul cut them to these two at the writer's request, because
+ *  shades of white were more to hold in mind than they were worth; a
+ *  stored value naming a retired ground reads as `match`. */
+export type EditorTheme = "match" | "white";
 
-/** The grounds that are a page rather than a following of the theme.  One
- *  list rather than a condition repeated in three files. */
-export const EDITOR_GROUNDS: EditorTheme[] = [
-  "match", "light", "white", "warm", "cool", "dark",
-];
+/** The grounds, in the order the settings offer them. */
+export const EDITOR_GROUNDS: EditorTheme[] = ["match", "white"];
 
 /** Whether control sequences are told apart by colour.
  *
@@ -217,9 +212,8 @@ export function storedAppearance(): Appearance {
     theme: theme === "light" || theme === "dark" ? theme : DEFAULTS.theme,
     scale: scale ? nearest(scale, SCALES) : DEFAULTS.scale,
     editor: editor ? nearest(editor, EDITOR_SIZES) : DEFAULTS.editor,
-    editorTheme: EDITOR_GROUNDS.includes(editorTheme as EditorTheme)
-      ? (editorTheme as EditorTheme)
-      : DEFAULTS.editorTheme,
+    // A retired ground (light, dark, warm, cool) reads as the default.
+    editorTheme: editorTheme === "white" ? "white" : DEFAULTS.editorTheme,
     weight: weight ? nearest(weight, EDITOR_WEIGHTS) : DEFAULTS.weight,
     syntax: syntax === "colour" || syntax === "subtle" ? syntax : DEFAULTS.syntax,
     emphasis: emphasis === "plain" ? "plain" : DEFAULTS.emphasis,

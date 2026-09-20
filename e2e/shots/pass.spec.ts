@@ -67,7 +67,7 @@ test("the surfaces this pass changed", async ({ app, project, tab }) => {
     await tab.getByTestId("appearance").first().click();
     await tab.waitForTimeout(300);
     await shot(tab, "02-appearance", theme);
-    for (const ground of ["white", "warm", "dark"]) {
+    for (const ground of ["white"]) {
       await tab.getByTestId(`editor-theme-${ground}`).click();
       await tab.waitForTimeout(250);
       await shot(tab, `03-ground-${ground}`, theme);

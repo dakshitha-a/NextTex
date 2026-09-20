@@ -38,7 +38,7 @@ $1.86\,\mathrm{eV}$, and the population transfer is complete within
 \end{document}
 `;
 
-const GROUNDS = ["white", "warm", "cool", "match", "dark"] as const;
+const GROUNDS = ["white", "match"] as const;
 
 /** What each candidate does to the page, as a stylesheet injected after the
  *  app has settled.  `now` is the code as it stands. */
@@ -46,7 +46,7 @@ const CANDIDATES: Record<string, string> = {
   now: "",
   // The compensation the light palette adds to the writer's chosen weight.
   // Authored against the proofing grey; pure white is nine points brighter.
-  "lift-0": ".nx-theme-white, .nx-theme-warm, .nx-theme-cool { --nx-editor-weight-lift: 0; }",
+  "lift-0": ".nx-theme-white { --nx-editor-weight-lift: 0; }",
   // 7% of --ink-3 lightens a dark ground and darkens a bright one, so on
   // white the one line whose text most needs to be crisp is the one line
   // sitting on a grey band.

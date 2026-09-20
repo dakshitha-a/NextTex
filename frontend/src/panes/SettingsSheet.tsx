@@ -14,7 +14,6 @@ import {
   step,
   storedAppearance,
   type Appearance,
-  type EditorTheme,
 } from "../appearance";
 import { shortcut } from "../keys";
 
@@ -174,8 +173,17 @@ export default function SettingsSheet({
               title="The page you write on"
               note="The editor can be lit on its own terms, whatever the frame is doing."
             >
-              <Grounds
+              {/* Two grounds, the theme's own and the page's white; the
+                  shades of white that sat between them went in the
+                  overhaul at the writer's request. */}
+              <Choice
+                label="Editor page"
+                name="Editor page"
                 value={look.editorTheme}
+                options={[
+                  { value: "match", text: "Theme", id: "editor-theme-match" },
+                  { value: "white", text: "White", id: "editor-theme-white" },
+                ] as const}
                 onPick={(editorTheme) => change({ editorTheme })}
               />
               {/* Colouring the control sequences is a setting rather than
@@ -610,81 +618,6 @@ function Choice<T extends string | boolean>({
             onClick={() => onPick(option.value)}
           >
             {option.text}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** The ground the editor draws its page on, chosen by looking at it.
- *
- *  This was a row of three words, and the words were the problem: "Light"
- *  in this row and "Light" in the Theme row mean two different things,
- *  which is why every button in a Choice has to carry its group's name in
- *  its accessibility label to be comprehensible at all.  Six grounds could
- *  not have survived that.  A colour is also simply the honest way to offer
- *  a colour.
- *
- *  Each swatch is painted by putting the app's own palette class on it and
- *  filling with var(--surface), so what the writer sees is the real token
- *  and there is no second list of hexes here to drift from styles.css.
- *  "Match" is drawn as both palettes at once, because that is what it
- *  means.  The caption names the current choice, so the row is readable
- *  rather than a guessing game of six grey rectangles.
- */
-const GROUNDS: readonly {
-  value: EditorTheme;
-  text: string;
-  skin: string;
-  id: string;
-}[] = [
-  { value: "match", text: "Matches the theme", skin: "", id: "editor-theme-match" },
-  { value: "light", text: "Proofing grey", skin: "nx-theme-light", id: "editor-theme-light" },
-  { value: "white", text: "White", skin: "nx-theme-light nx-theme-white", id: "editor-theme-white" },
-  { value: "warm", text: "Warm white", skin: "nx-theme-light nx-theme-warm", id: "editor-theme-warm" },
-  { value: "cool", text: "Cool white", skin: "nx-theme-light nx-theme-cool", id: "editor-theme-cool" },
-  { value: "dark", text: "Dark", skin: "nx-theme-dark", id: "editor-theme-dark" },
-];
-
-function Grounds({
-  value,
-  onPick,
-}: {
-  value: EditorTheme;
-  onPick: (value: EditorTheme) => void;
-}) {
-  const current = GROUNDS.find((g) => g.value === value) ?? GROUNDS[0];
-  return (
-    <div className="border-t border-line px-[10px] py-[7px]">
-      <div className="flex items-center justify-between">
-        <span className="t-meta text-ink-2">Editor page</span>
-        <span className="t-micro text-ink-3">{current.text}</span>
-      </div>
-      <div role="group" aria-label="Editor page" className="mt-[6px] flex gap-[5px]">
-        {GROUNDS.map((ground) => (
-          <button
-            key={ground.id}
-            data-testid={ground.id}
-            aria-pressed={value === ground.value}
-            aria-label={`Editor page ${ground.text.toLowerCase()}`}
-            title={ground.text}
-            onClick={() => onPick(ground.value)}
-            className="nx-swatch"
-            data-chosen={value === ground.value ? "yes" : undefined}
-          >
-            {/* The palette class goes on the fill, not on the button: the
-                ring that marks the chosen one is drawn in --pen, and it
-                should be the sheet's pen rather than the swatch's own, or a
-                pale violet ring lands on a pale card. */}
-            {ground.value === "match" ? (
-              <>
-                <span className="nx-theme-light nx-swatch-half" />
-                <span className="nx-theme-dark nx-swatch-half" />
-              </>
-            ) : (
-              <span className={`nx-swatch-half ${ground.skin}`} />
-            )}
           </button>
         ))}
       </div>
