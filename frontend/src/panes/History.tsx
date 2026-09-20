@@ -209,7 +209,7 @@ export default function History({
       // keeps its dock beside the editor and its overlay over it.
       className={`outline-none ${
         docked
-          ? "nx-arrive flex h-full w-[264px] shrink-0 flex-col bg-surface-2"
+          ? "nx-arrive flex h-full w-full min-w-0 shrink-0 flex-col bg-surface-2"
           : "nx-arrive absolute right-0 top-0 z-20 flex h-full w-[264px] flex-col bg-surface-2 shadow-float"
       }`}
       onKeyDown={(event) => {

@@ -1327,6 +1327,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-icon-button[data-on] { color: var(--ink); background: var(--wash); }
 .nx-icon-button:disabled { opacity: 0.4; }
 
+/* The activity bar's buttons: 32 px at a 6 px radius on the bar's 44 px
+   column, the one showing marked by ink and the wash, as the page draws
+   the bar.  No badge, no dot. */
+.nx-bar-button.nx-icon-button { width: 32px; height: 32px; border-radius: 6px; color: var(--ink-3); }
+.nx-bar-button.nx-icon-button:hover { color: var(--ink); }
+.nx-bar-button.nx-icon-button[data-on] { background: var(--wash); color: var(--ink); }
+
 .nx-row {
   display: flex; align-items: center; gap: 8px;
   height: 30px; padding: 0 8px;

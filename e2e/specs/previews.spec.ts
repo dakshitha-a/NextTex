@@ -296,7 +296,7 @@ test("a document that goes to the trash leaves the strip and comes back with the
   await expect(page.getByTestId("preview-tab-esi.tex")).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByTestId("preview-tab-main.tex")).toHaveAttribute("aria-current", "true");
 
-  await page.getByRole("button", { name: /deleted/ }).click();
+  await page.getByTestId("bar-trash").click();
   const entry = page.getByTestId("trash-entry").filter({ hasText: "esi" });
   await expect(entry).toBeVisible({ timeout: 10_000 });
   await entry.hover();

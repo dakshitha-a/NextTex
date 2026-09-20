@@ -83,10 +83,11 @@ test("Escape closes the chooser without reading anything", async ({ tab }) => {
   await expect(tab.getByTestId("papers-chooser")).toBeVisible();
   await tab.keyboard.press("Escape");
   await expect(tab.getByTestId("papers-chooser")).toHaveCount(0);
-  // The panel is present, because this project has a bibliography and
+  // The drawer is there, because this project has a bibliography and
   // there are two things to do to one whether or not a folder has ever
   // been read. What must not have happened is a read: no papers, and no
   // account of a run.
+  await tab.getByTestId("bar-papers").click();
   await expect(tab.getByTestId("papers-panel")).toContainText("Papers (0)");
   await expect(tab.getByText(/not identified/)).toHaveCount(0);
 });
@@ -124,9 +125,9 @@ test("a DOI on its own is enough, and the entries can be checked", async ({
     }),
   );
 
+  await tab.getByTestId("bar-papers").click();
   const panel = tab.getByTestId("papers-panel");
   await expect(panel).toBeVisible({ timeout: 20_000 });
-  await panel.getByRole("button", { name: /Papers/ }).click();
 
   await tab.getByTestId("papers-doi").fill("10.1038/nature14539");
   await tab.getByRole("button", { name: "Add", exact: true }).click();
@@ -169,9 +170,9 @@ test("the literature can be searched without an agent, and a result added by its
     }),
   );
 
+  await tab.getByTestId("bar-papers").click();
   const panel = tab.getByTestId("papers-panel");
   await expect(panel).toBeVisible({ timeout: 20_000 });
-  await panel.getByRole("button", { name: /Papers/ }).click();
   await tab.getByTestId("papers-source").selectOption("openalex");
   await tab.getByTestId("papers-search").fill("deep learning");
   await tab.keyboard.press("Enter");

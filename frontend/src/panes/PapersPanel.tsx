@@ -15,7 +15,7 @@ import { isBib } from "./file-kinds";
 
 type Failure = { sha: string; name: string; reason: string; path: string };
 
-export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
+export default function PapersPanel({ onRefresh, drawer = false }: { onRefresh: () => void; drawer?: boolean }) {
   const projectId = useStore((s) => s.projectId);
   const progress = useStore((s) => s.library);
   const [open, setOpen] = useState(false);
@@ -157,27 +157,35 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
   // checked, and both of those were reachable only from the agent.
   if (!count && !failures.length && !progress && !hasBib) return null;
 
+  const shown = drawer || open;
   return (
-    <div className="shrink-0 border-t border-line" data-testid="papers-panel">
+    <div className={drawer ? "flex min-h-0 flex-1 flex-col" : "shrink-0 border-t border-line"} data-testid="papers-panel">
       {/* Stop is a sibling of the header button, not a child of it. It was
           a `role="button"` span inside a real `<button>`, which is the axe
           rule `nested-interactive`, impact serious: the outer control is
           announced as one button and the inner one is either unreachable
           or folded into its name. Two buttons in a row is what this always
-          was, so it is two buttons in a row now. */}
-      <div className="flex h-[26px] w-full items-center gap-2 px-[10px] hover:bg-surface-2">
-        <button
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
+          was, so it is two buttons in a row now.  In the drawer the row
+          carries only the progress line and Stop. */}
+      <div className={drawer ? "flex w-full items-center gap-2 px-[10px]" : "flex h-[26px] w-full items-center gap-2 px-[10px] hover:bg-surface-2"}>
+        {drawer ? (
           <span className="t-meta min-w-0 flex-1 truncate text-left text-ink-2">
             {label(progress, count)}
           </span>
-          <span className={`shrink-0 text-ink-3 ${open ? "rotate-90" : ""}`}>
-            <Chevron direction="right" />
-          </span>
-        </button>
+        ) : (
+          <button
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            <span className="t-meta min-w-0 flex-1 truncate text-left text-ink-2">
+              {label(progress, count)}
+            </span>
+            <span className={`shrink-0 text-ink-3 ${open ? "rotate-90" : ""}`}>
+              <Chevron direction="right" />
+            </span>
+          </button>
+        )}
         {running ? (
           <button
             className="quiet t-micro shrink-0 text-hint"
@@ -190,8 +198,8 @@ export default function PapersPanel({ onRefresh }: { onRefresh: () => void }) {
         ) : null}
       </div>
 
-      {open ? (
-        <div className="border-t border-line px-[10px] py-2">
+      {shown ? (
+        <div className={drawer ? "min-h-0 flex-1 overflow-auto px-[10px] py-2" : "border-t border-line px-[10px] py-2"}>
           {running ? (
             <>
               <p className="t-code-sm truncate text-ink-3">{progress?.name}</p>

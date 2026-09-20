@@ -86,6 +86,8 @@ test("the Context panel lists the prompts, and a copy puts the file in the proje
   // the group can edit it.
   await expect(entries.nth(1)).toHaveAttribute("data-source", "project", { timeout: 10_000 });
   await expect(entries.nth(1).getByTestId("prompt-copy")).toHaveCount(0);
+  // The tree is the Files drawer's.
+  await tab.getByTestId("bar-files").click();
   await openFolders(tab, "prompts/review-friendly.md");
   await expect(tab.locator('[role="tree"] [data-path="prompts/review-friendly.md"]')).toBeVisible();
 

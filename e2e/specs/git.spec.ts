@@ -1,4 +1,5 @@
 import { test, expect, openProject } from "../fixtures";
+import type { Page } from "@playwright/test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { landed } from "../typing";
@@ -11,7 +12,16 @@ import { landed } from "../typing";
  *  only from a terminal. The route has taken `init` the whole time.
  */
 
+/** The git drawer, from the bar: Files is the default. */
+async function gitDrawer(tab: Page) {
+  const drawer = tab.getByTestId("drawer");
+  const showing =
+    (await drawer.count()) > 0 && (await drawer.getAttribute("data-drawer")) === "git";
+  if (!showing) await tab.getByTestId("bar-git").click();
+}
+
 test("a project with no repository can be given one", async ({ tab, project }) => {
+  await gitDrawer(tab);
   const card = tab.getByTestId("git-setup");
   await expect(card).toBeVisible({ timeout: 20_000 });
   // The card leads with the thing that works offline, and offers the
@@ -35,6 +45,7 @@ test("what changed in a file can be read in the panel, not only named", async ({
   // R-089. "See what changed" showed a status letter and a path. The
   // chevron beside a row is the agent's edit chip idiom: it opens the
   // patch, and the row itself still opens the file.
+  await gitDrawer(tab);
   await tab.getByTestId("git-init").click();
   await expect(tab.getByTestId("git-init")).toHaveCount(0, { timeout: 20_000 });
   // The card then offers GitHub; the panel itself is behind "Not now".
@@ -88,7 +99,12 @@ test("the card's buttons fit at the narrowest rail", async ({ page, app, project
   await page.getByText("Projects", { exact: false }).first().waitFor();
   // The rail at its minimum, before the project opens and reads it back.
   await page.evaluate(
-    (id) => localStorage.setItem(`nexttex.widths.${id}`, JSON.stringify({ rail: 180 })),
+    (id) => {
+      localStorage.setItem(`nexttex.widths.${id}`, JSON.stringify({ rail: 180 }));
+      // And the git drawer showing, since Files is the drawer a project
+      // opens on.
+      localStorage.setItem(`nexttex.drawer.${id}`, JSON.stringify({ open: "git" }));
+    },
     project.id,
   );
   await openProject(page, project.root);
@@ -122,7 +138,12 @@ test("the line left after setting the card aside fits at the narrowest rail too"
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
   await page.evaluate(
-    (id) => localStorage.setItem(`nexttex.widths.${id}`, JSON.stringify({ rail: 180 })),
+    (id) => {
+      localStorage.setItem(`nexttex.widths.${id}`, JSON.stringify({ rail: 180 }));
+      // And the git drawer showing, since Files is the drawer a project
+      // opens on.
+      localStorage.setItem(`nexttex.drawer.${id}`, JSON.stringify({ open: "git" }));
+    },
     project.id,
   );
   await openProject(page, project.root);
@@ -135,47 +156,26 @@ test("the line left after setting the card aside fits at the narrowest rail too"
   }
 });
 
-test("the panel is open until it is folded, and stays folded across a reload", async ({
+test("the git drawer is remembered across a reload, and the offer is the first thing in it", async ({
   tab,
 }) => {
-  // The one thing in the rail that could not fold, and the first-run card
-  // is the tallest thing the rail holds. A project with nothing stored
-  // opens with it showing, so the offer to keep versions is seen once.
-  const toggle = tab.getByTestId("git-toggle");
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  // One drawer at a time now, opened from the bar; the choice is kept per
+  // project, so a writer who left the repository showing finds it
+  // showing.  A project with no repository opens the drawer on the offer
+  // to keep versions.
+  await tab.getByTestId("bar-git").click();
+  await expect(tab.getByTestId("drawer")).toHaveAttribute("data-drawer", "git");
   await expect(tab.getByTestId("git-setup")).toBeVisible({ timeout: 20_000 });
-
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(tab.getByTestId("git-setup")).toHaveCount(0);
 
   await tab.reload();
   await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
-  await expect(tab.getByTestId("git-toggle")).toHaveAttribute("aria-expanded", "false");
-  await expect(tab.getByTestId("git-setup")).toHaveCount(0);
-});
+  await expect(tab.getByTestId("drawer")).toHaveAttribute("data-drawer", "git");
+  await expect(tab.getByTestId("git-setup")).toBeVisible({ timeout: 20_000 });
 
-test("a rail remembered from before the panel could fold still opens it", async ({
-  page, app, project,
-}) => {
-  // What is stored is merged over the default, key by key. A project
-  // whose rail was remembered before there was a `git` key would
-  // otherwise come back with the panel closed, and the writer would have
-  // no idea it had gained a header.
-  await page.goto(`${app.base}/?token=${app.token}`);
-  await page.getByText("Projects", { exact: false }).first().waitFor();
-  await page.evaluate(
-    (id) => localStorage.setItem(
-      `nexttex.rail.${id}`,
-      JSON.stringify({ files: true, sections: false, search: false }),
-    ),
-    project.id,
-  );
-  await openProject(page, project.root);
-  await expect(page.getByTestId("git-toggle")).toHaveAttribute("aria-expanded", "true");
-  // And the keys it did have are honoured, so this is a merge and not a
-  // reset to the default.
-  await expect(page.getByTestId("sections-toggle")).toHaveAttribute("aria-expanded", "false");
+  // A second press folds it; the bar stays.
+  await tab.getByTestId("bar-git").click();
+  await expect(tab.getByTestId("git-setup")).toHaveCount(0);
+  await expect(tab.getByTestId("activity-bar")).toBeVisible();
 });
 
 test("setting the card aside on a project with no repository leaves a way back", async ({
@@ -185,6 +185,7 @@ test("setting the card aside on a project with no repository leaves a way back",
   // to have no later, but the footer only draws for a project with a
   // repository. On a project without one the panel was simply empty, and
   // init was gone for the life of the project.
+  await gitDrawer(tab);
   await expect(tab.getByTestId("git-setup")).toBeVisible({ timeout: 20_000 });
   await tab.getByRole("button", { name: "Not now" }).click();
   await expect(tab.getByTestId("git-setup")).toHaveCount(0);

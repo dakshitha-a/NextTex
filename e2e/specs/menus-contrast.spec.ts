@@ -57,7 +57,19 @@ const esc = async (tab: Page) => {
 };
 
 /** Open a row's `⋯` menu and pick an item from it. */
+/** The Files drawer, whatever the drawer was showing: a second press on
+ *  its icon would fold it, so the press is only made when it is not
+ *  showing already. */
+async function filesDrawer(tab: Page) {
+  const drawer = tab.getByTestId("drawer");
+  const showing =
+    (await drawer.count()) > 0 && (await drawer.getAttribute("data-drawer")) === "files";
+  if (!showing) await tab.getByTestId("bar-files").click();
+  await tab.locator('[role="tree"]').waitFor();
+}
+
 async function rowMenu(tab: Page, path: string, item?: string): Promise<Locator> {
+  await filesDrawer(tab);
   const menu = tab.getByTestId("file-menu");
   // A menu left open by the surface before, on this row or another, would
   // be toggled shut by the click that means to open this one.
@@ -169,6 +181,7 @@ const SURFACES: Surface[] = [
     },
     close: async (tab) => {
       await tab.getByLabel("Close the history").click();
+      await filesDrawer(tab);
     },
   },
   {
@@ -183,6 +196,7 @@ const SURFACES: Surface[] = [
   {
     name: "the new file box",
     open: async (tab) => {
+      await filesDrawer(tab);
       await tab.getByTestId("new-file").click();
       await tab.keyboard.type("draft");
       return tab.locator('[role="tree"]');
@@ -191,6 +205,7 @@ const SURFACES: Surface[] = [
   {
     name: "the file search",
     open: async (tab) => {
+      await filesDrawer(tab);
       await tab.getByTestId("file-search-open").click();
       await tab.getByTestId("file-search").fill("main");
       return tab.locator('[role="tree"]').locator("xpath=..");
@@ -204,13 +219,14 @@ const SURFACES: Surface[] = [
     name: "the project search",
     open: async (tab) => {
       const field = tab.getByTestId("project-search");
-      if (!(await field.isVisible())) await tab.getByTestId("search-toggle").click();
+      if (!(await field.isVisible())) await tab.getByTestId("bar-search").click();
       await field.fill("Introduction");
       await expect(tab.getByTestId("search-hit").first()).toBeVisible({ timeout: 10_000 });
       return tab.getByTestId("search-panel");
     },
     close: async (tab) => {
       await tab.getByTestId("project-search").fill("");
+      await filesDrawer(tab);
     },
   },
   {
@@ -327,12 +343,14 @@ const SURFACES: Surface[] = [
   {
     name: "the Markdown preview",
     open: async (tab) => {
+      await filesDrawer(tab);
       await tab.locator('[role="tree"] [data-path="notes.md"]').click();
       const view = tab.getByTestId("markdown-view");
       await expect(view.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 10_000 });
       return view;
     },
     close: async (tab) => {
+      await filesDrawer(tab);
       await tab.locator('[role="tree"] [data-path="main.tex"]').click();
     },
   },
@@ -340,7 +358,7 @@ const SURFACES: Surface[] = [
     name: "the submission panel",
     open: async (tab) => {
       const panel = tab.getByTestId("submit-panel");
-      await panel.getByRole("button", { name: /Before you submit/ }).click();
+      await tab.getByTestId("bar-submit").click();
       await panel.getByTestId("submit-check").click();
       // Either the report's headline or the "build first" line: both are
       // text this panel draws, and which one arrives depends on whether
@@ -351,7 +369,7 @@ const SURFACES: Surface[] = [
       return panel.getByTestId("submit-body");
     },
     close: async (tab) => {
-      await tab.getByTestId("submit-panel").getByRole("button", { name: /Before you submit/ }).click();
+      await tab.getByTestId("bar-submit").click();
     },
   },
   {

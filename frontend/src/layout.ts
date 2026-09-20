@@ -22,6 +22,8 @@ export type Widths = { rail: number; editor: number; chat: number };
 export const MIN_EDITOR = 420;
 export const MIN_PDF = 320;
 export const MIN_RAIL = 180;
+/** The activity bar, always on screen at the left. */
+export const BAR = 44;
 export const MIN_CHAT = 320;
 
 /** The narrowest shell this layout claims to be.
@@ -43,7 +45,8 @@ export const MIN_SHELL = 720;
 export const BREAKPOINTS = {
   /** Below this the chat stops being a docked column and overlays instead. */
   narrow: 1400,
-  /** Below this the file rail folds to a strip. */
+  /** Below this the drawer overlays the panes instead of taking a column;
+   *  the activity bar stays. */
   rail: 1100,
   /** Below this the source and the preview take turns rather than splitting
    *  a space too small for either. */
@@ -76,6 +79,8 @@ export type Room = {
   chatShown: boolean;
   /** The room the two middle panes refuse to go below, together. */
   minPair: number;
+  /** The activity bar's width, which is always taken. */
+  bar?: number;
 };
 
 export function minPairFor(folded: { editor: boolean; pdf: boolean }): number {
@@ -101,6 +106,7 @@ export function clampWidths(current: Widths, room: Room): Widths {
   // would get a crushed row rather than a scrollable one.
   if (room.width < MIN_SHELL) return current;
   const over =
+    (room.bar ?? 0) +
     (room.railShown ? current.rail : 0) +
     (room.chatShown ? current.chat : 0) +
     room.minPair -
@@ -112,6 +118,7 @@ export function clampWidths(current: Widths, room: Room): Widths {
     ? Math.max(MIN_CHAT, current.chat - over)
     : current.chat;
   const left =
+    (room.bar ?? 0) +
     (room.railShown ? current.rail : 0) +
     (room.chatShown ? chat : 0) +
     room.minPair -

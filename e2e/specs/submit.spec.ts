@@ -103,7 +103,7 @@ test("the panel lists what a venue would send back, and every row that has a pla
   expect(build.outcome).toBe("ok");
 
   const panel = tab.getByTestId("submit-panel");
-  await panel.getByRole("button", { name: /Before you submit/ }).click();
+  await tab.getByTestId("bar-submit").click();
   await panel.getByTestId("submit-check").click();
   await expect(panel.getByTestId("submit-headline")).toContainText(/2 pages, built .* with pdflatex/, {
     timeout: 30_000,
@@ -119,8 +119,9 @@ test("the panel lists what a venue would send back, and every row that has a pla
   }
   expect(found).not.toContain("blind");
   expect(found).not.toContain("font");
-  // The header counts what it found and how many are errors.
-  await expect(panel.getByRole("button", { name: /Before you submit · \d+ \(\d+ to fix\)/ })).toBeVisible();
+  // Every kind found has a row; the groups carry the counts now that the
+  // drawer's heading is the bar's.
+  expect(await rows.count()).toBeGreaterThanOrEqual(found.size);
 
   // The `\today` row moves the caret to its line.
   await row("today").click();

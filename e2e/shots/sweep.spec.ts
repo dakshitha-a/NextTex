@@ -134,16 +134,15 @@ test("every pane at every width, in both themes", async ({
         await shot(tab, "04-row-menu", theme, width);
         await tab.keyboard.press("Escape");
 
-        // The rail as navigation: sections beside the files, and sections
-        // with the whole rail once the files are folded away.
-        await tab.getByTestId("files-toggle").click();
+        // The bar as navigation: the Sections drawer, and the drawer folded
+        // away with the bar left to bring it back.
+        await tab.getByTestId("bar-sections").click();
         await tab.waitForTimeout(200);
         await shot(tab, "07-sections-alone", theme, width);
-        await tab.getByTestId("files-toggle").click();
-        await tab.getByTestId("sections-toggle").click();
+        await tab.getByTestId("bar-sections").click();
         await tab.waitForTimeout(200);
-        await shot(tab, "08-sections-folded", theme, width);
-        await tab.getByTestId("sections-toggle").click();
+        await shot(tab, "08-drawer-folded", theme, width);
+        await tab.getByTestId("bar-files").click();
       }
 
       // The agent column: the controls under the composer.

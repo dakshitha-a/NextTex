@@ -23,13 +23,14 @@ async function typeAndSave(page: Page, text: string, app: any, project: any) {
   await landed(app, project, text);
 }
 
+/** From the bar, which works whatever the drawer is showing: a second
+ *  press would fold it, so the press is only made when History is not
+ *  the drawer already. */
 async function openHistory(page: Page) {
-  await page.getByLabel("Actions for main.tex").click();
-  // Exact: "Delete version history…" is in the same menu now.
-  await page
-    .getByRole("tree")
-    .getByRole("button", { name: "History", exact: true })
-    .click();
+  const drawer = page.getByTestId("drawer");
+  const showing =
+    (await drawer.count()) > 0 && (await drawer.getAttribute("data-drawer")) === "history";
+  if (!showing) await page.getByTestId("bar-history").click();
   await expect(page.getByTestId("version").first()).toBeVisible({
     timeout: 10_000,
   });
@@ -100,7 +101,7 @@ test("a deleted file goes to the trash and comes back byte for byte", async ({
   await tab.getByRole("button", { name: "Move to trash" }).click();
   await expect(tab.getByTestId("trash-entry")).toHaveCount(0);
 
-  await tab.getByRole("button", { name: /deleted/ }).click();
+  await tab.getByTestId("bar-trash").click();
   const entry = tab.getByTestId("trash-entry").filter({ hasText: "references" });
   await expect(entry).toBeVisible({ timeout: 10_000 });
 
@@ -124,7 +125,7 @@ test("a deleted file goes to the trash and comes back byte for byte", async ({
 test("emptying the trash asks before it destroys anything", async ({ tab }) => {
   await tab.getByLabel("Actions for references.bib").click();
   await tab.getByRole("button", { name: "Move to trash" }).click();
-  await tab.getByRole("button", { name: /deleted/ }).click();
+  await tab.getByTestId("bar-trash").click();
 
   const entry = tab.getByTestId("trash-entry").first();
   await expect(entry).toBeVisible({ timeout: 10_000 });
@@ -189,7 +190,7 @@ test("purging asks once, and then really destroys it", async ({
 }) => {
   await tab.getByLabel("Actions for references.bib").click();
   await tab.getByRole("button", { name: "Move to trash" }).click();
-  await tab.getByRole("button", { name: /deleted/ }).click();
+  await tab.getByTestId("bar-trash").click();
 
   const entry = tab.getByTestId("trash-entry").first();
   await expect(entry).toBeVisible({ timeout: 10_000 });
@@ -233,7 +234,7 @@ test("a second version, then back to now, still gives you an editable file", asy
   await tab.getByRole("button", { name: /back to now/i }).click();
   await expect(tab.getByText(/viewing/i)).toHaveCount(0);
 
-  // The history panel is an overlay; close it before reaching the editor.
+  // Closing the history folds the drawer; the editor is there either way.
   await tab.getByLabel("Close the history").click();
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");
@@ -348,6 +349,8 @@ test("emptying a history says what it freed, and the panel says what it holds", 
   await expect(tab.getByTestId("history-size")).toBeVisible({ timeout: 10_000 });
   await expect(tab.getByTestId("history-size")).toHaveText(/\d+ (B|KB|MB)/);
 
+  // The row's menu is in the Files drawer.
+  await tab.getByTestId("bar-files").click();
   await tab.getByLabel("Actions for main.tex").click();
   await tab.getByRole("button", { name: /Delete version history/ }).click();
   await tab.getByTestId("purge-confirm-yes").click();

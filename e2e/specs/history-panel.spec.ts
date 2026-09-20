@@ -35,12 +35,13 @@ async function typeAndSave(page: Page, text: string, app: any, project: any) {
   await landed(app, project, text);
 }
 
-/** The active file's row menu, which is the way in that is always there:
- *  the status strip carried a History button until the overhaul, and the
- *  bar's History drawer comes with it. */
-async function openHistory(page: Page, name = "main.tex") {
-  await page.getByLabel(`Actions for ${name}`).click({ force: true });
-  await page.getByRole("tree").getByRole("button", { name: "History", exact: true }).click();
+/** The bar's History drawer, for the file in front; a second press would
+ *  fold it, so the press is only made when History is not showing. */
+async function openHistory(page: Page) {
+  const drawer = page.getByTestId("drawer");
+  const showing =
+    (await drawer.count()) > 0 && (await drawer.getAttribute("data-drawer")) === "history";
+  if (!showing) await page.getByTestId("bar-history").click();
   await expect(page.getByTestId("version").first()).toBeVisible({ timeout: 10_000 });
 }
 
@@ -200,7 +201,7 @@ test("a long file name in the header truncates and keeps its full path as a titl
     });
     throw failure;
   }
-  await openHistory(tab, long);
+  await openHistory(tab);
   const name = tab.getByTestId("history-header").getByTitle(long);
   await expect(name).toBeVisible();
   const close = await boxOf(tab, '[aria-label="Close the history"]');

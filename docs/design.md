@@ -267,6 +267,27 @@ and a default. Cmd-B hides the rail entirely; the project name then moves to the
 the tab bar as a non-closable chip with the switcher chevron, and the git dirty count moves
 into the compile status strip as `main +4`. Nothing is lost and the editor gains 240 px.
 
+*Reversed in the visual overhaul, 19 September 2026, at the writer's request.* The rail is
+an activity bar and one drawer. The bar is a 44 px column on `--surface-2` at the far left,
+always on screen, with a 32 px icon button per drawer in this order: Files, Sections,
+Search, Papers, History, Git, Before you submit, Deleted; Settings is pinned at its bottom
+and is the one door to the settings inside a project. One drawer shows the chosen
+instrument at full height, with a heading row (the title at `t-ui-lg`, the count or the
+quick actions beside it) and the instrument's body as the drawer's one scroll box; a second
+press on the drawer's icon folds it, and the choice is kept per project under
+`nexttex.drawer.<id>`, Files by default. Below 1100 shell pixels the drawer overlays the
+panes at the bar's edge instead of taking a column, and the bar stays. History left its
+dock beside the editor to be a drawer like the rest; What Claude reads is a drawer reached
+from the agent column until the column takes it in. The title bar is full width above
+everything, 40 px on `--surface-2`: the project and its switcher at the left, Share,
+Download and the drawer's fold at the right. The writer's reason for the bar, on the
+record: a project is either many short files (a folder per job listing) or one or two long
+files with a large figures folder and many sections, so either the tree or the outline
+stays open for long stretches and neither may push the other out. What keeps it from
+reading as VS Code: the bar sits on the same plane as the drawer rather than being a darker
+strip, its icons are the one hand-drawn set at one stroke weight, nothing on it carries a
+badge or a coloured dot, and the active button is marked by ink weight and the wash.
+
 **Spacing scale:** 2 / 4 / 6 / 8 / 12 / 16 / 24 / 32; everything quantises to 4. Interactive
 row heights: 26 (tree rows, resolved cards), 28 (diagnostic rows, buttons), 32 (tabs), 26
 (status strip). Pane padding 8 horizontal / 6 vertical: this is an instrument, not a

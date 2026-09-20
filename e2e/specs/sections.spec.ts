@@ -26,7 +26,14 @@ async function put(page: Page, base: string, token: string, id: string, path: st
   );
 }
 
+/** The Sections drawer, which the bar opens; Files is the default. */
+async function sections(tab: Page) {
+  await tab.getByTestId("bar-sections").click();
+  await expect(tab.getByTestId("drawer")).toHaveAttribute("data-drawer", "sections");
+}
+
 test("the rail lists the sections of the file in the editor", async ({ tab }) => {
+  await sections(tab);
   const rows = tab.getByTestId("section-row");
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText("Introduction");
@@ -35,6 +42,7 @@ test("the rail lists the sections of the file in the editor", async ({ tab }) =>
 });
 
 test("clicking a section puts the caret in it", async ({ tab }) => {
+  await sections(tab);
   const rows = tab.getByTestId("section-row");
   await rows.filter({ hasText: "Discussion" }).click();
   // The marked row is derived from where the caret is, so it only moves
@@ -52,6 +60,7 @@ test("clicking a section puts the caret in it", async ({ tab }) => {
 test("the mark follows the caret, and sits nowhere above the first heading", async ({
   tab,
 }) => {
+  await sections(tab);
   const rows = tab.getByTestId("section-row");
   await rows.filter({ hasText: "Results" }).click();
   await expect(rows.filter({ hasText: "Results" })).toHaveAttribute(
@@ -65,6 +74,7 @@ test("the mark follows the caret, and sits nowhere above the first heading", asy
 });
 
 test("a section typed now is listed now, without a build", async ({ tab }) => {
+  await sections(tab);
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");
   await tab.keyboard.type("\n\\section{Outlook}\n");
@@ -87,6 +97,7 @@ test("a skeleton document lists the files it includes, and they open", async ({
   await tab.getByTestId("file-search").fill("skeleton");
   await tab.locator('[role="tree"] [data-path="skeleton.tex"]').click();
   await tab.getByTestId("file-search").press("Escape");
+  await sections(tab);
 
   const row = tab.getByTestId("section-row").filter({ hasText: "theory" });
   await expect(row).toHaveAttribute("data-kind", "file");
@@ -100,37 +111,71 @@ test("a skeleton document lists the files it includes, and they open", async ({
   ).toBeVisible();
 });
 
-test("the file list folds away, and stays folded across a reload", async ({
+test("the drawer shows one instrument, remembered across a reload", async ({
   tab,
 }) => {
+  // The rail is an activity bar and one drawer: the writer's reason, on
+  // the record in docs/design.md, is that a project is either many short
+  // files or one long one with many sections, so the tree or the outline
+  // stays open for long stretches and neither may push the other out.
+  // Opening one closes the other, and the choice is remembered.
   await expect(tab.locator('[role="tree"]')).toBeVisible();
-  await tab.getByTestId("files-toggle").click();
+  await tab.getByTestId("bar-sections").click();
   // Unmounted rather than hidden: the tree owns a type-ahead and a roving
   // tab stop, and both would still answer the keyboard behind a closed
-  // panel.
+  // drawer.
   await expect(tab.locator('[role="tree"]')).toHaveCount(0);
-  // The sections are still there, and now have the room.
   await expect(tab.getByTestId("section-row").first()).toBeVisible();
+  await expect(tab.getByTestId("bar-sections")).toHaveAttribute("aria-pressed", "true");
+  await expect(tab.getByTestId("bar-files")).toHaveAttribute("aria-pressed", "false");
 
   await tab.reload();
   await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
   await expect(tab.locator('[role="tree"]')).toHaveCount(0);
+  await expect(tab.getByTestId("section-row").first()).toBeVisible();
 
-  await tab.getByTestId("files-toggle").click();
+  await tab.getByTestId("bar-files").click();
   await expect(tab.locator('[role="tree"]')).toBeVisible();
+  await expect(tab.getByTestId("section-row")).toHaveCount(0);
 });
 
-test("the sections panel folds too, and says how many it is hiding", async ({
+test("a second press on the drawer's icon folds it, and the bar stays", async ({
   tab,
 }) => {
-  await tab.getByTestId("sections-toggle").click();
-  await expect(tab.getByTestId("section-row")).toHaveCount(0);
-  await expect(tab.getByTestId("sections-panel")).toContainText("3");
+  await expect(tab.getByTestId("drawer")).toBeVisible();
+  await tab.getByTestId("bar-files").click();
+  await expect(tab.getByTestId("drawer")).toHaveCount(0);
+  await expect(tab.getByTestId("activity-bar")).toBeVisible();
+  await expect(tab.getByTestId("bar-files")).toHaveAttribute("aria-pressed", "false");
+  await tab.getByTestId("bar-sections").click();
+  await expect(tab.getByTestId("drawer")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveAttribute("data-drawer", "sections");
+  // The keyboard goes with the press: the drawer just opened has focus,
+  // so a Tab walks its contents rather than the next icon on the bar.
+  const inDrawer = await tab.evaluate(() =>
+    Boolean(document.activeElement?.closest("[data-testid=drawer]")),
+  );
+  expect(inDrawer, "focus stayed on the bar after opening a drawer").toBe(true);
+});
+
+test("the bar is reachable on a phone, and its drawer overlays the panes", async ({
+  tab,
+}) => {
+  await tab.setViewportSize({ width: 390, height: 800 });
+  const bar = tab.getByTestId("activity-bar");
+  await expect(bar).toBeVisible();
+  const box = (await bar.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.width).toBe(44);
+  await tab.getByTestId("bar-files").click();
+  await expect(tab.getByTestId("drawer")).toBeVisible();
+  await expect(tab.locator('[role="tree"]')).toBeVisible();
 });
 
 test("the sections list is one tab stop, walked with the arrows", async ({
   tab,
 }) => {
+  await sections(tab);
   // Forty headings would otherwise be forty tab stops between the file
   // tree and the trash, which is the same thing the tree itself fixed.
   const rows = tab.getByTestId("section-row");
@@ -155,6 +200,7 @@ test("an include for a file that is not there says so instead of doing nothing",
   await tab.getByTestId("file-search").fill("skeleton");
   await tab.locator('[role="tree"] [data-path="skeleton.tex"]').click();
   await tab.getByTestId("file-search").press("Escape");
+  await sections(tab);
 
   // A chapter not written yet is the normal state of a skeleton document,
   // and it is also the compile error coming next.
@@ -166,20 +212,15 @@ test("an include for a file that is not there says so instead of doing nothing",
   );
 });
 
-test("every panel in the rail stays inside it", async ({ app, project, page }) => {
-  // Two separate ways the rail came apart under a real project, and the
-  // first test written for it caught neither.
-  //
-  //   1. The panels below Files were pushed out of the pane entirely --
-  //      "What Claude reads" sat 184px below the bottom of a 700px window
-  //      with no way to scroll to it.
-  //   2. The file list was squeezed to *zero height* by the panels below
-  //      it, and a zero-height box does not hide what is inside it, so its
-  //      toolbar drew straight over the Sections header.  Reported from a
-  //      44-file dissertation with the context panel open.
-  //
-  // Both need a project big enough to run out of room; the template is far
-  // too small.
+test("the tree never gets a nested scrollbar, and every drawer stays inside the pane", async ({
+  app, project, page,
+}) => {
+  // Two separate ways the rail came apart under a real project when it
+  // was a stack of panels: the panels below Files were pushed out of the
+  // pane entirely, and the file list was squeezed to zero height by the
+  // panels below it.  With one drawer at a time neither can happen, and
+  // this holds it: a project big enough to run out of room, and each
+  // drawer in turn inside the pane with the one scroll box it owns.
   mkdirSync(join(project.root, "chapters"), { recursive: true });
   const includes: string[] = [];
   for (let i = 1; i <= 22; i += 1) {
@@ -195,70 +236,38 @@ test("every panel in the rail stays inside it", async ({ app, project, page }) =
     `\\documentclass{report}\n\\begin{document}\n${includes.join("\n")}\n\\end{document}\n`,
   );
 
-  await page.setViewportSize({ width: 1600, height: 700 });
+  await page.setViewportSize({ width: 800, height: 700 });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
   await openProject(page, project.root);
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 
-  // Everything the rail holds, open at once.
-  for (const name of [/Claude reads/i, /^Trash$/, /^Papers$/, /^Git\b/]) {
-    const toggle = page.getByRole("button", { name }).first();
-    if (!(await toggle.count())) continue;
-    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  for (const id of ["files", "sections", "trash", "papers", "git", "submit"]) {
+    await page.getByTestId(`bar-${id}`).click();
+    const drawer = page.getByTestId("drawer");
+    await expect(drawer).toHaveAttribute("data-drawer", id);
+    const measured = await drawer.evaluate((pane) => {
+      const box = pane.getBoundingClientRect();
+      // The scroll boxes inside the drawer: the drawer's own body and
+      // nothing nested inside that also scrolls, or the tree would get a
+      // scrollbar inside a scrollbar.
+      const scrollers = [...pane.querySelectorAll("*")].filter((el) => {
+        const style = getComputedStyle(el);
+        return /auto|scroll/.test(style.overflowY) && el.scrollHeight > el.clientHeight;
+      });
+      const nested = scrollers.filter((el) =>
+        scrollers.some((other) => other !== el && other.contains(el)),
+      );
+      const out = [...pane.querySelectorAll("*")].filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && (r.left < box.left - 1 || r.right > box.right + 1);
+      });
+      return { nested: nested.length, out: out.length, height: box.height };
+    });
+    expect(measured.nested, `${id}: a scroll box inside a scroll box`).toBe(0);
+    expect(measured.out, `${id}: something hangs out of the drawer sideways`).toBe(0);
+    expect(measured.height).toBeGreaterThan(300);
   }
-  await page.waitForTimeout(400);
-
-  const rail = await page.evaluate(() => {
-    const bar = document.querySelector('[data-testid="files-toggle"]');
-    const pane = bar?.closest(".nx-pane") as HTMLElement | null;
-    if (!pane) return null;
-    const list = document.querySelector('[role="tree"]') as HTMLElement | null;
-    const treeRoot = list?.parentElement as HTMLElement | null;
-    const toolbar = treeRoot?.firstElementChild as HTMLElement | null;
-    const box = (e: Element | null) =>
-      e ? e.getBoundingClientRect() : null;
-    const named = /^(Files|Sections|Trash|Papers|Git)|Claude reads/i;
-    // The stack scrolls, deliberately, when the panels it holds add up to
-    // more than the pane. A header below the pane's bottom edge is only a
-    // fault when it cannot be scrolled to, which is what the first bug
-    // above was: so the slack the stack can scroll through is allowed,
-    // and only when the stack really does scroll.
-    const stack = bar?.parentElement as HTMLElement | null;
-    const scrolls = stack
-      ? /auto|scroll/.test(getComputedStyle(stack).overflowY)
-      : false;
-    const slack = stack && scrolls ? stack.scrollHeight - stack.clientHeight : 0;
-    return {
-      paneBottom: Math.round(pane.getBoundingClientRect().bottom),
-      treeHeight: Math.round(box(treeRoot)?.height ?? -1),
-      toolbarBottom: Math.round(box(toolbar)?.bottom ?? -1),
-      treeBottom: Math.round(box(treeRoot)?.bottom ?? -1),
-      panels: [...pane.querySelectorAll("button[aria-expanded]")]
-        .filter((n) => named.test((n.textContent ?? "").trim()))
-        .map((n) => ({
-          label: (n.textContent ?? "").trim().slice(0, 20),
-          over: Math.round(
-            n.getBoundingClientRect().bottom - pane.getBoundingClientRect().bottom - slack,
-          ),
-        })),
-    };
-  });
-
-  expect(rail).not.toBeNull();
-  // 1. Nothing hangs out of the bottom of the pane beyond where it can be
-  //    scrolled to.
-  expect(rail!.panels.length).toBeGreaterThan(2);
-  for (const panel of rail!.panels) {
-    expect(panel.over, `"${panel.label}" hangs ${panel.over}px below the rail, out of reach`)
-      .toBeLessThanOrEqual(0);
-  }
-  // 2. The file list keeps a real height, and its toolbar stays inside it --
-  //    a zero-height box still draws its children, over whatever follows.
-  expect(rail!.treeHeight, "the file list was squeezed to nothing")
-    .toBeGreaterThan(40);
-  expect(rail!.toolbarBottom, "the files toolbar is drawn outside the file list")
-    .toBeLessThanOrEqual(rail!.treeBottom);
 });
 
 test("a bar above the source says which section the top of the pane is in", async ({

@@ -71,9 +71,14 @@ export function asText(report: SubmitReport): string {
 }
 
 export default function SubmitPanel({
+  drawer = false,
   onJump,
   onPage,
 }: {
+  /** Inside the activity bar's drawer, which draws the heading row and
+   *  holds one instrument at a time: the panel's own header is not drawn
+   *  and its body is always open. */
+  drawer?: boolean;
   onJump: (file: string, line: number) => void;
   onPage: (page: number) => void;
 }) {
@@ -83,6 +88,7 @@ export default function SubmitPanel({
   const stamp = useStore((s) => s.pdfStamp);
   const tools = useStore((s) => s.tools);
   const [open, setOpen] = useState(false);
+  const shown = drawer || open;
   const [report, setReport] = useState<SubmitReport | null>(null);
   const [checking, setChecking] = useState(false);
   const [said, setSaid] = useState("");
@@ -111,14 +117,14 @@ export default function SubmitPanel({
   // A new build changes the answer, so an open panel that has checked once
   // checks again when the page redraws; a closed one waits to be opened.
   useEffect(() => {
-    if (open && report) void check();
+    if (shown && report) void check();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stamp]);
 
   // The two venue facts change the list, and the settings sheet or a
   // co-author may have changed them: re-check when they do.
   useEffect(() => {
-    if (open && report) void check();
+    if (shown && report) void check();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.blind, settings.pageLimit]);
 
@@ -146,20 +152,22 @@ export default function SubmitPanel({
       : `Before you submit · ${report.findings.length}${errors ? ` (${errors} to fix)` : ""}`;
 
   return (
-    <div className="shrink-0 border-t border-line" data-testid="submit-panel">
-      <button
-        className="flex h-[26px] w-full items-center gap-2 px-[10px] text-left hover:bg-surface-2"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="t-meta min-w-0 flex-1 truncate text-ink-2">{label}</span>
-        <span className={`shrink-0 text-ink-3 ${open ? "rotate-90" : ""}`}>
-          <Chevron direction="right" />
-        </span>
-      </button>
+    <div className={drawer ? "flex min-h-0 flex-1 flex-col" : "shrink-0 border-t border-line"} data-testid="submit-panel">
+      {drawer ? null : (
+        <button
+          className="flex h-[26px] w-full items-center gap-2 px-[10px] text-left hover:bg-surface-2"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="t-meta min-w-0 flex-1 truncate text-ink-2">{label}</span>
+          <span className={`shrink-0 text-ink-3 ${open ? "rotate-90" : ""}`}>
+            <Chevron direction="right" />
+          </span>
+        </button>
+      )}
 
-      {open ? (
-        <div className="border-t border-line px-[10px] py-2" data-testid="submit-body">
+      {shown ? (
+        <div className={drawer ? "min-h-0 flex-1 overflow-auto px-[10px] py-2" : "border-t border-line px-[10px] py-2"} data-testid="submit-body">
           <div className="flex items-center gap-2">
             <button
               className="ghost-button h-[22px] px-2 t-micro"

@@ -26,7 +26,7 @@ test("an action, a setting and a file are each one box away", async ({ tab }) =>
   await expect(palette.getByTestId("palette-row").first()).toContainText("Reading mode");
   await tab.keyboard.press("Enter");
   await expect(palette).toHaveCount(0);
-  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveCount(0);
   palette = await open(tab);
   await tab.keyboard.type("reading");
   await tab.keyboard.press("Enter");
@@ -62,9 +62,9 @@ test("the chords the registry took over still answer", async ({ tab }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
   // Mod-B hides the left column.
   await tab.keyboard.press("Control+b");
-  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveCount(0);
   await tab.keyboard.press("Control+b");
-  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+  await expect(tab.getByTestId("drawer")).toBeVisible();
   // Mod-Alt-A shows or hides the agent: its composer is on screen in
   // exactly one of the two states.
   const composer = tab.locator("textarea").last();

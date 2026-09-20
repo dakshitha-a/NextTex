@@ -19,13 +19,18 @@ import Patch from "./Patch";
  *  remembered per project. It was the one thing in the rail that could not
  *  fold, and the first-run card is the tallest thing the rail holds. */
 export default function GitPanel({
-  open,
+  open = false,
   onToggle,
   onOpen,
+  drawer = false,
 }: {
-  open: boolean;
-  onToggle: () => void;
+  open?: boolean;
+  onToggle?: () => void;
   onOpen?: (path: string) => void;
+  /** Inside the activity bar's drawer, which draws the heading row and
+   *  holds one instrument at a time: the panel's own header is not drawn
+   *  and its body is always open. */
+  drawer?: boolean;
 }) {
   const projectId = useStore((s) => s.projectId);
   const projectName = useStore((s) => s.projectName);
@@ -87,23 +92,25 @@ export default function GitPanel({
   const dirty = status?.repository ? status.changes.length : 0;
 
   return (
-    <div className="shrink-0 border-t border-line" data-testid="git-panel">
-      <button
-        className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-        aria-expanded={open}
-        data-testid="git-toggle"
-        onClick={onToggle}
-      >
-        <span className="t-micro text-ink-2">Git</span>
-        <span className="flex items-center gap-2">
-          {/* How much the panel is hiding, as Files and Sections say. */}
-          {dirty ? <span className="t-micro tnum text-ink-3">{dirty}</span> : null}
-          <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
-            <Chevron direction="down" />
+    <div className={drawer ? "flex min-h-0 flex-1 flex-col overflow-auto" : "shrink-0 border-t border-line"} data-testid="git-panel">
+      {drawer ? null : (
+        <button
+          className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+          aria-expanded={open}
+          data-testid="git-toggle"
+          onClick={onToggle}
+        >
+          <span className="t-micro text-ink-2">Git</span>
+          <span className="flex items-center gap-2">
+            {/* How much the panel is hiding, as Files and Sections say. */}
+            {dirty ? <span className="t-micro tnum text-ink-3">{dirty}</span> : null}
+            <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
+              <Chevron direction="down" />
+            </span>
           </span>
-        </span>
-      </button>
-      {open ? body() : null}
+        </button>
+      )}
+      {drawer || open ? body() : null}
     </div>
   );
 

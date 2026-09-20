@@ -1,6 +1,6 @@
 import { Button, IconButton } from "./ui/Button";
 import { shellTheme } from "./ui/FloatingCard";
-import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense, type ReactNode } from "react";
 import type { WordHint } from "./panes/locate-word";
 import api, {
   captureToken, countOf, engineOf, landingAfter, shellEscapeOf,
@@ -14,7 +14,6 @@ import Patch from "./panes/Patch";
 import {
   ShareIcon,
   DownloadMenu,
-  AppControls,
   Chevron,
   download,
   downloadExport,
@@ -105,6 +104,11 @@ import Chat, { type ChatHandle } from "./panes/Chat";
 import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
+import {
+  ContextIcon, FileIcon, FoldIcon, GitIcon, HistoryIcon, PapersIcon, SearchIcon,
+  SectionsIcon, SubmitIcon, TrashIcon,
+} from "./ui/icons";
+import { agentName, type Provider } from "./agent-name";
 import Status from "./panes/Status";
 /** The error drawer, fetched when something opens it.
  *
@@ -155,11 +159,27 @@ const DRAWER_WITH_SUMMARY = 248;
 
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 
-/** How the rail's folding panels stand in a project with nothing stored.
- *  Git is open, so the card offering to keep versions is the first thing a
- *  new project shows; `recall` merges what is stored over this, so a
- *  project remembered from before the panel could fold gets the same. */
-const RAIL_DEFAULT = { files: true, sections: true, search: false, git: true };
+/** The drawers the activity bar offers, in the bar's order, and the one
+ *  a project with nothing stored opens on.  One drawer at a time: the
+ *  writer's reason, kept on the record in docs/design.md, is that a
+ *  project is either many short files or one long one with many sections,
+ *  so the tree or the outline stays open for long stretches and neither
+ *  may push the other out.  `context` is not on the bar: What Claude reads
+ *  is reached from the agent column, and moves into it with the column's
+ *  own rebuild. */
+export type DrawerId =
+  | "files" | "sections" | "search" | "papers" | "history" | "git" | "submit" | "trash" | "context";
+const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
+  { id: "files", title: "Files", Icon: () => <FileIcon size={18} /> },
+  { id: "sections", title: "Sections", Icon: () => <SectionsIcon size={18} /> },
+  { id: "search", title: "Search", Icon: () => <SearchIcon size={18} /> },
+  { id: "papers", title: "Papers", Icon: () => <PapersIcon size={18} /> },
+  { id: "history", title: "History", Icon: () => <HistoryIcon size={18} /> },
+  { id: "git", title: "Git", Icon: () => <GitIcon size={18} /> },
+  { id: "submit", title: "Before you submit", Icon: () => <SubmitIcon size={18} /> },
+  { id: "trash", title: "Deleted", Icon: () => <TrashIcon size={18} /> },
+];
+const DRAWER_DEFAULT: DrawerId = "files";
 
 /** The project the writer was in, so a reload comes back to the document. */
 const LAST_PROJECT = "nexttex.lastProject";
@@ -221,11 +241,9 @@ export default function App() {
   const [showing, setShowing] = useState<"source" | "preview">("source");
   const [contextRequest, setContextRequest] =
     useState<"style" | "voice" | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
   // Docked when the editor can spare the width; over it when it cannot.
   // The panel exists to be read *beside* the file, and an overlay that
   // covers the right third of a wrapped LaTeX line defeats it.
-  const [editorWide, setEditorWide] = useState(true);
   const [showingChanges, setShowingChanges] = useState(false);
   /** The patch drawn under the banner while a version is viewed: between
    *  the version and the live file, or between it and a second version
@@ -234,7 +252,7 @@ export default function App() {
   /** Which of the rail's folding panels are open.  Kept apart from
    *  `folded`, which is the pane layout the focus modes save and restore:
    *  these are sections inside one pane and have nothing to do with it. */
-  const [railOpen, setRailOpen] = useState(RAIL_DEFAULT);
+  const [drawerId, setDrawerId] = useState<DrawerId>(DRAWER_DEFAULT);
   // A nonce rather than a flag, so a second press of the shortcut while
   // the panel is already open puts the caret back in the box.
   const [focusSearch, setFocusSearch] = useState(0);
@@ -253,6 +271,8 @@ export default function App() {
     pdf: false,
     chat: false,
   });
+  // History is a drawer: open means the drawer is showing it.
+  const historyOpen = drawerId === "history" && !railHidden && !folded.rail;
   // Reading mode and writing mode: one pane with the window to itself.
   const [focus, setFocus] = useState<"editor" | "pdf" | null>(null);
   const beforeFocus = useRef<{
@@ -513,7 +533,14 @@ export default function App() {
     }
     // Reset first: a project with nothing stored gets the default, not
     // whatever the project before it was left in.
-    setRailOpen(recall(`nexttex.rail.${id}`, RAIL_DEFAULT));
+    // A stored drawer that no longer exists, or one that is not on the
+    // bar, comes back as the default rather than as an empty drawer.
+    const remembered = recall(`nexttex.drawer.${id}`, { open: DRAWER_DEFAULT }).open;
+    setDrawerId(
+      BAR_ITEMS.some((item) => item.id === remembered) || remembered === "context"
+        ? remembered
+        : DRAWER_DEFAULT,
+    );
     setFolded((current) => recall(`nexttex.folded.${id}`, current));
     setWidths(recall(`nexttex.widths.${id}`, DEFAULTS));
     // The files that were open last time, and the one that was in front.
@@ -613,23 +640,43 @@ export default function App() {
     });
   }, []);
 
-  /** Open or fold one of the rail's navigation panels, and remember which.
-   *  Kept out of `folded`, which the focus modes save and restore: these
-   *  are sections inside one pane rather than panes. */
-  const toggleRail = useCallback((which: keyof typeof RAIL_DEFAULT) => {
-    setRailOpen((current) => {
-      const next = { ...current, [which]: !current[which] };
-      const id = get().projectId;
-      try {
-        if (id) {
-          keep(`nexttex.rail.${id}`, next);
-        }
-      } catch {
-        /* private browsing: the app works, it just forgets */
-      }
-      return next;
-    });
+  /** Show a drawer, and remember which.  Kept out of `folded`, which the
+   *  focus modes save and restore: the choice of drawer is a choice inside
+   *  one pane rather than a pane. */
+  const openDrawer = useCallback((which: DrawerId) => {
+    setDrawerId(which);
+    railByHand.current = true;
+    setRailHidden(false);
+    setFolded((current) => (current.rail ? { ...current, rail: false } : current));
+    const id = get().projectId;
+    try {
+      if (id) keep(`nexttex.drawer.${id}`, { open: which });
+    } catch {
+      /* private browsing: the app works, it just forgets */
+    }
   }, []);
+  /** The bar's click: a second press on the drawer that is showing folds
+   *  it, any other press shows that one. */
+  const toggleDrawer = useCallback((which: DrawerId) => {
+    const showing = !railHiddenRef.current && !foldedRef.current.rail;
+    if (showing && drawerIdRef.current === which) {
+      railByHand.current = true;
+      setRailHidden(true);
+      return;
+    }
+    // Opened from the bar, the drawer takes the keyboard: the press was
+    // asking for it, and a Tab that went to the next icon instead would
+    // walk the bar rather than the thing just opened.
+    drawerWantsFocus.current = true;
+    openDrawer(which);
+  }, [openDrawer]);
+  const drawerWantsFocus = useRef(false);
+  const drawerEl = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!drawerWantsFocus.current) return;
+    drawerWantsFocus.current = false;
+    drawerEl.current?.focus({ preventScroll: true });
+  }, [drawerId, railHidden, folded.rail]);
 
   /** Go to a heading in the Sections list.  A row standing for an
    *  `\include` opens the file it names; every other row moves the caret
@@ -819,7 +866,10 @@ export default function App() {
     editor.current?.backToNow();
     if (get().viewing) set({ viewing: null });
     setShowingChanges(false);
-    setHistoryOpen(false);
+    // Closing History folds the drawer, as the second press on its icon
+    // does; the drawer remembers History, so the icon brings it back.
+    railByHand.current = true;
+    setRailHidden(true);
   }, []);
 
   /** Leaving the file stops viewing its past.
@@ -911,10 +961,7 @@ export default function App() {
   const symbolRequest = useStore((s) => s.symbolRequest);
   useEffect(() => {
     if (!symbolRequest) return;
-    railByHand.current = true;
-    setRailHidden(false);
-    setFolded((current) => ({ ...current, rail: false }));
-    setRailOpen((current) => (current.search ? current : { ...current, search: true }));
+    openDrawer("search");
   }, [symbolRequest?.nonce]);
 
   // ---- events from the server ------------------------------------------
@@ -1140,7 +1187,6 @@ export default function App() {
       const editorWidth = toShell(editorPane.current?.getBoundingClientRect().width ?? 0);
       const pdfWidth = toShell(pdfPane.current?.getBoundingClientRect().width ?? 0);
       const pair = editorWidth + pdfWidth;
-      setEditorWide(editorWidth > 700);
 
       // The browser reads a divider drag as a text selection too, and left
       // the status strip and the gutter highlighted afterwards.
@@ -1211,6 +1257,8 @@ export default function App() {
   focusRef.current = focus;
   const railHiddenRef = useRef(railHidden);
   railHiddenRef.current = railHidden;
+  const drawerIdRef = useRef(drawerId);
+  drawerIdRef.current = drawerId;
   const showingRef = useRef(showing);
   showingRef.current = showing;
 
@@ -1229,17 +1277,6 @@ export default function App() {
     setChatOpen(foldedBeforeNarrow.current ?? true);
     foldedBeforeNarrow.current = null;
   }, [narrow]);
-
-  // The editor's width decides whether history docks or overlays.
-  useEffect(() => {
-    const pane = editorPane.current;
-    if (!pane) return;
-    const observer = new ResizeObserver((entries) => {
-      setEditorWide((entries[0]?.contentRect.width ?? 0) > 700);
-    });
-    observer.observe(pane);
-    return () => observer.disconnect();
-  }, [view]);
 
   // The rail folds away when there is no room and comes back when there is,
   // unless the user hid it themselves.
@@ -1769,19 +1806,13 @@ export default function App() {
         // Find in the project, from anywhere. Mod-F belongs to the
         // editor's own find panel and searches the file in front of you;
         // this is the same question asked of every file.
-        railByHand.current = true;
-        setRailHidden(false);
-        setFolded((current) => ({ ...current, rail: false }));
-        setRailOpen((current) => ({ ...current, search: true }));
+        openDrawer("search");
         setFocusSearch((count) => count + 1);
         break;
       case "quick-open":
         // Open a file by name: the filter row, the search, and Enter
         // opening the first match were all built and none had a key.
-        railByHand.current = true;
-        setRailHidden(false);
-        setFolded((current) => ({ ...current, rail: false }));
-        setRailOpen((current) => ({ ...current, files: true }));
+        openDrawer("files");
         set({ focusTreeSearch: state.focusTreeSearch + 1 });
         break;
       case "next-tab":
@@ -1824,7 +1855,7 @@ export default function App() {
         break;
       case "history":
         if (historyOpen) closeHistory();
-        else setHistoryOpen(true);
+        else openDrawer("history");
         break;
       case "share":
         setSharing(true);
@@ -2068,9 +2099,10 @@ export default function App() {
   }
 
   const editorFraction = widths.editor;
-  // Whether the rail went by hand or by window width, everything it holds
-  // has to be reachable from somewhere else.
-  const railFolded = railHidden || folded.rail;
+  // Whether the drawer is showing, and whether it overlays the panes rather
+  // than taking a column of its own; the bar is there either way.
+  const drawerShown = !(railHidden || folded.rail);
+  const drawerOver = width < BREAKPOINTS.rail;
 
   return (
     // Two elements rather than one, and which is which matters.  `nx-frame`
@@ -2081,188 +2113,235 @@ export default function App() {
     // browser scrolling a focused element into view and taking the whole
     // layout with it.  See the rules in styles.css for both.
     <div className="nx-frame bg-surround">
-    <div ref={shell} className="nx-shell relative flex h-full w-full bg-surround">
-      {railHidden || folded.rail ? (
-        <Collapsed
-          label="Files"
-          side="left"
-          onExpand={() => {
-            railByHand.current = true;
-            setRailHidden(false);
-            setFolded((current) => ({ ...current, rail: false }));
-          }}
+    <div ref={shell} className="nx-shell relative flex h-full w-full flex-col bg-surround">
+      {/* The title bar, full width above everything: the project and its
+          switcher, and at the right Share, Download and the drawer's fold.
+          Settings left it for the bar's bottom button, so a project has one
+          door to its settings. */}
+      <div
+        className="flex h-[40px] shrink-0 items-center gap-2 bg-surface-2 pl-[10px] pr-3"
+        data-testid="title-bar"
+      >
+        <button
+          className="flex min-w-0 items-center gap-2 transition-colors duration-[90ms] hover:text-hint"
+          data-testid="switch-project"
+          onClick={leaveProject}
+          title="Switch project"
+        >
+          <Logo size={18} />
+          <span className="t-ui-lg truncate">{projectName}</span>
+          <span className="text-ink-3"><Chevron direction="down" /></span>
+          <InstanceBadge />
+        </button>
+        <span className="flex-1" />
+        {/* Beside the project's own name, because sharing is a fact about
+            this project rather than about the install. */}
+        <Button
+          aria-label="Share this project"
+          title="Share this project with other people running NextTex"
+          data-testid="open-share"
+          onClick={() => setSharing(true)}
+        >
+          <ShareIcon /> Share
+        </Button>
+        <DownloadMenu
+          onZip={() => projectId && void downloadZip(projectId)}
+          onPdf={(document) => projectId && downloadPdf(projectId, document)}
+          onExport={(document, format) => projectId && void downloadExport(projectId, document, format)}
         />
-      ) : (
+        <IconButton
+          label={drawerShown ? "Fold the drawer away" : "Show the drawer"}
+          data-testid="fold-drawer"
+          aria-pressed={drawerShown}
+          onClick={() => toggleDrawer(drawerId)}
+        >
+          <FoldIcon />
+        </IconButton>
+      </div>
+      <div className="relative flex min-h-0 flex-1">
+      {/* The activity bar: one button per drawer, the one showing marked by
+          ink and the wash, Settings pinned at the bottom.  Always on
+          screen; below the rail breakpoint the drawer it opens overlays
+          the panes instead of taking a column. */}
+      <nav
+        aria-label="Drawers"
+        data-testid="activity-bar"
+        className="flex w-[44px] shrink-0 flex-col items-center gap-[2px] bg-surface-2 pt-2"
+      >
+        {BAR_ITEMS.map(({ id, title, Icon }) => (
+          <IconButton
+            key={id}
+            label={title}
+            data-testid={`bar-${id}`}
+            className="nx-bar-button"
+            on={drawerShown && drawerId === id}
+            aria-pressed={drawerShown && drawerId === id}
+            onClick={() => toggleDrawer(id)}
+          >
+            <Icon />
+          </IconButton>
+        ))}
+        {/* What the agent reads, on the bar until the agent column takes
+            it in (the direction puts it there; the column's rebuild is
+            the item that moves it).  Nothing to offer with no agent. */}
+        {noAgent ? null : (
+          <IconButton
+            label={`What ${agentName(agentProvider as Provider | undefined)} reads`}
+            data-testid="bar-context"
+            className="nx-bar-button"
+            on={drawerShown && drawerId === "context"}
+            aria-pressed={drawerShown && drawerId === "context"}
+            onClick={() => toggleDrawer("context")}
+          >
+            <ContextIcon size={18} />
+          </IconButton>
+        )}
+        <div className="mb-2 mt-auto">
+          <Settings
+            inProject
+            onTutorial={openTutorial}
+            onChangeAgent={changeAgent}
+            openNonce={settingsNonce}
+          />
+        </div>
+      </nav>
+      {drawerShown ? (
         <>
           <div
-            className="nx-pane flex min-h-0 shrink-0 flex-col bg-surface-2"
+            className={
+              drawerOver
+                ? "nx-pane absolute left-[44px] top-0 z-30 flex h-full flex-col bg-surface-2 shadow-float outline-none"
+                : "nx-pane flex min-h-0 shrink-0 flex-col bg-surface-2 outline-none"
+            }
             style={{ width: widths.rail }}
+            data-testid="drawer"
+            data-drawer={drawerId}
+            ref={drawerEl}
+            tabIndex={-1}
           >
-            {/* No rule under this: the Files header below carries it, so
-                the project name and the panel stack are divided once. */}
-            <div className="flex h-[32px] shrink-0 items-center justify-between px-[10px]">
-              <button
-                className="flex min-w-0 items-center gap-2 transition-colors duration-[90ms] hover:text-hint"
-                data-testid="switch-project"
-                onClick={leaveProject}
-                title="Switch project"
-              >
-                <Logo size={18} />
-                <span className="t-ui-lg truncate">{projectName}</span>
-                <InstanceBadge />
-              </button>
-              <div className="flex items-center">
-                {/* Beside the project's own name, because sharing is a fact
-                    about this project rather than about the install. */}
-                <IconButton
-                  label="Share this project"
-                  title="Share this project with other people running NextTex"
-                  data-testid="open-share"
-                  onClick={() => setSharing(true)}
-                >
-                  <ShareIcon />
-                </IconButton>
-                <Settings
-                  inProject
-                  onTutorial={openTutorial}
-                  onChangeAgent={changeAgent}
-                  openNonce={settingsNonce}
-                />
-                {/* Two buttons that both mean "give me a copy" were two
-                    words competing with the project's name for a 32px bar.
-                    One icon, and the choice inside it. */}
-                <DownloadMenu
-                  onZip={() => projectId && void downloadZip(projectId)}
-                  onPdf={(document) => projectId && downloadPdf(projectId, document)}
-                  onExport={(document, format) => projectId && void downloadExport(projectId, document, format)}
-                />
-                <FoldButton
-                  direction="left"
-                  label="Fold the file list away"
-                  onClick={() => fold("rail")}
-                />
-              </div>
-            </div>
-            {/* The panels scroll as a stack when they do not all fit.
-                Every expanded panel below Files is `shrink-0` -- correct,
-                because a list squeezed to two rows is worse than one you
-                scroll to -- but the column had no answer for the case where
-                their natural heights add up to more than the rail is tall,
-                and they simply drew over each other.  Opening Files,
-                Sections and the context panel together was enough to do it.
-
-                min-h-0 as well as overflow: a flex child will not scroll
-                until it is allowed to be shorter than its content, and
-                without it this scrolls the window instead. */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-              {/* Files and Sections are both navigation, and both fold, so
-                  the rail reads as one stack of panels rather than a tree
-                  with some panels bolted underneath it. */}
-              <button
-                className="flex h-[26px] shrink-0 items-center justify-between border-t border-line px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-                aria-expanded={railOpen.files}
-                data-testid="files-toggle"
-                onClick={() => toggleRail("files")}
-              >
-                <span className="t-micro text-ink-2">Files</span>
-                {/* The count, as the Sections header one row down has
-                    always carried one. Two panels in the same stack with
-                    the same header shape, one saying how much it is
-                    hiding and the other saying nothing, is a difference a
-                    reader has to notice and then explain. */}
-                <span className="flex items-center gap-2">
-                  {fileCount ? (
-                    <span className="t-micro text-ink-3">{fileCount}</span>
-                  ) : null}
-                  <span className={`text-ink-3 ${railOpen.files ? "rotate-180" : ""}`}>
-                    <Chevron direction="down" />
-                  </span>
-                </span>
-              </button>
-              {/* Unmounted rather than hidden when folded: the tree owns a
-                  type-ahead and a roving tab stop, and both would still be
-                  reachable from the keyboard behind a closed panel. */}
-              {railOpen.files ? (
-                <FileTree
-                onPreview={startPreviewing}
-                onUnpreview={stopPreviewing}
-                  onOpen={openFile}
-                  onRefresh={refreshTree}
-                  onRename={renameOpenFile}
-                  onDeleted={(path) => {
-                    // Closed here as well as on the event, so the window
-                    // that did the deleting does not show the dead tab for
-                    // the round trip.
-                    const closing = tabsUnder(get().tabs, [path]);
-                    if (closing.length) void closeMany(closing);
-                  }}
-                  onDuplicate={duplicateFile}
-                  onHistory={() => setHistoryOpen(true)}
-                  onAskAbout={noAgent ? undefined : askAboutSelection}
-                  onRunScript={(path) => {
-                    openFile(path);
-                    void runScript(path);
-                  }}
-                />
-              ) : null}
-              {/* Under Files, because it answers the same question the
-                  filter row above it answers and answers it about the
-                  contents rather than the names. The header is here
-                  rather than inside the panel so that the panel itself
-                  can be fetched when it is opened. */}
-              <button
-                className="flex h-[26px] shrink-0 items-center justify-between border-t border-line px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-                aria-expanded={railOpen.search}
-                data-testid="search-toggle"
-                onClick={() => toggleRail("search")}
-              >
-                <span className="t-micro text-ink-2">Search</span>
-                <span className={`text-ink-3 ${railOpen.search ? "rotate-180" : ""}`}>
-                  <Chevron direction="down" />
-                </span>
-              </button>
-              {railOpen.search ? (
-                <Suspense fallback={null}>
-                  <SearchPanel onOpen={openFile} focusNonce={focusSearch} />
-                </Suspense>
-              ) : null}
+            {drawerId === "history" ? (
+              // History draws its own heading row: the title, the file it
+              // is about, and the close control.
               <Suspense fallback={null}>
+            <HistoryPanel
+              onCompare={async (other) => {
+                const pair = editor.current?.viewed();
+                const shown = get().viewing?.version;
+                if (!projectId || !pair || !shown) return;
+                try {
+                  const path = get().viewing?.path ?? "";
+                  const fetched = await api.historyVersion(projectId, path, other.sha);
+                  // Older on the left, whichever was clicked, so a
+                  // patch always reads forwards in time.
+                  const forwards = other.at >= shown.at;
+                  const name = path.split("/").pop() ?? "";
+                  const when = new Date(other.at).toLocaleTimeString([], {
+                    hour: "2-digit", minute: "2-digit",
+                  });
+                  setPatchView({
+                    title: forwards
+                      ? `From the version on screen to the one from ${when}`
+                      : `From the version from ${when} to the one on screen`,
+                    text: createTwoFilesPatch(
+                      name, name,
+                      forwards ? pair.old : fetched.text,
+                      forwards ? fetched.text : pair.old,
+                      "", "", { context: 2 },
+                    ),
+                  });
+                } catch (error: any) {
+                  set({ error: error.message });
+                }
+              }}
+              docked
+              onView={viewVersion}
+              onOpen={(path) => openFile(path)}
+              onClose={closeHistory}
+            />
+              </Suspense>
+            ) : (
+              <>
+                <div className="flex shrink-0 items-center gap-[2px] pb-[6px] pl-[14px] pr-2 pt-[10px]">
+                  <span className="t-ui-lg flex-1 truncate text-ink">
+                    {BAR_ITEMS.find((item) => item.id === drawerId)?.title ?? `What ${agentName(agentProvider as Provider | undefined)} reads`}
+                  </span>
+                  {drawerId === "files" && fileCount ? (
+                    <span className="t-meta tnum pr-1 text-ink-3">{fileCount}</span>
+                  ) : null}
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                  {drawerId === "files" ? (
+            <FileTree
+            onPreview={startPreviewing}
+            onUnpreview={stopPreviewing}
+              onOpen={openFile}
+              onRefresh={refreshTree}
+              onRename={renameOpenFile}
+              onDeleted={(path) => {
+                // Closed here as well as on the event, so the window
+                // that did the deleting does not show the dead tab for
+                // the round trip.
+                const closing = tabsUnder(get().tabs, [path]);
+                if (closing.length) void closeMany(closing);
+              }}
+              onDuplicate={duplicateFile}
+              onHistory={() => openDrawer("history")}
+              onAskAbout={noAgent ? undefined : askAboutSelection}
+              onRunScript={(path) => {
+                openFile(path);
+                void runScript(path);
+              }}
+            />
+                  ) : null}
+                  {drawerId === "search" ? (
+                    <Suspense fallback={null}>
+                      <SearchPanel onOpen={openFile} focusNonce={focusSearch} />
+                    </Suspense>
+                  ) : null}
+                  <Suspense fallback={null}>
+                    {drawerId === "sections" ? (
                 <SectionsPanel
-                  open={railOpen.sections}
-                  onToggle={() => toggleRail("sections")}
+                  drawer
                   onJump={jumpToHeading}
-                  grow={!railOpen.files}
+                  grow
                   resolve={resolveInclude}
                 />
-                <TrashPanel onRefresh={refreshTree} />
-                <PapersPanel onRefresh={refreshTree} />
+                    ) : null}
+                    {drawerId === "trash" ? <TrashPanel drawer onRefresh={refreshTree} /> : null}
+                    {drawerId === "papers" ? <PapersPanel drawer onRefresh={refreshTree} /> : null}
+                    {drawerId === "submit" ? (
                 <SubmitPanel
+                  drawer
                   onJump={(file, line) => openFile(file, line)}
                   onPage={(page) => pdf.current?.goTo(page)}
                 />
-                {/* What the agent reads is nothing to offer when there is no
-                    agent.  The trash, the papers and the git panel all stay:
-                    none of them is about a model. */}
-                {noAgent ? null : (
+                    ) : null}
+                    {drawerId === "context" && !noAgent ? (
                   <ContextPanel
+                    drawer
                     openFor={contextRequest}
                     onHandled={() => setContextRequest(null)}
                   />
-                )}
+                    ) : null}
+                    {drawerId === "git" ? (
                 <GitPanel
-                  open={railOpen.git}
-                  onToggle={() => toggleRail("git")}
+                  drawer
                   onOpen={openFile}
                 />
-              </Suspense>
-            </div>
+                    ) : null}
+                  </Suspense>
+                </div>
+              </>
+            )}
           </div>
-          <Handle
-            onPointerDown={startDrag("rail")}
-            onReset={() => setWidths((current) => ({ ...current, rail: DEFAULTS.rail }))}
-          />
+          {drawerOver ? null : (
+            <Handle
+              onPointerDown={startDrag("rail")}
+              onReset={() => setWidths((current) => ({ ...current, rail: DEFAULTS.rail }))}
+            />
+          )}
         </>
-      )}
+      ) : null}
 
       <div className="flex min-w-0 flex-1">
         {folded.editor && !tight ? (
@@ -2298,20 +2377,6 @@ export default function App() {
             // The tab in front and the empty run of the strip: fold, or
             // double-click for writing mode.  Below 900px nothing folds.
             onHeaderClick={!tight ? () => headerClick("editor") : undefined}
-            // Nothing is lost when the rail folds away: the project name,
-            // its switcher, the theme and the downloads move here.
-            leading={
-              railFolded ? (
-                <AppControls
-                  projectId={projectId}
-                  projectName={projectName}
-                  onSwitch={leaveProject}
-                  onTutorial={openTutorial}
-                  onChangeAgent={changeAgent}
-                  settingsNonce={settingsNonce}
-                />
-              ) : undefined
-            }
             trailing={
               tight ? (
                 <Segmented value={showing} onChange={setShowing} />
@@ -2436,45 +2501,6 @@ export default function App() {
                 </div>
               ) : null}
             </div>
-            {historyOpen ? (
-              <Suspense fallback={null}>
-                <HistoryPanel
-                  onCompare={async (other) => {
-                    const pair = editor.current?.viewed();
-                    const shown = get().viewing?.version;
-                    if (!projectId || !pair || !shown) return;
-                    try {
-                      const path = get().viewing?.path ?? "";
-                      const fetched = await api.historyVersion(projectId, path, other.sha);
-                      // Older on the left, whichever was clicked, so a
-                      // patch always reads forwards in time.
-                      const forwards = other.at >= shown.at;
-                      const name = path.split("/").pop() ?? "";
-                      const when = new Date(other.at).toLocaleTimeString([], {
-                        hour: "2-digit", minute: "2-digit",
-                      });
-                      setPatchView({
-                        title: forwards
-                          ? `From the version on screen to the one from ${when}`
-                          : `From the version from ${when} to the one on screen`,
-                        text: createTwoFilesPatch(
-                          name, name,
-                          forwards ? pair.old : fetched.text,
-                          forwards ? fetched.text : pair.old,
-                          "", "", { context: 2 },
-                        ),
-                      });
-                    } catch (error: any) {
-                      set({ error: error.message });
-                    }
-                  }}
-                  docked={!tight && editorWide}
-                  onView={viewVersion}
-                  onOpen={(path) => openFile(path)}
-                  onClose={closeHistory}
-                />
-              </Suspense>
-            ) : null}
           </div>
           <Status
             words={words}
@@ -2611,15 +2637,6 @@ export default function App() {
                   <Segmented value={showing} onChange={setShowing} />
                 ) : (
                   <>
-                    {railFolded && folded.editor ? (
-                      <AppControls
-                        projectId={projectId}
-                        projectName={projectName}
-                        onSwitch={leaveProject}
-                        onTutorial={openTutorial}
-                        onChangeAgent={changeAgent}
-                      />
-                    ) : null}
                     <FoldButton
                       direction="right"
                       label="Fold the preview away"
@@ -2787,10 +2804,8 @@ export default function App() {
               }
               return;
             }
-            // The panel lives in the rail, so it has to be open to be used.
-            railByHand.current = true;
-            setRailHidden(false);
-            setFolded((current) => ({ ...current, rail: false }));
+            // The panel is a drawer until the column takes it in.
+            openDrawer("context");
             setContextRequest(kind);
           }}
           onFold={() => (chatOver ? setChatOpen(false) : fold("chat"))}
@@ -2845,6 +2860,7 @@ export default function App() {
             </Button>
           </div>
         ))}
+      </div>
       </div>
     </div>
     </div>

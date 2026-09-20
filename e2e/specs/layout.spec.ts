@@ -12,8 +12,8 @@ import { test, expect } from "../fixtures";
  */
 
 const composer = (page: any) => page.locator("textarea");
-const railFolded = (page: any) =>
-  page.getByRole("button", { name: "Show files" });
+/** The drawer is folded: the bar stays and nothing in the drawer shows. */
+const railFolded = (page: any) => page.getByTestId("drawer");
 
 /** The chat is slid off the edge rather than unmounted, so that reopening
  *  it is a transition and not a remount of the whole transcript.  What says
@@ -53,7 +53,7 @@ test("a wide window shows everything at once", async ({ tab }) => {
   await tab.setViewportSize({ width: 1600, height: 1000 });
   await expect(composer(tab)).toBeVisible();
   await chatThere(tab);
-  await expect(railFolded(tab)).toHaveCount(0);
+  await expect(railFolded(tab)).toBeVisible();
   await expect(tab.getByTestId("view-toggle")).toHaveCount(0);
   await expect(tab.locator(".cm-editor")).toBeVisible();
 });
@@ -62,15 +62,23 @@ test("below 1400 the chat stops taking a column of its own", async ({ tab }) => 
   await tab.setViewportSize({ width: 1200, height: 1000 });
   await chatAway(tab);
   // The files are still there: this width only costs the chat.
-  await expect(railFolded(tab)).toHaveCount(0);
+  await expect(railFolded(tab)).toBeVisible();
 });
 
-test("below 1100 the file rail folds to a strip that says where it went", async ({
+test("below 1100 the drawer folds away and the bar stays to bring it back", async ({
   tab,
 }) => {
   await tab.setViewportSize({ width: 1000, height: 1000 });
-  await expect(railFolded(tab)).toBeVisible();
+  await expect(railFolded(tab)).toHaveCount(0);
+  await expect(tab.getByTestId("activity-bar")).toBeVisible();
   await expect(tab.locator(".cm-editor")).toBeVisible();
+  // Brought back from the bar, it overlays the panes rather than taking a
+  // column the width cannot spare.
+  await tab.getByTestId("bar-files").click();
+  await expect(railFolded(tab)).toBeVisible();
+  const drawer = (await railFolded(tab).boundingBox())!;
+  const editor = (await tab.locator(".cm-editor").boundingBox())!;
+  expect(drawer.x + drawer.width).toBeGreaterThan(editor.x + 1);
 });
 
 /** How much of the interface is off the right hand edge, in pixels. */
@@ -164,7 +172,7 @@ test("double-clicking the preview header gives the page the window", async ({
   await tab.getByTestId("preview-header").dblclick();
 
   // Everything else folds to a strip, and the page is what is left.
-  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveCount(0);
   await expect(tab.getByTestId("collapsed-source")).toBeVisible();
   await expect(tab.locator('[role="tree"]')).toBeHidden();
   await expect(tab.locator(".cm-editor")).toBeHidden();
@@ -175,7 +183,7 @@ test("double-clicking the preview header gives the page the window", async ({
   await expect(tab.locator('[role="tree"]')).toBeVisible();
   await expect(tab.locator(".cm-editor")).toBeVisible();
   await expect(tab.getByTestId("chat")).toBeVisible();
-  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+  await expect(tab.getByTestId("drawer")).toBeVisible();
 });
 
 test("double-clicking the empty tab strip gives the source the window", async ({
@@ -189,7 +197,7 @@ test("double-clicking the empty tab strip gives the source the window", async ({
   // The file list stays: writing means moving between chapters, and a
   // mode that hides the way to the next one is a mode you leave at once.
   await expect(tab.locator('[role="tree"]')).toBeVisible();
-  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+  await expect(tab.getByTestId("drawer")).toBeVisible();
   await expect(tab.getByTestId("chat")).toBeHidden();
 
   await tab.getByTestId("tabs-blank").dblclick();
@@ -403,14 +411,14 @@ test("writing keeps the file list even where the window had hidden it", async ({
   // request for it, so it comes back -- and going back out returns the
   // window to what it was doing on its own.
   await tab.setViewportSize({ width: 1000, height: 900 });
-  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveCount(0);
 
   await tab.getByTestId("tabs-blank").dblclick();
   await expect(tab.locator('[role="tree"]')).toBeVisible();
   await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
 
   await tab.getByTestId("tabs-blank").dblclick();
-  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveCount(0);
 });
 
 test("the agent panel opens and closes from the keyboard, docked", async ({
@@ -478,7 +486,7 @@ test("reading mode still gives the overlay back", async ({ tab }) => {
   // switcher, or the second click leaves the document.
   const header = tab.getByTestId("preview-header");
   await header.dblclick({ position: { x: 20, y: 16 } });
-  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveCount(0);
   await header.dblclick({ position: { x: 20, y: 16 } });
   await chatThere(tab);
   await expect(tab.locator(".cm-editor")).toBeVisible();
@@ -604,16 +612,17 @@ test("a parked overlay cannot be reached, and cannot drag the layout", async ({
       };
     });
 
-  expect(await geometry()).toEqual({ scroll: 0, railX: 0 });
+  // The drawer sits after the 44 px bar.
+  expect(await geometry()).toEqual({ scroll: 0, railX: 44 });
   // Nothing inside a panel nobody can see is focusable or clickable.
   await expect(tab.getByTestId("model-open")).toBeHidden();
   await expect(tab.getByTestId("chat-panel")).toHaveAttribute("inert", "");
-  expect(await geometry()).toEqual({ scroll: 0, railX: 0 });
+  expect(await geometry()).toEqual({ scroll: 0, railX: 44 });
 
   // And it all comes back when the panel is actually opened.
   await tab.keyboard.press("Control+Alt+KeyA");
   await chatThere(tab);
-  expect((await geometry()).railX).toBe(0);
+  expect((await geometry()).railX).toBe(44);
 });
 
 /** Where the layout actually sits, in viewport pixels: what a screenshot of
@@ -696,7 +705,8 @@ for (const scale of [100, 110]) {
       opening.scroll,
       "the caret landing in the composer scrolled the shell sideways",
     ).toBe(0);
-    expect(opening.railX, "the file rail was dragged off the left").toBe(0);
+    // The drawer sits after the 44 px bar, in viewport pixels at the scale.
+    expect(opening.railX, "the file rail was dragged off the left").toBe(Math.round(44 * scale / 100));
 
     // And with the panel let go, it covers the right edge, with the pill
     // that opened it still outside it.
@@ -704,7 +714,7 @@ for (const scale of [100, 110]) {
     await tab.waitForTimeout(400);
     const settled = await placement(tab);
     expect(settled.scroll, "the shell is scrolled sideways").toBe(0);
-    expect(settled.railX, "the file rail was dragged off the left").toBe(0);
+    expect(settled.railX, "the file rail was dragged off the left").toBe(Math.round(44 * scale / 100));
     expect(
       Math.abs(settled.gap),
       "a band of bare ground beside the panel",
@@ -845,7 +855,7 @@ test("Ctrl-Alt-R is reading mode, and again gives the layout back", async ({ tab
   await tab.locator(".cm-content").click();
 
   await tab.keyboard.press("Control+Alt+r");
-  await expect(tab.getByTestId("collapsed-files")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveCount(0);
   await expect(tab.getByTestId("collapsed-source")).toBeVisible();
   await expect(tab.locator(".cm-editor")).toBeHidden();
   await expect(tab.getByTestId("preview-header")).toBeVisible();
@@ -853,7 +863,7 @@ test("Ctrl-Alt-R is reading mode, and again gives the layout back", async ({ tab
   await tab.keyboard.press("Control+Alt+r");
   await expect(tab.locator('[role="tree"]')).toBeVisible();
   await expect(tab.locator(".cm-editor")).toBeVisible();
-  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+  await expect(tab.getByTestId("drawer")).toBeVisible();
   // The agent stays put away, exactly as it was.
   await expect(tab.getByTestId("chat")).toBeHidden();
 });
@@ -868,7 +878,7 @@ test("Ctrl-Alt-E is writing mode, keeps the file list, and again gives the layou
   await expect(tab.getByTestId("collapsed-preview")).toBeVisible();
   await expect(tab.locator(".cm-editor")).toBeVisible();
   await expect(tab.locator('[role="tree"]')).toBeVisible();
-  await expect(tab.getByTestId("collapsed-files")).toHaveCount(0);
+  await expect(tab.getByTestId("drawer")).toBeVisible();
   await expect(tab.getByTestId("chat")).toBeHidden();
 
   await tab.keyboard.press("Control+Alt+e");

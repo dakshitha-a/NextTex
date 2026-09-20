@@ -144,17 +144,18 @@ export function DownloadMenu({ onZip, onPdf, onExport }: {
 
   return (
     <div className="relative flex items-center">
-      <IconButton
+      {/* A labelled quiet button, as the title bar draws it on the page. */}
+      <Button
         ref={trigger}
-        label="Download a copy"
+        aria-label="Download a copy"
+        title="Download a copy"
         aria-haspopup="menu"
         aria-expanded={open}
         data-testid="open-download"
-        on={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <DownloadIcon />
-      </IconButton>
+        <DownloadIcon /> Download
+      </Button>
       {/* The kit's menu with the grid walk: a row per document, a chip per
           format, 320 wide so a stem gets a readable run beside four chips. */}
       <Menu

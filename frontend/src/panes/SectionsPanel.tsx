@@ -17,20 +17,25 @@ const INDENT = 13;
  *  when main.tex is in front, and the section list for a chapter when the
  *  chapter is. */
 export default function SectionsPanel({
-  open,
+  open = false,
   onToggle,
   onJump,
   grow,
   /** How an included path is resolved, so a row can say whether the file
    *  it names is actually there. */
   resolve,
+  drawer = false,
 }: {
-  open: boolean;
-  onToggle: () => void;
+  open?: boolean;
+  onToggle?: () => void;
   onJump: (heading: Heading) => void;
   /** True when the file list is folded away and there is room to spare. */
   grow: boolean;
   resolve: (path: string) => string | undefined;
+  /** Inside the activity bar's drawer, which draws the heading row and
+   *  holds one instrument at a time: the panel's own header is not drawn
+   *  and its body is always open. */
+  drawer?: boolean;
 }) {
   const headings = useStore((s) => s.outline);
   const line = useStore((s) => s.cursor.line);
@@ -87,32 +92,35 @@ export default function SectionsPanel({
     rows?.[clamped]?.focus();
   };
 
+  const shown = drawer || open;
   return (
     <div
-      className={`border-t border-line ${
-        open && grow
+      className={`${drawer ? "" : "border-t border-line "}${
+        shown && grow
           ? "flex min-h-[104px] flex-1 flex-col overflow-hidden"
           : "shrink-0"
       }`}
       data-testid="sections-panel"
     >
-      <button
-        className="flex h-[26px] w-full shrink-0 items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-        aria-expanded={open}
-        data-testid="sections-toggle"
-        onClick={onToggle}
-      >
-        <span className="t-micro text-ink-2">Sections</span>
-        <span className="flex items-center gap-2">
-          {headings.length ? (
-            <span className="t-micro text-ink-3">{headings.length}</span>
-          ) : null}
-          <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
-            <Chevron direction="down" />
+      {drawer ? null : (
+        <button
+          className="flex h-[26px] w-full shrink-0 items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+          aria-expanded={open}
+          data-testid="sections-toggle"
+          onClick={onToggle}
+        >
+          <span className="t-micro text-ink-2">Sections</span>
+          <span className="flex items-center gap-2">
+            {headings.length ? (
+              <span className="t-micro text-ink-3">{headings.length}</span>
+            ) : null}
+            <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
+              <Chevron direction="down" />
+            </span>
           </span>
-        </span>
-      </button>
-      {open ? (
+        </button>
+      )}
+      {shown ? (
         <div
           ref={list}
           className={`py-[4px] ${

@@ -28,9 +28,14 @@ const KINDS: {
 ];
 
 export default function ContextPanel({
+  drawer = false,
   openFor,
   onHandled,
 }: {
+  /** Inside the activity bar's drawer, which draws the heading row and
+   *  holds one instrument at a time: the panel's own header is not drawn
+   *  and its body is always open. */
+  drawer?: boolean;
   openFor?: "style" | "voice" | null;
   onHandled?: () => void;
 } = {}) {
@@ -38,6 +43,7 @@ export default function ContextPanel({
   const name = agentName(useStore((s) => s.agent?.provider));
   const stale = useStore((s) => s.contextStale);
   const [open, setOpen] = useState(false);
+  const shown = drawer || open;
   const [kind, setKind] = useState<"style" | "voice" | "source">("style");
   const input = useRef<HTMLInputElement | null>(null);
 
@@ -64,12 +70,12 @@ export default function ContextPanel({
   const [editing, setEditing] = useState<string | null>(null);
   const projectId = useStore((s) => s.projectId);
   useEffect(() => {
-    if (!open || !projectId) return;
+    if (!shown || !projectId) return;
     api.memory(projectId).then(setMemory).catch(() => undefined);
     // Keyed on the project as well. Without it, opening another project
     // with this panel already open showed the previous project's memory,
     // because neither `open` nor `documents` had changed.
-  }, [open, documents, projectId]);
+  }, [shown, documents, projectId]);
 
   // The reusable prompts a `/` in the composer names: the two that ship
   // and the project's own under `prompts/`. Fetched with the memory, and
@@ -78,7 +84,7 @@ export default function ContextPanel({
   const tree = useStore((s) => s.tree);
   const [prompts, setPrompts] = useState<PromptEntry[]>([]);
   useEffect(() => {
-    if (!open || !projectId) return;
+    if (!shown || !projectId) return;
     let live = true;
     api
       .prompts(projectId)
@@ -89,7 +95,7 @@ export default function ContextPanel({
     return () => {
       live = false;
     };
-  }, [open, projectId, tree]);
+  }, [shown, projectId, tree]);
 
   const copyPrompt = async (name: string) => {
     const projectId = get().projectId;
@@ -125,21 +131,23 @@ export default function ContextPanel({
   };
 
   return (
-    <div className="shrink-0 border-t border-line">
-      <button
-        className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <span className="t-micro text-ink-2">
-          What {name} reads {documents.length ? `(${documents.length})` : ""}
-        </span>
-        <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
-          <Chevron direction="down" />
-        </span>
-      </button>
-      {open ? (
-        <div className="px-[10px] pb-[8px]">
+    <div className={drawer ? "flex min-h-0 flex-1 flex-col" : "shrink-0 border-t border-line"} data-testid="context-panel">
+      {drawer ? null : (
+        <button
+          className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <span className="t-micro text-ink-2">
+            What {name} reads {documents.length ? `(${documents.length})` : ""}
+          </span>
+          <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
+            <Chevron direction="down" />
+          </span>
+        </button>
+      )}
+      {shown ? (
+        <div className={drawer ? "min-h-0 flex-1 overflow-auto px-[10px] pb-[8px]" : "px-[10px] pb-[8px]"}>
           {/* First, because it is the one thing here the writer dictated
               rather than uploaded -- and the only way to reach it: the
               folder it lives in is hidden from the file list. */}

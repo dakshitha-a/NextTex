@@ -7,7 +7,7 @@ import { Chevron } from "../chrome";
  *
  *  Nothing here is ever cleaned up on a timer: a trash that empties itself
  *  is a trash that loses the thing you went looking for. */
-export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
+export default function TrashPanel({ onRefresh, drawer = false }: { onRefresh: () => void; drawer?: boolean }) {
   const entries = useStore((s) => s.trash);
   const failed = useStore((s) => s.trashFailed);
   const projectId = useStore((s) => s.projectId);
@@ -58,22 +58,25 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
     }
   };
 
+  const shown = drawer || open;
   return (
-    <div className="shrink-0 border-t border-line">
-      <button
-        className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <span className="t-micro text-ink-2">
-          {entries.length} deleted
-        </span>
-        <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
-          <Chevron direction="down" />
-        </span>
-      </button>
-      {open ? (
-        <div className="max-h-[220px] overflow-auto pb-2">
+    <div className={drawer ? "flex min-h-0 flex-1 flex-col" : "shrink-0 border-t border-line"} data-testid="trash-panel">
+      {drawer ? null : (
+        <button
+          className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <span className="t-micro text-ink-2">
+            {entries.length} deleted
+          </span>
+          <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
+            <Chevron direction="down" />
+          </span>
+        </button>
+      )}
+      {shown ? (
+        <div className={drawer ? "min-h-0 flex-1 overflow-auto pb-2" : "max-h-[220px] overflow-auto pb-2"}>
           {entries.map((entry) => {
             const [stem, extension] = splitName(entry.name);
             return (
