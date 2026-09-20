@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import api, { type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
-import { Chevron, download } from "../chrome";
+import { download } from "../chrome";
+import { Button, IconButton } from "../ui/Button";
+import { Segmented } from "../ui/controls";
+import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
 import { isRenderable, isText, isViewable } from "./file-kinds";
 import { sizeOf } from "../size";
 
@@ -200,10 +203,14 @@ export default function History({
       ref={root}
       tabIndex={-1}
       data-testid="history-panel"
+      // On the second surface with no rule at its edge: the step of tone
+      // is the separation, as the page draws every drawer.  The bar and
+      // the one drawer come with the activity bar; until then the panel
+      // keeps its dock beside the editor and its overlay over it.
       className={`outline-none ${
         docked
-          ? "nx-arrive flex h-full w-[264px] shrink-0 flex-col border-l border-line bg-surface-2"
-          : "nx-arrive absolute right-0 top-0 z-20 flex h-full w-[264px] flex-col border-l border-line bg-surface-2 shadow-float"
+          ? "nx-arrive flex h-full w-[264px] shrink-0 flex-col bg-surface-2"
+          : "nx-arrive absolute right-0 top-0 z-20 flex h-full w-[264px] flex-col bg-surface-2 shadow-float"
       }`}
       onKeyDown={(event) => {
         // Escape leaves one level at a time, the way it does on the agent
@@ -224,8 +231,11 @@ export default function History({
           title, the file, and the one control that closes it.  The
           second is a toolbar, which is a different kind of thing and does
           not close on a click. */}
+      {/* The drawer's heading row, as the page draws every drawer: the
+          title, the file it is about in the third ink, and the one
+          control that closes it.  The row is the handle. */}
       <div
-        className="flex h-[32px] shrink-0 cursor-pointer items-center gap-2 bg-surface-3 px-[10px] transition-colors duration-[90ms] hover:bg-surface"
+        className="flex shrink-0 cursor-pointer items-center gap-2 pb-[6px] pl-[14px] pr-2 pt-[10px]"
         title="Close the history"
         data-testid="history-header"
         onClick={(event) => {
@@ -233,7 +243,7 @@ export default function History({
           onClose();
         }}
       >
-        <span className="t-ui-lg shrink-0">History</span>
+        <span className="t-ui-lg shrink-0 text-ink">History</span>
         {scope === "file" && name ? (
           <span className="t-meta min-w-0 flex-1 truncate text-ink-3" title={activePath ?? undefined}>
             {name}
@@ -241,67 +251,50 @@ export default function History({
         ) : (
           <span className="flex-1" />
         )}
-        <button
-          className="quiet flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded-[3px] hover:bg-surface-3"
-          aria-label="Close the history"
-          onClick={onClose}
-        >
-          <Chevron direction="right" />
-        </button>
+        <IconButton label="Close the history" onClick={onClose}>
+          <ChevronRightIcon />
+        </IconButton>
       </div>
       <div
-        className="flex h-[26px] shrink-0 items-center justify-between border-b border-line px-[10px]"
+        className="flex h-[32px] shrink-0 items-center justify-between px-2"
         data-testid="history-toolbar"
       >
-        {/* The same two-way micro toggle the preview footer uses for
-            Scroll and Page. Two questions, not two panels: what this
-            file used to say, and what I changed this afternoon. The
-            second was answerable only by opening every file in turn. */}
-        <span className="flex shrink-0 overflow-hidden rounded-[3px] border border-line">
-          {(["file", "project"] as const).map((option) => (
-            <button
-              key={option}
-              className={`t-micro border-b-2 px-2 py-[1px] transition-colors duration-[90ms] ${
-                scope === option
-                  ? "border-hint bg-surface text-ink"
-                  : "border-transparent text-ink-3 hover:text-hint"
-              }`}
-              aria-pressed={scope === option}
-              onClick={() => setScope(option)}
-              title={
-                option === "file"
-                  ? "Versions of the file in the editor"
-                  : "Every file's versions, newest first"
-              }
-            >
-              {option === "file" ? "This file" : "Whole project"}
-            </button>
-          ))}
-        </span>
+        {/* Two questions, not two panels: what this file used to say, and
+            what I changed this afternoon.  The second was answerable only
+            by opening every file in turn. */}
+        <Segmented
+          tone="drawer"
+          label="Which versions"
+          value={scope}
+          options={[
+            { value: "file", label: "This file", title: "Versions of the file in the editor" },
+            { value: "project", label: "Whole project", title: "Every file's versions, newest first" },
+          ]}
+          onChange={setScope}
+        />
         {/* What the project's history is holding, before anybody decides
-            whether to empty it. `/history/size` has had a client wrapper
-            and no caller since it was written. */}
+            whether to empty it. */}
         {held ? (
           <span
-            className="t-micro shrink-0 text-ink-3"
+            className="t-meta shrink-0 pr-2 text-ink-3"
             data-testid="history-size"
             title="What this project's history holds on disk"
           >
-            {held}
+            {held} kept
           </span>
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto px-2">
         {rows.length === 0 && (scope === "file" ? failed : timelineFailed) ? (
-          <p className="t-meta p-3 text-ink-3" data-testid="history-unavailable">
+          <p className="t-meta p-2 text-ink-2" data-testid="history-unavailable">
             {scope === "file"
               ? "Could not read the versions of this file. Nothing has been lost; this is about reaching the server, not about the file."
               : "Could not read the project's versions. Nothing has been lost; this is about reaching the server."}
           </p>
         ) : null}
         {rows.length === 0 && !(scope === "file" ? failed : timelineFailed) ? (
-          <p className="t-meta p-3 text-ink-3">
+          <p className="t-meta p-2 text-ink-2">
             {scope === "project"
               ? "Nothing yet in this project. Versions are kept from the moment a file is first changed."
               : binary
@@ -333,12 +326,12 @@ export default function History({
           // row shows them too, for the same reason.
           const lit = selected || opened === version.sha;
           const reveal = lit
-            ? "block"
-            : "hidden group-hover:block group-focus-within:block";
+            ? "flex"
+            : "hidden group-hover:flex group-focus-within:flex";
           return (
             <div key={`${version.sha}-${version.at}`}>
               {first ? (
-                <div className="t-micro sticky top-0 bg-surface px-[10px] py-1 text-ink-3">
+                <div className="t-meta sticky top-0 bg-surface-2 px-2 pb-[2px] pt-[10px] text-ink-3">
                   {day}
                 </div>
               ) : null}
@@ -364,8 +357,13 @@ export default function History({
                 // invisible and the pen bar was all that marked the row.
                 // The file tree draws the same rule one step off its own
                 // ground, which is what this is.
-                className={`group relative flex cursor-pointer flex-col gap-[2px] px-[10px] py-[6px] ${
-                  selected ? "bg-surface" : "hover:bg-surface"
+                // As the page draws a version: the time in the third ink,
+                // who in the first (the pen for Claude), the size at the
+                // right giving way to Compare and Rename under the pointer,
+                // and the reason or the name as a second line.  The chosen
+                // row and the hovered row take the wash.
+                className={`group relative flex cursor-pointer flex-col gap-[2px] rounded-control px-2 py-[5px] text-[13px] leading-[18px] text-ink-2 hover:bg-wash ${
+                  lit ? "bg-wash" : ""
                 }`}
                 onClick={() => choose(version, selected)}
               >
@@ -379,11 +377,8 @@ export default function History({
                   aria-label={`Version from ${who(version, me)} at ${timeOf(version.at)}`}
                   onClick={() => choose(version, selected)}
                 />
-                {selected ? (
-                  <span className="absolute left-0 top-0 z-10 h-full w-[2px] bg-pen" />
-                ) : null}
                 <div className="relative z-10 flex flex-col gap-[2px]">
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-center gap-[10px]">
                   {rowBinary ? (
                     <span
                       aria-hidden
@@ -402,19 +397,15 @@ export default function History({
                       )}
                     </span>
                   ) : null}
-                  <span className="t-micro tnum text-ink">{timeOf(version.at)}</span>
-                  <span
-                    className={`t-micro ${
-                      version.by === "claude" ? "text-pen" : "text-ink-3"
-                    }`}
-                  >
+                  <span className="t-meta tnum text-ink-3">{timeOf(version.at)}</span>
+                  <span className={version.by === "claude" ? "text-pen" : "text-ink"}>
                     {who(version, me)}
                   </span>
                   <span className="flex-1" />
-                  {/* The naming control takes the size's place on hover
-                      rather than sitting on top of it. */}
+                  {/* The controls take the size's place on hover rather
+                      than sitting on top of it. */}
                   <span
-                    className={`t-micro tnum text-ink-3 ${
+                    className={`t-meta tnum text-ink-3 ${
                       lit ? "hidden" : "group-hover:hidden group-focus-within:hidden"
                     }`}
                     title={
@@ -425,40 +416,42 @@ export default function History({
                   >
                     {elsewhere ? "elsewhere" : size(version.bytes)}
                   </span>
-                  {!folded &&
-                  onCompare &&
-                  viewing?.version &&
-                  viewing.version.sha !== version.sha &&
-                  viewing.path === rowPath &&
-                  !rowBinary ? (
-                    <button
-                      className={`quiet t-micro ${reveal}`}
-                      title="Show what changed between the version on screen and this one"
-                      data-testid="version-compare"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onCompare(version);
-                      }}
-                    >
-                      Compare
-                    </button>
-                  ) : null}
-                  {!folded ? (
-                    <button
-                      className={`quiet t-micro ${reveal}`}
-                      title="Name this version so it is never thinned away"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setLabelling(version.sha);
-                      }}
-                    >
-                      {version.label ? "Rename" : "Name it"}
-                    </button>
-                  ) : null}
+                  <span className={`items-center gap-[2px] ${reveal}`}>
+                    {!folded &&
+                    onCompare &&
+                    viewing?.version &&
+                    viewing.version.sha !== version.sha &&
+                    viewing.path === rowPath &&
+                    !rowBinary ? (
+                      <Button
+                        size="inline"
+                        title="Show what changed between the version on screen and this one"
+                        data-testid="version-compare"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onCompare(version);
+                        }}
+                      >
+                        Compare
+                      </Button>
+                    ) : null}
+                    {!folded ? (
+                      <Button
+                        size="inline"
+                        title="Name this version so it is never thinned away"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setLabelling(version.sha);
+                        }}
+                      >
+                        {version.label ? "Rename" : "Name it"}
+                      </Button>
+                    ) : null}
+                  </span>
                 </div>
                 {scope === "project" && !folded ? (
                   <span
-                    className="t-micro truncate text-ink-3"
+                    className="t-meta truncate text-ink-3"
                     data-testid="history-scope-path"
                     title={version.path}
                   >
@@ -472,7 +465,7 @@ export default function History({
                      where a version can be opened, named or restored. */
                   <div className="flex flex-col gap-[2px]" data-testid="history-tick">
                     <button
-                      className="quiet t-micro flex items-center gap-1 self-start text-ink-2"
+                      className="flex items-center gap-1 self-start text-[12.5px] text-ink-3 hover:text-ink"
                       aria-expanded={unfolded === version.source}
                       data-testid="history-tick-toggle"
                       onClick={(event) => {
@@ -482,14 +475,14 @@ export default function History({
                         );
                       }}
                     >
-                      <Chevron direction={unfolded === version.source ? "down" : "right"} />
+                      {unfolded === version.source ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
                       {version.why}, {version.count} files
                     </button>
                     {unfolded === version.source
                       ? version.paths!.map((path) => (
                           <button
                             key={path}
-                            className="quiet t-micro truncate pl-[14px] text-left text-ink-3 hover:text-ink"
+                            className="t-meta truncate pl-[16px] text-left text-ink-3 hover:text-ink"
                             data-testid="history-tick-path"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -502,15 +495,15 @@ export default function History({
                       : null}
                   </div>
                 ) : version.label ? (
-                  <span className="t-meta text-ink">{version.label}</span>
+                  <span className="text-[12.5px] text-ink">{version.label}</span>
                 ) : version.why ? (
-                  <span className="t-micro truncate text-ink-2" title={version.why}>
+                  <span className="truncate text-[12.5px] text-ink-3" title={version.why}>
                     {version.why}
                   </span>
                 ) : null}
                 {elsewhere && opened === version.sha ? (
-                  <div className="mt-2" data-testid="version-elsewhere">
-                    <span className="t-micro text-ink-2">
+                  <div className="mt-1" data-testid="version-elsewhere">
+                    <span className="t-meta text-ink-2">
                       Only a collaborator has this one. It arrives when they
                       are next online.
                     </span>
@@ -522,52 +515,52 @@ export default function History({
                         branch is one neither viewer can draw, so there was
                         never a picture to show; the ones that can be drawn
                         now open in the pane. */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       {confirming === version.sha ? (
                         <>
-                          <span className="t-micro text-ink-2">
+                          <span className="t-meta text-ink-2">
                             Replace the file with this?
                           </span>
-                          <button
-                            className="quiet t-micro"
-                            data-tone="danger"
+                          <Button
+                            size="inline"
+                            variant="danger"
                             onClick={(event) => {
                               event.stopPropagation();
                               void restore(version.sha);
                             }}
                           >
                             Restore
-                          </button>
-                          <button
-                            className="quiet t-micro"
+                          </Button>
+                          <Button
+                            size="inline"
                             onClick={(event) => {
                               event.stopPropagation();
                               setConfirming(null);
                             }}
                           >
                             Keep
-                          </button>
+                          </Button>
                         </>
                       ) : (
-                        <button
-                          className="quiet t-micro"
+                        <Button
+                          size="inline"
                           onClick={(event) => {
                             event.stopPropagation();
                             setConfirming(version.sha);
                           }}
                         >
                           Restore this
-                        </button>
+                        </Button>
                       )}
-                      <button
-                        className="quiet t-micro"
+                      <Button
+                        size="inline"
                         onClick={(event) => {
                           event.stopPropagation();
                           void download(blobUrl(version.sha, true), name, "the version");
                         }}
                       >
                         Download
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : null}
@@ -576,7 +569,7 @@ export default function History({
                     autoFocus
                     defaultValue={version.label ?? ""}
                     placeholder="Name this version"
-                    className="t-micro mt-1 w-full border-b border-pen bg-transparent outline-none"
+                    className="t-meta mt-1 w-full border-b border-pen bg-transparent text-ink outline-none"
                     onClick={(event) => event.stopPropagation()}
                     onBlur={() => setLabelling(null)}
                     onKeyDown={async (event) => {
@@ -625,21 +618,18 @@ export function ViewingBanner({
   onBack,
   onToggleChanges,
   showingChanges,
-  onTogglePatch,
-  showingPatch,
   onDownload,
 }: {
   version: Version;
   onRestore: () => void;
   onBack: () => void;
+  /** One control for what changed, where there were two: the shading in
+   *  the editor that marks what is gone, in place, and the unified patch
+   *  under the banner that shows what arrived as well.  They answer one
+   *  question, so "What changed" turns both on and "Hide what changed"
+   *  both off, as the page draws it. */
   onToggleChanges: () => void;
   showingChanges: boolean;
-  /** The other reading of the same comparison: a unified patch between
-   *  the version on screen and the file as it stands, drawn under the
-   *  banner. The shading above marks what is gone, in place; this shows
-   *  what arrived as well, which the shading never could. */
-  onTogglePatch?: () => void;
-  showingPatch?: boolean;
   /** Present when what is being viewed is a figure rather than text.
    *
    *  Two things follow from it, and they are the same fact twice: there is
@@ -670,99 +660,67 @@ export function ViewingBanner({
   // the second line drawn outside the bar.  Each control keeps its rule
   // with it, so a second row, when there has to be one, starts with a
   // label rather than a stray line.
+  // As the page draws it: a 32 px strip in the pen wash for Claude's
+  // version and the hint wash for a person's, the time, who, the reason,
+  // and at the right What changed, Restore and Back to now, with no rules
+  // between them.  It wraps rather than tears in a narrow pane.
   return (
     <div
-      className={`nx-arrive flex min-h-[26px] shrink-0 flex-wrap items-center gap-x-3 whitespace-nowrap border-b border-line px-[10px] ${
+      className={`nx-arrive t-meta flex min-h-[32px] shrink-0 flex-wrap items-center gap-x-3 whitespace-nowrap px-3 ${
         version.by === "claude" ? "bg-pen-wash" : "bg-hint-wash"
       }`}
       data-testid="viewing-banner"
-      style={{ boxShadow: "inset 0 2px 0 var(--hint)" }}
     >
-      <span className="t-micro h-[26px] leading-[26px] text-ink">
-        Viewing {timeOf(version.at)}
-      </span>
-      <Group>
-        <span className="t-micro text-ink-2">{who(version, me)}</span>
-      </Group>
+      <span className="h-[32px] leading-[32px] text-ink">Viewing {timeOf(version.at)}</span>
+      <span className={version.by === "claude" ? "text-pen" : "text-ink"}>{who(version, me)}</span>
       {version.label || version.why ? (
-        <Group grow>
-          <span
-            className="t-micro min-w-0 flex-1 truncate text-ink-2"
-            title={version.label || version.why}
-          >
-            {version.label || version.why}
-          </span>
-        </Group>
+        <span
+          className="min-w-0 flex-1 truncate text-ink-2"
+          title={version.label || version.why}
+        >
+          {version.label || version.why}
+        </span>
       ) : (
         <span className="flex-1" />
       )}
-      {onDownload ? (
-        <Group>
-          <button className="quiet t-micro" onClick={onDownload}>
+      <span className="flex h-[32px] items-center gap-[2px]">
+        {onDownload ? (
+          <Button size="inline" onClick={onDownload}>
             Download
-          </button>
-        </Group>
-      ) : (
-        <Group>
-          <button className="quiet t-micro" onClick={onToggleChanges}>
-            {showingChanges ? "Hide what's gone" : "Show what's gone"}
-          </button>
-          {onTogglePatch ? (
-            <button
-              className="quiet t-micro"
-              onClick={onTogglePatch}
-              data-testid="toggle-patch"
-            >
-              {showingPatch ? "Hide the patch" : "Show what changed"}
-            </button>
-          ) : null}
-        </Group>
-      )}
-      <Group>
+          </Button>
+        ) : (
+          <Button size="inline" onClick={onToggleChanges} data-testid="toggle-patch">
+            {showingChanges ? "Hide what changed" : "What changed"}
+          </Button>
+        )}
         {confirming ? (
           <>
-            <span className="t-micro text-ink-2">Replace the file with this?</span>
-            <button
-              className="quiet t-micro"
-              data-tone="danger"
+            <span className="px-1 text-ink-2">Replace the file with this?</span>
+            <Button
+              size="inline"
+              variant="danger"
               onClick={() => {
                 setConfirming(false);
                 onRestore();
               }}
             >
               Restore
-            </button>
-            <button className="quiet t-micro" onClick={() => setConfirming(false)}>
+            </Button>
+            <Button size="inline" onClick={() => setConfirming(false)}>
               Keep
-            </button>
+            </Button>
           </>
         ) : (
-          <button className="quiet t-micro" onClick={() => setConfirming(true)}>
+          <Button size="inline" onClick={() => setConfirming(true)}>
             Restore this
-          </button>
+          </Button>
         )}
-      </Group>
-      <Group>
-        <button className="quiet t-micro" data-tone="on" onClick={onBack}>
+        <Button size="inline" className="!text-ink" onClick={onBack}>
           Back to now
-        </button>
-      </Group>
+        </Button>
+      </span>
     </div>
   );
-}
-
-/** A rule and the controls that belong after it, kept on one line. */
-function Group({ children, grow = false }: { children: ReactNode; grow?: boolean }) {
-  return (
-    <span className={`flex h-[26px] items-center gap-3 ${grow ? "min-w-0 flex-1" : ""}`}>
-      <Rule />
-      {children}
-    </span>
-  );
-}
-
-function Rule() {
-  return <span className="h-[10px] w-px shrink-0 bg-line" />;
 }
 
 function timeOf(at: number): string {

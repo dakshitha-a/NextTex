@@ -314,6 +314,32 @@ const SURFACES: Record<string, Surface> = {
       await tab.keyboard.press("Backspace");
     },
   },
+  history: {
+    // A typed change so there are two versions, the panel from the row's
+    // menu, and a version chosen so the banner shows.
+    open: async (tab) => {
+      const editor = tab.locator(".cm-content");
+      await editor.click();
+      await tab.keyboard.press("Control+Home");
+      await tab.keyboard.press("End");
+      await tab.keyboard.type(" Revised.");
+      await tab.waitForTimeout(2500);
+      await tab.getByLabel("Actions for main.tex").click({ force: true });
+      await tab.getByRole("tree").getByRole("button", { name: "History", exact: true }).click();
+      const panel = tab.getByTestId("history-panel");
+      await panel.waitFor();
+      await tab.getByTestId("version").last().waitFor({ timeout: 20_000 });
+      await tab.getByTestId("version").last().click();
+      await tab.getByTestId("viewing-banner").waitFor();
+      await tab.getByTestId("version").first().hover();
+      await tab.waitForTimeout(300);
+      return tab.locator(".nx-shell");
+    },
+    close: async (tab) => {
+      await tab.getByRole("button", { name: "Back to now" }).click().catch(() => undefined);
+      await tab.getByLabel("Close the history").click().catch(() => undefined);
+    },
+  },
   workspace: {
     // The shell at rest, at the page's width: the rail, the two panes and
     // the column, with nothing open.

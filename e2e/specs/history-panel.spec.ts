@@ -252,6 +252,7 @@ test("the viewing banner wraps rather than tearing its buttons in a narrow pane"
   const bannerBox = (await banner.boundingBox())!;
   for (const button of await banner.getByRole("button").all()) {
     const box = (await button.boundingBox())!;
+    // The kit's inline button, 24 px, in a 32 px banner.
     expect(box.height).toBeLessThanOrEqual(26);
     expect(box.y).toBeGreaterThanOrEqual(bannerBox.y - 1);
     expect(box.y + box.height).toBeLessThanOrEqual(bannerBox.y + bannerBox.height + 1);

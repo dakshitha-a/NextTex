@@ -2361,14 +2361,14 @@ export default function App() {
                 setShowingChanges(false);
                 setPatchView(null);
               }}
+              // One control for both readings of the change: the shading
+              // in the editor of what is gone, and the patch under the
+              // banner of what arrived as well.
               onToggleChanges={() => {
                 const next = !showingChanges;
                 setShowingChanges(next);
                 editor.current?.showChanges(next);
-              }}
-              showingPatch={patchView !== null}
-              onTogglePatch={() => {
-                if (patchView) {
+                if (!next) {
                   setPatchView(null);
                   return;
                 }

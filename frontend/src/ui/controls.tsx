@@ -109,11 +109,15 @@ export type SegmentedProps<T extends string> = {
    *  the wash, as the direction page draws Scroll and Page under the
    *  preview.  The default sits on its own tray at 24 px. */
   size?: "md" | "sm";
+  /** `drawer` is for a control on the second surface, where the tray
+   *  would vanish: the tray takes the first surface and the chosen
+   *  segment the wash, as the page draws the History drawer's switch. */
+  tone?: "surface" | "drawer";
 };
 
-export function Segmented<T extends string>({ value, options, onChange, label, testid, className, size = "md" }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ value, options, onChange, label, testid, className, size = "md", tone = "surface" }: SegmentedProps<T>) {
   return (
-    <div role="group" aria-label={label} data-testid={testid} data-size={size} className={`nx-segmented${className ? ` ${className}` : ""}`}>
+    <div role="group" aria-label={label} data-testid={testid} data-size={size} data-tone={tone} className={`nx-segmented${className ? ` ${className}` : ""}`}>
       {options.map((option) => (
         <button
           key={option.value}

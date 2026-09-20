@@ -5796,6 +5796,16 @@ whichever was clicked, so a patch always reads forwards in time. The shading
 stays: reading a change in place and reading a diff are different acts, and
 the banner now offers both.
 
+*Revised in the visual overhaul, 19 September 2026.* The two are one control
+now. The banner is a 32 px strip in the pen wash for Claude's version and the
+hint wash for a person's, with the time, who, the reason, and at the right
+"What changed", "Restore this" and "Back to now" as the kit's inline buttons,
+as the direction page draws it. "What changed" turns on both the shading in
+the editor and the patch under the banner, and "Hide what changed" turns both
+off: they answer one question, and two buttons for it were one more thing to
+hold in mind. Compare on another row still draws the patch between two
+versions. `toggle-patch` stays on the one control.
+
 ### The last fifty conversations were kept, and none of them could be reached
 
 "New conversation" has always filed the old one away under a timestamp rather
@@ -8057,6 +8067,21 @@ brings the pair back, the follow effect restoring the rendering as the
 file returns. The script tab keeps its own rule. The spec closes each
 side in turn and finds the other gone, and reopens the file to find
 both back.
+
+### The panel as the page draws it
+
+*Revised in the visual overhaul, 19 September 2026.* The panel is drawn as
+the direction page draws the History drawer: on `--surface-2` with no rule at
+its edge; a heading row with the title, the file in the third ink and the
+close control as the kit's icon button; a 32 px toolbar with the This file
+and Whole project switch as the kit's Segmented on a drawer's tone (the tray
+on `--surface`, the chosen segment on the wash) and the kept size beside it;
+day headers in the third ink; rows at 13 on 18 with the time in the third
+ink, who in the first (the pen for Claude), the size at the right giving way
+to Compare and Name it under the pointer, and the reason or the name as a
+second line in the third ink; the chosen row and the hovered row on the wash,
+with no pen bar. The panel keeps its dock beside the editor until the
+activity bar lands and it becomes a drawer like the rest.
 
 ## 44. The projects screen is a rail beside the list
 

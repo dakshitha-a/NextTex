@@ -172,7 +172,7 @@ test("the panel marks what an old version had that the file no longer does",
     await expect(tab.getByText(/viewing/i).first()).toBeVisible();
     await expect(tab.locator(".cm-version-changed")).toHaveCount(0);
 
-    await tab.getByRole("button", { name: /show what's gone/i }).click();
+    await tab.getByRole("button", { name: /^what changed/i }).click();
     // Marked in place, in the paragraph it happened to, rather than shown
     // in a pane of its own -- which is the difference between reading a
     // change and reading a diff.
@@ -180,7 +180,7 @@ test("the panel marks what an old version had that the file no longer does",
       timeout: 10_000,
     });
 
-    await tab.getByRole("button", { name: /hide what's gone/i }).click();
+    await tab.getByRole("button", { name: /hide what changed/i }).click();
     await expect(tab.locator(".cm-version-changed")).toHaveCount(0);
   });
 

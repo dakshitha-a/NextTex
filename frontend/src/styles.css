@@ -1458,6 +1458,10 @@ button.nx-row { width: 100%; text-align: left; }
 }
 .nx-segment:hover:not([aria-pressed="true"]) { color: var(--ink); }
 .nx-segment[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; }
+/* On a drawer's ground the tray is the first surface and the chosen
+   segment the wash, or the tray would vanish into the second surface. */
+.nx-segmented[data-tone="drawer"] { background: var(--surface); }
+.nx-segmented[data-tone="drawer"] .nx-segment[aria-pressed="true"] { background: var(--wash); }
 /* The strip's size: no tray, 20 px segments a hair apart, the chosen one
    on the wash rather than lifted to the surface. */
 .nx-segmented[data-size="sm"] { padding: 0; gap: 2px; background: transparent; }
