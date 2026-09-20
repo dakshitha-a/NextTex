@@ -1,0 +1,25 @@
+[
+  {"kind": "tool", "name": "TodoWrite", "ms": 20, "input": {"todos": [
+    {"content": "Rewrite the abstract's first sentence", "status": "in_progress"},
+    {"content": "Add the Stolow record and cite it", "status": "pending"},
+    {"content": "Rebuild and check the reference resolves", "status": "pending"}
+  ]}},
+  {"kind": "tool", "name": "Read", "input": {"file_path": "main.tex"}, "ms": 400},
+  {"kind": "tool", "name": "Grep", "input": {"pattern": "\\cite{stolow"}, "ms": 300},
+  {"kind": "tool", "name": "Bash", "input": {"command": "latexmk -pdf main"}, "ms": 2400},
+  {"kind": "tool", "name": "TodoWrite", "ms": 20, "input": {"todos": [
+    {"content": "Rewrite the abstract's first sentence", "status": "completed"},
+    {"content": "Add the Stolow record and cite it", "status": "completed"},
+    {"content": "Rebuild and check the reference resolves", "status": "in_progress"}
+  ]}},
+  {"kind": "text", "text": "The abstract now opens with the finding. The Results citation had no record, so I added one by its DOI.", "pieces": 3},
+  {"kind": "tool", "name": "Edit", "input": {"file_path": "main.tex"}},
+  {"kind": "edit", "path": "main.tex",
+   "find": "A numbered equation",
+   "replace": "A sentence the scripted agent inserted. A numbered equation"},
+  {"kind": "tool", "name": "Bash", "input": {"command": ".venv/bin/python scripts/decay-fit.py --out figures/decay-fit.png"}},
+  {"kind": "permission", "tool": "Bash", "rule": "Bash:.venv/bin/python scripts/decay-fit.py --out figures/decay-fit.png",
+   "headline": "Run scripts/decay-fit.py", "detail": ".venv/bin/python scripts/decay-fit.py --out figures/decay-fit.png",
+   "consequence": "This is Python, so it can do anything Python can: read files, write them, and reach the network. Nothing is rewritten; the file runs as it is.", "stop_if_denied": false},
+  {"kind": "text", "text": "Done.", "pieces": 1}
+]

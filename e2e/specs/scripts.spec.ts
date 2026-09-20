@@ -246,7 +246,7 @@ test("the agent can run a script by name, and the pane follows its run", async (
   // The verb is on the transcript's row for the call; the header's working
   // strip says the same words while the turn is still open, and a bare
   // getByText resolves to both when the two overlap.
-  await expect(page.locator(".stream-indent").getByText("Ran a script")).toBeVisible({
+  await expect(page.locator(".nx-tool-line").getByText("Ran a script")).toBeVisible({
     timeout: 20_000,
   });
   await expect(page.getByTestId("script-tab-scripts/hello.py")).toBeVisible({ timeout: 20_000 });

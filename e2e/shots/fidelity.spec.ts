@@ -382,6 +382,58 @@ const SURFACES: Record<string, Surface> = {
      are full in the dark run and empty in the light one, as the page
      draws them; the harness cannot empty a project between themes, so
      the light Sections render is compared for its chrome only. */
+  "claude-live": {
+    // The column mid-turn, as the page draws it: the writer's question, a
+    // folded run of tool calls, the agent's turn with a diff chip and a
+    // plan, and an open permission card; a selection chip over the
+    // composer and "Waiting on your answer" beside the send.
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:showcase\nTighten the abstract's first sentence, and add the missing citation in Results.");
+      await composer.press("Enter");
+      await tab.getByTestId("permission-card").waitFor({ timeout: 20_000 });
+      await tab.getByTestId("tool-run").first().getByRole("button").first().click();
+      await tab.waitForTimeout(200);
+      return tab.getByTestId("chat");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("deny").click();
+      await tab.getByText("Done.").waitFor({ timeout: 20_000 });
+      await tab.getByTestId("clear-chat").click();
+      await tab.getByTestId("clear-confirm").click();
+      await tab.getByTestId("permission-card").waitFor({ state: "detached" });
+    },
+  },
+  "claude-past": {
+    // The filed-away conversations, with the project's cost at the foot.
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      for (const question of ["Tighten the abstract's first sentence", "Make the table in Results readable"]) {
+        await composer.click();
+        await composer.fill(`#script:reply\n${question}`);
+        await composer.press("Enter");
+        await tab.getByText(/A label attaches a name/).last().waitFor({ timeout: 20_000 });
+        await tab.getByTestId("clear-chat").click();
+        await tab.getByTestId("clear-confirm").click();
+        await tab.getByText(/A label attaches a name/).waitFor({ state: "detached" });
+      }
+      await tab.getByTestId("past-open").click();
+      await tab.getByTestId("past-conversation").first().waitFor({ timeout: 10_000 });
+      await tab.getByTestId("past-conversation").first().hover();
+      return tab.getByTestId("chat");
+    },
+    close: async (tab) => { await tab.getByTestId("past-back").click(); },
+  },
+  "claude-reads": {
+    open: async (tab) => {
+      await tab.getByTestId("context-open").click();
+      await tab.getByTestId("prompt-entry").first().waitFor({ timeout: 10_000 });
+      await tab.getByTestId("prompt-entry").first().hover();
+      return tab.getByTestId("chat");
+    },
+    close: async (tab) => { await tab.getByTestId("reads-back").click(); },
+  },
   "drawer-files-card": {
     // The Files drawer with the card beside an image's row, as the page
     // draws it: a 1200 by 800 plot named as the page names it.

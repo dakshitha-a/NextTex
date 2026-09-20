@@ -18,6 +18,7 @@ import Prose from "./prose";
 // Fetched when somebody asks for it: most sessions never open a past
 // conversation, and the list and its renderers should not ship ahead of that.
 const PastConversation = lazy(() => import("./PastConversation"));
+const ContextPanel = lazy(() => import("./ContextPanel"));
 // The three popovers under the composer, for the same reason: each draws
 // nothing until its trigger is pressed, and most sessions press none.
 const ModelMenu = lazy(() =>
@@ -42,8 +43,11 @@ import {
 } from "./slash-prompts";
 import { shortRule } from "./short-rule";
 import { welcome, WELCOME_ACTIONS } from "../welcome";
-import { agentName, usageNote } from "../agent-name";
-import { Chevron } from "../chrome";
+import { agentName } from "../agent-name";
+import { foldTools, foldedSentence, type ShownItem, type ToolGroup } from "./tool-fold";
+import { ChevronDownIcon, ChevronRightIcon, ContextIcon, HistoryIcon, PlusIcon } from "../ui/icons";
+import { IconButton } from "../ui/Button";
+import { ColumnHeader } from "./column-header";
 import { MODE_TITLES } from "./mode-words";
 import api from "../api";
 import {
@@ -63,6 +67,9 @@ import {
 
 export type ChatHandle = {
   seed(text: string): void;
+  /** Show what the agent reads, inside the column, aiming the file picker
+   *  at a kind when one is named: the welcome's actions land here. */
+  showReads(kind?: "style" | "voice"): void;
   /** Put the caret in the box.  The keyboard shortcut that opens the panel
    *  is only worth having if it leaves you ready to type. */
   focusComposer(): void;
@@ -187,7 +194,7 @@ export default function Chat({
   // Collapsing repeated tool rows walks the whole transcript.  Streaming a
   // long answer re-renders this panel twenty times a second, and without
   // this it did that walk every time.
-  const shown = useMemo(() => tidy(chat), [chat]);
+  const shown = useMemo(() => foldTools(tidy(chat)), [chat]);
 
   const thinking = useStore((s) => s.thinking);
   const selected = useStore((s) => s.selected);
@@ -228,13 +235,13 @@ export default function Chat({
   const [setupOpen, setSetupOpen] = useState(false);
   const projectId = useStore((s) => s.projectId);
   const [usage, setUsage] = useState<Awaited<ReturnType<typeof api.usage>> | null>(null);
-  const [showUsage, setShowUsage] = useState(false);
-  const usageRef = useRef<HTMLDivElement | null>(null);
-  const usageButton = useRef<HTMLButtonElement | null>(null);
   const [modelOpen, setModelOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  /** Reading a filed-away conversation instead of the live one. */
-  const [past, setPast] = useState(false);
+  /** Which of the column's three views is up: the conversation, the
+   *  filed-away ones, or what the agent reads. */
+  const [view, setView] = useState<"live" | "past" | "reads">("live");
+  const [readsFor, setReadsFor] = useState<"style" | "voice" | null>(null);
+  const readsButton = useRef<HTMLButtonElement | null>(null);
   const modelRef = useRef<HTMLDivElement | null>(null);
   const modelButton = useRef<HTMLButtonElement | null>(null);
   // The two blocks that open *above* the composer.  They come before the
@@ -355,12 +362,6 @@ export default function Chat({
     }
   };
 
-  useDismiss(
-    usageRef,
-    showUsage,
-    useCallback(() => setShowUsage(false), []),
-    usageButton,
-  );
   const [focusedComposer, setFocusedComposer] = useState(false);
 
   // A `/` at the start of the draft names a reusable prompt. The list is
@@ -431,6 +432,11 @@ export default function Chat({
   // down the right where the panes no longer reach.
   useEffect(() => {
     handleRef({
+      showReads: (kind?: "style" | "voice") => {
+        setConfirmClear(false);
+        setView("reads");
+        if (kind) setReadsFor(kind);
+      },
       seed: (text: string) => {
         setDraft(text);
         composer.current?.focus({ preventScroll: true });
@@ -546,145 +552,146 @@ export default function Chat({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface-2" data-testid="chat">
-      <div
-        className={`flex h-[32px] shrink-0 items-center gap-2 border-b border-line px-[10px] ${
-          onFold ? "cursor-pointer transition-colors duration-[90ms] hover:bg-surface-2" : ""
-        }`}
-        title={onFold ? "Fold this panel away" : undefined}
-        data-testid="chat-header"
-        onClick={(event) => {
-          if (!onFold) return;
-          if ((event.target as HTMLElement).closest("button, select, input")) return;
-          onFold();
-        }}
-      >
-        <span className="t-ui-lg shrink-0">{name}</span>
-        {thinking || blocked ? (
-          <span
-            className="flex min-w-0 flex-1 items-center gap-[6px]"
-            data-testid="working"
-            aria-live="polite"
-          >
-            <span
-              className={`nx-working h-[6px] w-[6px] shrink-0 rounded-full ${
-                blocked ? "bg-warn" : "bg-pen"
-              }`}
-            />
-            <span className="t-micro truncate text-ink-2" title={activity}>
-              {activity}
+      {view === "live" ? (
+        <ColumnHeader
+          title={name}
+          testid="chat-header"
+          onFold={onFold}
+          onClick={(event) => {
+            // The whole row folds the column, as a pane header does, but a
+            // press on one of its controls is that control's.
+            if (!onFold) return;
+            if ((event.target as HTMLElement).closest("button, select, input")) return;
+            onFold();
+          }}
+        >
+          {thinking || blocked ? (
+            <span className="nx-column-work" data-testid="working" aria-live="polite">
+              <span className={`nx-working ${blocked ? "bg-warn" : "bg-pen"}`} />
+              <span className="truncate" title={activity}>{activity}</span>
+              <Elapsed since={blocked ? null : current?.since ?? null} />
+              {/* The turn's own age, as distinct from the age of whatever
+                  it is doing this second, parenthesised so the pair reads
+                  as one thing rather than two competing counters. */}
+              {turnSince && !blocked ? <Elapsed since={turnSince} parenthesised /> : null}
             </span>
-            <Elapsed since={blocked ? null : current?.since ?? null} />
-            {/* The turn's own age, as distinct from the age of whatever it
-                is doing this second. A writer wants to know a turn is two
-                minutes old rather than that its current tool call is four
-                seconds old, and the two are very different numbers on a
-                long turn. Parenthesised so the pair reads as one thing
-                rather than as two competing counters. */}
-            {turnSince && !blocked ? (
-              <Elapsed since={turnSince} parenthesised />
-            ) : null}
-          </span>
-        ) : null}
-        {/* The state, always on screen, as distinct from the control,
-            which is under the composer. A lowered fence that survives a
-            restart has to be visible without opening anything, and it now
-            has to say *which* of the two quiet positions it is in, since
-            they are not the same offer. One click steps back one position,
-            so the way out is never more than that. */}
-        {mode !== "ask" ? (
-          <button
-            className="t-micro shrink-0 rounded-[3px] border border-warn px-1 text-warn"
-            data-testid="auto-chip"
-            title={
-              mode === "all"
-                ? "Nothing is being asked about, not even a write outside this project. Click to go back to asking about those."
-                : "The work runs without asking. A write outside the project and anything reaching the internet are still asked about. Click to start asking about everything."
-            }
-            onClick={() => chooseMode(mode === "all" ? "project" : "ask")}
-          >
-            {mode === "all" ? "Auto, all" : "Auto"}
-          </button>
-        ) : null}
-        {/* Only when the activity line is not there. Two `flex-1` siblings
-            split the slack between them, so the one line saying what the
-            agent is doing clipped at half the room it had, with about a
-            hundred pixels of nothing beside it: `Read chapte…`. */}
-        {thinking || blocked ? null : <span className="flex-1" />}
-        {thinking ? (
-          <button
-            className="nx-hover t-micro text-hint hover:text-ink"
-            data-testid="stop"
-            // The key is on the button rather than only in a shortcut
-            // table, because Stop is the one control somebody reaches for
-            // in a hurry and a shortcut nobody knows about is not one.
-            title="Stop this turn (Escape)"
+          ) : null}
+          {/* The state, always on screen, as distinct from the control,
+              which is under the composer. A lowered fence that survives a
+              restart has to be visible without opening anything, and it
+              says which of the two quiet positions it is in. One click
+              steps back one position. */}
+          {mode !== "ask" ? (
+            <button
+              className="nx-column-auto"
+              data-testid="auto-chip"
+              title={
+                mode === "all"
+                  ? "Nothing is being asked about, not even a write outside this project. Click to go back to asking about those."
+                  : "The work runs without asking. A write outside the project and anything reaching the internet are still asked about. Click to start asking about everything."
+              }
+              onClick={() => chooseMode(mode === "all" ? "project" : "ask")}
+            >
+              {mode === "all" ? "Auto, all" : "Auto"}
+            </button>
+          ) : null}
+          {/* Only when the activity line is not there: two flex-1 siblings
+              split the slack, and the one line saying what the agent is
+              doing clipped at half the room it had. */}
+          {thinking || blocked ? null : <span className="min-w-0 flex-1" />}
+          {thinking ? (
+            <Button
+              variant="quiet"
+              data-testid="stop"
+              // The key is on the button rather than only in a shortcut
+              // table, because Stop is the one control somebody reaches
+              // for in a hurry and a shortcut nobody knows about is not one.
+              title="Stop this turn (Escape)"
+              onClick={() => {
+                const projectId = get().projectId;
+                if (projectId) api.interrupt(projectId).catch(() => undefined);
+              }}
+            >
+              Stop
+            </Button>
+          ) : null}
+          <IconButton
+            ref={clearButton}
+            label="New conversation"
+            on={confirmClear}
+            aria-expanded={confirmClear}
+            aria-controls={confirmClear ? "nx-clear-confirm" : undefined}
+            title={thinking ? "Wait for this answer to finish" : "Start a new conversation"}
+            data-testid="clear-chat"
+            disabled={thinking}
             onClick={() => {
-              const projectId = get().projectId;
-              if (projectId) api.interrupt(projectId).catch(() => undefined);
+              setConfirmClear((asking) => {
+                // Into the block, and onto the safe half of it: this ends
+                // a conversation, so the default answer is no.
+                if (!asking) {
+                  window.setTimeout(() => keepButton.current?.focus({ preventScroll: true }), 0);
+                }
+                return !asking;
+              });
             }}
           >
-            Stop
-          </button>
-        ) : null}
-        <button
-          ref={usageButton}
-          className={`quiet t-micro flex h-[26px] items-center gap-1 rounded-[3px] px-2 hover:bg-surface-3 ${
-            showUsage ? "bg-surface-3 text-ink" : ""
-          }`}
-          title="What this project has used"
-          aria-expanded={showUsage}
-          onClick={() => setShowUsage(!showUsage)}
-        >
-          Usage
-          <span className={showUsage ? "rotate-180" : ""}>
-            <Chevron direction="down" />
-          </span>
-        </button>
-        {onFold ? (
-          <button
-            className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3"
-            title="Fold this panel away"
-            aria-label="Fold this panel away"
-            onClick={onFold}
+            <PlusIcon />
+          </IconButton>
+          {/* What "New conversation" files away. */}
+          <IconButton
+            label="Past conversations"
+            title="Read a conversation that was filed away"
+            data-testid="past-open"
+            onClick={() => {
+              setConfirmClear(false);
+              setView("past");
+            }}
           >
-            <Chevron direction="right" />
-          </button>
-        ) : null}
-      </div>
-
-      {past ? (
-        <Suspense fallback={null}>
-          <PastConversation onBack={() => setPast(false)} />
-        </Suspense>
-      ) : (
-      <>
-      {showUsage && usage ? (
-        <div
-          ref={usageRef}
-          className="nx-arrive shrink-0 border-b border-line bg-surface-2 px-[10px] py-3"
-        >
-          <div className="flex items-baseline gap-2">
-            <span className="t-ui-lg tabular-nums text-ink">
-              {usage.usage.costUsd
-                ? `$${usage.usage.costUsd.toFixed(usage.usage.costUsd < 1 ? 3 : 2)}`
-                : "$0.000"}
-            </span>
-            <span className="t-micro text-ink-3">estimated, this project</span>
-          </div>
-          <div className="t-micro mt-1 text-ink-2">
-            {usage.usage.turns} {usage.usage.turns === 1 ? "turn" : "turns"} ·{" "}
-            {Math.round(usage.usage.durationMs / 1000)}s of model time
-          </div>
-          <div className="t-micro text-ink-2">
-            {compact(usage.usage.inputTokens)} tokens in
-            {usage.usage.cacheReadTokens
-              ? ` (${compact(usage.usage.cacheReadTokens)} from cache)`
-              : ""}{" "}
-            · {compact(usage.usage.outputTokens)} out
-          </div>
-          <p className="t-micro mt-2 text-ink-3">{usageNote(provider)}</p>
-        </div>
+            <HistoryIcon />
+          </IconButton>
+          <IconButton
+            ref={readsButton}
+            label={`What ${name} reads`}
+            title="The memory, the template, the writing voice and the reusable prompts"
+            data-testid="context-open"
+            onClick={() => {
+              setConfirmClear(false);
+              setView("reads");
+            }}
+          >
+            <ContextIcon />
+          </IconButton>
+        </ColumnHeader>
       ) : null}
+
+      {view === "past" ? (
+        <Suspense fallback={null}>
+          <PastConversation
+            onBack={() => setView("live")}
+            onFold={onFold}
+            usage={usage}
+            provider={provider}
+          />
+        </Suspense>
+      ) : null}
+      {view === "reads" ? (
+        <>
+          <ColumnHeader
+            title={`What ${name} reads`}
+            onBack={() => {
+              setView("live");
+              window.setTimeout(() => readsButton.current?.focus({ preventScroll: true }), 0);
+            }}
+            backTestid="reads-back"
+            onFold={onFold}
+          />
+          <Suspense fallback={null}>
+            <ContextPanel openFor={readsFor} onHandled={() => setReadsFor(null)} />
+          </Suspense>
+        </>
+      ) : null}
+      {view === "live" ? (
+      <>
 
       <div
         ref={stream}
@@ -1026,53 +1033,6 @@ export default function Chat({
             something you reach for while writing the question. */}
         <div className="mt-[6px] flex items-center gap-2">
           <div className="flex shrink-0 items-center">
-            <button
-              ref={clearButton}
-              className={`${ICON} ${confirmClear ? ICON_ON : ""}`}
-              data-tone={confirmClear ? "on" : undefined}
-              aria-label="New conversation"
-              aria-expanded={confirmClear}
-              aria-controls={confirmClear ? "nx-clear-confirm" : undefined}
-              title={
-                thinking
-                  ? "Wait for this answer to finish"
-                  : "Start a new conversation"
-              }
-              data-testid="clear-chat"
-              disabled={thinking}
-              onClick={() => {
-                setSetupOpen(false);
-                setConfirmClear((asking) => {
-                  // Into the block, and onto the safe half of it: this
-                  // ends a conversation, so the default answer is no.
-                  if (!asking) {
-                    window.setTimeout(
-                      () => keepButton.current?.focus({ preventScroll: true }),
-                      0,
-                    );
-                  }
-                  return !asking;
-                });
-              }}
-            >
-              <NewChat />
-            </button>
-            {/* What "New conversation" files away. The server has kept
-                the last fifty and returned each one's name, and the
-                browser threw the name away; nothing listed them. */}
-            <button
-              className={ICON}
-              aria-label="Past conversations"
-              title="Read a conversation that was filed away"
-              data-testid="past-open"
-              onClick={() => {
-                setConfirmClear(false);
-                setSetupOpen(false);
-                setPast(true);
-              }}
-            >
-              <Clock />
-            </button>
             <div className="relative">
               <button
                 ref={modelButton}
@@ -1216,7 +1176,7 @@ export default function Chat({
         </div>
       </div>
       </>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1242,27 +1202,6 @@ const stroke = {
   strokeLinejoin: "round" as const,
 };
 
-/** A speech bubble with a plus in it: start another conversation. */
-function NewChat() {
-  return (
-    <svg {...stroke} aria-hidden="true">
-      <path d="M11.5 8.2a1 1 0 0 1-1 1H5.2L2.8 11.2V9.2h-.3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1z" />
-      <path d="M6.5 4.2v2.8M5.1 5.6h2.8" />
-    </svg>
-  );
-}
-
-/** A clock face: what was said before. */
-function Clock() {
-  return (
-    <svg {...stroke} aria-hidden="true">
-      <circle cx="6.5" cy="6.5" r="4.8" />
-      <path d="M6.5 3.9v2.8l1.8 1.2" />
-    </svg>
-  );
-}
-
-/** Sliders: which model answers here. */
 function Sliders() {
   return (
     <svg {...stroke} aria-hidden="true">
@@ -1302,7 +1241,11 @@ function Page() {
 /** A path or a command, cut to something that fits a 32px header beside
  *  the agent's name.  The tail of a path is the part that identifies it. */
 function shorten(text: string, limit = 28): string {
-  const line = text.split("\n")[0].trim();
+  let line = text.split("\n")[0].trim();
+  // A path in the working line is the file's name: the header has room
+  // for "Read 02_theory.tex" beside four buttons and Stop, and the
+  // transcript's row carries the whole path.
+  if (/^[\w.@/-]+$/.test(line) && line.includes("/")) line = line.slice(line.lastIndexOf("/") + 1);
   if (line.length <= limit) return line;
   const tail = line.slice(-(limit - 1));
   return line.includes("/") ? `…${tail}` : `${line.slice(0, limit - 1)}…`;
@@ -1342,38 +1285,21 @@ function Picture() {
   );
 }
 
-function compact(value: number): string {
-  if (!value) return "0";
-  if (value < 1000) return String(value);
-  if (value < 1_000_000) return `${(value / 1000).toFixed(1)}k`;
-  return `${(value / 1_000_000).toFixed(2)}M`;
-}
-
-/** One row of the transcript.
- *
- *  Memoised, because the store replaces `chat` on every streamed delta --
- *  twenty times a second -- and without this every row in the conversation
- *  re-rendered on each one.  The items are immutable and keyed by a stable
- *  id, so reference equality is exactly the right test; the two handlers
- *  come from App, which is not re-rendering while a turn streams. */
 const Item = memo(function Item({
   item,
   onShowEdit,
   onHoverEdit,
 }: {
-  item: ChatItem;
+  item: ShownItem;
   onShowEdit: (path: string, line: number) => void;
   onHoverEdit: (path: string, range: [number, number] | null) => void;
 }) {
   if (item.kind === "user") {
+    // The writer's words as a plain card on the first surface, with no
+    // stripe: the stripe is the agent's.
     return (
-      <div className="flex">
-        <span className="w-[3px] shrink-0 bg-line" />
-        <div className="ml-3 min-w-0 flex-1">
-          <div className="t-ui whitespace-pre-wrap rounded-[3px] bg-surface-2 p-2 text-ink-2">
-            {item.text}
-          </div>
-        </div>
+      <div className="t-ui whitespace-pre-wrap rounded-card bg-surface px-3 py-2 text-ink">
+        {item.text}
       </div>
     );
   }
@@ -1382,55 +1308,12 @@ const Item = memo(function Item({
     return <AgentMessage item={item} />;
   }
 
+  if (item.kind === "tools") {
+    return <ToolRun group={item} />;
+  }
+
   if (item.kind === "tool") {
-    // Which tense the row may use. A call whose card is open has not
-    // happened, and one the writer refused never will.
-    const state: CallState = item.card
-      ? item.card.decision === "deny" || item.card.decision === "expired"
-        ? "refused"
-        : item.card.decision
-          ? "done"
-          : "asking"
-      : "done";
-    const answered = item.card?.decision;
-    return (
-      <div
-        className="flex items-baseline gap-2 stream-indent"
-        // The account of what was done, on the row the answer belongs to.
-        // Folding a decided card into its call is what stops the command
-        // being printed twice, and the decision has to come with it: at
-        // the quiet positions this row is the only record that the action
-        // happened at all.
-        data-testid={answered ? `decided-${answered}` : undefined}
-      >
-        <span
-          className={`t-micro ${
-            item.ok === false || state === "refused" ? "text-error" : "text-ink-2"
-          }`}
-        >
-          {verbFor(item.name, state)}
-        </span>
-        <span className="t-code-sm truncate text-ink-3">{item.summary}</span>
-        {answered && answered !== "allow" ? (
-          <span className="t-micro shrink-0 text-ink-3">
-            {decisionWords(answered)}
-          </span>
-        ) : null}
-        {item.repeats && item.repeats > 1 ? (
-          <span className="t-micro tabular-nums text-ink-3">×{item.repeats}</span>
-        ) : null}
-        {/* What it cost, and only once it is worth reading.  A duration on
-            every row would be a column of "0.0s" down the transcript;
-            half a second is where a reader starts to care, and it turns
-            the tool rows from a list of verbs into a record of where a
-            turn actually went. */}
-        {item.ms != null && item.ms >= 500 ? (
-          <span className="t-micro shrink-0 tabular-nums text-ink-3">
-            {duration(item.ms)}
-          </span>
-        ) : null}
-      </div>
-    );
+    return <ToolRow item={item} />;
   }
 
   // A full stop in the record, not a row. It exists so the replay can tell
@@ -1443,7 +1326,7 @@ const Item = memo(function Item({
 
   if (item.kind === "notice") {
     return (
-      <div className={`t-meta stream-indent ${item.tone === "error" ? "text-error" : "text-ink-3"}`}>
+      <div className={`text-[13px] leading-[18px] ${item.tone === "error" ? "text-error" : "text-ink-3"}`}>
         {item.text}
       </div>
     );
@@ -1455,6 +1338,83 @@ const Item = memo(function Item({
 
   return <Permission item={item} />;
 })
+
+/** A run of tool calls as one sentence, opening to its rows. */
+function ToolRun({ group }: { group: ToolGroup }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="nx-tool-run" data-testid="tool-run" data-open={open || undefined}>
+      <button
+        type="button"
+        className={`nx-tool-line ${group.ok ? "" : "text-error"}`}
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
+      >
+        {open ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+        <span className="min-w-0 flex-1 truncate">{foldedSentence(group)}</span>
+        {group.ms != null && group.ms >= 500 ? (
+          <span className="shrink-0 tabular-nums">{duration(group.ms)}</span>
+        ) : null}
+      </button>
+      {open ? (
+        <div className="flex flex-col gap-[2px] pl-[18px]">
+          {group.items.map((row) => <ToolRow key={row.id} item={row} />)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ToolRow({ item }: { item: Extract<ChatItem, { kind: "tool" }> }) {
+  // While its card is open the card is the whole account: its headline
+  // names the call, and a "Running" row above it said the same thing
+  // twice. The row comes back with the answer on it.
+  if (item.card && !item.card.decision) return null;
+  {
+    // Which tense the row may use. A call whose card is open has not
+    // happened, and one the writer refused never will.
+    const state: CallState = item.card
+      ? item.card.decision === "deny" || item.card.decision === "expired"
+        ? "refused"
+        : item.card.decision
+          ? "done"
+          : "asking"
+      : "done";
+    const answered = item.card?.decision;
+    return (
+      <div
+        className="nx-tool-line"
+        // The account of what was done, on the row the answer belongs to.
+        // Folding a decided card into its call is what stops the command
+        // being printed twice, and the decision has to come with it: at
+        // the quiet positions this row is the only record that the action
+        // happened at all.
+        data-testid={answered ? `decided-${answered}` : undefined}
+      >
+        <span className={item.ok === false || state === "refused" ? "text-error" : ""}>
+          {verbFor(item.name, state)}
+        </span>
+        <span className="t-code-sm min-w-0 truncate">{item.summary}</span>
+        {answered && answered !== "allow" ? (
+          <span className="shrink-0">{decisionWords(answered)}</span>
+        ) : null}
+        {item.repeats && item.repeats > 1 ? (
+          <span className="tabular-nums">×{item.repeats}</span>
+        ) : null}
+        {/* What it cost, and only once it is worth reading.  A duration on
+            every row would be a column of "0.0s" down the transcript;
+            half a second is where a reader starts to care, and it turns
+            the tool rows from a list of verbs into a record of where a
+            turn actually went. */}
+        {item.ms != null && item.ms >= 500 ? (
+          <span className="ml-auto shrink-0 tabular-nums">
+            {duration(item.ms)}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+}
 
 /** How long the thing on screen has been going, once that is worth saying.
  *
@@ -1519,39 +1479,16 @@ function Elapsed({
 function Plan({ item }: { item: Extract<ChatItem, { kind: "plan" }> }) {
   const done = item.items.filter((entry) => entry.state === "done").length;
   return (
-    <div className="stream-indent">
-      <div className="flex items-baseline gap-2">
-        <span className="t-micro text-ink-2">Plan</span>
-        <span className="t-micro tabular-nums text-ink-3">
-          {done} of {item.items.length}
-        </span>
+    <div className="nx-plan stream-indent">
+      <div className="nx-plan-head">
+        <span>Plan</span>
+        <span className="ml-auto tabular-nums">{done} of {item.items.length}</span>
       </div>
-      <div className="mt-1 flex flex-col gap-[2px]">
-        {item.items.map((entry, index) => (
-          <div key={index} className="flex items-start gap-2">
-            <span
-              className={`mt-[6px] h-[3px] w-[10px] shrink-0 ${
-                entry.state === "done"
-                  ? "bg-ok"
-                  : entry.state === "active"
-                    ? "bg-pen"
-                    : "bg-line"
-              }`}
-            />
-            <span
-              className={`t-meta min-w-0 ${
-                entry.state === "done"
-                  ? "text-ink-3 line-through"
-                  : entry.state === "active"
-                    ? "text-ink"
-                    : "text-ink-2"
-              }`}
-            >
-              {entry.text}
-            </span>
-          </div>
-        ))}
-      </div>
+      {item.items.map((entry, index) => (
+        <div key={index} className="nx-plan-row" data-state={entry.state}>
+          {entry.text}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1586,17 +1523,17 @@ function AgentMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> })
     <div
       className="flex"
       tabIndex={0}
+      data-testid="agent-turn"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onFocus={() => setHover(true)}
       onBlur={() => setHover(false)}
     >
-      <span className="w-[3px] shrink-0 bg-pen" />
-      <div className="ml-3 min-w-0 flex-1">
-        <div className="flex items-baseline justify-between">
-          <span className="t-micro text-pen">{name}</span>
+      <div className="nx-turn min-w-0 flex-1">
+        <div className="nx-turn-who">
+          <span>{name}</span>
           {hover ? (
-            <span className="t-micro tnum text-ink-3">
+            <span className="ml-auto tnum text-ink-3">
               {new Date(item.at).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -1604,7 +1541,7 @@ function AgentMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> })
             </span>
           ) : null}
         </div>
-        <div className="t-prose text-ink">
+        <div className="t-prose mt-[2px] text-ink">
           <Prose text={item.text} />
           {item.streaming ? (
             <span
@@ -1654,34 +1591,32 @@ function EditChip({
   return (
     <div className="stream-indent" data-testid="edit-chip">
       <div
-        className="flex h-[24px] w-fit max-w-full items-center gap-2 rounded-[3px] bg-pen-wash px-2"
+        className="nx-diff"
         onMouseEnter={() => onHoverEdit(item.path, [changedLine, changedLine + 2])}
         onMouseLeave={() => onHoverEdit(item.path, null)}
       >
         <button
-          className="flex min-w-0 items-center gap-1 text-ink"
+          className="flex min-w-0 items-center gap-[6px] text-ink"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
-          <span className={open ? "rotate-180" : ""}>
-            <Chevron direction="down" />
-          </span>
+          {open ? <ChevronDownIcon size={11} /> : <ChevronRightIcon size={11} />}
           <span className="t-code-sm truncate">{name}</span>
         </button>
-        <span className="t-micro tnum shrink-0">
-          <span className="text-ok">+{item.added}</span>{" "}
-          <span className="text-error">−{item.removed}</span>
+        <span className="nx-diff-counts">
+          <span className="text-ok">+{item.added}</span>
+          {item.removed ? <span className="text-error">−{item.removed}</span> : null}
         </span>
         <span className="flex shrink-0 gap-2">
           <button
-            className="quiet t-micro"
+            className="quiet text-ink-2"
             onClick={() => onShowEdit(item.path, changedLine)}
           >
             Show
           </button>
           {undoable ? (
             <button
-              className="quiet t-micro"
+              className="quiet text-ink-2"
               onClick={async () => {
                 const projectId = get().projectId;
                 if (!projectId) return;
@@ -1871,7 +1806,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
       }}
     >
       <span className="w-[3px] shrink-0 rounded-l-card bg-warn" />
-      <div className="min-w-0 flex-1 p-3">
+      <div className="min-w-0 flex-1 px-3 py-[10px]">
         <div className="t-ui font-medium text-ink">{item.headline}</div>
         {item.detail ? (
           <pre className="t-code-sm mt-2 max-h-[108px] overflow-auto whitespace-pre-wrap rounded-control bg-surface-2 p-2 text-ink-2">

@@ -105,7 +105,7 @@ import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import {
-  ContextIcon, FileIcon, FoldIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, SearchIcon,
+  FileIcon, FoldIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, SearchIcon,
   SectionsIcon, SubmitIcon, TrashIcon,
 } from "./ui/icons";
 import { agentName, type Provider } from "./agent-name";
@@ -146,7 +146,6 @@ const TrashPanel = lazy(() => import("./panes/TrashPanel"));
 const SectionsPanel = lazy(() => import("./panes/SectionsPanel"));
 const PapersPanel = lazy(() => import("./panes/PapersPanel"));
 const SubmitPanel = lazy(() => import("./panes/SubmitPanel"));
-const ContextPanel = lazy(() => import("./panes/ContextPanel"));
 const GitPanel = lazy(() => import("./panes/GitPanel"));
 import { isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
 
@@ -168,7 +167,7 @@ const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
  *  is reached from the agent column, and moves into it with the column's
  *  own rebuild. */
 export type DrawerId =
-  | "files" | "sections" | "search" | "papers" | "history" | "git" | "submit" | "trash" | "context";
+  | "files" | "sections" | "search" | "papers" | "history" | "git" | "submit" | "trash";
 const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "files", title: "Files", Icon: () => <FileIcon size={18} /> },
   { id: "sections", title: "Sections", Icon: () => <SectionsIcon size={18} /> },
@@ -239,8 +238,6 @@ export default function App() {
   // second.
   const [chatOpen, setChatOpen] = useState(!narrow);
   const [showing, setShowing] = useState<"source" | "preview">("source");
-  const [contextRequest, setContextRequest] =
-    useState<"style" | "voice" | null>(null);
   // Docked when the editor can spare the width; over it when it cannot.
   // The panel exists to be read *beside* the file, and an overlay that
   // covers the right third of a wrapped LaTeX line defeats it.
@@ -540,9 +537,7 @@ export default function App() {
     // bar, comes back as the default rather than as an empty drawer.
     const remembered = recall(`nexttex.drawer.${id}`, { open: DRAWER_DEFAULT }).open;
     setDrawerId(
-      BAR_ITEMS.some((item) => item.id === remembered) || remembered === "context"
-        ? remembered
-        : DRAWER_DEFAULT,
+      BAR_ITEMS.some((item) => item.id === remembered) ? remembered : DRAWER_DEFAULT,
     );
     setFolded((current) => recall(`nexttex.folded.${id}`, current));
     setWidths(recall(`nexttex.widths.${id}`, DEFAULTS));
@@ -1911,7 +1906,7 @@ export default function App() {
         // and it answers Escape only while the keyboard is inside it, so a
         // writer in the composer with the panel open still closes the
         // panel they are in.
-        if (tutorialOpen || showingChanges || contextRequest) return;
+        if (tutorialOpen || showingChanges) return;
         const active = document.activeElement as HTMLElement | null;
         if (!active?.closest?.("[data-nx-chat]")) return;
         // A popover inside the panel claims Escape by preventing the
@@ -1939,7 +1934,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [runAction, closeChat, tutorialOpen, showingChanges, contextRequest]);
+  }, [runAction, closeChat, tutorialOpen, showingChanges]);
 
   /** One header, two gestures, on the tab in front and on the empty run.
    *
@@ -2185,21 +2180,6 @@ export default function App() {
             <Icon />
           </IconButton>
         ))}
-        {/* What the agent reads, on the bar until the agent column takes
-            it in (the direction puts it there; the column's rebuild is
-            the item that moves it).  Nothing to offer with no agent. */}
-        {noAgent ? null : (
-          <IconButton
-            label={`What ${agentName(agentProvider as Provider | undefined)} reads`}
-            data-testid="bar-context"
-            className="nx-bar-button"
-            on={drawerShown && drawerId === "context"}
-            aria-pressed={drawerShown && drawerId === "context"}
-            onClick={() => toggleDrawer("context")}
-          >
-            <ContextIcon size={18} />
-          </IconButton>
-        )}
         <div className="mb-2 mt-auto">
           <Settings
             inProject
@@ -2325,13 +2305,6 @@ export default function App() {
                   onJump={(file, line) => openFile(file, line)}
                   onPage={(page) => pdf.current?.goTo(page)}
                 />
-                    ) : null}
-                    {drawerId === "context" && !noAgent ? (
-                  <ContextPanel
-                    drawer
-                    openFor={contextRequest}
-                    onHandled={() => setContextRequest(null)}
-                  />
                     ) : null}
                     {drawerId === "git" ? (
                 <GitPanel
@@ -2814,9 +2787,11 @@ export default function App() {
               }
               return;
             }
-            // The panel is a drawer until the column takes it in.
-            openDrawer("context");
-            setContextRequest(kind);
+            // What Claude reads is a view of the column; the picker opens
+            // on the kind the welcome's action named.
+            if (chatOverRef.current) setChatOpen(true);
+            else if (foldedRef.current.chat) fold("chat");
+            window.setTimeout(() => chat.current?.showReads(kind), 60);
           }}
           onFold={() => (chatOver ? setChatOpen(false) : fold("chat"))}
           handleRef={(handle) => (chat.current = handle)}

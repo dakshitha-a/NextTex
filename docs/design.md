@@ -277,8 +277,8 @@ quick actions beside it) and the instrument's body as the drawer's one scroll bo
 press on the drawer's icon folds it, and the choice is kept per project under
 `nexttex.drawer.<id>`, Files by default. Below 1100 shell pixels the drawer overlays the
 panes at the bar's edge instead of taking a column, and the bar stays. History left its
-dock beside the editor to be a drawer like the rest; What Claude reads is a drawer reached
-from the agent column until the column takes it in. The title bar is full width above
+dock beside the editor to be a drawer like the rest; What Claude reads stood on the bar as
+a ninth button until the column's rebuild took it in as a view (§50). The title bar is full width above
 everything, 40 px on `--surface-2`: the project and its switcher at the left, Share,
 Download and the drawer's fold at the right. The writer's reason for the bar, on the
 record: a project is either many short files (a folder per job listing) or one or two long
@@ -8945,3 +8945,58 @@ reads a row's title, subtitle and control; `a11y.spec.ts` sweeps every
 group in both themes; the specs that reach a row (`appearance`,
 `keymaps`, `spelling`, `engine`, `password`) choose the row's group
 first.
+
+## 50. The Claude column: turns, header and views
+
+The overhaul's column, as the direction page drew it in four states and
+the writer agreed on version 13. The turns first. Consecutive tool
+calls fold into one line in the third ink, "Read main.tex, searched the
+bibliography, ran latexmk", with the run's whole time at the right,
+opening to the rows themselves; a call whose card is open is a question
+and never folds, a call whose card was answered is the record of that
+answer and stays its own row, and a run of one is a row. While a card
+is open the row above it is not drawn at all, because the card's
+headline is the account and "Running latexmk" over "Run latexmk" said
+one thing twice; the row returns with the answer on it, "Did not run"
+or "Allowed". The writer's message is a plain card on the first surface
+with no stripe, since the stripe is the agent's. The agent's turn sits
+behind a 2 px pen rule with its name in the pen colour at 12 px, the
+time at the right on hover, and its prose at 15 on 24. The diff chip is
+28 px on the first surface with a chevron, the file in the mono, the
+counts in green and red at 11 px, and Show and Undo in the second ink,
+keeping "Can't undo, you edited this" and the reverted line with its
+ten-second Redo. The plan is rows with a 3 px rule each, green for what
+is done and struck through, pen for the one in hand, the line colour
+for what is to come, under "Plan" and its count. The permission card
+keeps its shape from the overlays round: the first surface, the 3 px
+warning rule, the headline, the command in a pre, the consequence and
+the reason, and the answers with their keys. The plan is drawn where
+the transcript puts it, which is before the agent's words rather than
+after them as the page drew it, because the agent announces its plan
+before it works; that is the transcript's order and is left so.
+
+The header is one row: the agent's name; while a turn runs, the dot,
+what it is doing and the elapsed time (a path shortened to the file's
+name, since the transcript's row carries the whole path), and Stop;
+"Auto" in the warning colour while the fence is lowered, one click
+stepping it back; then New conversation, Past conversations, What
+Claude reads and Fold as icon buttons, the same buttons whatever the
+column's width. The Usage button left the header: what a project has
+cost is one sentence, and its place is the foot of the past
+conversations, the sum over every one of them, "This project: $1.23
+estimated, 14 turns, 2m 10s of model time, 120k tokens in (96k from
+cache), 8.2k out", with the note about what the number is. Past
+conversations and What Claude reads are views of the column rather than
+panels beside it: each draws the same header with a back control in
+front of its title, so the column is one place with one way back. A
+past conversation is a row with its first question and when it was
+filed, "Today, 14:20", "Yesterday, 17:48", "Tuesday 16 September", and
+the date past the week; open, it is the record, with nothing on it that
+could undo an edit or answer a card. What Claude reads is the memory
+with Edit, the three uploadable kinds with Add and their files as 28 px
+rows with Remove under the pointer, and the reusable prompts with "this
+project's" or "Copy to project". It stood on the activity bar as a
+ninth button from the bar's arrival until this, which the tracker
+carried as a deviation from the page's eight; the welcome's actions
+reach it through the column's handle, opening the column first when it
+was folded or away.

@@ -255,6 +255,6 @@ test("a writer who chose ChatGPT is never told they are talking to Claude", asyn
   await expect(chat.getByText("ChatGPT").first()).toBeVisible();
   await expect(chat.getByText(/Claude/)).toHaveCount(0);
   await expect(page.getByPlaceholder("Ask ChatGPT")).toBeVisible();
-  await page.getByTestId("bar-context").click();
-  await expect(page.getByText("What ChatGPT reads")).toBeVisible();
+  await page.getByTestId("context-open").click();
+  await expect(page.getByRole("heading", { name: "What ChatGPT reads" })).toBeVisible();
 });

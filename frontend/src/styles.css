@@ -1397,6 +1397,67 @@ button.nx-row { width: 100%; text-align: left; }
   box-shadow: var(--float);
   padding: 8px 10px;
 }
+/* The Claude column's header: the name, what the agent is doing, and the
+   icon buttons at the right, the last of them the fold; a view inside the
+   column draws the same row with a back control in front of its title.
+   Past conversations are rows with the question and its stamp; what the
+   agent reads is sections with a title, a hint and 28 px file rows. */
+.nx-column-head { display: flex; align-items: center; gap: 2px; padding: 10px 8px 6px 16px; flex: none; min-width: 0; }
+.nx-column-head .nx-icon-button { color: var(--ink-3); }
+.nx-column-head .nx-icon-button:hover, .nx-column-head .nx-icon-button[data-on] { color: var(--ink); }
+.nx-column-work { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
+.nx-column-work .nx-working { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.nx-column-auto { color: var(--warn); font-size: 12px; font-weight: 500; padding: 0 6px; flex: none; }
+.nx-past-row { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 7px 8px; border-radius: var(--nx-radius-control); color: var(--ink); }
+.nx-past-row small { color: var(--ink-3); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
+.nx-past-row:hover, .nx-past-row:focus-visible { background: var(--wash); }
+.nx-past-usage { margin: auto 0 0; padding: 10px 8px 0; border-top: 1px solid color-mix(in oklab, var(--ink-3) 16%, transparent); color: var(--ink-3); font-size: 12.5px; line-height: 18px; }
+.nx-past-usage b { color: var(--ink-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+.nx-reads-sec { padding: 10px 16px 0; }
+.nx-reads-title { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--ink); }
+.nx-reads-hint { color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
+.nx-reads-memory { color: var(--ink-2); font-size: 13.5px; line-height: 19px; padding-left: 14px; margin: 4px 0 0; list-style: disc; }
+.nx-reads-file { display: flex; align-items: center; gap: 8px; height: 28px; margin: 0 -8px; padding: 0 8px; border-radius: var(--nx-radius-control); color: var(--ink-2); font-size: 13px; }
+.nx-reads-file > svg { flex: none; color: var(--ink-3); }
+.nx-reads-file:hover, .nx-reads-file:focus-within { background: var(--wash); }
+.nx-reads-x { margin-left: auto; color: var(--ink-3); font-size: 12px; opacity: 0; }
+.nx-reads-file:hover .nx-reads-x, .nx-reads-file:focus-within .nx-reads-x, .nx-reads-x[data-always] { opacity: 1; }
+button.nx-reads-x:hover { color: var(--error); }
+button.nx-reads-x[data-always]:hover { color: var(--pen); }
+@media (hover: none) { .nx-reads-x { opacity: 1; } }
+
+/* The Claude column's turns, as the direction page draws them: a tool
+   call or a folded run of them as one line in the third ink at 12.5 on
+   17, flush with the column; the agent's turn behind a 2 px pen rule with
+   its name in the pen colour; a diff chip 28 px tall on the first
+   surface; a plan as rows with a 3 px rule each, coloured by state. */
+.nx-tool-line {
+  display: flex; align-items: baseline; gap: 6px; width: 100%; min-width: 0;
+  color: var(--ink-3); font-size: 12.5px; line-height: 17px; text-align: left;
+}
+.nx-tool-line > svg { flex: none; align-self: center; }
+.nx-tool-run { display: flex; flex-direction: column; gap: 2px; }
+.nx-tool-run > button:hover { color: var(--ink-2); }
+.nx-tool-run .nx-tool-line .t-code-sm { color: var(--ink-2); font-size: 12px; }
+.nx-turn { border-left: 2px solid var(--pen); padding-left: 12px; }
+.nx-turn-who { display: flex; color: var(--pen); font-size: 12px; line-height: 16px; }
+.nx-diff {
+  display: inline-flex; align-items: center; gap: 8px; height: 28px; max-width: 100%;
+  margin-top: 4px; padding: 0 10px; border-radius: var(--nx-radius-control);
+  background: var(--surface); font-size: 13px;
+}
+.nx-diff .t-code-sm { font-size: 12.5px; }
+.nx-diff-counts { display: inline-flex; gap: 4px; flex: none; font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.nx-plan { margin-top: 8px; }
+.nx-plan-head { display: flex; font-size: 12px; color: var(--ink-3); }
+.nx-plan-row {
+  display: flex; gap: 8px; align-items: center; margin-top: 3px;
+  padding: 3px 0 3px 10px; border-left: 3px solid var(--line);
+  font-size: 13.5px; line-height: 18px; color: var(--ink-2);
+}
+.nx-plan-row[data-state="done"] { border-color: var(--ok); text-decoration: line-through; color: var(--ink-3); }
+.nx-plan-row[data-state="active"] { border-color: var(--pen); color: var(--ink); }
+
 /* The settings sheet, master-detail: the four groups down a 200 px list
    on the second surface, the chosen one on the wash, and one group's rows
    at the right; below 720 px the list is a row of segments above the

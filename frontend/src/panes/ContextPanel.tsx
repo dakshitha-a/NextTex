@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import { get, refreshContext, set, useStore } from "../store";
-import { Chevron } from "../chrome";
+import { Button } from "../ui/Button";
+import { DocIcon } from "../ui/icons";
 import { agentName } from "../agent-name";
 import type { PromptEntry } from "./slash-prompts";
 
@@ -28,22 +29,18 @@ const KINDS: {
 ];
 
 export default function ContextPanel({
-  drawer = false,
   openFor,
   onHandled,
 }: {
-  /** Inside the activity bar's drawer, which draws the heading row and
-   *  holds one instrument at a time: the panel's own header is not drawn
-   *  and its body is always open. */
-  drawer?: boolean;
   openFor?: "style" | "voice" | null;
   onHandled?: () => void;
 } = {}) {
   const documents = useStore((s) => s.contextDocs);
   const name = agentName(useStore((s) => s.agent?.provider));
   const stale = useStore((s) => s.contextStale);
-  const [open, setOpen] = useState(false);
-  const shown = drawer || open;
+  // A view of the Claude column now, always open while it is up: the
+  // column's header carries its title and the way back.
+  const shown = true;
   const [kind, setKind] = useState<"style" | "voice" | "source">("style");
   const input = useRef<HTMLInputElement | null>(null);
 
@@ -51,7 +48,6 @@ export default function ContextPanel({
   // picker at the right kind, and let the writer pick a file.
   useEffect(() => {
     if (!openFor) return;
-    setOpen(true);
     setKind(openFor);
     const timer = window.setTimeout(() => {
       input.current?.click();
@@ -131,39 +127,27 @@ export default function ContextPanel({
   };
 
   return (
-    <div className={drawer ? "flex min-h-0 flex-1 flex-col" : "shrink-0 border-t border-line"} data-testid="context-panel">
-      {drawer ? null : (
-        <button
-          className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          <span className="t-micro text-ink-2">
-            What {name} reads {documents.length ? `(${documents.length})` : ""}
-          </span>
-          <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
-            <Chevron direction="down" />
-          </span>
-        </button>
-      )}
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="context-panel">
       {shown ? (
-        <div className={drawer ? "min-h-0 flex-1 overflow-auto px-[10px] pb-[8px]" : "px-[10px] pb-[8px]"}>
+        <div className="min-h-0 flex-1 overflow-auto pb-[10px]">
           {/* First, because it is the one thing here the writer dictated
-              rather than uploaded -- and the only way to reach it: the
+              rather than uploaded, and the only way to reach it: the
               folder it lives in is hidden from the file list. */}
-          <div className="mt-2">
-            <div className="flex items-center justify-between">
-              <span className="t-micro text-ink-2">What {name} remembers</span>
+          <div className="nx-reads-sec">
+            <div className="nx-reads-title">
+              <span>What {name} remembers</span>
               {editing === null ? (
-                <button
-                  className="quiet t-micro"
+                <Button
+                  variant="quiet"
+                  size="inline"
+                  className="ml-auto"
                   data-testid="memory-edit"
                   onClick={() => setEditing(memory?.text ?? "")}
                 >
                   Edit
-                </button>
+                </Button>
               ) : (
-                <span className="t-micro text-ink-3">Editing</span>
+                <span className="nx-reads-hint ml-auto">Editing</span>
               )}
             </div>
             {editing === null ? (
@@ -171,16 +155,13 @@ export default function ContextPanel({
                 // The notes, not the file: its heading is scaffolding, and
                 // showing it made the panel read as a document rather than
                 // as a list of things that were said.
-                <ul className="t-meta text-ink-2" data-testid="memory-text">
+                <ul className="nx-reads-memory" data-testid="memory-text">
                   {memory.notes.map((note, index) => (
-                    <li key={index} className="mt-[2px] flex gap-[6px]">
-                      <span className="text-ink-3">·</span>
-                      <span className="min-w-0">{note}</span>
-                    </li>
+                    <li key={index}>{note}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="t-meta text-ink-3">
+                <p className="nx-reads-hint">
                   Nothing yet. Ask {name} to remember something, or write it
                   here yourself.
                 </p>
@@ -199,19 +180,12 @@ export default function ContextPanel({
                   onChange={(event) => setEditing(event.target.value)}
                 />
                 <div className="mt-1 flex items-center gap-2">
-                  <button
-                    className="ghost-button h-[26px] px-3 t-ui"
-                    data-testid="memory-save"
-                    onClick={saveMemory}
-                  >
+                  <Button variant="ghost" data-testid="memory-save" onClick={saveMemory}>
                     Save
-                  </button>
-                  <button
-                    className="quiet t-micro"
-                    onClick={() => setEditing(null)}
-                  >
+                  </Button>
+                  <Button variant="quiet" onClick={() => setEditing(null)}>
                     Discard
-                  </button>
+                  </Button>
                   <span className="flex-1" />
                   <span
                     className={`t-micro tabular-nums ${
@@ -229,54 +203,51 @@ export default function ContextPanel({
           {KINDS.map((entry) => {
             const mine = documents.filter((item) => item.kind === entry.key);
             return (
-              <div key={entry.key} className="mt-2">
-                <div className="flex items-center justify-between">
-                  <span className="t-micro text-ink-2">{entry.label}</span>
-                  <button
-                    className="quiet t-micro"
+              <div key={entry.key} className="nx-reads-sec">
+                <div className="nx-reads-title">
+                  <span>{entry.label}</span>
+                  <Button
+                    variant="quiet"
+                    size="inline"
+                    className="ml-auto"
                     onClick={() => {
                       setKind(entry.key);
                       input.current?.click();
                     }}
                   >
                     Add
-                  </button>
+                  </Button>
                 </div>
-                {mine.length === 0 ? (
-                  <p className="t-meta text-ink-3">{entry.hint(name)}</p>
-                ) : (
-                  mine.map((document) => (
-                    <div
-                      key={document.id}
-                      className="group flex items-center gap-2 rounded-[3px] px-1 hover:bg-surface-2"
+                <p className="nx-reads-hint">{entry.hint(name)}</p>
+                {mine.map((document) => (
+                  <div key={document.id} className="nx-reads-file">
+                    <DocIcon />
+                    <span className="min-w-0 flex-1 truncate">{document.filename}</span>
+                    <button
+                      className="nx-reads-x"
+                      onClick={async () => {
+                        const projectId = get().projectId;
+                        if (!projectId) return;
+                        await api.removeContext(projectId, document.id);
+                        refreshContext(projectId);
+                      }}
                     >
-                      <span className="t-code-sm min-w-0 flex-1 truncate text-ink">
-                        {document.filename}
-                      </span>
-                      <button
-                        className="t-micro text-ink-3 opacity-0 hover:text-error focus:opacity-100 group-hover:opacity-100"
-                        onClick={async () => {
-                          const projectId = get().projectId;
-                          if (!projectId) return;
-                          await api.removeContext(projectId, document.id);
-                          refreshContext(projectId);
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))
-                )}
+                      Remove
+                    </button>
+                  </div>
+                ))}
                 {stale.includes(entry.key) ? (
-                  <button
-                    className="quiet t-micro mt-1 text-pen"
+                  <Button
+                    variant="quiet"
+                    size="inline"
+                    className="mt-1 !text-pen"
                     onClick={() => {
                       const projectId = get().projectId;
                       if (projectId) api.distill(projectId, entry.key);
                     }}
                   >
                     Read these now
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             );
@@ -287,13 +258,13 @@ export default function ContextPanel({
               puts `prompts/<name>.md` in the project, where the group can
               edit it and version control can carry it, and the copy is
               the one used. */}
-          <div className="mt-2" data-testid="prompts-list">
-            <div className="flex items-center justify-between">
-              <span className="t-micro text-ink-2">Reusable prompts</span>
-              <span className="t-micro text-ink-3">prompts/</span>
+          <div className="nx-reads-sec" data-testid="prompts-list">
+            <div className="nx-reads-title">
+              <span>Reusable prompts</span>
+              <span className="nx-reads-hint ml-auto">prompts/</span>
             </div>
             {prompts.length === 0 ? (
-              <p className="t-meta text-ink-3">
+              <p className="nx-reads-hint">
                 Type / in the box to use one. A Markdown file in prompts/ is
                 one more.
               </p>
@@ -301,19 +272,21 @@ export default function ContextPanel({
               prompts.map((prompt) => (
                 <div
                   key={prompt.name}
-                  className="group flex items-center gap-2 rounded-[3px] px-1 hover:bg-surface-2"
+                  className="nx-reads-file"
                   data-testid="prompt-entry"
                   data-source={prompt.source}
                   title={prompt.hint}
                 >
+                  <DocIcon />
                   <span className="t-code-sm min-w-0 flex-1 truncate text-ink">
                     /{prompt.said}
                   </span>
                   {prompt.source === "project" ? (
-                    <span className="t-micro text-ink-3">this project's</span>
+                    <span className="nx-reads-x" data-always>this project&rsquo;s</span>
                   ) : (
                     <button
-                      className="t-micro text-ink-3 opacity-0 hover:text-pen focus:opacity-100 group-hover:opacity-100"
+                      className="nx-reads-x"
+                      data-always
                       data-testid="prompt-copy"
                       onClick={() => copyPrompt(prompt.name)}
                     >

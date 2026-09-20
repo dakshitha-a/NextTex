@@ -78,6 +78,26 @@ test("a tab whose file Claude is editing carries the pen, only while the turn ru
   await expect(front).not.toHaveAttribute("data-pen", "true");
 });
 
+test("a run of tool calls is one sentence that opens to its rows", async ({ tab }) => {
+  // Three calls in a row read as "Read main.tex, searched ..., ran ..."
+  // with the run's whole time; opening the line shows the three rows.
+  // The card at the end is a question and stays its own row.
+  await ask(tab, "showcase", "Tighten the abstract's first sentence.");
+  const run = tab.getByTestId("tool-run").first();
+  await expect(run).toBeVisible({ timeout: 20_000 });
+  await expect(run).toContainText("Read main.tex, searched \\cite{stolow, ran latexmk -pdf main");
+  await expect(run).toContainText("3.1s");
+  await expect(run.locator(".nx-tool-line")).toHaveCount(1);
+  await run.getByRole("button").first().click();
+  await expect(run.locator(".nx-tool-line")).toHaveCount(4);
+  await expect(run).toContainText("Ran");
+  // The plan, the diff chip and the open card are drawn beside it.
+  await expect(tab.getByText("2 of 3")).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByTestId("edit-chip")).toBeVisible();
+  await expect(tab.getByTestId("permission-card")).toBeVisible();
+  await tab.getByTestId("deny").click();
+});
+
 test("an agent edit is a version of its own, kept apart from yours", async ({
   app, project, tab,
 }) => {
@@ -175,9 +195,11 @@ test("a new conversation empties the panel and keeps the tally", async ({
   // cleared one lands on the right surface without anything extra.
   await expect(tab.getByRole("button", { name: /voice/i }).first()).toBeVisible();
 
-  // Cleared conversations do not clear what the project has cost.
-  await tab.getByRole("button", { name: "Usage" }).click();
-  await expect(tab.getByText(/turn/)).toBeVisible();
+  // Cleared conversations do not clear what the project has cost: the
+  // sum is one sentence at the foot of the past conversations.
+  await tab.getByTestId("past-open").click();
+  await expect(tab.getByTestId("usage-line")).toContainText(/turn/);
+  await tab.getByTestId("past-back").click();
 });
 
 test("a cleared conversation stays cleared after a reload", async ({ tab }) => {
@@ -194,15 +216,18 @@ test("a cleared conversation stays cleared after a reload", async ({ tab }) => {
   await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
 });
 
-test("the usage panel closes from the button that opened it", async ({ tab }) => {
-  // The press that dismisses a popover arrives in the capture phase,
-  // before the trigger's own click, so without an anchor this closed and
-  // immediately reopened.
-  const usage = tab.getByRole("button", { name: "Usage" });
-  await usage.click();
-  await expect(tab.getByText("estimated, this project")).toBeVisible();
-  await usage.click();
-  await expect(tab.getByText("estimated, this project")).toBeHidden();
+test("what the project has cost is read at the foot of the past conversations", async ({ tab }) => {
+  // One sentence, once, where the sum over every conversation belongs;
+  // the header carries no Usage control of its own.
+  await expect(tab.getByRole("button", { name: "Usage" })).toHaveCount(0);
+  await tab.getByTestId("past-open").click();
+  const line = tab.getByTestId("usage-line");
+  await expect(line).toBeVisible({ timeout: 10_000 });
+  await expect(line).toContainText("This project:");
+  await expect(line).toContainText("estimated");
+  await expect(line).toContainText("tokens in");
+  await tab.getByTestId("past-back").click();
+  await expect(line).toHaveCount(0);
 });
 
 async function setMode(page: Page, option: "ask" | "project" | "all") {
@@ -300,23 +325,22 @@ test("the mode menu keeps the promise of its role", async ({ tab }) => {
   await expect(control).toBeFocused();
 });
 
-test("the template-and-voice panel takes focus when it arrives, and gives it back", async ({
+test("what the agent reads is a view of the column, and Back gives the focus back", async ({
   tab,
 }) => {
-  // The three popovers under the composer are fetched on first open rather
-  // than shipped with the panel, so the moment the trigger is pressed the
-  // panel is not there yet.  Focus has to be moved by the panel itself when
-  // it mounts, not by the trigger a tick after the press: the trigger's
-  // timeout used to find nothing to focus.
-  const control = tab.getByTestId("setup-open");
+  // The header's button opens the view in place of the conversation; its
+  // Back returns to the conversation and to the button that opened it.
+  const control = tab.getByTestId("context-open");
   await control.click();
-  const panel = tab.locator("#nx-setup");
+  const panel = tab.getByTestId("context-panel");
   await expect(panel).toBeVisible();
-  await expect(panel.getByRole("button").first()).toBeFocused();
-  await tab.keyboard.press("Escape");
-  await expect(panel).toBeHidden();
+  await expect(tab.getByRole("heading", { name: /What .* reads/ })).toBeVisible();
+  await expect(tab.locator("textarea")).toHaveCount(0);
+  await tab.getByTestId("reads-back").click();
+  await expect(panel).toHaveCount(0);
+  await expect(tab.locator("textarea")).toBeVisible();
   await expect(control).toBeFocused();
-  // And the model menu, which arrives from the same chunk.
+  // And the model menu, fetched on first open.
   await tab.getByTestId("model-open").click();
   await expect(tab.getByTestId("model-menu")).toBeVisible();
   await tab.keyboard.press("Escape");
@@ -748,7 +772,8 @@ test("a command is not said to have run while its card is still asking", async (
   const panel = tab.locator('[data-testid="chat"]');
   const asking = await panel.innerText();
   expect(asking).not.toContain("Ran echo hello-from-the-script");
-  expect(asking).toContain("Running");
+  // The card is the whole account while it asks: the command once, on it.
+  expect(asking.split("echo hello-from-the-script").length - 1).toBe(1);
 
   await card.getByRole("button", { name: /^Deny/ }).click();
   await expect(card).toHaveCount(0, { timeout: 10_000 });
@@ -940,8 +965,13 @@ test("a distillation the agent writes clears the read-these-now marker", async (
   }, project.id);
   await expect(tab.getByRole("button", { name: "Read these now" })).toBeVisible({ timeout: 15_000 });
 
+  // The view gives way to the conversation for the asking, and is opened
+  // again to read the marker.
+  await tab.getByTestId("reads-back").click();
   await ask(tab, "distill", "Read the voice sample.");
   await expect(tab.getByText(/written up what I found/)).toBeVisible({ timeout: 20_000 });
+  await tab.getByRole("button", { name: /What .* reads/ }).click();
+  await expect(tab.getByTestId("context-panel")).toBeVisible();
   await expect(tab.getByRole("button", { name: "Read these now" })).toHaveCount(0, { timeout: 15_000 });
 });
 

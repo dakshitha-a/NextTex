@@ -86,12 +86,15 @@ test("the Context panel lists the prompts, and a copy puts the file in the proje
   // the group can edit it.
   await expect(entries.nth(1)).toHaveAttribute("data-source", "project", { timeout: 10_000 });
   await expect(entries.nth(1).getByTestId("prompt-copy")).toHaveCount(0);
-  // The tree is the Files drawer's.
-  await tab.getByTestId("bar-files").click();
+  // The tree is the Files drawer's, which is already showing unless the
+  // drawer was folded.
+  if ((await tab.getByTestId("drawer").count()) === 0) await tab.getByTestId("bar-files").click();
   await openFolders(tab, "prompts/review-friendly.md");
   await expect(tab.locator('[role="tree"] [data-path="prompts/review-friendly.md"]')).toBeVisible();
 
-  // And the composer marks the copy as this project's.
+  // And the composer marks the copy as this project's; the view gives
+  // way to the conversation first.
+  await tab.getByTestId("reads-back").click();
   const composer = tab.locator("textarea");
   await composer.click();
   await composer.pressSequentially("/review f");
