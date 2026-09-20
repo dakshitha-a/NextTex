@@ -373,6 +373,32 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "the Papers drawer with a result's card",
+    open: async (tab) => {
+      // The publisher stubbed, as papers.spec.ts stubs it: this reaches
+      // nothing outside the machine.
+      await tab.route("**/library/search?*", (route) => route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ source: "crossref", results: [{
+          doi: "10.1038/nature14539", title: "Deep learning", first: "LeCun", authors: 3,
+          year: "2015", journal: "Nature", names: ["Yann LeCun", "Yoshua Bengio", "Geoffrey Hinton"],
+          abstract: "Deep learning allows computational models that are composed of multiple processing layers to learn representations of data.",
+        }] }),
+      }));
+      await tab.getByTestId("bar-papers").click();
+      const panel = tab.getByTestId("papers-panel");
+      await panel.getByTestId("papers-search").fill("deep learning");
+      await panel.getByTestId("papers-search").press("Enter");
+      await panel.getByTestId("papers-result").first().hover();
+      await expect(tab.getByTestId("papers-card")).toBeVisible({ timeout: 5_000 });
+      return panel;
+    },
+    close: async (tab) => {
+      await tab.unroute("**/library/search?*");
+      await tab.getByTestId("bar-papers").click();
+    },
+  },
+  {
     name: "the command palette",
     open: async (tab) => {
       await tab.locator("body").click({ position: { x: 4, y: 4 } });

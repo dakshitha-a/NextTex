@@ -3646,7 +3646,12 @@ async def library_state(project_id: str):
     entries = 0
     if bib is not None:
         try:
-            entries = len(re.findall(r"^\s*@\w+\s*[{(]", bib.read_text(encoding="utf-8", errors="replace"), re.M))
+            # An entry, not a @string, @comment or @preamble block, which
+            # are BibTeX's own furniture and cite nothing.
+            entries = len(re.findall(
+                r"^\s*@(?!string\b|comment\b|preamble\b)\w+\s*[{(]",
+                bib.read_text(encoding="utf-8", errors="replace"), re.M | re.I,
+            ))
         except OSError:
             entries = 0
     return {

@@ -98,6 +98,12 @@ def test_the_library_state_counts_the_bibliography_s_own_entries(client, bib):
     assert state["entries"] == 1 and state["count"] == 0
     path.write_text(path.read_text(encoding="utf-8") + "\n\n" + ENTRY + "\n", encoding="utf-8")
     assert client.get(f"/api/projects/{opened['id']}/library").json()["entries"] == 2
+    # BibTeX's own blocks are not entries.
+    path.write_text(
+        '@string{jphys = "J. Phys."}\n@comment{a note}\n@preamble{"\\newcommand{\\x}{y}"}\n' + ENTRY + "\n",
+        encoding="utf-8",
+    )
+    assert client.get(f"/api/projects/{opened['id']}/library").json()["entries"] == 1
     path.unlink()
     assert client.get(f"/api/projects/{opened['id']}/library").json()["entries"] == 0
 
