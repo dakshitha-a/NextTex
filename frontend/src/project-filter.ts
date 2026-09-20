@@ -63,11 +63,29 @@ export function sortProjects<T extends { name: string; path: string }>(
 
 /** Filter, then sort: the one list the screen draws and the arrow keys
  *  walk, so a key pressed on a row lands where the eye expects. */
-export function visibleProjects<T extends { name: string; path: string }>(
+export function visibleProjects<T extends { name: string; path: string; state?: string }>(
   projects: T[],
   query: string,
   key: SortKey,
+  view: ProjectView = "active",
 ): T[] {
-  const kept = query.trim() ? projects.filter((project) => matches(project, query)) : projects;
+  // The view first: the find field and the sort work inside whichever
+  // list is showing, and the count in the header line counts the view.
+  const inView = projects.filter((project) => (project.state ?? "active") === view);
+  const kept = query.trim() ? inView.filter((project) => matches(project, query)) : inView;
   return sortProjects(kept, key);
+}
+
+/** Which list the screen shows: the projects, the archived ones, or the
+ *  trash.  A project's `state` names the view it belongs to. */
+export type ProjectView = "active" | "archived" | "trashed";
+
+/** How many projects each view would show. */
+export function viewCounts<T extends { state?: string }>(projects: T[]): Record<ProjectView, number> {
+  const counts: Record<ProjectView, number> = { active: 0, archived: 0, trashed: 0 };
+  for (const project of projects) {
+    const state = (project.state ?? "active") as ProjectView;
+    counts[state in counts ? state : "active"] += 1;
+  }
+  return counts;
 }

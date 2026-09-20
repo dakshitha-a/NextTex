@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LONG_LIST, matches, sortKeyFrom, sortProjects, visibleProjects } from "./project-filter";
+import { LONG_LIST, matches, sortKeyFrom, sortProjects, viewCounts, visibleProjects } from "./project-filter";
 import { rowAfterKey } from "./project-row";
 
 const thesis = { name: "thesis", path: "/home/d/writing/Thesis-2027" };
@@ -78,6 +78,31 @@ describe("the project order", () => {
     expect(rowAfterKey(order, "c10", "ArrowDown")).toBeNull();
     // Nothing typed keeps the input array for recent, so the rows keep
     // their identity across keystrokes that clear the box.
-    expect(visibleProjects(rows, "  ", "recent")).toBe(rows);
+    expect(visibleProjects(rows, "  ", "recent")).toEqual(rows);
+  });
+});
+
+describe("the three views", () => {
+  const rows = [
+    { name: "thesis", path: "/w/thesis" },
+    { name: "aims", path: "/w/aims", state: "archived" as const },
+    { name: "scratch", path: "/w/scratch", state: "trashed" as const },
+    { name: "old aims", path: "/w/old-aims", state: "archived" as const },
+  ];
+
+  it("show only the projects in the view, and a row with no state is active", () => {
+    expect(visibleProjects(rows, "", "name").map((r) => r.name)).toEqual(["thesis"]);
+    expect(visibleProjects(rows, "", "name", "archived").map((r) => r.name)).toEqual(["aims", "old aims"]);
+    expect(visibleProjects(rows, "", "name", "trashed").map((r) => r.name)).toEqual(["scratch"]);
+  });
+
+  it("find and sort work inside a view", () => {
+    expect(visibleProjects(rows, "old", "name", "archived").map((r) => r.name)).toEqual(["old aims"]);
+    expect(visibleProjects(rows, "aims", "name").map((r) => r.name)).toEqual([]);
+  });
+
+  it("count each view for the quiet line under the list", () => {
+    expect(viewCounts(rows)).toEqual({ active: 1, archived: 2, trashed: 1 });
+    expect(viewCounts([])).toEqual({ active: 0, archived: 0, trashed: 0 });
   });
 });

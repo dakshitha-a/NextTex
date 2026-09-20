@@ -1174,6 +1174,22 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-project-where { grid-area: where; color: var(--ink-3); font-size: 13px; line-height: 18px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nx-project-tail { grid-area: tail; justify-self: end; }
 .nx-project-form { grid-area: form; margin-top: 8px; }
+/* The quiet line under the list: the counts of the other two views,
+   each a link; under the trash, "Empty the trash".  The way back from a
+   view is the same link beside the heading. */
+.nx-projects-under { padding: 6px 14px 12px; color: var(--ink-3); font-size: 13px; line-height: 18px; }
+.nx-projects-link { color: var(--ink-2); font-size: 13px; line-height: 18px; border-radius: var(--nx-radius-control); }
+.nx-projects-link:hover, .nx-projects-link:focus-visible { color: var(--ink); }
+.nx-projects-head .nx-projects-link { margin-left: -6px; align-self: end; padding-bottom: 3px; }
+/* The stamp after the path in the Archived and Trash views: the tail
+   says it at rest, and it reappears here while the pointer takes the
+   tail for the actions, so it is never lost.  A screen with nothing to
+   point with shows the tail whole and needs no second copy. */
+.nx-project-stamp { display: none; }
+.nx-project-row:hover .nx-project-stamp,
+.nx-project-row:focus-within .nx-project-stamp,
+.nx-project-row:has([data-always]) .nx-project-stamp { display: inline; }
+@media (hover: none) { .nx-project-row .nx-project-stamp { display: none; } }
 .nx-projects-foot { padding: 0 40px 12px; }
 .nx-projects-foot:empty { display: none; }
 .nx-sheet-label { color: var(--ink-3); font-size: 12.5px; line-height: 16px; margin: 14px 0 4px; }

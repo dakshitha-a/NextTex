@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { openedWords, rowAfterKey, rowMarks, shortPath } from "./project-row";
+import { openedWords, rowAfterKey, rowMarks, shortPath, stateWords } from "./project-row";
 
 describe("the path on a project row", () => {
   it("folds the home directory to a tilde", () => {
@@ -85,5 +85,24 @@ describe("the marks after a name", () => {
     expect(rowMarks({ shared: false, removed: false, open: true })).toEqual([
       "open in another window",
     ]);
+  });
+});
+
+describe("what a row says about its state", () => {
+  // A Wednesday in September at noon, local time.
+  const now = new Date(2026, 8, 16, 12, 0).getTime();
+  const daysAgo = (n: number) => now / 1000 - n * 86_400;
+  it("names the state and the day, as the page writes one", () => {
+    expect(stateWords("archived", daysAgo(0), now)).toBe("archived today");
+    expect(stateWords("archived", daysAgo(1), now)).toBe("archived yesterday");
+    expect(stateWords("archived", daysAgo(13), now)).toBe("archived 3 September");
+    expect(stateWords("trashed", daysAgo(1), now)).toBe("in the trash since yesterday");
+    expect(stateWords("trashed", daysAgo(400), now)).toBe("in the trash since 12 August 2025");
+  });
+  it("says nothing for an active row, and the state alone when it was never stamped", () => {
+    expect(stateWords("active", daysAgo(0), now)).toBe("");
+    expect(stateWords(undefined, 0, now)).toBe("");
+    expect(stateWords("archived", 0, now)).toBe("archived");
+    expect(stateWords("trashed", 0, now)).toBe("in the trash");
   });
 });

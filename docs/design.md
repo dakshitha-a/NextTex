@@ -8392,8 +8392,7 @@ with the count at its right. A project is a card on the first surface,
 8 px round, the name at 17 on 24 and 600 with a shared project's mark
 beside it, the place under the name with home folded to `~`, and at the
 right the time it was last opened at rest, giving way under the pointer to
-Open, Share, Zip, PDF and Remove (Archive and Trash come with 3.1d, which
-replaces Remove and its confirm); a missing folder says so in
+Open, Share, Zip, PDF, Archive and Trash (§55); a missing folder says so in
 the warning colour with "Find it" beside it, and its row keeps its actions
 shown. All four ways in open one sheet with their own title, field and
 copy: New project with Name, Where and Browse, and Start from as a
@@ -9266,3 +9265,74 @@ promises is not there. The items array is the one `docs/design.md` is
 checked against. Under the rows, at the drawer's foot, one line: "Drop
 files here to add them to the project." The fidelity harness renders
 `drawer-files` beside the page's Files drawer.
+
+## 55. Projects can be archived or put in the trash, seen there, and restored
+
+Raised by the writer mid-run on 20 September, during the visual overhaul
+(item 3.1d): "fold in an archive and trash functions and a way to view and
+restore archived and trashed projects into the projects screen." NextTex
+registers projects rather than importing them, so until now the only way a
+project left the list was "Remove from NextTex", which dropped the registry
+entry and never touched the folder. That principle holds, and two
+reversible states sit in front of it.
+
+**The rule.** A registered project is `active`, `archived` or `trashed`.
+Archived is out of the way and kept: a thesis that is submitted, an
+application that is sent. Trashed is on the way out: it sits in the trash
+until the writer deletes it for good or empties the trash, and "delete for
+good" is what Remove was, the entry forgotten and the files left where they
+are; NextTex still never deletes a folder. Opening a project makes it active
+again, whichever state it was in, which is the one rule and the way back
+for an archived project that turns out to be live.
+
+**Server.** `RegistryEntry` in `nexttex/project.py` gained `state` and
+`state_at`, so a registry written before this reads as all active;
+`Registry.set_state(root, state)` writes them, `Registry.list()` carries
+`state` and `stateAt`, and `relocate` keeps them, since the folder moved and
+the project did not leave the archive. One new route, `POST
+/api/projects/{project_id}/state` with `{"state": ...}`, answers 404 for an
+unknown project and 400 for a state that is not one of the three; trashing
+closes a live session the way `forget_project` does, because a window still
+holding the project would go on listing it as open, and archiving does not,
+because a window may still be holding it. The names avoid the three words
+already taken: `trash` is a project's file trash, `archives` is the agent's
+transcripts, `removed` is a collab share. `POST /api/projects/{id}/open`
+sets the state active. "Empty the trash" is the client deleting each trashed
+project with the existing `DELETE /api/projects/{id}`, so there is no second
+route.
+
+**Screen.** As drawn on version 19 of the direction page and agreed. A
+row's actions are Open, Share, Zip, PDF, Archive and Trash; "Remove from
+NextTex" with its confirm is gone, since both new states are reversible and
+need none. Under the list a quiet line appears only when there is something
+in it, "2 archived · 1 in the trash", each count a link to its view. The
+Archived view has the heading "Archived" with "Back to projects" beside it
+and rows offering Open, Restore and Trash; the Trash view has the heading
+"Trash", rows offering Restore and Delete in the error colour, Delete
+swapping the row's tail for "Delete from NextTex? The files stay where they
+are." with Delete and Keep (the old confirm's words), and "Empty the trash"
+under the rows with the same confirm for all of them. A trashed row is not
+opened by a press on it: its way back is Restore. In both views the row's tail
+at rest says the state and the day, "archived 3 September", "in the trash
+since yesterday", where the projects' rows say when they were last opened,
+and while the pointer takes the tail for the actions the stamp reappears
+after the path, the swap the row already makes for the time, so it is
+never lost. Neither view has New project or Other ways in; the find field and the sort
+work in every view, and the count in the header line counts the view, "2
+archived", "1 in the trash". A view with nothing in it says so in one
+sentence with "Back to projects" under it. `visibleProjects` takes the
+view, `viewCounts` counts them, `api.setProjectState` sets one, and
+`ProjectSummary` carries `state` and `stateAt`. A project reopened by
+`LAST_PROJECT` on reload opens whatever its state and becomes active by the
+rule.
+
+**Specs.** `projects-states.spec.ts`: Archive and Trash move a row to its
+view and the quiet line counts, Restore brings it back, the views hide the
+ways in and name their rows' actions, the find field works inside a view,
+Delete asks first and forgets, Empty the trash asks once for all of them
+and the files are still there, and opening an archived project lists it as
+active afterwards. `projects-list.spec.ts` reads the six actions and
+archives from the resting row; `moved-project.spec.ts` trashes and deletes a
+row whose folder is gone. `tests/api/test_projects.py` covers the round
+trip, the refusals, the old registry, opening, the closed session, delete
+and relocation.

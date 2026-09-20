@@ -1,6 +1,7 @@
 """The project list, and what happens to it under abuse."""
 
 import json
+import shutil
 from pathlib import Path
 
 
@@ -270,3 +271,104 @@ def test_the_list_says_which_projects_a_browser_is_holding_open(client, opened):
     finally:
         session.events.unsubscribe(queue)
     assert opened["id"] not in client.get("/api/projects").json()["watched"]
+
+
+# ---------------------------------------------------------------------------
+# Archived and trashed: two reversible states in front of "remove".
+
+
+def row_of(client, project_id):
+    return next(p for p in client.get("/api/projects").json()["projects"]
+                if p["id"] == project_id)
+
+
+def test_the_three_states_round_trip_through_the_list(client, project):
+    """A registered project is active, archived or trashed, and the list
+    says which; a state is set through one route and nothing on disk but
+    the registry moves."""
+    from server import main as server_main
+
+    project_id = project["id"]
+    assert row_of(client, project_id)["state"] == "active"
+    assert row_of(client, project_id)["stateAt"] == 0.0
+
+    for state in ("archived", "trashed", "active"):
+        answer = client.post(f"/api/projects/{project_id}/state", json={"state": state})
+        assert answer.status_code == 200, answer.text
+        assert answer.json() == {"ok": True, "state": state}
+        row = row_of(client, project_id)
+        assert row["state"] == state
+        assert row["stateAt"] > 0
+    # The folder was never touched, and the entry is still one entry.
+    assert (server_main.REGISTRY.path_for(project_id) / "main.tex").is_file()
+    assert len(client.get("/api/projects").json()["projects"]) == 1
+
+
+def test_a_state_that_is_not_one_of_the_three_is_refused(client, project):
+    answer = client.post(f"/api/projects/{project['id']}/state", json={"state": "pinned"})
+    assert answer.status_code == 400
+    assert row_of(client, project["id"])["state"] == "active"
+
+
+def test_a_state_for_an_unknown_project_is_a_404(client):
+    answer = client.post("/api/projects/nope/state", json={"state": "archived"})
+    assert answer.status_code == 404
+
+
+def test_a_registry_written_before_the_states_reads_as_active(client, project_dir):
+    from server import main as server_main
+
+    server_main.REGISTRY.path.write_text(
+        json.dumps([{"path": str(project_dir), "name": "Old", "last_opened": 0.0}]),
+        encoding="utf-8",
+    )
+    rows = client.get("/api/projects").json()["projects"]
+    assert [row["state"] for row in rows] == ["active"]
+    assert rows[0]["stateAt"] == 0.0
+
+
+def test_opening_an_archived_project_makes_it_active(client, project):
+    """Opening is the one rule and the way back: an archived project that
+    turns out to be live is active again the moment it is opened."""
+    project_id = project["id"]
+    client.post(f"/api/projects/{project_id}/state", json={"state": "archived"})
+    assert row_of(client, project_id)["state"] == "archived"
+    assert client.post(f"/api/projects/{project_id}/open").status_code == 200
+    assert row_of(client, project_id)["state"] == "active"
+
+
+def test_trashing_closes_a_live_session(client, opened):
+    from server import main as server_main
+
+    project_id = opened["id"]
+    assert project_id in server_main.SESSIONS
+    answer = client.post(f"/api/projects/{project_id}/state", json={"state": "trashed"})
+    assert answer.status_code == 200
+    assert project_id not in server_main.SESSIONS
+    assert project_id not in client.get("/api/projects").json()["open"]
+    # Archiving does not: a window may still be holding it.
+    client.post(f"/api/projects/{project_id}/open")
+    client.post(f"/api/projects/{project_id}/state", json={"state": "archived"})
+    assert project_id in server_main.SESSIONS
+
+
+def test_deleting_a_trashed_project_forgets_it_and_leaves_the_folder(client, project, project_dir):
+    """"Delete" in the trash is what "Remove" was: the entry goes, the files
+    stay where they are."""
+    project_id = project["id"]
+    client.post(f"/api/projects/{project_id}/state", json={"state": "trashed"})
+    assert client.delete(f"/api/projects/{project_id}").status_code == 200
+    assert client.get("/api/projects").json()["projects"] == []
+    assert (project_dir / "main.tex").is_file()
+
+
+def test_a_relocated_project_keeps_its_state(client, project_dir, tmp_path):
+    """The folder moved; the project did not leave the archive."""
+    project_id = client.post("/api/projects", json={"path": str(project_dir)}).json()["id"]
+    client.post(f"/api/projects/{project_id}/state", json={"state": "archived"})
+    moved = tmp_path / "moved"
+    shutil.move(str(project_dir), str(moved))
+    answer = client.post(f"/api/projects/{project_id}/relocate", json={"path": str(moved)})
+    assert answer.status_code == 200, answer.text
+    rows = client.get("/api/projects").json()["projects"]
+    assert [row["state"] for row in rows] == ["archived"]

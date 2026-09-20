@@ -45,6 +45,16 @@ async function showDrawer(tab: Page, id: string) {
 let ctx: { base: string; token: string; id: string; root: string } | null = null;
 let scanned = false;
 
+/** A second project beside the harness's, registered and put in a state
+ *  through the route, so a view has a row to draw. */
+async function seedState(tab: Page, state: "archived" | "trashed", name: string) {
+  const root = `${ctx!.root}-${name}`;
+  if (!fs.existsSync(root)) fs.cpSync(ctx!.root, root, { recursive: true });
+  const added = await tab.request.post(`${ctx!.base}/api/projects`, { data: { path: root } });
+  const { id } = await added.json();
+  await tab.request.post(`${ctx!.base}/api/projects/${id}/state`, { data: { state } });
+}
+
 const escape = async (tab: Page) => {
   await tab.keyboard.press("Escape");
   await tab.waitForTimeout(150);
@@ -355,6 +365,58 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => {
       await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  /* The two views and the quiet line under the list.  The harness has
+     one project; a second, archived or trashed through the route, is
+     copied beside it so the list has a row in each state. */
+  "projects-under": {
+    open: async (tab) => {
+      await seedState(tab, "archived", "thesis-2025");
+      await seedState(tab, "trashed", "aims-2023");
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("projects-under").waitFor();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  "projects-archived": {
+    open: async (tab) => {
+      await seedState(tab, "archived", "thesis-2025");
+      await seedState(tab, "archived", "resumes-2024");
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("view-archived").click();
+      await tab.getByTestId("project-row").first().hover();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("view-back").click();
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  "projects-trash": {
+    open: async (tab) => {
+      await seedState(tab, "trashed", "aims-2023");
+      await seedState(tab, "trashed", "scratch");
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("view-trash").click();
+      const rows = tab.getByTestId("project-row");
+      await rows.first().hover();
+      await rows.nth(1).getByTestId("row-delete").click();
+      await rows.first().hover();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("view-back").click();
       await tab.getByTestId("project-row").first().click();
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
     },

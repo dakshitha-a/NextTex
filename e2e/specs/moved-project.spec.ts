@@ -9,7 +9,7 @@ import { test, expect } from "../fixtures";
  *  where the folder had gone short of removing it and adding the new path.
  */
 
-test("a folder that is gone is reported, and the entry can be removed", async ({
+test("a folder that is gone is reported, and the entry can be put in the trash and deleted", async ({
   app,
   project,
   page,
@@ -20,12 +20,19 @@ test("a folder that is gone is reported, and the entry can be removed", async ({
     timeout: 20_000,
   });
 
-  await page.getByRole("button", { name: "Remove" }).first().click();
+  // A missing folder's row keeps its actions shown; Trash needs no
+  // confirm, and Delete in the trash is what Remove was.
+  await page.getByTestId("row-trash").click();
+  await expect(page.getByText("This folder is no longer there.")).toHaveCount(0);
+  await page.getByTestId("view-trash").click();
+  await expect(page.getByText("This folder is no longer there.")).toBeVisible();
+  await page.getByTestId("row-delete").click();
   // The confirmation used to collapse and do nothing at all.
-  await page.getByRole("button", { name: "Remove" }).last().click();
+  await page.getByTestId("confirm-delete").click();
   await expect(page.getByText("This folder is no longer there.")).toHaveCount(0, {
     timeout: 10_000,
   });
+  await expect(page.getByTestId("view-empty")).toContainText("The trash is empty.");
 });
 
 test("a folder that moved can be pointed at its new home", async ({

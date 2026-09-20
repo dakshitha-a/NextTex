@@ -88,9 +88,19 @@ test("a row says when it was opened, and its actions are there without a hover",
   const actions = row.getByTestId("row-actions");
   await expect(actions).toHaveCSS("opacity", "0");
   await page.mouse.move(0, 0);
-  await actions.getByRole("button", { name: "Remove" }).click();
-  await expect(row.getByText("Remove from NextTex?")).toBeVisible();
-  await row.getByRole("button", { name: "Keep" }).click();
+  await expect(actions.getByRole("button")).toHaveText([
+    "Open", "Share", "Zip", "PDF", "Archive", "Trash",
+  ]);
+  await actions.getByRole("button", { name: "Archive" }).click();
+  // Archiving asks nothing: it is reversible.  The row leaves the list
+  // and the quiet line under it says where it went.
+  await expect(page.getByTestId("project-row")).toHaveCount(0);
+  await page.getByTestId("view-archived").click();
+  await expect(page.getByRole("heading", { name: "Archived" })).toBeVisible();
+  await page.getByTestId("project-row").first().hover();
+  await page.getByTestId("row-restore").click();
+  await page.getByTestId("view-back").click();
+  await expect(page.getByTestId("project-row")).toHaveCount(1);
 
   // Pointed at, the actions are drawn and the time gives way to them.
   await row.hover();

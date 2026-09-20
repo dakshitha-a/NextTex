@@ -1255,6 +1255,14 @@ cannot share a stem. Which documents are on the preview strip is
 remembered in `.nexttex/`, not here, because it is yours rather than the
 project's.
 
+A project is registered, not imported, so NextTex never deletes a folder.
+A row's **Archive** puts a project that is finished, a thesis submitted or
+an application sent, out of the way and keeps it; **Trash** puts one on
+the way out. A quiet line under the list counts both and opens their
+views, where **Restore** brings a project back, opening one makes it
+active again, and **Delete** in the trash, or **Empty the trash**, forgets
+the entry and leaves the files exactly where they are.
+
 Everything NextTex adds lives in one directory beside your files, and none of
 it is needed to compile:
 

@@ -353,7 +353,15 @@ export type ProjectSummary = {
   removed: boolean;
   /** How many others are in the share, for "shared with two people". */
   people: number;
+  /** Active, archived (kept, out of the way) or trashed (on the way out).
+   *  A registry from before the states carries none, which reads as
+   *  active. */
+  state?: ProjectState;
+  /** When the state was last set; 0 for a project that was never moved. */
+  stateAt?: number;
 };
+
+export type ProjectState = "active" | "archived" | "trashed";
 
 export type ContextDocument = {
   id: string;
@@ -585,6 +593,10 @@ const api = {
   },
   forgetProject: (id: string) =>
     request<any>(`/projects/${id}`, { method: "DELETE" }),
+  /** Archive a project, put it in the trash, or make it active again.
+   *  Nothing on disk moves. */
+  setProjectState: (id: string, state: ProjectState) =>
+    request<{ ok: boolean; state: ProjectState }>(`/projects/${id}/state`, json({ state })),
   open: (id: string) =>
     request<any>(`/projects/${id}/open`, { method: "POST" }),
   tree: (id: string) => request<TreeNode>(`/projects/${id}/tree`),

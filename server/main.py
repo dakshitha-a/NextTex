@@ -72,6 +72,7 @@ from nexttex.trash import Trash
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
     ignored_directory, is_ours, kind_of, under_ignored_directory,
+    PROJECT_STATES,
 )
 from nexttex.symbols import walk_project
 from nexttex import bibcheck, deps, export, lint_explain, prompts, search, texstyles, updates, usage
@@ -2358,6 +2359,30 @@ async def forget_project(project_id: str):
     return {"ok": True}
 
 
+@app.post("/api/projects/{project_id}/state")
+async def set_project_state(project_id: str, state: str = Body(..., embed=True)):
+    """Archive a project, put it in the trash, or make it active again.
+
+    Both are reversible and neither touches the folder, so neither asks
+    first.  Trashing closes a live session the way forgetting does: the
+    project is on its way out, and a window still holding it would go on
+    listing it as open.  Opening a project from either state makes it
+    active again, which the open route does.
+    """
+    if state not in PROJECT_STATES:
+        raise HTTPException(400, f"not a project state: {state}")
+    root = REGISTRY.path_for(project_id)
+    if root is None:
+        raise HTTPException(404, "unknown project")
+    if state == "trashed":
+        session = SESSIONS.get(project_id)
+        if session:
+            await _close_session(project_id, session)
+            _restart_watch()
+    REGISTRY.set_state(root, state)
+    return {"ok": True, "state": state}
+
+
 @app.post("/api/projects/{project_id}/relocate")
 async def relocate_project(project_id: str, path: str = Body(..., embed=True)):
     """Say where a project's folder went.
@@ -2425,6 +2450,10 @@ async def open_project(project_id: str):
     session = session_for(project_id)
     if fresh:
         REGISTRY.touch(session.project.root)
+    # Opening is the one rule and the way back: an archived project that
+    # turns out to be live, or one fished out of the trash, is active
+    # again the moment it is opened.  Written only when the state moves.
+    REGISTRY.set_state(session.project.root, "active")
 
     def gather() -> dict:
         # None of this touches a CRDT object, which is what makes it safe to

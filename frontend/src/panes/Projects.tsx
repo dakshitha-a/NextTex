@@ -22,9 +22,11 @@ import { toShell } from "../viewport";
 import type { UpdateState } from "./UpdateFooter";
 import { agentName } from "../agent-name";
 import { set, useStore } from "../store";
-import { openedWords, rowAfterKey, rowMarks, shortPath } from "../project-row";
+import { openedWords, rowAfterKey, rowMarks, shortPath, stateWords } from "../project-row";
 import { tabStopFor } from "../tree";
-import { SORT_STORAGE, sortKeyFrom, visibleProjects, type SortKey } from "../project-filter";
+import {
+  SORT_STORAGE, sortKeyFrom, viewCounts, visibleProjects, type ProjectView, type SortKey,
+} from "../project-filter";
 import { START_FROM, templateOrder } from "../templates";
 import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import { breakpoints } from "../layout";
@@ -189,6 +191,14 @@ export default function Projects({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgetting, setForgetting] = useState<string | null>(null);
+  // Which list is showing: the projects, the archived ones, or the trash.
+  // Archived is out of the way and kept; the trash is on the way out.
+  // Opening a project from either makes it active again, which the
+  // server does; "Delete" in the trash is what "Remove" was, the entry
+  // forgotten and the files left where they are.
+  const [view, setView] = useState<ProjectView>("active");
+  const [emptying, setEmptying] = useState(false);
+  const counts = viewCounts(projects);
   // The project whose share sheet is open, from its row.  The routes open
   // a session on demand, so the project itself stays closed.
   const [sharing, setSharing] = useState<ProjectSummary | null>(null);
@@ -279,7 +289,40 @@ export default function Projects({
   }, [way, sheet]);
   // Filtered and then sorted, in `project-filter.ts`: the one list the
   // screen draws and the arrow keys walk.
-  const shown = visibleProjects(projects, query, sort);
+  const shown = visibleProjects(projects, query, sort, view);
+  const setState = async (project: ProjectSummary, state: ProjectView) => {
+    setListError(null);
+    try {
+      await api.setProjectState(project.id, state);
+      await refresh();
+    } catch (problem: any) {
+      setListError(`${project.name}: ${problem.message}`);
+    }
+  };
+  const forget = async (project: ProjectSummary) => {
+    setForgetting(null);
+    // No guard on the id: a registry entry has one whether or not its
+    // folder is still there.  Caught, so a refusal is said rather than
+    // swallowed.
+    try {
+      await api.forgetProject(project.id);
+      await refresh();
+    } catch (problem: any) {
+      setListError(`${project.name}: ${problem.message}`);
+    }
+  };
+  const emptyTrash = async () => {
+    setEmptying(false);
+    for (const project of projects) {
+      if ((project.state ?? "active") !== "trashed") continue;
+      try {
+        await api.forgetProject(project.id);
+      } catch (problem: any) {
+        setListError(`${project.name}: ${problem.message}`);
+      }
+    }
+    await refresh();
+  };
   // A roving tabindex, the file tree's idiom: the list is one Tab stop and
   // the arrow keys move inside it. `focusId` remembers the row that had
   // focus; `tabStopFor` falls back to the first openable row when that
@@ -288,7 +331,9 @@ export default function Projects({
   // all (the lesson recorded over `tabStopFor`). The rows' own buttons
   // stay in the tab order, as the tree's do.
   const [focusId, setFocusId] = useState<string | null>(null);
-  const order = shown.filter((project) => !project.missing && !locked).map((p) => p.id);
+  const order = view === "trashed"
+    ? []
+    : shown.filter((project) => !project.missing && !locked).map((p) => p.id);
   const tabStop = tabStopFor([focusId, order[0]], new Set(order));
   const moveFocus = (id: string) => {
     setFocusId(id);
@@ -571,8 +616,20 @@ export default function Projects({
             whatever the count: a control that appears at six projects is
             one nobody has learned by the time they need it. */}
         {loaded ? (
-          <div className="nx-projects-head">
-            <h2 className="t-display text-ink">Projects</h2>
+          <div className="nx-projects-head" data-view={view}>
+            <h2 className="t-display text-ink">
+              {view === "active" ? "Projects" : view === "archived" ? "Archived" : "Trash"}
+            </h2>
+            {view !== "active" ? (
+              <button
+                type="button"
+                className="nx-projects-link"
+                data-testid="view-back"
+                onClick={() => setView("active")}
+              >
+                Back to projects
+              </button>
+            ) : null}
             <span className="flex-1" />
             <Field
               ref={filterBox}
@@ -603,6 +660,7 @@ export default function Projects({
                 }
               }}
             />
+            {view === "active" ? (
             <Button
               variant="pen"
               size="md"
@@ -612,6 +670,8 @@ export default function Projects({
             >
               New project
             </Button>
+            ) : null}
+            {view === "active" ? (
             <div className="relative">
               <Button
                 ref={waysButton}
@@ -646,6 +706,7 @@ export default function Projects({
                 </Menu>
               ) : null}
             </div>
+            ) : null}
             {canClose ? (
               <Button variant="quiet" size="md" onClick={onClose}>
                 Back
@@ -664,7 +725,7 @@ export default function Projects({
         ) : null}
         {/* The one thing on the screen that scrolls. */}
         <div className="nx-projects-list" data-testid="project-list">
-          {loaded && projects.length ? (
+          {loaded && counts[view] ? (
             <div className="nx-projects-line">
               <Segmented
                 size="sm"
@@ -679,7 +740,11 @@ export default function Projects({
               />
               <span className="flex-1" />
               <span className="t-meta tnum text-ink-3" data-testid="project-count">
-                {projects.length} {projects.length === 1 ? "project" : "projects"}
+                {view === "active"
+                  ? `${counts.active} ${counts.active === 1 ? "project" : "projects"}`
+                  : view === "archived"
+                  ? `${counts.archived} archived`
+                  : `${counts.trashed} in the trash`}
               </span>
             </div>
           ) : null}
@@ -703,7 +768,19 @@ export default function Projects({
           {listError ? (
             <p className="t-meta mb-2 text-error" data-testid="list-error">{listError}</p>
           ) : null}
-          {loaded && !projects.length ? (
+          {loaded && view !== "active" && !counts[view] ? (
+            <Empty
+              data-testid="view-empty"
+              action={
+                <Button variant="quiet" onClick={() => setView("active")}>
+                  Back to projects
+                </Button>
+              }
+            >
+              {view === "archived" ? "Nothing is archived." : "The trash is empty."}
+            </Empty>
+          ) : null}
+          {loaded && view === "active" && !counts.active ? (
             <Empty
               action={
                 <Button variant="pen" onClick={() => openWay("create")}>
@@ -711,14 +788,15 @@ export default function Projects({
                 </Button>
               }
             >
-              Nothing here yet. Start something, open a folder that already holds a
-              document, or join a project somebody shared.
+              {projects.length
+                ? "Nothing here at the moment; the rest is archived or in the trash."
+                : "Nothing here yet. Start something, open a folder that already holds a document, or join a project somebody shared."}
             </Empty>
           ) : null}
           {loaded && !projects.length ? (
             <p className="t-ui hidden text-ink-2" data-testid="no-projects">Nothing here yet.</p>
           ) : null}
-          {query.trim() && projects.length && !shown.length ? (
+          {query.trim() && counts[view] && !shown.length ? (
             <div className="t-meta px-4 py-3 text-ink-3" data-testid="no-match">
               Nothing matches “{query.trim()}”
             </div>
@@ -728,9 +806,9 @@ export default function Projects({
               key={project.path}
               data-testid="project-row"
               data-project-id={project.id}
-              role={!project.missing && !locked ? "button" : undefined}
+              role={!project.missing && !locked && view !== "trashed" ? "button" : undefined}
               tabIndex={
-                !project.missing && !locked
+                !project.missing && !locked && view !== "trashed"
                   ? tabStop === project.id
                     ? 0
                     : -1
@@ -740,10 +818,10 @@ export default function Projects({
                 if (event.target === event.currentTarget) setFocusId(project.id);
               }}
               className={`nx-project-row nx-project-card group ${
-                locked ? "opacity-40" : !project.missing ? "cursor-pointer" : ""
+                locked ? "opacity-40" : !project.missing && view !== "trashed" ? "cursor-pointer" : ""
               }`}
               onClick={(event) => {
-                if (locked) return;
+                if (locked || view === "trashed") return;
                 if ((event.target as HTMLElement).closest("button, input")) return;
                 if (!project.missing) onOpen(project.id);
               }}
@@ -760,7 +838,7 @@ export default function Projects({
                 }
                 if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
-                if (!project.missing) onOpen(project.id);
+                if (!project.missing && view !== "trashed") onOpen(project.id);
               }}
             >
               <div className="nx-project-name">
@@ -805,6 +883,11 @@ export default function Projects({
                 ) : (
                   shortPath(project.path, home)
                 )}
+                {view !== "active" ? (
+                  <span className="nx-project-stamp" data-testid="row-state">
+                    {" "}· {stateWords(project.state, project.stateAt)}
+                  </span>
+                ) : null}
               </div>
               {rejoining === project.path ? (
                 <div className="nx-project-form">
@@ -874,25 +957,15 @@ export default function Projects({
               {forgetting === project.path ? (
                 <div className="nx-project-tail flex items-center gap-2" data-testid="row-actions">
                   <span className="t-meta text-ink-2">
-                    Remove from NextTex? The files stay where they are.
+                    Delete from NextTex? The files stay where they are.
                   </span>
                   <Button
                     size="inline"
                     className="!text-error"
-                    onClick={async () => {
-                      setForgetting(null);
-                      // No guard on the id: a registry entry has one whether
-                      // or not its folder is still there.  Caught, so a
-                      // refusal is said rather than swallowed.
-                      try {
-                        await api.forgetProject(project.id);
-                        await refresh();
-                      } catch (problem: any) {
-                        setListError(`${project.name}: ${problem.message}`);
-                      }
-                    }}
+                    data-testid="confirm-delete"
+                    onClick={() => forget(project)}
                   >
-                    Remove
+                    Delete
                   </Button>
                   <Button size="inline" onClick={() => setForgetting(null)}>
                     Keep
@@ -910,42 +983,51 @@ export default function Projects({
                  both. */
               <div className="nx-row-tail nx-project-tail">
                 <span className="nx-row-when t-meta tnum text-ink-3" data-testid="row-opened">
-                  {openedWords(project.lastOpened)}
+                  {view === "active"
+                    ? openedWords(project.lastOpened)
+                    : stateWords(project.state, project.stateAt)}
                 </span>
                 <div
                   className="nx-row-actions flex items-center gap-[2px]"
                   data-testid="row-actions"
                   data-always={project.missing || busy === project.id ? "" : undefined}
                 >
-                  <Button
-                    size="inline"
-                    disabled={locked || project.missing}
-                    onClick={() => onOpen(project.id)}
-                  >
-                    Open
-                  </Button>
-                  <Button
-                    size="inline"
-                    disabled={locked || project.missing}
-                    data-testid="row-share"
-                    onClick={() => setSharing(project)}
-                  >
-                    Share
-                  </Button>
-                  <Button
-                    size="inline"
-                    disabled={locked || project.missing}
-                    onClick={() => void downloadZip(project.id, `${project.name}.zip`)}
-                  >
-                    Zip
-                  </Button>
-                  <Button
-                    size="inline"
-                    disabled={locked || project.missing || busy === project.id}
-                    onClick={() => takePdf(project)}
-                  >
-                    {busy === project.id ? "Typesetting" : "PDF"}
-                  </Button>
+                  {view !== "trashed" ? (
+                    <Button
+                      size="inline"
+                      disabled={locked || project.missing}
+                      data-testid="row-open"
+                      onClick={() => onOpen(project.id)}
+                    >
+                      Open
+                    </Button>
+                  ) : null}
+                  {view === "active" ? (
+                    <>
+                      <Button
+                        size="inline"
+                        disabled={locked || project.missing}
+                        data-testid="row-share"
+                        onClick={() => setSharing(project)}
+                      >
+                        Share
+                      </Button>
+                      <Button
+                        size="inline"
+                        disabled={locked || project.missing}
+                        onClick={() => void downloadZip(project.id, `${project.name}.zip`)}
+                      >
+                        Zip
+                      </Button>
+                      <Button
+                        size="inline"
+                        disabled={locked || project.missing || busy === project.id}
+                        onClick={() => takePdf(project)}
+                      >
+                        {busy === project.id ? "Typesetting" : "PDF"}
+                      </Button>
+                    </>
+                  ) : null}
                   {/* The other way back for a shared project: the folder is
                       really gone, and the collaborators still have theirs. */}
                   {project.missing && project.shared && !project.removed
@@ -963,14 +1045,86 @@ export default function Projects({
                       Rejoin from collaborators
                     </Button>
                   ) : null}
-                  <Button size="inline" onClick={() => setForgetting(project.path)}>
-                    Remove
-                  </Button>
+                  {view === "active" ? (
+                    <Button
+                      size="inline"
+                      data-testid="row-archive"
+                      onClick={() => setState(project, "archived")}
+                    >
+                      Archive
+                    </Button>
+                  ) : (
+                    <Button
+                      size="inline"
+                      data-testid="row-restore"
+                      onClick={() => setState(project, "active")}
+                    >
+                      Restore
+                    </Button>
+                  )}
+                  {view !== "trashed" ? (
+                    <Button
+                      size="inline"
+                      data-testid="row-trash"
+                      onClick={() => setState(project, "trashed")}
+                    >
+                      Trash
+                    </Button>
+                  ) : (
+                    <Button
+                      size="inline"
+                      className="!text-error"
+                      data-testid="row-delete"
+                      onClick={() => setForgetting(project.path)}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </div>
               )}
             </div>
           ))}
+          {/* Under the projects, only when there is something in it: the
+              counts, each the way to its view.  Under the trash, the one
+              way to empty it, with the same confirm every row has. */}
+          {loaded && view === "active" && (counts.archived || counts.trashed) ? (
+            <div className="nx-projects-under" data-testid="projects-under">
+              {counts.archived ? (
+                <button type="button" className="nx-projects-link" data-testid="view-archived" onClick={() => setView("archived")}>
+                  {counts.archived} archived
+                </button>
+              ) : null}
+              {counts.archived && counts.trashed ? " · " : null}
+              {counts.trashed ? (
+                <button type="button" className="nx-projects-link" data-testid="view-trash" onClick={() => setView("trashed")}>
+                  {counts.trashed} in the trash
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {loaded && view === "trashed" && counts.trashed ? (
+            <div className="nx-projects-under" data-testid="projects-under">
+              {emptying ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-ink-2">
+                    Delete {counts.trashed === 1 ? "this project" : `these ${counts.trashed} projects`} from
+                    NextTex? The files stay where they are.
+                  </span>
+                  <Button size="inline" className="!text-error" data-testid="confirm-empty-trash" onClick={emptyTrash}>
+                    Delete
+                  </Button>
+                  <Button size="inline" onClick={() => setEmptying(false)}>
+                    Keep
+                  </Button>
+                </span>
+              ) : (
+                <button type="button" className="nx-projects-link" data-testid="empty-trash" onClick={() => setEmptying(true)}>
+                  Empty the trash
+                </button>
+              )}
+            </div>
+          ) : null}
         </div>
         {/* The nudge, until the app bar's lock takes it in (item 3.2). */}
         <div className="nx-projects-foot">

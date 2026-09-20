@@ -23,6 +23,33 @@ export function openedWords(lastOpened: number, now: number = Date.now()): strin
   return ago(lastOpened, now) || "not opened yet";
 }
 
+/** What a row in the Archived or Trash view says about its state, after
+ *  the path: "archived yesterday", "put in the trash 3 days ago".  An
+ *  entry whose state was never stamped says the state alone. */
+export function stateWords(state: string | undefined, at: number | undefined, now: number = Date.now()): string {
+  if (state !== "archived" && state !== "trashed") return "";
+  const when = dayWords(at ?? 0, now);
+  if (state === "archived") return when ? `archived ${when}` : "archived";
+  return when ? `in the trash since ${when}` : "in the trash";
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** A day, the way the page writes one: "today", "yesterday", "3
+ *  September", with the year only when it is not this one.  `at` is Unix
+ *  seconds; 0 is a day that never happened and answers with nothing. */
+export function dayWords(at: number, now: number = Date.now()): string {
+  if (!at) return "";
+  const then = new Date(at * 1000);
+  const today = new Date(now);
+  const day = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((day(today) - day(then)) / 86_400_000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  const date = `${then.getDate()} ${MONTHS[then.getMonth()]}`;
+  return then.getFullYear() === today.getFullYear() ? date : `${date} ${then.getFullYear()}`;
+}
+
 /** The small marks after the name.  Nothing for the ordinary case: a mark
  *  on every row is a mark on none.
  *

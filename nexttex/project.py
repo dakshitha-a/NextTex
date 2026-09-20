@@ -547,6 +547,15 @@ class RegistryEntry:
     path: str
     name: str
     last_opened: float = 0.0
+    # `active`, `archived` or `trashed`.  Archived is out of the way and
+    # kept; trashed is on the way out, until the writer deletes the entry
+    # for good.  A registry written before the states existed reads as all
+    # active, which is what it was.
+    state: str = "active"
+    state_at: float = 0.0
+
+
+PROJECT_STATES = ("active", "archived", "trashed")
 
 
 def id_for(root: Path | str) -> str:
@@ -624,6 +633,8 @@ class Registry:
                 "path": entry.path,
                 "name": entry.name,
                 "lastOpened": entry.last_opened,
+                "state": entry.state if entry.state in PROJECT_STATES else "active",
+                "stateAt": entry.state_at,
                 # A project whose directory has gone is shown, not silently
                 # dropped: the user moved it, and should be told so.
                 "missing": not exists,
@@ -663,10 +674,13 @@ class Registry:
         project = Project.open(new)
         target = Path(old).expanduser().resolve()
         kept, when = [], None
+        state, state_at = "active", 0.0
         for entry in self._read():
             here = Path(entry.path)
             if here == target:
                 when = entry.last_opened
+                # The folder moved; the project did not leave the archive.
+                state, state_at = entry.state, entry.state_at
                 continue
             # An entry already pointing at the destination is replaced by
             # this one rather than duplicated: two entries at one path share
@@ -678,9 +692,29 @@ class Registry:
             path=str(project.root),
             name=project.config.name,
             last_opened=time.time() if when is None else when,
+            state=state,
+            state_at=state_at,
         ))
         self._write(kept)
         return project
+
+    def set_state(self, root: Path | str, state: str) -> bool:
+        """Archive a project, put it in the trash, or make it active
+        again.  Answers whether an entry was there to change.  Nothing on
+        disk but the registry is touched: a project is registered, not
+        imported, and that holds in every state."""
+        if state not in PROJECT_STATES:
+            raise ValueError(f"not a project state: {state}")
+        target = Path(root).expanduser().resolve()
+        entries = self._read()
+        for entry in entries:
+            if Path(entry.path) == target:
+                if entry.state != state:
+                    entry.state = state
+                    entry.state_at = time.time()
+                    self._write(entries)
+                return True
+        return False
 
     def remove(self, root: Path | str) -> None:
         target = Path(root).expanduser().resolve()
