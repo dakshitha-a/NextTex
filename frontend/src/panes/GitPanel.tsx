@@ -2,41 +2,29 @@ import { useCallback, useEffect, useState } from "react";
 import api from "../api";
 import { readStored, writeStored } from "../appearance";
 import { refreshGit, set, useStore } from "../store";
-import { Chevron } from "../chrome";
 import Patch from "./Patch";
+import { Button } from "../ui/Button";
+import { Empty, Field } from "../ui/controls";
+import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
 
 
 
-/** The rail footer: what has changed, and how to get it somewhere safe.
+/** The Git drawer: what has changed, and how to get it somewhere safe.
  *
  *  Four operations and no more.  A thesis needs to be committed, sent
- *  somewhere that is not this machine, and pulled back on another; branching
- *  and history rewriting belong in a terminal where the mistakes are
- *  recoverable.
- *
- *  A panel like the others in the rail: a 26px header that folds it, in the
- *  `SectionsPanel` idiom, with the open state held by the app so that it is
- *  remembered per project. It was the one thing in the rail that could not
- *  fold, and the first-run card is the tallest thing the rail holds. */
+ *  somewhere that is not this machine, and pulled back on another;
+ *  branching and history rewriting belong in a terminal where the
+ *  mistakes are recoverable. Inside the activity bar's drawer, which draws
+ *  the heading row and holds one instrument at a time. */
 export default function GitPanel({
-  open = false,
-  onToggle,
   onOpen,
-  drawer = false,
 }: {
-  open?: boolean;
-  onToggle?: () => void;
   onOpen?: (path: string) => void;
-  /** Inside the activity bar's drawer, which draws the heading row and
-   *  holds one instrument at a time: the panel's own header is not drawn
-   *  and its body is always open. */
-  drawer?: boolean;
 }) {
   const projectId = useStore((s) => s.projectId);
   const projectName = useStore((s) => s.projectName);
   const status = useStore((s) => s.git);
   const failed = useStore((s) => s.gitFailed);
-  const [listOpen, setListOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [wizard, setWizard] = useState(false);
@@ -59,7 +47,6 @@ export default function GitPanel({
     setWizard(false);
     setUrl("");
     setToken("");
-    setListOpen(false);
   }, [projectId]);
 
   /** True when it worked. The caller below has to know whether *this*
@@ -92,25 +79,8 @@ export default function GitPanel({
   const dirty = status?.repository ? status.changes.length : 0;
 
   return (
-    <div className={drawer ? "flex min-h-0 flex-1 flex-col overflow-auto" : "shrink-0 border-t border-line"} data-testid="git-panel">
-      {drawer ? null : (
-        <button
-          className="flex h-[26px] w-full items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
-          aria-expanded={open}
-          data-testid="git-toggle"
-          onClick={onToggle}
-        >
-          <span className="t-micro text-ink-2">Git</span>
-          <span className="flex items-center gap-2">
-            {/* How much the panel is hiding, as Files and Sections say. */}
-            {dirty ? <span className="t-micro tnum text-ink-3">{dirty}</span> : null}
-            <span className={`text-ink-3 ${open ? "rotate-180" : ""}`}>
-              <Chevron direction="down" />
-            </span>
-          </span>
-        </button>
-      )}
-      {drawer || open ? body() : null}
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto" data-testid="git-panel">
+      {body()}
     </div>
   );
 
@@ -121,13 +91,11 @@ export default function GitPanel({
     // already have one.
     if (failed) {
       return (
-        <div className="px-[10px] py-[6px]">
-          <span className="t-micro text-ink-3" data-testid="git-unavailable">
-            Could not read this project's git status.
+        <div className="nx-line">
+          <span className="t-meta text-ink-3" data-testid="git-unavailable">
+            Could not read this project&rsquo;s git status.
           </span>
-          <button className="ml-2 quiet t-micro" onClick={refresh}>
-            Try again
-          </button>
+          <Button size="inline" onClick={refresh}>Try again</Button>
         </div>
       );
     }
@@ -141,79 +109,71 @@ export default function GitPanel({
     // connection, was reachable only from a terminal, and the panel that
     // exists to make it reachable was the thing hiding it.
     if (status && (!status.repository || !status.remote) && !dismissed && !wizard) {
+      // One sentence and two actions, as the page draws it: the card, its
+      // heading and its second paragraph went, and the sentence about
+      // GitHub is a note under the offer. A project with no repository and
+      // one with a repository and no remote are different offers: the
+      // local half of version control needs no account and no connection.
       return (
-        <div className="p-[8px]" data-testid="git-setup">
-          <div className="rounded-[5px] border border-line p-3">
-            <div className="t-ui text-ink">
-              {status.repository ? "Back this up to GitHub" : "Keep versions of this project"}
-            </div>
-            <p className="t-meta mt-1 text-ink-2">
-              {status.repository
-                ? "A copy somewhere that is not this machine, updated whenever you ask. Private by default."
-                : "Git keeps a record of the project as a whole, alongside the per-file history NextTex already keeps. It works with no account and no connection; sending a copy to GitHub is a separate step you can take later."}
-            </p>
-            {/* Two rows, not one. The rail is 240px wide by default and can
-                be dragged to 180, and three labels of this length in one
-                row wrapped inside their own 26px boxes, so the card showed
-                the top half of each word. The primary is full width, as the
-                footer's "Commit and push" is, and the rest is the footer's
-                quiet control, so the card has the two typographies the
-                panel already has and not a third. */}
-            {status.repository ? (
-              <button
-                className="mt-3 h-[26px] w-full ghost-button whitespace-nowrap t-ui"
-                data-testid="git-backup"
-                onClick={() => setWizard(true)}
-              >
-                Back up to GitHub
-              </button>
-            ) : (
-              <button
-                className="mt-3 h-[26px] w-full ghost-button whitespace-nowrap t-ui"
-                data-testid="git-init"
-                disabled={busy === "init"}
-                onClick={() => act("init")}
-              >
-                {busy === "init" ? "Making it…" : "Keep versions here"}
-              </button>
-            )}
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              {status.repository ? null : (
-                <button
-                  className="t-micro whitespace-nowrap text-ink-3 hover:text-ink"
-                  data-testid="git-backup"
-                  onClick={() => setWizard(true)}
+        <div className="flex flex-col" data-testid="git-setup">
+          <Empty
+            action={
+              <>
+                {status.repository ? (
+                  <Button variant="ghost" data-testid="git-backup" onClick={() => setWizard(true)}>
+                    Back up to GitHub
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    data-testid="git-init"
+                    disabled={busy === "init"}
+                    onClick={() => act("init")}
+                  >
+                    {busy === "init" ? "Making it…" : "Keep versions here"}
+                  </Button>
+                )}
+                <Button
+                  variant="quiet"
+                  onClick={() => {
+                    setDismissed(true);
+                    writeStored(`nexttex.backup.dismissed.${projectId}`, "1");
+                  }}
                 >
-                  Back up to GitHub
-                </button>
-              )}
-              <button
-                className="t-micro ml-auto whitespace-nowrap text-ink-3 hover:text-ink"
-                onClick={() => {
-                  setDismissed(true);
-                  writeStored(`nexttex.backup.dismissed.${projectId}`, "1");
-                }}
-              >
-                Not now
+                  Not now
+                </Button>
+              </>
+            }
+          >
+            {status.repository
+              ? "A copy somewhere that is not this machine, updated whenever you ask. Private by default."
+              : "Keep a record of the project as a whole, beside the per-file history NextTex already keeps. No account, no connection."}
+          </Empty>
+          {status.repository ? null : (
+            <p className="nx-note">
+              Sending a copy to GitHub is a separate step you can take later.{" "}
+              <button className="text-ink-2 hover:text-ink" data-testid="git-backup" onClick={() => setWizard(true)}>
+                Set it up now
               </button>
-            </div>
-          </div>
+            </p>
+          )}
         </div>
       );
     }
 
     if (wizard) {
       return (
-        <div className="p-[8px]" data-testid="git-wizard">
-          <div className="t-ui text-ink">Back up to GitHub</div>
+        <div className="flex flex-col gap-2 px-3 py-2" data-testid="git-wizard">
+          <div className="t-ui font-medium text-ink">Back up to GitHub</div>
           {status?.gh ? (
             <>
               <p className="t-meta mt-1 text-ink-2">
                 The GitHub CLI is signed in, so NextTex can make the repository
                 for you.
               </p>
-              <button
-                className="mt-2 h-[26px] w-full ghost-button whitespace-nowrap t-ui"
+              <Button
+                variant="ghost"
+                className="self-start"
                 disabled={busy === "create"}
                 onClick={async () => {
                   setBusy("create");
@@ -232,28 +192,29 @@ export default function GitPanel({
                 }}
               >
                 {busy === "create" ? "Creating" : "Create a private repository"}
-              </button>
+              </Button>
             </>
           ) : (
             <p className="t-meta mt-1 text-ink-2">{status?.ghReason}</p>
           )}
-          <div className="t-micro mt-3 text-ink-2">Or use a repository you already have</div>
-          <input
+          <div className="t-meta mt-1 text-ink-2">Or use a repository you already have</div>
+          <Field
+            frameClassName="w-full"
             value={url}
             placeholder="https://github.com/you/paper.git"
-            className="t-code-sm mt-1 h-[26px] w-full rounded-[3px] border border-line px-2 outline-none placeholder:text-ink-3"
+            className="font-mono text-[12.5px]"
             onChange={(event) => setUrl(event.target.value)}
           />
-          <input
+          <Field
+            frameClassName="w-full"
             value={token}
             type="password"
             placeholder="Personal access token (optional)"
-            className="t-code-sm mt-1 h-[26px] w-full rounded-[3px] border border-line px-2 outline-none placeholder:text-ink-3"
             onChange={(event) => setToken(event.target.value)}
           />
-          <div className="mt-2 flex gap-2">
-            <button
-              className="h-[26px] ghost-button whitespace-nowrap px-3 t-ui"
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
               disabled={!url || busy === "attach"}
               onClick={async () => {
                 setBusy("attach");
@@ -270,13 +231,10 @@ export default function GitPanel({
               }}
             >
               Connect
-            </button>
-            <button
-              className="t-micro whitespace-nowrap px-2 text-ink-3 hover:text-ink"
-              onClick={() => setWizard(false)}
-            >
+            </Button>
+            <Button variant="quiet" onClick={() => setWizard(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       );
@@ -293,112 +251,94 @@ export default function GitPanel({
     // browser's storage.
     if (!status.repository) {
       return (
-        <div
-          className="flex flex-wrap items-center gap-x-3 gap-y-1 px-[10px] py-[6px]"
-          data-testid="git-aside"
-        >
-          <span className="t-micro text-ink-3">Not kept in versions.</span>
-          <button
-            className="t-micro whitespace-nowrap text-ink-3 hover:text-ink"
-            data-testid="git-init-again"
-            disabled={busy === "init"}
-            onClick={() => act("init")}
-          >
+        <div className="nx-line flex-wrap" data-testid="git-aside">
+          <span className="t-meta text-ink-3">Not kept in versions.</span>
+          <Button size="inline" data-testid="git-init-again" disabled={busy === "init"} onClick={() => act("init")}>
             {busy === "init" ? "Making it…" : "Keep versions"}
-          </button>
-          <button
-            className="t-micro whitespace-nowrap text-ink-3 hover:text-ink"
-            onClick={() => setWizard(true)}
-          >
+          </Button>
+          <Button size="inline" onClick={() => setWizard(true)}>
             Back up
-          </button>
+          </Button>
         </div>
       );
     }
 
     return (
-      <div className="px-[10px] py-[6px]">
-        <div className="flex items-center gap-2">
-          {dirty === 0 ? <span className="h-[6px] w-[6px] rounded-full bg-ok" /> : null}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* The status row: the dot green when clean and amber with
+            changes, the branch in the mono, ahead and behind, and Pull. */}
+        <div className="nx-git-status">
+          <span className={`nx-git-dot ${dirty ? "bg-warn" : "bg-ok"}`} />
           <span className="t-code-sm text-ink">{status.branch || "detached"}</span>
           {status.ahead || status.behind ? (
-            <span className="t-micro tnum text-ink-3">
-              ↑{status.ahead} ↓{status.behind}
+            <span className="t-meta tnum text-ink-3">
+              {status.ahead ? `↑${status.ahead}` : ""}
+              {status.ahead && status.behind ? " " : ""}
+              {status.behind ? `↓${status.behind}` : ""}
             </span>
           ) : null}
           <span className="flex-1" />
-          {/* A way back in after "Not now". The dismissal is written per
-              project and was read back only to keep the card away, so a
-              writer who set it aside once had no route to the wizard for the
-              life of that project except clearing their browser storage. */}
+          {/* A way back in after "Not now": the dismissal is per project
+              and used to leave no route to the wizard. */}
           {!status.remote ? (
-            <button
-              className="t-micro text-ink-3 hover:text-ink"
-              data-testid="back-up-again"
-              onClick={() => setWizard(true)}
-            >
+            <Button size="inline" data-testid="back-up-again" onClick={() => setWizard(true)}>
               Back up
-            </button>
+            </Button>
           ) : null}
           {status.behind > 0 ? (
-            <button
-              className="t-micro text-ink-3 hover:text-ink"
-              onClick={() => act("pull")}
-            >
+            <Button size="inline" onClick={() => act("pull")}>
               {busy === "pull" ? "Pulling" : "Pull"}
-            </button>
+            </Button>
           ) : null}
         </div>
 
         {dirty > 0 ? (
           <>
-            <button
-              className="t-micro mt-1 text-ink-2 hover:text-ink"
-              onClick={() => setListOpen(!listOpen)}
-            >
-              {dirty} {dirty === 1 ? "file changed" : "files changed"}
-            </button>
-            {listOpen ? (
-              <div className="mt-1 max-h-[260px] overflow-auto">
-                {status.changes.map((change) => (
-                  <ChangeRow
-                    key={change.path}
-                    change={change}
-                    projectId={projectId}
-                    onOpen={onOpen}
-                  />
-                ))}
-              </div>
-            ) : null}
-            <input
-              value={message}
-              placeholder="What changed"
-              className="t-ui mt-2 h-[26px] w-full rounded-[3px] border border-line px-2 outline-none placeholder:text-ink-3"
-              onChange={(event) => setMessage(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && message.trim()) act("commit");
-              }}
-            />
+            <p className="nx-group">{dirty} {dirty === 1 ? "file changed" : "files changed"}</p>
+            <div className="min-h-0 flex-1 overflow-auto">
+              {status.changes.map((change) => (
+                <ChangeRow
+                  key={change.path}
+                  change={change}
+                  projectId={projectId}
+                  onOpen={onOpen}
+                />
+              ))}
+            </div>
           </>
-        ) : null}
+        ) : <span className="flex-1" />}
 
         {dirty > 0 || status.ahead > 0 ? (
-          <button
-            className="mt-2 h-[26px] w-full ghost-button t-ui"
-            disabled={Boolean(busy) || (dirty > 0 && !message.trim())}
-            onClick={async () => {
-              if (dirty > 0 && !(await act("commit"))) return;
-              await act("push");
-            }}
-          >
-            {busy
-              ? busy === "commit"
-                ? "Committing"
-                : "Pushing"
-              : dirty > 0
-                ? "Commit and push"
-                : `Push ${status.ahead}`}
-          </button>
+          <div className="flex flex-col gap-2 px-2 pb-2 pt-2">
+            {dirty > 0 ? (
+              <Field
+                frameClassName="w-full"
+                value={message}
+                placeholder="What changed"
+                onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && message.trim()) act("commit");
+                }}
+              />
+            ) : null}
+            <Button
+              variant="ghost"
+              className="self-start"
+              disabled={Boolean(busy) || (dirty > 0 && !message.trim())}
+              onClick={async () => {
+                if (dirty > 0 && !(await act("commit"))) return;
+                await act("push");
+              }}
+            >
+              {busy
+                ? busy === "commit"
+                  ? "Committing"
+                  : "Pushing"
+                : dirty > 0
+                  ? "Commit and push"
+                  : `Push ${status.ahead}`}
+            </Button>
+          </div>
         ) : null}
       </div>
     );
@@ -436,36 +376,32 @@ function ChangeRow({
   }, [showing, projectId, change.path]);
   return (
     <div data-testid="git-change" data-path={change.path}>
-      <div className="flex w-full items-baseline gap-1 rounded-[3px] px-1 hover:bg-surface-2">
+      <div className="nx-git-change">
         <button
-          className="shrink-0 text-ink-3 hover:text-ink"
+          className="nx-git-chevron"
           aria-expanded={showing}
           aria-label={showing ? `Hide what changed in ${change.path}` : `Show what changed in ${change.path}`}
           data-testid="git-change-toggle"
           onClick={() => setShowing(!showing)}
         >
-          <span className={`inline-block ${showing ? "rotate-180" : ""}`}>
-            <Chevron direction="down" />
-          </span>
+          {showing ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
         </button>
         <button
-          className="flex min-w-0 flex-1 items-baseline gap-2 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
           title={`Open ${change.path}`}
           onClick={() => onOpen?.(change.path)}
         >
-          <span className="t-code-sm w-[14px] shrink-0 text-ink-3">
-            {change.state}
-          </span>
-          <span className="t-code-sm truncate text-ink-2">{change.path}</span>
+          <span className="t-code-sm w-[12px] shrink-0 text-ink-3">{change.state}</span>
+          <span className="truncate text-ink-2">{change.path}</span>
         </button>
       </div>
       {showing ? (
         patch === null ? (
-          <p className="t-micro px-1 text-ink-3">Reading</p>
+          <p className="nx-note">Reading</p>
         ) : patch ? (
-          <Patch text={patch} testId="git-patch" />
+          <Patch text={patch} testId="git-patch" className="mx-2 mb-[6px] ml-[26px]" />
         ) : (
-          <p className="t-micro px-1 text-ink-3">Nothing to show for this file.</p>
+          <p className="nx-note">Nothing to show for this file.</p>
         )
       ) : null}
     </div>

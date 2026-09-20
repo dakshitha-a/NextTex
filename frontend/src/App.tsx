@@ -2003,6 +2003,8 @@ export default function App() {
   /** How many files the project holds, for the Files header. */
   const fileCount = useMemo(() => countFiles(tree), [tree]);
   const bibName = useMemo(() => bibIn(tree), [tree]);
+  const gitStatus = useStore((s) => s.git);
+  const gitDirty = gitStatus?.repository ? gitStatus.changes.length : 0;
   const activeBinary = useMemo(() => {
     if (!activePath) return null;
     const find = (node: any): any =>
@@ -2252,6 +2254,9 @@ export default function App() {
                   {drawerId === "files" && fileCount ? (
                     <span className="t-meta tnum pr-1 text-ink-3">{fileCount}</span>
                   ) : null}
+                  {drawerId === "git" && gitDirty ? (
+                    <span className="t-meta tnum pr-1 text-ink-3">{gitDirty}</span>
+                  ) : null}
                   {drawerId === "papers" && bibName ? (
                     <IconButton label="Read a folder of PDFs" onClick={() => setChoosePapers((n) => n + 1)}>
                       <FolderIcon />
@@ -2307,10 +2312,7 @@ export default function App() {
                 />
                     ) : null}
                     {drawerId === "git" ? (
-                <GitPanel
-                  drawer
-                  onOpen={openFile}
-                />
+                <GitPanel onOpen={openFile} />
                     ) : null}
                   </Suspense>
                 </div>

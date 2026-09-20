@@ -9091,3 +9091,28 @@ block and an inline code span take the control radius, a quote a 2 px
 rule, and the copy control on a block is the kit's inline ghost button,
 shown on hover where hover exists. Collaborators was already on the
 kit's menu and rows. The fidelity harness renders `pdf-find`.
+
+## 53. The Git drawer on the kit
+
+The first half of item 2.12. Before a repository exists the drawer is
+one sentence and two actions, as the page draws it: "Keep a record of
+the project as a whole, beside the per-file history NextTex already
+keeps. No account, no connection." with "Keep versions here" as the
+ghost button and "Not now" beside it, and the note "Sending a copy to
+GitHub is a separate step you can take later" under them, carrying the
+way into the GitHub wizard; the card, its heading and its second
+paragraph went. A repository with no remote gets the same shape with
+its own sentence and "Back up to GitHub". With a repository the drawer
+is the status row, a 7 px dot green when clean and amber with changes,
+the branch in the mono, ahead and behind as arrows, and Pull or Back up
+at the right; the group line "2 files changed", which also puts the
+count in the drawer's heading; the files as 28 px rows with a chevron
+that opens the patch under the row and the path that opens the file;
+and at the foot the message field and "Commit and push". The list is
+always open now; it used to fold behind its own count. The patch is
+one block wherever a diff is drawn, the agent's chip, this drawer and
+the history banner: the mono at 11.5 on 16, 4 px round on the second
+surface, additions on the ok wash and removals on the error wash at 18
+percent, context in the third ink. The wizard's fields and buttons are
+the kit's. `git.spec.ts` reads the offer's sentence and its note; the
+fidelity harness renders `drawer-git` and `drawer-git-offer`.

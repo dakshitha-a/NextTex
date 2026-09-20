@@ -24,9 +24,10 @@ test("a project with no repository can be given one", async ({ tab, project }) =
   await gitDrawer(tab);
   const card = tab.getByTestId("git-setup");
   await expect(card).toBeVisible({ timeout: 20_000 });
-  // The card leads with the thing that works offline, and offers the
-  // network answer second.
-  await expect(card).toContainText("Keep versions of this project");
+  // The offer is one sentence, leading with the thing that works offline;
+  // the network answer is a note under it.
+  await expect(card).toContainText("Keep a record of the project as a whole");
+  await expect(card).toContainText("Sending a copy to GitHub is a separate step");
   expect(existsSync(join(project.root, ".git"))).toBe(false);
 
   await tab.getByTestId("git-init").click();
@@ -124,7 +125,7 @@ test("the card's buttons fit at the narrowest rail", async ({ page, app, project
   // A repository and no remote: the GitHub card.
   await page.getByTestId("git-init").click();
   await expect(page.getByTestId("git-init")).toHaveCount(0, { timeout: 20_000 });
-  await expect(card).toContainText("Back this up to GitHub");
+  await expect(card).toContainText("A copy somewhere that is not this machine");
   await check('[data-testid="git-setup"]');
   // And the wizard behind it.
   await page.getByTestId("git-backup").click();

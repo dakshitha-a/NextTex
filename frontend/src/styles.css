@@ -1420,6 +1420,21 @@ button.nx-reads-x:hover { color: var(--error); }
 button.nx-reads-x[data-always]:hover { color: var(--pen); }
 @media (hover: none) { .nx-reads-x { opacity: 1; } }
 
+/* The Git drawer: the status row with its dot, the changed files with a
+   chevron each and the patch under it; and the patch block itself, drawn
+   the same wherever a diff is shown. */
+.nx-git-status { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 16px; color: var(--ink-2); font-size: 13px; }
+.nx-git-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.nx-git-change { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; font-size: 13px; color: var(--ink-2); }
+.nx-git-change:hover { background: var(--wash); }
+.nx-git-chevron { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 3px; color: var(--ink-3); flex: none; }
+.nx-git-chevron:hover { color: var(--ink); }
+.nx-patch { margin: 2px 0 0; max-height: 220px; overflow: auto; white-space: pre; border-radius: var(--nx-radius-control); font-family: var(--font-mono); font-size: 11.5px; line-height: 16px; background: var(--surface-2); }
+.nx-patch > div { padding: 0 8px; }
+.nx-patch-add { background: color-mix(in oklab, var(--ok) 18%, transparent); color: var(--ink); }
+.nx-patch-del { background: color-mix(in oklab, var(--error) 18%, transparent); color: var(--ink); }
+.nx-patch-ctx { color: var(--ink-3); }
+
 /* The composer: one card on the first surface with the chips, the box
    and one row of tools; the chip naming the model and what it asks about;
    the send glyph in the pen colour, grey while there is nothing to send. */

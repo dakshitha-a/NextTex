@@ -1,28 +1,28 @@
 import { hunksOf } from "./patch-hunks";
 
-/** A unified diff, drawn the way the agent's edit chip has always drawn
- *  one: a monospace block, additions washed with the ok colour and
- *  removals with the error colour, capped and scrolling.
+/** A unified diff, drawn the way the direction page draws one: a block in
+ *  the mono at 11.5 on 16, 4 px round, additions on the ok wash and
+ *  removals on the error wash at 18 percent, context in the third ink,
+ *  capped and scrolling.
  *
- *  Pulled out of the chip because the git panel and the history banner
- *  now show patches too, and three renderers of the same text would be
- *  three slightly different colours for "added". */
-export default function Patch({ text, testId }: { text: string; testId?: string }) {
+ *  One renderer, because the agent's edit chip, the git drawer and the
+ *  history banner all show patches, and three renderers of the same text
+ *  would be three slightly different colours for "added". */
+export default function Patch({
+  text,
+  testId,
+  className,
+}: {
+  text: string;
+  testId?: string;
+  className?: string;
+}) {
   return (
-    <pre
-      className="t-code-sm mt-1 max-h-[220px] overflow-auto whitespace-pre rounded-[3px] border-l border-line bg-surface-2 p-2"
-      data-testid={testId}
-    >
+    <pre className={`nx-patch${className ? ` ${className}` : ""}`} data-testid={testId}>
       {hunksOf(text).map((line, index) => (
         <div
           key={index}
-          className={
-            line.startsWith("+")
-              ? "bg-[color-mix(in_oklab,var(--ok)_10%,transparent)]"
-              : line.startsWith("-")
-                ? "bg-[color-mix(in_oklab,var(--error)_10%,transparent)]"
-                : ""
-          }
+          className={line.startsWith("+") ? "nx-patch-add" : line.startsWith("-") ? "nx-patch-del" : "nx-patch-ctx"}
         >
           {line}
         </div>

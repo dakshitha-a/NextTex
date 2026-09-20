@@ -612,6 +612,39 @@ const SURFACES: Record<string, Surface> = {
       await showDrawer(tab, "files");
     },
   },
+  "drawer-git": {
+    // A repository with a change, its patch open, as the page's dark
+    // drawer has it; the light drawer is the offer.
+    open: async (tab) => {
+      await showDrawer(tab, "git");
+      // The status arrives after the drawer does; wait for either state.
+      await tab.locator('[data-testid="git-setup"], .nx-git-status').first().waitFor({ timeout: 20_000 });
+      const init = tab.getByTestId("git-init");
+      if (await init.count()) {
+        await init.click();
+        await init.waitFor({ state: "detached", timeout: 20_000 });
+        await tab.getByRole("button", { name: "Not now" }).click();
+        await tab.locator(".cm-content").click();
+        await tab.keyboard.press("Control+End");
+        await tab.keyboard.type("\nA sentence the harness inserted.");
+        await tab.getByTestId("git-change").first().waitFor({ timeout: 30_000 });
+        await tab.getByTestId("git-change").first().getByTestId("git-change-toggle").click();
+        await tab.getByTestId("git-patch").waitFor({ timeout: 10_000 });
+      }
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
+  "drawer-git-offer": {
+    // Before a repository exists: rendered in a run of its own, since
+    // drawer-git makes one.
+    open: async (tab) => {
+      await showDrawer(tab, "git");
+      await tab.getByTestId("git-setup").waitFor({ timeout: 20_000 });
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
   "drawer-submit": {
     open: async (tab) => {
       await showDrawer(tab, "submit");
