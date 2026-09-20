@@ -31,6 +31,7 @@ DOCUMENTS = [
     "docs/first-session.md",
     "docs/project-context.md",
     "docs/bug-reports.md",
+    "docs/style-guide.md",
     "CLAUDE.md",
 ]
 
@@ -371,3 +372,28 @@ def test_the_readme_index_names_every_section_in_order():
         "the README's Contents index is behind its headings; "
         "run scripts/readme_index.py"
     )
+
+
+def test_every_primitive_the_style_guide_lists_is_exported_by_the_kit():
+    """The style guide's table of the kit is what a later session builds
+    from, so a primitive it names has to exist, in the file it names, as an
+    export.  The table's first cell holds the names in backticks and the
+    second the file under `frontend/src/ui/`."""
+    guide = (ROOT / "docs" / "style-guide.md").read_text(encoding="utf-8")
+    rows = [line for line in guide.splitlines() if line.startswith("| `")]
+    assert rows, "the guide's kit table was not found"
+    missing = []
+    for row in rows:
+        cells = [cell.strip() for cell in row.strip("|").split("|")]
+        if len(cells) < 2 or not cells[1].endswith(".tsx`"):
+            continue
+        names = re.findall(r"`([A-Za-z]+)`", cells[0])
+        module = ROOT / "frontend" / "src" / "ui" / cells[1].strip("`")
+        if not module.exists():
+            missing.append(f"{cells[1]} is not in the kit")
+            continue
+        source = module.read_text(encoding="utf-8")
+        for name in names:
+            if not re.search(rf"export (?:const|function) {name}\b", source):
+                missing.append(f"{name} is not exported by {cells[1]}")
+    assert not missing, "\n".join(missing)

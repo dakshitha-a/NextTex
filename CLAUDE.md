@@ -101,6 +101,17 @@ which points every test at `tests/fake_claude.py`; `NEXTTEX_LIVE`, which is
 never set; and `e2e/review/` and `e2e/shots/`, which are never run by a
 check. Every route that takes a path gets a path-escape test in `tests/api/`.
 
+## Interface
+
+Interface work follows `docs/style-guide.md`: the tokens, the type roles,
+the kit in `frontend/src/ui/` as the only source of controls, the
+interaction and copy rules, and the contract every change ships with (a
+Playwright spec, the sweeps, a render in both themes). A change that needs
+something the guide does not have adds it to the guide in the same commit;
+a literal colour, size or raw control in a component is a defect. The guide
+is what keeps the look the visual overhaul gave the app from drifting pane
+by pane, which is how the inconsistency it replaced arose.
+
 ## Subagents
 
 The session runs on Opus with the advisor on Fable, and a subagent

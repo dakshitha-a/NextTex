@@ -1367,6 +1367,9 @@ screen you are looking at, which is usually faster than the files below.
   walkthrough above.
 - [docs/design.md](docs/design.md): the specification the interface was built
   against, the audits it was reviewed in, and every decision with its reason.
+- [docs/style-guide.md](docs/style-guide.md): the look, written down as rules
+  for anything added to the interface later: the tokens, the type roles, the
+  kit, how things behave, and what every change ships with.
 - [docs/project-context.md](docs/project-context.md): how a template, a
   handbook and a sample of your own writing change what the agent produces.
 - [docs/testing.md](docs/testing.md): the four test tiers, why each exists,

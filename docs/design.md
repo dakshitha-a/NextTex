@@ -7,6 +7,11 @@
 
 ## 1. Design direction
 
+> The rules a later change is held to are in `docs/style-guide.md`, written
+> from the code at the end of the visual overhaul (September 2026). This
+> file is the record of how the interface came to be what it is; that one
+> is what to read before adding to it.
+
 **The composing room.** The rendered PDF is the only white object the *app* chooses;
 everything around it is the grey surround of a proofing table, and the only saturated colour
 in the entire chrome is the pen the agent writes with.

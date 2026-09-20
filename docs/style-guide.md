@@ -1,0 +1,174 @@
+# The interface's style guide
+
+Read this before adding or changing anything a writer sees. It is the
+look the visual overhaul of September 2026 gave NextTex, written down so
+that what comes after keeps it. The direction page that overhaul was
+built against is a record; this file is the rule. Everything it names
+exists in the code, and `tests/test_documents_match_the_code.py` checks
+that it keeps naming things that exist. When a change needs something
+this guide does not have, add it here in the same commit, never by
+improvising in the component.
+
+## The principle
+
+The interface shows what the current act needs and reveals the rest on
+intent. Cognitive load is a design principle beside contrast and
+consistency: every decision is weighed for how much it asks the writer
+to hold in mind at once. In practice, row actions appear under the
+pointer or on focus, composer tools on focus, consecutive tool calls
+fold into one line, nothing carries a badge, a count or a coloured dot
+for attention's sake, one accent has one meaning, menus are short with
+the destructive item last, and a proposal that adds something visible
+says what it removes.
+
+Planes, not boxes. Panes are separated by tone and air, never by a
+hairline. A border appears only where an edge is information: the
+typeset page's edge, a text field, a focused control, a diff hunk, a
+rule over a foot note. Menus and sheets float on shadow and a tonal
+step. `--line` is a token for the places that earn it.
+
+## Where every value comes from
+
+A literal colour, size, radius or font in a component is a defect. The
+tokens are declared in `frontend/src/styles.css` and bridged to Tailwind
+through `@theme inline`, so a component reaches them as `bg-surface-2`,
+`text-ink-3`, `rounded-control` or `var(--nx-row)`.
+
+Colour, one palette per theme:
+
+| Token | Meaning |
+| --- | --- |
+| `--surround` | the field the typeset page lies on, and the ground of a screen with no document |
+| `--surface` | the editor, a project card, a floating card in the dark theme |
+| `--surface-2` | the chrome: the bar, the drawer, the Claude column, the app bar, a field |
+| `--surface-3` | the deepest step, a segmented control's track |
+| `--ink`, `--ink-2`, `--ink-3` | text and glyphs, in three weights of attention |
+| `--pen`, `--on-pen`, `--pen-wash` | the agent, and only the agent: its turns, its diff chips, the tab it is editing, the one filled button that sends or confirms |
+| `--hint`, `--hint-wash` | focus rings, the chosen radio, a completion's match, "safe and interactive" |
+| `--warn`, `--error`, `--ok` | states: a missing folder, a failed build, a connected peer |
+| `--line` | the one hairline, where an edge is information |
+| `--wash` | what a row, a menu item or a bar button takes under the pointer or when chosen |
+| `--float`, `--lift`, `--page-shadow` | the three shadows: what floats, what is lifted a step, the page |
+| `--paper` | the white of the typeset page, and the editor's white ground |
+
+There is no second accent and no blue.
+
+Size, one scale:
+
+| Token | Value | For |
+| --- | --- | --- |
+| `--nx-radius-control` | 4 px | buttons, fields, chips, segmented controls |
+| `--nx-radius-card` | 8 px | menus, hover cards, project cards, the confirm block |
+| `--nx-radius-sheet` | 12 px | sheets |
+| `--nx-control` | 28 px | a button |
+| `--nx-row` | 32 px | a row, a field, a member line |
+
+Spacing is a 4 px grid: 12 px gutters inside a drawer, 16 px inside a
+pane, 8 px between a row's parts, 6 px between a foot's buttons.
+
+Type, one family:
+
+| Role | Size | For |
+| --- | --- | --- |
+| `t-display` | 22 on 28, 600 | a screen's or a sheet's title |
+| `t-ui-lg` | 15 on 20, 600 | a drawer's or a column's heading |
+| `t-ui` | 14 on 20 | controls, rows, running interface text |
+| `t-meta` | 12 on 16 | the second line under a name, a note, a count |
+| `t-micro` | 11 on 14, 500 | the smallest label, the stamp on a turn |
+| `t-prose` | 15 on 24, 66 ch | Claude's replies and the tutorial |
+| `t-code`, `t-code-sm` | the mono at 13.5 or 12 | a literal string the machine produced: a path, a key, an invite, a command |
+
+Source Sans 3 is the one family across the chrome and the prose; no
+serif appears anywhere, and Source Serif 4 is not loaded. Hierarchy is
+carried by size and weight, never by a change of face. Source Code Pro
+is for literal strings only, never for labels. Sentence case
+everywhere; no tracked capitals, no eyebrow labels.
+
+Icons are one hand-drawn set in `frontend/src/ui/icons.tsx`, at one
+stroke weight (1.5) on a 16 px grid, 20 px on the activity bar. They are
+uncoloured and never decorate a menu row.
+
+## The kit is the only source of controls
+
+Every control comes from `frontend/src/ui/`. A raw `<button>`,
+`<input>`, hand-rolled menu or `rounded-[3px] border border-line`
+container is what the overhaul removed, and the `.quiet` and
+`.ghost-button` classes are the kit's own now, not for use by name.
+
+| Primitive | File | Use it for | Never instead |
+| --- | --- | --- | --- |
+| `Button` | `Button.tsx` | any labelled action; `quiet` for the ordinary, `ghost` for the secondary with an edge, `pen` for the one filled button, `danger` for the irreversible; `sm` 28 px, `md` 32 px, `inline` 24 px for an action inside a row or a strip | a `<button>` with classes |
+| `IconButton` | `Button.tsx` | an action with a glyph and an `aria-label`; `on` marks the active one by ink weight and a wash | a coloured or badged button |
+| `Row` | `controls.tsx` | a line in a list or a drawer, with `leading`, `trailing` (shown under the pointer, on focus and on touch) and `selected` | a flex div with hover classes |
+| `Field` | `controls.tsx` | a text input at 32 px on `--surface-2`, with `leading` and `trailing` slots | a bordered `<input>` |
+| `Chip` | `controls.tsx` | a small labelled thing that can be removed: a file, an added word, a format; `mono` for a literal | a pill with a colour |
+| `Switch` | `controls.tsx` | on or off, and nothing between | a checkbox styled by hand |
+| `Segmented` | `controls.tsx` | two to four exclusive choices, `md` in a sheet and `sm` in a strip | a row of toggle buttons |
+| `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |
+| `Empty` | `controls.tsx` | what a drawer or a list says when it holds nothing: one sentence and at most one action | an illustration, a heading of its own |
+| `Kbd` | `controls.tsx` | a key or a chord, shown always where a key is the way in | text in a box |
+| `Menu`, `MenuItem`, `MenuDivider`, `MenuHeader` | `Menu.tsx` | anything that opens under a button: `role="menu"` on the fixed element, shortcut hints at the right, the destructive item last after a divider, a `note` under an item that needs a line | a positioned div of buttons |
+| `FloatingCard` | `FloatingCard.tsx` | a hover card, a completion list, the selection bar: 8 px radius, `--float`, the shell's palette | a card with a border |
+| `Sheet` | `Sheet.tsx` | anything that covers the screen: `role="dialog"`, a display heading, labels over fields, the foot | a modal built by hand |
+
+A sheet's shape is fixed: `Heading level={2} display` first, one
+paragraph of `t-meta` copy if the sheet needs explaining, `nx-sheet-label`
+over each field, and `nx-sheet-foot` holding, left to right, the quiet or
+destructive action pushed to the left with `mr-auto`, Cancel, and the one
+`pen` button naming its verb ("Create project", "Make an invite", "Keep
+Claude"). A question before an irreversible act is the `nx-confirm` block
+in place, never a modal: one sentence, a `danger` button, Keep or Cancel.
+
+## How things behave
+
+- Hover-revealed actions stay in the DOM, show on `:focus-within`, and
+  are always visible under `pointer: coarse` and `hover: none`, so a
+  keyboard and a finger reach them.
+- The tree's file card arms after 400 ms and the editor's hover cards
+  after 250, never on touch; a key press, a scroll or a menu opening
+  dismisses the card.
+- A second press on the active bar icon folds the drawer; the drawer
+  swap is a cut.
+- The pen marks what the agent touched and nothing else. A tab's pen
+  underline means Claude is editing that file now.
+- A menu is short. Conditional items are present only when they apply,
+  never disabled in place; the destructive item is last, after a rule.
+- Motion answers the writer: `.nx-arrive` (120 ms, opacity and a 0.98
+  scale) on menus, cards and sheets only; a 90 ms colour transition on
+  rows and buttons; nothing moves on its own; an animation that changes
+  a control's box (a pulse that scales the button) is a defect, since it
+  moves under the pointer reaching for it. Reduced motion is respected.
+- A control that a strip cannot hold is dropped at the width it
+  measures, through a container query, never wrapped or clipped.
+- Copy: every empty state is one sentence saying what to do next; every
+  button names its verb; a control keeps the same name through the flow;
+  errors say what went wrong and what to do, without apology; no em dash
+  anywhere.
+
+## The contract every change ships with
+
+- A Playwright spec under `e2e/specs/`, not only a vitest, and every
+  `data-testid` a spec selects by is kept through the change.
+- A new floating surface is registered in `e2e/specs/menus-contrast.spec.ts`'s
+  `SURFACES` and, where a click opens it, `e2e/specs/clipping.spec.ts`'s
+  `OPENED`, so it is measured for contrast and swept for clipping.
+- The surface is rendered from the running app in both themes and
+  looked at before its commit (`e2e/shots/fidelity.spec.ts` is the
+  harness), and where a direction page exists for the work, the render
+  is put beside the page's drawing and the difference is fixed or put to
+  the writer, never waved through.
+- `scripts/check.sh --all` before the commit; `docs/design.md` and
+  `docs/architecture.md` in the same commit.
+
+## Adding a control, end to end
+
+1. Find the primitive above that already does it. If none does, the kit
+   gains one, with a vitest in `frontend/src/ui/kit.test.tsx`, before any
+   pane uses it.
+2. Build the surface from primitives and tokens only. Read the
+   `data-testid`s the specs will need off the primitives' `rest` props.
+3. Write the spec, register the surface in the sweeps, render it in both
+   themes, and look.
+4. Say what it is in `docs/design.md`, what it does in
+   `docs/architecture.md`, and, if this guide had no rule for it, the rule
+   here.
