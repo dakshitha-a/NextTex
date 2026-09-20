@@ -56,6 +56,20 @@ page drew it after. The CSS retirement of `.quiet` and `.ghost-button`
 follows the front door's rebuild (item 3.5), since those files still
 wear them.
 
+The front door is landing as 3.1.0: the projects screen as a list under
+an app bar (3.1), Share from a row (3.1a), the job application template
+(3.1b), the writing agent chosen and set up in one sheet reached from the
+bar, the settings sheet and the Claude column (3.1c), projects archived
+or put in the trash with their views and restore (3.1d), the figure
+hover as the tree's card (3.6), the README's screenshots (3.4), the
+record in `docs/design.md` §56 and the style guide, `docs/style-guide.md`,
+with its rule in `CLAUDE.md` (3.5, 3.5a). Two items wait on the writer:
+the app bar's lock with its hover card, the join offer inside its sheet
+and the access card's bodies (3.2), and the update sheet, the tutorial,
+the screen guide, the failure and waiting screens (3.3), whose surfaces
+the page had not drawn and now draws on version 21; with them goes the
+CSS retirement of the three legacy button classes their files still wear.
+
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay

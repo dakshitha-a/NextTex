@@ -853,6 +853,15 @@ on any card. No page-turn animation in the PDF.
 `prefers-reduced-motion: reduce` collapses every transform and height transition to 0 ms and
 keeps opacity changes at 90 ms.
 
+*Revised in the visual overhaul, 19 and 20 September 2026.* Motion answers the writer and
+nothing moves on its own. One entrance, `.nx-arrive` (120 ms, opacity and a 0.98 scale), on
+menus, hover cards and sheets only; a 90 ms colour transition on rows and buttons; the drawer
+swap and the tab switch are cuts. The working pulses that remain (the compile dot, the
+column's working dot, the app bar's update glyph) animate a glyph and never the control
+around it, because a control that shrinks with its pulse moves under the pointer reaching
+for it, which is what timed a click out on the update button before that pulse moved to
+its glyph. The rules a later change is held to are in `docs/style-guide.md`.
+
 **Anti-jump rule for the PDF**, which is a motion decision even though nothing animates:
 scroll position is anchored to *page index + normalised offset within that page*, not to a
 pixel `scrollTop`, so a rebuild that changes the page count does not slide the view. The new
@@ -9358,3 +9367,84 @@ archives from the resting row; `moved-project.spec.ts` trashes and deletes a
 row whose folder is gone. `tests/api/test_projects.py` covers the round
 trip, the refusals, the old registry, opening, the closed session, delete
 and relocation.
+
+## 56. The visual overhaul, as a whole
+
+The record of the run that gave the interface the look it has: 19 and 20
+September 2026, two pushes, 3.0.0 for the workspace and 3.1.0 for the front
+door. The sections above from §49 hold each surface; this one holds the
+shape of the whole, so the reasons are in one place. The rules a later
+change is held to are in `docs/style-guide.md`.
+
+**What was asked.** The writer asked for a full visual overhaul and gave
+three reasons: the interface looked generic, it was inconsistent from pane
+to pane, and it felt dated or heavy. The inventory found three causes, not
+one. Generic was the skeleton, a three-column IDE of accordions, tab strips
+and a dense status strip, not the palette, which was well argued and was
+not what anyone saw. Inconsistent was the absence of a kit: fifty-six
+components hand-rolling their own buttons, rows, menus and sheets at five
+literal heights and two radii. Heavy was the light theme's dark furniture,
+a lit editor bracketed by two black columns that read as dark mode with a
+hole cut in it, and the hairline border on every pane, row, chip and menu.
+
+**The direction.** One sentence: the interface shows what the current act
+needs and reveals the rest on intent. The writer made cognitive load a
+standing principle at the start of the run, and that is where the
+overhaul spent its boldness: actions under the pointer or on focus,
+composer tools on focus, tool calls folded to one line, no badges or
+counts or coloured dots, one accent with one meaning, menus short with
+the destructive item last, settings grouped with the common ones first,
+and every proposal saying what it removes beside what it adds. Around the
+principle, discipline: planes not boxes (a border only where an edge is
+information); the light theme lit throughout; the rail an activity bar
+with one full-height drawer, at the writer's choice, because their
+projects are either many short files or a couple of long ones with many
+sections, so the tree or the outline stays open for long stretches and
+neither may push the other out; one kit with one scale (radii 4, 8 and
+12, heights 28 and 32, a 4 px grid); type roles one step up on one
+family, Source Sans 3, with the serif I first proposed for headings
+rejected as dated and removed from the interface entirely; motion that
+answers the writer; the pen for the agent only; copy as part of the
+design. Two grounds for the editor page in place of six, at the writer's
+request, which is what earned the workspace push its x.
+
+**How it was held to.** The direction was drawn before it was built: a
+page of the two looks, then every drawer, the settings sheet, the
+projects screen, the Claude column, the strips, and every menu and card,
+revised over twenty-one versions in conversation until the writer said
+"finalize", with the instruction that the implementation be as faithful
+as possible to what they had been shown and checked against it at every
+stage. So every item rendered its surface from the running app in both
+themes, put the render beside the page's drawing, and fixed or reported
+every difference before its commit; the tracker carried a state per
+surface (matches, deviates, improves), and a functional improvement the
+page had not drawn was recorded as one rather than hidden or held back,
+by the writer's own rule. A surface the page never drew was drawn first
+and waited for a yes. The order was built around what the code already
+pinned: the furniture removal and the type change as the first two
+commits of the workspace push so that clipping fallout had one cause, the
+smallest strip first to prove the scale, the lazy panes in the middle,
+the two contested files last, and every push preceded by a fidelity pass
+over everything it touched.
+
+**What it changed, in one list.** The tokens and the type roles (§2 and
+§3 rewritten); the kit under `frontend/src/ui/` and every overlay on it
+(`docs/architecture.md`'s kit section, and §8 for the deviations); the light theme lit throughout
+(§1, §23); the activity bar and one drawer with the eight instruments
+rebuilt, Papers made legible and the hover card for files the editor
+cannot edit (§4); the strips and the tab strips (§5); the master-detail
+settings sheet (§49); the Claude column with its views, its folded tool
+calls and its two-control composer (§50); the editor's find strip and Vim
+bar (§51); the preview's find and the prose blocks (§52); the Git and
+Files drawers (§53, §54); the projects screen as a list under an app bar
+with Share on a row, a job application among the presets, the agent
+chosen in one sheet, and archive and trash with their views (§44, §55);
+the figure hover as the tree's card; the README's screenshots; and this
+guide's companion, `docs/style-guide.md`.
+
+**What it left.** The table hover card (item 2.10a) is drawn on the page
+and waits for the writer's yes. The floating Claude pill keeps its earlier
+look because the page never drew one. The `.quiet`, `.ghost-button` and
+`.pen-button` classes are retired from the stylesheet once the last of the
+front door's files (the join offer, the password nudge, the tutorial and
+the failure screen) are rebuilt, which wait on the drawings of version 21.
