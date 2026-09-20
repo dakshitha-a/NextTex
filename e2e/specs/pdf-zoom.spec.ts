@@ -163,3 +163,32 @@ test("the rendered page can be saved without rebuilding it", async ({ tab }) => 
   await expect(save).toHaveAttribute("href", /\/pdf\?/);
   await expect(save).toHaveAttribute("download", "");
 });
+
+test("the preview strip drops its last controls before it clips them, at every pane width", async ({
+  tab,
+}) => {
+  // The README's screenshot at 1680 showed "Dow" at the strip's edge: the
+  // fit control and Download were kept at widths the row could not hold,
+  // because their drop thresholds were guessed below what the controls
+  // measure.  Whatever the pane's width, the strip holds what it shows.
+  await ready(tab);
+  const strip = tab.getByTestId("preview-footer");
+  for (const width of [1680, 1400, 1100, 900]) {
+    await tab.setViewportSize({ width, height: 900 });
+    await tab.waitForTimeout(300);
+    const box = await strip.evaluate((el) => {
+      const link = el.querySelector('[data-testid="save-pdf"]');
+      return {
+        scroll: el.scrollWidth, client: el.clientWidth,
+        download: !!link && getComputedStyle(link).display !== "none",
+      };
+    });
+    expect(box.scroll, `the strip overflows at ${width}px`).toBeLessThanOrEqual(box.client);
+    // And the last control is either shown whole or not at all.
+    if (box.download) {
+      const link = await tab.getByTestId("save-pdf").boundingBox();
+      const edge = await strip.boundingBox();
+      expect(link!.x + link!.width).toBeLessThanOrEqual(edge!.x + edge!.width);
+    }
+  }
+});

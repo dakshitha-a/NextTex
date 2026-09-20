@@ -1377,16 +1377,24 @@ export default function Pdf({
         data-testid="preview-footer"
         className="@container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3"
       >
-        <Segmented
-          size="sm"
-          label="How the pages are laid out"
-          value={mode}
-          options={[
-            { value: "scroll", label: "Scroll", title: "One continuous document" },
-            { value: "page", label: "Page", title: "One page at a time" },
-          ]}
-          onChange={setMode}
-        />
+        {/* What the strip drops as the pane narrows, in the order it drops
+            them, each at the width the row measures with it: the fit pair
+            first (560), then Download (420), then this layout pair (340),
+            leaving the pager and the zoom, which a page always needs.  A
+            28 px strip cannot wrap, so a control it cannot hold is dropped
+            rather than clipped. */}
+        <span className="hidden shrink-0 @[340px]:inline-flex">
+          <Segmented
+            size="sm"
+            label="How the pages are laid out"
+            value={mode}
+            options={[
+              { value: "scroll", label: "Scroll", title: "One continuous document" },
+              { value: "page", label: "Page", title: "One page at a time" },
+            ]}
+            onChange={setMode}
+          />
+        </span>
         {/* Both modes. The steppers were gated on page mode, so a reader
             in the scrolling one had no way to reach page 74 of a thesis
             except by dragging, and the readout was never an input in
@@ -1456,10 +1464,7 @@ export default function Pdf({
             +
           </button>
         </span>
-        {/* Dropped when the pane is too narrow for them, rather than
-            wrapped: this is a 28px strip, and a second line of it is
-            clipped by definition. */}
-        <span className="hidden shrink-0 @[400px]:inline-flex">
+        <span className="hidden shrink-0 @[560px]:inline-flex">
           <Segmented
             size="sm"
             label="How the page fits the pane"
@@ -1478,7 +1483,7 @@ export default function Pdf({
             wait for a file the reader is looking at. */}
         {projectId && pageCount ? (
           <a
-            className="hidden shrink-0 whitespace-nowrap hover:text-ink @[430px]:block"
+            className="hidden shrink-0 whitespace-nowrap hover:text-ink @[420px]:block"
             href={api.pdfUrl(projectId, showing, stamp)}
             download
             data-testid="save-pdf"

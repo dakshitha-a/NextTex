@@ -791,7 +791,12 @@ line and History left: the tab names the file, the repository drawer holds the b
 History is a drawer of its own, reached from a file's row menu and, once the bar lands,
 from the bar. The preview's strip keeps Scroll and Page and the two fits as the kit's small
 segmented control, the page number and the zoom as 20 px wells on the pane's surface, and
-"Download" where it said "Save".
+"Download" where it said "Save". What the strip drops as the pane narrows, at the widths
+the row measures with each: the fit pair at 560 px, Download at 420, Scroll and Page at
+340, leaving the pager and the zoom, which a page always needs. The first thresholds were
+guessed at 400 and 430, below what the controls measure, and the README's screenshot at
+1680 px showed "Dow" at the strip's edge; `pdf-zoom.spec.ts` now reads the strip's scroll
+width against its client width at four viewport widths.
 
 ### Git panel (rail, last)
 
