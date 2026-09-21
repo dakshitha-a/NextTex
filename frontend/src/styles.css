@@ -1113,8 +1113,10 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-projects-main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
 .nx-projects-head { display: flex; align-items: center; gap: 12px; padding: 22px 40px 12px; flex-wrap: wrap; }
 .nx-projects-find { width: 300px; max-width: 100%; height: var(--nx-row); background: var(--surface); }
+/* The rows run the width the head runs, so the actions on a hovered row
+   sit under New project rather than stopping short of it: the 880 px cap
+   the rail-and-list screen had on its rows outlived the rail by a push. */
 .nx-projects-list { overflow-y: auto; padding: 0 40px 24px; }
-.nx-projects-list > * { max-width: 880px; }
 .nx-projects-line { display: flex; align-items: center; gap: 14px; padding: 8px 12px 6px; color: var(--ink-3); font-size: 13px; }
 .nx-project-card {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name tail" "where tail" "form form";

@@ -8437,7 +8437,12 @@ beside it, the place under the name with home folded to `~`, and at the
 right the time it was last opened at rest, giving way under the pointer to
 Open, Share, Zip, PDF, Archive and Trash (§55); a missing folder says so in
 the warning colour with "Find it" beside it, and its row keeps its actions
-shown. All four ways in open one sheet with their own title, field and
+shown. The cards run the width the head runs, with the head's 40 px at
+each side, so a hovered card's actions sit under New project rather than
+stopping short of it (the 880 px cap the rail-and-list screen had put on
+its rows outlived the rail by a push, and was found while the README's
+picture of this screen was being taken). All four ways in open one sheet
+with their own title, field and
 copy: New project with Name, Where and Browse, and Start from as a
 segmented control of the templates; the others with the invite, the source
 and "Choose a zip", or the folder alone; the join offer draws inside the

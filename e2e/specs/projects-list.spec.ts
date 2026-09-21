@@ -70,6 +70,22 @@ test("one project still has the search and the sort", async ({ app, project, pag
 });
 
 
+test("the rows run the width the head runs", async ({ app, project, page }) => {
+  // At a width where the head has room to spare, a row that stopped short
+  // of it left the hovered row's actions well inside New project's edge.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: true }).waitFor();
+  const row = page.getByTestId("project-row").first();
+  await expect(row).toBeVisible();
+  const head = await page.locator(".nx-projects-head").boundingBox();
+  const box = await row.boundingBox();
+  // The head's side padding is 40 px; the row's right edge lands where its
+  // last control's does.
+  expect(Math.abs(box!.x + box!.width - (head!.x + head!.width - 40))).toBeLessThan(2);
+  void project; // taken so the fixture seeds a row
+});
+
 test("a row says when it was opened, and its actions are there without a hover", async ({
   app, project, page,
 }) => {
