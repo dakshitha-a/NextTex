@@ -177,6 +177,24 @@ this host could not reproduce; each says which.
       server, beside a LaTeX build. One sighting; a second is the signal
       to read what `startServer` in `e2e/server.ts` waits on and how
       long, and to widen it or to have it say which step was slow.
+- [ ] **`openai-card.spec.ts` "Allow always survives a reload as a
+      settled card" failed and passed on retry in four of the frame run's
+      nine full checks.** The failing read was `toBeVisible` on "Done."
+      after the card's Always is pressed, within 20 s, on a run with two
+      workers beside a LaTeX build; the case passed alone every time it
+      was run alone. The likely shape is the scripted OpenAI stand-in
+      finishing its turn before the card's answer lands, or the 500 ms
+      shield on the card's buttons letting the click through a moment
+      early under load, so the press is lost and the turn waits out its
+      timeout. Four sightings in one day is past the one-sighting bar the
+      two entries above set; what closes it is reading the card's answer
+      route under load (`tests/api/` has the permission gate's cases) and
+      having the spec wait on the card's own "answered" state rather than
+      on the turn's last word. `previews.spec.ts` "renaming a previewed
+      document moves its tab and its page together", `history-trash.spec.ts`
+      "naming a version makes it findable later" and `writing.spec.ts`
+      "typing lands on disk without being asked to" each flaked once in
+      the same runs.
 - [ ] **The issue form's `where` field is an input rather than a dropdown**
       because GitHub does not prefill dropdowns from a URL. If that changes,
       a dropdown for the platform would make the field sortable.
