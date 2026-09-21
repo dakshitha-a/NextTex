@@ -127,13 +127,6 @@ const SURFACES: Surface[] = [
     },
   },
   {
-    name: "the download menu",
-    open: async (tab) => {
-      await tab.getByTestId("open-download").click();
-      return tab.getByTestId("download-menu");
-    },
-  },
-  {
     name: "the file row menu",
     open: async (tab) => rowMenu(tab, "main.tex"),
   },

@@ -84,6 +84,8 @@ export type CompileResult = {
   diagnostics: Diagnostic[];
   summary?: BuildSummary | null;
   pdf?: string | null;
+  /** How many pages the run wrote, from the log's "Output written" line. */
+  pages?: number | null;
 };
 
 /** One row of the submission check: the drawer's row shape with a kind

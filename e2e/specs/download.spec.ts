@@ -40,7 +40,9 @@ function namesIn(archive: Buffer): string[] {
 }
 
 async function downloadFromInside(page: Page): Promise<Download> {
-  await page.getByTestId("open-download").click();
+  // The drawer stays open across downloads; the bar's press would fold
+  // it a second time.
+  if (!(await page.getByTestId("download-panel").isVisible())) await page.getByTestId("bar-download").click();
   const waiting = page.waitForEvent("download");
   await page.getByTestId("download-zip").click();
   return waiting;

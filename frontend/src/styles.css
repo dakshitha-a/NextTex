@@ -602,6 +602,12 @@ button { font: inherit; color: inherit; }
   .nx-person:hover .nx-person-what { display: inline; }
 }
 .nx-drawer-foot { display: flex; align-items: center; gap: 6px; padding: 6px 8px 10px; }
+/* The Download drawer's blocks: a document's name over its facts, and a
+   row of chips under them. */
+.nx-doc { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 6px 14px; }
+.nx-doc-name { display: flex; align-items: baseline; gap: 8px; color: var(--ink); font-size: 14px; font-weight: 500; line-height: 20px; min-width: 0; }
+.nx-doc-meta { color: var(--ink-3); font-size: 12px; font-weight: 400; white-space: nowrap; }
+.nx-doc-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 /* The Build drawer's first line: the build's state as the strip words it. */
 .nx-build-state { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; color: var(--ink); font-size: 13px; line-height: 18px; }
 /* The tabs on the band.  The open tab is the pane's block: the pane's
@@ -1642,6 +1648,10 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; white-space: nowrap;
 }
 .nx-chip-mono { font-family: var(--font-mono); font-size: 12px; }
+.nx-chip-button { transition: background-color 90ms var(--ease), color 90ms var(--ease); }
+.nx-chip-button[data-tone="surface"] { background: var(--surface); }
+.nx-chip-button:not(:disabled):hover, .nx-chip-button:focus-visible { background: var(--wash); color: var(--ink); }
+.nx-chip-button:disabled { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); cursor: default; }
 .nx-chip-remove { display: inline-flex; color: var(--ink-3); border-radius: 2px; }
 .nx-chip-remove:hover { color: var(--ink); }
 

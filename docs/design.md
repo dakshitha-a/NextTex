@@ -9769,3 +9769,35 @@ double-clicks the bar and sees a build start, and reads a clean
 project's sentence, its foot and its heading button; `bib-check.spec.ts`
 still lands F8 on the row; `clipping.spec.ts` and the fidelity harness
 close the drawer from the bar.
+
+**Download (item 2.3).** "Make the download button ... a part of the side
+launcher", and "have the download drawer auto populate with the docs as
+they are created." The downloads were a menu under a button on the
+title bar ("The download menu lists every document", above); they are the Download drawer on the bar now,
+between Before you submit and Deleted, `DownloadPanel.tsx`, as the page
+draws it: "Whole project" with its file count and size from the tree
+and a `.zip` chip; "Documents"; one block per document from the store's
+`previews` and `candidates`, which the tree's scan keeps current, so a
+new `.tex` with a `\documentclass` appears as soon as it is saved, each
+block with the stem, a line saying "12 pages, built 0.7 s" from the
+build's own facts (the compile result carries `pages` now, from the
+log's "Output written" line) or "not built yet", and a chip per format,
+`.pdf` always and `.docx` `.html` `.md` when the machine has pandoc; a
+document that has not been built has its chips waiting, outlined, since
+the PDF does not exist and previewing it builds it; and a note at the
+foot saying what counts as a document. The chips are the kit's new
+`ChipButton`, a chip that is a button, taking the surface it sits on and
+an outlined disabled form, added to the guide with the item. The menu,
+its private chip and its `under()` placement went from `chrome.tsx`,
+which keeps the fetch functions and `EXPORTS`; the name row is the mark
+and the name alone now, the last of the title bar's controls gone; the
+preview strip's Download (`save-pdf`) stays, since it is about the page
+in front. `toolbar.spec.ts` opens the drawer from the bar, reads the
+three blocks, the built document's live chips and the unbuilt one's
+waiting ones, fetches a PDF by its path with the drawer staying put, and
+saves a new document from outside the window to see its block appear
+without a reload, its chips waking with its first build;
+`export.spec.ts`, `download.spec.ts` and `a11y.spec.ts` reach the drawer
+where they reached the menu; `kit.spec.ts` reads the kit's menu on the
+source tab's; the fidelity harness renders `drawer-download` and
+`drawer-download-empty` beside the page's two drawings.

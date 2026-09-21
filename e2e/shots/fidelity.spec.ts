@@ -172,12 +172,31 @@ const SURFACES: Record<string, Surface> = {
     },
     close: escape,
   },
-  "download-menu": {
+  "drawer-download": {
     open: async (tab) => {
-      await tab.getByTestId("open-download").click();
-      return tab.getByTestId("download-menu");
+      await showDrawer(tab, "download");
+      await tab.locator('[data-testid="download-row"][data-document="main.tex"]').waitFor();
+      return tab.getByTestId("drawer");
     },
-    close: escape,
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
+  "drawer-download-empty": {
+    // Nothing built yet: the chips wait.  The harness cannot unbuild a
+    // document, so this is read from the not-yet-built second document.
+    open: async (tab) => {
+      await tab.getByTestId("bar-files").click().catch(() => undefined);
+      if (ctx) {
+        await fetch(`${ctx.base}/api/projects/${ctx.id}/file`, {
+          method: "PUT",
+          headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+          body: JSON.stringify({ path: "cover-letter.tex", text: "\\documentclass{article}\n\\begin{document}\nDear editor.\n\\end{document}\n", compile: false, create: true }),
+        });
+      }
+      await showDrawer(tab, "download");
+      await tab.locator('[data-testid="download-row"][data-document="cover-letter.tex"]').waitFor({ timeout: 20_000 });
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
   },
   "prompt-menu": {
     open: async (tab) => {

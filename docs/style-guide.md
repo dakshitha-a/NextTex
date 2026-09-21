@@ -69,9 +69,13 @@ surface that overlays another (the drawer below 1100 px, the Claude column
 below 1400) is lifted by `--float`, never edged by a border.
 
 A drawer's body may carry a label (`.nx-drawer-label`, 12 px in the
-third ink), rows of people (`.nx-person`) and a foot of its own
-(`.nx-drawer-foot`, above the drawer's 28 px foot) holding the body's
-one or two actions.
+third ink), rows of people (`.nx-person`), blocks of documents
+(`.nx-doc`, a name over its facts over a row of chips) and a foot of its
+own (`.nx-drawer-foot`, above the drawer's 28 px foot) holding the
+body's one or two actions. A chip that acts is the kit's `ChipButton`:
+the chip's shape in the code face, `tone` naming the surface under it,
+outlined in the third ink while disabled, which means the thing it
+would give does not exist yet.
 
 Size, one scale:
 

@@ -174,7 +174,8 @@ test("a PNG can be downloaded from the viewer, the tree and its history", async 
   await older.click();
   await expect(tab.getByText(/viewing/i).first()).toBeVisible();
   waiting = tab.waitForEvent("download");
-  await tab.getByRole("button", { name: "Download", exact: true }).first().click();
+  // The banner's own Download: the bar has a Download button too now.
+  await tab.getByTestId("viewing-banner").getByRole("button", { name: "Download", exact: true }).click();
   download = await waiting;
   expect(download.suggestedFilename()).toBe("wide.png");
   expect((await bytesOf(download)).equals(expected)).toBe(true);

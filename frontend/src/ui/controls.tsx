@@ -60,6 +60,27 @@ export function Chip({ mono = false, onRemove, removeLabel, className, children,
   );
 }
 
+/** A chip that does something: a format to download, in the code face.
+ *  `tone` names the surface it sits on, so it stays a step lighter than
+ *  its ground on the second surface as on the first.  Disabled, it is
+ *  outlined in the third ink: the thing it would give does not exist yet. */
+export type ChipButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  tone?: "surface" | "surface-2";
+};
+
+export function ChipButton({ tone = "surface-2", className, type = "button", children, ...rest }: ChipButtonProps) {
+  return (
+    <button
+      type={type}
+      className={`nx-chip nx-chip-mono nx-chip-button${className ? ` ${className}` : ""}`}
+      data-tone={tone}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
 /** A switch: on or off, and nothing in between.
  *
  *  `role="switch"` with `aria-checked`, named by the label text a caller

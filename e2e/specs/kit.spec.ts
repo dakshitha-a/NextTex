@@ -45,12 +45,14 @@ test("the two strips under the panes are one 28 px edge", async ({ tab }) => {
 });
 
 test("a menu is the kit's card: 8 px radius, no border, the sans", async ({ tab }) => {
-  await tab.getByTestId("open-download").click();
-  const menu = tab.getByTestId("download-menu");
+  // The source tab's menu: the download menu it read went with the
+  // title bar, the downloads being a drawer now.
+  await tab.locator('[data-tab][aria-current="true"], [data-tab]').first().click({ button: "right" });
+  const menu = tab.getByTestId("tab-menu");
   await expect(menu).toBeVisible();
-  expect(await style(tab, "[data-testid=download-menu]", "border-top-left-radius")).toBe("8px");
-  expect(await style(tab, "[data-testid=download-menu]", "border-top-width")).toBe("0px");
-  expect(await style(tab, "[data-testid=download-menu]", "font-family")).toContain("Source Sans 3");
+  expect(await style(tab, "[data-testid=tab-menu]", "border-top-left-radius")).toBe("8px");
+  expect(await style(tab, "[data-testid=tab-menu]", "border-top-width")).toBe("0px");
+  expect(await style(tab, "[data-testid=tab-menu]", "font-family")).toContain("Source Sans 3");
   await tab.keyboard.press("Escape");
 });
 

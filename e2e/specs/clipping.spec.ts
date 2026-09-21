@@ -126,18 +126,6 @@ const OPENED: {
     },
   },
   {
-    name: "download-menu",
-    open: async (tab) => {
-      const button = tab.getByTestId("open-download");
-      if (!(await button.count()) || !(await button.isVisible())) return false;
-      await button.click();
-      return true;
-    },
-    close: async (tab) => {
-      await tab.keyboard.press("Escape");
-    },
-  },
-  {
     name: "diagnostics",
     open: async (tab) => {
       const drawer = tab.getByTestId("status");
@@ -244,10 +232,10 @@ test("no surface clips text without saying so, at any width", async ({
     }
   }
   expect(found, found.join("\n")).toEqual([]);
-  // A scan of nothing passes.  These four are reachable at 1600 in every
+  // A scan of nothing passes.  These are reachable at 1600 in every
   // run, so if one stops opening the locator has rotted rather than the
   // surface having become clean.
   expect([...visited].sort()).toEqual([
-    "agent-sheet", "diagnostics", "download-menu", "row-menu", "settings",
+    "agent-sheet", "diagnostics", "row-menu", "settings",
   ]);
 });

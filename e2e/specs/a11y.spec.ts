@@ -385,13 +385,13 @@ test("the agent panel mid-turn is usable", async ({ tab }) => {
   expect(describeAll(await violations(tab))).toBe("");
 });
 
-test("the download menu is usable", async ({ tab }) => {
+test("the Download drawer is usable", async ({ tab }) => {
   // The fifth surface on the record's list. The other four were reached by
   // the sweep and two of them were wrong; this one had never been opened
   // while axe was watching, so the strike would have been claiming a
   // surface nobody checked.
   await settle(tab);
-  await tab.getByTestId("open-download").click();
-  await expect(tab.getByTestId("download-menu")).toBeVisible();
+  await tab.getByTestId("bar-download").click();
+  await expect(tab.getByTestId("download-panel")).toBeVisible();
   expect(describeAll(await violations(tab))).toBe("");
 });

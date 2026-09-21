@@ -12,10 +12,8 @@ import { rangeFor, scopesFor } from "./words";
 import { createTwoFilesPatch } from "diff";
 import Patch from "./panes/Patch";
 import {
-  DownloadMenu,
   Chevron,
   download,
-  downloadExport,
   downloadPdf,
   downloadZip,
   FoldButton,
@@ -79,6 +77,7 @@ const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 /** Lazily loaded, like the tutorial. Most sessions never open it, and the
  *  entry bundle is measured. */
 const PeoplePanel = lazy(() => import("./panes/PeoplePanel"));
+const DownloadPanel = lazy(() => import("./panes/DownloadPanel"));
 const ReportSheet = lazy(() => import("./panes/ReportSheet"));
 const CommandPalette = lazy(() => import("./panes/CommandPalette"));
 /** The sign-in screen is a whole screen, and a machine that is signed in
@@ -105,8 +104,8 @@ import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import {
-  BuildIcon, FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, PeopleIcon, PlusIcon,
-  ReportIcon, SearchIcon, SectionsIcon, SubmitIcon, TrashIcon, UpdateIcon,
+  BuildIcon, DownloadIcon, FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, PeopleIcon,
+  PlusIcon, ReportIcon, SearchIcon, SectionsIcon, SubmitIcon, TrashIcon, UpdateIcon,
 } from "./ui/icons";
 import { agentName, type Provider } from "./agent-name";
 import Status from "./panes/Status";
@@ -160,7 +159,7 @@ const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
  *  is reached from the agent column, and moves into it with the column's
  *  own rebuild. */
 export type DrawerId =
-  | "files" | "sections" | "search" | "papers" | "history" | "git" | "people" | "build" | "submit" | "trash";
+  | "files" | "sections" | "search" | "papers" | "history" | "git" | "people" | "build" | "submit" | "download" | "trash";
 const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "files", title: "Files", Icon: () => <FileIcon size={18} /> },
   { id: "sections", title: "Sections", Icon: () => <SectionsIcon size={18} /> },
@@ -171,6 +170,7 @@ const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "people", title: "People", Icon: () => <PeopleIcon size={18} /> },
   { id: "build", title: "Build", Icon: () => <BuildIcon size={18} /> },
   { id: "submit", title: "Before you submit", Icon: () => <SubmitIcon size={18} /> },
+  { id: "download", title: "Download", Icon: () => <DownloadIcon size={18} /> },
   { id: "trash", title: "Deleted", Icon: () => <TrashIcon size={18} /> },
 ];
 const DRAWER_DEFAULT: DrawerId = "files";
@@ -2136,18 +2136,6 @@ export default function App() {
               </>
             ) : null}
           </button>
-          {drawerShown && !drawerOver ? (
-            <>
-              {/* Download keeps a place here until the Download drawer
-                  takes it (item 2.3). */}
-              <DownloadMenu
-                onZip={() => projectId && void downloadZip(projectId)}
-                onPdf={(document) => projectId && downloadPdf(projectId, document)}
-                onExport={(document, format) => projectId && void downloadExport(projectId, document, format)}
-              />
-              <span className="w-1" />
-            </>
-          ) : null}
         </div>
         <div className="flex min-h-0 flex-1">
       {/* The activity bar: one button per drawer, the one showing marked by
@@ -2330,6 +2318,7 @@ export default function App() {
                     {drawerId === "people" ? (
                 <PeoplePanel inviteNonce={inviteNonce} onLeft={leaveProject} />
                     ) : null}
+                    {drawerId === "download" ? <DownloadPanel /> : null}
                     {drawerId === "build" ? (
                 <Diagnostics
                   onJump={(file, line) => openFile(file, line)}

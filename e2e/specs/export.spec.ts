@@ -27,12 +27,14 @@ test("with pandoc the menu offers three formats under each document, and one dow
     await openProject(page, project.root);
     await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
 
-    await page.getByTestId("open-download").click();
-    const menu = page.getByTestId("download-menu");
+    await page.getByTestId("bar-download").click();
+    const menu = page.getByTestId("download-panel");
     await expect(menu.getByTestId("download-pdf")).toHaveCount(1, { timeout: 10_000 });
-    // Three chips on the document's own row, after its .pdf, each
+    // Three chips on the document's own block, after its .pdf, each
     // showing the suffix that lands in the folder and naming the format
-    // in its title.
+    // in its title; live once the document has built.
+    await expect(menu.locator('[data-testid="download-row"][data-document="main.tex"]'))
+      .toHaveAttribute("data-built", "true", { timeout: 60_000 });
     const chips = menu.getByTestId("download-export");
     await expect(chips).toHaveCount(3);
     await expect(chips.nth(0)).toHaveText(".docx");
@@ -57,7 +59,7 @@ test("with pandoc the menu offers three formats under each document, and one dow
   }
 });
 
-test("without pandoc the menu says nothing about the three formats", async ({ page }) => {
+test("without pandoc the drawer says nothing about the three formats", async ({ page }) => {
   // The seam unset, and a PATH with no pandoc on it: the plain machine.
   const app = await startServer({
     NEXTTEX_PANDOC: "",
@@ -69,8 +71,8 @@ test("without pandoc the menu says nothing about the three formats", async ({ pa
     await page.getByText("Projects", { exact: false }).first().waitFor();
     await openProject(page, project.root);
     await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
-    await page.getByTestId("open-download").click();
-    const menu = page.getByTestId("download-menu");
+    await page.getByTestId("bar-download").click();
+    const menu = page.getByTestId("download-panel");
     await expect(menu.getByTestId("download-pdf")).toHaveCount(1, { timeout: 10_000 });
     await expect(menu.getByTestId("download-export")).toHaveCount(0);
   } finally {

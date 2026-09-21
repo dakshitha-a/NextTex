@@ -1,14 +1,13 @@
 import { test, expect } from "../fixtures";
 
-/** The project bar: sharing, settings, and getting a copy out.
+/** Getting a copy out, and the strip's word count.
  *
- *  It is a 32px strip that also has to hold the project's name, and "Zip"
- *  and "PDF" spelled out were two words competing with that name for the
- *  room -- two controls that mean the same thing, "give me a copy", sitting
- *  side by side as though they were unrelated.
+ *  The downloads were a menu under a button on the title bar; they are
+ *  the Download drawer on the bar since the frame run, one block per
+ *  document with a chip per format.
  */
 
-test("the downloads live behind one button, one PDF per document", async ({
+test("the downloads are a drawer on the bar, one block per document", async ({
   app, project, tab,
 }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
@@ -24,77 +23,82 @@ test("the downloads live behind one button, one PDF per document", async ({
     }),
   });
 
-  // Nothing is spelled out on the bar itself any more.
-  const bar = tab.getByTestId("open-download").locator("xpath=..");
-  await expect(bar.getByText("Zip", { exact: true })).toHaveCount(0);
+  // Nothing about downloads on the name row any more.
+  await expect(tab.getByTestId("title-bar").getByText(/download/i)).toHaveCount(0);
+  await expect(tab.getByTestId("download-panel")).toHaveCount(0);
+  await tab.getByTestId("bar-download").click();
 
-  await expect(tab.getByTestId("download-menu")).toHaveCount(0);
-  await tab.getByTestId("open-download").click();
-
-  const menu = tab.getByTestId("download-menu");
-  await expect(menu).toBeVisible();
-  await expect(menu.getByTestId("download-zip")).toBeVisible();
-  // The project's row and two documents' rows, each named by its stem,
-  // each ending in a chip per format that says what lands in the folder.
-  const rows = menu.getByTestId("download-row");
+  const panel = tab.getByTestId("download-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("download-zip")).toBeVisible();
+  // The project's block and two documents' blocks, each named by its
+  // stem, each with a chip per format that says what lands in the folder.
+  const rows = panel.getByTestId("download-row");
   await expect(rows).toHaveCount(3, { timeout: 10_000 });
   await expect(rows.nth(0)).toContainText("Whole project");
+  await expect(rows.nth(0)).toContainText(/\d+ files/);
   await expect(rows.nth(1)).toHaveAttribute("data-document", "main.tex");
   await expect(rows.nth(1)).toContainText("main");
   await expect(rows.nth(2)).toContainText("acme");
-  await expect(menu.getByTestId("download-pdf")).toHaveCount(2);
-  await expect(menu.getByTestId("download-zip")).toHaveText(".zip");
-  await expect(menu.getByTestId("download-pdf").nth(1)).toHaveText(".pdf");
-  // Export chips only where pandoc is, three per document row when it
+  await expect(panel.getByTestId("download-pdf")).toHaveCount(2);
+  await expect(panel.getByTestId("download-zip")).toHaveText(".zip");
+  await expect(panel.getByTestId("download-pdf").nth(1)).toHaveText(".pdf");
+  // Export chips only where pandoc is, three per document block when it
   // is and none when it is not; `export.spec.ts` pins each case with a
   // server of its own, and this server takes whatever PATH has.
-  const exports = await menu.getByTestId("download-export").count();
+  const exports = await panel.getByTestId("download-export").count();
   expect([0, 6]).toContain(exports);
   await expect(rows.nth(0).getByTestId("download-export")).toHaveCount(0);
-  // The role is kept: focus on the first row, Down walks the rows, Right
-  // and Left walk a row and stop at its ends rather than falling into
-  // the next row (with pandoc a row has four chips, without it one).
-  await expect(menu.getByTestId("download-zip")).toBeFocused();
-  await tab.keyboard.press("ArrowDown");
-  await expect(menu.getByTestId("download-pdf").first()).toBeFocused();
-  await tab.keyboard.press("ArrowRight");
-  await expect(rows.nth(1).locator(":focus")).toHaveCount(1);
-  await tab.keyboard.press("ArrowLeft");
-  await tab.keyboard.press("ArrowLeft");
-  await expect(menu.getByTestId("download-pdf").first()).toBeFocused();
-  await tab.keyboard.press("End");
-  await expect(menu.getByTestId("download-pdf").nth(1)).toBeFocused();
-  await tab.keyboard.press("ArrowDown");
-  await expect(menu.getByTestId("download-zip")).toBeFocused();
 
-  // Choosing the variant fetches that document's PDF, by its path.
+  // The previewed document's chips come alive with its build; the one
+  // that was never built waits, saying so.
+  await expect(rows.nth(1)).toHaveAttribute("data-built", "true", { timeout: 60_000 });
+  await expect(rows.nth(1)).toContainText(/built \d+\.\d s/);
+  await expect(rows.nth(2)).toContainText("not built yet");
+  await expect(rows.nth(2).getByTestId("download-pdf")).toBeDisabled();
+  await expect(rows.nth(1).getByTestId("download-pdf")).toBeEnabled();
+
+  // Choosing the built document fetches its PDF, by its path, and the
+  // drawer stays where it is.
   const requests: string[] = [];
   tab.on("request", (request) => {
     if (request.url().includes("/download")) requests.push(request.url());
   });
-  await menu.getByTestId("download-pdf").nth(1).click();
+  await rows.nth(1).getByTestId("download-pdf").click();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   const url = new URL(requests[0]);
   expect(url.searchParams.get("format")).toBe("pdf");
-  expect(url.searchParams.get("document")).toBe("variants/acme.tex");
-  await expect(tab.getByTestId("download-menu")).toHaveCount(0);
+  expect(url.searchParams.get("document")).toBe("main.tex");
+  await expect(panel).toBeVisible();
 });
 
-test("the menu closes without choosing", async ({ tab }) => {
+test("a new document appears in the drawer as it is saved, and its chips wake with its build", async ({
+  app, project, tab,
+}) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
-  await tab.getByTestId("open-download").click();
-  await expect(tab.getByTestId("download-menu")).toBeVisible();
-  await tab.keyboard.press("Escape");
-  await expect(tab.getByTestId("download-menu")).toHaveCount(0);
-});
-
-test("choosing one puts the menu away", async ({ tab }) => {
-  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
-  await tab.getByTestId("open-download").click();
-  await tab.getByTestId("download-zip").click();
-  // Left open, the menu would sit over the file list while the download
-  // happens somewhere the page cannot see.
-  await expect(tab.getByTestId("download-menu")).toHaveCount(0);
+  await tab.getByTestId("bar-download").click();
+  const panel = tab.getByTestId("download-panel");
+  await expect(panel.getByTestId("download-row")).toHaveCount(2, { timeout: 10_000 });
+  // Saved from outside the window, as a collaborator or a script would:
+  // the tree's scan finds it, and the drawer lists it without a reload.
+  await fetch(`${app.base}/api/projects/${project.id}/file`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({
+      path: "letter.tex",
+      text: "\\documentclass{article}\n\\begin{document}\nDear editor.\n\\end{document}\n",
+      compile: false, create: true,
+    }),
+  });
+  const letter = panel.locator('[data-testid="download-row"][data-document="letter.tex"]');
+  await expect(letter).toBeVisible({ timeout: 20_000 });
+  await expect(letter).toContainText("not built yet");
+  await expect(letter.getByTestId("download-pdf")).toBeDisabled();
+  // Previewing it builds it, and the chips come alive.
+  await tab.getByTestId("add-preview").click();
+  await tab.getByRole("menuitem", { name: "letter.tex" }).click();
+  await expect(letter).toHaveAttribute("data-built", "true", { timeout: 60_000 });
+  await expect(letter.getByTestId("download-pdf")).toBeEnabled();
 });
 
 test("the icon buttons still say what they are", async ({ tab }) => {
