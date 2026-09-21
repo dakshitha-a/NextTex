@@ -508,6 +508,68 @@ const SURFACES: Record<string, Surface> = {
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
     },
   },
+  tutorial: {
+    // From the settings sheet's foot, over the editor.
+    open: async (tab) => {
+      await tab.getByTestId("appearance").first().click();
+      await tab.getByTestId("tutorial-open").click();
+      const panel = tab.getByTestId("tutorial");
+      await panel.waitFor();
+      await tab.getByTestId("tutorial-contents").click();
+      await tab.waitForTimeout(200);
+      return panel;
+    },
+    close: escape,
+  },
+  "screen-guide": {
+    open: async (tab) => {
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("about-screen").click();
+      await tab.getByTestId("screen-guide").waitFor();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  "update-sheet": {
+    // The harness's instance is not a checkout, so the sheet's reachable
+    // state is that sentence, not the waiting update the page draws.
+    open: async (tab) => {
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("update-open").click();
+      await tab.getByTestId("update-sheet").waitFor();
+      await tab.waitForTimeout(400);
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  offline: {
+    // The server not answering: the status call refused, then a reload.
+    open: async (tab) => {
+      await tab.route("**/api/agent/status", (route) => route.abort());
+      await tab.reload();
+      await tab.getByTestId("offline-screen").waitFor({ timeout: 20_000 });
+      return tab.getByTestId("offline-screen");
+    },
+    close: async (tab) => {
+      await tab.unroute("**/api/agent/status");
+      await tab.goto(`${ctx!.base}/?token=${ctx!.token}`);
+      await tab.locator('.cm-editor, [data-testid="project-row"]').first().waitFor({ timeout: 30_000 });
+      if (!(await tab.locator(".cm-editor").count())) {
+        await tab.getByTestId("project-row").first().click();
+        await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+      }
+    },
+  },
   "folder-picker": {
     open: async (tab) => {
       await tab.getByTestId("switch-project").click();

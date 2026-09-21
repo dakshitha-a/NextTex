@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { Button } from "./ui/Button";
 import { worthReloading } from "./boundary-cause";
 import { record } from "./errors";
 import { get } from "./store";
@@ -84,7 +85,7 @@ export default class Boundary extends Component<Props, State> {
         className="flex h-full w-full items-center justify-center bg-surround p-8"
       >
         <div className="max-w-[420px]">
-          <p className="t-ui-lg mb-2 text-ink">
+          <p className="t-ui-lg mb-1 text-ink">
             {this.state.serverGone
               ? "NextTex is not answering."
               : "Part of the interface could not be loaded."}
@@ -106,8 +107,8 @@ export default class Boundary extends Component<Props, State> {
               </>
             )}
           </p>
-          <button
-            className="pen-button t-ui h-[28px] px-3"
+          <Button
+            variant="pen"
             onClick={() => {
               try {
                 window.sessionStorage.removeItem(RETRIED);
@@ -118,7 +119,7 @@ export default class Boundary extends Component<Props, State> {
             }}
           >
             Reload
-          </button>
+          </Button>
           <p className="t-micro mt-4 break-words text-ink-3">
             {this.state.message}
           </p>
