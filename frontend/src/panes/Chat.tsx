@@ -606,29 +606,8 @@ export default function Chat({
               Stop
             </Button>
           ) : null}
-          <IconButton
-            ref={clearButton}
-            label="New conversation"
-            on={confirmClear}
-            aria-expanded={confirmClear}
-            aria-controls={confirmClear ? "nx-clear-confirm" : undefined}
-            title={thinking ? "Wait for this answer to finish" : "Start a new conversation"}
-            data-testid="clear-chat"
-            disabled={thinking}
-            onClick={() => {
-              setConfirmClear((asking) => {
-                // Into the block, and onto the safe half of it: this ends
-                // a conversation, so the default answer is no.
-                if (!asking) {
-                  window.setTimeout(() => keepButton.current?.focus({ preventScroll: true }), 0);
-                }
-                return !asking;
-              });
-            }}
-          >
-            <PlusIcon />
-          </IconButton>
-          {/* What "New conversation" files away. */}
+          {/* New conversation sits in the composer's tools row, where the
+              writing happens (item 1.5); what it files away is here. */}
           <IconButton
             label="Past conversations"
             title="Read a conversation that was filed away"
@@ -974,11 +953,35 @@ export default function Chat({
               }}
             />
           </div>
-          {/* Two controls where there were six icons and a Send button:
-              Attach, and one chip naming the model and what it asks about,
-              which opens the one menu. The send glyph is the pen's, grey
-              while the draft is empty; Enter sends. */}
+          {/* Three controls where there were six icons and a Send button:
+              New conversation, since starting afresh belongs where the
+              writing happens (the writer asked for it "to the left of the
+              attach icon"); Attach; and one chip naming the model and what
+              it asks about, which opens the one menu. The send glyph is
+              the pen's, grey while the draft is empty; Enter sends. */}
           <div className="nx-composer-tools">
+            <IconButton
+              ref={clearButton}
+              label="New conversation"
+              on={confirmClear}
+              aria-expanded={confirmClear}
+              aria-controls={confirmClear ? "nx-clear-confirm" : undefined}
+              title={thinking ? "Wait for this answer to finish" : "Start a new conversation"}
+              data-testid="clear-chat"
+              disabled={thinking}
+              onClick={() => {
+                setConfirmClear((asking) => {
+                  // Into the block, and onto the safe half of it: this ends
+                  // a conversation, so the default answer is no.
+                  if (!asking) {
+                    window.setTimeout(() => keepButton.current?.focus({ preventScroll: true }), 0);
+                  }
+                  return !asking;
+                });
+              }}
+            >
+              <PlusIcon />
+            </IconButton>
             <input
               ref={picker}
               type="file"

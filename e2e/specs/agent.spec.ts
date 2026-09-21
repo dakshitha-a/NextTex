@@ -418,11 +418,21 @@ test("the model list closes from the button that opened it", async ({ tab }) => 
   await expect(tab.getByTestId("model-menu")).toBeHidden();
 });
 
+test("New conversation is the composer's first tool, left of Attach", async ({ tab }) => {
+  const tools = tab.locator(".nx-composer-tools");
+  const clear = (await tools.getByTestId("clear-chat").boundingBox())!;
+  const attach = (await tools.getByTestId("attach").boundingBox())!;
+  expect(clear.x + clear.width).toBeLessThanOrEqual(attach.x);
+  expect(Math.round(clear.y)).toBe(Math.round(attach.y));
+  await expect(tab.getByTestId("chat-header").getByTestId("clear-chat")).toHaveCount(0);
+});
+
 test("the new-conversation question can be answered from the keyboard", async ({
   tab,
 }) => {
-  // The block opens above the composer and its buttons come after the box
-  // in the DOM, so Tab from the trigger walks away from what it opened.
+  // The block opens above the composer, before the trigger in the DOM
+  // now that the trigger is the composer's first tool, so focus is put
+  // on the block's safe half rather than left for Tab to find.
   await tab.getByTestId("clear-chat").press("Enter");
   await expect(tab.getByRole("button", { name: "Keep this one" })).toBeFocused();
   // The safe half, because this ends a conversation.

@@ -9191,9 +9191,10 @@ The header is one row: the agent's name; while a turn runs, the dot,
 what it is doing and the elapsed time (a path shortened to the file's
 name, since the transcript's row carries the whole path), and Stop;
 "Auto" in the warning colour while the fence is lowered, one click
-stepping it back; then New conversation, Past conversations, What
-Claude reads and Fold as icon buttons, the same buttons whatever the
-column's width. The Usage button left the header: what a project has
+stepping it back; then Past conversations, What Claude reads and Fold
+as icon buttons, the same buttons whatever the column's width (New
+conversation was among them until the frame run moved it into the
+composer's tools row, item 1.5 of section 57). The Usage button left the header: what a project has
 cost is one sentence, and its place is the foot of the past
 conversations, the sum over every one of them, "This project: $1.23
 estimated, 14 turns, 2m 10s of model time, 120k tokens in (96k from
@@ -9654,3 +9655,12 @@ before and after a scripted turn and Usage landing on the breakdown; the
 report sheet opening from the foot with the document still in place;
 and the foot following the drawer from Sections to History and going
 with the fold.
+
+**New conversation in the composer (item 1.5).** "Put the new chat icon
+to the left of the attach icon." The control that starts a conversation
+afresh sat in the column's header with the archive and the reading list;
+it is the composer's first tool now, left of Attach, the same icon button
+with the same label, confirm and behaviour, since starting afresh belongs
+where the writing happens and the header keeps what is about the record.
+The confirm still opens above the composer and puts focus on Keep this
+one. `agent.spec.ts` reads it left of Attach in the tools row.

@@ -348,9 +348,9 @@ export default function Tutorial({
             still appears in the conversation, saying it ran without asking.
           </P>
           <P>
-            Under the box there are two controls and the send glyph: attach
-            an image, and the chip. The column's header holds the rest, new
-            conversation, past conversations and what the agent reads, as
+            Under the box there are three controls and the send glyph: new
+            conversation, attach an image, and the chip. The column's header
+            holds the rest, past conversations and what the agent reads, as
             icon buttons that say their names on hover; while a turn runs the
             header shows what the agent is doing, and <C>Stop</C>. Runs of
             tool calls fold into one line you can open.
