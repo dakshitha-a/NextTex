@@ -204,6 +204,120 @@ def _balanced(text: str, start: int, limit: int = 400) -> str:
     return ""
 
 
+#: The environments a label can sit in that a reference card can draw:
+#: a figure's graphic, a table's body, an equation's maths.  A label
+#: elsewhere (a section, an item) carries no `env`.
+FIGURE_ENVS = {"figure", "figure*", "subfigure", "wrapfigure"}
+TABLE_ENVS = {"table", "table*", "subtable", "wraptable"}
+MATH_ENVS = {
+    "equation", "equation*", "align", "align*", "gather", "gather*",
+    "multline", "multline*", "flalign", "flalign*", "alignat", "alignat*",
+    "eqnarray", "eqnarray*",
+}
+LABEL_ENVS = FIGURE_ENVS | TABLE_ENVS | MATH_ENVS
+TABULAR_ENVS = ("tabular", "tabular*", "tabularx", "longtable")
+ENV_EDGE = re.compile(r"\\(begin|end)\s*\{([A-Za-z@]+\*?)\}")
+INCLUDEGRAPHICS = re.compile(r"\\includegraphics\s*(?:\[[^\]]*\])?\s*\{")
+CAPTION = re.compile(r"\\caption\s*(?:\[[^\]]*\])?\s*\{")
+#: Past this many characters a body is cut and says so: a table of a
+#: thousand rows is not a card.
+BODY_LIMIT = 4000
+
+
+def environment_index(text: str) -> list[dict]:
+    """Every balanced environment in a file, innermost last.
+
+    One pass over the `\\begin` and `\\end` edges with a stack; an `\\end`
+    with no matching `\\begin` is dropped, and a `\\begin` never closed
+    is dropped too, so an unfinished draft indexes what it can rather
+    than nothing.  Each entry carries the name, where the `\\begin` starts,
+    where its group ends (the inner text's start), where the `\\end`
+    starts (the inner text's end) and where the `\\end` group ends."""
+    stack: list[tuple[str, int, int]] = []
+    found: list[dict] = []
+    for match in ENV_EDGE.finditer(text):
+        edge, name = match.group(1), match.group(2)
+        if edge == "begin":
+            stack.append((name, match.start(), match.end()))
+            continue
+        # The nearest open environment of that name; anything opened
+        # after it and never closed is dropped.
+        for depth in range(len(stack) - 1, -1, -1):
+            if stack[depth][0] == name:
+                open_name, start, inner_start = stack[depth]
+                del stack[depth:]
+                found.append({
+                    "name": open_name, "start": start, "inner_start": inner_start,
+                    "inner_end": match.start(), "end": match.end(),
+                })
+                break
+    found.sort(key=lambda entry: entry["start"])
+    return found
+
+
+def _innermost(index: list[dict], position: int, names: set[str]) -> dict | None:
+    """The innermost environment among `names` holding `position`."""
+    best: dict | None = None
+    for entry in index:
+        if entry["name"] not in names:
+            continue
+        if entry["inner_start"] <= position < entry["inner_end"]:
+            if best is None or entry["start"] >= best["start"]:
+                best = entry
+    return best
+
+
+def _cut(body: str) -> tuple[str, bool]:
+    if len(body) > BODY_LIMIT:
+        return body[:BODY_LIMIT], True
+    return body, False
+
+
+def environment_facts(text: str, position: int, index: list[dict] | None = None) -> dict:
+    """What a reference card can draw for a label at `position`.
+
+    `env` is the innermost figure, table or maths environment holding the
+    label, or absent; a figure adds `graphic` (the first
+    `\\includegraphics` path in it) and `caption`; a table adds `caption`
+    and `body` (its inner `tabular`, `tabular*`, `tabularx` or
+    `longtable`, the environment included); a maths environment adds
+    `body` (its inner text).  A body past `BODY_LIMIT` characters is cut
+    and says `bodyCut`."""
+    if index is None:
+        index = environment_index(text)
+    entry = _innermost(index, position, LABEL_ENVS)
+    if entry is None:
+        return {}
+    facts: dict = {"env": entry["name"]}
+    inner = text[entry["inner_start"]:entry["inner_end"]]
+    if entry["name"] in FIGURE_ENVS or entry["name"] in TABLE_ENVS:
+        caption = CAPTION.search(inner)
+        if caption:
+            facts["caption"] = _balanced(inner, caption.end() - 1, limit=1200).strip()
+    if entry["name"] in FIGURE_ENVS:
+        graphic = INCLUDEGRAPHICS.search(inner)
+        if graphic:
+            facts["graphic"] = _balanced(inner, graphic.end() - 1).strip()
+    elif entry["name"] in TABLE_ENVS:
+        tabular = next(
+            (e for e in index
+             if e["name"] in TABULAR_ENVS
+             and entry["inner_start"] <= e["start"] and e["end"] <= entry["inner_end"]),
+            None,
+        )
+        if tabular is not None:
+            body, cut = _cut(text[tabular["start"]:tabular["end"]])
+            facts["body"] = body
+            if cut:
+                facts["bodyCut"] = True
+    else:
+        body, cut = _cut(inner.strip())
+        facts["body"] = body
+        if cut:
+            facts["bodyCut"] = True
+    return facts
+
+
 def _first_author(value: str) -> str:
     if not value:
         return ""
@@ -262,14 +376,24 @@ def scan(
             if english:
                 found.english[relative] = english
 
-        for line_number, line in enumerate(text.splitlines(), start=1):
-            for name in LABEL.findall(line):
-                if name in seen_labels:
-                    continue
-                seen_labels.add(name)
-                found.labels.append(
-                    {"name": name, "file": relative, "line": line_number}
-                )
+        # Labels by position rather than by line, so each can say which
+        # environment it sits in; the line number is counted on the way.
+        index: list[dict] | None = None
+        line_number = 1
+        counted_to = 0
+        for match in LABEL.finditer(text):
+            name = match.group(1)
+            line_number += text.count("\n", counted_to, match.start())
+            counted_to = match.start()
+            if name in seen_labels:
+                continue
+            seen_labels.add(name)
+            if index is None:
+                index = environment_index(text)
+            found.labels.append({
+                "name": name, "file": relative, "line": line_number,
+                **environment_facts(text, match.start(), index),
+            })
 
         for match in NEWCOMMAND.finditer(text):
             name, arity = match.group(1), match.group(2)

@@ -28,3 +28,7 @@ def test_labels_carry_their_numbers_after_a_real_build(client, opened, project_d
     assert after["sec:intro"]["kind"] == "section"
     # The place is still there beneath the number.
     assert after["fig:one"]["file"] == "main.tex" and after["fig:one"]["line"] == 6
+    # And the environment, with what a reference card draws.
+    assert after["fig:one"]["env"] == "figure"
+    assert after["fig:one"]["caption"] == "A box"
+    assert "env" not in after["sec:intro"]

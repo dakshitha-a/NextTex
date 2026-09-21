@@ -9814,6 +9814,24 @@ the right size and useful for a moment, and is replaced when they land.
 without its source line; the fidelity harness's `math-hover` and
 `table-hover` sit beside the page's cards.
 
+**The scan notes the environment a label is in (item 3.2).** So the card
+can draw the thing, each label the scan finds carries its innermost
+figure, table or maths environment: `environment_index` in
+`nexttex/symbols.py` walks a file's `\begin` and `\end` edges once with
+a stack, dropping an `\end` with no `\begin` and a `\begin` never
+closed so a draft indexes what it can, and `environment_facts` gives a
+label `env`, a figure's first `\includegraphics` path as `graphic`, a
+figure's or table's `\caption` group as `caption`, a table's inner
+`tabular`, `tabular*`, `tabularx` or `longtable` (the environment
+included) or a maths environment's inner text as `body`, cut at 4000
+characters with `bodyCut`. A section label carries none of these; a
+`subfigure` is the innermost; a label inside a `\caption{...}` is in
+its figure. The labels are found by position now rather than by line,
+the line counted on the way. `tests/test_symbols_environment.py` holds
+the cases; `tests/api/test_symbols_numbers.py` reads a figure label's
+`env` and `caption` beside its number after a build; the compile result
+carries `pages` for the Download drawer's line from the same log.
+
 **The bar's eleven, remembered (item 2.4).** The drawer the bar
 remembers across a reload is read back through `BAR_ITEMS`, so the
 three new ids are accepted the day they are listed; `sections.spec.ts`'s

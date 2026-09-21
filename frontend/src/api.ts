@@ -131,7 +131,14 @@ export type Symbols = {
   /** Where each label is, and, after a build, what it says: the number
    *  and page from the `.aux` file and the kind hyperref's anchor names
    *  (`figure`, `section`, `equation`); absent before the first build. */
-  labels: { name: string; file: string; line: number; number?: string; page?: string; kind?: string }[];
+  labels: {
+    name: string; file: string; line: number; number?: string; page?: string; kind?: string;
+    /** The figure, table or maths environment the label sits in, with
+     *  what a reference card can draw: a figure's first graphic and its
+     *  caption, a table's caption and its tabular, a maths environment's
+     *  inner text; `bodyCut` when the body was cut at the scan's limit. */
+    env?: string; graphic?: string; caption?: string; body?: string; bodyCut?: boolean;
+  }[];
   citations: { key: string; type: string; title: string; author: string; year: string; authors?: string; venue?: string; doi?: string }[];
   images: string[];
   texfiles: string[];
