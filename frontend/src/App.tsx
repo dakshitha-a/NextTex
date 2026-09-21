@@ -2082,6 +2082,7 @@ export default function App() {
       <>
         <Projects
           onOpen={openProject}
+          current={projectId ?? undefined}
           canClose={Boolean(projectId)}
           onClose={() => setView("editor")}
           onChangeAgent={changeAgent}

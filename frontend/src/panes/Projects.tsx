@@ -77,11 +77,18 @@ const OTHER_WAYS: { key: Way; label: string; note: string }[] = [
 export default function Projects({
   onOpen,
   onClose,
+  current,
   canClose,
   onChangeAgent,
 }: {
   onOpen: (id: string) => void;
   onClose?: () => void;
+  /** The project this window came here from, which Back returns to.  Its
+   *  row is never "open in another window": the window it is open in is
+   *  this one, and the list fetched on the way here races the server
+   *  noticing that this window's stream has closed, so without this the
+   *  row the writer just left said so for as long as the screen stayed. */
+  current?: string;
   canClose: boolean;
   /** Back to the screen that chose the agent. */
   onChangeAgent?: () => void;
@@ -854,7 +861,7 @@ export default function Projects({
                 </span>
                 {/* Only a shared project wears a mark: a mark on every
                     row is a mark on none. */}
-                {rowMarks({ ...project, open: watched.includes(project.id) }).map((mark) => (
+                {rowMarks({ ...project, open: watched.includes(project.id) && project.id !== current }).map((mark) => (
                   <span key={mark} className="nx-project-mark">
                     {mark === "shared" ? <ShareIcon size={12} /> : null}
                     {mark}

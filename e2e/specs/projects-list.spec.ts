@@ -350,6 +350,11 @@ test("leaving a project ends its event stream, so the list stops calling it open
   // left behind.
   await page.getByTestId("switch-project").click();
   await page.getByText("Projects", { exact: true }).waitFor();
+  // And A's own list never calls the row it came from open in another
+  // window, however the fetch and the disconnect are ordered: the window
+  // it is open in is this one.
+  await expect(page.getByTestId("project-row").first()).toBeVisible();
+  await expect(page.getByText("open in another window")).toHaveCount(0);
   await expect.poll(watched, { timeout: 10_000 }).toEqual([]);
   await other.close();
 });

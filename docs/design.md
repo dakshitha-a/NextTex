@@ -3728,7 +3728,12 @@ row and meant nothing; that turned out to be a bug rather than a fact,
 since going back to the list never closed the stream, and with that fixed
 the mark says what it says. It is as of the moment the list was fetched,
 because the list holds no stream of its own, and a reload is how it is
-brought up to date.
+brought up to date. One row is exempt: the project this window came here
+from, which Back returns to, is never marked, because the window it is
+open in is this one; the list fetched on the way to the screen races the
+server noticing that this window's stream has closed, and until the
+exemption the row the writer had just left said "open in another window"
+for as long as the screen stayed.
 
 Above the rows there is a heading, `Projects`, with the count, which is
 also the word every browser spec waits for on this screen and until this
