@@ -1,4 +1,5 @@
 import type { JoinOffer, OfferedFile } from "../api";
+import { sizeOf } from "../size";
 
 /** What a peer is offering, before a byte of it is written.
  *
@@ -7,54 +8,48 @@ import type { JoinOffer, OfferedFile } from "../api";
  *  after all of it was on their disk. The documents are held open on the
  *  server while this is on screen, so discarding really does leave nothing
  *  behind rather than deleting something that was written a moment ago.
+ *
+ *  Drawn inside the join sheet as a block on the second surface: the
+ *  count and the size, the sentence saying nothing has been written yet,
+ *  the files with their sizes, and what accepting would do to each when
+ *  the folder already has files.  The two answers, Discard and Accept, are
+ *  the sheet's foot while the offer is on screen, not buttons of the
+ *  block's own.
  */
-export default function JoinOfferCard({
-  offer,
-  onAccept,
-  onDiscard,
-}: {
-  offer: JoinOffer;
-  onAccept: () => void;
-  onDiscard: () => void;
-}) {
+export default function JoinOfferCard({ offer }: { offer: JoinOffer }) {
   const landing = offer.files.filter((file) => !file.refused);
   const refused = offer.files.filter((file) => file.refused);
   const total = landing.reduce((sum, file) => sum + file.size, 0);
 
   return (
-    <div
-      className="mt-3 rounded-[3px] border border-line bg-surface"
-      data-testid="join-offer"
-    >
-      <div className="border-b border-line px-3 py-2">
-        <p className="t-ui text-ink">
-          {landing.length} {landing.length === 1 ? "file" : "files"}, {size(total)}
-        </p>
-        <p className="t-meta mt-[2px] text-ink-2">
-          {offer.existing ? (
-            <>
-              Nothing has been written yet. <span className="t-code-sm">{offer.path}</span>{" "}
-              already has files, and this is what accepting would do to each.
-              The shared project wins where they disagree; nothing of yours is
-              lost, it goes to the file's history or to the trash.
-            </>
-          ) : (
-            <>
-              Nothing has been written yet. This is what would arrive in{" "}
-              <span className="t-code-sm">{offer.path}</span>.
-            </>
-          )}
-        </p>
+    <div className="nx-offer" data-testid="join-offer">
+      <div className="nx-offer-count">
+        {landing.length} {landing.length === 1 ? "file" : "files"}, {sizeOf(total)}
       </div>
-      <div className="max-h-[220px] overflow-y-auto">
+      <p className="nx-offer-text">
+        {offer.existing ? (
+          <>
+            Nothing has been written yet. <span className="t-code-sm">{offer.path}</span>{" "}
+            already has files, and this is what accepting would do to each.
+            The shared project wins where they disagree; nothing of yours is
+            lost, it goes to the file's history or to the trash.
+          </>
+        ) : (
+          <>
+            Nothing has been written yet. This is what would arrive in{" "}
+            <span className="t-code-sm">{offer.path}</span>.
+          </>
+        )}
+      </p>
+      <div className="nx-offer-files">
         {landing.map((file) => (
           <div
             key={file.path}
-            className="flex items-baseline justify-between gap-3 px-3 py-[3px]"
+            className="nx-offer-file"
             data-outcome={offer.existing ? file.outcome : undefined}
           >
-            <span className="t-code-sm truncate text-ink">{file.path}</span>
-            <span className="t-micro shrink-0 text-ink-3">
+            <span className="t-code-sm min-w-0 truncate text-ink">{file.path}</span>
+            <span className="nx-offer-tail">
               {offer.existing ? (
                 <>
                   <span className={file.outcome === "same" || file.outcome === "behind" ? "" : "text-ink-2"}>
@@ -63,44 +58,25 @@ export default function JoinOfferCard({
                   {" · "}
                 </>
               ) : null}
-              {size(file.size)}
+              {sizeOf(file.size)}
             </span>
           </div>
         ))}
       </div>
       {refused.length ? (
-        <div className="border-t border-line px-3 py-2">
-          <p className="t-meta text-ink-2">
-            {refused.length}{" "}
-            {refused.length === 1 ? "file was offered" : "files were offered"}{" "}
-            that NextTex will not write, because the build would run{" "}
-            {refused.length === 1 ? "it" : "them"}:{" "}
-            <span className="t-code-sm">
-              {refused.map((file) => file.path).join(", ")}
-            </span>
-          </p>
-        </div>
+        <p className="nx-offer-text mt-2">
+          {refused.length}{" "}
+          {refused.length === 1 ? "file was offered" : "files were offered"}{" "}
+          that NextTex will not write, because the build would run{" "}
+          {refused.length === 1 ? "it" : "them"}:{" "}
+          <span className="t-code-sm">
+            {refused.map((file) => file.path).join(", ")}
+          </span>
+        </p>
       ) : null}
-      <div className="flex justify-end gap-2 border-t border-line px-3 py-2">
-        <button
-          className="ghost-button h-[26px] px-3 t-ui"
-          data-testid="discard-join"
-          onClick={onDiscard}
-        >
-          Discard
-        </button>
-        <button
-          className="pen-button h-[26px] px-3 t-ui"
-          data-testid="accept-join"
-          onClick={onAccept}
-        >
-          Accept
-        </button>
-      </div>
     </div>
   );
 }
-
 
 /** What accepting does to a file of a folder that already had files, in
  *  the words of the person whose files they are. */
@@ -121,11 +97,4 @@ function outcomeWords(outcome: OfferedFile["outcome"]): string {
     default:
       return "new from the others";
   }
-}
-
-/** A size a person reads. */
-function size(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

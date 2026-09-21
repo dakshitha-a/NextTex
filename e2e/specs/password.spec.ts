@@ -29,7 +29,14 @@ test.afterAll(async () => {
 test("setting a password says so and closes itself", async ({ page }) => {
   await page.goto(`${app.base}/?token=${app.token}`);
 
-  await page.getByTestId("set-password").click();
+  // The lock on the app bar, in the warning colour; resting on it opens
+  // the card with the sentence and the one action.
+  const lock = page.getByTestId("password-nudge");
+  await expect(lock).toBeVisible();
+  await lock.hover();
+  const nudge = page.getByTestId("password-card");
+  await expect(nudge).toContainText("Anyone with the link the server printed");
+  await nudge.getByTestId("set-password").click();
   const card = page.getByTestId("access-card");
   await expect(card).toBeVisible();
 
@@ -87,6 +94,32 @@ test("a password set from the cog stops the nudge asking for one", async ({
     await card.getByTestId("save-password").click();
     await expect(page.getByTestId("access-done")).toBeVisible();
 
+    await expect(page.getByTestId("password-nudge")).toHaveCount(0);
+  } finally {
+    await own.stop();
+  }
+});
+
+test("the lock's card can be put away for good, and a press on the lock opens the access card", async ({
+  page,
+}) => {
+  const own = await startServer();
+  try {
+    await page.goto(`${own.base}/?token=${own.token}`);
+    const lock = page.getByTestId("password-nudge");
+    await expect(lock).toBeVisible();
+    // A press goes straight to the card that sets the password.
+    await lock.click();
+    await expect(page.getByTestId("access-card")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("access-card")).toHaveCount(0);
+    // The hover card's other answer: somebody writing alone is making a
+    // fine choice, and it is kept on this browser.
+    await lock.hover();
+    await page.getByTestId("only-one-here").click();
+    await expect(lock).toHaveCount(0);
+    await page.reload();
+    await page.getByText("Projects", { exact: true }).waitFor();
     await expect(page.getByTestId("password-nudge")).toHaveCount(0);
   } finally {
     await own.stop();

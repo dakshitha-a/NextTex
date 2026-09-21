@@ -456,6 +456,58 @@ const SURFACES: Record<string, Surface> = {
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
     },
   },
+  "projects-lock": {
+    // The lock's hover card on the app bar, over the list.
+    open: async (tab) => {
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("password-nudge").hover();
+      await tab.getByTestId("password-card").waitFor();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await tab.mouse.move(400, 400);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  "projects-join-offer": {
+    // The join sheet holding an offer: the join's answer played back, as
+    // moved-project.spec.ts does for a rejoin, since a second NextTex is
+    // not here.  Nothing on disk moves.
+    open: async (tab) => {
+      const home = `${path.dirname(ctx!.root)}/thesis`;
+      await tab.route("**/api/collab/join", (route) =>
+        route.fulfill({
+          json: {
+            ok: true, token: "played-back", path: home, existing: false,
+            files: [
+              { path: "main.tex", kind: "text", size: 18_400, refused: false, outcome: "same" },
+              { path: "chapters/01-introduction.tex", kind: "text", size: 41_000, refused: false, outcome: "same" },
+              { path: "references.bib", kind: "text", size: 9_200, refused: false, outcome: "same" },
+              { path: "figures/decay-fit.png", kind: "binary", size: 144_000, refused: false, outcome: "same" },
+            ],
+          },
+        }),
+      );
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("ways-open").click();
+      await tab.getByRole("menuitem", { name: /Join a shared project/ }).click();
+      await tab.getByTestId("invite-input").fill("nexttex-share-v1-eyJzaGFyZSI6ImE5ZjMiLCJzZWNyZXQiOiI3YjJlIn0");
+      await tab.getByPlaceholder(/A folder to put it in/).fill(home);
+      await tab.getByRole("button", { name: "Join", exact: true }).click();
+      await tab.getByTestId("join-offer").waitFor({ timeout: 10_000 });
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("discard-join").click().catch(() => undefined);
+      await escape(tab);
+      await tab.unroute("**/api/collab/join");
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
   "folder-picker": {
     open: async (tab) => {
       await tab.getByTestId("switch-project").click();
@@ -961,7 +1013,10 @@ test("the named surfaces, in both themes, beside the page", async ({ app, projec
         await tab.waitForTimeout(250);
         await target.screenshot({ path: path.join(OUT, `${name}--${theme}.png`) });
       } catch (error) {
+        // The reason, and the screen as it was: a surface that would not
+        // open is easier to read from a picture than from a locator.
         fs.writeFileSync(path.join(OUT, `${name}--${theme}.failed.txt`), String(error));
+        await tab.screenshot({ path: path.join(OUT, `${name}--${theme}.failed.png`) }).catch(() => undefined);
       }
       await surface.close?.(tab);
       await tab.waitForTimeout(150);

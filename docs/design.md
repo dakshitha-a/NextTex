@@ -8443,8 +8443,8 @@ segmented control of the templates; the others with the invite, the source
 and "Choose a zip", or the folder alone; the join offer draws inside the
 join sheet. The update foot's states are the same states inside the update
 sheet, with the same strings and testids; "Check for updates" is the
-sheet's first line before any check was asked for. The password nudge sits
-under the list until item 3.2 takes it into the bar's lock. On a phone the
+sheet's first line before any check was asked for. The password nudge is
+the bar's lock (below, with the rest of 3.2). On a phone the
 app bar keeps its icons, the agent control leaves it, the head wraps with
 the find field on its own line, and a card stacks its tail under the name.
 
@@ -8490,9 +8490,33 @@ browsers" at the left and the password button, "Set password" or "Change
 password", at the right, submitting the form above it by its id. The
 password fields keep small labels over them rather than the placeholders
 the drawing wrote inside them, since a placeholder is not a label to a
-screen reader and the spec reads the word "Password" as text. The lock on
-the app bar with its hover card, and the join offer inside its sheet, wait
-on the drawings of version 21.
+screen reader and the spec reads the word "Password" as text.
+
+The other half of 3.2 landed once the writer said yes to the drawings of
+version 21. The password nudge is a lock on the app bar, between the
+guide and Settings, in the warning colour while the install has no
+password: resting on it or focusing it opens a card under it with the
+sentence ("Anyone with the link the server printed can read and edit your
+projects"), "Set a password" and "I'm the only one here", which puts the
+lock away for good on this browser; a press on the lock opens the access
+card straight away. The card stays while the pointer crosses from the
+lock to it. On a screen with nothing to point with the lock is the whole
+control and the way to dismiss it is not offered, since a press there
+opens the access card; a writer alone on a tablet sets a password or
+leaves the lock be. The line at the foot of the list, its two buttons and
+its own rule are gone. The join offer draws inside the join sheet as a
+block on the second surface: the count and the size, "Nothing has been
+written yet" and where it would arrive (or, into a folder with files,
+what accepting would do to each), the files with their sizes, and the
+refused ones under; its two answers, Discard and Accept, are the sheet's
+foot while the offer is on screen, in place of Cancel and Join, rather
+than buttons of the block's own. `password.spec.ts` rests on the lock,
+reads the card, sets a password from it, puts the lock away for good and
+finds it gone after a reload, and opens the access card from a press on
+the lock; `moved-project.spec.ts` finds Accept in the sheet's foot and
+Join back once the offer is discarded; the fidelity harness renders
+`projects-lock` and `projects-join-offer` (a join played back, since a
+second NextTex is not there) beside the page's drawings.
 
 The writing agent (item 3.1c, 20 September, asked for by the writer in the
 projects round: "make it intuitive") is chosen and set up in one sheet,

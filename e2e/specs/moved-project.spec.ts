@@ -229,6 +229,9 @@ test("a rejoin's offer opens the join sheet, so it is seen", async ({
   const card = drawer.getByTestId("join-offer");
   await expect(card).toBeVisible();
   await expect(card).toContainText("1 file");
-  await card.getByTestId("discard-join").click();
+  // The offer's answers are the sheet's foot while it is on screen.
+  await expect(drawer.getByTestId("accept-join")).toBeVisible();
+  await drawer.getByTestId("discard-join").click();
   await expect(card).toHaveCount(0);
+  await expect(drawer.getByRole("button", { name: "Join" })).toBeVisible();
 });

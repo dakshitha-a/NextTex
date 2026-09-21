@@ -1,6 +1,9 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import api from "../api";
 import { readStored, writeStored } from "../appearance";
+import { IconButton, Button } from "../ui/Button";
+import { FloatingCard } from "../ui/FloatingCard";
+import { LockIcon } from "../ui/icons";
 
 const AccessCard = lazy(() => import("./AccessCard"));
 /** Named here rather than imported from the card, which is a lazy chunk:
@@ -8,19 +11,21 @@ const AccessCard = lazy(() => import("./AccessCard"));
  *  and undo the reason it is lazy. */
 const ACCESS_CHANGED = "nexttex:access";
 
-/** A quiet line at the foot of the projects rail, when this install has
- *  no password.
+/** A lock on the projects screen's app bar, in the warning colour, while
+ *  this install has no password.
  *
  *  Not a modal, and not a screen you have to get past.  The same rule the
- *  update footer turns on applies here: this is the first screen of every
+ *  update button follows applies here: this is the first screen of every
  *  session, and a thing that blocks it will be dismissed reflexively by the
  *  third time it appears, which teaches people to dismiss it before reading.
  *
- *  So it states the actual consequence -- anyone with the link can read and
- *  edit your projects -- offers the one action, and can be put away for
- *  good.  Somebody writing alone on a laptop that never leaves the desk is
- *  making a reasonable choice by ignoring it, and the interface should not
- *  imply otherwise.
+ *  So it is one glyph on the bar.  Resting on it, or focusing it, opens a
+ *  card with the actual consequence, that anyone with the link can read and
+ *  edit your projects, the one action, and the way to put it away for good;
+ *  a press on the lock opens the access card straight away.  Somebody
+ *  writing alone on a laptop that never leaves the desk is making a
+ *  reasonable choice by ignoring it, and the interface should not imply
+ *  otherwise.
  *
  *  It asks the server on mount, and again whenever a password is saved
  *  anywhere in the app, and never on a timer.
@@ -31,7 +36,9 @@ const DISMISSED = "nexttex.password.dismissed";
 export default function PasswordNudge() {
   const [needed, setNeeded] = useState(false);
   const [open, setOpen] = useState(false);
+  const [card, setCard] = useState(false);
   const [gone, setGone] = useState(() => readStored(DISMISSED) === "yes");
+  const leave = useRef<number | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -43,12 +50,10 @@ export default function PasswordNudge() {
         // report; the writer came here to open a document.
         .catch(() => undefined);
     ask();
-    // The card this line opens is not the only one that can set a password.
-    // The cog opens the same card from the settings sheet, and a save there
-    // used to leave this line three inches below still saying the install
-    // had no password, for the rest of the visit: the answer was read once
-    // on mount and the only thing that revised it was this card's own
-    // callback. Whichever card saves, it says so, and this hears it.
+    // The card this lock opens is not the only one that can set a password.
+    // The settings sheet opens the same card, and a save there used to
+    // leave this saying the install had no password for the rest of the
+    // visit.  Whichever card saves, it says so, and this hears it.
     window.addEventListener(ACCESS_CHANGED, ask);
     return () => {
       live = false;
@@ -56,7 +61,12 @@ export default function PasswordNudge() {
     };
   }, []);
 
+  useEffect(() => () => {
+    if (leave.current) window.clearTimeout(leave.current);
+  }, []);
+
   const dismiss = () => {
+    setCard(false);
     setGone(true);
     writeStored(DISMISSED, "yes");
   };
@@ -66,51 +76,84 @@ export default function PasswordNudge() {
     api.auth().then((state) => setNeeded(!state.hasPassword)).catch(() => undefined);
   };
 
-  // One `AccessCard`, in one place in the tree, whether or not the line
-  // above it is still being shown.  It used to be written out twice, once
-  // in each branch of an early return, and React treats those as two
-  // different elements: the moment `needed` turned false the open card was
-  // unmounted and a fresh one mounted in the other branch, which threw away
-  // the "Password set" it was in the middle of showing and re-read the
-  // settings -- so the card came back as *"Change the password"*, which is
-  // the very thing this is meant to stop.
+  // The card stays while the pointer crosses from the lock to it: leaving
+  // either arms a short timer that entering the other cancels.
+  const show = () => {
+    if (leave.current) window.clearTimeout(leave.current);
+    leave.current = null;
+    setCard(true);
+  };
+  const hide = () => {
+    if (leave.current) window.clearTimeout(leave.current);
+    leave.current = window.setTimeout(() => setCard(false), 160);
+  };
+
+  // One `AccessCard`, in one place in the tree, whether or not the lock is
+  // still being shown: the moment `needed` turns false the card would
+  // otherwise be unmounted mid-"Password set" and remounted as "Change the
+  // password", which is the very thing this is meant to stop.
   return (
     <>
       {needed && !gone ? (
-        <div
-          // No rule of its own: the footer it stands in spaces it from
-          // the update above, and a rule here doubled the one over the
-          // rail's tools whenever the update had nothing to say.
-          data-testid="password-nudge"
+        <span
+          className="relative flex items-center"
+          onMouseEnter={show}
+          onMouseLeave={hide}
+          onFocus={show}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hide();
+          }}
         >
-          {/* `--warn` because this is a state and not a note. It sat at the
-              foot of the page in plain body text, under the fold of
-              attention, reading like a settings row. */}
-          <p className="t-meta border-l-2 border-warn pl-[10px] text-ink-2">
-            This install has no password. Anyone with the link the server
-            printed can read and edit your projects.
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-            <button
-              className="ghost-button h-[26px] px-3 t-ui"
-              data-testid="set-password"
-              onClick={() => setOpen(true)}
+          {/* `--warn` because this is a state and not a note. */}
+          <IconButton
+            label="This install has no password"
+            className="nx-appbar-lock"
+            data-testid="password-nudge"
+            aria-haspopup="dialog"
+            onClick={() => {
+              setCard(false);
+              setOpen(true);
+            }}
+          >
+            <LockIcon size={18} />
+          </IconButton>
+          {card ? (
+            <FloatingCard
+              className="nx-lock-card"
+              role="tooltip"
+              data-testid="password-card"
+              onMouseEnter={show}
+              onMouseLeave={hide}
             >
-              Set a password
-            </button>
-            {/* Not "Not now": the update footer on this same screen already
-                has a button by that name, and two controls with one
-                accessible name doing two different things is a real problem
-                for anybody navigating by name rather than by position.
-                Saying the condition under which ignoring this is reasonable
-                is also more honest than a soft deferral -- somebody writing
-                alone on a laptop that never leaves the desk is making a fine
-                choice here. */}
-            <button className="quiet t-micro" onClick={dismiss}>
-              I'm the only one here
-            </button>
-          </div>
-        </div>
+              <div className="nx-lock-title">This install has no password</div>
+              <p className="nx-lock-text">
+                Anyone with the link the server printed can read and edit your
+                projects.
+              </p>
+              <div className="nx-lock-actions">
+                <Button
+                  variant="ghost"
+                  data-testid="set-password"
+                  onClick={() => {
+                    setCard(false);
+                    setOpen(true);
+                  }}
+                >
+                  Set a password
+                </Button>
+                {/* Not "Not now": the update sheet on this same screen has a
+                    button by that name, and two controls with one accessible
+                    name doing two different things is a real problem for
+                    anybody navigating by name.  Saying the condition under
+                    which ignoring this is reasonable is also more honest
+                    than a soft deferral. */}
+                <Button variant="quiet" data-testid="only-one-here" onClick={dismiss}>
+                  I'm the only one here
+                </Button>
+              </div>
+            </FloatingCard>
+          ) : null}
+        </span>
       ) : null}
 
       {open ? (

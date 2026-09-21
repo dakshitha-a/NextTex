@@ -606,6 +606,10 @@ export default function Projects({
             <ScreenGuide anchor={helpButton} onClose={() => setGuide(false)} />
           </Suspense>
         ) : null}
+        {/* The lock, in the warning colour while the install has no
+            password; its hover card carries the sentence and the way to
+            put it away, and a press opens the access card. */}
+        <PasswordNudge />
         <Settings onChangeAgent={onChangeAgent} />
       </div>
 
@@ -1126,10 +1130,6 @@ export default function Projects({
             </div>
           ) : null}
         </div>
-        {/* The nudge, until the app bar's lock takes it in (item 3.2). */}
-        <div className="nx-projects-foot">
-          <PasswordNudge />
-        </div>
       </main>
 
       {/* The one sheet the four ways in share, each with its own field and
@@ -1291,9 +1291,18 @@ export default function Projects({
               can produce an offer while the sheet is the join sheet. */}
           {offer && way === "join" ? (
             <Suspense fallback={null}>
-              <JoinOfferCard offer={offer} onAccept={acceptOffer} onDiscard={discardOffer} />
+              <JoinOfferCard offer={offer} />
             </Suspense>
           ) : null}
+          {offer && way === "join" ? (
+            /* The offer's two answers are the sheet's foot while it is on
+               screen: discarding leaves nothing behind, accepting writes
+               what the block above says. */
+            <div className="nx-sheet-foot">
+              <Button variant="quiet" data-testid="discard-join" onClick={discardOffer}>Discard</Button>
+              <Button variant="pen" data-testid="accept-join" onClick={acceptOffer}>Accept</Button>
+            </div>
+          ) : (
           <div className="nx-sheet-foot">
             <Button variant="quiet" onClick={closeWay}>Cancel</Button>
             <Button variant="pen" onClick={add} disabled={busy === "add"}>
@@ -1310,6 +1319,7 @@ export default function Projects({
                 : "Join"}
             </Button>
           </div>
+          )}
         </Sheet>
       ) : null}
       {/* Share from a row: the same sheet the workspace uses, over the list.
