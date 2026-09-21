@@ -92,8 +92,9 @@ uncoloured and never decorate a menu row.
 
 Every control comes from `frontend/src/ui/`. A raw `<button>`,
 `<input>`, hand-rolled menu or `rounded-[3px] border border-line`
-container is what the overhaul removed, and the `.quiet` and
-`.ghost-button` classes are the kit's own now, not for use by name.
+container is what the overhaul removed, and the old `quiet`,
+`ghost-button` and `pen-button` classes are gone from the stylesheet: the
+kit's `Button` carries those looks as its variants.
 
 | Primitive | File | Use it for | Never instead |
 | --- | --- | --- | --- |

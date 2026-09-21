@@ -562,45 +562,13 @@ button { font: inherit; color: inherit; }
   background: rgba(0, 0, 0, 0.3);
 }
 
-.ghost-button {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  color: var(--ink);
-  background: transparent;
-  transition: border-color 90ms var(--ease), color 90ms var(--ease),
-    background-color 90ms var(--ease);
-}
-.ghost-button:hover:not(:disabled):not([data-tone="danger"]) {
-  border-color: var(--hint);
-  color: var(--hint);
-  background: var(--hint-wash);
-}
-/* A button that destroys something does not get the colour that means
-   "safe, and worth touching" when the pointer arrives on it.  The same
-   exclusion `.quiet` already makes, and for the same reason: under the
-   pointer is exactly the moment the writer is deciding. */
-.ghost-button[data-tone="danger"]:hover:not(:disabled) {
-  border-color: var(--error);
-  color: var(--error);
-}
-.ghost-button:disabled { opacity: 0.4; }
-
-/* Quiet text controls -- fold chevrons, strip actions, chip actions.
-   The hover rule deliberately excludes elements that carry their own, or
-   it wins on specificity and silently repaints them: a Delete control was
-   hovering to --hint, the colour that means "safe and interactive". */
-.quiet {
-  color: var(--ink-3);
-  transition: color 90ms var(--ease), background-color 90ms var(--ease);
-}
-.quiet:hover:not(:disabled):not([data-tone]) { color: var(--hint); }
-.quiet[data-tone="danger"]:hover:not(:disabled) { color: var(--error); }
-.quiet[data-tone="on"] { color: var(--ink); }
-/* The one control that lowers the permission fence.  It needs --warn, and
-   it needs the hover rule above to leave it alone: a switch that turns the
-   colour meaning "safe and interactive" under the pointer is the opposite
-   of what it does. */
-.quiet[data-tone="warn"] { color: var(--warn); }
+/* The three button classes every pane once wrote by name, `.ghost-button`,
+   `.quiet` and `.pen-button`, are gone: the kit's Button carries the same
+   four looks as variants (`.nx-button[data-variant]`, below), and the last
+   raw users, the front door's files, went on the kit in the overhaul's
+   Phase 3.  The hover rules kept their one deliberate exclusion, that a
+   control which destroys something never turns the colour meaning "safe
+   and interactive" under the pointer. */
 
 /* --surround is the ground behind the panes, and it is darker than the
    three surfaces the inks were certified against: --ink-3 lands at 4.17:1
@@ -613,22 +581,6 @@ button { font: inherit; color: inherit; }
 
 .nx-handle { background: var(--line); transition: background-color 90ms var(--ease); }
 .nx-handle:hover { background: var(--hint); }
-
-/* A filled --pen button.  The light --pen is dark enough to carry white;
-   the dark one is a pale violet on which white is 2.6:1, so the label goes
-   dark instead.  Which of those applies is a question about the palette in
-   force, not about the root's theme, since a card in the editor host can
-   carry the page's palette, so it is carried by --on-pen rather than by a
-   selector. */
-.pen-button {
-  background: var(--pen);
-  color: var(--on-pen);
-  border-radius: 3px;
-  font-weight: 500;
-}
-.pen-button { transition: transform 90ms var(--ease), filter 90ms var(--ease); }
-.pen-button:active:not(:disabled) { transform: translateY(1px); }
-.pen-button:disabled { opacity: 0.4; }
 
 /* The transcript's single left edge: the rule column is 3px, then a 12px
    gutter, and everything in the stream starts at 15px. */
@@ -1317,6 +1269,28 @@ button.nx-row { width: 100%; text-align: left; }
 }
 .nx-agent-button:hover { background: var(--surface-2); }
 .nx-agent-button .nx-agent-working { animation: nx-working 1400ms var(--ease) infinite; }
+
+/* The tutorial: a panel at the right edge on the second surface with the
+   float shadow and no border; a header row like the Claude column's, the
+   contents as rows on the wash under the pointer with the current one in
+   ink weight, and the prose below at the prose size. */
+.nx-tutorial { background: var(--surface-2); box-shadow: var(--float); }
+.nx-tutorial-head { display: flex; align-items: center; gap: 2px; padding: 10px 8px 6px 16px; flex: none; }
+.nx-tutorial-head > h2 { flex: 1; }
+.nx-tutorial-contents { padding: 0 8px 6px; }
+.nx-tutorial-row { padding: 0 8px; border-radius: var(--nx-radius-control); color: var(--ink); transition: background-color 90ms var(--ease); }
+.nx-tutorial-row:hover, .nx-tutorial-row:focus-visible { background: var(--wash); }
+.nx-tutorial-list { padding: 2px 0; }
+.nx-tutorial-body { padding: 10px 16px 16px; }
+/* The screen guide: the kit's card under the app bar's help button, one
+   row per thing on the screen with air between them, one rule over the
+   foot note. */
+.nx-guide { padding: 8px 12px; }
+.nx-guide-title { padding: 2px 0 6px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--ink); }
+.nx-guide-row { padding: 5px 0; }
+.nx-guide-label { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--ink); }
+.nx-guide-line { margin: 1px 0 0; font-size: 12px; line-height: 16px; color: var(--ink-2); }
+.nx-guide-foot { margin-top: 4px; padding: 8px 0 2px; border-top: 1px solid var(--line); }
 
 /* "What writes with you": three choices as rows, the chosen one on the
    wash holding its own setup under its explanation.  The radio is the
