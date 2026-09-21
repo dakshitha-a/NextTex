@@ -165,7 +165,11 @@ const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "files", title: "Files", Icon: () => <FileIcon size={18} /> },
   { id: "sections", title: "Sections", Icon: () => <SectionsIcon size={18} /> },
   { id: "search", title: "Search", Icon: () => <SearchIcon size={18} /> },
-  { id: "papers", title: "Papers", Icon: () => <PapersIcon size={18} /> },
+  // "References" at the writer's word (21 September): the drawer is the
+  // bibliography's front door and its foot checks the entries, so it is
+  // named for what it manages.  The id, the panel and the icon keep the
+  // code's older name; a rename there is churn a writer never sees.
+  { id: "papers", title: "References", Icon: () => <PapersIcon size={18} /> },
   { id: "history", title: "History", Icon: () => <HistoryIcon size={18} /> },
   { id: "git", title: "Git", Icon: () => <GitIcon size={18} /> },
   { id: "people", title: "People", Icon: () => <PeopleIcon size={18} /> },

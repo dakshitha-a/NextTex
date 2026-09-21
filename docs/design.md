@@ -9963,3 +9963,15 @@ changes, not when a build re-reads the same file. `papers.spec.ts` and
 and assert that no empty sentence shows during the delay and the right
 one shows after it. The rule for a drawer: an empty list before its
 first answer means nothing is known, not that nothing is there.
+
+**The Papers drawer is called References (item 1.5).** At the writer's
+word, mid-plan: "Instead of 'Papers' call the drawer 'References'". The
+drawer is the bibliography's front door and its foot checks the entries,
+so it is named for what it manages, and the bar's fourth button, the
+drawer's heading and the button's accessible name say References; the
+tutorial, the README and the direction page follow. The code keeps its
+older names, the id `papers`, the testid `bar-papers`, the remembered
+drawer key, `PapersPanel.tsx` and `PapersIcon`, since a rename there is
+churn a writer never sees; the sections above that say "Papers" name the
+drawer as it was called when they were written. `toolbar.spec.ts` reads
+the button's name and the drawer's heading as References.

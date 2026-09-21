@@ -243,7 +243,7 @@ export default function Tutorial({
           />
           <P>
             The bar at the far left has eleven buttons, <C>Files</C>,{" "}
-            <C>Sections</C>, <C>Search</C>, <C>Papers</C>, <C>History</C>,{" "}
+            <C>Sections</C>, <C>Search</C>, <C>References</C>, <C>History</C>,{" "}
             <C>Git</C>, <C>People</C>, <C>Build</C>, <C>Before you submit</C>,{" "}
             <C>Download</C> and <C>Deleted</C>, and one drawer beside it
             shows whichever you chose, at full height. A second press on the
@@ -424,7 +424,7 @@ export default function Tutorial({
             It can also check a bibliography you already have, entry by entry
             against those records, and fill one from a folder of PDFs, each
             checked against the paper it came from, so a wrong DOI is refused
-            rather than added. The <C>Papers</C> drawer is where those PDFs
+            rather than added. The <C>References</C> drawer is where those PDFs
             live: one field takes a search or a pasted DOI, and each result
             has a card with its authors and abstract.
           </P>

@@ -33,7 +33,7 @@ from three drawings, with the Files count yielding before its word at
 the drawer's narrowest), the four feet's controls 2 px above their
 strips' centre line (one class, `nx-foot`, carrying the drawers' foot
 padding onto the strips), a tab's keyboard ring in the pen colour outside
-its block where the guide gives rings the hint colour, the Papers drawer
+its block where the guide gives rings the hint colour, the bibliography drawer
 flashing its empty state for the round trip to the server, and the
 drawer's name, which is References now. Planned against version 47 of
 the direction page, tracked at

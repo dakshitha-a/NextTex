@@ -377,7 +377,7 @@ const SURFACES: Surface[] = [
     },
   },
   {
-    name: "the Papers drawer with a result's card",
+    name: "the References drawer with a result's card",
     open: async (tab) => {
       // The publisher stubbed, as papers.spec.ts stubs it: this reaches
       // nothing outside the machine.

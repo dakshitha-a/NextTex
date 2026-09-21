@@ -108,6 +108,12 @@ test("the icon buttons still say what they are", async ({ tab }) => {
   // buttons say their names.
   await expect(tab.getByRole("button", { name: "People" })).toBeVisible();
   await expect(tab.getByTestId("bar-people")).toHaveAccessibleName("People");
+  // The bibliography's drawer is called References, at the writer's word;
+  // the code's id stays "papers".  The drawer's heading is the same word.
+  await expect(tab.getByTestId("bar-papers")).toHaveAccessibleName("References");
+  await tab.getByTestId("bar-papers").click();
+  await expect(tab.getByTestId("drawer").getByText("References", { exact: true }).first()).toBeVisible();
+  await expect(tab.getByTestId("drawer")).not.toContainText("Papers");
 });
 
 test("the word count says what it counted, and remembers", async ({ tab }) => {

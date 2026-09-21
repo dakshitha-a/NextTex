@@ -105,7 +105,7 @@ close the tab. No database, no Docker, no nginx.
   Turned on, sectioning, environments, mathematics, citations and the
   preamble each take a hue, which is what makes a long chapter skimmable for
   its shape rather than its words.
-- **One bar, one drawer.** Files, Sections, Search, Papers, History, Git,
+- **One bar, one drawer.** Files, Sections, Search, References, History, Git,
   People, Build, Before you submit, Download and Deleted are eleven
   buttons down the left edge, and one drawer shows the one you chose at
   full height, so the tree or the outline can stay open for as long as a
@@ -766,7 +766,7 @@ stays until you stop it yourself. Reopening a closed tab with `⌘⌥⇧T` /
 `Ctrl-Alt-Shift-T` brings its document back too.
 
 The bar down the left edge has eleven buttons, Files, Sections, Search,
-Papers, History, Git, People, Build, Before you submit, Download and
+References, History, Git, People, Build, Before you submit, Download and
 Deleted, and one drawer beside it shows whichever you chose at full
 height; a second press on the lit button folds the drawer away, and
 `⌘B` / `Ctrl-B` hides the whole column. The project's name heads the
@@ -987,7 +987,7 @@ bibliography against the record it claims to come from. A fabricated reference
 is an academic integrity failure, so the defence is structural rather than a
 matter of care: there is no path from the model's memory to your `.bib` file.
 
-All of that is yours without an agent as well, in the Papers drawer. One
+All of that is yours without an agent as well, in the References drawer. One
 field takes a few words or a pasted DOI: words go to Crossref, OpenAlex
 or Semantic Scholar, whichever you chose, and each result carries an
 *Add* that puts the publisher's record into your `.bib` and shows the key
