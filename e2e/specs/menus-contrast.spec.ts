@@ -412,7 +412,9 @@ const SURFACES: Surface[] = [
   {
     name: "the command palette",
     open: async (tab) => {
-      await tab.locator("body").click({ position: { x: 4, y: 4 } });
+      // Somewhere inert for the focus: the strip's own padding.  The top
+      // left corner is the project switcher since the title bar went.
+      await tab.getByTestId("status-strip").click({ position: { x: 3, y: 14 } });
       await tab.keyboard.press("Control+k");
       const palette = tab.getByTestId("palette");
       await expect(palette).toBeVisible({ timeout: 10_000 });
@@ -426,6 +428,10 @@ const SURFACES: Surface[] = [
   {
     name: "the share panel",
     open: async (tab) => {
+      // Share sits at the end of the name row until the People drawer
+      // takes it, and the row holds the mark alone while the drawer is
+      // folded, so show a drawer first if the last surface folded it.
+      if (!(await tab.getByTestId("open-share").isVisible())) await tab.getByTestId("bar-files").click();
       await tab.getByTestId("open-share").click();
       return tab.getByTestId("share-panel");
     },

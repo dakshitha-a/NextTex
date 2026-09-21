@@ -146,7 +146,9 @@ export default function TabStrip({
               className={[
                 "group relative flex h-[36px] min-w-[72px] max-w-[200px] basis-auto shrink items-center",
                 "gap-[6px] rounded-none pr-2 transition-colors duration-[90ms] hover:bg-wash",
-                tab.active ? "text-ink" : "text-ink-3",
+                // Two inks on the band: the third does not clear the light
+                // theme's frame.
+                tab.active ? "text-ink" : "text-ink-2",
                 // The underline is an inset shadow rather than a border, so
                 // it takes no height from the row and the two rows stay
                 // one object.  The pen wins over the ink: while Claude is
@@ -206,9 +208,7 @@ export default function TabStrip({
                       className={
                         tab.extensionTone === "error"
                           ? "text-error"
-                          : tab.active
-                            ? "text-ink-2"
-                            : "text-ink-3"
+                          : "text-ink-2"
                       }
                     >
                       {tab.extension}
@@ -225,7 +225,7 @@ export default function TabStrip({
                 // mouse reached the name and closed what a click meant to
                 // select.
                 <button
-                  className={`nx-tap-coarse flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] text-ink-3 hover:text-ink [--nx-tap-y:36px] ${
+                  className={`nx-tap-coarse flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] text-ink-2 hover:text-ink [--nx-tap-y:36px] ${
                     tab.active ? "" : "hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-visible:opacity-100"
                   }`}
                   aria-label={tab.closeLabel}

@@ -1044,7 +1044,7 @@ def _sign_in_page() -> str:
   @media (prefers-color-scheme: light) {{
     :root {{ --surround:#BEC3BD; --surface:#E8ECE7; --surface-3:#CDD2CC;
              --ink:#141715; --ink-2:#373B36; --ink-3:#4E534D; --hint:#00626D;
-             --pen:#6F2998; --error:#9F1912; color-scheme: light; }}
+             --pen:#6F2998; --error:#971710; color-scheme: light; }}
   }}
   * {{ box-sizing: border-box; }}
   ::selection {{ background: color-mix(in oklab, var(--hint) 30%, transparent); }}

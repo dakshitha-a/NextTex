@@ -778,6 +778,22 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => { await tab.getByTestId("reads-back").click(); },
   },
+  /* The frame: the shell at 1600, and at 1000 where the drawer overlays
+     and the name row shrinks to the mark. */
+  "frame": {
+    open: async (tab) => tab.locator(".nx-shell"),
+  },
+  "frame-narrow": {
+    open: async (tab) => {
+      await tab.setViewportSize({ width: 1000, height: 800 });
+      await tab.waitForTimeout(400);
+      return tab.locator(".nx-shell");
+    },
+    close: async (tab) => {
+      await tab.setViewportSize({ width: 1600, height: 1000 });
+      await tab.waitForTimeout(400);
+    },
+  },
   "drawer-files-card": {
     // The Files drawer with the card beside an image's row, as the page
     // draws it: a 1200 by 800 plot named as the page names it.

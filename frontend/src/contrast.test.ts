@@ -5,8 +5,9 @@ import { describe, expect, test } from "vitest";
 
 // Read off disk rather than imported: `?raw` hands back what Tailwind has
 // already processed, and what is being checked here is what somebody wrote.
+const HERE = dirname(fileURLToPath(import.meta.url));
 const CSS = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "styles.css"),
+  join(HERE, "styles.css"),
   "utf-8",
 );
 
@@ -97,6 +98,10 @@ const BODY_TEXT: [string, string][] = [
   ["hint", "surface-2"],
   ["error", "surface"],
   ["error", "surface-2"],
+  // The band and the feet are on the surround, and a tab's error count
+  // and the strip's "references pending" are written there in these two.
+  ["error", "surround"],
+  ["warn", "surround"],
   ["warn", "surface"],
   ["warn", "surface-2"],
   ["ok", "surface"],
@@ -228,6 +233,31 @@ test("no palette shadows the sizes appearance.ts sets on the root", () => {
  *  paper that reaches for one more token -- a warmer --syn-preamble on book
  *  paper is the obvious temptation -- is measured by nothing otherwise, and
  *  the list above only forces a new paper to be *named* here, not checked. */
+/** The band across the top of the workspace, the activity bar and the
+ *  feet under the columns are on --surround, and only --ink and --ink-2
+ *  are certified on it (the pairs above).  So the components that draw
+ *  them may not write the third ink: a `text-ink-3` in one of them would
+ *  put small text under 4.5:1 in the light theme, which is how the
+ *  projects screen once did exactly that. */
+test("the band and the feet write only the first two inks", () => {
+  const band = [
+    "panes/PaneHeader.tsx", "panes/TabStrip.tsx", "panes/tab-overflow.tsx",
+    "panes/Status.tsx", "panes/column-header.tsx",
+  ];
+  for (const file of band) {
+    const source = readFileSync(join(HERE, file), "utf8");
+    expect(source, file).not.toMatch(/text-ink-3/);
+  }
+  const pdf = readFileSync(join(HERE, "panes/Pdf.tsx"), "utf8");
+  const footer = pdf.slice(pdf.indexOf('data-testid="preview-footer"'));
+  const opening = footer.slice(0, footer.indexOf(">"));
+  expect(opening).toMatch(/text-ink-2/);
+  expect(opening).not.toMatch(/text-ink-3/);
+  const css = CSS;
+  const head = css.slice(css.indexOf(".nx-column-head {"), css.indexOf(".nx-column-head {") + 400);
+  expect(head).not.toMatch(/--ink-3/);
+});
+
 const PALETTES = [
   ["light", LIGHT],
   ["dark", DARK],

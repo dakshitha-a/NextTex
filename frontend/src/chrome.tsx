@@ -456,7 +456,23 @@ export function Handle({
       className={`nx-handle relative shrink-0 ${
         row ? "h-px w-full cursor-row-resize" : "w-px cursor-col-resize"
       }`}
-      onPointerDown={onPointerDown}
+      // Invisible at rest: the panes separate by tone, and the writer
+      // found a line drawn between them unnecessary.  It shows in the hint
+      // colour while the pointer rests on it and for the length of a
+      // drag, marked on the element itself since the pointer leaves the
+      // handle as soon as the drag begins.
+      onPointerDown={(event) => {
+        const handle = event.currentTarget;
+        handle.dataset.dragging = "true";
+        const clear = () => {
+          delete handle.dataset.dragging;
+          window.removeEventListener("pointerup", clear);
+          window.removeEventListener("pointercancel", clear);
+        };
+        window.addEventListener("pointerup", clear);
+        window.addEventListener("pointercancel", clear);
+        onPointerDown(event);
+      }}
       onDoubleClick={onReset}
     >
       {/* The visible line is one pixel; this is what the pointer actually

@@ -388,6 +388,83 @@ test("the two headers are one object", async ({ app, project, tab }) => {
   await expect.poll(() => tint("preview-blank")).toBe(sourceTint);
 });
 
+/** A token's computed colour, read off a probe painted with it. */
+async function tokenColour(tab: import("@playwright/test").Page, token: string) {
+  return tab.evaluate((name) => {
+    const probe = document.createElement("div");
+    probe.style.background = `var(--${name})`;
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  }, token);
+}
+
+test("the window is a frame: four heads on one band, the bar and the feet on the surround", async ({ tab }) => {
+  // No title bar.  The name row heads the left column and lines up with
+  // the source tabs, the preview tabs and the Claude header as one 36 px
+  // band across the window, on the surround; the activity bar and the
+  // strips under the source and the preview are on the surround too, so
+  // the panes sit inside a frame.  The direction page draws it so.
+  await tab.setViewportSize({ width: 1680, height: 1000 });
+  const surround = await tokenColour(tab, "surround");
+  const box = async (testId: string) => (await tab.getByTestId(testId).boundingBox())!;
+  const background = (testId: string) =>
+    tab.getByTestId(testId).evaluate((el) => getComputedStyle(el).backgroundColor);
+  const heads = ["title-bar", "editor-header", "preview-header", "chat-header"];
+  const tops = new Set<number>();
+  for (const head of heads) {
+    const b = await box(head);
+    expect(Math.round(b.height), head).toBe(36);
+    tops.add(Math.round(b.y));
+    expect(await background(head), head).toBe(surround);
+  }
+  expect([...tops]).toHaveLength(1);
+  for (const foot of ["status-strip", "preview-footer"]) {
+    expect(Math.round((await box(foot)).height), foot).toBe(28);
+    expect(await background(foot), foot).toBe(surround);
+  }
+  expect(await background("activity-bar")).toBe(surround);
+  // The row's two parts sit over the two columns they head: the mark
+  // centred on the bar, the name starting on the drawer's gutter, where
+  // the Files heading starts.
+  const bar = await box("activity-bar");
+  const mark = (await tab.getByTestId("switch-project").locator("svg").first().boundingBox())!;
+  expect(Math.abs(mark.x + mark.width / 2 - (bar.x + bar.width / 2))).toBeLessThan(1.5);
+  const name = (await tab.getByTestId("switch-project").locator("span.t-ui-lg").boundingBox())!;
+  const files = (await tab.getByTestId("drawer").getByRole("heading", { name: "Files" }).boundingBox())!;
+  expect(Math.abs(name.x - files.x)).toBeLessThan(1.5);
+  // No line between the panes at rest: the divider paints nothing until
+  // the pointer rests on it, and then the hint colour.
+  const handle = tab.locator(".nx-handle").first();
+  expect(await handle.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+  const hint = await tokenColour(tab, "hint");
+  await handle.hover();
+  await expect.poll(() => handle.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(hint);
+  // And it still resizes.
+  const before = (await box("drawer")).width;
+  const h = (await handle.boundingBox())!;
+  await tab.mouse.move(h.x, h.y + 300);
+  await tab.mouse.down();
+  await tab.mouse.move(h.x - 60, h.y + 300, { steps: 6 });
+  // The move is applied on the next frame; a release in the same frame
+  // cancels it, which a hand never manages and a test always does.
+  await tab.waitForTimeout(120);
+  await tab.mouse.up();
+  expect((await box("drawer")).width).toBeLessThan(before - 30);
+});
+
+test("below 1100 the name row shrinks to the mark, and the drawer overlays under the band", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1000, height: 1000 });
+  await expect(tab.getByTestId("switch-project").locator("span.t-ui-lg")).toHaveCount(0);
+  await expect(tab.getByTestId("switch-project").locator("svg").first()).toBeVisible();
+  await tab.getByTestId("bar-files").click();
+  const drawer = (await tab.getByTestId("drawer").boundingBox())!;
+  const row = (await tab.getByTestId("title-bar").boundingBox())!;
+  expect(Math.round(drawer.y)).toBe(Math.round(row.y + row.height));
+  expect(Math.round(row.width)).toBe(44);
+});
+
 test("the error list closes from its own bar", async ({ tab }) => {
   const editor = tab.locator(".cm-content");
   await editor.click();

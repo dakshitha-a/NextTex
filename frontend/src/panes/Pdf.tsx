@@ -1375,7 +1375,7 @@ export default function Pdf({
           the one plain action at the right. */}
       <div
         data-testid="preview-footer"
-        className="@container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3"
+        className="nx-foot @container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
       >
         {/* What the strip drops as the pane narrows, in the order it drops
             them, each at the width the row measures with it: the fit pair

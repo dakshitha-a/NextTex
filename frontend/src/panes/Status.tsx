@@ -90,7 +90,7 @@ export default function Status({
     // surface with no rule above it, as the direction page draws it.
     <div
       data-testid="status-strip"
-      className="@container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3"
+      className="nx-foot @container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
     >
       {/* In four of the seven states this opens nothing, and it was a
           focusable button either way: somebody tabbing through the editor
@@ -107,7 +107,7 @@ export default function Status({
         onClick={() => clickable && onToggleDrawer()}
       >
         <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot}`} />
-        <span className={loud ? "font-medium text-ink-2" : "text-ink-3"}>{label}</span>
+        <span className={loud ? "font-medium text-ink" : "text-ink-2"}>{label}</span>
         {askShell ? (
           <span className="text-warn" data-testid="status-shell-escape">
             shell escape?

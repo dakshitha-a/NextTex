@@ -38,11 +38,11 @@ Colour, one palette per theme:
 
 | Token | Meaning |
 | --- | --- |
-| `--surround` | the field the typeset page lies on, and the ground of a screen with no document |
+| `--surround` | the frame: the band across the top of the workspace, the activity bar, the foot under each column, the field the typeset page lies on, and the ground of a screen with no document |
 | `--surface` | the editor, a project card, a floating card in the dark theme |
-| `--surface-2` | the chrome: the bar, the drawer, the Claude column, the app bar, a field |
+| `--surface-2` | the chrome inside the frame: the drawer, the Claude column, the app bar, a field |
 | `--surface-3` | the deepest step, a segmented control's track |
-| `--ink`, `--ink-2`, `--ink-3` | text and glyphs, in three weights of attention |
+| `--ink`, `--ink-2`, `--ink-3` | text and glyphs, in three weights of attention; on `--surround` only the first two, since the third does not clear 4.5:1 on the light theme's frame |
 | `--pen`, `--on-pen`, `--pen-wash` | the agent, and only the agent: its turns, its diff chips, the tab it is editing, the one filled button that sends or confirms |
 | `--hint`, `--hint-wash` | focus rings, the chosen radio, a completion's match, "safe and interactive" |
 | `--warn`, `--error`, `--ok` | states: a missing folder, a failed build, a connected peer |
@@ -52,6 +52,16 @@ Colour, one palette per theme:
 | `--paper` | the white of the typeset page, and the editor's white ground |
 
 There is no second accent and no blue.
+
+The window is a frame holding the panes. The four first rows (the
+project's name over the bar and the drawer, the source tabs, the preview
+tabs, the Claude header) are one 36 px band on `--surround`, class
+`nx-band`; the activity bar is on the surround; the 28 px foot under each
+column is on the surround, class `nx-foot`; and the panes between them are
+on their own planes with no line between them. A divider is invisible at
+rest and shows in `--hint` while the pointer rests on it or drags it. A
+surface that overlays another (the drawer below 1100 px, the Claude column
+below 1400) is lifted by `--float`, never edged by a border.
 
 Size, one scale:
 

@@ -104,8 +104,11 @@
      inside one.  Asking the palette in force is always right. */
   --on-pen: #FFFFFF;
   --hint: #00626D;
-  --error: #9F1912;
-  --warn: #7D5300;
+  /* One step darker than the overhaul set them, since the band and the
+     feet write both on --surround now: a tab's error count, "references
+     pending" on the strip.  4.8:1 and 4.71:1 there. */
+  --error: #971710;
+  --warn: #6A4600;
   --ok: #196131;
 
   /* Syntax families, offered as a setting and off by default.  Five hues at
@@ -570,6 +573,16 @@ button { font: inherit; color: inherit; }
    control which destroys something never turns the colour meaning "safe
    and interactive" under the pointer. */
 
+/* The frame.  The window is a band across the top, the activity bar down
+   the left and a foot under each column, all on the surround, with the
+   four panes between them on their own planes: the writer found a title
+   bar on the drawer's plane, and headers under it, did not fit the rest
+   of the view, and asked for the contrast.  Two inks on the surround,
+   never the third, which does not clear the light theme's frame. */
+.nx-band, .nx-foot { background: var(--surround); }
+.nx-left { background: var(--surround); }
+.nx-name-row { color: var(--ink); }
+
 /* --surround is the ground behind the panes, and it is darker than the
    three surfaces the inks were certified against: --ink-3 lands at 4.17:1
    there, under the 4.5 that small text needs.  Nothing sets small text on
@@ -579,8 +592,8 @@ button { font: inherit; color: inherit; }
    dimmest ink up on that plane, `.nx-on-surround`, went with the sheet it
    served. */
 
-.nx-handle { background: var(--line); transition: background-color 90ms var(--ease); }
-.nx-handle:hover { background: var(--hint); }
+.nx-handle { background: transparent; transition: background-color 90ms var(--ease); }
+.nx-handle:hover, .nx-handle[data-dragging] { background: var(--hint); }
 
 /* The transcript's single left edge: the rule column is 3px, then a 12px
    gutter, and everything in the stream starts at 15px. */
@@ -1224,7 +1237,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 /* The activity bar's buttons: 32 px at a 6 px radius on the bar's 44 px
    column, the one showing marked by ink and the wash, as the page draws
    the bar.  No badge, no dot. */
-.nx-bar-button.nx-icon-button { width: 32px; height: 32px; border-radius: 6px; color: var(--ink-3); }
+.nx-bar-button.nx-icon-button { width: 32px; height: 32px; border-radius: 6px; color: var(--ink-2); }
 .nx-bar-button.nx-icon-button:hover { color: var(--ink); }
 .nx-bar-button.nx-icon-button[data-on] { background: var(--wash); color: var(--ink); }
 
@@ -1377,8 +1390,8 @@ button.nx-row { width: 100%; text-align: left; }
    column draws the same row with a back control in front of its title.
    Past conversations are rows with the question and its stamp; what the
    agent reads is sections with a title, a hint and 28 px file rows. */
-.nx-column-head { display: flex; align-items: center; gap: 2px; padding: 10px 8px 6px 16px; flex: none; min-width: 0; }
-.nx-column-head .nx-icon-button { color: var(--ink-3); }
+.nx-column-head { display: flex; align-items: center; gap: 2px; height: 36px; padding: 0 8px 0 16px; flex: none; min-width: 0; background: var(--surround); }
+.nx-column-head .nx-icon-button { color: var(--ink-2); }
 .nx-column-head .nx-icon-button:hover, .nx-column-head .nx-icon-button[data-on] { color: var(--ink); }
 .nx-column-work { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
 .nx-column-work .nx-working { width: 6px; height: 6px; border-radius: 50%; flex: none; }
@@ -1622,7 +1635,7 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 /* The strip's size: no tray, 20 px segments a hair apart, the chosen one
    on the wash rather than lifted to the surface. */
 .nx-segmented[data-size="sm"] { padding: 0; gap: 2px; background: transparent; }
-.nx-segmented[data-size="sm"] .nx-segment { height: 20px; padding: 0 6px; line-height: 20px; font-size: 12px; color: var(--ink-3); }
+.nx-segmented[data-size="sm"] .nx-segment { height: 20px; padding: 0 6px; line-height: 20px; font-size: 12px; color: var(--ink-2); }
 .nx-segmented[data-size="sm"] .nx-segment[aria-pressed="true"] { background: var(--wash); color: var(--ink); font-weight: 400; }
 /* A number field in a strip: the page's own recipe, a 20 px well on the
    pane's surface with an inset hairline, for the page number and the zoom. */

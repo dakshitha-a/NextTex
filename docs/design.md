@@ -81,8 +81,8 @@ between them, and the light frame came up one step with them to keep the ramp ru
 | `--ink-3` | `#4E534D` | `#909892` | Metadata, file extensions, line numbers, idle dot |
 | `--pen` | `#6F2998` | `#C988E7` | Agent identity, SyncTeX highlight, active-file bar, primary button |
 | `--hint` | `#00626D` | `#3FC6D2` | Live and interactive states that are *not* the agent: streaming stopped, a switch that is on, a control the eye should find |
-| `--error` | `#9F1912` | `#F47365` | Compile errors, destructive hover |
-| `--warn` | `#7D5300` | `#D9A539` | The preview is behind the source; chktex severity bars; permission gate bar |
+| `--error` | `#971710` | `#F47365` | Compile errors, destructive hover |
+| `--warn` | `#6A4600` | `#D9A539` | The preview is behind the source; chktex severity bars; permission gate bar |
 | `--ok` | `#196131` | `#5ABD7B` | The preview matches the source; git clean, added diff lines, resolved-allow dot |
 
 Two constraints govern any change to these, both arithmetic rather than taste, and
@@ -9590,3 +9590,42 @@ not reach the repository", not the waiting update the page draws) and
 `offline`; the failure screen is not rendered, since it cannot be reached
 honestly from a spec. With these, no file wears `.quiet`, `.ghost-button`
 or `.pen-button`, and item 3.5 retires the three from the stylesheet.
+
+## 57. The frame, three drawers, and a reference that shows what it points at
+
+The run after the overhaul, planned on 20 and 21 September 2026 against
+version 44 of the direction page and shipped as 3.2.0. The writer opened
+3.1.0 on a real manuscript and said the top bar did not fit the rest of
+the view: a 40 px strip on the drawer's own plane, the name at one end
+and two buttons at the other, with every column starting again under it.
+Three ways were drawn and the writer chose the one with no title bar,
+then asked for the contrast the first drawing of the workspace had
+suggested and the built one lacked, on the heads, on the bar and on the
+feet.
+
+**The frame (items 1.1 to 1.3).** There is no title bar. The project's
+name and its switcher head the left column as a 36 px row over the
+activity bar and the drawer, the mark centred on the bar's 44 px column
+and the name starting on the drawer's 14 px gutter, so the row's two parts
+sit over the two columns they head; when the drawer is folded or overlays
+(below 1100 px) the row is the bar's width and holds the mark alone, the
+name in its tooltip. The four first rows, that name row, the source tabs,
+the preview tabs and the Claude header, are one band across the window on
+`--surround`, the darkest plane, and so are the activity bar and the
+28 px strips under the source and the preview, so the window reads as a
+frame, a band across the top and a strip down the left, holding four
+panes on their own planes. On the surround the inactive text is the
+second ink and never the third, which measures 4.4:1 on the light
+theme's frame; `contrast.test.ts` holds the band's components to it. The
+fold button left the row, the bar's second press being the fold. And the
+line between panes went: the writer found it unnecessary, and the page
+had never drawn one. The divider keeps its hit zone and paints nothing at
+rest, showing the hint colour while the pointer rests on it or drags it;
+the overlay column and the overlay tutorial panel are lifted by the float
+shadow rather than edged. Share and Download keep a place at the end of
+the name row until the People and Download drawers take them.
+`layout.spec.ts` reads the four heads as one 36 px line on the surround,
+the feet and the bar on it, the mark on the bar's centre and the name on
+the Files heading's left edge, the divider transparent then hinted, and
+the drag still resizing; and, below 1100, the row at the bar's width with
+the drawer overlaying under the band.

@@ -31,7 +31,7 @@ export default function PaneHeader({
   return (
     <div
       data-testid={testId}
-      className="flex h-[36px] shrink-0 select-none items-stretch bg-surface-2 px-[6px]"
+      className="nx-band flex h-[36px] shrink-0 select-none items-stretch bg-surround px-[6px]"
     >
       {leading ? (
         <div className="flex shrink-0 items-center gap-[2px]">

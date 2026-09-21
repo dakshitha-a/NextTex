@@ -105,7 +105,7 @@ import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import {
-  FileIcon, FoldIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, SearchIcon,
+  FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, SearchIcon,
   SectionsIcon, SubmitIcon, TrashIcon,
 } from "./ui/icons";
 import { agentName, type Provider } from "./agent-name";
@@ -2108,51 +2108,56 @@ export default function App() {
     // layout with it.  See the rules in styles.css for both.
     <div className="nx-frame bg-surround">
     <div ref={shell} className="nx-shell relative flex h-full w-full flex-col bg-surround">
-      {/* The title bar, full width above everything: the project and its
-          switcher, and at the right Share, Download and the drawer's fold.
-          Settings left it for the bar's bottom button, so a project has one
-          door to its settings. */}
-      <div
-        className="flex h-[40px] shrink-0 items-center gap-2 bg-surface-2 pl-[10px] pr-3"
-        data-testid="title-bar"
-      >
-        <button
-          className="flex min-w-0 items-center gap-2 transition-colors duration-[90ms] hover:text-hint"
-          data-testid="switch-project"
-          onClick={leaveProject}
-          title="Switch project"
-        >
-          <Logo size={18} />
-          <span className="t-ui-lg truncate">{projectName}</span>
-          <span className="text-ink-3"><Chevron direction="down" /></span>
-          <InstanceBadge />
-        </button>
-        <span className="flex-1" />
-        {/* Beside the project's own name, because sharing is a fact about
-            this project rather than about the install. */}
-        <Button
-          aria-label="Share this project"
-          title="Share this project with other people running NextTex"
-          data-testid="open-share"
-          onClick={() => setSharing(true)}
-        >
-          <ShareIcon /> Share
-        </Button>
-        <DownloadMenu
-          onZip={() => projectId && void downloadZip(projectId)}
-          onPdf={(document) => projectId && downloadPdf(projectId, document)}
-          onExport={(document, format) => projectId && void downloadExport(projectId, document, format)}
-        />
-        <IconButton
-          label={drawerShown ? "Fold the drawer away" : "Show the drawer"}
-          data-testid="fold-drawer"
-          aria-pressed={drawerShown}
-          onClick={() => toggleDrawer(drawerId)}
-        >
-          <FoldIcon />
-        </IconButton>
-      </div>
       <div className="relative flex min-h-0 flex-1">
+      {/* The left column: the project's name row over the activity bar and
+          the drawer.  There is no title bar: the writer found a full-width
+          strip with the name at one end and two buttons at the other, and
+          every column starting again under it, did not fit the rest of the
+          view.  The row is the first of the four heads that make the band
+          across the top, and it shrinks to the bar's width, the mark
+          alone, when the drawer is folded or overlays. */}
+      <div className="nx-left flex shrink-0 flex-col" data-testid="left-column">
+        <div className="nx-name-row nx-band flex h-[36px] shrink-0 items-center" data-testid="title-bar">
+          <button
+            className="flex h-full min-w-0 flex-1 items-center transition-colors duration-[90ms] hover:text-hint"
+            data-testid="switch-project"
+            onClick={leaveProject}
+            title={`${projectName}: switch project`}
+          >
+            {/* The mark centred on the bar's column under it, the name
+                starting on the drawer's own gutter, so the row's two parts
+                sit over the two columns they head. */}
+            <span className="flex w-[44px] shrink-0 justify-center"><Logo size={18} /></span>
+            {drawerShown && !drawerOver ? (
+              <>
+                <span className="t-ui-lg ml-[14px] truncate">{projectName}</span>
+                <span className="ml-1 text-ink-3"><Chevron direction="down" /></span>
+                <InstanceBadge />
+              </>
+            ) : null}
+          </button>
+          {drawerShown && !drawerOver ? (
+            <>
+              {/* Share and Download keep a place here until the People and
+                  Download drawers take them (items 2.1 and 2.3). */}
+              <IconButton
+                label="Share this project"
+                title="Share this project with other people running NextTex"
+                data-testid="open-share"
+                onClick={() => setSharing(true)}
+              >
+                <ShareIcon />
+              </IconButton>
+              <DownloadMenu
+                onZip={() => projectId && void downloadZip(projectId)}
+                onPdf={(document) => projectId && downloadPdf(projectId, document)}
+                onExport={(document, format) => projectId && void downloadExport(projectId, document, format)}
+              />
+              <span className="w-1" />
+            </>
+          ) : null}
+        </div>
+        <div className="flex min-h-0 flex-1">
       {/* The activity bar: one button per drawer, the one showing marked by
           ink and the wash, Settings pinned at the bottom.  Always on
           screen; below the rail breakpoint the drawer it opens overlays
@@ -2160,7 +2165,7 @@ export default function App() {
       <nav
         aria-label="Drawers"
         data-testid="activity-bar"
-        className="flex w-[44px] shrink-0 flex-col items-center gap-[2px] bg-surface-2 pt-2"
+        className="flex w-[44px] shrink-0 flex-col items-center gap-[2px] bg-surround pt-2"
       >
         {BAR_ITEMS.map(({ id, title, Icon }) => (
           <IconButton
@@ -2189,7 +2194,7 @@ export default function App() {
           <div
             className={
               drawerOver
-                ? "nx-pane absolute left-[44px] top-0 z-30 flex h-full flex-col bg-surface-2 shadow-float outline-none"
+                ? "nx-pane absolute left-[44px] top-[36px] z-30 flex h-[calc(100%-36px)] flex-col bg-surface-2 shadow-float outline-none"
                 : "nx-pane flex min-h-0 shrink-0 flex-col bg-surface-2 outline-none"
             }
             style={{ width: widths.rail }}
@@ -2316,6 +2321,8 @@ export default function App() {
           )}
         </>
       ) : null}
+        </div>
+      </div>
 
       <div className="flex min-w-0 flex-1">
         {folded.editor && !tight ? (
@@ -2704,7 +2711,7 @@ export default function App() {
         <Suspense
           fallback={
             <div
-              className="absolute inset-y-0 z-40 w-[380px] max-w-full border-l border-line bg-surface-2"
+              className="absolute inset-y-0 z-40 w-[380px] max-w-full bg-surface-2 shadow-float"
               style={{ right: tutorialRight }}
             />
           }
@@ -2729,7 +2736,7 @@ export default function App() {
       <div
         className={
           chatOver
-            ? "absolute right-0 top-0 z-30 h-full border-l border-line shadow-[0_0_8px_rgba(0,0,0,0.25)]"
+            ? "absolute right-0 top-0 z-30 h-full shadow-float"
             : folded.chat
               ? "hidden"
               : "nx-pane min-h-0 shrink-0"

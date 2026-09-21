@@ -158,7 +158,7 @@ export function HiddenTabs({
           no box of its own, on the same row as the tabs it stands for. */}
       <button
         ref={button}
-        className="t-meta tnum flex shrink-0 items-center px-2 text-ink-3 hover:text-ink"
+        className="t-meta tnum flex shrink-0 items-center px-2 text-ink-2 hover:text-ink"
         title={`${hidden.length} more ${label}`}
         aria-label={`${hidden.length} more ${label}, list them`}
         aria-expanded={open}
