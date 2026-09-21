@@ -42,9 +42,10 @@ an invite's note says a week, which is what the server keeps. Two
 tangents on the way: a collaborator's caret position is reported on
 every move rather than only while typing, and `AppControls`, the folded
 rail's bar from before the overhaul that nothing mounted, went with the
-download menu. The one older difference is still with the writer: the
-plan block in the Claude column sits before the agent's words, where the
-page drew it after.
+download menu. The writer then settled the five differences the run
+put to them, all as built, the plan block in the Claude column among
+them: it sits before the agent's words, in transcript order, and the
+page now draws it there.
 
 The visual overhaul, after 2.18.0, rebuilds the interface on one kit and
 goes up as two pushes. It was planned over seventeen versions of a
