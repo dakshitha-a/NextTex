@@ -188,6 +188,8 @@ describe("what is remembered", () => {
   it("knows when nothing has been changed", () => {
     expect(isDefault(DEFAULTS)).toBe(true);
     expect(isDefault({ ...DEFAULTS, scale: 110 })).toBe(false);
+    // The keymap counts: a writer whose only choice is Vim can reset it.
+    expect(isDefault({ ...DEFAULTS, keymap: "vim" })).toBe(false);
     expect(isDefault({ ...DEFAULTS, hover: false })).toBe(false);
     expect(isDefault({ ...DEFAULTS, hoverKinds: { ...DEFAULTS.hoverKinds, tables: false } })).toBe(false);
   });

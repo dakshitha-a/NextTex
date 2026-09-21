@@ -380,6 +380,10 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.preview === DEFAULTS.preview &&
     appearance.spelling === DEFAULTS.spelling &&
     appearance.spellingVariety === DEFAULTS.spellingVariety &&
+    // The keymap was left out when it was added, so Reset this
+    // computer's choices was disabled for a writer whose only choice was
+    // Vim, though pressing it would have reset the keymap too.
+    appearance.keymap === DEFAULTS.keymap &&
     appearance.hover === DEFAULTS.hover &&
     HOVER_KINDS.every((kind) => appearance.hoverKinds[kind] === DEFAULTS.hoverKinds[kind])
   );
