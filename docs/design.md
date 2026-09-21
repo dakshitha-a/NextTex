@@ -7834,7 +7834,10 @@ Theorem and the rest; a kind nothing here names shows its number alone,
 and a document without hyperref has a number and a page and no kind.
 Before the first build there is only the place, as before. The
 completion list inside a `\ref` shows the same words beside each label
-in place of the file name once a build has given them.
+in place of the file name once a build has given them. Since the frame
+run (section 57, item 3.3) the card also draws the thing the reference
+points at, a figure's picture, a table or an equation, with its
+caption, and the place is `main.tex:88` in the mono.
 
 Hovering `\includegraphics{figures/plot}` shows the figure itself, at
 a size that stays a tooltip, above its resolved path, with the suffix
@@ -9831,6 +9834,30 @@ the line counted on the way. `tests/test_symbols_environment.py` holds
 the cases; `tests/api/test_symbols_numbers.py` reads a figure label's
 `env` and `caption` beside its number after a build; the compile result
 carries `pages` for the Download drawer's line from the same log.
+
+**The reference card draws the thing (item 3.3).** "For the figure and
+table references that appear in the text like `\ref{fig:uracil_pes}`,
+could we have the preview show up on hover?" `refPreview` in
+`latex-links.ts` chooses from the label's `env`: a figure whose graphic
+`imageTarget` resolves draws the picture through the thumbnail service
+in the `nx-thumb` box as the `\includegraphics` hover does; a table
+with a body parses it with `parseTabular` and draws it with `drawTable`;
+a maths environment with a body typesets it through KaTeX in display
+mode, wrapped back in its environment where KaTeX knows it (`equation`,
+`align`, `alignat`, `gather` and their starred forms) and in `aligned`
+where it does not. The card's order is the page's: the line saying what
+the reference says on top ("Figure 3, on page 7", or before a build the
+kind from the environment, "Figure"), the picture, table or equation,
+the caption in the second ink through `plainText`, then the place in
+the mono (`main.tex:88`, as the page draws it, where the card said
+"main.tex, line 88"), the Ctrl-click hint and the two verbs. A section
+label, or a figure whose graphic the project does not hold, draws the
+card as before. `latex-links.test.ts` covers the choice;
+`latex-links.spec.ts` hovers a `\ref{fig:}` and finds the picture and
+the caption, a `\ref{tab:}` and finds the table with a cell, an
+`\eqref` and finds the KaTeX, and a `\cref` to a section drawing as
+before; the fidelity harness renders `ref-figure`, `ref-table` and
+`ref-equation` beside the page's three cards.
 
 **The bar's eleven, remembered (item 2.4).** The drawer the bar
 remembers across a reload is read back through `BAR_ITEMS`, so the

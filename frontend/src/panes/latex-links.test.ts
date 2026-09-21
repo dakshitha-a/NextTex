@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  citationFor, imageTarget, inputTarget, labelSays, labelTarget, linkAt,
+  citationFor, envWord, imageTarget, inputTarget, labelSays, labelTarget, linkAt, refPreview,
 } from "./latex-links";
 
 const at = (line: string, column: number) => linkAt(line, column);
@@ -62,11 +62,15 @@ const symbols = {
     { name: "fig:one", file: "chapters/02.tex", line: 30, number: "3", page: "7", kind: "figure" },
     { name: "sec:odd", file: "main.tex", line: 2, number: "2.1", page: "9", kind: "mystery" },
     { name: "eq:plain", file: "main.tex", line: 5, number: "4", page: "" },
+    { name: "fig:decay", file: "main.tex", line: 88, env: "figure", graphic: "figures/decay", caption: "The decay." },
+    { name: "fig:lost", file: "main.tex", line: 90, env: "figure", graphic: "figures/nowhere", caption: "Lost." },
+    { name: "tab:rates", file: "si.tex", line: 212, env: "table", body: "\\begin{tabular}{lr}a & 1\\\\\\end{tabular}", caption: "Rates." },
+    { name: "eq:tdse", file: "main.tex", line: 61, env: "align*", body: "i\\hbar \\partial_t \\Psi &= H \\Psi" },
   ],
   citations: [
     { key: "knuth", type: "book", title: "The Art", author: "Knuth", year: "1968" },
   ],
-  images: [],
+  images: ["figures/decay.pdf"],
   texfiles: ["main.tex", "chapters/one.tex"],
   commands: [],
   environments: [],
@@ -92,6 +96,30 @@ describe("where a link goes", () => {
     // Before the first build there is nothing to say.
     expect(labelSays(labelTarget("eq:flux", symbols))).toBeNull();
     expect(labelSays(null)).toBeNull();
+  });
+
+  it("chooses what a reference card draws from the label's environment", () => {
+    // A figure whose graphic the project holds, by the suffix left off.
+    expect(refPreview(labelTarget("fig:decay", symbols), symbols)).toEqual({
+      kind: "figure", path: "figures/decay.pdf", caption: "The decay.",
+    });
+    // A figure whose graphic is not there draws nothing, and says so no
+    // louder than the card always did.
+    expect(refPreview(labelTarget("fig:lost", symbols), symbols)).toBeNull();
+    expect(refPreview(labelTarget("tab:rates", symbols), symbols)).toMatchObject({
+      kind: "table", caption: "Rates.",
+    });
+    expect(refPreview(labelTarget("eq:tdse", symbols), symbols)).toMatchObject({
+      kind: "equation", env: "align*",
+    });
+    // A section label, and no label at all.
+    expect(refPreview(labelTarget("sec:odd", symbols), symbols)).toBeNull();
+    expect(refPreview(null, symbols)).toBeNull();
+    // The word before a build, from the environment.
+    expect(envWord("figure*")).toBe("Figure");
+    expect(envWord("subtable")).toBe("Table");
+    expect(envWord("gather")).toBe("Equation");
+    expect(envWord(undefined)).toBe("");
   });
 
   it("finds a figure with the suffix left off, and finds an includegraphics as an image", () => {

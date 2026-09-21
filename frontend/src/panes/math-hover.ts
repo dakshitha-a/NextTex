@@ -14,7 +14,7 @@ import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
 import { sizeOf } from "../size";
 import {
-  citationFor, imageTarget, inputTarget, labelSays, labelTarget, linkAt,
+  citationFor, envWord, imageTarget, inputTarget, labelSays, labelTarget, linkAt, refPreview,
 } from "./latex-links";
 import { shortcut } from "../keys";
 import type { Cell, Table } from "./table-hover";
@@ -462,6 +462,9 @@ function linkTooltip(
   let follow = true;
   /** A citation card has a structure of its own, drawn below. */
   let citation: ReturnType<typeof citationFor> = null;
+  /** The figure, table or equation a reference points at, drawn under
+   *  what the reference says. */
+  let preview: ReturnType<typeof refPreview> = null;
   if (link.kind === "cite") {
     const entry = citationFor(link.name, table);
     citation = entry;
@@ -477,12 +480,18 @@ function linkTooltip(
     // build there is only the place.
     const target = labelTarget(link.name, table);
     const number = labelSays(target);
+    preview = refPreview(target, table);
+    // The top line is what the reference says: the number after a build,
+    // before one the kind of thing from the environment the label sits
+    // in, and for a label in neither the label itself; the place is the
+    // line beneath, in the mono, as the page draws the card.
+    const word = envWord(target?.env);
     says = number
       ? number
       : target
-        ? `${target.file}, line ${target.line}`
+        ? word || `\\label{${link.name}}`
         : `No \\label{${link.name}} in this project.`;
-    if (number && target) where = `${target.file}, line ${target.line}`;
+    if (target) where = `${target.file}:${target.line}`;
     follow = Boolean(target);
   } else if (link.kind === "image") {
     const target = imageTarget(link.name, table);
@@ -580,9 +589,10 @@ function linkTooltip(
         what.textContent = says;
         dom.append(what);
       }
+      if (preview) drawPreview(dom, preview, symbols, figure);
       if (where) {
         const place = document.createElement("div");
-        place.className = "nx-link-hint";
+        place.className = "nx-link-hint nx-link-place";
         place.textContent = where;
         dom.append(place);
       }
@@ -621,6 +631,110 @@ function linkTooltip(
       return { dom };
     },
   };
+}
+
+/** The thing a reference points at, under the line saying its number.
+ *
+ *  A figure draws its first graphic through the thumbnail service the
+ *  tree's card and the `\\includegraphics` hover use, in the same 3:2 box;
+ *  a table parses its tabular with the table card's reader and draws it
+ *  the same way; an equation is typeset through KaTeX in display mode,
+ *  wrapped back in its environment where KaTeX knows it and in `aligned`
+ *  where it does not.  The caption follows in the second ink, read
+ *  through `plainText` so `\\emph` and `\\SI` do not leak.  Everything
+ *  loads on the first hover and never before, as the cards it borrows
+ *  from do. */
+function drawPreview(
+  dom: HTMLElement,
+  preview: NonNullable<ReturnType<typeof refPreview>>,
+  symbols: () => Symbols | null,
+  figure?: (path: string) => FigureFacts | null,
+) {
+  dom.classList.add("nx-ref-tooltip");
+  const caption = "caption" in preview ? preview.caption : "";
+  const captionLine = document.createElement("div");
+  captionLine.className = "nx-ref-caption";
+  if (preview.kind === "figure") {
+    const facts = figure ? figure(preview.path) : null;
+    const box = document.createElement("div");
+    box.className = "nx-thumb";
+    dom.append(box);
+    if (facts) {
+      import("./thumbnails")
+        .then(({ thumbnail }) => thumbnail(facts.projectId, preview.path, facts.stamp))
+        .then((made) => {
+          if (!made.url) {
+            box.remove();
+            return;
+          }
+          const picture = document.createElement("img");
+          picture.src = made.url;
+          picture.alt = caption || preview.path;
+          box.append(picture);
+        })
+        .catch(() => box.remove());
+    } else {
+      box.remove();
+    }
+  } else if (preview.kind === "table") {
+    // A holder of its own, so "and N more rows" lands under the table
+    // rather than at the card's end, after the verbs.
+    const holder = document.createElement("div");
+    const body = document.createElement("div");
+    body.className = "nx-math-body nx-table-body nx-math-loading";
+    body.textContent = preview.body.split("\n")[0].trim().slice(0, 200);
+    holder.append(body);
+    dom.append(holder);
+    import("./table-hover")
+      .then(({ parseTabular }) => {
+        const table = parseTabular(preview.body);
+        body.textContent = "";
+        if (!table) {
+          body.className = "nx-math-body nx-math-failed";
+          body.textContent = "This table does not read on its own.";
+          return;
+        }
+        body.className = "nx-math-body nx-table-body";
+        drawTable(holder, body, table, symbols);
+      })
+      .catch(() => {
+        body.className = "nx-math-body nx-math-failed";
+        body.textContent = "Could not load the table reader.";
+      });
+  } else {
+    const body = document.createElement("div");
+    body.className = "nx-math-body nx-math-loading";
+    body.textContent = preview.body.split("\n")[0].trim().slice(0, 200);
+    dom.append(body);
+    const known = /^(equation|align|alignat|gather)\*?$/.test(preview.env);
+    const wrapped = known
+      ? `\\begin{${preview.env}}${preview.body}\\end{${preview.env}}`
+      : `\\begin{aligned}${preview.body}\\end{aligned}`;
+    load()
+      .then((renderer) => {
+        body.classList.remove("nx-math-loading");
+        renderer.render(prepare(wrapped), body, {
+          displayMode: true,
+          throwOnError: false,
+          macros: macrosFrom(symbols()),
+          trust: false,
+          strict: "ignore",
+        });
+      })
+      .catch(() => {
+        body.className = "nx-math-body nx-math-failed";
+        body.textContent = "Could not load the maths renderer.";
+      });
+  }
+  if (caption) {
+    captionLine.textContent = caption;
+    import("./table-hover")
+      .then(({ plainText }) => {
+        captionLine.textContent = plainText(caption.replace(/\\label\s*\{[^}]*\}/g, ""));
+      })
+      .catch(() => undefined);
+    dom.append(captionLine);
+  }
 }
 
 /** Which modifier this keyboard calls the one CodeMirror already reads for

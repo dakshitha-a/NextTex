@@ -105,6 +105,39 @@ async function hoverAt(tab: Page, lineText: string, needle: string, card: string
   return tab.locator(card).first();
 }
 
+/** A line typed at the end of the document.  The editor closes a
+ *  `\\begin` as it is typed, so the text is written whole and whatever
+ *  the editor added after the caret is deleted. */
+async function typeLine(tab: Page, text: string) {
+  const editor = tab.locator(".cm-content");
+  await editor.click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type(`\n${text}`);
+  await tab.keyboard.press("Shift+Control+End");
+  await tab.keyboard.press("Delete");
+  await tab.waitForTimeout(400);
+}
+
+/** Until the scan knows the label and which environment it sits in: the
+ *  scan lands a moment after the typing, and a card drawn before it has
+ *  the place alone. */
+async function labelKnown(tab: Page, name: string) {
+  if (!ctx) return;
+  for (let tries = 0; tries < 60; tries += 1) {
+    const answer = await fetch(`${ctx.base}/api/projects/${ctx.id}/symbols`, {
+      headers: { "x-nexttex-token": ctx.token },
+    }).then((r) => r.json()).catch(() => null);
+    const label = (answer?.labels ?? []).find((l: any) => l.name === name);
+    if (label?.env) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  // The browser's copy of the symbols is refetched on a build; a reload
+  // reads them now, with the typed text kept.
+  await tab.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+  await tab.waitForTimeout(800);
+}
+
 const SURFACES: Record<string, Surface> = {
   "math-hover": {
     open: (tab) => hoverAt(tab, "A gap of $E = mc^2$ appears.", "mc^2", ".nx-math-tooltip"),
@@ -147,8 +180,40 @@ const SURFACES: Record<string, Surface> = {
     open: (tab) => hoverAt(tab, "As shown by \\cite{knuth1984} once.", "knuth", ".nx-link-tooltip"),
     close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
   },
-  "ref-hover": {
-    open: (tab) => hoverAt(tab, "See Section~\\ref{sec:results} again.", "sec:res", ".nx-link-tooltip"),
+  "ref-figure": {
+    open: async (tab) => {
+      if (ctx) {
+        fs.mkdirSync(path.join(ctx.root, "figures"), { recursive: true });
+        fs.writeFileSync(path.join(ctx.root, "figures", "decay-fit.png"), pngOf(1200, 800));
+      }
+      await typeLine(tab, "\\begin{figure}\\includegraphics{figures/decay-fit}\\caption{Potential energy surfaces of uracil along the ring-puckering coordinate.}\\label{fig:decay}\\end{figure}");
+      await labelKnown(tab, "fig:decay");
+      await tab.locator('[role="tree"] [data-path="figures"]').waitFor({ timeout: 10_000 }).catch(() => undefined);
+      const card = await hoverAt(tab, "As Figure~\\ref{fig:decay} shows.", "fig:dec", ".nx-link-tooltip .nx-thumb img");
+      await tab.locator(".nx-link-tooltip .nx-thumb img").waitFor({ timeout: 15_000 });
+      return tab.locator(".nx-link-tooltip");
+    },
+    close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
+  },
+  "ref-table": {
+    open: async (tab) => {
+      await typeLine(tab, "\\begin{table}\\caption{Excited-state lifetimes by solvent.}\\label{tab:rates}\\begin{tabular}{lcr}\\toprule Solvent & $\\varepsilon$ & $\\tau$ (ps) \\\\ \\midrule Hexane & 1.9 & 12.4 \\\\ Acetonitrile & 37.5 & 3.1 \\\\ Water & 80.1 & 0.8 \\\\ \\bottomrule\\end{tabular}\\end{table}");
+      await labelKnown(tab, "tab:rates");
+      await hoverAt(tab, "See Table~\\ref{tab:rates} for the rates.", "tab:rat", ".nx-link-tooltip table.nx-table");
+      await tab.locator(".nx-link-tooltip table.nx-table").waitFor({ timeout: 15_000 });
+      await tab.waitForTimeout(400);
+      return tab.locator(".nx-link-tooltip");
+    },
+    close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
+  },
+  "ref-equation": {
+    open: async (tab) => {
+      await typeLine(tab, "\\begin{equation}i\\hbar\\frac{\\partial\\Psi}{\\partial t} = \\hat H\\Psi \\label{eq:tdse}\\end{equation}");
+      await labelKnown(tab, "eq:tdse");
+      await hoverAt(tab, "From \\eqref{eq:tdse} it follows.", "eq:td", ".nx-link-tooltip .katex");
+      await tab.locator(".nx-link-tooltip .katex").waitFor({ timeout: 15_000 });
+      return tab.locator(".nx-link-tooltip");
+    },
     close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
   },
   "tab-menu": {

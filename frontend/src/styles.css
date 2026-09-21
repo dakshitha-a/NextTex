@@ -1939,6 +1939,13 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-link-tooltip { min-width: 200px; }
 /* A figure's hover: the tree's card, from the same thumbnail service. */
 .nx-figure-tooltip { width: 260px; }
+/* The reference card with the thing it points at: the number, the
+   picture, table or equation, the caption in the second ink, the place. */
+.nx-ref-tooltip { width: 300px; }
+.nx-ref-tooltip .nx-thumb { margin-top: 6px; }
+.nx-ref-tooltip .nx-math-body { margin-top: 6px; }
+.nx-ref-caption { padding-top: 4px; color: var(--ink-2); font-size: 12.5px; line-height: 17px; }
+.nx-link-place { font-family: var(--font-mono); font-size: 12px; }
 .nx-link-name { font-family: var(--font-mono); font-size: 12.5px; line-height: 18px; color: var(--ink); overflow-wrap: anywhere; }
 .nx-link-hint { color: var(--ink-3); padding-top: 3px; font-size: 12px; }
 .nx-link-verbs { display: flex; gap: 2px; padding-top: 6px; margin-left: -6px; }

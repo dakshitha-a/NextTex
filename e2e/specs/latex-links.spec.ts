@@ -119,7 +119,8 @@ test("hovering a reference says where it goes and how to get there", async ({
   await tab.mouse.move(point!.x + 1, point!.y);
   const tip = tab.locator(".nx-link-tooltip");
   await expect(tip).toBeVisible({ timeout: 10_000 });
-  await expect(tip).toContainText("main.tex, line");
+  // The place in the mono, file:line, as the page draws the card.
+  await expect(tip.locator(".nx-link-place")).toHaveText(/^main\.tex:\d+$/);
   await expect(tip).toContainText(/click to go there/);
 });
 
@@ -156,7 +157,7 @@ test("after a build, hovering a reference says what it will say, and a figure sh
     await tip.waitFor({ timeout: 5_000 }).catch(() => undefined);
     return (await tip.textContent().catch(() => "")) ?? "";
   }, { timeout: 60_000, intervals: [1000] }).toMatch(/Section \d+, on page \d+/);
-  await expect(tip).toContainText("main.tex, line");
+  await expect(tip.locator(".nx-link-place")).toHaveText(/^main\.tex:\d+$/);
 
   await tab.mouse.move(5, 5);
   await expect(tip).toHaveCount(0);
@@ -213,4 +214,61 @@ test("a PDF figure shows its first page on hover, like the tree's card", async (
   await expect(tip.locator(".nx-link-hint")).toHaveText(/^300 × 200 pt, \d+ B$/);
   const src = await tip.locator(".nx-thumb img").getAttribute("src");
   expect(src?.startsWith("data:image/png")).toBe(true);
+});
+
+/** The reference card draws the thing it points at (item 3.3 of the frame
+ *  run): "for the figure and table references that appear in the text,
+ *  could we have the preview show up on hover?" */
+async function hoverRef(tab: Page, contains: string, token: string, ready = ".nx-link-tooltip") {
+  // Hovered again until the card holds `ready`: the scan that gives a
+  // label its environment lands a moment after the typing, and the card
+  // drawn before it has the place alone.
+  const tip = tab.locator(".nx-link-tooltip");
+  await expect.poll(async () => {
+    await tab.mouse.move(5, 5);
+    await tab.waitForTimeout(150);
+    const point = await pointAt(tab, contains, token);
+    if (!point) return 0;
+    await tab.mouse.move(point.x, point.y);
+    await tab.mouse.move(point.x + 1, point.y);
+    await tip.waitFor({ timeout: 3_000 }).catch(() => undefined);
+    await tab.waitForTimeout(400);
+    return tab.locator(ready).count();
+  }, { timeout: 45_000, intervals: [700] }).toBeGreaterThan(0);
+  return tip;
+}
+
+test("a reference to a figure draws the figure, with its caption", async ({ project, tab }) => {
+  writeFileSync(join(project.root, "figures", "decay.png"), png(40, 30));
+  await write(tab, "\\begin{figure}\\includegraphics{figures/decay}\\caption{The decay of the signal.}\\label{fig:decay}\\end{figure}");
+  await write(tab, "As Figure~\\ref{fig:decay} shows.");
+  const tip = await hoverRef(tab, "As Figure", "fig:decay", ".nx-link-tooltip .nx-thumb img");
+  await expect(tip.locator(".nx-thumb img")).toBeVisible({ timeout: 15_000 });
+  await expect(tip.locator(".nx-ref-caption")).toHaveText("The decay of the signal.");
+  await expect(tip.locator(".nx-link-place")).toHaveText(/^main\.tex:\d+$/);
+  await expect(tip).toContainText(/click to go there/);
+  await expect(tip.getByTestId("link-references")).toBeVisible();
+});
+
+test("a reference to a table draws the table, and to an equation the maths", async ({ tab }) => {
+  await write(tab, "\\begin{table}\\caption{Rates by solvent.}\\label{tab:rates}\\begin{tabular}{lr}\\toprule Solvent & Rate \\\\ \\midrule Water & 0.8 \\\\ \\bottomrule\\end{tabular}\\end{table}");
+  await write(tab, "\\begin{equation}E = mc^2 \\label{eq:mass}\\end{equation}");
+  await write(tab, "See Table~\\ref{tab:rates} and \\eqref{eq:mass}.");
+  const table = await hoverRef(tab, "See Table", "tab:rates", ".nx-link-tooltip table.nx-table");
+  await expect(table.locator("table.nx-table")).toBeVisible({ timeout: 15_000 });
+  await expect(table.locator("table.nx-table")).toContainText("Water");
+  await expect(table.locator(".nx-ref-caption")).toHaveText("Rates by solvent.");
+  await tab.mouse.move(5, 5);
+  await expect(table).toHaveCount(0);
+  const equation = await hoverRef(tab, "See Table", "eq:mass", ".nx-link-tooltip .katex");
+  await expect(equation.locator(".katex")).toBeVisible({ timeout: 15_000 });
+  await expect(equation.locator(".nx-ref-caption")).toHaveCount(0);
+});
+
+test("a reference to a section, and a cref, draw as before", async ({ tab }) => {
+  await write(tab, "Back in \\cref{sec:results} and \\autoref{sec:results}.");
+  const tip = await hoverRef(tab, "Back in", "sec:results");
+  await expect(tip.locator(".nx-thumb")).toHaveCount(0);
+  await expect(tip.locator("table")).toHaveCount(0);
+  await expect(tip.locator(".nx-link-place")).toHaveText(/^main\.tex:\d+$/);
 });

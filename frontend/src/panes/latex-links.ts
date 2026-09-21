@@ -97,7 +97,7 @@ export function linkAt(line: string, column: number): Link | null {
  *  the reference says once the document has been built. */
 export function labelTarget(
   name: string, symbols: Symbols | null,
-): { file: string; line: number; number?: string; page?: string; kind?: string } | null {
+): Symbols["labels"][number] | null {
   const found = symbols?.labels.find((label) => label.name === name);
   return found ? { ...found } : null;
 }
@@ -113,6 +113,43 @@ const KIND_WORDS: Record<string, string> = {
   algorithm: "Algorithm", algocf: "Algorithm", listing: "Listing",
   lstlisting: "Listing", Item: "Item", footnote: "Footnote", Hfootnote: "Footnote",
 };
+
+/** What a reference card draws for the thing a label sits in: the
+ *  figure's picture, the table, or the equation.  Null for a label in a
+ *  section or an item, or a figure whose graphic the project does not
+ *  hold; the card then says the number and the place, as it always did. */
+export type RefPreview =
+  | { kind: "figure"; path: string; caption: string }
+  | { kind: "table"; body: string; caption: string }
+  | { kind: "equation"; env: string; body: string }
+  | null;
+
+const FIGURE_ENVS = new Set(["figure", "figure*", "subfigure", "wrapfigure"]);
+const TABLE_ENVS = new Set(["table", "table*", "subtable", "wraptable"]);
+
+export function refPreview(
+  target: { env?: string; graphic?: string; caption?: string; body?: string } | null,
+  symbols: Symbols | null,
+): RefPreview {
+  if (!target?.env) return null;
+  if (FIGURE_ENVS.has(target.env)) {
+    const path = target.graphic ? imageTarget(target.graphic, symbols) : null;
+    return path ? { kind: "figure", path, caption: target.caption ?? "" } : null;
+  }
+  if (TABLE_ENVS.has(target.env)) {
+    return target.body ? { kind: "table", body: target.body, caption: target.caption ?? "" } : null;
+  }
+  return target.body ? { kind: "equation", env: target.env, body: target.body } : null;
+}
+
+/** "Figure", "Table" or "Equation" for a label's environment, said
+ *  before a build has given it a number. */
+export function envWord(env: string | undefined): string {
+  if (!env) return "";
+  if (FIGURE_ENVS.has(env)) return "Figure";
+  if (TABLE_ENVS.has(env)) return "Table";
+  return "Equation";
+}
 
 /** "Figure 3, on page 7", from a label's number, kind and page; or null
  *  before a build has given it a number. */
