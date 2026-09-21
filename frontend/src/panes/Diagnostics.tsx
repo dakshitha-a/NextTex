@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { orderRows, rowKey } from "./diagnostic-rows";
-import { uiScale } from "../viewport";
-import { Handle } from "../chrome";
+import { statusFor } from "./status-dot";
 import { Button } from "../ui/Button";
-import { onFrame } from "../timing";
 import { get, set, useStore } from "../store";
 import api from "../api";
+
+/** The Build drawer's body: the build's state, what to fix, and the way
+ *  to build again.
+ *
+ *  It was a tray under the source pane with its own resize handle and a
+ *  header bar that closed it, reached from the strip's count.  The writer
+ *  asked for it on the bar: "make the compiler/warnings a drawer in the
+ *  launcher too. put the compile/rebuild button in there too. as a
+ *  shortcut, double clicking the compiler drawer icon should rebuild."
+ *  So it is the drawer under the bar's Build button, as the direction page
+ *  draws it: the state as the strip words it, the document choice when
+ *  there is one, Start here, the rows, the raw log as one quiet line, and
+ *  a foot with Rebuild and Rebuild everything.  The strip's count still
+ *  opens it, and F8 shows it on the way to a row.
+ */
 
 /** The button that used to be a sentence: "run tlmgr install <name>".
  *
@@ -110,27 +123,14 @@ function InstallPackage({ file }: { file: string }) {
   );
 }
 
-function summarise(rows: { severity: string }[]): string {
-  const errors = rows.filter((row) => row.severity === "error").length;
-  const warnings = rows.length - errors;
-  const parts: string[] = [];
-  if (errors) parts.push(`${errors} ${errors === 1 ? "error" : "errors"}`);
-  if (warnings) parts.push(`${warnings} ${warnings === 1 ? "warning" : "warnings"}`);
-  return parts.join(", ") || "Nothing to fix";
-}
-
 export default function Diagnostics({
-  height,
   onJump,
   onFix,
-  onClose,
-  onResize,
+  onRebuild,
 }: {
-  height: number;
   onJump: (file: string, line: number) => void;
   onFix: (text: string) => void;
-  onClose: () => void;
-  onResize: (height: number) => void;
+  onRebuild: (full: boolean) => void;
 }) {
   const compile = useStore((s) => s.diagnostics);
   // Written by the server with no model involved: which error is the cause
@@ -139,6 +139,10 @@ export default function Diagnostics({
   const summary = useStore((s) => s.compile?.summary);
   const lint = useStore((s) => s.lint);
   const activePath = useStore((s) => s.activePath);
+  const compiling = useStore((s) => s.compiling);
+  const stale = useStore((s) => s.stale);
+  const result = useStore((s) => s.compile);
+  const autocompile = useStore((s) => s.settings.autocompile);
   // Keyed by what the diagnostic is, not by where it is in the list. These
   // were indices, and the list is rebuilt from scratch on every build: a
   // build that reordered it left the open row and the selection bar on
@@ -194,6 +198,25 @@ export default function Diagnostics({
     () => previews.filter((name) => all.some((row) => row.document === name)),
     [previews, all],
   );
+  // The state line, worded as the strip words it, so the drawer and the
+  // strip never disagree about the same build.
+  const [errors, warnings] = useMemo(() => {
+    let bad = 0;
+    let iffy = 0;
+    for (const item of compile) {
+      if (item.severity === "error") bad += 1;
+      else if (item.severity === "warning") iffy += 1;
+    }
+    return [bad, iffy];
+  }, [compile]);
+  const status = statusFor({
+    compiling, slow: compiling, stale, result, errors, warnings, autocompile,
+  });
+  const showDuration = Boolean(result) && !compiling && !status.label.startsWith("Built");
+
+  /** The document whose raw log the quiet line at the foot shows: the
+   *  chosen one, else the one the rows are about, else the first preview. */
+  const logDocument = only || rows[0]?.document || previews[0] || "";
 
   const showLog = async (document: string) => {
     const projectId = get().projectId;
@@ -212,77 +235,29 @@ export default function Diagnostics({
     }
   };
 
-  if (height === 0) return null;
-
   return (
-    // As the page draws it: no rule above (the handle is the divider), a
-    // 32 px header on the second surface, "Start here" as a card, rows on
-    // a grid with the severity bar, the line in the mono, the message, the
-    // file only when it differs, and Fix and Copy on hover.
-    <div
-      className="flex shrink-0 flex-col bg-surface"
-      data-testid="diagnostics"
-      style={{ height }}
-    >
-      <Handle
-        axis="row"
-        onPointerDown={(event) => {
-          event.preventDefault();
-          const startY = event.clientY;
-          const startHeight = height;
-          // Once per frame, keeping the newest position rather than the
-          // first: this is a position, so the last one is the true one.  The
-          // pane dividers went through `onFrame` when it was written and this
-          // resizer, being a second copy of the same code, did not.
-          const move = onFrame((moveEvent: PointerEvent) => {
-            // Pointer travel is in viewport pixels; the height is not.
-            const next =
-              startHeight + (startY - moveEvent.clientY) / uiScale();
-            onResize(Math.min(Math.max(next, 84), 320));
-          });
-          const up = () => {
-            move.cancel();
-            window.removeEventListener("pointermove", move);
-            window.removeEventListener("pointerup", up);
-            // A drag can also end without a pointerup: a browser dialog, a
-            // tab switch, an interrupted touch. App.tsx learned this for the
-            // pane splitters and this resizer never got the same fix, so an
-            // interrupted drag left the move listener attached and the
-            // drawer resized on every mouse movement afterwards.
-            window.removeEventListener("pointercancel", up);
-          };
-          window.addEventListener("pointermove", move);
-          window.addEventListener("pointerup", up);
-          window.addEventListener("pointercancel", up);
-        }}
-      />
-      {/* The whole bar closes the drawer, the way the preview's and the
-          agent's headers fold their panes. The button stays: it is what
-          says the bar is a control, and it is what a keyboard reaches. */}
-      <div
-        className="flex h-[32px] shrink-0 cursor-pointer items-center gap-3 bg-surface-2 px-3 text-[13px] leading-[18px] text-ink"
-        data-testid="diagnostics-header"
-        title="Close the list"
-        onClick={(event) => {
-          if ((event.target as HTMLElement).closest("button, select")) return;
-          onClose();
-        }}
-      >
-        {/* Named, not counted: "3 findings" tells a writer nothing, and
-            severity carried only by a coloured bar is severity carried by
-            colour alone. */}
-        <span>{summarise(rows)}</span>
-        {documents.length > 1 ? (
-          /* One flat list of every previewed document's diagnostics, with
-             nothing saying which was which. Offered only where it is a
-             question: one previewed document is the ordinary case and a
-             filter with one option is furniture. */
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="diagnostics" data-state={status.state}>
+      {/* The state as the strip words it: the dot, the words, the time. */}
+      <div className="nx-build-state" data-testid="build-state">
+        <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${status.dot}`} />
+        <span className="text-ink">{status.label}</span>
+        {showDuration ? (
+          <span className="t-meta tnum text-ink-3">{((result?.durationMs ?? 0) / 1000).toFixed(2)} s</span>
+        ) : rows.length === 0 && !compiling && result ? (
+          <span className="t-meta text-ink-3">no errors, no warnings</span>
+        ) : null}
+      </div>
+      {documents.length > 1 ? (
+        /* One flat list of every previewed document's diagnostics, with
+           nothing saying which was which. Offered only where it is a
+           question: one previewed document is the ordinary case and a
+           filter with one option is furniture. */
+        <div className="nx-line justify-end">
           <select
             value={only}
             aria-label="Which document"
             data-testid="diagnostics-document"
             className="rounded-control bg-transparent text-ink-2 hover:text-ink"
-            onClick={(event) => event.stopPropagation()}
             onChange={(event) => setOnly(event.target.value)}
           >
             <option value="">Every document</option>
@@ -292,15 +267,11 @@ export default function Diagnostics({
               </option>
             ))}
           </select>
-        ) : null}
-        <span className="flex-1" />
-        <button className="text-ink-2 hover:text-ink" onClick={onClose}>
-          Close
-        </button>
-      </div>
+        </div>
+      ) : null}
       {shellEscape === "asked" ? (
         <div
-          className="mx-3 mb-1 mt-2 shrink-0 rounded-card bg-surface-2 px-3 py-2 text-[13px] leading-[18px]"
+          className="mx-2 mb-1 mt-1 shrink-0 rounded-card bg-surface px-3 py-2 text-[13px] leading-[18px]"
           data-testid="shell-escape-ask"
         >
           <p className="text-ink">
@@ -332,7 +303,7 @@ export default function Diagnostics({
       ) : null}
       {summary ? (
         <div
-          className="mx-3 mb-1 mt-2 shrink-0 rounded-card bg-surface-2 px-3 py-2 text-[13px] leading-[18px] text-ink-2"
+          className="mx-2 mb-1 mt-1 shrink-0 rounded-card bg-surface px-3 py-2 text-[12.5px] leading-[17px] text-ink-2"
           data-testid="build-summary"
         >
           <p>
@@ -364,6 +335,17 @@ export default function Diagnostics({
           ) : null}
         </div>
       ) : null}
+      {rows.length === 0 && !summary && shellEscape !== "asked" ? (
+        /* Nothing to fix: what building is, as the page draws it, so the
+           drawer says something on a clean project too. */
+        <div className="nx-empty" data-testid="build-empty">
+          <p>
+            {autocompile
+              ? "Compile as you type is on: a build starts about a second after you pause, and only the part you are in. Rebuild runs the whole document; double-clicking the bar's button does the same."
+              : "Compile as you type is off: nothing builds until you press Rebuild, here or in the strip, or Mod-S. Double-clicking the bar's button rebuilds too."}
+          </p>
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 overflow-auto">
         {rows.map((item) => {
           const bar = item.severity === "error" ? "bg-error" : "bg-warn";
@@ -381,13 +363,13 @@ export default function Diagnostics({
             <div
               key={key}
               data-selected={selected === key ? "true" : undefined}
-              className={`group grid grid-cols-[3px_36px_1fr_auto] items-start gap-x-[10px] py-[5px] pl-[10px] pr-3 text-[13px] leading-[18px] text-ink-2 hover:bg-wash ${
+              className={`group grid grid-cols-[3px_28px_1fr_auto] items-start gap-x-[8px] py-[5px] pl-[6px] pr-2 text-[12.5px] leading-[17px] text-ink-2 hover:bg-wash ${
                 lit ? "bg-wash" : ""
               }`}
             >
-              <span className={`h-full min-h-[18px] w-[3px] rounded-[2px] ${bar}`} />
+              <span className={`h-full min-h-[17px] w-[3px] rounded-[2px] ${bar}`} />
               <button
-                className="col-span-2 grid min-w-0 cursor-pointer grid-cols-[36px_1fr] gap-x-[10px] text-left"
+                className="col-span-2 grid min-w-0 cursor-pointer grid-cols-[28px_1fr] gap-x-[8px] text-left"
                 aria-expanded={open}
                 onClick={() => {
                   setSelected(key);
@@ -396,19 +378,16 @@ export default function Diagnostics({
                 }}
               >
                 <span className="t-code-sm text-right text-ink-3 tnum">{item.line ?? ""}</span>
-                <span className="min-w-0 truncate text-ink">{item.message}</span>
+                <span className="min-w-0 text-ink">
+                  {item.message}
+                  {item.file && item.file !== activePath ? (
+                    <span className="t-code-sm ml-2 text-ink-3">{item.file.split("/").pop()}</span>
+                  ) : null}
+                </span>
               </button>
-              {/* One slot, two things in it: the file at rest, Fix and
-                  Copy under the pointer, sharing a grid cell so the row
-                  does not move.  On a finger both are drawn side by side,
-                  since there is no pointer to reveal with. */}
-              <span className="grid shrink-0 items-center justify-items-end">
-                {item.file && item.file !== activePath ? (
-                  <span className="t-code-sm text-ink-3 [grid-area:1/1] hoverable:group-hover:opacity-0">
-                    {item.file.split("/").pop()}
-                  </span>
-                ) : null}
-                <span className="flex items-center gap-[2px] [grid-area:1/1] hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-within:opacity-100">
+              {/* Fix and Copy under the pointer, and always on a finger,
+                  which has no pointer to reveal with. */}
+              <span className="flex items-center gap-[2px] hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-within:opacity-100">
                 <button
                   className="px-[6px] text-[12.5px] text-ink-2 hover:text-ink"
                   onClick={(event) => {
@@ -441,7 +420,6 @@ export default function Diagnostics({
                 >
                   Copy
                 </button>
-                </span>
               </span>
               {open ? (
                 <div className="col-span-2 col-start-3 mt-[2px] text-[12.5px] leading-[17px] text-ink-2">
@@ -459,35 +437,42 @@ export default function Diagnostics({
                     </>
                   ) : null}
                   {item.context ? (
-                    <pre className="t-code-sm mt-1 max-h-[54px] overflow-auto rounded-control bg-surface-2 px-2 py-1 text-ink-2">
+                    <pre className="t-code-sm mt-1 max-h-[54px] overflow-auto rounded-control bg-surface px-2 py-1 text-ink-2">
                       {item.context}
                     </pre>
                   ) : null}
-                  {/* The raw log, in the place a few lines of it already go.
-                      Section 7 of the design document rejects a bottom
-                      console with Problems, Output and Terminal tabs; this
-                      is what keeping the log reachable looks like without
-                      one. */}
-                  {rawLog[item.document ?? ""] === undefined ? (
-                    <Button
-                      variant="ghost"
-                      size="inline"
-                      className="mt-[6px]"
-                      data-testid="show-raw-log"
-                      onClick={() => void showLog(item.document ?? "")}
-                    >
-                      Show the raw log
-                    </Button>
-                  ) : (
-                    <pre className="t-code-sm mt-1 max-h-[220px] overflow-auto whitespace-pre-wrap rounded-control bg-surface-2 px-2 py-1 text-ink-3">
-                      {rawLog[item.document ?? ""] || "The log is empty."}
-                    </pre>
-                  )}
                 </div>
               ) : null}
             </div>
           );
         })}
+      </div>
+      {/* The raw log, one quiet line above the foot, as the page draws it.
+          Section 7 of the design document rejects a bottom console with
+          Problems, Output and Terminal tabs; this is what keeping the log
+          reachable looks like without one. */}
+      {logDocument ? (
+        rawLog[logDocument] === undefined ? (
+          <button
+            className="nx-note self-start text-left hover:text-ink"
+            data-testid="show-raw-log"
+            onClick={() => void showLog(logDocument)}
+          >
+            Show the raw log
+          </button>
+        ) : (
+          <pre className="t-code-sm mx-2 mb-1 max-h-[220px] shrink-0 overflow-auto whitespace-pre-wrap rounded-control bg-surface px-2 py-1 text-ink-3" data-testid="raw-log">
+            {rawLog[logDocument] || "The log is empty."}
+          </pre>
+        )
+      ) : null}
+      <div className="nx-drawer-foot">
+        <Button variant="ghost" size="sm" data-testid="build-rebuild" onClick={() => onRebuild(false)}>
+          Rebuild
+        </Button>
+        <Button variant="quiet" size="sm" data-testid="build-rebuild-everything" onClick={() => onRebuild(true)}>
+          Rebuild everything
+        </Button>
       </div>
     </div>
   );

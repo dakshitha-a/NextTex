@@ -9732,3 +9732,40 @@ carrying their name, reads the file on their row and removes them;
 `menus-contrast.spec.ts` sweeps the drawer where it swept the sheet; the
 fidelity harness renders `drawer-people` and `drawer-people-empty` beside
 the page's two drawings.
+
+**Build (item 2.2).** "Make the compiler/warnings a drawer in the
+launcher too. Put the compile/rebuild button in there too. As a
+shortcut, double clicking the compiler drawer icon should rebuild", and
+"obviously clicking on the warning or build error at the bottom of the
+editor should now open the side drawer." The error list was a tray
+under the source pane, opened from the strip's count, with a resize
+handle and a header bar that closed it; it is the Build drawer on the
+bar now, between People and Before you submit, its glyph the page's
+hammer, and its body is `Diagnostics.tsx` laid out as the page draws
+the drawer: the build's state on the first line as the strip words it
+(the dot, "2 errors, 1 warning", the time), the document choice under
+it when more than one is previewed, the shell-escape question and the
+Start here card as they were, the rows on their grid with the severity
+bar, the mono line number, the message, the file when it differs and
+Fix and Copy on hover, the open row's explanation and What to do and
+the install card, "Show the raw log" as one quiet line above the foot
+rather than a button in every open row, and a foot with Rebuild as the
+ghost button and Rebuild everything as the quiet one; a clean project's
+drawer says what building is, in a sentence that names double-clicking
+the bar's button. The heading row carries a Rebuild icon button. The
+tray gate went from `App.tsx` (its three heights, its state, the row
+handle and the mount under the strip); the strip's state words show the
+drawer in every state and never fold it, since the count is a way in
+rather than a switch, and the strip's control is no longer disabled in
+the states where the tray had nothing to open, because the drawer
+always has the state and the way to build again; F8 and Shift-F8 show
+the drawer on the way to a row as they opened the tray. The bar's Build
+button toggles as every bar button does, ignores the second click of a
+double-click (it would fold what the first showed), and on the
+double-click shows the drawer and rebuilds, so the result lands in
+view. `layout.spec.ts` opens the drawer from the strip, presses the
+strip again and finds it still there, folds it from the bar,
+double-clicks the bar and sees a build start, and reads a clean
+project's sentence, its foot and its heading button; `bib-check.spec.ts`
+still lands F8 on the row; `clipping.spec.ts` and the fidelity harness
+close the drawer from the bar.

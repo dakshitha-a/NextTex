@@ -105,8 +105,8 @@ import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import {
-  FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, PeopleIcon, PlusIcon, ReportIcon,
-  SearchIcon, SectionsIcon, SubmitIcon, TrashIcon,
+  BuildIcon, FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, PeopleIcon, PlusIcon,
+  ReportIcon, SearchIcon, SectionsIcon, SubmitIcon, TrashIcon, UpdateIcon,
 } from "./ui/icons";
 import { agentName, type Provider } from "./agent-name";
 import Status from "./panes/Status";
@@ -149,13 +149,6 @@ const SubmitPanel = lazy(() => import("./panes/SubmitPanel"));
 const GitPanel = lazy(() => import("./panes/GitPanel"));
 import { isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
 
-const DRAWER_CLOSED = 0;
-const DRAWER_OPEN = 168;
-// A build with an explanation puts a strip above the list, and 168px
-// left less than one row's height under it -- the drawer opened onto
-// its own summary with the errors it summarised out of sight.
-const DRAWER_WITH_SUMMARY = 248;
-
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 
 /** The drawers the activity bar offers, in the bar's order, and the one
@@ -167,7 +160,7 @@ const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
  *  is reached from the agent column, and moves into it with the column's
  *  own rebuild. */
 export type DrawerId =
-  | "files" | "sections" | "search" | "papers" | "history" | "git" | "people" | "submit" | "trash";
+  | "files" | "sections" | "search" | "papers" | "history" | "git" | "people" | "build" | "submit" | "trash";
 const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "files", title: "Files", Icon: () => <FileIcon size={18} /> },
   { id: "sections", title: "Sections", Icon: () => <SectionsIcon size={18} /> },
@@ -176,6 +169,7 @@ const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "history", title: "History", Icon: () => <HistoryIcon size={18} /> },
   { id: "git", title: "Git", Icon: () => <GitIcon size={18} /> },
   { id: "people", title: "People", Icon: () => <PeopleIcon size={18} /> },
+  { id: "build", title: "Build", Icon: () => <BuildIcon size={18} /> },
   { id: "submit", title: "Before you submit", Icon: () => <SubmitIcon size={18} /> },
   { id: "trash", title: "Deleted", Icon: () => <TrashIcon size={18} /> },
 ];
@@ -222,9 +216,7 @@ export default function App() {
   const noAgent = agentProvider === "none";
   // Read here too, and for the same reason: the drawer opens taller
   // when the build left an explanation to sit above the list.
-  const hasSummary = !!useStore((s) => s.compile?.summary);
   const [widths, setWidths] = useState<Widths>(DEFAULTS);
-  const [drawer, setDrawer] = useState(DRAWER_CLOSED);
   const [railHidden, setRailHidden] = useState(false);
   // Three widths matter: below 1400 the chat stops being a docked column,
   // below 1100 the rail folds away, and below 900 the editor and the PDF
@@ -1776,9 +1768,13 @@ export default function App() {
       ? (step === 1 ? rows[0] : rows[rows.length - 1])
       : rows[(at + step + rows.length) % rows.length];
     set({ selectedDiagnostic: rowKey(next) });
-    setDrawer((value) => (value ? value : DRAWER_OPEN));
+    // The Build drawer shows on the way, as the tray opened: stepping to
+    // an error the writer cannot see is a jump with no explanation.
+    if (railHiddenRef.current || foldedRef.current.rail || drawerIdRef.current !== "build") {
+      openDrawer("build");
+    }
     if (next.file && next.line) void openFile(next.file, next.line);
-  }, [openFile]);
+  }, [openFile, openDrawer]);
 
   const runAction = useCallback((id: string) => {
     const state = get();
@@ -2167,11 +2163,28 @@ export default function App() {
           <IconButton
             key={id}
             label={title}
+            title={id === "build" ? "Build (double-click to rebuild)" : undefined}
             data-testid={`bar-${id}`}
             className="nx-bar-button"
             on={drawerShown && drawerId === id}
             aria-pressed={drawerShown && drawerId === id}
-            onClick={() => toggleDrawer(id)}
+            // "As a shortcut, double clicking the compiler drawer icon
+            // should rebuild": the first click shows the drawer, the
+            // second is ignored as a press (it would fold what the first
+            // showed), and the double-click rebuilds with the drawer in
+            // view, so the result lands where it can be read.
+            onClick={(event) => {
+              if (id === "build" && event.detail > 1) return;
+              toggleDrawer(id);
+            }}
+            onDoubleClick={
+              id === "build"
+                ? () => {
+                    openDrawer("build");
+                    void buildNow(false);
+                  }
+                : undefined
+            }
           >
             <Icon />
           </IconButton>
@@ -2280,6 +2293,11 @@ export default function App() {
                       <PlusIcon />
                     </IconButton>
                   ) : null}
+                  {drawerId === "build" ? (
+                    <IconButton label="Rebuild" title="Rebuild the document" data-testid="rebuild-quick" onClick={() => void buildNow(false)}>
+                      <UpdateIcon />
+                    </IconButton>
+                  ) : null}
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                   {drawerId === "search" ? (
@@ -2311,6 +2329,13 @@ export default function App() {
                     ) : null}
                     {drawerId === "people" ? (
                 <PeoplePanel inviteNonce={inviteNonce} onLeft={leaveProject} />
+                    ) : null}
+                    {drawerId === "build" ? (
+                <Diagnostics
+                  onJump={(file, line) => openFile(file, line)}
+                  onFix={(text) => chat.current?.seed(text)}
+                  onRebuild={(full) => void buildNow(full)}
+                />
                     ) : null}
                   </Suspense>
                 </div>
@@ -2518,24 +2543,9 @@ export default function App() {
                 return cycle[(at + 1) % cycle.length] ?? "document";
               })
             }
-            onToggleDrawer={() =>
-              setDrawer((value) =>
-                value ? DRAWER_CLOSED : hasSummary ? DRAWER_WITH_SUMMARY : DRAWER_OPEN,
-              )
-            }
+            onOpenBuild={() => openDrawer("build")}
             onRebuild={(full) => void buildNow(full)}
           />
-          {drawer ? (
-            <Suspense fallback={null}>
-              <Diagnostics
-                height={drawer}
-                onJump={(file, line) => openFile(file, line)}
-                onFix={(text) => chat.current?.seed(text)}
-                onResize={setDrawer}
-                onClose={() => setDrawer(DRAWER_CLOSED)}
-              />
-            </Suspense>
-          ) : null}
         </div>
 
         {tight || folded.editor || folded.pdf ? null : (

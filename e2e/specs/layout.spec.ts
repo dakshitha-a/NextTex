@@ -465,7 +465,10 @@ test("below 1100 the name row shrinks to the mark, and the drawer overlays under
   expect(Math.round(row.width)).toBe(44);
 });
 
-test("the error list closes from its own bar", async ({ tab }) => {
+test("the strip's count opens the Build drawer, and the bar's button folds it", async ({ tab }) => {
+  // The error list is the Build drawer on the bar: the strip's state
+  // words show it and never fold it, the bar's second press folds it,
+  // and a double-click on the bar's button starts a build.
   const editor = tab.locator(".cm-content");
   await editor.click();
   await tab.keyboard.press("End");
@@ -474,10 +477,47 @@ test("the error list closes from its own bar", async ({ tab }) => {
     timeout: 30_000,
   });
   await tab.getByTestId("status").click();
-  await expect(tab.getByTestId("diagnostics-header")).toBeVisible();
+  await expect(tab.getByTestId("drawer")).toHaveAttribute("data-drawer", "build");
+  const list = tab.getByTestId("diagnostics");
+  await expect(list).toBeVisible();
+  await expect(list.getByTestId("build-state")).toContainText(/error|warning/);
+  await expect(list.getByTestId("build-rebuild")).toBeVisible();
+  // A second press on the strip shows it still; it never folds.
+  await tab.getByTestId("status").click();
+  await expect(list).toBeVisible();
+  // The bar's button folds it.
+  await tab.getByTestId("bar-build").click();
+  await expect(list).toHaveCount(0);
+  // And a double-click on it shows the drawer and starts a build: the
+  // request is what is read, since a fast build can be over before the
+  // strip's state is.
+  const builds: string[] = [];
+  tab.on("request", (request) => {
+    if (request.method() === "POST" && request.url().includes("/compile")) builds.push(request.url());
+  });
+  await tab.getByTestId("bar-build").dblclick();
+  await expect(list).toBeVisible();
+  await expect.poll(() => builds.length, { timeout: 5_000 }).toBeGreaterThan(0);
+});
 
-  await tab.getByTestId("diagnostics-header").click();
-  await expect(tab.getByTestId("diagnostics-header")).toHaveCount(0);
+test("a clean project's Build drawer says what building is", async ({ app, project, tab }) => {
+  // The template has lint findings of its own; a document with nothing
+  // to say about it is what the empty drawer is for.
+  await fetch(`${app.base}/api/projects/${project.id}/file`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({
+      path: "main.tex",
+      text: "\\documentclass{article}\n\\begin{document}\nHello.\n\\end{document}\n",
+      compile: true,
+    }),
+  });
+  await tab.getByTestId("bar-build").click();
+  const list = tab.getByTestId("diagnostics");
+  await expect(list).toBeVisible();
+  await expect(list.getByTestId("build-empty")).toContainText("Compile as you type", { timeout: 60_000 });
+  await expect(list.getByTestId("build-rebuild-everything")).toBeVisible();
+  await expect(tab.getByTestId("rebuild-quick")).toBeVisible();
 });
 
 

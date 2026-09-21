@@ -266,18 +266,20 @@ export default function Tutorial({
         <Section id="errors" n={5} title="When it does not compile, and when it is misspelt">
           <Lead>
             A bar appears in the margin next to the line LaTeX complained
-            about, and the status strip counts the errors. The list itself
-            stays shut until you ask for it, because a drawer that opens itself
-            while you are typing takes the page you were reading away.
+            about, and the status strip counts the errors. The list itself,
+            the <C>Build</C> drawer on the bar, stays shut until you ask for
+            it, because a drawer that opens itself while you are typing
+            takes the page you were reading away.
           </Lead>
           <P>
             Click the count to open it, or press <C>F8</C>, which steps to the
             next error from anywhere and opens the drawer on the way;{" "}
-            <Key spec="Shift-F8" /> steps back. The strip along the top
-            explains the first error in plain English and names the one to
-            start from. Start there: LaTeX reports the consequences of a
-            mistake as well as the mistake, so the last error is usually the
-            least useful.
+            <Key spec="Shift-F8" /> steps back. The card at the top explains
+            the first error in plain English and names the one to start
+            from. Start there: LaTeX reports the consequences of a mistake
+            as well as the mistake, so the last error is usually the least
+            useful. The drawer has Rebuild at its foot, and double-clicking
+            its button on the bar rebuilds too.
           </P>
           <Figure
             light={errorsLight}

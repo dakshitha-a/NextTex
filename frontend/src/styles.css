@@ -602,6 +602,8 @@ button { font: inherit; color: inherit; }
   .nx-person:hover .nx-person-what { display: inline; }
 }
 .nx-drawer-foot { display: flex; align-items: center; gap: 6px; padding: 6px 8px 10px; }
+/* The Build drawer's first line: the build's state as the strip words it. */
+.nx-build-state { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; color: var(--ink); font-size: 13px; line-height: 18px; }
 /* The tabs on the band.  The open tab is the pane's block: the pane's
    surface, the card radius on its top corners, the first ink.  The others
    sit on the band in the second ink, parted by a 16 px rule that the open

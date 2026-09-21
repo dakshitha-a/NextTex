@@ -160,7 +160,8 @@ const OPENED: {
       return true;
     },
     close: async (tab) => {
-      await tab.getByTestId("status").click().catch(() => undefined);
+      // The strip never folds the drawer; the bar's button does.
+      await tab.getByTestId("bar-build").click().catch(() => undefined);
     },
   },
 ];

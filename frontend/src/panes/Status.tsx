@@ -10,14 +10,15 @@ import { type WordScope } from "../api";
 const BREATHE_AFTER = 400;
 
 export default function Status({
-  onToggleDrawer,
+  onOpenBuild,
   onRebuild,
   words,
   wordScope,
   wordScopes,
   onToggleWordScope,
 }: {
-  onToggleDrawer: () => void;
+  /** Show the Build drawer. Never folds it: the count is a way in. */
+  onOpenBuild: () => void;
   onRebuild: (full: boolean) => void;
   words: number | null;
   wordScope: WordScope;
@@ -34,10 +35,7 @@ export default function Status({
   const cursor = useStore((s) => s.cursor);
   const autocompile = useStore((s) => s.settings.autocompile);
   // A project asking for shell escape that this machine has not answered.
-  // The question is drawn in the drawer, and the drawer opens only from
-  // this strip, so the strip has to open for the question as it does for
-  // an error: a project whose document builds clean without the flag
-  // would otherwise ask somewhere nobody could reach.
+  // The question is drawn in the Build drawer, and the strip says so.
   const askShell = useStore((s) => s.settings.shellEscape) === "asked";
   const [slow, setSlow] = useState(false);
 
@@ -70,7 +68,6 @@ export default function Status({
     compiling, slow, stale, result, errors, warnings, autocompile,
   });
   const { state, dot, label } = found;
-  const clickable = found.clickable || askShell;
   const hint = askShell && !found.clickable ? "This project asks for shell escape" : found.hint;
   // The duration is already in the label when a build succeeded; it earns a
   // segment of its own only when the label is saying something else.
@@ -92,19 +89,15 @@ export default function Status({
       data-testid="status-strip"
       className="nx-foot @container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
     >
-      {/* In four of the seven states this opens nothing, and it was a
-          focusable button either way: somebody tabbing through the editor
-          stopped on it, pressed it, and got no answer and no reason. A
-          control that cannot be used says so. */}
+      {/* The state words open the Build drawer in every state: it always
+          has something to say, the build's state and the way to build
+          again, so the control is never a dead stop on the way through. */}
       <button
         data-testid="status"
         data-state={state}
         title={hint || undefined}
-        className="flex shrink-0 items-center gap-[6px] disabled:cursor-default"
-        disabled={!clickable}
-        aria-disabled={!clickable}
-        tabIndex={clickable ? 0 : -1}
-        onClick={() => clickable && onToggleDrawer()}
+        className="flex shrink-0 items-center gap-[6px] hover:text-ink"
+        onClick={onOpenBuild}
       >
         <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot}`} />
         <span className={loud ? "font-medium text-ink" : "text-ink-2"}>{label}</span>

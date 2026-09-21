@@ -608,7 +608,31 @@ const SURFACES: Record<string, Surface> = {
       await tab.waitForTimeout(300);
     },
   },
-  diagnostics: {
+  "drawer-build-empty": {
+    // A document with nothing to say about it: the state line and the
+    // sentence saying what building is, above the foot.
+    open: async (tab) => {
+      // Typed, since the editor holds the document open and a file written
+      // from outside would race it.
+      const editor = tab.locator(".cm-content");
+      await editor.click();
+      await tab.keyboard.press("Control+a");
+      // The environment closes itself as it is typed, so the end is not
+      // typed twice.
+      await tab.keyboard.type("\\documentclass{article}\n\\begin{document}\nHello.");
+      await tab.waitForTimeout(2500);
+      // Read again from the server: the lint of the old text lingers in
+      // this window until the next scan, and the drawer is about the
+      // document as it is.
+      await tab.reload();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+      await showDrawer(tab, "build");
+      await tab.getByTestId("build-empty").waitFor({ timeout: 60_000 });
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
+  "drawer-build": {
     // A bad command and a missing citation, so the tray has an error, a
     // "Start here" card and a warning, as the page draws it.
     open: async (tab) => {
@@ -626,10 +650,10 @@ const SURFACES: Record<string, Surface> = {
       await tray.waitFor();
       await tray.getByRole("button", { name: /badcommand|Undefined/i }).first().click().catch(() => undefined);
       await tab.waitForTimeout(300);
-      return tray;
+      return tab.getByTestId("drawer");
     },
     close: async (tab) => {
-      await tab.getByTestId("diagnostics-header").getByRole("button", { name: "Close" }).click().catch(() => undefined);
+      await showDrawer(tab, "files");
       const editor = tab.locator(".cm-content");
       await editor.click();
       await tab.keyboard.press("Control+Home");
