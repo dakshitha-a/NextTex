@@ -563,6 +563,14 @@ export default function Editor({
       // only this says where the last one stops.
       const lines = view.current?.state.doc.lines ?? 1;
       if (get().lineCount !== lines) set({ lineCount: lines });
+      // Where this browser is, for the collaborator strip and the People
+      // drawer. Cheap, and not debounced: awareness is designed to be
+      // written on every move, and holding it back is what makes a remote
+      // caret look laggy. Here, before the selection's early return: it
+      // used to sit after it, so a collaborator who only read or moved
+      // their caret was "not in a file" to everyone until they typed or
+      // selected a dozen characters.
+      if (current.current && collab.current) collab.current.here(current.current, line, false);
       // Straight into the store, undebounced, because the composer reads it
       // the instant Send is pressed. The 400 ms below is right for telling
       // the server where the cursor is and wrong for this: select a
@@ -608,11 +616,6 @@ export default function Editor({
           ? open
           : { left: at.left, top: at.top, from: span.fromLine, to: span.toLine },
       );
-      // Where this browser is, for the collaborator strip. Cheap, and not
-      // debounced: awareness is designed to be written on every move, and
-      // holding it back is what makes a remote caret look laggy.
-      const here = current.current;
-      if (here && collab.current) collab.current.here(here, line, false);
       // Where the user is looking, told to the server on a delay: it is
       // what the agent's "here" and "this" resolve to, and it changes on
       // every keystroke.

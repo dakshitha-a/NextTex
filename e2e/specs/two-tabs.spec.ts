@@ -137,6 +137,12 @@ test("the other window is shown as being here", async ({
   await second.locator(".cm-content").click();
 
   await expect(tab.getByTestId("collaborators")).toBeVisible({ timeout: 15_000 });
+  // And where they are, from a caret move alone: the position used to be
+  // reported only on a keystroke or a long selection, so a reader was
+  // "not in a file" to everyone.
+  await second.keyboard.press("ArrowDown");
+  await expect(tab.getByTestId("collaborators").locator("span").first())
+    .toHaveAttribute("title", /in main\.tex/, { timeout: 10_000 });
   await second.close();
 
   // And goes away again when they do, rather than leaving a ghost.
