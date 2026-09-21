@@ -3,9 +3,12 @@ import {
   DEFAULTS,
   EDITOR_SIZES,
   EDITOR_WEIGHTS,
+  HOVER_KINDS,
   SCALES,
   applyAppearance,
   gutterSize,
+  hoverCards,
+  hoverCardsFrom,
   isDefault,
   nearest,
   step,
@@ -84,11 +87,13 @@ describe("what is remembered", () => {
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
       spelling: true, spellingVariety: "british", keymap: "vim",
+      hover: false, hoverKinds: { ...DEFAULTS.hoverKinds, figures: false },
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
       spelling: true, spellingVariety: "british", keymap: "vim",
+      hover: false, hoverKinds: { ...DEFAULTS.hoverKinds, figures: false },
     });
   });
 
@@ -115,10 +120,12 @@ describe("what is remembered", () => {
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
       weight: 300, syntax: "colour", emphasis: "plain", preview: "sharper",
       spelling: true, spellingVariety: "american", keymap: "emacs",
+      hover: true, hoverKinds: { ...DEFAULTS.hoverKinds, maths: false, cites: false },
     });
     const root = document.documentElement;
     expect(root.dataset.theme).toBe("light");
     expect(root.dataset.keymap).toBe("emacs");
+    expect(root.dataset.hoverCards).toBe("tables figures refs files");
     expect(root.style.getPropertyValue("--nx-ui-scale")).toBe("1.5");
     expect(root.style.getPropertyValue("--nx-editor-size")).toBe("21px");
     expect(root.style.getPropertyValue("--nx-editor-weight")).toBe("300");
@@ -181,6 +188,47 @@ describe("what is remembered", () => {
   it("knows when nothing has been changed", () => {
     expect(isDefault(DEFAULTS)).toBe(true);
     expect(isDefault({ ...DEFAULTS, scale: 110 })).toBe(false);
+    expect(isDefault({ ...DEFAULTS, hover: false })).toBe(false);
+    expect(isDefault({ ...DEFAULTS, hoverKinds: { ...DEFAULTS.hoverKinds, tables: false } })).toBe(false);
+  });
+});
+
+describe("the hover cards", () => {
+  it("are every kind until a writer chooses", () => {
+    expect(storedAppearance().hover).toBe(true);
+    expect(Object.values(storedAppearance().hoverKinds).every(Boolean)).toBe(true);
+    // A bare document, before applyAppearance has stamped it, draws
+    // every card: absence is not the switch off.
+    delete document.documentElement.dataset.hoverCards;
+    expect(hoverCards()).toEqual(new Set(HOVER_KINDS));
+  });
+
+  it("stamps nothing at all while the switch is off, which reads as none", () => {
+    applyAppearance({ ...DEFAULTS, hover: false });
+    expect(document.documentElement.dataset.hoverCards).toBe("");
+    expect(hoverCards().size).toBe(0);
+    // The kinds are kept for when the switch comes back on: what is
+    // stored is the kinds turned off, none here.
+    expect(window.localStorage.getItem("nexttex.editor.hover.hidden")).toBe("");
+    applyAppearance({ ...DEFAULTS, hover: false, hoverKinds: { ...DEFAULTS.hoverKinds, refs: false } });
+    expect(storedAppearance().hoverKinds.refs).toBe(false);
+    expect(storedAppearance().hover).toBe(false);
+  });
+
+  it("stores the kinds turned off, drops a name it does not know, and keeps the rest on", () => {
+    // What is stored is the kinds turned off, so a kind a later build
+    // adds is on for a writer who chose before it existed, which is what
+    // every kind is until it is turned off; a name a later build retired,
+    // or one a hand edit invented, does not survive into the record.
+    applyAppearance({ ...DEFAULTS, hoverKinds: { ...DEFAULTS.hoverKinds, figures: false, cites: false } });
+    expect(window.localStorage.getItem("nexttex.editor.hover.hidden")).toBe("figures,cites");
+    expect(hoverCardsFrom("maths,banana, tables")).toEqual(new Set(["maths", "tables"]));
+    expect(hoverCardsFrom("")).toEqual(new Set());
+    expect(hoverCardsFrom(undefined)).toEqual(new Set(HOVER_KINDS));
+    window.localStorage.setItem("nexttex.editor.hover.hidden", "figures,nope");
+    expect(storedAppearance().hoverKinds).toEqual({
+      maths: true, tables: true, figures: false, refs: true, cites: true, files: true,
+    });
   });
 });
 

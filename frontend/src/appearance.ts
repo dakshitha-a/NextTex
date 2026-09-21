@@ -100,10 +100,28 @@ export type Appearance = {
    *  time they are chosen, and each has its undo rebound to the shared
    *  document's, the constraint `docs/architecture.md` records. */
   keymap: Keymap;
+  /** Whether the editor shows a card when the pointer rests on something
+   *  in the source: an equation typeset, a table drawn, a figure's picture,
+   *  what a reference points at, a citation's record, an input's file.
+   *  One switch for all of them, kept apart from the choice of kinds
+   *  below so that "not now" is one gesture and the kinds come back as
+   *  they were. */
+  hover: boolean;
+  /** Which kinds of card show while `hover` is on.  Every kind is on
+   *  until a writer turns one off, which they do for a reason of their
+   *  own: the formula card in the way while editing maths, the picture
+   *  card too large.  The choice also reaches inside a reference's card,
+   *  which draws the figure, table or equation it points at only while
+   *  that thing's own kind is on. */
+  hoverKinds: Record<HoverKind, boolean>;
 };
 
 export type SpellingVariety = "follow" | "american" | "british";
 export type Keymap = "default" | "vim" | "emacs";
+/** The kinds of hover card the editor draws, in the order the settings
+ *  sheet lists them. */
+export type HoverKind = "maths" | "tables" | "figures" | "refs" | "cites" | "files";
+export const HOVER_KINDS: HoverKind[] = ["maths", "tables", "figures", "refs", "cites", "files"];
 
 /** The steps the two size controls offer.  Discrete stops rather than a
  *  continuous range: there is no useful difference between 112% and 114%,
@@ -139,6 +157,8 @@ export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
   weight: 400, syntax: "subtle", emphasis: "bold", preview: "balanced",
   spelling: false, spellingVariety: "follow", keymap: "default",
+  hover: true,
+  hoverKinds: { maths: true, tables: true, figures: true, refs: true, cites: true, files: true },
 };
 
 const KEYS = {
@@ -153,6 +173,8 @@ const KEYS = {
   spelling: "nexttex.editor.spelling",
   spellingVariety: "nexttex.editor.spelling.variety",
   keymap: "nexttex.editor.keymap",
+  hover: "nexttex.editor.hover",
+  hoverKinds: "nexttex.editor.hover.hidden",
 };
 
 /** localStorage throws rather than returning null in a private window, or
@@ -208,6 +230,8 @@ export function storedAppearance(): Appearance {
   const spelling = readStored(KEYS.spelling);
   const spellingVariety = readStored(KEYS.spellingVariety);
   const keymap = readStored(KEYS.keymap);
+  const hover = readStored(KEYS.hover);
+  const hoverKinds = readStored(KEYS.hoverKinds);
   return {
     // Dark by default: this is an instrument you sit in front of for hours,
     // beside a white page that supplies all the brightness the eye needs.
@@ -229,7 +253,46 @@ export function storedAppearance(): Appearance {
         ? spellingVariety
         : DEFAULTS.spellingVariety,
     keymap: keymap === "vim" || keymap === "emacs" ? keymap : DEFAULTS.keymap,
+    hover: hover !== "off",
+    // The stored value lists the kinds turned off, so a kind this build
+    // adds is on for a writer who chose before it existed, which is what
+    // every kind is until somebody turns it off; a name a later build
+    // retires is dropped rather than kept.  No key at all and an empty
+    // one both mean every kind on.
+    hoverKinds: kindsRecord(hoverCardsFrom(hoverKinds ?? "")),
   };
+}
+
+/** The record from the set of kinds turned off. */
+function kindsRecord(off: Set<HoverKind>): Record<HoverKind, boolean> {
+  const record = {} as Record<HoverKind, boolean>;
+  for (const kind of HOVER_KINDS) record[kind] = !off.has(kind);
+  return record;
+}
+
+/** The kinds named in a stored or stamped list, in either separator, with
+ *  a name that is not a kind dropped.  An absent value (`undefined`, the
+ *  attribute not there) means every kind, because that is what a page
+ *  has before `applyAppearance` runs and what a test's bare document
+ *  has; an empty string means none, which is what the switch off stamps.
+ *  (Storage lists the kinds turned off and reads the set the other way
+ *  round, so there an absent key and an empty one agree.) */
+export function hoverCardsFrom(value: string | null | undefined): Set<HoverKind> {
+  if (value === undefined || value === null) return new Set(HOVER_KINDS);
+  const on = new Set<HoverKind>();
+  for (const name of value.split(/[\s,]+/)) {
+    if ((HOVER_KINDS as string[]).includes(name)) on.add(name as HoverKind);
+  }
+  return on;
+}
+
+/** Which hover cards the editor may draw right now, read off the root at
+ *  the moment of the hover.  A live read rather than an editor
+ *  reconfiguration: the hover source runs on every hover anyway, and the
+ *  language compartment it lives in is never reconfigured, so the setting
+ *  takes effect on the next hover with no compartment to dispatch. */
+export function hoverCards(): Set<HoverKind> {
+  return hoverCardsFrom(document.documentElement.dataset.hoverCards);
 }
 
 export function applyAppearance(appearance: Appearance): void {
@@ -276,6 +339,10 @@ export function applyAppearance(appearance: Appearance): void {
   root.dataset.spelling = appearance.spelling ? "on" : "off";
   root.dataset.spellingVariety = appearance.spellingVariety;
   root.dataset.keymap = appearance.keymap;
+  // The kinds that are on, space separated, or nothing at all while the
+  // switch is off; `math-hover.ts` reads it at the moment of the hover.
+  const kindsOn = HOVER_KINDS.filter((kind) => appearance.hoverKinds[kind]);
+  root.dataset.hoverCards = appearance.hover ? kindsOn.join(" ") : "";
 
   writeStored(KEYS.theme, appearance.theme);
   writeStored(KEYS.scale, String(appearance.scale));
@@ -288,6 +355,8 @@ export function applyAppearance(appearance: Appearance): void {
   writeStored(KEYS.spelling, appearance.spelling ? "on" : "off");
   writeStored(KEYS.spellingVariety, appearance.spellingVariety);
   writeStored(KEYS.keymap, appearance.keymap);
+  writeStored(KEYS.hover, appearance.hover ? "on" : "off");
+  writeStored(KEYS.hoverKinds, HOVER_KINDS.filter((kind) => !appearance.hoverKinds[kind]).join(","));
 
   // The preview draws to a canvas whose backing store is sized for the
   // scale in force when it was drawn, so it has to be told rather than left
@@ -310,6 +379,8 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.emphasis === DEFAULTS.emphasis &&
     appearance.preview === DEFAULTS.preview &&
     appearance.spelling === DEFAULTS.spelling &&
-    appearance.spellingVariety === DEFAULTS.spellingVariety
+    appearance.spellingVariety === DEFAULTS.spellingVariety &&
+    appearance.hover === DEFAULTS.hover &&
+    HOVER_KINDS.every((kind) => appearance.hoverKinds[kind] === DEFAULTS.hoverKinds[kind])
   );
 }

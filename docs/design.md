@@ -9129,8 +9129,9 @@ named stops are a choice and not a scale.
 The rows, in order. How it looks: Theme; Interface size; Editor text;
 Editor weight; Editor page; Highlighting; Emphasis. While you write:
 Spelling; Variety, when spelling is on; Words you added, as chips with
-a remove, only when there are any; Keymap, with the note about undo
-under it only when a keymap is chosen; Preview. This project: Compile as
+a remove, only when there are any; Hover cards, a switch, and Show for,
+its six toggle chips, only while the switch is on (§59); Keymap, with
+the note about undo under it only when a keymap is chosen; Preview. This project: Compile as
 you type, Mark errors in the text and Mark warnings in the text, each
 carrying as its subtitle, only while it is off, what still happens
 ("The status strip still counts them"); Engine, with the `% !TeX
@@ -9975,3 +9976,58 @@ drawer key, `PapersPanel.tsx` and `PapersIcon`, since a rename there is
 churn a writer never sees; the sections above that say "Papers" name the
 drawer as it was called when they were written. `toolbar.spec.ts` reads
 the button's name and the drawer's heading as References.
+
+## 59. The hover cards are a choice, by kind
+
+Raised by the writer after 3.3.0, on 21 September 2026: "i want a toggle
+for the in editor hover previews. make it so that the user can control
+which ones get a hover preview. Equations, tables, figures and
+references etc." The editor drew six kinds of card when the pointer
+rested on something in the source, an equation typeset, a table drawn,
+a figure's picture, what a reference points at, a citation's record, an
+input's file, and there was no way to turn any of them off. The visuals
+were left to me and drawn on the direction page's settings section
+before any code, in both themes, with the switch on and off; the writer
+approved them the same day.
+
+**Two rows on While you write.** After the spelling rows and before
+Keymap, since they are about what the editor shows while writing.
+*Hover cards* is the kit's `Switch`, on by default, and while it is off
+its subtitle says what still happens in the pattern the project's
+switches use: "Ctrl-click still follows a reference or a file", in the
+platform's both forms as the compile sentence is. *Show for* is present
+only while the switch is on. Its title sits on its own line and its
+control, six toggle chips in one line under it, wraps only when the
+sheet is narrow: Equations, Tables, Figures, Cross-references,
+Citations, Files. Chips rather than six switch rows because six rows
+would take the group from four to ten, and the cognitive-load principle
+spends its boldness against exactly that. The switch is kept beside
+them because "not now" is one gesture and the kinds come back as they
+were. "Cross-references" and "Citations" rather than "References", which
+is the bibliography drawer's name since 3.3.0 and would read as `\cite`.
+
+**The toggle chip joins the kit.** `ChipToggle` in `controls.tsx`: a
+button with `aria-pressed`, the chip's own shape on the second surface
+in the ink at weight 500 when on, hollow and outlined in the line colour
+in the third ink when off, the shape `ChipButton` already takes for a
+format that is not there yet. No check glyph: fill against outline is a
+shape difference, six glyphs would be noise, and the attribute carries
+the state for a screen reader. The pointer's wash sits on either. A
+settings row whose control is a run of chips takes `data-stack` and
+puts the control under the title.
+
+**Two rules.** The thing a `\ref` card draws under its line follows that
+thing's own chip, so Figures off means a reference to a figure keeps its
+number and its place but not the picture: a writer who turned the
+picture card off did so to stop seeing it, and it should not come back
+under a reference. And with Equations off the hover's cascade goes on to
+the table and the links rather than stopping, so a `\label` inside an
+equation still brings its cross-reference card. The choice is per
+browser like the rest of the group, takes effect on the next hover with
+no reload, and Reset this computer's choices restores every chip.
+Ctrl-click, completions and F2 are untouched; the Files drawer's card
+beside an image's row is a drawer hover, not an editor one, and is not
+governed here. `hover-cards.spec.ts` turns the switch off and asserts no
+card of any kind and the Ctrl-click still following, turns one kind off
+and asserts the others still draw and the reference's card comes
+without its equation, reloads for the memory, and resets.

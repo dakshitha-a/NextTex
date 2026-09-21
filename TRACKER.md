@@ -24,6 +24,19 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+The hover cards run goes up as 3.4.0 on 21 September, planned after the
+writer asked for a toggle for the editor's hover previews and control
+over which kinds get one: a switch called Hover cards on the settings
+sheet's While you write group and, under it while the switch is on, six
+toggle chips, Equations, Tables, Figures, Cross-references, Citations,
+Files, a new kit control, `ChipToggle`. The drawing went on the direction
+page (version 51) and was approved before any code; the sheet was
+rendered in both themes and with the switch off beside it, and matched.
+The gate is a live read of `data-hover-cards` off the root at the moment
+of the hover, so nothing is reconfigured; a reference's card draws the
+thing it points at only while that thing's own kind is on. The run's
+tracker is https://claude.ai/artifact/AQ3u3A5natmoaGvokAse2Z.
+
 The fit run went up as 3.3.0 on 21 September, planned against version
 47 of the direction page from what the writer found on opening 3.2.0:
 the project's name running past a narrowed drawer into the editor (the

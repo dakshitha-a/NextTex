@@ -85,6 +85,13 @@ export function settingItems(): SettingItem[] {
       apply: (look) => ({ ...look, spellingVariety: variety }),
     });
   }
+  for (const on of [true, false]) {
+    items.push({
+      id: `hover:${on ? "on" : "off"}`, label: `Hover cards: ${on ? "on" : "off"}`,
+      current: (look) => look.hover === on,
+      apply: (look) => ({ ...look, hover: on }),
+    });
+  }
   for (const keymap of ["default", "vim", "emacs"] as Keymap[]) {
     items.push({
       id: `keymap:${keymap}`,

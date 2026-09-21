@@ -81,6 +81,39 @@ export function ChipButton({ tone = "surface-2", className, type = "button", chi
   );
 }
 
+/** A chip that is on or off among several that are not exclusive: which
+ *  cards the editor shows on hover.  Where a switch answers one question
+ *  and a segmented control picks one of a few, this is many small yes or
+ *  no questions in one line, which is what six switch rows would have
+ *  said in six times the height.
+ *
+ *  `aria-pressed` carries the state.  On, it is the chip's own shape on
+ *  the second surface in the ink; off, hollow, outlined in the line
+ *  colour in the third ink, the shape `ChipButton` takes for a thing that
+ *  does not exist yet.  Fill against outline is a shape difference, so no
+ *  glyph is added to say which is which. */
+export type ChipToggleProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> & {
+  pressed: boolean;
+  onChange: (pressed: boolean) => void;
+};
+
+export function ChipToggle({ pressed, onChange, className, type = "button", onClick, children, ...rest }: ChipToggleProps) {
+  return (
+    <button
+      type={type}
+      aria-pressed={pressed}
+      className={`nx-chip nx-chip-toggle${className ? ` ${className}` : ""}`}
+      onClick={(event) => {
+        onChange(!pressed);
+        onClick?.(event);
+      }}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
 /** A switch: on or off, and nothing in between.
  *
  *  `role="switch"` with `aria-checked`, named by the label text a caller

@@ -117,7 +117,8 @@ close the tab. No database, no Docker, no nginx.
   source and it appears typeset, drawn, or as the picture with its size;
   on a `\ref` and the figure, table or equation it points at appears
   under what the reference says; the Files drawer does the same beside
-  an image's row.
+  an image's row. Which of them show is a row on the settings sheet, one
+  chip per kind, with a switch above it for all of them at once.
 - **Find and drag in the Files drawer**, with open files following a folder
   that moves.
 - **The look is written down.** Every control comes from one kit on one

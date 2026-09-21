@@ -6,6 +6,7 @@ import {
   DEFAULTS,
   EDITOR_SIZES,
   EDITOR_WEIGHTS,
+  HOVER_KINDS,
   SCALES,
   WEIGHT_NAMES,
   applyAppearance,
@@ -15,10 +16,11 @@ import {
   storedAppearance,
   writeStored,
   type Appearance,
+  type HoverKind,
 } from "../appearance";
 import { shortcut } from "../keys";
 import { Button, IconButton } from "../ui/Button";
-import { Chip, Heading, Segmented, Switch, useLabelId } from "../ui/controls";
+import { Chip, ChipToggle, Heading, Segmented, Switch, useLabelId } from "../ui/controls";
 import { Sheet } from "../ui/Sheet";
 import { CloseIcon } from "../ui/icons";
 
@@ -55,6 +57,18 @@ const GROUPS: { id: GroupId; title: string; where: string; whereLong: string }[]
 ];
 
 const GROUP_KEY = "nexttex.settings.group";
+
+/** The writer's names for the hover cards.  "Cross-references" and
+ *  "Citations" rather than "References", which is the bibliography
+ *  drawer's name and would read as \cite. */
+const HOVER_LABELS: Record<HoverKind, string> = {
+  maths: "Equations",
+  tables: "Tables",
+  figures: "Figures",
+  refs: "Cross-references",
+  cites: "Citations",
+  files: "Files",
+};
 const NARROW = 720;
 
 export default function SettingsSheet({
@@ -362,6 +376,35 @@ export default function SettingsSheet({
                 {hasProject ? <AddedWords /> : null}
               </>
             ) : null}
+            {/* The cards the editor draws when the pointer rests on maths,
+                a table, a figure, a reference, a citation or an input.
+                One switch for all of them, so "not now" is one gesture,
+                and under it the kinds as toggle chips rather than six
+                switch rows, which would take this group to ten.  The off
+                sentence answers the question turning it off raises. */}
+            <SwitchRow
+              title="Hover cards"
+              checked={look.hover}
+              off={`${shortcut("Mod-click").both} still follows a reference or a file.`}
+              onChange={(hover) => change({ hover })}
+              testid="hover-cards"
+            />
+            {look.hover ? (
+              <SRow title="Show for" stack testid="hover-kinds">
+                <div className="nx-settings-chips">
+                  {HOVER_KINDS.map((kind) => (
+                    <ChipToggle
+                      key={kind}
+                      pressed={look.hoverKinds[kind]}
+                      data-testid={`hover-${kind}`}
+                      onChange={(pressed) => change({ hoverKinds: { ...look.hoverKinds, [kind]: pressed } })}
+                    >
+                      {HOVER_LABELS[kind]}
+                    </ChipToggle>
+                  ))}
+                </div>
+              </SRow>
+            ) : null}
             {/* Whose fingers the editor answers to.  Fetched only when
                 chosen, so a session that wants neither pays nothing; and
                 each keymap's own undo is rebound to the shared document's,
@@ -516,14 +559,18 @@ function SRow({
   note,
   children,
   testid,
+  stack = false,
 }: {
   title: string;
   note?: ReactNode;
   children: ReactNode;
   testid?: string;
+  /** The control under the title rather than at its right: for a run of
+   *  chips, which is wider than a row's tail. */
+  stack?: boolean;
 }) {
   return (
-    <div className="nx-settings-row" data-testid={testid}>
+    <div className="nx-settings-row" data-testid={testid} data-stack={stack ? "" : undefined}>
       <div className="nx-settings-text">
         <span>{title}</span>
         {note ? <small>{note}</small> : null}
@@ -538,12 +585,14 @@ function SwitchRow({
   checked,
   off,
   onChange,
+  testid,
 }: {
   title: string;
   checked: boolean;
   /** What still happens once this is off. */
   off: string;
   onChange: (checked: boolean) => void;
+  testid?: string;
 }) {
   const id = useLabelId();
   return (
@@ -552,7 +601,7 @@ function SwitchRow({
         <span id={id}>{title}</span>
         {checked ? null : <small>{off}</small>}
       </div>
-      <Switch checked={checked} onChange={onChange} aria-labelledby={id} />
+      <Switch checked={checked} onChange={onChange} aria-labelledby={id} data-testid={testid} />
     </div>
   );
 }

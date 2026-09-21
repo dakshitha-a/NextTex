@@ -127,6 +127,7 @@ kit's `Button` carries those looks as its variants.
 | `Row` | `controls.tsx` | a line in a list or a drawer, with `leading`, `trailing` (shown under the pointer, on focus and on touch) and `selected` | a flex div with hover classes |
 | `Field` | `controls.tsx` | a text input at 32 px on `--surface-2`, with `leading` and `trailing` slots | a bordered `<input>` |
 | `Chip` | `controls.tsx` | a small labelled thing that can be removed: a file, an added word, a format; `mono` for a literal | a pill with a colour |
+| `ChipToggle` | `controls.tsx` | one of several yes-or-no choices that are not exclusive, in one line: which cards the editor shows; on is the chip's shape in the ink, off is hollow in the third ink, `aria-pressed` carries the state | a switch row per item where the items are many and small |
 | `Switch` | `controls.tsx` | on or off, and nothing between | a checkbox styled by hand |
 | `Segmented` | `controls.tsx` | two to five exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when five may not fit the width, as the templates do not on a phone | a row of toggle buttons |
 | `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |

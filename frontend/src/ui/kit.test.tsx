@@ -1,7 +1,7 @@
 import { act } from "react";
 import { afterEach, describe, expect, test } from "vitest";
 import { Button, IconButton } from "./Button";
-import { Chip, Empty, Field, Heading, Kbd, Row, Segmented, Switch } from "./controls";
+import { Chip, ChipToggle, Empty, Field, Heading, Kbd, Row, Segmented, Switch } from "./controls";
 import { Menu, MenuDivider, MenuItem } from "./Menu";
 import { Sheet } from "./Sheet";
 import { FloatingCard, shellTheme } from "./FloatingCard";
@@ -130,6 +130,19 @@ describe("controls", () => {
     const s = m.container.querySelector('[role="switch"]') as HTMLButtonElement;
     expect(s.getAttribute("aria-checked")).toBe("false");
     act(() => s.click());
+    expect(last).toBe(true);
+  });
+
+  test("a toggle chip is a pressed button that reports its new state", () => {
+    let last: boolean | null = null;
+    const m = (mounted = mount(<ChipToggle pressed={false} onChange={(v) => (last = v)} data-testid="hover-tables">Tables</ChipToggle>));
+    const chip = m.container.querySelector("button") as HTMLButtonElement;
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(chip.classList.contains("nx-chip")).toBe(true);
+    expect(chip.classList.contains("nx-chip-toggle")).toBe(true);
+    expect(chip.dataset.testid).toBe("hover-tables");
+    expect(chip.textContent).toBe("Tables");
+    act(() => chip.click());
     expect(last).toBe(true);
   });
 

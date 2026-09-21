@@ -17,7 +17,14 @@ import {
   citationFor, envWord, imageTarget, inputTarget, labelSays, labelTarget, linkAt, refPreview,
 } from "./latex-links";
 import { shortcut } from "../keys";
+import { hoverCards, type HoverKind } from "../appearance";
 import type { Cell, Table } from "./table-hover";
+import type { LinkKind } from "./latex-links";
+
+/** Which chip on the settings sheet each link kind answers to.  The
+ *  writer's names for them are Cross-references, Citations, Figures and
+ *  Files; the code's are the link scanner's. */
+const CARD_FOR: Record<LinkKind, HoverKind> = { ref: "refs", cite: "cites", image: "figures", input: "files" };
 
 type Katex = typeof import("katex");
 let katex: Katex | null = null;
@@ -270,16 +277,28 @@ export function mathHover(
   onSymbol?: OnSymbol,
 ): Extension {
   return hoverTooltip((view, pos): Tooltip | null => {
+    // Which cards the writer has left on, read off the root now rather
+    // than held in a compartment: this source runs on every hover, the
+    // language compartment it sits in is never reconfigured (a file
+    // change makes a fresh state), and a setting read here takes effect
+    // on the next hover with nothing to dispatch.  Nothing on means the
+    // hover finds nothing; the editor's other answers to a pointer, the
+    // Ctrl-click that follows a link among them, are not this extension's.
+    const on = hoverCards();
+    if (on.size === 0) return null;
     const doc = view.state.doc;
     const from = Math.max(0, pos - HOVER_WINDOW);
     const to = Math.min(doc.length, pos + HOVER_WINDOW);
     const window_ = doc.sliceString(from, to);
     const near = mathAt(window_, pos - from);
     const span = near && { ...near, from: near.from + from, to: near.to + from };
-    if (!span || !span.body.trim()) {
+    // With the formula card off the cascade goes on to the table and the
+    // links rather than stopping, so a \label inside an equation still
+    // brings its cross-reference card.
+    if (!span || !span.body.trim() || !on.has("maths")) {
       const table = tableAt(window_, pos - from);
-      if (table) return tableTooltip(table.from + from, table.to + from, table.body, symbols);
-      return linkTooltip(view, pos, symbols, figure, onSymbol);
+      if (table && on.has("tables")) return tableTooltip(table.from + from, table.to + from, table.body, symbols);
+      return linkTooltip(view, pos, symbols, on, figure, onSymbol);
     }
 
     return {
@@ -447,12 +466,14 @@ function fill(td: HTMLElement, cell: Cell, symbols: () => Symbols | null) {
  */
 function linkTooltip(
   view: EditorView, pos: number, symbols: () => Symbols | null,
+  /** The cards the writer has left on. */
+  on: Set<HoverKind>,
   figure?: (path: string) => FigureFacts | null,
   onSymbol?: OnSymbol,
 ): Tooltip | null {
   const line = view.state.doc.lineAt(pos);
   const link = linkAt(line.text, pos - line.from);
-  if (!link) return null;
+  if (!link || !on.has(CARD_FOR[link.kind])) return null;
   const table = symbols();
   let says: string;
   /** A second, quieter line: where the label is, under what it says. */
@@ -480,7 +501,12 @@ function linkTooltip(
     // build there is only the place.
     const target = labelTarget(link.name, table);
     const number = labelSays(target);
-    preview = refPreview(target, table);
+    // The thing the reference points at follows that thing's own chip:
+    // a writer who turned the picture card off did so to stop seeing
+    // the picture, and it should not come back under a \ref.
+    const found = refPreview(target, table);
+    const kindOf: Record<NonNullable<typeof found>["kind"], HoverKind> = { figure: "figures", table: "tables", equation: "maths" };
+    preview = found && on.has(kindOf[found.kind]) ? found : null;
     // The top line is what the reference says: the number after a build,
     // before one the kind of thing from the environment the label sits
     // in, and for a label in neither the label itself; the place is the

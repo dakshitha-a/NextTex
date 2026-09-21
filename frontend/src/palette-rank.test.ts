@@ -37,6 +37,7 @@ describe("the palette's settings", () => {
     const current = items.filter((item) => item.current(DEFAULTS)).map((item) => item.id);
     expect(current).toContain("ground:match");
     expect(current).toContain("spelling:off");
+    expect(current).toContain("hover:on");
     expect(current).toContain(`editor:${DEFAULTS.editor}`);
   });
 

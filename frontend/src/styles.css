@@ -1309,7 +1309,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-button[data-variant="danger"]:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--error); background: color-mix(in oklab, var(--error) 10%, transparent); }
 .nx-button:disabled { opacity: 0.4; cursor: default; }
 .nx-button:focus-visible, .nx-icon-button:focus-visible, .nx-menu-item:focus-visible,
-.nx-segment:focus-visible, .nx-switch:focus-visible, .nx-chip-remove:focus-visible {
+.nx-segment:focus-visible, .nx-switch:focus-visible, .nx-chip-remove:focus-visible, .nx-chip-toggle:focus-visible {
   outline: 2px solid var(--hint); outline-offset: 2px;
 }
 
@@ -1623,6 +1623,10 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-settings-row + .nx-settings-row { border-top: 1px solid color-mix(in oklab, var(--ink-3) 16%, transparent); }
 .nx-settings-text { flex: 1; min-width: 0; }
 .nx-settings-text small { display: block; color: var(--ink-3); font-size: 12.5px; line-height: 16px; }
+/* A row whose control is a run of chips: the title on its own line and the
+   chips in one line under it, wrapping only when the sheet is narrow. */
+.nx-settings-row[data-stack] { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0; }
+.nx-settings-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .nx-settings-foot { margin-top: auto; padding-top: 18px; }
 .nx-stepper { display: inline-flex; align-items: center; }
 .nx-stepper b { font-weight: 500; min-width: 56px; text-align: center; }
@@ -1696,6 +1700,11 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-chip-button[data-tone="surface"] { background: var(--surface); }
 .nx-chip-button:not(:disabled):hover, .nx-chip-button:focus-visible { background: var(--wash); color: var(--ink); }
 .nx-chip-button:disabled { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); cursor: default; }
+/* The toggle chip: on is the chip's shape in the ink at weight 500, off is
+   hollow in the third ink, and the pointer's wash sits on either. */
+.nx-chip-toggle { color: var(--ink); font-weight: 500; transition: background-color 90ms var(--ease), color 90ms var(--ease), box-shadow 90ms var(--ease); }
+.nx-chip-toggle[aria-pressed="false"] { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); font-weight: 400; }
+.nx-chip-toggle:hover, .nx-chip-toggle:focus-visible { background: var(--wash); color: var(--ink); }
 .nx-chip-remove { display: inline-flex; color: var(--ink-3); border-radius: 2px; }
 .nx-chip-remove:hover { color: var(--ink); }
 
