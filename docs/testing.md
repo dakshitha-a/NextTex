@@ -179,8 +179,11 @@ only a network, which is why it is the one live check a session can run
 by hand without spending anything.
 
 The screenshots are the other thing run by hand. `e2e/shots/hero.spec.ts`
-writes the README's three (`docs/screenshot-light.png`,
-`docs/screenshot-dark.png`, `docs/screenshot-white-page.png`) and
+writes the README's thirteen (the three hero shots,
+`docs/screenshot-light.png`, `docs/screenshot-dark.png` and
+`docs/screenshot-white-page.png`, and five light-and-dark pairs of the
+projects screen, the settings sheet, the Claude column, the hover cards
+and the share sheet) and
 `e2e/shots/tutorial.spec.ts` writes the tutorial's figures, each against
 a real server with a real build, with
 `cd e2e && node_modules/.bin/playwright test --config shots.config.ts`
@@ -198,6 +201,17 @@ surfaces, comma-separated, or leaves it empty for all of them, and
 `NEXTTEX_FIDELITY_DIR` says where the images go. A surface the fixture
 cannot open is written down as a `.failed.txt` beside the others and the
 run goes on, because the point is the pictures that came out, not a pass.
+
+`e2e/shots/sweep.spec.ts` and `e2e/shots/front-sweep.spec.ts` are the two
+run at a push and looked through rather than asserted on: the first walks
+the workspace at 1600, 1300, 1000 and 800 in both themes, the second the
+projects screen and everything that opens over it (the ways-in menu, the
+four sheets, the update and report sheets, the guide, the lock's card, the
+settings sheet, the two views and the trash's confirm) at those widths
+and a phone. `NEXTTEX_SWEEP_DIR` says where the pictures go. What a
+redesign gets wrong is the thing nobody asserted, and the front door's
+first sweep found the templates' segmented control running off a phone's
+sheet.
 
 `e2e/specs/kit.spec.ts` is the check that goes with it. The kit under
 `frontend/src/ui` has unit tests that render each primitive on its own;
