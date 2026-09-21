@@ -23,6 +23,63 @@ export function png(width: number, height: number): Buffer {
       rows.fill(0x20, at + 1 + width - 8, at + 1 + width);
     }
   }
+  return encode(width, height, rows);
+}
+
+/** A plot, for a picture that has to look like a writer's figure rather
+ *  than a grey block: a decaying signal, the points it was fitted to, and
+ *  two axes, all in grey on white.  Deterministic, so the README's
+ *  screenshots come out the same on every run. */
+export function plot(width: number, height: number): Buffer {
+  const rows = Buffer.alloc((width + 1) * height, 0xff);
+  const at = (x: number, y: number) => y * (width + 1) + 1 + x;
+  const dot = (x: number, y: number, r: number, shade: number) => {
+    for (let dy = -r; dy <= r; dy += 1) {
+      for (let dx = -r; dx <= r; dx += 1) {
+        const px = Math.round(x + dx);
+        const py = Math.round(y + dy);
+        if (px >= 0 && px < width && py >= 0 && py < height && dx * dx + dy * dy <= r * r) rows[at(px, py)] = shade;
+      }
+    }
+  };
+  for (let y = 0; y < height; y += 1) rows[y * (width + 1)] = 0;
+  const left = Math.round(width * 0.12);
+  const right = Math.round(width * 0.95);
+  const top = Math.round(height * 0.08);
+  const bottom = Math.round(height * 0.86);
+  const stroke = Math.max(2, Math.round(height / 300));
+  // The axes, with ticks.
+  for (let x = left; x <= right; x += 1) for (let t = 0; t < stroke; t += 1) rows[at(x, bottom + t)] = 0x20;
+  for (let y = top; y <= bottom; y += 1) for (let t = 0; t < stroke; t += 1) rows[at(left + t, y)] = 0x20;
+  for (let i = 0; i <= 5; i += 1) {
+    const x = Math.round(left + (i / 5) * (right - left));
+    for (let y = bottom; y < bottom + stroke * 4; y += 1) for (let t = 0; t < stroke; t += 1) rows[at(x + t, y)] = 0x20;
+  }
+  for (let i = 0; i <= 3; i += 1) {
+    const y = Math.round(bottom - (i / 3) * (bottom - top));
+    for (let x = left - stroke * 4; x < left; x += 1) for (let t = 0; t < stroke; t += 1) rows[at(x, y + t)] = 0x20;
+  }
+  // The curve, 2.6 exp(-0.6 t) over five units, and twenty points about it.
+  const curve = (t: number) => bottom - ((2.6 * Math.exp(-0.6 * t)) / 3) * (bottom - top);
+  for (let x = left; x <= right; x += 1) {
+    const t = ((x - left) / (right - left)) * 5;
+    dot(x, curve(t), stroke, 0x30);
+  }
+  let seed = 7;
+  const noise = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648 - 0.5;
+  };
+  for (let i = 0; i < 20; i += 1) {
+    const t = 0.15 + (i / 19) * 4.7;
+    const x = left + (t / 5) * (right - left);
+    const y = curve(t) + noise() * (bottom - top) * 0.06;
+    dot(x, y, stroke * 2.2, 0x70);
+  }
+  return encode(width, height, rows);
+}
+
+function encode(width: number, height: number, rows: Buffer): Buffer {
   const chunk = (type: string, data: Buffer): Buffer => {
     const length = Buffer.alloc(4);
     length.writeUInt32BE(data.length);
