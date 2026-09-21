@@ -48,22 +48,22 @@ export default function ScreenGuide({
       aria-labelledby="screen-guide-heading"
       data-testid="screen-guide"
       tabIndex={-1}
-      className="nx-arrive fixed z-40 max-h-[calc(100vh-16px)] w-[320px] overflow-auto rounded-[5px] border border-line bg-surface shadow-float outline-none"
+      className="nx-arrive nx-card nx-guide fixed z-40 max-h-[calc(100vh-16px)] w-[320px] overflow-auto outline-none"
       style={{ left: placed.left, top: placed.top }}
     >
       <div
         id="screen-guide-heading"
-        className="t-ui px-[10px] pb-1 pt-2 text-ink"
+        className="nx-guide-title"
       >
-        About this screen
+        This screen
       </div>
       {ROWS.map(([label, line]) => (
-        <div key={label} className="border-t border-line px-[10px] py-2">
-          <div className="t-meta text-ink">{label}</div>
-          <p className="t-micro mt-[2px] text-ink-2">{line}</p>
+        <div key={label} className="nx-guide-row">
+          <div className="nx-guide-label">{label}</div>
+          <p className="nx-guide-line">{line}</p>
         </div>
       ))}
-      <div className="border-t border-line px-[10px] py-2">
+      <div className="nx-guide-foot">
         <p className="t-micro text-ink-3">
           A project on disk stays an ordinary LaTeX project. Everything
           NextTex adds lives in a <code className="t-code-sm">.nexttex/</code>{" "}
@@ -80,46 +80,26 @@ const WIDTH = 320;
 const ROWS: [string, string][] = [
   [
     "Click a project to open it",
-    "Anywhere in the row, not a button at the end of it. It typesets as it opens.",
+    "Anywhere in the row. It typesets as it opens.",
   ],
   [
-    "Start something new",
-    "The first of three tiles in the rail; on a phone, behind New. Makes the folder and one empty document. Give the agent your template afterwards and it will shape the project around it.",
-  ],
-  [
-    "Point at a folder",
-    "The middle tile. For a LaTeX project you already have. Nothing is copied and nothing is moved.",
-  ],
-  [
-    "Join a shared project",
-    "The third tile. Paste an invite somebody sent you; nothing is written until you accept what arrives.",
-  ],
-  [
-    "The path is on the machine running NextTex",
-    "Which, if you reached this page over Tailscale, is not the laptop you are sitting at. A leading ~ works.",
+    "New project",
+    "A name, where to put it, and what to start from: an article, a report, a talk, a letter or a job application. The other ways in, a folder you already have, an invite somebody sent, a zip or an arXiv id or a git URL, are behind Other ways in.",
   ],
   [
     "Find a project",
-    "The box above the list. Press / to reach it, type any part of a name or a path, and Enter opens the first match.",
+    "Press / to reach the box; type any part of a name or a path, and Enter opens the first match. Last opened or Name sorts the list; the choice is kept on this browser.",
   ],
   [
-    "Sort",
-    "Beside the box: last opened, or by name. The choice is kept on this browser.",
+    "Point at a row",
+    "Open, Share, Zip, PDF, Archive and Trash. Share gives you an invite without opening the project. Archive keeps a finished project out of the way; Trash puts one on the way out. The line under the list opens either view, where Restore brings a project back and Delete forgets it.",
   ],
   [
-    "Zip and PDF",
-    "At the end of a row, when you point at it. Zip is the project as it stands. PDF typesets first, so it takes a moment, and says why if the document does not build.",
-  ],
-  [
-    "Remove",
-    "Takes the project out of NextTex. The files stay exactly where they are.",
+    "The bar",
+    "What writes with you, updates, a problem report, this guide, a lock while the install has no password, and Settings. Each says what it is when you rest on it.",
   ],
   [
     "A row that says the folder is gone",
-    "It was moved or deleted. Find it… points NextTex at where it is now; a shared project can also be rejoined from your collaborators' copies; or remove the row.",
-  ],
-  [
-    "The cog",
-    "At the foot of the rail. Theme, interface size and editor text size. They follow you between projects; the per-project switches appear once one is open.",
+    "It was moved or deleted. Find it points NextTex at where it is now; a shared project can also be rejoined from your collaborators' copies.",
   ],
 ];

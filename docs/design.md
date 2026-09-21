@@ -9524,9 +9524,59 @@ chosen in one sheet, and archive and trash with their views (§44, §55);
 the figure hover as the tree's card; the README's screenshots; and this
 guide's companion, `docs/style-guide.md`.
 
-**What it left.** The table hover card (item 2.10a) is drawn on the page
-and waits for the writer's yes. The floating Claude pill keeps its earlier
-look because the page never drew one. The `.quiet`, `.ghost-button` and
-`.pen-button` classes are retired from the stylesheet once the last of the
-front door's files (the join offer, the password nudge, the tutorial and
-the failure screen) are rebuilt, which wait on the drawings of version 21.
+**What it left, and what settled it.** The table hover card (item 2.10a)
+was drawn on the page and built once the writer said yes. The floating
+pill, the frame's grey and the viewing banner's verb were shown side by
+side on the page's "Deviations to settle" at the writer's request and
+settled there: the redrawn pill with its shortcut in the tooltip, the built
+grey, "Restore this". The seven surfaces the page had never drawn (the
+lock's hover card, the join offer in its sheet, the update sheet, the
+screen guide, the tutorial, the failure screen and the waiting screens)
+were drawn on version 21, approved on 20 September with two conditions on
+the tutorials, and built.
+
+**The tutorials, up to date and on the kit (item 3.3).** The writer's
+conditions on the approval were that the tutorials be up to date and
+visually consistent, and close with Esc. The tutorial is the drawn panel:
+on the second surface with the float shadow and no border, a header row
+like the Claude column's with the close glyph, the contents as rows on the
+wash under the pointer with the current one in ink weight (the pen bar
+that marked it went, the pen being the agent's colour), and the prose at
+the prose size. Its sentences were read against the app as built and the
+false ones changed, the voice left alone: the bar and its drawer where it
+said the file list and the left column's stack of panels, with the eight
+buttons in their order and the second press that folds the drawer;
+Settings under This project and While you write where it said the cog;
+the composer's two controls and the send glyph where it said six buttons,
+with the header's three; "What writes with you" and its three doors where
+it said the Writing agent row; What the agent reads as a view of the
+column; the Papers drawer's one field and its cards; Share on a row as
+well as beside the name; the Deleted and Git drawers; History on the bar;
+archive and trash from a project's row; and a sentence on what renders on
+hover. The keyboard groups read "In the Files drawer" and "In the agent
+column", and the group labels are sentence case rather than the tracked
+capitals the style guide bans. The six figures were regenerated from the
+overhauled app at 2x in both themes by `e2e/shots/tutorial.spec.ts`, whose
+git figure now opens the Git drawer and is cut at the offer, and whose
+composer figure is the composer card rather than a span from a header
+button that moved; their sizes and captions follow. The screen guide is
+the kit's card, "This screen", with a row per thing on the projects
+screen as it is (a row, New project and the other ways in, find and sort,
+the six actions and the two views, the bar, a missing folder), rows with
+air between them and one rule over the foot note. Esc closes the tutorial
+(except while the focus is in a text box, which stays), the contents list
+alone when it is open (its Escape stops at the list), and never a sheet
+open over the tutorial, whose Escape it is; the guide closes through
+`useDismiss` and gives the focus back to the help button. The failure
+screen's Reload is the kit's filled button; the waiting screens carry
+`loading-screen` and `offline-screen`. `tutorial.spec.ts` under
+`e2e/specs/` opens the tutorial from Settings, reads its heading and
+eleven sections, finds none of the old interface's words and the new
+one's present, reads the panel's look, and closes it with Esc, twice over
+a sheet; and opens the guide from the projects screen and closes it with
+Esc. The fidelity harness renders `tutorial`, `screen-guide`,
+`update-sheet` (its reachable state on the harness's instance is "could
+not reach the repository", not the waiting update the page draws) and
+`offline`; the failure screen is not rendered, since it cannot be reached
+honestly from a spec. With these, no file wears `.quiet`, `.ghost-button`
+or `.pen-button`, and item 3.5 retires the three from the stylesheet.

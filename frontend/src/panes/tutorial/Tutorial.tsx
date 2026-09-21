@@ -1,5 +1,8 @@
 import { useMemo, useRef, useEffect } from "react";
 import { CHORDED } from "../../actions";
+import { IconButton } from "../../ui/Button";
+import { Heading } from "../../ui/controls";
+import { CloseIcon } from "../../ui/icons";
 import {
   C, Contents, Figure, Key, Keys, Lead, P, Section, useCurrentSection, type Entry,
 } from "./parts";
@@ -71,6 +74,9 @@ export default function Tutorial({
       // what Escape means while you are typing into something.
       const active = document.activeElement as HTMLElement | null;
       if (active?.tagName === "TEXTAREA" || active?.tagName === "INPUT") return;
+      // A sheet open over the tutorial owns that Escape; the tutorial takes
+      // the next one.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       onClose();
       returnTo.current?.focus();
     };
@@ -89,25 +95,25 @@ export default function Tutorial({
       role="dialog"
       aria-labelledby="tutorial-heading"
       data-testid="tutorial"
-      className="nx-arrive absolute inset-y-0 z-40 flex w-[380px] max-w-full flex-col border-l border-line bg-surface-2 shadow-float"
+      className="nx-arrive nx-tutorial absolute inset-y-0 z-40 flex w-[380px] max-w-full flex-col"
       style={{ right }}
     >
-      <div className="flex h-[32px] shrink-0 items-center justify-between border-b border-line bg-surface-3 px-[10px]">
-        <span id="tutorial-heading" className="t-ui-lg text-ink">
-          Tutorial
-        </span>
-        <button
+      {/* The drawn panel: on the second surface with the float shadow and
+          no border, a header row like the Claude column's, the contents as
+          rows, and the prose below. */}
+      <div className="nx-tutorial-head">
+        <Heading level={2} id="tutorial-heading">Tutorial</Heading>
+        <IconButton
           ref={first}
-          className="quiet flex h-[26px] w-[22px] items-center justify-center rounded-[3px] hover:bg-surface-3"
-          aria-label="Close the tutorial"
+          label="Close the tutorial"
           data-testid="tutorial-close"
           onClick={() => {
             onClose();
             returnTo.current?.focus();
           }}
         >
-          ×
-        </button>
+          <CloseIcon />
+        </IconButton>
       </div>
 
       <Contents entries={ENTRIES} current={current} onGo={go} />
@@ -116,13 +122,13 @@ export default function Tutorial({
         ref={scroller}
         tabIndex={0}
         aria-label="Tutorial"
-        className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto px-3 py-3"
+        className="nx-tutorial-body flex min-h-0 flex-1 flex-col gap-6 overflow-auto"
       >
         <Section id="panes" n={1} title="The four panes">
           <Lead>
-            The file list is on the left, your source in the middle, the
-            typeset page beside it, and the agent on the right. Every one of
-            them folds away, and the app remembers which.
+            The bar and its drawer are on the left, your source in the
+            middle, the typeset page beside it, and the agent on the right.
+            Every one of them folds away, and the app remembers which.
           </Lead>
           <P>
             There is no save button. What you type is written as you type
@@ -135,8 +141,9 @@ export default function Tutorial({
           <P>
             <Key spec="Mod-S" /> does not save, because saving already
             happened. It skips the wait and builds now. With{" "}
-            <C>Compile as you type</C> off, under the cog, nothing builds
-            until you press it or <C>Compile</C> in the strip.
+            <C>Compile as you type</C> off, in Settings under{" "}
+            <C>This project</C>, nothing builds until you press it or{" "}
+            <C>Compile</C> in the strip.
           </P>
         </Section>
 
@@ -212,8 +219,8 @@ export default function Tutorial({
           </P>
           <P>
             The editor has the same pair of gestures on its own tab in front.
-            Writing mode keeps the file list open, because somebody writing
-            is still moving between chapters. Any other tab is only selected
+            Writing mode keeps the drawer open, because somebody writing is
+            still moving between chapters. Any other tab is only selected
             by a click, and a double-click on one selects it and folds
             nothing.
           </P>
@@ -225,17 +232,27 @@ export default function Tutorial({
           <Figure
             light={tabStripLight}
             dark={tabStripDark}
-            width={916}
+            width={856}
             height={68}
             eager
             alt="The editor tab strip with two files open and empty space to the right of them."
             caption="The empty run to the right of the last tab. Double-click there."
           />
           <P>
-            The left column is a stack of panels, <C>Files</C>,{" "}
-            <C>Sections</C>, <C>Search</C>, <C>Trash</C>, <C>Papers</C>, what
-            the agent reads, and <C>Git</C>, and each header folds its panel.{" "}
-            <Key spec="Mod-B" /> hides the whole column.
+            The bar at the far left has eight buttons, <C>Files</C>,{" "}
+            <C>Sections</C>, <C>Search</C>, <C>Papers</C>, <C>History</C>,{" "}
+            <C>Git</C>, <C>Before you submit</C> and <C>Deleted</C>, and one
+            drawer beside it shows whichever you chose, at full height. A
+            second press on the button that is lit folds the drawer away, and{" "}
+            <Key spec="Mod-B" /> hides the whole column. The Settings button
+            sits at the foot of the bar.
+          </P>
+          <P>
+            Two things render on hover in the source: rest the pointer on a
+            formula and it appears typeset, on a table and it appears drawn,
+            on an <C>\includegraphics</C> and the figure appears with its
+            size. The Files drawer does the same beside a row for an image or
+            a PDF.
           </P>
           <P>
             Below 900 pixels of width the source and the page share one view
@@ -262,7 +279,7 @@ export default function Tutorial({
           <Figure
             light={errorsLight}
             dark={errorsDark}
-            width={976}
+            width={932}
             height={496}
             alt="The error list, with an explanation of the first error above it."
             caption="Start here names the error to begin with, and what to try."
@@ -273,7 +290,7 @@ export default function Tutorial({
           </P>
           <P>
             Spelling is checked in the source when <C>Spelling</C> is on,
-            under <C>While you write</C> in the cog, in the language your
+            in Settings under <C>While you write</C>, in the language your
             document declares. A word it does not know is underlined;
             right-click it, or press <Key spec="Mod-." /> with the caret on
             it, to add it to the project's dictionary, which travels with the
@@ -291,7 +308,7 @@ export default function Tutorial({
             light={chipLight}
             dark={chipDark}
             width={744}
-            height={364}
+            height={316}
             alt="An edit chip in the agent panel, opened to show a unified diff."
             caption="Open the chip for the diff. Undo puts the file back."
           />
@@ -313,13 +330,14 @@ export default function Tutorial({
             light={cardLight}
             dark={cardDark}
             width={744}
-            height={448}
+            height={428}
             alt="A permission card showing a shell command and four buttons."
             caption="Allow always remembers a scope, not the button: a command by its first word, or by its exact text when it has pipes or redirects; a file by that file. For this conversation forgets it when the conversation ends."
           />
           <P>
-            <C>What to ask about</C>, under the box, has three positions.{" "}
-            <C>Ask before acting</C> is the cards above. <C>Run the work
+            The chip under the box names the model and what it asks about,
+            and opens a menu with both. What to ask about has three
+            positions. <C>Ask before acting</C> is the cards above. <C>Run the work
             without asking</C> lets commands and edits inside the project run
             silently and still asks about a write outside it or anything that
             reaches the internet. <C>Never ask about anything</C> stops the
@@ -327,18 +345,20 @@ export default function Tutorial({
             still appears in the conversation, saying it ran without asking.
           </P>
           <P>
-            The buttons under the box are, left to right: new conversation,
-            past conversations, which model answers, what to ask about,
-            attach an image, and your template and voice. None of them is
-            labelled, so hover for a name.
+            Under the box there are two controls and the send glyph: attach
+            an image, and the chip. The column's header holds the rest, new
+            conversation, past conversations and what the agent reads, as
+            icon buttons that say their names on hover; while a turn runs the
+            header shows what the agent is doing, and <C>Stop</C>. Runs of
+            tool calls fold into one line you can open.
           </P>
           <Figure
             light={composerLight}
             dark={composerDark}
-            width={760}
-            height={68}
-            alt="The row of six small buttons beneath the agent's message box."
-            caption="Under the box, beside Send."
+            width={736}
+            height={224}
+            alt="The composer: the box, the attach button, the chip naming the model and what it asks about, and the send glyph."
+            caption="Under the box: attach an image, the chip, and the send glyph. Enter sends; Shift-Enter breaks a line."
           />
           <P>
             Starting a new conversation clears the panel and the model's
@@ -353,32 +373,33 @@ export default function Tutorial({
             running, and closes the panel when nothing is.
           </P>
           <P>
-            Which agent answers is the <C>Writing agent</C> row under{" "}
-            <C>This install</C> in the cog: Claude, an OpenAI key, or nobody
-            at all. Working on your own removes the chat column rather than
-            greying it out, and everything else in the app is unchanged.
-            Changing it closes whatever conversations are open, because each
-            one belongs to the agent that was answering.
+            Which agent answers is one sheet, <C>What writes with you</C>:
+            Claude, ChatGPT or a model on this machine, or no agent at all.
+            The name at the top of this column opens it, so does the{" "}
+            <C>Writing agent</C> row in Settings, and so does the control on
+            the projects screen's bar. Working on your own removes the chat
+            column rather than greying it out, and everything else in the app
+            is unchanged. Changing it closes whatever conversations are open,
+            because each one belongs to the agent that was answering.
           </P>
         </Section>
 
         <Section id="context" n={7} title="Teaching it your template and your voice">
           <Lead>
-            The last button under the box, <C>Template and voice</C>, takes a
-            document you have to follow, such as a department handbook, a
-            journal's author instructions or a class file, and a piece of
-            writing that sounds like you, usually a paper you have already
-            published.
+            What the agent reads, the third button in this column's header,
+            takes a document you have to follow, such as a department
+            handbook, a journal's author instructions or a class file, and a
+            piece of writing that sounds like you, usually a paper you have
+            already published.
           </Lead>
           <P>
             It reads each one once and keeps a distilled summary rather than
             the whole document, so the rules travel with every question
             without costing the length of a handbook each time. You can read
-            and correct what it kept in the left column's panel headed with
-            what the agent reads.
+            and correct what it kept in that same view.
           </P>
           <P>
-            The same panel holds what it has been told to remember. Ask it to
+            The same view holds what it has been told to remember. Ask it to
             remember something about the project and the note survives a new
             conversation. It is a plain file, and you can edit it by hand.
           </P>
@@ -395,15 +416,16 @@ export default function Tutorial({
             It can also check a bibliography you already have, entry by entry
             against those records, and fill one from a folder of PDFs, each
             checked against the paper it came from, so a wrong DOI is refused
-            rather than added. The <C>Papers</C> panel in the left column is
-            where those PDFs live.
+            rather than added. The <C>Papers</C> drawer is where those PDFs
+            live: one field takes a search or a pasted DOI, and each result
+            has a card with its authors and abstract.
           </P>
         </Section>
 
         <Section id="sharing" n={9} title="Writing it with somebody else">
           <Lead>
-            <strong>Share</strong>, beside the project's name, gives you an invite to
-            send. Whoever opens it gets the whole project, every file and
+            <strong>Share</strong>, beside the project's name or on the
+            project's row in the list, gives you an invite to send. Whoever opens it gets the whole project, every file and
             what those files used to say, into a folder of their own, empty or
             already holding a copy, and from then on the two copies stay in
             step.
@@ -448,19 +470,22 @@ export default function Tutorial({
         <Section id="safety" n={10} title="Nothing is lost">
           <Lead>
             Every pause is a version. Open a file's history from the menu on
-            its row in the file list, read any earlier version, and put it
-            back if you want it. A version you are reading cannot be typed
+            its row in the Files drawer, or from the History button on the
+            bar, read any earlier version, and put it back if you want it. A version you are reading cannot be typed
             into. Give one a name and it is kept for good.
           </Lead>
           <P>
             The same menu duplicates a file, and can clear a file's history
-            when you are sure. Deleted files go to a trash that never empties
-            itself, and a deleted folder comes back whole.
+            when you are sure. Deleted files go to the <C>Deleted</C> drawer,
+            which never empties itself, and a deleted folder comes back
+            whole. A whole project can be archived or put in the trash from
+            its row on the projects screen, and both are undone from the view
+            that holds them; nothing on disk moves.
           </P>
           <P>
-            The git panel at the foot of the file list offers a repository to
-            a project that has none, and then does the four things a paper
-            needs: see what changed, commit, push, pull. Branching stays in a
+            The <C>Git</C> drawer offers a repository to a project that has
+            none, and then does the four things a paper needs: see what
+            changed, commit, push, pull. Branching stays in a
             terminal, where the tools are better and mistakes are
             recoverable.
           </P>
@@ -468,9 +493,9 @@ export default function Tutorial({
             light={gitLight}
             dark={gitDark}
             width={480}
-            height={472}
-            alt="A card in the file list footer offering to keep versions of the project with git."
-            caption="Offered once. Dismiss it and the panel's four buttons are still there."
+            height={520}
+            alt="The Git drawer offering to keep versions of the project with git."
+            caption="Offered once. Not now puts it away, and Back up brings the wizard back later."
           />
           <P>
             Everything NextTex adds lives in <C>.nexttex/</C> beside your
@@ -515,14 +540,14 @@ export default function Tutorial({
                 ],
               },
               {
-                where: "In the file list",
+                where: "In the Files drawer",
                 rows: [
                   { key: "Typing", does: "Jumps to a file" },
                   { key: "F2, Delete", does: "Rename, move to trash" },
                 ],
               },
               {
-                where: "In the agent panel",
+                where: "In the agent column",
                 rows: [
                   { key: "↵, ⇧↵", does: "Send; a new line" },
                   { key: "A, ⇧A, C, D", does: "In a permission card: allow, allow always, for this conversation, deny" },

@@ -40,7 +40,7 @@ async function dress(page: Page, theme: string) {
 }
 
 /** One element, padded. */
-async function shot(page: Page, name: string, theme: string, selector: string, pad = 0) {
+async function shot(page: Page, name: string, theme: string, selector: string, pad = 0, tall = Infinity) {
   const box = await page.locator(selector).first().boundingBox();
   if (!box) return;
   fs.mkdirSync(OUT, { recursive: true });
@@ -50,7 +50,8 @@ async function shot(page: Page, name: string, theme: string, selector: string, p
       x: Math.max(0, box.x - pad),
       y: Math.max(0, box.y - pad),
       width: box.width + pad * 2,
-      height: box.height + pad * 2,
+      // A drawer is as tall as the window; a figure of its offer is not.
+      height: Math.min(box.height, tall) + pad * 2,
     },
   });
 }
@@ -107,9 +108,16 @@ test("the figures the tutorial shows", async ({ app, project, tab }) => {
   for (const theme of THEMES) {
     await dress(tab, theme);
 
-    // The git card first: it is only there until somebody dismisses it, and
-    // a reader who did has no way left to see what it was.
-    await shot(tab, "git-card", theme, '[data-testid="git-setup"]');
+    // The git offer first: it is only there until somebody dismisses it,
+    // and a reader who did has no way left to see what it was.  It lives
+    // in the Git drawer now, so the drawer is shown for it and the Files
+    // drawer brought back after.
+    await tab.getByTestId("bar-git").click();
+    await tab.getByTestId("git-setup").waitFor({ timeout: 10_000 });
+    await tab.waitForTimeout(300);
+    await shot(tab, "git-card", theme, '[data-testid="drawer"]', 0, 260);
+    await tab.getByTestId("bar-files").click();
+    await tab.waitForTimeout(300);
 
     // Two tabs, so the empty run writing mode is reached by is visible.
     // Two and not three: the editor pane at this width holds three tabs
@@ -138,8 +146,8 @@ test("the figures the tutorial shows", async ({ app, project, tab }) => {
     await tab.getByTestId("deny").click();
     await tab.waitForTimeout(400);
 
-    // The buttons under the box, none of which carries a label.
-    await span(tab, "composer-row", theme, '[data-testid="clear-chat"]', 'button:has-text("Send")', 34, 8);
+    // The composer: the box, the attach button, the chip and the send glyph.
+    await shot(tab, "composer-row", theme, ".nx-composer", 6);
 
     // A document that does not compile, with the drawer open and the
     // explanation above the list.  Last, because it dirties the project.

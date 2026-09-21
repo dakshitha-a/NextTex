@@ -56,7 +56,7 @@ export function Section({
  *  `--pen` means the agent touched something and `--hint` means live
  *  interactive state, and neither may be spent on running text. */
 export function P({ children }: { children: ReactNode }) {
-  return <p className="t-ui text-ink-2">{children}</p>;
+  return <p className="t-prose text-ink-2">{children}</p>;
 }
 
 /** The sentence the section would give if it could give only one.
@@ -69,7 +69,7 @@ export function P({ children }: { children: ReactNode }) {
  *  written on top of one: a section whose opening sentence does not carry
  *  it wants rewriting rather than labelling. */
 export function Lead({ children }: { children: ReactNode }) {
-  return <p className="t-ui text-ink">{children}</p>;
+  return <p className="t-prose text-ink">{children}</p>;
 }
 
 /** A literal the machine produced or consumes: a key, a path, a filename. */
@@ -101,7 +101,7 @@ export function Keys({ groups }: { groups: { where: string; rows: KeyRow[] }[] }
     <div className="flex flex-col gap-3">
       {groups.map((group) => (
         <div key={group.where} className="flex flex-col">
-          <div className="t-micro mb-[2px] uppercase tracking-[0.06em] text-ink-3">
+          <div className="t-meta mb-[2px] text-ink-3">
             {group.where}
           </div>
           {group.rows.map((row) => {
@@ -164,7 +164,7 @@ export function Figure({
         width={width}
         height={height}
         loading={eager ? "eager" : "lazy"}
-        className="block w-full rounded-[3px] border border-line"
+        className="block w-full rounded-control border border-line"
       />
       <figcaption className="t-micro mt-[6px] text-ink-3">{caption}</figcaption>
     </figure>
@@ -236,14 +236,14 @@ export function Contents({
   };
 
   return (
-    <div className="shrink-0 border-b border-line">
+    <div className="nx-tutorial-contents shrink-0">
       <button
         ref={trigger}
         data-contents-row
         data-testid="tutorial-contents"
         aria-expanded={open}
         aria-controls="tutorial-contents-list"
-        className="nx-tap [--nx-tap-y:30px] flex h-[30px] w-full items-center gap-[6px] px-[10px] text-left transition-colors duration-[90ms] hover:bg-surface"
+        className="nx-tap [--nx-tap-y:30px] nx-tutorial-row flex h-[30px] w-full items-center gap-[6px] text-left"
         onClick={() => setOpen((value) => !value)}
       >
         <span className="t-code-sm tnum w-[15px] shrink-0 text-right text-ink-3">{here + 1}</span>
@@ -260,7 +260,7 @@ export function Contents({
         <div
           ref={list}
           id="tutorial-contents-list"
-          className="border-t border-line py-1"
+          className="nx-tutorial-list"
           role="list"
           aria-label="Tutorial contents"
         >
@@ -274,7 +274,7 @@ export function Contents({
                 data-testid="tutorial-contents-row"
                 aria-current={mine ? "true" : undefined}
                 tabIndex={index === focused ? 0 : -1}
-                className="relative flex h-[26px] w-full items-center gap-[6px] px-[10px] text-left transition-colors duration-[90ms] hover:bg-surface"
+                className="nx-tutorial-row relative flex h-[28px] w-full items-center gap-[6px] text-left"
                 onFocus={() => setFocused(index)}
                 onClick={() => leave(entry.id)}
                 onKeyDown={(event) => {
@@ -291,21 +291,24 @@ export function Contents({
                     event.preventDefault();
                     move(entries.length - 1);
                   } else if (event.key === "Escape") {
+                    // The list's own Escape: it closes the list, not the
+                    // tutorial, whose listener sits on the window and
+                    // would otherwise take the same keystroke.
                     event.preventDefault();
+                    event.stopPropagation();
                     setOpen(false);
                     trigger.current?.focus();
                   }
                 }}
               >
-                {mine ? (
-                  <span className="absolute left-0 top-0 h-full w-[2px] bg-pen" />
-                ) : null}
+                {/* The current row by ink weight alone: the pen is the
+                    agent's colour, not a place marker. */}
                 <span className="t-code-sm tnum w-[15px] shrink-0 text-right text-ink-3">
                   {index + 1}
                 </span>
                 <span
                   className={`t-ui min-w-0 flex-1 truncate ${
-                    mine ? "text-ink" : "text-ink-2"
+                    mine ? "font-medium text-ink" : "text-ink-2"
                   }`}
                 >
                   {entry.label}
