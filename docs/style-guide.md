@@ -186,13 +186,15 @@ else.
   moves under the pointer reaching for it. Reduced motion is respected.
 - A control that a strip cannot hold is dropped at the width it
   measures, through a container query, never wrapped or clipped.
-- A name in a strip that does not fit fades out over the strip's last
-  32 px and glides under the pointer until its end is in view, at 40 px a
-  second after a quarter-second pause, back when the pointer goes; never
-  an ellipsis, never a wrap, and never a move under reduced motion, where
-  the tooltip carries the whole name. `NameWell` in `chrome.tsx` and the
-  `.nx-name-well` rules are the one copy. A heading's count yields before
-  its word.
+- The project's name in the name row, when it does not fit, fades out
+  over the well's last 32 px and glides under the pointer until its end
+  is in view, at 40 px a second after a quarter-second pause, back when
+  the pointer goes; it never wraps, and never moves under reduced motion,
+  where the tooltip carries the whole name. `NameWell` in `chrome.tsx`
+  and the `.nx-name-well` rules are the one copy, and the treatment is
+  the name row's: a tab's name, a drawer heading and a path in a strip
+  keep their ellipsis, as the tab primitive, `Heading` and the History
+  header draw it. A heading's count yields before its word.
 - Copy: every empty state is one sentence saying what to do next; every
   button names its verb; a control keeps the same name through the flow;
   errors say what went wrong and what to do, without apology; no em dash
