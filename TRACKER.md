@@ -24,6 +24,23 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+After the overhaul shipped, the writer opened 3.1.0 on a real manuscript
+and settled, over a round of drawings on 20 and 21 September, what the
+frame of the workspace should be: no title bar, the project's name
+heading the left column, the four first rows one band on the surround
+with the activity bar and a foot under each column on the surround too,
+no line between panes at rest, and the open tab as the pane's own block
+with a short rule parting the rest. Share and Download leave the top for
+three drawers on the bar, People (the collaborator hub), Build (the
+compiler's drawer, with Rebuild and a double-click shortcut) and Download
+(every document's outputs as they come); New conversation moves into the
+composer; the formula and table cards lose their source line; and a
+reference to a figure, a table or an equation shows the thing on hover.
+It goes up as 3.2.0, one push, planned in
+`.claude/plans/reactive-nibbling-toast.md` against version 44 of the
+direction page, with its own live tracker; every surface is compared with
+the page before its commit. What it leaves is written here as it is found.
+
 The visual overhaul, after 2.18.0, rebuilds the interface on one kit and
 goes up as two pushes. It was planned over seventeen versions of a
 direction page the writer went through surface by surface, and that page
