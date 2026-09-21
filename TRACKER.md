@@ -73,8 +73,12 @@ its rule in `CLAUDE.md` (3.5, 3.5a), the figure hover as the tree's card
 (3.6), and the three legacy button classes gone from the stylesheet.
 Every surface was compared with the page in both themes; the three
 deviations the writer settled on the page (the frame's grey, the
-banner's verb, the pill) are recorded there. What the run left is
-nothing on the interface; the tangents it fixed on the way are in the
+banner's verb, the pill) are recorded there. One difference is still
+with the writer: the plan block in the Claude column sits before the
+agent's words, in the order the transcript has them, where the page drew
+it after; it was reported at 3.0.0 and has had no answer, and moving it
+is a small change if the writer wants the page's order. Nothing else on
+the interface was left; the tangents the run fixed on the way are in the
 log, the last of them found by the front door's sweep,
 `e2e/shots/front-sweep.spec.ts`, which now runs beside the workspace's
 at every push.
