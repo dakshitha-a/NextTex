@@ -16,13 +16,20 @@ import {
  *  should not have to do, so there is one strip now and each pane says
  *  only what its tabs are.
  *
- *  As the direction page draws it: a 36 px row on the second surface with
- *  no rule under it and none between the tabs; the tab in front by ink
- *  weight and a 2 px ink underline, the extension in the third ink, the
- *  close control on the tab in front and the hovered one only, the hover
- *  as a wash; and a 2 px pen underline reserved for a tab whose file
- *  Claude is editing in the current turn, which is the one place the pen
- *  appears on a strip.
+ *  As the direction page draws it: a 36 px row on the band with no rule
+ *  under it; the tab in front is the pane's own block, on the pane's
+ *  surface with the card radius on its top corners, in the first ink at
+ *  medium weight, so the open file reads as the top of the pane the way
+ *  Windows Terminal draws its tabs; the other tabs sit on the band in the
+ *  second ink, parted by a 16 px rule in the line colour that never
+ *  touches the open tab; the close control on the tab in front and the
+ *  hovered one only, the hover as a wash on the band; and a 2 px pen rule
+ *  along the top of the block for a tab whose file Claude is editing in
+ *  the current turn, which is the one place the pen appears on a strip.
+ *  The writer asked for this after the overhaul's underline: "there is no
+ *  separator between them. I don't like the little underline thing."
+ *  The rules live in styles.css under `.nx-tab`, since the rule between
+ *  neighbours is a `::before` that the tab after the open one hides.
  *
  *  The gesture.  A click on the tab in front, or on the empty run past the
  *  last tab, is a click on the pane's header: it folds the pane, and a
@@ -125,7 +132,7 @@ export default function TabStrip({
         role="group"
         aria-label={ariaLabel}
         data-testid={kind === "source" ? "source-strip" : "preview-strip"}
-        className="no-scrollbar flex h-[36px] min-w-0 flex-1 gap-[2px] overflow-x-auto"
+        className="no-scrollbar flex h-[36px] min-w-0 flex-1 overflow-x-auto"
       >
         {tabs.map((tab) => {
           const handle = tab.active && onHeaderClick !== undefined;
@@ -143,21 +150,10 @@ export default function TabStrip({
               // the way a browser's do: a writer with eight files open sees
               // eight names, shortened, rather than four and a count.  The
               // count is for when even that is not room.
+              data-active={tab.active ? "true" : undefined}
               className={[
-                "group relative flex h-[36px] min-w-[72px] max-w-[200px] basis-auto shrink items-center",
-                "gap-[6px] rounded-none pr-2 transition-colors duration-[90ms] hover:bg-wash",
-                // Two inks on the band: the third does not clear the light
-                // theme's frame.
-                tab.active ? "text-ink" : "text-ink-2",
-                // The underline is an inset shadow rather than a border, so
-                // it takes no height from the row and the two rows stay
-                // one object.  The pen wins over the ink: while Claude is
-                // in the file, that is the thing to know.
-                tab.pen
-                  ? "shadow-[inset_0_-2px_0_var(--pen)]"
-                  : tab.active
-                    ? "shadow-[inset_0_-2px_0_var(--ink)]"
-                    : "",
+                "nx-tab group relative flex h-[36px] min-w-[72px] max-w-[200px] basis-auto shrink items-center",
+                "gap-[6px] pr-2 transition-colors duration-[90ms]",
                 handle ? "cursor-pointer" : "",
               ].join(" ")}
               title={handle ? headerTitle : undefined}

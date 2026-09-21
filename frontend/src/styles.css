@@ -580,6 +580,23 @@ button { font: inherit; color: inherit; }
    of the view, and asked for the contrast.  Two inks on the surround,
    never the third, which does not clear the light theme's frame. */
 .nx-band, .nx-foot { background: var(--surround); }
+/* The tabs on the band.  The open tab is the pane's block: the pane's
+   surface, the card radius on its top corners, the first ink.  The others
+   sit on the band in the second ink, parted by a 16 px rule that the open
+   tab and the tab after it hide, so no rule touches the block.  The pen
+   rule along the top marks the file Claude is editing this turn. */
+.nx-tab { color: var(--ink-2); }
+.nx-tab + .nx-tab::before {
+  content: ""; position: absolute; left: 0; top: 10px; width: 1px; height: 16px;
+  background: var(--line);
+}
+.nx-tab:not([data-active]):hover { background: var(--wash); }
+.nx-tab[data-active] {
+  color: var(--ink); background: var(--surface);
+  border-radius: var(--nx-radius-card) var(--nx-radius-card) 0 0;
+}
+.nx-tab[data-active]::before, .nx-tab[data-active] + .nx-tab::before { display: none; }
+.nx-tab[data-pen] { box-shadow: inset 0 2px 0 var(--pen); }
 .nx-left { background: var(--surround); }
 .nx-name-row { color: var(--ink); }
 

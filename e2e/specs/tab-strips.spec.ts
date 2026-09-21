@@ -205,6 +205,80 @@ test("a click on the edge of a tab is a click on that tab, and the tab in front 
   await expect(page.getByTestId("collapsed-preview")).toBeVisible({ timeout: 5_000 });
 });
 
+/** A token's computed colour, read off a probe painted with it. */
+async function tokenColour(page: Page, token: string) {
+  return page.evaluate((name) => {
+    const probe = document.createElement("div");
+    probe.style.background = `var(--${name})`;
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  }, token);
+}
+
+for (const theme of ["dark", "light"] as const) {
+  test(`the open tab is the pane's block, and a short rule parts the others (${theme})`, async ({
+    app, project, page,
+  }) => {
+    // The writer's words, after the overhaul's underline: "there is no
+    // separator between them. I don't like the little underline thing",
+    // and then "an open tab can match the edit background ... it's the
+    // way Windows Terminal does it".  So: the tab in front on the pane's
+    // surface with rounded top corners and no underline; a 16 px rule
+    // between two tabs that are not in front; none beside the one that is.
+    await page.emulateMedia({ colorScheme: theme });
+    const DOCS = await withPreviews({ app, project, page }, 2);
+    await withManyFiles(app, project, page, ["one.tex", "two.tex"]);
+    // Adding a preview brings it in front, so the last document is the
+    // preview strip's open tab (a click on it would fold the pane).
+    await expect(page.getByTestId(`preview-tab-${DOCS[DOCS.length - 1]}`)).toHaveAttribute("aria-current", "true");
+    const surface = await tokenColour(page, "surface");
+    const line = await tokenColour(page, "line");
+    const style = (selector: string, pseudo?: string) =>
+      page.evaluate(([sel, ps]) => {
+        const el = document.querySelector(sel)!;
+        const s = getComputedStyle(el, ps || null);
+        return { background: s.backgroundColor, shadow: s.boxShadow, display: s.display,
+                 width: s.width, height: s.height, radius: s.borderTopLeftRadius };
+      }, [selector, pseudo ?? ""] as const);
+    for (const [attribute, front, others] of [
+      ["data-tab", "two.tex", ["main.tex", "one.tex"]],
+      ["data-preview-tab", DOCS[DOCS.length - 1], ["main.tex", DOCS[0]]],
+    ] as const) {
+      const on = `[${attribute}][data-path="${front}"]`;
+      const open = await style(on);
+      expect(open.background, attribute).toBe(surface);
+      expect(open.shadow, attribute).toBe("none");
+      expect(open.radius, attribute).not.toBe("0px");
+      // The rule between two tabs not in front: the second one's ::before.
+      const between = await style(`[${attribute}][data-path="${others[1]}"]`, "::before");
+      expect(between.display, attribute).not.toBe("none");
+      expect(between.width, attribute).toBe("1px");
+      expect(between.height, attribute).toBe("16px");
+      expect(between.background, attribute).toBe(line);
+      // None on the open tab, and none on the tab after it.
+      expect((await style(on, "::before")).display, attribute).toBe("none");
+      const after = await page.evaluate((sel) => {
+        const next = document.querySelector(sel)!.nextElementSibling;
+        return next && next.matches("[data-tab],[data-preview-tab]")
+          ? getComputedStyle(next, "::before").display
+          : "none";
+      }, on);
+      expect(after, attribute).toBe("none");
+      // The strip starts at the pane's edge, so the first tab's block
+      // would meet it were it in front.
+      const header = attribute === "data-tab" ? "editor-header" : "preview-header";
+      const strip = attribute === "data-tab" ? "source-strip" : "preview-strip";
+      const head = (await page.getByTestId(header).boundingBox())!;
+      const group = (await page.getByTestId(strip).boundingBox())!;
+      const first = (await page.locator(`[${attribute}]`).first().boundingBox())!;
+      expect(Math.round(group.x - head.x), attribute).toBe(0);
+      expect(Math.round(first.x - group.x), attribute).toBe(0);
+    }
+  });
+}
+
 /** The source strip, the same way. */
 async function withManyFiles(app: any, project: any, tab: Page, names: string[]) {
   for (const name of names) {

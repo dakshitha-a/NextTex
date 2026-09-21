@@ -145,8 +145,14 @@ in place, never a modal: one sentence, a `danger` button, Keep or Cancel.
   dismisses the card.
 - A second press on the active bar icon folds the drawer; the drawer
   swap is a cut.
-- The pen marks what the agent touched and nothing else. A tab's pen
-  underline means Claude is editing that file now.
+- The pen marks what the agent touched and nothing else. A 2 px pen rule
+  along the top of a tab's block means Claude is editing that file now.
+- A tab strip is on the band, and the open tab is the pane's block: the
+  pane's surface, the card radius on its top corners, the first ink at
+  500, no underline. The other tabs are on the band in the second ink,
+  parted by a 16 px rule in `--line` that never touches the open tab;
+  the strip starts at the pane's edge. Rules in `styles.css` under
+  `.nx-tab`.
 - A menu is short. Conditional items are present only when they apply,
   never disabled in place; the destructive item is last, after a rule.
 - Motion answers the writer: `.nx-arrive` (120 ms, opacity and a 0.98

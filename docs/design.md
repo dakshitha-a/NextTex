@@ -9664,3 +9664,30 @@ with the same label, confirm and behaviour, since starting afresh belongs
 where the writing happens and the header keeps what is about the record.
 The confirm still opens above the composer and puts focus on Keep this
 one. `agent.spec.ts` reads it left of Attach in the tools row.
+
+**The open tab is the pane (item 1.6).** The overhaul's strip marked the
+tab in front with a 2 px ink underline and drew nothing between the
+others, and the writer, with a real manuscript's tabs in front of them,
+said: "there is no separator between them. I don't like the little
+underline thing." Four drawings later they chose the one where "an open
+tab can match the edit background or the preview background so it
+contrasts from the rest. It's the way Windows Terminal does it", with a
+short divider parting the rest. So the tab in front is the pane's own
+block: the pane's surface with the card radius on its top corners, the
+first ink at medium weight, meeting the pane below with no rule, so the
+open file reads as the top of the pane. The other tabs sit on the band in
+the second ink, the extension one step quieter by weight rather than by
+ink (the third does not clear the light frame), parted by a 16 px rule in
+the line colour drawn as a `::before` on every tab but the first and
+hidden on the open tab and on the tab after it, so no rule touches the
+block; the hover wash stays on the band's tabs; the strip's left padding
+went to 0 so the block meets the pane's edge. The pen underline for a
+file Claude is editing this turn became a 2 px pen rule along the top of
+the block, since the underline is gone, as the page's strip drawing has
+it. The close control, the compiling
+dot, the stale ring and the preview's + are as they were.
+`tab-strips.spec.ts` reads the open tab's surface, radius and missing
+underline, the rule between two tabs not in front and none beside the
+one that is, and the first tab at the pane's edge, in both themes; the
+fidelity harness's `strips` and `frame` surfaces sit beside the page's
+two strips.
