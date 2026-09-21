@@ -55,17 +55,23 @@ test("a menu is the kit's card: 8 px radius, no border, the sans", async ({ tab 
 });
 
 test("a sheet is the kit's sheet: 12 px radius on the scrim", async ({ tab }) => {
-  await tab.getByRole("button", { name: /share/i }).first().click();
-  const sheet = tab.getByTestId("share-panel");
+  // The report sheet, from the drawer's foot: sharing is a drawer inside
+  // a project now, so the sheet read here is the one the foot opens.
+  await tab.getByTestId("report-problem").click();
+  const sheet = tab.getByTestId("report-sheet");
   await expect(sheet).toBeVisible();
-  expect(await style(tab, "[data-testid=share-panel]", "border-top-left-radius")).toBe("12px");
+  expect(await style(tab, "[data-testid=report-sheet]", "border-top-left-radius")).toBe("12px");
   await tab.keyboard.press("Escape");
 });
 
-test("the kit's controls are 28 px and the strip's segments 20 px", async ({ tab }) => {
-  // An icon button in the title bar, and the small segmented control under
-  // the preview: the two heights the direction fixes for controls.
-  const share = (await tab.getByTestId("open-share").boundingBox())!;
+test("the kit's controls are 28 px and the strip's segments 20 px", async ({ app, project, tab }) => {
+  // An icon button in a drawer's heading row, and the small segmented
+  // control under the preview: the two heights the direction fixes for
+  // controls.  The People drawer's heading offers an invite once shared.
+  const base = `${app.base}/api/projects/${project.id}/collab`;
+  expect((await tab.request.post(`${base}/share`, { data: { name: "Wilhelmina" } })).ok()).toBeTruthy();
+  await tab.getByTestId("bar-people").click();
+  const share = (await tab.getByTestId("make-invite").boundingBox())!;
   expect(Math.round(share.height)).toBe(28);
   const scroll = tab.getByTestId("preview-footer").getByRole("button", { name: "Scroll" });
   const box = (await scroll.boundingBox())!;

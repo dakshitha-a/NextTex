@@ -177,6 +177,29 @@ def test_a_join_that_fails_leaves_no_project_behind(client, opened, tmp_path):
     assert str(target) not in listed
 
 
+def test_sharing_is_announced_to_the_browser(client, opened):
+    """The People drawer's heading offers an invite once the project is
+    shared, from the store's record of the share, which only a
+    `collab_peers` event refreshes; so sharing sends one."""
+    import time
+    project_id = opened["id"]
+    session = server_main.SESSIONS[project_id]
+    queue = session.events.subscribe()
+    try:
+        client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})
+        seen = []
+        for _ in range(100):
+            try:
+                seen.append(queue.get_nowait())
+            except Exception:
+                time.sleep(0.01)
+            if any(e.get("type") == "collab_peers" and e.get("shared") for e in seen if isinstance(e, dict)):
+                break
+        assert any(e.get("type") == "collab_peers" and e.get("shared") for e in seen if isinstance(e, dict)), seen
+    finally:
+        session.events.unsubscribe(queue)
+
+
 def test_removing_a_member_marks_them_removed(client, opened):
     project_id = opened["id"]
     client.post(f"/api/projects/{project_id}/collab/share", json={"name": "A"})

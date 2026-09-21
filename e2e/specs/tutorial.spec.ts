@@ -50,8 +50,10 @@ test("Escape inside a sheet over the tutorial closes the sheet, and the next one
   await tab.getByTestId("appearance").first().click();
   await tab.getByTestId("tutorial-open").click();
   await expect(tab.getByTestId("tutorial")).toBeVisible();
-  await tab.getByRole("button", { name: /share/i }).first().click();
-  const sheet = tab.getByTestId("share-panel");
+  // The report sheet, from the drawer's foot: sharing is a drawer, not a
+  // sheet, inside a project now.
+  await tab.getByTestId("report-problem").click();
+  const sheet = tab.getByTestId("report-sheet");
   await expect(sheet).toBeVisible();
   await tab.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);

@@ -41,6 +41,8 @@ export const SearchIcon = icon(<><circle cx="7" cy="7" r="4" /><path d="M10 10l3
 export const SectionsIcon = icon(<path d="M3 4h10M5 8h8M7 12h6" />);
 export const PapersIcon = icon(<><path d="M3 3h7a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2z" /><path d="M12 5h1v9" /></>);
 export const HistoryIcon = icon(<><circle cx="8" cy="8" r="5.5" /><path d="M8 5v3l2 1.5" /></>);
+export const PeopleIcon = icon(<><circle cx="6" cy="5.5" r="2.5" /><path d="M1.5 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" /><circle cx="11.5" cy="6" r="2" /><path d="M12 9.5c1.7.2 2.8 1.5 2.8 3.5" /></>);
+export const BuildIcon = icon(<><path d="M9 3.5l3.5 3.5" /><path d="M8 4.5l1-1 4 4-1 1z" /><path d="M8.5 6.5L3 12l1.5 1.5L10 8" /></>);
 export const GitIcon = icon(<><circle cx="5" cy="4" r="1.5" /><circle cx="5" cy="12" r="1.5" /><circle cx="11" cy="6" r="1.5" /><path d="M5 5.5v5M11 7.5c0 2-6 1-6 3" /></>);
 export const SubmitIcon = icon(<path d="M3 8.5l3 3 7-7" />);
 export const TrashIcon = icon(<path d="M3 4h10M6 4V2.5h4V4M4.5 4l.7 9h5.6l.7-9" />);

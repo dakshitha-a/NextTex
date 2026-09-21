@@ -8459,8 +8459,9 @@ app bar keeps its icons, the agent control leaves it, the head wraps with
 the find field on its own line, and a card stacks its tail under the name.
 
 Share from a row (item 3.1a, 20 September, asked for by the writer in the
-projects round) opens the same sheet the workspace's Share button opens,
-over the list, without opening the project: the collaboration routes open
+projects round) opens the sheet over the list, without opening the
+project (inside a project the same body is the People drawer since the
+frame run, section 57, and the workspace's Share button went with it): the collaboration routes open
 a session on demand, and only the open route touches the registry's
 last-opened time, so the sort does not move. The sheet is one layout
 whether the project is shared yet or not, as the page drew it: "Share
@@ -9691,3 +9692,43 @@ underline, the rule between two tabs not in front and none beside the
 one that is, and the first tab at the pane's edge, in both themes; the
 fidelity harness's `strips` and `frame` surfaces sit beside the page's
 two strips.
+
+**People (item 2.1).** "Make the download button and share button a part
+of the side launcher", and "for the share panel, make it the collaborator
+management hub: a place where the user can see collaborators, invite new
+ones, kick out existing ones." So the bar has a People button between Git
+and Build (two heads, one stroke, from the page's own glyph set), and its
+drawer is the share panel's body laid out for a drawer, as the page draws
+it: the heading row "People" with a Make an invite icon button once the
+project is shared; not shared, the two sentences over one filled "Share
+this project" and a note that an invite is for one person and usable
+once; shared, "In this project" over a row per member, "You" first in
+the file you are in, each row with a presence dot in the collaborator's
+colour, filled while they type and outlined while they are only present,
+the name, and at the right the file they are in, or "connected" for an
+install whose link is up with no cursor, or "not connected" with the dot
+in the third ink, and Remove on the row's hover with the disconnect
+confirm in place; the invite, once made, in a mono field with Copy under
+"An invite for one person, usable once" and a note saying it expires in
+a week (the page's note said a day; the server's `INVITE_TTL_SECONDS` is
+seven, so the drawer says what is true); the foot "Stop sharing" in the
+error ink at the left, with the leave confirm and its delete-my-copy box,
+and "Make an invite" as the ghost button at the right. The two records a
+row is made of do not know each other: the share's member list carries
+peers and links, the live collaborators carry cursors and colours, and
+the row joins them by name. The logic left `SharePanel.tsx` as
+`useSharing`, with the words for the three rare states and the two
+confirms as components, so the sheet the projects screen opens on a row
+and the drawer are two layouts of one thing; sharing from the drawer
+announces itself to the browser as a `collab_peers` event, so the
+heading's plus appears the moment the project is shared. Inside a
+project the Share button, the `sharing` state and the sheet mount went;
+the faces at the end of the source tabs open the drawer, and the popover
+they used to open went with it. `share-panel.spec.ts` opens the drawer
+from the bar, shares from it, reads the invite and the member rows, and,
+with a member written into the share's record and a second window
+carrying their name, reads the file on their row and removes them;
+`kit.spec.ts` reads the 28 px control on the drawer's heading;
+`menus-contrast.spec.ts` sweeps the drawer where it swept the sheet; the
+fidelity harness renders `drawer-people` and `drawer-people-empty` beside
+the page's two drawings.

@@ -100,11 +100,10 @@ test("choosing one puts the menu away", async ({ tab }) => {
 test("the icon buttons still say what they are", async ({ tab }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
   // A glyph with no accessible name is a button nobody navigating by name
-  // can find, and these lost their text when they became icons.
-  await expect(tab.getByRole("button", { name: "Share this project" }))
-    .toBeVisible();
-  await expect(tab.getByRole("button", { name: "Download a copy" }))
-    .toBeVisible();
+  // can find. Sharing is the People drawer on the bar now, and the bar's
+  // buttons say their names.
+  await expect(tab.getByRole("button", { name: "People" })).toBeVisible();
+  await expect(tab.getByTestId("bar-people")).toHaveAccessibleName("People");
 });
 
 test("the word count says what it counted, and remembers", async ({ tab }) => {

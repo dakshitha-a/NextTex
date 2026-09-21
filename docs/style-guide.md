@@ -68,6 +68,11 @@ rest and shows in `--hint` while the pointer rests on it or drags it. A
 surface that overlays another (the drawer below 1100 px, the Claude column
 below 1400) is lifted by `--float`, never edged by a border.
 
+A drawer's body may carry a label (`.nx-drawer-label`, 12 px in the
+third ink), rows of people (`.nx-person`) and a foot of its own
+(`.nx-drawer-foot`, above the drawer's 28 px foot) holding the body's
+one or two actions.
+
 Size, one scale:
 
 | Token | Value | For |

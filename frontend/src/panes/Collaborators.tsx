@@ -1,9 +1,5 @@
-import { useState } from "react";
 import { type Collaborator, useStore } from "../store";
 import { awayWords, peerStanding } from "./peer-standing";
-import { useDismiss } from "../useDismiss";
-import { MenuHeader } from "../ui/Menu";
-import { useRef } from "react";
 
 /** Who else is in this project, and whether they are working.
  *
@@ -23,26 +19,19 @@ import { useRef } from "react";
  *
  *  Names are shown on hover rather than always, because four people in a
  *  paper is four names competing with the file tabs for the same strip.
+ *  A click on the faces opens the People drawer, which is where the rows
+ *  with names, files and Remove live; the popover that used to open here
+ *  went with it (item 2.1 of the frame run).
  */
-export default function Collaborators() {
+export default function Collaborators({ onOpen }: {
+  /** Open the People drawer. */
+  onOpen?: () => void;
+}) {
   const people = useStore((s) => s.collaborators);
   const connection = useStore((s) => s.connection);
   const share = useStore((s) => s.share);
   const standing = peerStanding(share);
-  const [open, setOpen] = useState(false);
-  const card = useRef<HTMLDivElement | null>(null);
-  const trigger = useRef<HTMLButtonElement | null>(null);
-  useDismiss(card, open, () => setOpen(false), trigger);
 
-  // Offline is worth saying even with nobody else here: it means this
-  // browser's typing is not reaching the file, which is the one thing a
-  // writer must never find out later.
-  //
-  // And so is a share whose other end is not there, which is a different
-  // sentence about a different connection. `connection` is this browser's
-  // socket to its own server; `standing` is the peer link. Both can be
-  // true at once and they are drawn as two things, because folding them
-  // into one badge is how a writer comes to believe the wrong one.
   if (!people.length && connection !== "offline" && standing !== "away") {
     return null;
   }
@@ -50,12 +39,6 @@ export default function Collaborators() {
   return (
     <div className="relative flex shrink-0 items-center gap-[6px] pr-[8px] pl-[6px]">
       {connection === "offline" ? (
-        // The sentence is on the screen, not in a title. It was a tooltip,
-        // which meant the one place the app said what happens to a
-        // writer's typing was a place you had to already suspect something
-        // to find, and no place at all on a tablet or to a screen reader
-        // reading the strip. It is also a promise, so it has to be true:
-        // the boundary no longer reloads the tab out from under it.
         <span
           className="t-micro flex items-center gap-[5px] text-warn"
           data-testid="sync-offline"
@@ -75,15 +58,13 @@ export default function Collaborators() {
 
       {people.length ? (
         <button
-          ref={trigger}
           className="flex items-center gap-[3px]"
-          aria-haspopup="dialog"
-          aria-expanded={open}
           aria-label={`${people.length} other ${
             people.length === 1 ? "person" : "people"
           } in this project`}
+          title="Who is in this project"
           data-testid="collaborators"
-          onClick={() => setOpen((value) => !value)}
+          onClick={onOpen}
         >
           {people.slice(0, 4).map((person) => (
             <Initial key={person.clientId} person={person} />
@@ -92,43 +73,6 @@ export default function Collaborators() {
             <span className="t-micro text-ink-3">+{people.length - 4}</span>
           ) : null}
         </button>
-      ) : null}
-
-      {open ? (
-        <div
-          ref={card}
-          role="dialog"
-          aria-label="Who is here"
-          className="nx-menu-anchored nx-arrive top-[34px] right-0 w-[260px]"
-        >
-          {/* Counting you as well. A list that omits the reader reads as
-              one person when there are two. */}
-          <MenuHeader>{people.length + 1} people in this project</MenuHeader>
-          {people.map((person) => (
-            <div key={person.clientId} className="nx-row" data-size="sm">
-              <span
-                aria-hidden="true"
-                className="h-[8px] w-[8px] shrink-0 rounded-full"
-                style={{
-                  background: person.active ? person.colour : "transparent",
-                  border: `1.5px solid ${person.colour}`,
-                }}
-              />
-              <span className="nx-row-label text-ink">{person.name}</span>
-              <span className="nx-row-trailing nx-row-trailing-always" title={person.path}>
-                {person.path ? shortPath(person.path) : "not in a file"}
-                {person.active ? "" : " · idle"}
-              </span>
-            </div>
-          ))}
-          <div className="nx-row" data-size="sm">
-            <span
-              aria-hidden="true"
-              className="h-[8px] w-[8px] shrink-0 rounded-full border-[1.5px] border-ink-3"
-            />
-            <span className="nx-row-label">you</span>
-          </div>
-        </div>
       ) : null}
     </div>
   );
@@ -156,11 +100,4 @@ function Initial({ person }: { person: Collaborator }) {
       {(person.name.trim()[0] || "?").toUpperCase()}
     </span>
   );
-}
-
-/** `chapters/02_theory.tex` as `02_theory.tex`. The folder is rarely the
- *  interesting half, and the strip is narrow. */
-function shortPath(path: string): string {
-  const cut = path.lastIndexOf("/");
-  return cut === -1 ? path : path.slice(cut + 1);
 }

@@ -427,7 +427,7 @@ export default function Tutorial({
 
         <Section id="sharing" n={9} title="Writing it with somebody else">
           <Lead>
-            <strong>Share</strong>, beside the project's name or on the
+            <strong>People</strong>, on the bar, or Share on the
             project's row in the list, gives you an invite to send. Whoever opens it gets the whole project, every file and
             what those files used to say, into a folder of their own, empty or
             already holding a copy, and from then on the two copies stay in
@@ -444,7 +444,9 @@ export default function Tutorial({
             Their caret sits in your margin in their own colour and says
             their name for a moment whenever it moves, and a strip at the end
             of the tabs shows who else is here: filled in while they are
-            typing, outlined while they are only there. Their name is on the
+            typing, outlined while they are only there. A click on it opens
+            <C>People</C>, where each of them has a row saying which file
+            they are in, with Remove on it. Their name is on the
             versions they wrote, so a month later the history says who
             changed the paragraph.
           </P>

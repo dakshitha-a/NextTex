@@ -426,17 +426,15 @@ const SURFACES: Surface[] = [
     },
   },
   {
-    name: "the share panel",
+    name: "the People drawer",
     open: async (tab) => {
-      // Share sits at the end of the name row until the People drawer
-      // takes it, and the row holds the mark alone while the drawer is
-      // folded, so show a drawer first if the last surface folded it.
-      if (!(await tab.getByTestId("open-share").isVisible())) await tab.getByTestId("bar-files").click();
-      await tab.getByTestId("open-share").click();
-      return tab.getByTestId("share-panel");
+      await tab.getByTestId("bar-people").click();
+      const panel = tab.getByTestId("share-panel");
+      await expect(panel).toHaveAttribute("data-state", /private|shared/, { timeout: 10_000 });
+      return panel;
     },
     close: async (tab) => {
-      await tab.getByTestId("share-close").click();
+      await tab.getByTestId("bar-people").click();
     },
   },
   {

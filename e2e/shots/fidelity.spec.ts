@@ -1,4 +1,4 @@
-import { test } from "../fixtures";
+import { test, expect } from "../fixtures";
 import type { Locator, Page } from "@playwright/test";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -798,6 +798,37 @@ const SURFACES: Record<string, Surface> = {
       await tab.setViewportSize({ width: 1600, height: 1000 });
       await tab.waitForTimeout(400);
     },
+  },
+  "drawer-people-empty": {
+    open: async (tab) => {
+      await showDrawer(tab, "people");
+      const panel = tab.getByTestId("share-panel");
+      await expect(panel).toHaveAttribute("data-state", /private|shared/, { timeout: 10_000 });
+      // The other theme's pass left the project shared: leave it first.
+      if ((await panel.getAttribute("data-state")) === "shared") {
+        await tab.getByTestId("leave-share").click();
+        await tab.getByTestId("confirm-leave").click();
+      }
+      await expect(panel).toHaveAttribute("data-state", "private", { timeout: 10_000 });
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
+  "drawer-people": {
+    // Shared, with an invite made from the drawer: the rows and the field.
+    open: async (tab) => {
+      await showDrawer(tab, "people");
+      const panel = tab.getByTestId("share-panel");
+      await expect(panel).toHaveAttribute("data-state", /private|shared/, { timeout: 10_000 });
+      if ((await panel.getAttribute("data-state")) === "private") {
+        await tab.getByTestId("share-start").click();
+      } else {
+        await tab.getByTestId("make-invite").click();
+      }
+      await expect(tab.getByTestId("invite-text")).toBeVisible({ timeout: 10_000 });
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
   },
   "drawer-files-card": {
     // The Files drawer with the card beside an image's row, as the page

@@ -12,7 +12,6 @@ import { rangeFor, scopesFor } from "./words";
 import { createTwoFilesPatch } from "diff";
 import Patch from "./panes/Patch";
 import {
-  ShareIcon,
   DownloadMenu,
   Chevron,
   download,
@@ -79,7 +78,7 @@ const Markdown = lazy(() => import("./panes/Markdown"));
 const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 /** Lazily loaded, like the tutorial. Most sessions never open it, and the
  *  entry bundle is measured. */
-const SharePanel = lazy(() => import("./panes/SharePanel"));
+const PeoplePanel = lazy(() => import("./panes/PeoplePanel"));
 const ReportSheet = lazy(() => import("./panes/ReportSheet"));
 const CommandPalette = lazy(() => import("./panes/CommandPalette"));
 /** The sign-in screen is a whole screen, and a machine that is signed in
@@ -106,8 +105,8 @@ import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import {
-  FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, ReportIcon, SearchIcon,
-  SectionsIcon, SubmitIcon, TrashIcon,
+  FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, PeopleIcon, PlusIcon, ReportIcon,
+  SearchIcon, SectionsIcon, SubmitIcon, TrashIcon,
 } from "./ui/icons";
 import { agentName, type Provider } from "./agent-name";
 import Status from "./panes/Status";
@@ -168,7 +167,7 @@ const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
  *  is reached from the agent column, and moves into it with the column's
  *  own rebuild. */
 export type DrawerId =
-  | "files" | "sections" | "search" | "papers" | "history" | "git" | "submit" | "trash";
+  | "files" | "sections" | "search" | "papers" | "history" | "git" | "people" | "submit" | "trash";
 const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "files", title: "Files", Icon: () => <FileIcon size={18} /> },
   { id: "sections", title: "Sections", Icon: () => <SectionsIcon size={18} /> },
@@ -176,6 +175,7 @@ const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "papers", title: "Papers", Icon: () => <PapersIcon size={18} /> },
   { id: "history", title: "History", Icon: () => <HistoryIcon size={18} /> },
   { id: "git", title: "Git", Icon: () => <GitIcon size={18} /> },
+  { id: "people", title: "People", Icon: () => <PeopleIcon size={18} /> },
   { id: "submit", title: "Before you submit", Icon: () => <SubmitIcon size={18} /> },
   { id: "trash", title: "Deleted", Icon: () => <TrashIcon size={18} /> },
 ];
@@ -258,7 +258,9 @@ export default function App() {
   // chooser on each change.
   const [choosePapers, setChoosePapers] = useState(0);
   const [tutorialOpen, setTutorialOpen] = useState(false);
-  const [sharing, setSharing] = useState(false);
+  /** Bumped by the People drawer's heading button: make an invite. */
+  const [inviteNonce, setInviteNonce] = useState(0);
+  const shared = useStore((s) => Boolean(s.share?.shared && !s.share.removed));
   const [reporting, setReporting] = useState(false);
   /** The command palette, and a count the settings trigger watches so
    *  the palette can open the sheet whichever bar the trigger is in. */
@@ -1875,7 +1877,7 @@ export default function App() {
         else openDrawer("history");
         break;
       case "share":
-        setSharing(true);
+        openDrawer("people");
         break;
       case "download-zip":
         if (state.projectId) void downloadZip(state.projectId);
@@ -2140,16 +2142,8 @@ export default function App() {
           </button>
           {drawerShown && !drawerOver ? (
             <>
-              {/* Share and Download keep a place here until the People and
-                  Download drawers take them (items 2.1 and 2.3). */}
-              <IconButton
-                label="Share this project"
-                title="Share this project with other people running NextTex"
-                data-testid="open-share"
-                onClick={() => setSharing(true)}
-              >
-                <ShareIcon />
-              </IconButton>
+              {/* Download keeps a place here until the Download drawer
+                  takes it (item 2.3). */}
               <DownloadMenu
                 onZip={() => projectId && void downloadZip(projectId)}
                 onPdf={(document) => projectId && downloadPdf(projectId, document)}
@@ -2281,6 +2275,11 @@ export default function App() {
                       <FolderIcon />
                     </IconButton>
                   ) : null}
+                  {drawerId === "people" && shared ? (
+                    <IconButton label="Make an invite" data-testid="make-invite" onClick={() => setInviteNonce((n) => n + 1)}>
+                      <PlusIcon />
+                    </IconButton>
+                  ) : null}
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                   {drawerId === "search" ? (
@@ -2309,6 +2308,9 @@ export default function App() {
                     ) : null}
                     {drawerId === "git" ? (
                 <GitPanel onOpen={openFile} />
+                    ) : null}
+                    {drawerId === "people" ? (
+                <PeoplePanel inviteNonce={inviteNonce} onLeft={leaveProject} />
                     ) : null}
                   </Suspense>
                 </div>
@@ -2377,6 +2379,7 @@ export default function App() {
             // The tab in front and the empty run of the strip: fold, or
             // double-click for writing mode.  Below 900px nothing folds.
             onHeaderClick={!tight ? () => headerClick("editor") : undefined}
+            onPeople={() => toggleDrawer("people")}
             trailing={
               tight ? (
                 <Segmented value={showing} onChange={setShowing} />
@@ -2836,16 +2839,6 @@ export default function App() {
       {reporting ? (
         <Suspense fallback={null}>
           <ReportSheet onClose={() => setReporting(false)} />
-        </Suspense>
-      ) : null}
-      {sharing && projectId ? (
-        <Suspense fallback={null}>
-          <SharePanel
-            projectId={projectId}
-            name={projectName}
-            onClose={() => setSharing(false)}
-            onLeft={leaveProject}
-          />
         </Suspense>
       ) : null}
 

@@ -31,6 +31,7 @@ export default function SourceHeader({
   onStopScript,
   onHeaderClick,
   leading,
+  onPeople,
   trailing,
 }: {
   onSelect: (path: string) => void;
@@ -48,6 +49,8 @@ export default function SourceHeader({
    *  for writing mode.  Absent below 900px, where nothing folds. */
   onHeaderClick?: () => void;
   leading?: ReactNode;
+  /** Open the People drawer: the faces at the strip's end. */
+  onPeople?: () => void;
   trailing?: ReactNode;
 }) {
   const tabs = useStore((s) => s.tabs);
@@ -162,7 +165,7 @@ export default function SourceHeader({
                 writer looks exactly as it did, and does not download this. */}
             {anybodyElse ? (
               <Suspense fallback={null}>
-                <Collaborators />
+                <Collaborators onOpen={onPeople} />
               </Suspense>
             ) : null}
             {trailing}

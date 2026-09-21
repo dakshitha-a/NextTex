@@ -866,6 +866,11 @@ class PeerNetwork:
         }
         self.share.save()
         self._write_member(self.peer_id, name)
+        # Announced like a peer arriving: the browser's record of the
+        # share is what the People drawer's heading reads, and without
+        # this it learnt of a share made from the drawer only at the next
+        # transition.
+        self._announce_peers()
 
     async def leave(self) -> None:
         """Take this install out of the share, keeping the project.
