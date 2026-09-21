@@ -137,6 +137,16 @@ test("the drawer shows one instrument, remembered across a reload", async ({
   await tab.getByTestId("bar-files").click();
   await expect(tab.locator('[role="tree"]')).toBeVisible();
   await expect(tab.getByTestId("section-row")).toHaveCount(0);
+
+  // The three drawers the frame run added are remembered the same way.
+  await tab.getByTestId("bar-people").click();
+  await expect(tab.getByTestId("share-panel")).toBeVisible();
+  await expect(tab.locator('[role="tree"]')).toHaveCount(0);
+  await tab.reload();
+  await tab.locator(".cm-editor").waitFor({ timeout: 20_000 });
+  await expect(tab.getByTestId("share-panel")).toBeVisible();
+  await expect(tab.getByTestId("bar-people")).toHaveAttribute("aria-pressed", "true");
+  await tab.getByTestId("bar-files").click();
 });
 
 test("a second press on the drawer's icon folds it, and the bar stays", async ({

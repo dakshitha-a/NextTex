@@ -454,6 +454,23 @@ test("the window is a frame: four heads on one band, the bar and the feet on the
   expect((await box("drawer")).width).toBeLessThan(before - 30);
 });
 
+test("the bar holds its eleven buttons and Settings on a short window", async ({ tab }) => {
+  // 800 px high, the shortest laptop: eleven 34 px buttons and Settings
+  // at the foot, every one of them inside the window and none clipped.
+  await tab.setViewportSize({ width: 1000, height: 800 });
+  const bar = tab.getByTestId("activity-bar");
+  const ids = ["files", "sections", "search", "papers", "history", "git", "people", "build", "submit", "download", "trash"];
+  for (const id of ids) {
+    const box = (await tab.getByTestId(`bar-${id}`).boundingBox())!;
+    expect(box.y, id).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height, id).toBeLessThanOrEqual(800);
+  }
+  const settings = (await bar.getByTestId("appearance").first().boundingBox())!;
+  expect(settings.y + settings.height).toBeLessThanOrEqual(800);
+  const last = (await tab.getByTestId("bar-trash").boundingBox())!;
+  expect(settings.y).toBeGreaterThan(last.y + last.height);
+});
+
 test("below 1100 the name row shrinks to the mark, and the drawer overlays under the band", async ({ tab }) => {
   await tab.setViewportSize({ width: 1000, height: 1000 });
   await expect(tab.getByTestId("switch-project").locator("span.t-ui-lg")).toHaveCount(0);

@@ -385,6 +385,27 @@ test("the agent panel mid-turn is usable", async ({ tab }) => {
   expect(describeAll(await violations(tab))).toBe("");
 });
 
+test("the People drawer is usable, shared and not", async ({ app, project, tab }) => {
+  await settle(tab);
+  await tab.getByTestId("bar-people").click();
+  await expect(tab.getByTestId("share-panel")).toHaveAttribute("data-state", "private", { timeout: 10_000 });
+  expect(describeAll(await violations(tab))).toBe("");
+  const base = `${app.base}/api/projects/${project.id}/collab`;
+  expect((await tab.request.post(`${base}/share`, { data: { name: "Wilhelmina" } })).ok()).toBeTruthy();
+  await expect(tab.getByTestId("share-panel")).toHaveAttribute("data-state", "shared", { timeout: 10_000 });
+  await expect(tab.getByTestId("make-invite")).toBeVisible({ timeout: 10_000 });
+  expect(describeAll(await violations(tab))).toBe("");
+});
+
+test("the Build drawer is usable with nothing to fix", async ({ tab }) => {
+  // The one with errors is swept above; this is the drawer a clean
+  // project shows, with its sentence and its foot.
+  await settle(tab);
+  await tab.getByTestId("bar-build").click();
+  await expect(tab.getByTestId("diagnostics")).toBeVisible();
+  expect(describeAll(await violations(tab))).toBe("");
+});
+
 test("the Download drawer is usable", async ({ tab }) => {
   // The fifth surface on the record's list. The other four were reached by
   // the sweep and two of them were wrong; this one had never been opened

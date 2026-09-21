@@ -9801,3 +9801,12 @@ without a reload, its chips waking with its first build;
 where they reached the menu; `kit.spec.ts` reads the kit's menu on the
 source tab's; the fidelity harness renders `drawer-download` and
 `drawer-download-empty` beside the page's two drawings.
+
+**The bar's eleven, remembered (item 2.4).** The drawer the bar
+remembers across a reload is read back through `BAR_ITEMS`, so the
+three new ids are accepted the day they are listed; `sections.spec.ts`'s
+remembered-drawer case walks People across a reload as it walks
+Sections, `a11y.spec.ts` sweeps People (private and shared) and Build
+(with nothing to fix) as it sweeps Download, and `layout.spec.ts` reads
+the bar at 1000 by 800 with all eleven buttons and Settings inside the
+window, Settings below Deleted.
