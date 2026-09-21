@@ -9867,3 +9867,40 @@ Sections, `a11y.spec.ts` sweeps People (private and shared) and Build
 (with nothing to fix) as it sweeps Download, and `layout.spec.ts` reads
 the bar at 1000 by 800 with all eleven buttons and Settings inside the
 window, Settings below Deleted.
+
+## 58. The fit: the name row, the feet, the tab's ring, and References
+
+The run after the frame, planned on 21 September 2026 against version 47
+of the direction page and shipped as 3.3.0. The writer opened 3.2.0,
+dragged the Files drawer narrower and found five things, each in its own
+paragraph below, and each settled the same day.
+
+**The name row is bound to the drawer (item 1.1).** "The project title
+tab is not coupled to the launcher drawer width", and of the name running
+on past the drawer into the editor, "ew". The page drew the left column
+at a fixed width with the name cut inside it; the build gave the column
+no width of its own, so it grew to the name, and a drawer narrower than
+the name left the name hanging over the source pane with the tabs pushed
+along after it. The fidelity render had only ever shown the drawer at its
+remembered width, where the name fit, never at the 180 px it can be
+dragged down to. Now `nx-left` states its width, the bar, the drawer and
+the 1 px handle, and the name sits in a well (`NameWell` in
+`chrome.tsx`) that measures itself on mount, on a new name and on every
+change of width. Three ways of ending a name that does not fit were
+drawn and the writer chose the fade, adding a glide: the name fades out
+over the well's last 32 px with the chevron at the row's end, and resting
+the pointer on it for a quarter of a second sets it gliding left at 40 px
+a second until its end is in view, the fade travelling to the left edge
+as the start leaves (one mask 32 px wider than the well, slid by that
+32 px), and back quickly when the pointer goes. A name that fits carries
+nothing of this and looks as it did; under `prefers-reduced-motion`
+nothing moves and the tooltip, which has the whole name either way, is
+the way to read it. The Files heading gives up its count before its word:
+below 200 px of drawer the count is hidden, since at 180 the row had room
+for "F…41" and four icons and not for the word. `layout.spec.ts` drags
+the drawer to its narrowest in a project with a long name and reads the
+column's width as the bar, the drawer and the handle, the source strip
+starting where the column ends, the chevron inside the row, the count
+hidden, the name's transform going negative under the pointer and back to
+zero when it leaves, and none of it at 400 px; the fidelity harness
+renders `frame-min` and `frame-min-hover` beside the page's two drawings.

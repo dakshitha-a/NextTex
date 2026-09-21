@@ -5,9 +5,10 @@
  *  of half the interface and pointed every one of those files at the
  *  largest thing in the build to get a chevron. None of what follows knows
  *  anything about the application: they are a menu, two icons, a fold
- *  control, a segmented toggle and a drag handle.
+ *  control, a segmented toggle, a drag handle and the name well.
  */
 
+import { useLayoutEffect, useRef } from "react";
 
 import api, { saveBlob } from "./api";
 import { set } from "./store";
@@ -307,5 +308,54 @@ export function Handle({
         }
       />
     </div>
+  );
+}
+
+/** The project's name in the name row: a well the width the row has
+ *  left, and the name inside it.
+ *
+ *  The row is exactly the bar and the drawer wide, so a name longer than
+ *  the drawer does not fit. The writer chose what happens then, from
+ *  three drawings: the name fades out over the well's last 32 px rather
+ *  than ending in an ellipsis, and resting the pointer on it sets it
+ *  gliding left until its end is in view, the fade moving to the left
+ *  edge as the start leaves, back when the pointer goes. The well is
+ *  measured here, on mount, on a new name and whenever its width changes
+ *  (a drag on the drawer's handle), and says what it found on itself:
+ *  `data-overflow` while the name does not fit, and the shift and the
+ *  time the glide takes, at 40 px a second, as custom properties the
+ *  stylesheet reads. A name that fits carries none of them and does not
+ *  move. The full name is in the switcher's tooltip either way, which is
+ *  the whole of it when motion is reduced. */
+export function NameWell({ name }: { name: string }) {
+  const well = useRef<HTMLSpanElement>(null);
+  const text = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const w = well.current;
+    const t = text.current;
+    if (!w || !t) return;
+    const measure = () => {
+      const over = Math.max(0, Math.ceil(t.scrollWidth - w.clientWidth));
+      if (over > 0) {
+        w.dataset.overflow = "true";
+        w.style.setProperty("--nx-name-shift", `-${over}px`);
+        w.style.setProperty("--nx-name-time", `${(over / 40).toFixed(2)}s`);
+      } else {
+        delete w.dataset.overflow;
+        w.style.removeProperty("--nx-name-shift");
+        w.style.removeProperty("--nx-name-time");
+      }
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(w);
+    return () => watch.disconnect();
+  }, [name]);
+  return (
+    <span ref={well} className="nx-name-well t-ui-lg ml-[14px] min-w-0 flex-1" data-testid="project-name">
+      <span ref={text} className="nx-name">
+        {name}
+      </span>
+    </span>
   );
 }

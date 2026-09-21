@@ -629,6 +629,42 @@ button { font: inherit; color: inherit; }
 .nx-tab[data-pen] { box-shadow: inset 0 2px 0 var(--pen); }
 .nx-left { background: var(--surround); }
 .nx-name-row { color: var(--ink); }
+/* The name in its well.  A name that does not fit fades out over the
+   well's last 32 px (the writer's choice over an ellipsis), and glides
+   under the pointer until its end is in view, at the speed and by the
+   distance `NameWell` measured.  The mask is 32 px wider than the well
+   and parked 32 px to the left, so at rest its left fade is off the edge
+   and its right fade is on it; the glide slides the mask right by that
+   32 px, which brings the left fade in as the name's start leaves and
+   takes the right fade out as its end arrives.  The glide waits a quarter
+   of a second so a pointer crossing the row does not set it off, and the
+   name comes back quickly when the pointer goes. */
+.nx-name-well { overflow: hidden; white-space: nowrap; }
+.nx-name { display: inline-block; transition: transform 300ms var(--ease); }
+.nx-name-well[data-overflow] {
+  mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  mask-size: calc(100% + 32px) 100%;
+  mask-position: -32px 0;
+  mask-repeat: no-repeat;
+  transition: mask-position 300ms var(--ease);
+}
+.nx-name-well[data-overflow]:hover,
+.nx-name-row button:focus-visible .nx-name-well[data-overflow] {
+  mask-position: 0 0;
+  transition: mask-position 600ms linear 250ms;
+}
+.nx-name-well[data-overflow]:hover .nx-name,
+.nx-name-row button:focus-visible .nx-name-well[data-overflow] .nx-name {
+  transform: translateX(var(--nx-name-shift));
+  transition: transform var(--nx-name-time) linear 250ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No glide: the tooltip carries the whole name. */
+  .nx-name-well[data-overflow]:hover .nx-name,
+  .nx-name-row button:focus-visible .nx-name-well[data-overflow] .nx-name { transform: none; }
+  .nx-name-well[data-overflow]:hover,
+  .nx-name-row button:focus-visible .nx-name-well[data-overflow] { mask-position: -32px 0; }
+}
 
 /* --surround is the ground behind the panes, and it is darker than the
    three surfaces the inks were certified against: --ink-3 lands at 4.17:1

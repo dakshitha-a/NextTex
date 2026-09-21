@@ -60,6 +60,45 @@ const escape = async (tab: Page) => {
   await tab.waitForTimeout(150);
 };
 
+/** A project with a name longer than a narrow drawer, registered beside
+ *  the harness's from a copy of it, and opened through the switcher. */
+const LONG_NAME = "NX-TeraChem Interface with Uracil";
+async function openLongNamed(tab: Page) {
+  const root = path.join(path.dirname(ctx!.root), LONG_NAME);
+  if (!fs.existsSync(root)) {
+    fs.cpSync(ctx!.root, root, { recursive: true });
+    await tab.request.post(`${ctx!.base}/api/projects`, { data: { path: root } });
+  }
+  await tab.getByTestId("switch-project").click();
+  await tab.getByText("Projects", { exact: true }).waitFor();
+  await tab.getByTestId("project-row").filter({ hasText: LONG_NAME }).first().click();
+  await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+  await tab.waitForTimeout(400);
+}
+
+/** Back to the harness's own project, whose row is named after its root. */
+async function backToHarness(tab: Page) {
+  await tab.mouse.move(800, 600);
+  await tab.getByTestId("switch-project").click();
+  await tab.getByText("Projects", { exact: true }).waitFor();
+  await tab.getByTestId("project-row").filter({ hasText: path.basename(ctx!.root) }).first().click();
+  await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+  await tab.waitForTimeout(400);
+}
+
+/** Drag the drawer's handle by `dx`; the layout clamps the width. */
+async function dragRail(tab: Page, dx: number) {
+  const handle = tab.locator(".nx-handle").first();
+  const h = (await handle.boundingBox())!;
+  await tab.mouse.move(h.x, h.y + 300);
+  await tab.mouse.down();
+  await tab.mouse.move(h.x + dx, h.y + 300, { steps: 8 });
+  await tab.waitForTimeout(120);
+  await tab.mouse.up();
+  await tab.mouse.move(800, 600);
+  await tab.waitForTimeout(200);
+}
+
 /** Hover the character after `needle` on the line holding `lineText`, the
  *  way writing.spec.ts does: measured and moved again until the card is
  *  there, because CodeMirror refuses a hover whose pointer no longer
@@ -906,6 +945,43 @@ const SURFACES: Record<string, Surface> = {
       await tab.setViewportSize({ width: 1600, height: 1000 });
       await tab.waitForTimeout(400);
     },
+  },
+  /* The name row against the drawer at its narrowest, in a project whose
+     name does not fit: the name fades at the column's edge with the
+     chevron at the row's end, and, in the second, has glided under the
+     pointer until its end is in view.  The harness's own project has a
+     short name, so a second one is registered beside it. */
+  "frame-min": {
+    open: async (tab) => {
+      await openLongNamed(tab);
+      await dragRail(tab, -400);
+      return tab.locator(".nx-shell");
+    },
+    close: backToHarness,
+  },
+  "frame-min-hover": {
+    open: async (tab) => {
+      await openLongNamed(tab);
+      await dragRail(tab, -400);
+      const well = tab.getByTestId("project-name");
+      await well.hover();
+      // The glide takes the overflow at 40 px a second, after a quarter
+      // of a second; wait for the transform to reach the shift measured.
+      await expect
+        .poll(
+          () =>
+            well.evaluate((el) => {
+              const want = parseFloat(el.style.getPropertyValue("--nx-name-shift"));
+              const m = getComputedStyle(el.querySelector(".nx-name")!).transform;
+              const got = m.startsWith("matrix(") ? Number(m.slice(7, -1).split(",")[4]) : 0;
+              return Math.abs(got - want) < 0.5;
+            }),
+          { timeout: 15_000 },
+        )
+        .toBe(true);
+      return tab.locator(".nx-shell");
+    },
+    close: backToHarness,
   },
   "drawer-people-empty": {
     open: async (tab) => {

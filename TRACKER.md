@@ -24,6 +24,21 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+The fit run, after 3.2.0 on 21 September, is what the writer found on
+opening the frame: the project's name running past a narrowed drawer
+into the editor (the left column had no width of its own; it now states
+the bar, the drawer and the handle, and a name that does not fit fades
+at the column's edge and glides under the pointer, the writer's choice
+from three drawings, with the Files count yielding before its word at
+the drawer's narrowest), the four feet's controls 2 px above their
+strips' centre line (one class, `nx-foot`, carrying the drawers' foot
+padding onto the strips), a tab's keyboard ring in the pen colour outside
+its block where the guide gives rings the hint colour, the Papers drawer
+flashing its empty state for the round trip to the server, and the
+drawer's name, which is References now. Planned against version 47 of
+the direction page, tracked at
+https://claude.ai/artifact/CBDEP9n8hMH2MhUahVY6e2, going up as 3.3.0.
+
 The frame run went up as 3.2.0 on 21 September, planned against version
 44 of the direction page after the writer opened 3.1.0 on a real
 manuscript: no title bar, the project's name heading the left column,

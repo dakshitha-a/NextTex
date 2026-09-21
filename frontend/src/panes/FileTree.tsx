@@ -1070,7 +1070,7 @@ export default function FileTree({
           Upload and Find a file, as the page draws them, with the count
           of files before them. A drag over the row lands at the root. */}
       <div
-        className={`flex shrink-0 items-center gap-[2px] pb-[6px] pl-[14px] pr-2 pt-[10px] ${
+        className={`@container flex shrink-0 items-center gap-[2px] pb-[6px] pl-[14px] pr-2 pt-[10px] ${
           dropTarget === ROOT_DROP ? "bg-pen-wash" : ""
         }`}
         onDragEnter={(event) => overDrag(event, null)}
@@ -1079,7 +1079,14 @@ export default function FileTree({
         onDrop={(event) => drop(event, null)}
       >
         <Heading level={2} className="flex-1 truncate">Files</Heading>
-        {fileCount ? <span className="t-meta tnum pr-1 text-ink-3">{fileCount}</span> : null}
+        {/* The count is the first thing to go as the drawer narrows: at
+            the drawer's narrowest the row has no room for it and the
+            word, and the word is the one to keep. */}
+        {fileCount ? (
+          <span className="t-meta tnum hidden pr-1 text-ink-3 @[200px]:inline" data-testid="file-count">
+            {fileCount}
+          </span>
+        ) : null}
         <IconButton label="New file" title="Create a new file in the project" data-testid="new-file" onClick={() => startCreate(false)}>
           <PlusIcon />
         </IconButton>

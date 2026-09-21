@@ -19,6 +19,7 @@ import {
   FoldButton,
   Segmented,
   Handle,
+  NameWell,
 } from "./chrome";
 import { resultFrom, troubleshootPrompt } from "./script-run";
 import { busyTyping, onFrame } from "./timing";
@@ -2115,23 +2116,32 @@ export default function App() {
           every column starting again under it, did not fit the rest of the
           view.  The row is the first of the four heads that make the band
           across the top, and it shrinks to the bar's width, the mark
-          alone, when the drawer is folded or overlays. */}
-      <div className="nx-left flex shrink-0 flex-col" data-testid="left-column">
-        <div className="nx-name-row nx-band flex h-[36px] shrink-0 items-center" data-testid="title-bar">
+          alone, when the drawer is folded or overlays.  The column's
+          width is stated, the bar, the drawer and its 1 px handle, rather
+          than left to its contents: without that the column grew to the
+          name, and a drawer dragged narrower than the name left the name
+          hanging over the source pane and pushed the tabs along with it. */}
+      <div
+        className="nx-left flex shrink-0 flex-col"
+        data-testid="left-column"
+        style={{ width: drawerShown && !drawerOver ? 44 + widths.rail + 1 : 44 }}
+      >
+        <div className="nx-name-row nx-band flex h-[36px] w-full shrink-0 items-center" data-testid="title-bar">
           <button
-            className="flex h-full min-w-0 flex-1 items-center transition-colors duration-[90ms] hover:text-hint"
+            className="flex h-full min-w-0 flex-1 items-center pr-2 transition-colors duration-[90ms] hover:text-hint"
             data-testid="switch-project"
             onClick={leaveProject}
             title={`${projectName}: switch project`}
           >
             {/* The mark centred on the bar's column under it, the name
                 starting on the drawer's own gutter, so the row's two parts
-                sit over the two columns they head. */}
+                sit over the two columns they head; the chevron at the
+                row's end, past the well the name fades in. */}
             <span className="flex w-[44px] shrink-0 justify-center"><Logo size={18} /></span>
             {drawerShown && !drawerOver ? (
               <>
-                <span className="t-ui-lg ml-[14px] truncate">{projectName}</span>
-                <span className="ml-1 text-ink-3"><Chevron direction="down" /></span>
+                <NameWell name={projectName} />
+                <span className="ml-1 shrink-0 text-ink-3"><Chevron direction="down" /></span>
                 <InstanceBadge />
               </>
             ) : null}

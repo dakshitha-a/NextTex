@@ -171,6 +171,13 @@ in place, never a modal: one sentence, a `danger` button, Keep or Cancel.
   moves under the pointer reaching for it. Reduced motion is respected.
 - A control that a strip cannot hold is dropped at the width it
   measures, through a container query, never wrapped or clipped.
+- A name in a strip that does not fit fades out over the strip's last
+  32 px and glides under the pointer until its end is in view, at 40 px a
+  second after a quarter-second pause, back when the pointer goes; never
+  an ellipsis, never a wrap, and never a move under reduced motion, where
+  the tooltip carries the whole name. `NameWell` in `chrome.tsx` and the
+  `.nx-name-well` rules are the one copy. A heading's count yields before
+  its word.
 - Copy: every empty state is one sentence saying what to do next; every
   button names its verb; a control keeps the same name through the flow;
   errors say what went wrong and what to do, without apology; no em dash

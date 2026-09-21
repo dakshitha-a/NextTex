@@ -1,4 +1,5 @@
-import { test, expect } from "../fixtures";
+import { test, expect, openProject } from "../fixtures";
+import { seedProject } from "../server";
 
 /** The three widths the layout actually changes at.
  *
@@ -480,6 +481,79 @@ test("below 1100 the name row shrinks to the mark, and the drawer overlays under
   const row = (await tab.getByTestId("title-bar").boundingBox())!;
   expect(Math.round(drawer.y)).toBe(Math.round(row.y + row.height));
   expect(Math.round(row.width)).toBe(44);
+});
+
+test("the name row is as wide as the bar and the drawer, and the name fades and glides when the drawer is narrow", async ({
+  app,
+  page,
+}) => {
+  // The writer dragged the drawer narrower than the project's name and
+  // found the name running on past the drawer into the editor, the tabs
+  // pushed along with it: the left column had no width of its own and
+  // grew to the name.  Now the column is the bar, the drawer and its
+  // handle, the name fades out at the column's edge, the chevron sits at
+  // the row's end, and resting the pointer on the name glides it left
+  // until its end is in view.  A long name, since the harness's are short.
+  const project = await seedProject(app, `nx-terachem-interface-with-uracil-${Date.now()}`);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await page.setViewportSize({ width: 1680, height: 1000 });
+  const box = async (testId: string) => (await page.getByTestId(testId).boundingBox())!;
+  const handle = page.locator(".nx-handle").first();
+  const drag = async (dx: number) => {
+    const h = (await handle.boundingBox())!;
+    await page.mouse.move(h.x, h.y + 300);
+    await page.mouse.down();
+    await page.mouse.move(h.x + dx, h.y + 300, { steps: 8 });
+    await page.waitForTimeout(120);
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+  };
+
+  // To the narrowest the drawer goes.
+  await drag(-400);
+  const drawer = await box("drawer");
+  expect(Math.round(drawer.width)).toBe(180);
+  const column = await box("left-column");
+  const row = await box("title-bar");
+  expect(Math.round(column.width)).toBe(44 + 180 + 1);
+  expect(Math.round(row.width)).toBe(Math.round(column.width));
+  // The source strip starts where the column ends, and nothing of the
+  // row reaches past it.
+  const strip = await box("editor-header");
+  expect(Math.abs(strip.x - (column.x + column.width))).toBeLessThan(1.5);
+  const chevron = (await page.getByTestId("switch-project").locator("svg").last().boundingBox())!;
+  expect(chevron.x + chevron.width).toBeLessThanOrEqual(row.x + row.width);
+  const well = page.getByTestId("project-name");
+  await expect(well).toHaveAttribute("data-overflow", "true");
+  // The count is the first thing the Files heading gives up.
+  await expect(page.getByTestId("file-count")).toBeHidden();
+  await expect(page.getByTestId("drawer").getByRole("heading", { name: "Files" })).toBeVisible();
+
+  // Resting the pointer on the name glides it left, and leaving brings it
+  // back.  The shift is read from the transform, not from a pixel.
+  const shift = () =>
+    well.locator(".nx-name").evaluate((el) => {
+      const m = getComputedStyle(el).transform;
+      const parts = m.startsWith("matrix(") ? m.slice(7, -1).split(",").map(Number) : [1, 0, 0, 1, 0, 0];
+      return parts[4];
+    });
+  expect(await shift()).toBe(0);
+  await well.hover();
+  await expect.poll(shift, { timeout: 8_000 }).toBeLessThan(-20);
+  await page.mouse.move(strip.x + 400, strip.y + 300);
+  await expect.poll(shift, { timeout: 4_000 }).toBe(0);
+
+  // Wide enough for the name: nothing fades, nothing moves, the count is
+  // back.
+  await drag(400);
+  expect(Math.round((await box("drawer")).width)).toBe(400);
+  await expect(well).not.toHaveAttribute("data-overflow", "true");
+  await expect(page.getByTestId("file-count")).toBeVisible();
+  await well.hover();
+  await page.waitForTimeout(600);
+  expect(await shift()).toBe(0);
 });
 
 test("the strip's count opens the Build drawer, and the bar's button folds it", async ({ tab }) => {
