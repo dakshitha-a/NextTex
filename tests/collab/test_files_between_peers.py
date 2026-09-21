@@ -59,6 +59,7 @@ async def test_a_figure_made_after_joining_reaches_the_other_machine(tmp_path):
 @pytest.mark.asyncio
 async def test_a_file_the_sender_no_longer_has_is_answered_with_a_miss_and_asked_later(tmp_path, monkeypatch):
     from server.collab import peers as peers_module
+    from server.collab import wire
 
     monkeypatch.setattr(peers_module, "WANT_AGAIN", 5.0)
     alice = Peer(tmp_path / "alice").be("a" * 64)
@@ -69,10 +70,28 @@ async def test_a_file_the_sender_no_longer_has_is_answered_with_a_miss_and_asked
     # Gone from Alice's disk before Bob asks, and the record still there.
     (alice.project.root / "figures" / "plot.png").unlink()
 
+    # Every miss a link is handed is counted, so the test can wait for
+    # Alice's answer rather than assume it.  Without this the file was put
+    # back on her disk while her answer to the first ask was still on its
+    # way, and on a slow runner she found the file and sent it, which read
+    # as a second ask made too soon.  Wrapped on the class, before the
+    # join: the ask and its answer can both be over by the time the join
+    # returns.
+    misses = []
+    handle = peers_module.PeerLink.handle
+
+    async def counting(self, frame):
+        if frame.kind == wire.FILE_MISS:
+            misses.append(frame)
+        await handle(self, frame)
+
+    monkeypatch.setattr(peers_module.PeerLink, "handle", counting)
+
     await join_up(alice, bob)
     link = next(iter(bob.network.links.values()))
     file_id = alice.store.file_id_for("figures/plot.png")
     assert await until(lambda: file_id in link.wanted_files, 4.0)
+    assert await until(lambda: len(misses) >= 1, 4.0)
     assert not (bob.project.root / "figures" / "plot.png").exists()
 
     # Back on Alice's disk.  The ask is re-made once it has aged, on the
