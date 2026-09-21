@@ -10,13 +10,16 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from pycrdt import Doc, Text
 
-from server.collab.store import edits_for, minimal_edit
+from server.collab.store import edits_for, minimal_edit, splice
 
 # Deliberately a small alphabet.  Random unicode almost never produces the
 # repeated runs and shared prefixes that break a diff; three letters and a
-# newline produce almost nothing else.
+# newline produce almost nothing else.  The prose alphabet carries three
+# characters of one, two and four UTF-8 bytes beside the ASCII, because
+# pycrdt indexes a Text in bytes and the store's splices are computed in
+# code points: an alphabet of ASCII alone let that pass for a year.
 text = st.text(alphabet="ab\n", max_size=60)
-prose = st.text(alphabet="abc \n\\{}", max_size=120)
+prose = st.text(alphabet="abc \n\\{}éø𝛼", max_size=120)
 
 
 def apply_to_string(before: str, spans) -> str:
@@ -26,13 +29,10 @@ def apply_to_string(before: str, spans) -> str:
     return out
 
 
-def apply_to_doc(doc: Doc, body: Text, spans) -> None:
+def apply_to_doc(doc: Doc, body: Text, spans, before: str) -> None:
+    # The store's own splice, so the test applies what the store applies.
     with doc.transaction():
-        for start, end, replacement in spans:
-            if end > start:
-                del body[start:end]
-            if replacement:
-                body.insert(start, replacement)
+        splice(body, before, spans)
 
 
 @given(before=text, after=text)
@@ -49,7 +49,7 @@ def test_the_same_diff_applied_to_a_document_agrees(before, after):
     doc["text"] = body = Text()
     if before:
         body += before
-    apply_to_doc(doc, body, edits_for(before, after))
+    apply_to_doc(doc, body, edits_for(before, after), before)
     assert str(body) == after
 
 
@@ -89,8 +89,8 @@ def test_two_peers_editing_the_same_file_converge(base, mine, theirs):
     second.apply_update(first.get_update())
     second_body = second.get("text", type=Text)
 
-    apply_to_doc(first, first_body, edits_for(base, mine))
-    apply_to_doc(second, second_body, edits_for(base, theirs))
+    apply_to_doc(first, first_body, edits_for(base, mine), base)
+    apply_to_doc(second, second_body, edits_for(base, theirs), base)
 
     # Each sends the other everything it is missing, as a reconnect does.
     first_state, second_state = first.get_state(), second.get_state()
@@ -118,7 +118,12 @@ def test_convergence_survives_edits_arriving_in_any_order(edits):
     for where, addition in edits:
         if not addition:
             continue
-        body.insert(min(where, len(str(body))), addition)
+        # Through the store's splice, whose offsets are code points, so an
+        # insertion never lands inside a multibyte character.
+        current = str(body)
+        at = min(where, len(current))
+        with source.transaction():
+            splice(body, current, [(at, at, addition)])
         updates.append(source.get_update(seen))
         seen = source.get_state()
 

@@ -238,6 +238,58 @@ def edits_for(before: str, after: str) -> list[tuple[int, int, str]]:
     ) or [(start, end_before, replacement)]
 
 
+def _text_unit() -> str:
+    """The unit pycrdt indexes a `Text` by: "bytes", "utf16" or "points".
+
+    Asked of the library once rather than assumed, because the answer is
+    not in its signature and it is the whole difference between a diff
+    landing where it was made and landing early by the number of accented
+    letters before it.  pycrdt 0.14 says bytes (yrs's default offset
+    kind); "aé" is three bytes, two UTF-16 units and two code points, and
+    "𝛼" tells UTF-16 from code points if the answer is ever two.
+    """
+    doc = Doc()
+    probe = doc.get("probe", type=Text)
+    probe += "aé"
+    if len(probe) == 3:
+        return "bytes"
+    probe += "𝛼"
+    return "utf16" if len(probe) == 4 else "points"
+
+
+TEXT_UNIT = _text_unit()
+
+
+def _offsets(before: str, spans: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
+    """The spans with their code-point offsets converted to the Text's unit.
+
+    Computed against `before`, the text the spans were made on, which is
+    right because the spans are applied back to front and each one's
+    indices are in the original's coordinates.  ASCII needs no conversion,
+    and a chapter is ASCII far more often than not, so that costs nothing.
+    """
+    if TEXT_UNIT == "points" or before.isascii():
+        return spans
+    if TEXT_UNIT == "bytes":
+        measure = lambda i: len(before[:i].encode("utf-8"))  # noqa: E731
+    else:
+        measure = lambda i: len(before[:i].encode("utf-16-le")) // 2  # noqa: E731
+    return [(measure(start), measure(end), replacement) for start, end, replacement in spans]
+
+
+def splice(text: Text, before: str, spans: list[tuple[int, int, str]]) -> None:
+    """Apply `edits_for`'s spans to a shared Text whose content is `before`.
+
+    The one place a computed offset reaches a Text.  Inside the caller's
+    transaction, so an ingest stays one update.
+    """
+    for start, end, replacement in _offsets(before, spans):
+        if end > start:
+            del text[start:end]
+        if replacement:
+            text.insert(start, replacement)
+
+
 def _root(doc: Doc, name: str, kind):
     """A document's root container, created if this document has none.
 
@@ -1313,11 +1365,23 @@ class CollabStore:
         self._projecting.add(file_id)
         try:
             with doc.transaction(origin=FROM_DISK):
-                for start, end, replacement in spans:
-                    if end > start:
-                        del text[start:end]
-                    if replacement:
-                        text.insert(start, replacement)
+                splice(text, before, spans)
+            # The guard.  A document that does not say what the file says
+            # after being told what the file says is one every peer will
+            # converge on and the next keystroke will write over the file,
+            # which is how a writer's bibliography came to read
+            # "@articløidstrup2014improved" on screen while the file on
+            # disk was clean.  Whatever a diff got wrong, the file goes in
+            # whole and the miss is said out loud, with the file's name.
+            if str(text) != after:
+                log.error(
+                    "the shared document of %s did not match the file after "
+                    "an outside edit was folded in; replacing it with the file",
+                    relative,
+                )
+                with doc.transaction(origin=FROM_DISK):
+                    del text[0:len(text)]
+                    text += after
         finally:
             self._projecting.discard(file_id)
 

@@ -34,8 +34,16 @@ page (version 51) and was approved before any code; the sheet was
 rendered in both themes and with the switch off beside it, and matched.
 The gate is a live read of `data-hover-cards` off the root at the moment
 of the hover, so nothing is reconfigured; a reference's card draws the
-thing it points at only while that thing's own kind is on. The run's
-tracker is https://claude.ai/artifact/AQ3u3A5natmoaGvokAse2Z.
+thing it points at only while that thing's own kind is on. Two reports
+arrived after the push and were folded in as 3.4.1: a bibliography
+garbled on screen after two outside writes (pycrdt indexes a shared text
+in UTF-8 bytes and the store's diff was in code points; `splice` converts
+now and a guard puts the file in whole if a fold ever leaves the document
+differing from it), and figures on the wrong page until a whole rebuild
+(compile as you type is one engine pass, and the engine's own "rerun"
+hints went unread; a settling full build now follows a fast pass that
+left the layout unconverged, superseded by the next keystroke). The
+run's tracker is https://claude.ai/artifact/AQ3u3A5natmoaGvokAse2Z.
 
 The fit run went up as 3.3.0 on 21 September, planned against version
 47 of the direction page from what the writer found on opening 3.2.0:

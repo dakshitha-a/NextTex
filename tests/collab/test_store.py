@@ -124,6 +124,73 @@ def test_ingesting_an_outside_change_reaches_the_document(store, project):
     assert str(store.body(file_id)) == "Rewritten elsewhere.\n"
 
 
+MULTIBYTE_HEAD = (
+    "@article{Martínez2020,\n"
+    "  author = {Martínez and González and Bäuml},\n"
+    "  title = {Ångström scale – a study},\n"
+    "}\n"
+) * 6
+
+
+def test_an_outside_edit_after_multibyte_text_lands_where_it_was_made(store, project):
+    """The report's shape, exactly: a bibliography full of accented names,
+    an entry appended from outside, then one of its lines rewritten from
+    outside with ASCII replaced by two-byte characters.
+
+    pycrdt indexes a Text in UTF-8 bytes and the diff is computed in
+    Python's code points, so before the conversion every splice landed
+    early by the number of extra bytes before it, and the writer's editor
+    showed "@articløidstrup2014improved," while the file on disk was
+    clean."""
+    path = project.root / "chapters" / "one.tex"
+    file_id = store.file_id_for("chapters/one.tex")
+    body = store.body(file_id)
+    before = MULTIBYTE_HEAD + "@article{SubotnikARPC,\n  abstract = {Detailed balance is discussed briefly.},\n}\n"
+    path.write_text(before, encoding="utf-8")
+    assert store.ingest("chapters/one.tex", before)
+    assert str(body) == before
+
+    entry = "@article{Smidstrup2014improved,\n  author = {S\\o{}ren Smidstrup and J{\\'{o}}nsson},\n  year = {2014},\n}\n"
+    appended = before + entry
+    path.write_text(appended, encoding="utf-8")
+    assert store.ingest("chapters/one.tex", appended)
+    assert str(body) == appended
+
+    edited = appended.replace("S\\o{}ren Smidstrup and J{\\'{o}}nsson", "Søren Smidstrup and Jónsson")
+    path.write_text(edited, encoding="utf-8")
+    assert store.ingest("chapters/one.tex", edited)
+    assert str(body) == edited
+
+
+def test_a_four_byte_character_before_the_edit_does_not_move_it(store, project):
+    """An astral character is one code point, two UTF-16 units and four
+    bytes: the case that tells the three units apart."""
+    file_id = store.file_id_for("chapters/one.tex")
+    body = store.body(file_id)
+    before = "The coupling 𝛼 is small.\nA second line.\n"
+    assert store.ingest("chapters/one.tex", before)
+    after = "The coupling 𝛼 is small.\nA second LINE, longer.\n"
+    assert store.ingest("chapters/one.tex", after)
+    assert str(body) == after
+
+
+def test_a_document_that_disagrees_with_the_file_after_a_fold_is_replaced(store, project, monkeypatch, caplog):
+    """The guard behind the conversion: whatever a diff does, the document
+    an ingest leaves behind is the file it was told about, or the file is
+    put in whole and the miss is logged."""
+    import server.collab.store as module
+    file_id = store.file_id_for("chapters/one.tex")
+    body = store.body(file_id)
+    assert store.ingest("chapters/one.tex", "one two three\n")
+    # A diff that is off by one, standing in for any unit the store gets
+    # wrong in the future.
+    monkeypatch.setattr(module, "edits_for", lambda before, after: [(5, 8, "TWO")])
+    with caplog.at_level("ERROR", logger="nexttex.collab"):
+        assert store.ingest("chapters/one.tex", "one TWO three\n")
+    assert str(body) == "one TWO three\n"
+    assert any("chapters/one.tex" in record.getMessage() for record in caplog.records)
+
+
 def test_ingesting_a_deletion_marks_the_file_rather_than_dropping_it(store, project):
     """A map delete concurrent with an edit is ambiguous; a flag is not."""
     file_id = store.file_id_for("chapters/one.tex")
