@@ -30,7 +30,7 @@ test("the tutorial opens from Settings, names the bar and the drawer, and closes
   // Up to date: what it says is the app as built.
   const text = (await panel.innerText()) ?? "";
   for (const stale of STALE) expect(text, `the tutorial still says ${stale}`).not.toMatch(stale);
-  for (const fresh of [/\bbar\b/, /\bdrawer\b/, /What writes with you/, /archived/, /Before you submit/, /Deleted/]) {
+  for (const fresh of [/\bbar\b/, /\bdrawer\b/, /What writes with you/, /archived/, /Before you submit/, /Deleted/, /eleven buttons/, /People/, /Build/, /Download/]) {
     expect(text, `the tutorial does not mention ${fresh}`).toMatch(fresh);
   }
   // Consistent: the panel on the second surface, no border, the float.

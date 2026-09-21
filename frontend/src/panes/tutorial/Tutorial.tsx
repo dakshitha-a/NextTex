@@ -242,20 +242,23 @@ export default function Tutorial({
             caption="The empty run to the right of the last tab. Double-click there."
           />
           <P>
-            The bar at the far left has eight buttons, <C>Files</C>,{" "}
+            The bar at the far left has eleven buttons, <C>Files</C>,{" "}
             <C>Sections</C>, <C>Search</C>, <C>Papers</C>, <C>History</C>,{" "}
-            <C>Git</C>, <C>Before you submit</C> and <C>Deleted</C>, and one
-            drawer beside it shows whichever you chose, at full height. A
-            second press on the button that is lit folds the drawer away, and{" "}
+            <C>Git</C>, <C>People</C>, <C>Build</C>, <C>Before you submit</C>,{" "}
+            <C>Download</C> and <C>Deleted</C>, and one drawer beside it
+            shows whichever you chose, at full height. A second press on the
+            button that is lit folds the drawer away, and{" "}
             <Key spec="Mod-B" /> hides the whole column. The Settings button
-            sits at the foot of the bar.
+            sits at the foot of the bar, and the project&rsquo;s name heads
+            the column.
           </P>
           <P>
-            Two things render on hover in the source: rest the pointer on a
+            Four things render on hover in the source: rest the pointer on a
             formula and it appears typeset, on a table and it appears drawn,
             on an <C>\includegraphics</C> and the figure appears with its
-            size. The Files drawer does the same beside a row for an image or
-            a PDF.
+            size, and on a <C>\ref</C> and the figure, table or equation it
+            points at appears under what the reference says. The Files
+            drawer does the same beside a row for an image or a PDF.
           </P>
           <P>
             Below 900 pixels of width the source and the page share one view
@@ -284,9 +287,9 @@ export default function Tutorial({
           <Figure
             light={errorsLight}
             dark={errorsDark}
-            width={932}
-            height={496}
-            alt="The error list, with an explanation of the first error above it."
+            width={240}
+            height={330}
+            alt="The Build drawer: the build's state, Start here explaining the first error, and the rows under it."
             caption="Start here names the error to begin with, and what to try."
           />
           <P>

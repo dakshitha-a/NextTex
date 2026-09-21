@@ -89,9 +89,10 @@ close the tab. No database, no Docker, no nginx.
   a resume and its variations, a thesis and its supplementary information,
   each build and download on their own, and the page follows whatever you
   are writing, a chapter showing the document that includes it. The
-  download menu is one row per document with a chip for each format:
+  Download drawer is one block per document with a chip for each format:
   `.pdf` always, and with pandoc installed `.docx`, `.html` and `.md`
-  beside it, citations resolved.
+  beside it, citations resolved; a new document appears in it as soon as
+  it is saved.
 - **Reading and writing modes**: double-click the tab in front of either pane
   to give it the window, and again to get your layout back; one click on it
   folds the pane away.
@@ -105,14 +106,18 @@ close the tab. No database, no Docker, no nginx.
   preamble each take a hue, which is what makes a long chapter skimmable for
   its shape rather than its words.
 - **One bar, one drawer.** Files, Sections, Search, Papers, History, Git,
-  Before you submit and Deleted are eight buttons down the left edge, and
-  one drawer shows the one you chose at full height, so the tree or the
-  outline can stay open for as long as a chapter takes without pushing
-  the other out.
-- **Formulas, tables and figures render on hover.** Rest the pointer on a
-  formula, a `tabular` or an `\includegraphics` in the source and it
-  appears typeset, drawn, or as the picture with its size; the Files
-  drawer does the same beside an image's row.
+  People, Build, Before you submit, Download and Deleted are eleven
+  buttons down the left edge, and one drawer shows the one you chose at
+  full height, so the tree or the outline can stay open for as long as a
+  chapter takes without pushing the other out. People is who is in the
+  project and the invite to send; Build is the errors, the log and
+  Rebuild, and a double-click on its button rebuilds.
+- **Formulas, tables, figures and references render on hover.** Rest the
+  pointer on a formula, a `tabular` or an `\includegraphics` in the
+  source and it appears typeset, drawn, or as the picture with its size;
+  on a `\ref` and the figure, table or equation it points at appears
+  under what the reference says; the Files drawer does the same beside
+  an image's row.
 - **Find and drag in the Files drawer**, with open files following a folder
   that moves.
 - **The look is written down.** Every control comes from one kit on one
@@ -588,8 +593,11 @@ not this measurement and the two should not be compared.
 
 `chktex` runs while you type, and the LaTeX log is parsed into `file:line`
 diagnostics with the right file attribution even inside `\include`d chapters.
-Every message is matched against a table of the errors that actually happen,
-so the drawer says *Maths outside maths mode* and *put the expression between
+They live in the *Build* drawer on the bar, which the count in the strip
+under the source opens and `F8` steps through, with Rebuild at its foot;
+a double-click on the bar's Build button rebuilds. Every message is
+matched against a table of the errors that actually happen, so the
+drawer says *Maths outside maths mode* and *put the expression between
 dollar signs* rather than `Missing $ inserted`. It also names which error to
 start with: LaTeX reports everything after a mistake as a mistake too, and a
 writer who starts at the bottom of the list spends the evening fixing
@@ -757,10 +765,12 @@ when you close the last of them, while one you added with `+` or clicked on
 stays until you stop it yourself. Reopening a closed tab with `⌘⌥⇧T` /
 `Ctrl-Alt-Shift-T` brings its document back too.
 
-The bar down the left edge has eight buttons, Files, Sections, Search,
-Papers, History, Git, Before you submit and Deleted, and one drawer beside
-it shows whichever you chose at full height; a second press on the lit
-button folds the drawer away, and `⌘B` / `Ctrl-B` hides the whole column.
+The bar down the left edge has eleven buttons, Files, Sections, Search,
+Papers, History, Git, People, Build, Before you submit, Download and
+Deleted, and one drawer beside it shows whichever you chose at full
+height; a second press on the lit button folds the drawer away, and
+`⌘B` / `Ctrl-B` hides the whole column. The project's name heads the
+column, and the top of every pane is one band across the window.
 The Files drawer's heading row holds New file, New folder, Upload and Find
 a file: type into the field and the tree narrows to what matches, through
 folders you had collapsed, with the count beside it, and clearing it gives
@@ -768,13 +778,15 @@ back exactly the tree you had. Rows drag onto folders, and a folder takes
 everything under it, including open files, which follow it rather than being
 left pointing at a name that no longer exists.
 
-Three things render where they are written. Rest the pointer on a formula
+Four things render where they are written. Rest the pointer on a formula
 in the source and it appears typeset beside it; on a `tabular` and the
 table is drawn, with its rules, its alignment and its `\multicolumn`s; on
 an `\includegraphics` and the picture appears with its pixel size and its
-size on disk, a PDF by its first page. The Files drawer shows the same
-card beside the row of an image or a PDF, on hover or when the row has
-the focus.
+size on disk, a PDF by its first page; on a `\ref` and the card says what
+the reference will say, "Figure 3, on page 7", and draws the figure, the
+table or the equation it points at, with its caption. The Files drawer
+shows the same picture card beside the row of an image or a PDF, on
+hover or when the row has the focus.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-hover-dark.png">
@@ -1015,8 +1027,9 @@ than instruction, because the text came out of files you downloaded.
 Share a project and you get an invite to send. Whoever opens it gets the
 whole project, every file and what those files used to say, into a folder
 of their own, and from then on the two copies stay in step. Share is on
-the project's row in the list and in the title bar inside the project,
-and both open the same sheet.
+the project's row in the list, and inside a project it is the People
+drawer on the bar: who is in the project, the file each of them is in,
+the invite, and Remove on a row.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-share-dark.png">
