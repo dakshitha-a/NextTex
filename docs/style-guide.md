@@ -171,6 +171,12 @@ else.
   parted by a 16 px rule in `--line` that never touches the open tab;
   the strip starts at the pane's edge. Rules in `styles.css` under
   `.nx-tab`.
+- The keyboard's ring is `--hint`, 2 px, on every control, and it is the
+  control's own box that wears it: a tab's ring sits inside the tab's
+  block and follows its corners, painted by the block when its name
+  button has visible focus, never by the button. The page-wide ring in
+  `--pen` is for what has no rule of its own; a control on the band or
+  in the kit never shows it, since the pen means Claude.
 - A menu is short. Conditional items are present only when they apply,
   never disabled in place; the destructive item is last, after a rule.
 - Motion answers the writer: `.nx-arrive` (120 ms, opacity and a 0.98

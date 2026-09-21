@@ -983,6 +983,22 @@ const SURFACES: Record<string, Surface> = {
     },
     close: backToHarness,
   },
+  /* The keyboard on the open tab: the guide's ring, inside the block. */
+  "tab-focus": {
+    open: async (tab) => {
+      await tab.getByTestId("report-problem").focus();
+      const button = tab.locator('[data-tab][data-path="main.tex"] > button').first();
+      for (let presses = 0; presses < 8; presses++) {
+        await tab.keyboard.press("Tab");
+        if (await button.evaluate((el) => el === document.activeElement)) break;
+      }
+      await tab.waitForTimeout(200);
+      return tab.getByTestId("editor-header");
+    },
+    close: async (tab) => {
+      await tab.locator(".cm-content").click();
+    },
+  },
   "drawer-people-empty": {
     open: async (tab) => {
       await showDrawer(tab, "people");

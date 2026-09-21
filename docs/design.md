@@ -9924,3 +9924,21 @@ line, and Empty the trash sits on the drawer's own plane again.
 against the strip's middle, within half a pixel, and the strip's padding
 as 0 over 12; the fidelity harness's `frame` shows the feet beside the
 page's strips. The style guide's kit section now carries the rule.
+
+**The tab's focus ring is the guide's (item 1.3).** The writer's picture
+of the open tab had a purple rectangle around it. It was the page-wide
+keyboard ring, `:focus-visible { outline: 2px solid var(--pen);
+outline-offset: 1px }`, landing on the tab's inner button: square where
+the block is rounded, outside the block, and in the pen colour that
+means "Claude is editing this", where the style guide gives every
+control's ring the hint colour. The tab's name button paints no ring
+now, and the tab's block paints the guide's, 2 px in the hint colour at
+an offset of minus 2, inside itself and following its top corners
+(`.nx-tab:has(> button:first-child:focus-visible)`); the close button,
+the tab's second button, keeps its own. On the open tab the ring closes
+the block's bottom edge for as long as the keyboard is on it, which is
+right: the ring says where the keyboard is and goes when it moves.
+`tab-strips.spec.ts` reaches the tab with Tab from the drawer's foot and
+reads the block's outline as solid, 2 px, the hint token, minus 2 px,
+and the button's as none, in both themes; the fidelity harness renders
+`tab-focus`. The guide's behaviour list carries the rule.

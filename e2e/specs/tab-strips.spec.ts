@@ -296,6 +296,42 @@ async function withManyFiles(app: any, project: any, tab: Page, names: string[])
   }
 }
 
+for (const theme of ["dark", "light"] as const) {
+  test(`the keyboard's ring on a tab is inside the block, in the hint colour (${theme})`, async ({
+    tab,
+  }) => {
+    // The writer's picture: a purple rectangle around the open tab.  It
+    // was the page-wide focus ring landing on the tab's inner button,
+    // square-cornered, outside the block, and in the pen colour that means
+    // "Claude is editing this".  The guide gives every control's ring the
+    // hint colour, so the block paints it inside itself and the button
+    // paints none.  Reached from the keyboard, since a click shows no ring.
+    await tab.emulateMedia({ colorScheme: theme });
+    await tab.getByTestId("report-problem").focus();
+    // The tab's first button is its name; the second is its close.
+    const button = tab.locator('[data-tab][data-path="main.tex"] > button').first();
+    for (let presses = 0; presses < 8; presses++) {
+      await tab.keyboard.press("Tab");
+      if (await button.evaluate((el) => el === document.activeElement)) break;
+    }
+    await expect(button).toBeFocused();
+    const hint = await tokenColour(tab, "hint");
+    const block = tab.locator('[data-tab][data-path="main.tex"]');
+    const ring = () =>
+      block.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { style: s.outlineStyle, width: s.outlineWidth, colour: s.outlineColor, offset: s.outlineOffset };
+      });
+    // The tab transitions its colours over 90 ms, the ring's among them.
+    await expect.poll(async () => (await ring()).colour).toBe(hint);
+    const settled = await ring();
+    expect(settled.style).toBe("solid");
+    expect(settled.width).toBe("2px");
+    expect(settled.offset).toBe("-2px");
+    expect(await button.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("none");
+  });
+}
+
 const FILES = Array.from({ length: 9 }, (_, i) => `chapter-${i + 1}.tex`);
 
 test("the source strip counts what it hides, lists it, and scrolls under a wheel", async ({
