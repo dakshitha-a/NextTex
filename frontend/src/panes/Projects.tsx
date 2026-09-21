@@ -1283,6 +1283,7 @@ export default function Projects({
               <Segmented
                 label="What to start from"
                 testid="template-choice"
+                className="nx-segmented-wrap"
                 value={template}
                 options={templates.map((name) => ({
                   value: name,

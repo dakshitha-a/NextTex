@@ -220,6 +220,13 @@ test("the New project sheet does not run off a phone", async ({ app, project, pa
   const box = (await sheet.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(390);
   await expect(page.getByRole("button", { name: "Create project" })).toBeInViewport();
+  // The fifth template wraps onto a second row rather than leaving the
+  // sheet: every choice is inside the sheet's box.
+  for (const choice of await page.getByTestId("template-choice").getByRole("button").all()) {
+    const at = (await choice.boundingBox())!;
+    expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width);
+    expect(at.x).toBeGreaterThanOrEqual(box.x);
+  }
 });
 
 test("the arrow keys walk the list, and the filter cannot strand the focus", async ({

@@ -1614,6 +1614,9 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-segment[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; }
 /* On a drawer's ground the tray is the first surface and the chosen
    segment the wash, or the tray would vanish into the second surface. */
+/* Five templates do not fit a phone's sheet in one row: the control
+   wraps, and the segments keep their tray. */
+.nx-segmented-wrap { flex-wrap: wrap; row-gap: 2px; }
 .nx-segmented[data-tone="drawer"] { background: var(--surface); }
 .nx-segmented[data-tone="drawer"] .nx-segment[aria-pressed="true"] { background: var(--wash); }
 /* The strip's size: no tray, 20 px segments a hair apart, the chosen one

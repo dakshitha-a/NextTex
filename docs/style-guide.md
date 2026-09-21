@@ -104,7 +104,7 @@ kit's `Button` carries those looks as its variants.
 | `Field` | `controls.tsx` | a text input at 32 px on `--surface-2`, with `leading` and `trailing` slots | a bordered `<input>` |
 | `Chip` | `controls.tsx` | a small labelled thing that can be removed: a file, an added word, a format; `mono` for a literal | a pill with a colour |
 | `Switch` | `controls.tsx` | on or off, and nothing between | a checkbox styled by hand |
-| `Segmented` | `controls.tsx` | two to four exclusive choices, `md` in a sheet and `sm` in a strip | a row of toggle buttons |
+| `Segmented` | `controls.tsx` | two to five exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when five may not fit the width, as the templates do not on a phone | a row of toggle buttons |
 | `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |
 | `Empty` | `controls.tsx` | what a drawer or a list says when it holds nothing: one sentence and at most one action | an illustration, a heading of its own |
 | `Kbd` | `controls.tsx` | a key or a chord, shown always where a key is the way in | text in a box |
