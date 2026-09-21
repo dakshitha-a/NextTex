@@ -266,3 +266,27 @@ test("the literature can be searched without an agent, and a result added by its
   await rows.nth(0).getByTestId("papers-result-add").click();
   await expect(rows.nth(0).getByTestId("papers-result-added")).toHaveText("added as LeCun2015deep");
 });
+
+test("the drawer says nothing about the bibliography until it knows", async ({ tab }) => {
+  // The writer: the "Read a folder of PDFs" button "appears for a
+  // fraction of a second and flashes out".  The drawer's counts started at
+  // zero and zero drew "Nothing in the bibliography yet" with its button
+  // for the round trip, until the answer said the file holds an entry.
+  // With the answer held back, neither state may show; when it lands, the
+  // right one does, alone.
+  await tab.route("**/api/projects/*/library", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await route.continue();
+  });
+  await tab.getByTestId("bar-papers").click();
+  const panel = tab.getByTestId("papers-panel");
+  await expect(panel).toBeVisible();
+  for (let i = 0; i < 4; i++) {
+    await expect(panel.getByRole("button", { name: "Read a folder of PDFs" })).toHaveCount(0);
+    await expect(panel).not.toContainText("Nothing in the bibliography yet");
+    await expect(panel).not.toContainText("holds");
+    await tab.waitForTimeout(100);
+  }
+  await expect(panel).toContainText("references.bib holds 1 entry.", { timeout: 5_000 });
+  await expect(panel).not.toContainText("Nothing in the bibliography yet");
+});

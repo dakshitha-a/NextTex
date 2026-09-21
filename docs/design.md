@@ -315,7 +315,8 @@ unintuitive": a section that hid itself until a `.bib` existed, a search box ove
 separate DOI box, and a folder scan whose outcome was a count of "not identified" files.
 The drawer never hides itself now. Empty, it is one sentence and "Read a folder of PDFs";
 a bibliography with entries NextTex did not put there and nothing searched or read says
-what the file holds instead, since "nothing yet" would be untrue of it. Reading a folder
+what the file holds instead, since "nothing yet" would be untrue of it; and neither is
+drawn before the server has said which is true (§58). Reading a folder
 is the heading row's one icon button, as the page draws it. One field takes a search
 phrase or a pasted DOI, with the publisher chooser appearing inside it once there is
 something to ask: a string starting `10.`, with or without the `doi.org/` a paper's page
@@ -9942,3 +9943,23 @@ right: the ring says where the keyboard is and goes when it moves.
 reads the block's outline as solid, 2 px, the hint token, minus 2 px,
 and the button's as none, in both themes; the fidelity harness renders
 `tab-focus`. The guide's behaviour list carries the rule.
+
+**A drawer draws no state before it knows one (item 1.4).** Raised by
+the writer mid-plan: "The 'Read a folder of PDFs' button in the Papers
+drawer kind appears for a fraction of a second and flashes out. why?"
+The drawer's counts started at zero, and zero drew "Nothing in the
+bibliography yet" with its button the moment the drawer opened; when the
+server's answer landed and the bibliography had entries, "references.bib
+holds N entries" replaced it. The card was on screen for the round trip.
+A sweep of the other drawers found the same shape in two: Deleted drew
+"Nothing deleted" and History drew "Nothing yet for main.tex" for their
+round trips, each from a list that starts empty and is filled by its
+first answer. Each of the three now holds a `known` flag, false until
+the first answer or its failure, and draws its empty state only when it
+is true; the field, the heading and a list with rows in it render
+regardless, and History's flag is per scope and resets when the file
+changes, not when a build re-reads the same file. `papers.spec.ts` and
+`history-trash.spec.ts` hold the routes back by 700 ms, open each drawer
+and assert that no empty sentence shows during the delay and the right
+one shows after it. The rule for a drawer: an empty list before its
+first answer means nothing is known, not that nothing is there.

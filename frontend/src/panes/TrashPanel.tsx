@@ -18,9 +18,13 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
   const projectId = useStore((s) => s.projectId);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
+  // The store's list starts empty and is filled by the first answer;
+  // until it has come, an empty list means nothing is known yet, not that
+  // nothing is deleted, so no empty state is drawn before it.
+  const [known, setKnown] = useState(false);
 
   useEffect(() => {
-    if (projectId) refreshTrash(projectId);
+    if (projectId) void refreshTrash(projectId).then(() => setKnown(true));
   }, [projectId]);
 
   const act = async (what: "restore" | "purge" | "empty", id = "") => {
@@ -53,7 +57,7 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col px-2 pb-1" data-testid="trash-panel">
-      {!entries.length && failed ? (
+      {!entries.length && !known ? null : !entries.length && failed ? (
         <Empty data-testid="trash-unavailable">Could not read the trash.</Empty>
       ) : !entries.length ? (
         <Empty>

@@ -390,3 +390,35 @@ test("a version's patch can be read, and two versions can be compared",
     await tab.getByTestId("toggle-patch").click();
     await expect(patch).toHaveCount(0);
   });
+
+test("Deleted and History say nothing until they know", async ({ tab }) => {
+  // The same shape the bibliography drawer had: a list that starts empty
+  // and is filled by the first answer drew "Nothing deleted" and "Nothing
+  // yet" for the round trip.  With the answers held back, neither
+  // sentence may show; when they land, each does.
+  await tab.route("**/api/projects/*/trash", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await route.continue();
+  });
+  await tab.route("**/api/projects/*/history?*", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await route.continue();
+  });
+  await tab.getByTestId("bar-trash").click();
+  const trash = tab.getByTestId("trash-panel");
+  await expect(trash).toBeVisible();
+  for (let i = 0; i < 4; i++) {
+    await expect(trash).not.toContainText("Nothing deleted");
+    await tab.waitForTimeout(100);
+  }
+  await expect(trash).toContainText("Nothing deleted", { timeout: 5_000 });
+
+  await tab.getByTestId("bar-history").click();
+  const drawer = tab.getByTestId("drawer");
+  await expect(drawer).toHaveAttribute("data-drawer", "history");
+  for (let i = 0; i < 4; i++) {
+    await expect(drawer).not.toContainText("Nothing yet");
+    await tab.waitForTimeout(100);
+  }
+  await expect(drawer).toContainText("Nothing yet for main.tex", { timeout: 5_000 });
+});

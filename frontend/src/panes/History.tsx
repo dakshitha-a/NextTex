@@ -68,6 +68,11 @@ export default function History({
   const [scope, setScope] = useState<"file" | "project">("file");
   const [timeline, setTimeline] = useState<(Version & { path: string })[]>([]);
   const [timelineFailed, setTimelineFailed] = useState(false);
+  // Whether the list has had its first answer, per scope: an empty list
+  // before it means nothing is known yet, not "Nothing yet", and the
+  // sentence is drawn only once it is true.
+  const [fileKnown, setFileKnown] = useState(false);
+  const [timelineKnown, setTimelineKnown] = useState(false);
   const [held, setHeld] = useState("");
   /** Which folded row, by its stamp, is showing the files it holds. */
   const [unfolded, setUnfolded] = useState<string | null>(null);
@@ -77,8 +82,20 @@ export default function History({
       ? api.historyBlobUrl(projectId, activePath, sha, download)
       : "";
 
+  // A new file is unknown until its first answer; a build on the same
+  // file keeps what is known while the list is read again.
   useEffect(() => {
-    if (projectId && activePath) refreshHistory(projectId, activePath);
+    setFileKnown(false);
+  }, [projectId, activePath]);
+  useEffect(() => {
+    if (!projectId || !activePath) return;
+    let dropped = false;
+    void refreshHistory(projectId, activePath).then(() => {
+      if (!dropped) setFileKnown(true);
+    });
+    return () => {
+      dropped = true;
+    };
   }, [projectId, activePath, compile]);
 
   // And whenever the server says a file's log gained a version.  A build
@@ -125,6 +142,9 @@ export default function History({
       })
       .catch(() => {
         if (!dropped) setTimelineFailed(true);
+      })
+      .finally(() => {
+        if (!dropped) setTimelineKnown(true);
       });
     return () => {
       dropped = true;
@@ -293,7 +313,7 @@ export default function History({
               : "Could not read the project's versions. Nothing has been lost; this is about reaching the server."}
           </p>
         ) : null}
-        {rows.length === 0 && !(scope === "file" ? failed : timelineFailed) ? (
+        {rows.length === 0 && (scope === "file" ? fileKnown && !failed : timelineKnown && !timelineFailed) ? (
           <p className="t-meta p-2 text-ink-2">
             {scope === "project"
               ? "Nothing yet in this project. Versions are kept from the moment a file is first changed."

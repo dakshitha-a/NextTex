@@ -48,6 +48,11 @@ export default function PapersPanel({
   const progress = useStore((s) => s.library);
   const [count, setCount] = useState(0);
   const [entries, setEntries] = useState(0);
+  // Whether the server has said what the bibliography holds.  Before it
+  // has, the counts above are zero, and zero used to draw "Nothing in the
+  // bibliography yet" with its button for the round trip, which the
+  // writer saw as a flash; a state is drawn only once it is known.
+  const [known, setKnown] = useState(false);
   const [sources, setSources] = useState<string[]>([]);
   const [failures, setFailures] = useState<Failure[]>([]);
   const [lastRun, setLastRun] = useState<any>({});
@@ -87,6 +92,7 @@ export default function PapersPanel({
     } catch {
       /* a project that has never had a library is not an error */
     }
+    setKnown(true);
   };
 
   useEffect(() => {
@@ -414,7 +420,7 @@ export default function PapersPanel({
             )}
           </div>
         ) : null}
-        {settled ? (
+        {!known ? null : settled ? (
           <p className="nx-note">
             {bib} holds {entries} {entries === 1 ? "entry" : "entries"}.
           </p>
