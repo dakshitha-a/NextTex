@@ -86,8 +86,9 @@ test("hovering a cell draws the table, with the columns as the spec aligns them"
   // The maths in the header set by KaTeX, the mixed cell keeping its text.
   await expect(table.locator("th").nth(1).locator(".katex")).toBeVisible({ timeout: 15_000 });
   await expect(table.locator("th").nth(2)).toContainText("(ps)");
-  // The source line under it, in the mono.
-  await expect(card.locator(".nx-math-source")).toHaveText("\\begin{tabular}{lcr}");
+  // No source line under it: the source is in the editor under the card.
+  await expect(card.locator(".nx-math-source")).toHaveCount(0);
+  await expect(card).not.toContainText("\\begin{tabular}");
   await expect(card.locator(".nx-table-more")).toHaveCount(0);
 });
 

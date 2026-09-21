@@ -9316,10 +9316,10 @@ blank line. `table-hover.test.ts` covers the parser (a booktabs table, a
 holding `$x^2$`, the three environments' specs, an optional space after
 `\\`, and the row limit) and the finder; `table-hover.spec.ts` hovers a
 cell of a typed table and finds the header, the counts, the alignment
-classes, the rules, the KaTeX in the header and the source line, hovers a
-formula inside a cell and finds the maths, and reads "and 4 more rows"
-on a long one; the fidelity harness renders `table-hover` beside the
-page's table card.
+classes, the rules, the KaTeX in the header and no source line (since
+the frame run, section 57), hovers a formula inside a cell and finds
+the maths, and reads "and 4 more rows" on a long one; the fidelity
+harness renders `table-hover` beside the page's table card.
 
 ## 52. The preview's find, the prose blocks and the empty states on the kit
 
@@ -9801,6 +9801,18 @@ without a reload, its chips waking with its first build;
 where they reached the menu; `kit.spec.ts` reads the kit's menu on the
 source tab's; the fidelity harness renders `drawer-download` and
 `drawer-download-empty` beside the page's two drawings.
+
+**The formula and table cards show the thing only (item 3.1).** "For the
+equation preview on hover, don't show the LaTeX for the equation. It's
+already in the editor and is redundant. Same thing for the table
+preview: just show the table and not the LaTeX code." So the formula
+card is the rendered maths and nothing under it, and the table card is
+the table, with "and 4 more rows" when there are; the source's first
+line still stands in while KaTeX or the table reader loads, since it is
+the right size and useful for a moment, and is replaced when they land.
+`writing.spec.ts`'s formula case and `table-hover.spec.ts` read the card
+without its source line; the fidelity harness's `math-hover` and
+`table-hover` sit beside the page's cards.
 
 **The bar's eleven, remembered (item 2.4).** The drawer the bar
 remembers across a reload is read back through `BAR_ITEMS`, so the

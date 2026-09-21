@@ -249,6 +249,11 @@ test("hovering an equation shows it typeset", async ({ tab }) => {
     return tab.locator(".nx-math-tooltip").count();
   }, { timeout: 10_000, intervals: [100] }).toBeGreaterThan(0);
   await expect(tab.locator(".nx-math-tooltip")).toBeVisible();
+  // The rendered maths and nothing else once KaTeX has landed: the
+  // source is in the editor under the card.
+  const card = tab.locator(".nx-math-tooltip");
+  await expect(card.locator(".katex")).toBeVisible({ timeout: 15_000 });
+  await expect(card.locator(".nx-math-source")).toHaveCount(0);
 });
 
 test("the two things a LaTeX writer types most now close themselves", async ({

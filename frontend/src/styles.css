@@ -1905,13 +1905,6 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   background: var(--surface-2);
   text-align: center;
 }
-.nx-math-source {
-  margin-top: 6px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--ink-3);
-  white-space: pre-wrap;
-}
 .nx-math-loading {
   font-family: var(--font-mono);
   font-size: 12px;

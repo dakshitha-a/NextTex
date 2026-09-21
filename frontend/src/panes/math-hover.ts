@@ -303,6 +303,10 @@ export function mathHover(
           .then((renderer) => {
             try {
               body.classList.remove("nx-math-loading");
+              // The rendered maths alone: the source is in the editor under
+              // the card, and a copy of it under the maths was "redundant",
+              // the writer said.  The source stood in only while KaTeX
+              // loaded.
               renderer.render(prepare(span.body), body, {
                 displayMode: span.display,
                 throwOnError: false,
@@ -310,10 +314,6 @@ export function mathHover(
                 trust: false,
                 strict: "ignore",
               });
-              const under = document.createElement("div");
-              under.className = "nx-math-source";
-              under.textContent = source;
-              dom.append(under);
             } catch {
               body.className = "nx-math-body nx-math-failed";
               body.textContent = "This does not render on its own.";
@@ -392,10 +392,8 @@ function drawTable(dom: HTMLElement, body: HTMLElement, table: Table, symbols: (
   });
   if (table.bottom) element.classList.add("nx-table-bottom");
   body.append(element);
-  const head = document.createElement("div");
-  head.className = "nx-math-source";
-  head.textContent = table.head;
-  dom.append(head);
+  // The table alone, as the formula card shows the maths alone: its
+  // first line is in the editor under the card.
   if (table.more) {
     const more = document.createElement("div");
     more.className = "nx-table-more";
