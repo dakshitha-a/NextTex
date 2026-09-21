@@ -117,7 +117,7 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
         </div>
       )}
       {entries.length ? (
-        <div className="nx-foot">
+        <div className="nx-panel-foot">
           {confirming === "all" ? (
             <>
               <span className="t-meta flex-1 text-ink-2">

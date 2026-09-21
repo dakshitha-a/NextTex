@@ -438,7 +438,7 @@ export default function PapersPanel({
       </div>
       {bib && (!nothing || settled) ? (
         // Reading a folder is the heading's button; the foot is the check.
-        <div className="nx-foot">
+        <div className="nx-panel-foot">
           <Button
             size="inline"
             className="!h-auto min-h-[24px] !whitespace-normal py-[2px] text-left"

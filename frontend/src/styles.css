@@ -1767,7 +1767,14 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-line { display: flex; align-items: center; gap: 8px; padding: 4px 8px; color: var(--ink-2); font-size: 13px; line-height: 18px; }
 .nx-line-meta { color: var(--ink-3); font-size: 12px; }
 .nx-note { padding: 4px 8px; color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
-.nx-foot { display: flex; align-items: center; gap: 6px; padding: 6px 8px 10px; margin-top: auto; }
+/* A drawer body's own foot, the row at the bottom of Deleted and of
+   References.  It was `.nx-foot` until the frame run gave that name to
+   the four 28 px strips under the columns for their surround colour, and
+   this rule's box went with the name: 6 px above and 10 below put every
+   control on those strips 2 px high, and its gap and sides beat the
+   strips' own utilities, since an unlayered rule wins over a layered one.
+   One class, one meaning. */
+.nx-panel-foot { display: flex; align-items: center; gap: 6px; padding: 6px 8px 10px; margin-top: auto; }
 .nx-field-toggle {
   padding: 0 5px; line-height: 20px; border-radius: 3px;
   color: var(--ink-3); font-family: var(--font-mono); font-size: 11.5px;

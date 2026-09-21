@@ -54,6 +54,44 @@ test("the four feet are one line across the window, on the surround", async ({ t
   expect(Math.round(agentFoot.width)).toBe(Math.round(column.width));
 });
 
+test("every control in a foot sits on its strip's centre line", async ({ tab }) => {
+  // The writer: "The buttons on the footer do not seems to be properly
+  // centered either."  Measured, every control in all four feet sat 2 px
+  // high: the strips had taken the drawers' own foot rule along with its
+  // class name, 6 px of padding above and 10 below, and that rule's gap
+  // and sides beat the strips' own utilities.  The class means one thing
+  // now, and this reads every visible control against the strip's middle,
+  // and the strip's padding against what its classes say.
+  await tab.setViewportSize({ width: 1680, height: 1000 });
+  const feet: Record<string, string> = {
+    "drawer-foot": "0px 12px",
+    "status-strip": "0px 12px",
+    "preview-footer": "0px 12px",
+    "agent-foot": "0px 12px",
+  };
+  for (const [foot, padding] of Object.entries(feet)) {
+    const strip = tab.getByTestId(foot);
+    const found = await strip.evaluate((el) => {
+      const s = el.getBoundingClientRect();
+      const mid = s.top + s.height / 2;
+      const cs = getComputedStyle(el);
+      const off: string[] = [];
+      for (const n of el.querySelectorAll<HTMLElement>("button, input, span, [role=group]")) {
+        const r = n.getBoundingClientRect();
+        if (r.height === 0 || r.width === 0) continue;
+        const centre = r.top + r.height / 2;
+        if (Math.abs(centre - mid) > 0.5) {
+          off.push(`${n.tagName.toLowerCase()} "${(n.textContent || "").trim().slice(0, 16)}" ${(centre - mid).toFixed(2)}`);
+        }
+      }
+      return { off, padding: `${cs.paddingTop} ${cs.paddingRight}`, bottom: cs.paddingBottom };
+    });
+    expect(found.off, foot).toEqual([]);
+    expect(found.padding, foot).toBe(padding);
+    expect(found.bottom, foot).toBe("0px");
+  }
+});
+
 test("the Claude column's foot reads what the project has cost, and opens the breakdown", async ({ tab }) => {
   // Nothing has been asked yet: no turns, nothing spent.
   const tally = tab.getByTestId("agent-tally");

@@ -9904,3 +9904,23 @@ starting where the column ends, the chevron inside the row, the count
 hidden, the name's transform going negative under the pointer and back to
 zero when it leaves, and none of it at 400 px; the fidelity harness
 renders `frame-min` and `frame-min-hover` beside the page's two drawings.
+
+**The feet are centred, and a class means one thing (item 1.2).** "The
+buttons on the footer do not seems to be properly centered either. fix
+those too." Measured in the running app, every control in all four feet
+sat 2 px above its strip's centre line. The cause was one class with two
+meanings: `.nx-foot` was the drawers' own foot rule, `padding: 6px 8px
+10px; gap: 6px; margin-top: auto`, used by Deleted and by the
+bibliography drawer, and the frame run put the same class on the four
+28 px strips for their surround colour. An unlayered component rule beats
+Tailwind's layered utilities, so the strips' 12 px sides and 16 px gaps
+lost to 8 and 6 as well, and the lopsided padding put every control 2 px
+high; and the two drawer feet, for their part, had taken the surround
+colour they were never drawn on. The drawers' rule is `.nx-panel-foot`
+now and `.nx-foot` is the strips' colour and nothing else, so the strips
+have the air their markup states and their controls sit on the centre
+line, and Empty the trash sits on the drawer's own plane again.
+`feet.spec.ts` reads every visible control in each of the four feet
+against the strip's middle, within half a pixel, and the strip's padding
+as 0 over 12; the fidelity harness's `frame` shows the feet beside the
+page's strips. The style guide's kit section now carries the rule.

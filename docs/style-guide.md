@@ -144,6 +144,15 @@ destructive action pushed to the left with `mr-auto`, Cancel, and the one
 Claude"). A question before an irreversible act is the `nx-confirm` block
 in place, never a modal: one sentence, a `danger` button, Keep or Cancel.
 
+A class means one thing. A component rule's class is never borrowed by
+another element for one of its declarations, a colour say, because the
+rule's whole box comes with the name, and an unlayered rule beats any
+utility the element sets for itself: the four 28 px strips took the
+drawers' `.nx-foot` for its surround colour and got its 6 px over 10 px
+padding, which put every control on them 2 px high. That rule is
+`.nx-panel-foot` now and `.nx-foot` is the strips' colour and nothing
+else.
+
 ## How things behave
 
 - Hover-revealed actions stay in the DOM, show on `:focus-within`, and
