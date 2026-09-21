@@ -24,22 +24,27 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-After the overhaul shipped, the writer opened 3.1.0 on a real manuscript
-and settled, over a round of drawings on 20 and 21 September, what the
-frame of the workspace should be: no title bar, the project's name
-heading the left column, the four first rows one band on the surround
-with the activity bar and a foot under each column on the surround too,
-no line between panes at rest, and the open tab as the pane's own block
-with a short rule parting the rest. Share and Download leave the top for
-three drawers on the bar, People (the collaborator hub), Build (the
-compiler's drawer, with Rebuild and a double-click shortcut) and Download
-(every document's outputs as they come); New conversation moves into the
-composer; the formula and table cards lose their source line; and a
-reference to a figure, a table or an equation shows the thing on hover.
-It goes up as 3.2.0, one push, planned in
-`.claude/plans/reactive-nibbling-toast.md` against version 44 of the
-direction page, with its own live tracker; every surface is compared with
-the page before its commit. What it leaves is written here as it is found.
+The frame run went up as 3.2.0 on 21 September, planned against version
+44 of the direction page after the writer opened 3.1.0 on a real
+manuscript: no title bar, the project's name heading the left column,
+the four first rows one band on the surround with the activity bar and
+a foot under each column on the surround too, no line between panes at
+rest, the open tab as the pane's own block with a short rule parting the
+rest, New conversation in the composer; People, Build and Download as
+drawers on the bar in place of the title bar's Share and Download and
+the tray under the source; the formula and table cards without their
+source; and a reference to a figure, a table or an equation drawing the
+thing on hover, from an environment index the scan now keeps. Every
+surface was compared with the page in both themes before its commit.
+Two things it changed on the page, recorded there: the light theme's
+error and warn inks stepped one shade darker to clear the surround, and
+an invite's note says a week, which is what the server keeps. Two
+tangents on the way: a collaborator's caret position is reported on
+every move rather than only while typing, and `AppControls`, the folded
+rail's bar from before the overhaul that nothing mounted, went with the
+download menu. The one older difference is still with the writer: the
+plan block in the Claude column sits before the agent's words, where the
+page drew it after.
 
 The visual overhaul, after 2.18.0, rebuilds the interface on one kit and
 goes up as two pushes. It was planned over seventeen versions of a

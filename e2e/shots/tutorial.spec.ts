@@ -191,7 +191,9 @@ test("the figures the tutorial shows", async ({ app, project, tab }) => {
     await tab.getByTestId("status").click();
     await tab.getByTestId("diagnostics").waitFor({ timeout: 15_000 });
     await tab.waitForTimeout(700);
-    await shot(tab, "errors", theme, '[data-testid="diagnostics"]');
+    // The Build drawer with its heading, capped as the Git figure is: a
+    // drawer is as tall as the window and a figure of its offer is not.
+    await shot(tab, "errors", theme, '[data-testid="drawer"]', 0, 330);
 
     // Put it back, so the second theme starts from a document that builds.
     await breakIt(false);
