@@ -80,6 +80,7 @@ const Tutorial = lazy(() => import("./panes/tutorial/Tutorial"));
 /** Lazily loaded, like the tutorial. Most sessions never open it, and the
  *  entry bundle is measured. */
 const SharePanel = lazy(() => import("./panes/SharePanel"));
+const ReportSheet = lazy(() => import("./panes/ReportSheet"));
 const CommandPalette = lazy(() => import("./panes/CommandPalette"));
 /** The sign-in screen is a whole screen, and a machine that is signed in
  *  never draws it; fetched when it is shown. */
@@ -105,7 +106,7 @@ import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import {
-  FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, SearchIcon,
+  FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, ReportIcon, SearchIcon,
   SectionsIcon, SubmitIcon, TrashIcon,
 } from "./ui/icons";
 import { agentName, type Provider } from "./agent-name";
@@ -258,6 +259,7 @@ export default function App() {
   const [choosePapers, setChoosePapers] = useState(0);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [reporting, setReporting] = useState(false);
   /** The command palette, and a count the settings trigger watches so
    *  the palette can open the sheet whichever bar the trigger is in. */
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -2312,6 +2314,22 @@ export default function App() {
                 </div>
               </>
             )}
+            {/* The drawer's foot, level with the strips under the source and
+                the preview: the one way to report a problem from inside a
+                project, where a problem is usually met. */}
+            <div
+              className="nx-foot t-meta flex h-[28px] shrink-0 items-center px-3 text-ink-2"
+              data-testid="drawer-foot"
+            >
+              <button
+                className="flex items-center gap-[6px] hover:text-ink"
+                data-testid="report-problem"
+                onClick={() => setReporting(true)}
+              >
+                <ReportIcon size={13} />
+                Report a problem
+              </button>
+            </div>
           </div>
           {drawerOver ? null : (
             <Handle
@@ -2815,6 +2833,11 @@ export default function App() {
         </Suspense>
       ) : null}
       {agentSheet}
+      {reporting ? (
+        <Suspense fallback={null}>
+          <ReportSheet onClose={() => setReporting(false)} />
+        </Suspense>
+      ) : null}
       {sharing && projectId ? (
         <Suspense fallback={null}>
           <SharePanel

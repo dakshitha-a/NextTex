@@ -134,9 +134,12 @@ export default function Tutorial({
             There is no save button. What you type is written as you type
             it, and with <C>Compile as you type</C> on, which it is to begin
             with, the page rebuilds about a second after you pause, and only
-            the section you are in, which is why it is quick. The strip along
-            the bottom says how long the last build took and whether the page
-            is behind the source.
+            the section you are in, which is why it is quick. Every column
+            ends in a strip: the source&rsquo;s says how long the last build
+            took and whether the page is behind the source, the page&rsquo;s
+            holds the page number and the zoom, the drawer&rsquo;s is where
+            to report a problem, and the agent&rsquo;s says what the
+            conversations have cost.
           </P>
           <P>
             <Key spec="Mod-S" /> does not save, because saving already

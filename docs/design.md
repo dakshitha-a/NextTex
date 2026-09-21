@@ -9629,3 +9629,28 @@ the feet and the bar on it, the mark on the bar's centre and the name on
 the Files heading's left edge, the divider transparent then hinted, and
 the drag still resizing; and, below 1100, the row at the bar's width with
 the drawer overlaying under the band.
+
+**The four feet (item 1.4).** The writer wanted the strips under the
+source and the preview kept where they were, "segmented by pane", and
+then, for the frame to close, "the bug icon and report bug as the footer
+when a drawer is open" and "something useful as the footer for the
+Claude panel too so it's symmetric". So every column ends in a 28 px
+strip on the surround. The drawer's (`drawer-foot`, under whichever
+drawer shows, gone when the drawer is folded) holds one quiet control,
+the report glyph and "Report a problem" (`report-problem`), which opens
+the report sheet; the report was a branch of the update footer and so
+could only be reached from the projects screen, and it is its own
+component now, `frontend/src/panes/ReportSheet.tsx`, mounted by that screen's app bar
+and by this foot, since a problem is usually met with a document open.
+The Claude column's (`agent-foot`, under the composer in the live view)
+reads what the project's conversations have cost, "12 turns, $0.42",
+from the same `usage` the column already refreshes at the end of each
+turn, with "Usage" (`usage-open`) at its right opening the past
+conversations, whose foot is the breakdown; the header carries no Usage
+control, as before. Two decimals in the foot, since it is a glance, and
+three in the breakdown. `feet.spec.ts` reads the four feet as one 28 px
+line on the surround at 1680, each the width of its column; the tally
+before and after a scripted turn and Usage landing on the breakdown; the
+report sheet opening from the foot with the document still in place;
+and the foot following the drawer from Sections to History and going
+with the fold.

@@ -218,8 +218,9 @@ test("a cleared conversation stays cleared after a reload", async ({ tab }) => {
 
 test("what the project has cost is read at the foot of the past conversations", async ({ tab }) => {
   // One sentence, once, where the sum over every conversation belongs;
-  // the header carries no Usage control of its own.
-  await expect(tab.getByRole("button", { name: "Usage" })).toHaveCount(0);
+  // the header carries no Usage control of its own (the column's foot
+  // does, and feet.spec.ts reads it).
+  await expect(tab.getByTestId("chat-header").getByRole("button", { name: "Usage" })).toHaveCount(0);
   await tab.getByTestId("past-open").click();
   const line = tab.getByTestId("usage-line");
   await expect(line).toBeVisible({ timeout: 10_000 });

@@ -57,8 +57,13 @@ The window is a frame holding the panes. The four first rows (the
 project's name over the bar and the drawer, the source tabs, the preview
 tabs, the Claude header) are one 36 px band on `--surround`, class
 `nx-band`; the activity bar is on the surround; the 28 px foot under each
-column is on the surround, class `nx-foot`; and the panes between them are
-on their own planes with no line between them. A divider is invisible at
+column is on the surround, class `nx-foot`, set in `t-meta` in the second
+ink with its controls as bare words that take the first ink on hover, as
+the source's strip has always drawn Rebuild; and the panes between them
+are on their own planes with no line between them. Every column has a
+foot, so the frame closes: the drawer's holds Report a problem, the
+source's the build, the preview's the page, the Claude column's what the
+conversations have cost. A divider is invisible at
 rest and shows in `--hint` while the pointer rests on it or drags it. A
 surface that overlays another (the drawer below 1100 px, the Claude column
 below 1400) is lifted by `--float`, never edged by a border.

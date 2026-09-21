@@ -787,9 +787,14 @@ const SURFACES: Record<string, Surface> = {
     open: async (tab) => {
       await tab.setViewportSize({ width: 1000, height: 800 });
       await tab.waitForTimeout(400);
+      // The drawer overlays under the band at this width, with its foot.
+      await tab.getByTestId("bar-files").click();
+      await tab.getByTestId("drawer").waitFor();
+      await tab.waitForTimeout(200);
       return tab.locator(".nx-shell");
     },
     close: async (tab) => {
+      await tab.getByTestId("bar-files").click();
       await tab.setViewportSize({ width: 1600, height: 1000 });
       await tab.waitForTimeout(400);
     },

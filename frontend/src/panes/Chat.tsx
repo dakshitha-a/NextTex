@@ -1068,10 +1068,40 @@ export default function Chat({
           </div>
         </div>
       </div>
+      {/* The column's foot, level with the strips under the source and the
+          preview: what the project's conversations have cost so far, and
+          the way to the breakdown at the foot of the past conversations.
+          The sum follows the end of each turn, as `usage` does. */}
+      <div
+        className="nx-foot t-meta flex h-[28px] shrink-0 items-center gap-3 px-3 text-ink-2"
+        data-testid="agent-foot"
+      >
+        <span className="tnum truncate" data-testid="agent-tally">{tally(usage?.usage)}</span>
+        <span className="flex-1" />
+        <button
+          className="hover:text-ink"
+          data-testid="usage-open"
+          title="What this project's conversations have cost, in full"
+          onClick={() => {
+            setConfirmClear(false);
+            setView("past");
+          }}
+        >
+          Usage
+        </button>
+      </div>
       </>
       ) : null}
     </div>
   );
+}
+
+/** The foot's sum: "12 turns, $0.42".  Two decimals, since the foot is a
+ *  glance and the past conversations' line has the third. */
+export function tally(usage: { turns: number; costUsd: number } | undefined): string {
+  if (!usage) return "";
+  const turns = `${usage.turns} ${usage.turns === 1 ? "turn" : "turns"}`;
+  return `${turns}, $${usage.costUsd.toFixed(2)}`;
 }
 
 /** A path or a command, cut to something that fits a 32px header beside
