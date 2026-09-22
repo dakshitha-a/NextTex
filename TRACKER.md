@@ -153,6 +153,16 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
+- [ ] **An outside write to a source file reaches the editor and not the
+      preview.** The watcher folds a `git pull` or another editor's save
+      into the shared document, but a build is scheduled only when the
+      store projects the document to disk, and a change that came from
+      disk is projected nowhere, so the page stays as it was until the
+      writer types. Found while writing the settling spec, which seeds
+      its files before the project opens for that reason. Left because
+      the right rule needs deciding first: a `git pull` of forty files
+      should be one build, not forty, and an outside write to a `.bib`
+      should count as the citation change it is.
 - [ ] **A PNG download the writer reported as broken was not reproduced,
       twice.** The report names the tree's row-menu *Download*, in Chrome.
       The route answers the bytes with `image/png` and an attachment
