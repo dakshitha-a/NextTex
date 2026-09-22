@@ -156,15 +156,15 @@ function ImageView({ source, name, path }: { source: string; name: string; path:
             a figure only had the tree's row menu, which is not where a
             person looking at the figure is looking. */}
         {projectId ? (
-          <a
+          <button
+            type="button"
             className="shrink-0 hover:text-ink"
-            href={api.downloadUrl(projectId, { path })}
-            download
+            onClick={() => void download(api.downloadUrl(projectId, { path }), name)}
             data-testid="image-download"
             title={`Download ${name}`}
           >
             Download
-          </a>
+          </button>
         ) : null}
       </div>
     </>

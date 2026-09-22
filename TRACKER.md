@@ -225,7 +225,13 @@ this host could not reproduce; each says which.
       it: the words on Chrome's download bar when it fails ("Failed -
       Network error", "Blocked", "Insecure download"), whether it was the
       laptop or this machine, and whether the tab was on the tailnet's
-      HTTPS address or the token URL.
+      HTTPS address or the token URL. The close-out run then found that
+      two controls had never left the link road at all, the figure
+      viewer's *Download* and the preview strip's *Save this PDF*, both
+      missed by the sweep that named the first of them; they are on the
+      fetch helper now and `no-link-downloads.test.ts` forbids the shape.
+      That is not this report, which names the tree's row menu, and the
+      three questions above are still what would close it.
 - [ ] **A Windows install's server exited silently after an update's
       restart.** Seen on the laptop during the cross-machine check for
       2.3.0: the restart helper launched the Startup shortcut, the new

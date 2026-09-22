@@ -7505,7 +7505,8 @@ missing was the control a person looking at a figure would reach for:
 the card for a file nobody can draw has offered *Download* since it
 existed, and the image viewer, the pane a figure actually opens in, had
 only the tree's row menu, one pane away. The viewer's footer carries
-*Download* now, an anchor with `download` on the file route, beside Fit.
+*Download* now, beside Fit; it was written as an anchor with `download`
+on the file route, which section 63 corrects.
 `e2e/specs/image-view.spec.ts` downloads the same PNG three ways, from
 the viewer, from the row menu and from its history, and asserts the
 bytes each time.
@@ -10216,3 +10217,50 @@ it draws, the five dark SVG illustrations and the logo under `docs/`,
 the palette table in section 2, the direction page's dark tokens, and
 the README's thirteen screenshots, regenerated. `contrast.test.ts`
 measured every pair the stylesheet names before the change was kept.
+
+## 63. Two Downloads that were still links
+
+A sweep is only as good as the shape it forbids, and this one forbade a
+road instead.
+
+On 18 September at 03:44, `162a105` gave the image viewer its own
+*Download*, written as an anchor with the `download` attribute on the
+file route, because a figure could be saved only from the tree's row
+menu, one pane away from where a person looking at the figure is
+looking. At 16:07 the same day, `43e9c2c` found that from inside an open
+project over the tailnet's HTTPS address Chrome cancelled such a
+download before sending a byte, once the page had been open about ten
+seconds, and moved every control onto `download` in
+`frontend/src/chrome.tsx`, which fetches and saves the blob. Its own
+body named the five broken controls the writer had, the figure viewer's
+among them. Its diff touched `FileView.tsx` and converted the *other*
+Download in that file, the card for a file nobody can draw, and left the
+viewer's anchor where it was. The guard it installed was to delete
+`startDownload` from `api.ts` so nothing could reach for the link again,
+and that guard could not have caught this: the anchor had never called
+`startDownload`. The preview strip's *Save this PDF as it stands*
+survived for the same reason.
+
+So both are buttons on the helper now, and the guard is the shape rather
+than the road: `frontend/src/no-link-downloads.test.ts` reads every
+`.tsx` under `frontend/src/` off disk and fails on any anchor carrying a
+`download` attribute, naming the file and the line. It matches across
+lines, because the viewer's anchor spanned seven of them and a
+line-at-a-time search would have passed on the very defect that prompted
+it, and it blanks comments first, because chrome.tsx's explanation of
+this failure quotes the shape it forbids.
+
+The preview strip's control had a second fault nobody had reported. It
+pointed at `GET /api/projects/{id}/pdf`, which sends no
+`Content-Disposition`, so a bare `download` attribute fell back to the
+URL's last path segment and the page was saved as `pdf.pdf`, the browser
+having supplied the extension itself. The name is made in the page now,
+from the document's stem, and `e2e/specs/pdf-zoom.spec.ts` asserts the
+saved name, the leading `%PDF`, and that no build started while the file
+was saved, which is that control's whole promise. It had asserted the
+anchor's `href` and its `download` attribute, both of which stayed true
+for as long as the file came down under the wrong name.
+
+Neither of these is the writer's own report. That one names the tree's
+row menu, which has been on the fetch helper since the sweep; it is
+still open, and what would close it is written in `TRACKER.md`.

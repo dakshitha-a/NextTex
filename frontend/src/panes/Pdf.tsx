@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import api from "../api";
+import { download, stemOf } from "../chrome";
 import { get, useStore } from "../store";
 import { Button, IconButton } from "../ui/Button";
 import { Field, Segmented } from "../ui/controls";
@@ -1478,19 +1479,30 @@ export default function Pdf({
         </span>
         <span className="min-w-0 flex-1" />
         {/* The page that is already rendered and already on disk. The
-            header's download menu is the only other way to save it and
-            its PDF item forces a full server rebuild first, which is a
-            wait for a file the reader is looking at. */}
+            Download drawer is the only other way to save it and its PDF
+            chip forces a full server rebuild first, which is a wait for a
+            file the reader is looking at.  Fetched rather than linked,
+            like every other download: see `download` in chrome.tsx for
+            what a link does here. The name has to be made up because this
+            route sends no Content-Disposition: a bare `download` attribute
+            falls back to the URL's last segment, so this saved the page as
+            `pdf.pdf`, the browser having added the extension itself. */}
         {projectId && pageCount ? (
-          <a
+          <button
+            type="button"
             className="hidden shrink-0 whitespace-nowrap hover:text-ink @[420px]:block"
-            href={api.pdfUrl(projectId, showing, stamp)}
-            download
+            onClick={() =>
+              void download(
+                api.pdfUrl(projectId, showing, stamp),
+                showing ? `${stemOf(showing)}.pdf` : "document.pdf",
+                "the PDF",
+              )
+            }
             data-testid="save-pdf"
             title="Save this PDF as it stands, without rebuilding it"
           >
             Download
-          </a>
+          </button>
         ) : null}
       </div>
     </div>

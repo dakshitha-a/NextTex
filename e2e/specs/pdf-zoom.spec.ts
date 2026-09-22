@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures";
-import type { Page } from "@playwright/test";
+import { watchEvents } from "../events";
+import type { Download, Page } from "@playwright/test";
 
 /** Zooming the preview the way everything else zooms.
  *
@@ -150,18 +151,47 @@ test("a page can be named in either mode, and the zoom is where it was left", as
   await expect(tab.getByTestId("zoom")).toHaveText(zoomed, { timeout: 60_000 });
 });
 
-test("the rendered page can be saved without rebuilding it", async ({ tab }) => {
-  // R-098. The only way to save the page was the header's download menu,
-  // whose PDF item forces a full server rebuild first: a wait for a file
-  // the reader is already looking at.
+/** The bytes a download delivered, read back from where the browser put
+ *  them. */
+async function bytesOf(download: Download): Promise<Buffer> {
+  const path = await download.path();
+  const { readFileSync } = await import("node:fs");
+  return readFileSync(path!);
+}
+
+test("the rendered page can be saved without rebuilding it", async ({
+  tab, app, project,
+}) => {
+  // R-098. The only way to save the page was the Download drawer, whose
+  // PDF chip forces a full server rebuild first: a wait for a file the
+  // reader is already looking at.
+  //
+  // This asserted the control's href and its download attribute, which is
+  // what a link has and says nothing about what a press delivers.  Both
+  // held while the file landed as `pdf.pdf`: the route this points at
+  // sends no Content-Disposition, a bare `download` attribute falls back
+  // to the URL's last segment, and Chromium added the extension.  So
+  // the press is what is asserted now: the file, its name, its bytes, and
+  // that nothing was rebuilt to produce it.
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
-  // A rendered page first: the link is offered only once there is one,
+  // A rendered page first: the control is offered only once there is one,
   // because a Save that fetches nothing is worse than no Save.
   await expect(tab.getByTestId("page-number")).toBeVisible({ timeout: 60_000 });
   const save = tab.getByTestId("save-pdf");
   await expect(save).toBeVisible({ timeout: 20_000 });
-  await expect(save).toHaveAttribute("href", /\/pdf\?/);
-  await expect(save).toHaveAttribute("download", "");
+
+  const watch = await watchEvents(app, project.id);
+  const [saved] = await Promise.all([
+    tab.waitForEvent("download", { timeout: 20_000 }),
+    save.click(),
+  ]);
+  expect(saved.suggestedFilename()).toBe("main.pdf");
+  const bytes = await bytesOf(saved);
+  expect(bytes.subarray(0, 4).toString("latin1")).toBe("%PDF");
+  // The promise the control makes: the page as it stands, not a new one.
+  await tab.waitForTimeout(500);
+  expect(watch.count("compile_start")).toBe(0);
+  watch.stop();
 });
 
 test("the preview strip drops its last controls before it clips them, at every pane width", async ({
