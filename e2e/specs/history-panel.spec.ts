@@ -38,10 +38,19 @@ async function typeAndSave(page: Page, text: string, app: any, project: any) {
 /** The bar's History drawer, for the file in front; a second press would
  *  fold it, so the press is only made when History is not showing. */
 async function openHistory(page: Page) {
+  // Asked for until the drawer is the one asked for.  A press made in the
+  // instant a reload is restoring the remembered drawer met that
+  // restoration head on, one opening and the other folding, and the
+  // panel that then showed was none; a writer presses again, so does this.
   const drawer = page.getByTestId("drawer");
-  const showing =
-    (await drawer.count()) > 0 && (await drawer.getAttribute("data-drawer")) === "history";
-  if (!showing) await page.getByTestId("bar-history").click();
+  await expect
+    .poll(async () => {
+      const showing =
+        (await drawer.count()) > 0 && (await drawer.getAttribute("data-drawer")) === "history";
+      if (!showing) await page.getByTestId("bar-history").click();
+      return showing;
+    }, { timeout: 15_000, intervals: [400] })
+    .toBe(true);
   await expect(page.getByTestId("version").first()).toBeVisible({ timeout: 10_000 });
 }
 
