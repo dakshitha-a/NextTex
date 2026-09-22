@@ -197,7 +197,7 @@ def test_an_engine_nextTex_does_not_run_is_refused_not_written(client, project_d
 def test_nothing_is_scheduled_when_compiling_as_you_type_is_off(client, opened):
     """Gated in the scheduler rather than in the editor.
 
-    Only two of the twelve callers are the writer's own keystrokes; the rest
+    Only two of the many callers are the writer's own keystrokes; the rest
     are the agent's edits, uploads, restores and template loads, and a
     switch that let those keep building would not be the switch it says it
     is.

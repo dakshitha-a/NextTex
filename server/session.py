@@ -1079,14 +1079,14 @@ class ProjectSession:
     def schedule_compile(self) -> None:
         """Build once typing has settled, replacing any pending build.
 
-        Gated here rather than in the editor because only two of the twelve
+        Gated here rather than in the editor because only two of its many
         callers are the writer's own keystrokes: the rest are the agent's
-        edits, uploads, restores and template loads, and a switch called
-        "compile as you type" that let those keep building would not be the
-        switch it says it is.  The three paths that reach `compile()`
-        directly -- the manual button, the agent's own compile tool, and
-        the build on opening a project -- are deliberately unaffected;
-        none of them is "as you type".
+        edits, uploads, restores, template loads and the watcher's sightings
+        of an outside write, and a switch called "compile as you type" that
+        let those keep building would not be the switch it says it is.  The
+        three paths that reach `compile()` directly -- the manual button,
+        the agent's own compile tool, and the build on opening a project --
+        are deliberately unaffected; none of them is "as you type".
 
         Which documents are built is decided by `note_edit`, which knows
         what was edited.  An empty set means nobody said -- an upload, a
@@ -1138,7 +1138,7 @@ class ProjectSession:
         This is where the rebuild policy lives. Editing a chapter rebuilds
         the document that includes it; editing the supplementary information
         rebuilds only that. `schedule_compile` then builds what is listed
-        here, so the twelve callers of it need no idea any of this happened.
+        here, so the callers of it need no idea any of this happened.
         """
         relative = self.relative_or_none(str(path))
         if relative:

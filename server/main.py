@@ -248,10 +248,31 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
     with a history and nothing to fold was rewritten to what it already
     said, and is left alone.  The versions are recorded off the loop, a
     sha256 and a zlib pass per file.
+
+    And then to the compiler, which nothing did before either.  A typed
+    edit reaches the preview because the store's projection writes the
+    file and tells the session, but a change that came from disk is
+    projected nowhere, so a pull, another editor's save or a figure a
+    script outside NextTex regenerated reached the editor and the page
+    stayed as it was until the writer typed.  Every file the tick saw
+    that is still there is noted with `note_edit`, the same call the
+    projection makes, so an outside write to a `.bib` counts as the
+    citation change it is and a rewritten figure takes the full pass, and
+    the build is scheduled once for the tick, after the loop, so a pull
+    of forty files is one build per document and not forty.  Two things
+    are skipped: a text file whose document was already open and which
+    `ingest` left alone, since that is a rewrite to what the document
+    already said, or the projection's own write coming back, and the page
+    already shows it; and a file the tick saw go, whose deletion is not
+    yet known to be one, see `ingest`.  A document opened inside the tick
+    has nothing for `ingest` to fold and its earlier text is not known,
+    so the compiler is told nothing about what changed and takes the full
+    pass, which is the honest answer once.
     """
     stamp = f"outside:{now_ms()}"
     collab = session.collab
-    changed: list[tuple[Path, str, str | None]] = []
+    changed: list[tuple[Path, str, str | None, bool]] = []
+    edited: list[tuple[Path, str | None, str | None]] = []
     with collab.live_outside_edits(stamp):
         for relative in paths:
             try:
@@ -273,8 +294,14 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
                 folded = collab.ingest(relative, text, gone=not here)
                 if text is not None:
                     changed.append((path, text, before if folded else None, folded))
+                if here and (folded or not was_open or text is None):
+                    edited.append((path, text, before if folded else None))
             except (OSError, ValueError):
                 continue
+    if edited:
+        for path, text, before in edited:
+            session.note_edit(path, text, before)
+        session.schedule_compile()
     if not changed:
         return
 

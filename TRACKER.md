@@ -153,16 +153,16 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
-- [ ] **An outside write to a source file reaches the editor and not the
-      preview.** The watcher folds a `git pull` or another editor's save
-      into the shared document, but a build is scheduled only when the
-      store projects the document to disk, and a change that came from
-      disk is projected nowhere, so the page stays as it was until the
-      writer types. Found while writing the settling spec, which seeds
-      its files before the project opens for that reason. Left because
-      the right rule needs deciding first: a `git pull` of forty files
-      should be one build, not forty, and an outside write to a `.bib`
-      should count as the citation change it is.
+- [ ] **A file deleted outside NextTex does not schedule a build.** The
+      watcher's tick now tells the compiler about every outside write it
+      sees, so a pull, another editor's save or a regenerated figure
+      reaches the page, but a file the tick saw go is not yet known to be
+      deleted, for the reason `ingest` gives, and is settled at the
+      flush, where nothing schedules a build. A chapter removed in another
+      terminal therefore stays on the page until the next edit, when the
+      build fails on the missing input. Left because the honest build is
+      a failing one and the flush's `_settle_gone` would need to tell the
+      session; small, once somebody wants it.
 - [ ] **A PNG download the writer reported as broken was not reproduced,
       twice.** The report names the tree's row-menu *Download*, in Chrome.
       The route answers the bytes with `image/png` and an attachment
