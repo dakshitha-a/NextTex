@@ -37,7 +37,7 @@ import {
   useSpelling,
   useSpellingVariety,
 } from "../use-editor-theme";
-import { toShell } from "../viewport";
+import { toShell, uiScale } from "../viewport";
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
@@ -49,7 +49,7 @@ import { noteTyping, onFrame } from "../timing";
  *  is: `bundle.initial_kb` counts only what a first visit has to
  *  download. */
 const SelectionActions = lazy(() => import("./SelectionActions"));
-import { placeVerbRow } from "./verb-row";
+import { placeClear } from "./place-clear";
 
 
 /** How long the outline waits behind the keyboard.
@@ -309,25 +309,40 @@ export default function Editor({
    *  squarely over the second, which is the text it is about.  The
    *  character still supplies the left edge, when it is in the rendered
    *  viewport; the block always exists, so a selection whose end is off
-   *  the screen gets a row too, at the foot of the pane.  Reads only refs,
-   *  so the cursor listener, the measure callback and the scroll listener
-   *  share one copy of the arithmetic. */
+   *  the screen gets a row too, at the edge of the pane nearest the
+   *  selection's head.  Reads only refs, so the cursor listener, the
+   *  measure callback and the scroll listener share one copy of the
+   *  arithmetic.
+   *
+   *  In shell pixels throughout.  The frame, `documentTop`, the line
+   *  blocks and `coordsAtPos` are all viewport measurements, which the
+   *  interface size setting scales with `zoom`; the row's own size is
+   *  measured in shell pixels and the answer is written as CSS pixels
+   *  inside the scaled shell.  Mixing the two drew the row that much
+   *  further down and right at any size but 100 %: over the selection at
+   *  110 %, off the pane at 125 %, which the writer met as a menu with
+   *  "no order to where it appears". */
   const placeRow = useCallback(() => {
     const editor = view.current;
-    const frame = host.current?.getBoundingClientRect();
-    if (!editor || !frame) return null;
+    const pane = host.current;
+    const frame = pane?.getBoundingClientRect();
+    if (!editor || !pane || !frame) return null;
+    const scale = uiScale();
     const range = editor.state.selection.main;
     const from = Math.min(range.from, range.to);
     const to = Math.max(range.from, range.to);
     const firstBlock = editor.lineBlockAt(from);
     const lastBlock = editor.lineBlockAt(to);
-    const origin = editor.documentTop - frame.top;
-    const left = (editor.coordsAtPos(from)?.left ?? frame.left) - frame.left;
-    return placeVerbRow(
-      { top: firstBlock.top + origin, bottom: firstBlock.bottom + origin, left },
-      { top: lastBlock.top + origin, bottom: lastBlock.bottom + origin, left },
-      { width: frame.width, height: frame.height },
+    const origin = (editor.documentTop - frame.top) / scale;
+    const left = ((editor.coordsAtPos(from)?.left ?? frame.left) - frame.left) / scale;
+    const head = editor.coordsAtPos(range.head);
+    const pointerY = head ? (head.top - frame.top) / scale : undefined;
+    return placeClear(
+      { top: firstBlock.top / scale + origin, bottom: firstBlock.bottom / scale + origin, left },
+      { top: lastBlock.top / scale + origin, bottom: lastBlock.bottom / scale + origin, left },
+      { width: pane.offsetWidth, height: pane.offsetHeight },
       actionsSize.current ?? { width: 300, height: 32 },
+      pointerY,
     );
   }, []);
   /** Move an open row to where the selection is now, and nothing when it
@@ -341,6 +356,18 @@ export default function Editor({
         : open,
     );
   }, [placeRow]);
+  /** The row's real size once it is drawn.  The first placement guessed
+   *  it; with the real one, the row moves if the guess would have put it
+   *  over the text.  A stable callback, because the row's layout effect
+   *  depends on it and an inline one re-ran the measurement on every
+   *  render of this pane. */
+  const measureRow = useCallback((size: { width: number; height: number }) => {
+    const before = actionsSize.current;
+    actionsSize.current = size;
+    if (!before || before.height !== size.height || before.width !== size.width) {
+      followRow();
+    }
+  }, [followRow]);
   const openRef = useRef<
     | ((
         path: string,
@@ -590,7 +617,7 @@ export default function Editor({
       // one too, and clear of every line the selection touches: above the
       // first of them by preference, below the last when there is no room
       // above.  See `placeRow` for why the anchor is the line block and
-      // `placeVerbRow` for the ladder.
+      // `placeClear` for the ladder.
       //
       // A few characters is not a selection worth acting on: a
       // double-click on one word happens constantly while reading, and a
@@ -1357,15 +1384,7 @@ export default function Editor({
           <SelectionActions
             lines={{ from: actions.from, to: actions.to }}
             at={{ left: actions.left, top: actions.top }}
-            onMeasure={(size) => {
-              // The first placement guessed the size; with the real one,
-              // move the row if the guess would have it over the text.
-              const before = actionsSize.current;
-              actionsSize.current = size;
-              if (!before || before.height !== size.height || before.width !== size.width) {
-                followRow();
-              }
-            }}
+            onMeasure={measureRow}
             onDismiss={() => setActions(null)}
             onPick={(prompt) => {
               setActions(null);

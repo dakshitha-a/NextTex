@@ -7107,7 +7107,23 @@ above the first selected line by preference; below the last selected
 line when there is no room above; and only when the last line is off the
 bottom of the view does it sit at the foot of the pane, over whichever
 line is there, which is the one case with no clear ground.
-`verb-row.ts` holds the arithmetic with its own tests.
+`verb-row.ts` held the arithmetic with its own tests; it is
+`place-clear.ts` since the placement run, where the hover cards share it.
+
+The third report, "no order to where it appears", sometimes over the
+selection, sometimes off the editor's frame, sometimes half under the
+preview pane, was the interface size. The shell is scaled with `zoom`,
+so the frame, the line blocks and the caret come back from the browser
+in viewport pixels while the row's own size is measured in shell pixels
+and the answer is written as CSS pixels inside the scaled shell.
+`placeRow` mixed the two, and at any size but 100 % the row was drawn
+that much further down and right: at 125 % the row for a paragraph at
+the foot of the view landed below it and off the pane. Every input is
+converted with `toShell` now, and the ladder gained its last rung, the
+pane edge nearest the selection's head, for a selection that fills the
+view. `verb-row-scale.spec.ts` makes the same two selections at 100 %
+and 125 % and reads the row inside the pane and clear of the paragraph;
+the 125 % case fails on the old placement.
 
 That fix moved the row a few pixels and the writer reported it again,
 with a picture: the row on line 33, whose label it carried. Line 33 was
