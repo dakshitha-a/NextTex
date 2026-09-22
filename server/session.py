@@ -984,8 +984,29 @@ class ProjectSession:
 
     # -- compiling --------------------------------------------------------
     async def compile(
-        self, force_full: bool = False, document: str | None = None
+        self, force_full: bool = False, document: str | None = None,
+        settling: bool = False,
     ) -> CompileResult:
+        """Build one document, and let it settle.
+
+        Compile as you type is one engine pass, and one pass typesets
+        against the last pass's `.aux`, `.bbl` and `.out`: wherever an
+        edit changed what a reference, a citation or a page number says,
+        that pass's page flow, and with it where the floats land, is one
+        pass behind.  The engine says so in its log ("Label(s) may have
+        changed. Rerun", "Some pages have been shifted"), and for a year
+        nothing read it: the preview rested on the unconverged layout
+        until the writer forced a whole build, which is how a figure sat
+        on the wrong page until Rebuild everything.  So a fast pass that
+        leaves the document unconverged is followed by one *settling*
+        build, a full pass, after its own result has gone out: the preview
+        shows the fast pass at once and the settled layout a moment
+        later.  The settling build takes the same road as any other, the
+        cancel and the queue, so a keystroke supersedes it; it never
+        spawns a second, so a package that always asks for a rerun cannot
+        loop; and it is spawned rather than awaited, so the route and the
+        agent's tool get the fast result when it is ready.
+        """
         state = self.document_for(document)
         # Every build carries an id, and its result carries the same one.
         # A cancelled build's result arrives *after* its replacement has
@@ -1000,7 +1021,8 @@ class ProjectSession:
         build = state.build_id
         state.in_flight = build
         await self.events.publish(
-            {"type": "compile_start", "build": build, "document": state.path}
+            {"type": "compile_start", "build": build, "document": state.path,
+             "settling": settling}
         )
         # Supersede any build of this same document *before* joining the
         # queue. A request that queued first would be waiting for a slot
@@ -1024,9 +1046,35 @@ class ProjectSession:
         if state.in_flight == build:
             state.in_flight = 0
         await self.events.publish(
-            {"type": "compile_done", "build": build, "document": state.path, **payload}
+            {"type": "compile_done", "build": build, "document": state.path,
+             "settling": settling, **payload}
         )
+        if self._unsettled_by(state, result, build, settling):
+            spawn(
+                self.compile(force_full=True, document=state.path, settling=True),
+                "the settling build",
+            )
         return result
+
+    @staticmethod
+    def _unsettled_by(
+        state: DocumentState, result: CompileResult, build: int, settling: bool,
+    ) -> bool:
+        """Whether this build's document needs a settling build after it.
+
+        Only a fast pass that finished, was not superseded (a newer build
+        is in flight, and it will settle itself), compiled without error
+        (a full pass of a broken document fixes nothing), and whose log
+        asked for another run or left the citations or references in a
+        state the scheduler has already marked for a full pass.
+        """
+        if settling or result.engine_pass != "fast" or result.outcome is not Outcome.OK:
+            return False
+        if state.in_flight not in (0, build):
+            return False
+        if result.log is not None and result.log.rerun_needed:
+            return True
+        return state.compiler.needs_full
 
     def schedule_compile(self) -> None:
         """Build once typing has settled, replacing any pending build.

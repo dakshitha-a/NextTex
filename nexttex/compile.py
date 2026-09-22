@@ -559,6 +559,14 @@ class CompileScheduler:
         self._needs_full = True
         self._full_mark += 1
 
+    @property
+    def needs_full(self) -> bool:
+        """Whether the next build must be a full pass: the log of the last
+        one said the citations or references it saw are not the ones its
+        bibliography or `.aux` was built from.  The session reads this to
+        decide whether a fast pass needs a settling build after it."""
+        return self._needs_full
+
     async def cancel(self) -> None:
         """Stop the build in flight, including anything it spawned."""
         proc = self._process

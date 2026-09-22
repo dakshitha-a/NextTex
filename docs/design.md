@@ -10031,3 +10031,34 @@ governed here. `hover-cards.spec.ts` turns the switch off and asserts no
 card of any kind and the Ctrl-click still following, turns one kind off
 and asserts the others still draw and the reference's card comes
 without its equation, reloads for the memory, and resets.
+
+## 60. The preview settles on its own
+
+Raised by the writer on 21 September 2026, after 3.4.0: "some figures
+were out of place. when I commented them out, built the doc without
+them, then uncommented and rebuild everything was fine." Asked which
+they saw, they chose figures on the wrong page rather than a picture
+drawn in the wrong spot.
+
+**The reading.** Their project has no `\include`, so no partial build
+ever ran there, and the preview's page cache is stamped on every build,
+so it was not a stale tile. Compile as you type is one engine pass, and
+a single pass typesets against the last pass's aux files: wherever an
+edit changed what a reference, a citation or a page number says, the
+page flow of that pass, and with it where a `[h]` figure lands, is one
+pass behind (their last log has six "`h' float specifier changed to
+`ht'" lines). The engine says so in its log and nothing read it; the
+full pass the scheduler knew it needed waited for a build nobody
+triggered. Their cycle worked because it ended in Rebuild everything, a
+latexmk run that reruns the engine until the layout is stable.
+
+**The change.** Nothing new to see and nothing to press: a fast pass
+that leaves the document unconverged is followed by one settling build,
+a full pass, after its own result has gone out, so the preview shows
+the fast pass at once and the settled layout a moment later, with the
+strip's dot breathing for the second build as it does for any. A
+keystroke supersedes it; it never spawns another. The strip keeps its
+words. `settling.spec.ts` types `\newpage` into an input file whose
+text names the page a later section is on and reads the number back
+out of the PDF: without the change it says "1 of 3" for ever.
+

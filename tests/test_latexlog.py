@@ -108,3 +108,26 @@ def test_the_engine_asking_for_bibtex_is_remembered_though_the_line_is_hidden():
     result = parse_log(log, ROOT, MAIN)
     assert result.bibliography_stale is True
     assert not result.warnings
+
+
+def test_the_engine_asking_to_be_run_again_is_remembered_though_the_line_is_hidden():
+    """A writer saw figures on the wrong page until a whole rebuild: a
+    single pass had left the layout one pass behind, the engine said so
+    in its log, and nothing read it.  The hints stay out of the gutter
+    and become one flag the scheduler acts on."""
+    for hint in (
+        "LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.",
+        "Package rerunfilecheck Warning: File `main.out' has changed.",
+        "LaTeX Warning: Some pages have been shifted.",
+        "Package hyperref Warning: Rerun to get outlines right.",
+    ):
+        result = parse_log(f"(./main.tex\n{hint}\n)\n", ROOT, MAIN)
+        assert result.rerun_needed is True, hint
+        assert not result.warnings, hint
+        assert result.as_dict()["rerunNeeded"] is True
+    clean = parse_log("(./main.tex\nOutput written on main.pdf (3 pages).\n)\n", ROOT, MAIN)
+    assert clean.rerun_needed is False
+    # The bibliography hint is the other flag and not this one.
+    stale = parse_log("(./main.tex\nLaTeX Warning: Please (re)run BibTeX.\n)\n", ROOT, MAIN)
+    assert stale.bibliography_stale is True
+    assert stale.rerun_needed is False

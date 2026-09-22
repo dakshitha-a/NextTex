@@ -71,6 +71,20 @@ OUTPUT_WRITTEN = re.compile(r"^Output written on .*\((?P<pages>\d+) pages?, ")
 # pass on its own.
 BIBLIOGRAPHY_STALE = ("Please (re)run Biber", "Please (re)run BibTeX")
 
+# The engine asking to be run again: labels, page numbers or outlines
+# changed during this pass, so what it typeset is one pass behind what it
+# now knows.  A fast pass is one pass, so this is the hint that says the
+# preview has not settled: floats and page breaks follow the text flow,
+# and the text flow follows what a reference or a page number says.  Kept
+# as a flag the scheduler acts on, and out of the gutter like the rest.
+RERUN_HINTS = (
+    "may have changed",       # "Label(s) may have changed", "Citation(s) may have changed"
+    "Rerun to get",           # cross-references, outlines
+    "Please rerun LaTeX",
+    "Some pages have been shifted",
+    "has changed",            # rerunfilecheck: "File `main.out' has changed"
+)
+
 # Messages that are noise in an editor gutter: they repeat what the
 # individual warnings already said, or they are about the run, not the source.
 SUPPRESSED = (
@@ -130,6 +144,9 @@ class ParsedLog:
     # The engine asked for bibtex or biber to be run: the citations it saw
     # are not the ones the bibliography it read was built from.
     bibliography_stale: bool = False
+    # The engine asked to be run again: what it typeset is one pass behind
+    # what it now knows about labels, pages and outlines.
+    rerun_needed: bool = False
 
     @property
     def errors(self) -> list[Diagnostic]:
@@ -162,6 +179,7 @@ class ParsedLog:
             "overfull": self.overfull,
             "pages": self.pages,
             "bibliographyStale": self.bibliography_stale,
+            "rerunNeeded": self.rerun_needed,
             "rawTail": self.raw_tail,
         }
 
@@ -266,6 +284,8 @@ def parse(
     def emit(diag: Diagnostic) -> None:
         if any(s in diag.message for s in BIBLIOGRAPHY_STALE):
             result.bibliography_stale = True
+        elif any(s in diag.message for s in RERUN_HINTS):
+            result.rerun_needed = True
         if any(s in diag.message for s in SUPPRESSED):
             return
         if diag.file is None:

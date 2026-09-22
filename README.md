@@ -517,8 +517,11 @@ the trash are.*
 When a document uses `\include`, an ordinary edit typesets only the section
 you are in, so the page redraws about two seconds after you stop. A new
 citation key or a new label pays for the full run with `biber`, and nothing
-else does. A half-finished equation holds the build back for four seconds
-rather than reporting an error you already know about.
+else does. When a quick pass leaves the page one pass behind, a reference
+to a page that moved, say, the engine says so in its log and NextTex runs
+the full pass by itself a moment later, so the page settles without you
+pressing Rebuild. A half-finished equation holds the build back for four
+seconds rather than reporting an error you already know about.
 
 **The engine is the document's choice.** A paper in a non-Latin script,
 or one whose venue hands out a font, needs `fontspec`, and `fontspec`
