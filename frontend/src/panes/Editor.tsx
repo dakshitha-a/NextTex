@@ -16,6 +16,7 @@ import {
   flashRange,
   freshState,
   keymapCompartment,
+  swapCompartment,
   languageFor,
   marksFor,
   setDiff,
@@ -816,7 +817,24 @@ export default function Editor({
      *  the readout stuck after the swap, and the test that covers it types
      *  after opening the file for exactly that reason.
      */
+    /** Hold the editor shut for the length of a swap. */
+    const closeForSwap = () => {
+      if (!view.current) return;
+      view.current.dispatch({
+        effects: swapCompartment.reconfigure(EditorView.editable.of(false)),
+      });
+    };
+
+    /** Let the writer type again, after a swap that finished or one that
+     *  could not. */
+    const openAgain = () => {
+      if (!view.current) return;
+      if (swapCompartment.get(view.current.state) === undefined) return;
+      view.current.dispatch({ effects: swapCompartment.reconfigure([]) });
+    };
+
     const afterSwap = () => {
+      openAgain();
       setActions((open) => (open === null ? open : null));
       setOffer((open) => (open === null ? open : null));
       if (view.current) {
@@ -878,6 +896,15 @@ export default function Editor({
         projectForBuffers.current = projectId;
       }
       if (viewing.current) backToNow();
+      if (current.current !== path) {
+        // Shut from the moment a swap is asked for, not from the first
+        // await inside it: the caller that makes a new file has already
+        // drawn its tab, and a writer who starts typing at the sight of
+        // the tab is typing into the file they just left. `afterSwap`
+        // opens it again, and so does every road out of here that does
+        // not reach `afterSwap`.
+        closeForSwap();
+      }
       if (current.current === path) {
         // The agent's announcement holds its highlight longer than a jump
       // does, because the write it points at has not happened yet and a
@@ -890,11 +917,27 @@ export default function Editor({
       }
       let buffer = buffers.current.get(path);
       if (!buffer) {
+        // Shut for the length of the swap. Everything below this point is
+        // awaited, and until `setState` runs the view still holds the file
+        // the writer was in: a keystroke here went into the previous
+        // document and was written to the previous file. `afterSwap`
+        // opens it again, and every road out of `openBuffer` goes through
+        // `afterSwap`.
         // The document, not the file. Its text is whatever the server and
         // every other browser have agreed it is, which for a file nobody
         // else has open is exactly what is on disk.
-        const shared = await connect(projectId);
-        const opened = shared ? await shared.open(path) : null;
+        let shared: Awaited<ReturnType<typeof connect>>;
+        let opened: Awaited<ReturnType<NonNullable<typeof shared>["open"]>> | null;
+        try {
+          shared = await connect(projectId);
+          opened = shared ? await shared.open(path) : null;
+        } catch (error) {
+          // A swap that cannot finish must still give the editor back, or
+          // the pane the writer is looking at stays uneditable for the
+          // rest of the session with nothing on screen to say why.
+          openAgain();
+          throw error;
+        }
         if (!opened) {
           // No document, so there is no way to disk: a keystroke here would
           // reach nothing, and with the old whole-file save and the closing
@@ -905,7 +948,13 @@ export default function Editor({
           //
           // So the file is shown, read-only, and the reason is said out
           // loud rather than left for the writer to discover.
-          const file = await api.readFile(projectId, path);
+          let file: Awaited<ReturnType<typeof api.readFile>>;
+          try {
+            file = await api.readFile(projectId, path);
+          } catch (error) {
+            openAgain();
+            throw error;
+          }
           buffer = {
             state: freshState(file.text, readOnlyExt, readOnlyLanguageOf(path)),
             release: () => {},

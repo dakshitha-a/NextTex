@@ -254,18 +254,6 @@ this host could not reproduce; each says which.
       rather than work around it. The browser test asserts the row's height;
       a screenshot from a Windows machine at 125 percent is what would close
       this.
-- [ ] **`navigation.spec.ts` "the caret readout belongs to the file on
-      screen" failed once under the full tier and passed on retry.** Seen
-      at the backlog close-out's push A check: the spec makes a new file,
-      waits for its tab, types `abc` and expects `Ln 1, Col 4`; it read
-      `Ln 1, Col 2`, so one or two keystrokes went missing. The likely
-      shape is typing into a file whose shared document has not yet
-      arrived from the server, with the local document then replaced
-      under the caret; the tab being visible is not the document being
-      live. One sighting; a second is the signal to find what the editor
-      could expose as "this document is live" and have the spec wait on
-      it, and to check whether a writer typing straight into a new file
-      can lose a character the same way.
 - [ ] **A spec's own server once took longer to start than the harness
       waits.** `tab-strips.spec.ts` failed at the backlog close-out's push
       B check with "the server never answered on 127.0.0.1:36551" and

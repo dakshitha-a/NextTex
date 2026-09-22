@@ -272,6 +272,21 @@ export const spellCompartment = new Compartment();
  *  session that wants neither pays nothing.  First in the extensions so
  *  its keys are seen before the app's own. */
 export const keymapCompartment = new Compartment();
+/** Held shut while a file swap is in flight.
+ *
+ *  Opening a file is three awaits long: connect, open the shared
+ *  document, wait for its first sync.  Until the last of them returns the
+ *  view still holds the file the writer was in, so a keystroke in that
+ *  window was applied to the previous document and written to the
+ *  previous file.  On a fast local server the window is a few
+ *  milliseconds; on a slow link it is long enough to type a word into,
+ *  and the word lands in a file nobody is looking at.
+ *
+ *  So the view is made uneditable for the length of the swap.  A dropped
+ *  keystroke is a nuisance the writer sees at once; a keystroke saved
+ *  into the wrong file is a corruption they find much later, if at all.
+ */
+export const swapCompartment = new Compartment();
 
 export type Mark = {
   line: number;
@@ -582,6 +597,7 @@ function renameKey(onSymbol: OnSymbol): Extension {
 function base(): Extension[] {
   return [
     keymapCompartment.of([]),
+    swapCompartment.of([]),
     lineNumbers(),
     // The fold markers, drawn only where `latexFolding` answers, and a
     // placeholder that says how much is hidden rather than an ellipsis.

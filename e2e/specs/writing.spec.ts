@@ -1,7 +1,7 @@
 import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { watchEvents } from "../events";
-import { landed } from "../typing";
+import { landed, textOf } from "../typing";
 
 /** The loop the whole app exists for: type, see it typeset, click back. */
 
@@ -308,4 +308,70 @@ test("a price is not turned into an equation", async ({ tab }) => {
   await tab.keyboard.press("Control+a");
   await tab.keyboard.type("A gap of $");
   await expect(tab.locator(".cm-content")).toContainText("A gap of $$");
+});
+
+test("a keystroke during a file swap cannot land in the file just left", async ({
+  app, project, tab,
+}) => {
+  // Opening a file is three awaits long: connect to the collaboration
+  // socket, open the shared document, wait for its first sync. The tab
+  // for the new file is drawn before any of them, and until the last one
+  // has returned the view still holds the previous file's state and
+  // `current.current` still names it. So a writer who makes a file and
+  // types straight away was typing into the file they had just left, and
+  // it was saved there. The caret readout flake in navigation.spec.ts was
+  // this: three characters typed, one of them in the new file.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  const before = await textOf(app, project, "main.tex");
+
+  // A second and a half of latency, applied once the project is open. On
+  // this machine the three awaits return in a few milliseconds and the
+  // window is too narrow to lose a keystroke in, which is exactly why the
+  // fault reached a writer and not a test: it belongs to a slow link, a
+  // loaded machine or a large document. So the window is made wide enough
+  // to type into rather than waited for. At 500 ms the click alone spends
+  // most of it and the test passed either way, which is worth knowing
+  // before anybody lowers this number.
+  const cdp = await tab.context().newCDPSession(tab);
+  await cdp.send("Network.enable");
+  await cdp.send("Network.emulateNetworkConditions", {
+    offline: false, latency: 1500, downloadThroughput: -1, uploadThroughput: -1,
+  });
+
+  await tab.getByTestId("new-file").click();
+  await tab.keyboard.type("swapped");
+  await tab.keyboard.press("Enter");
+  // The tab, and nothing else. That is the whole of what a writer has to
+  // go on: the file appears in the strip and they start typing. The view
+  // is still holding the previous file at that moment, and the three
+  // awaits have not returned, which is the window the gate is for.
+  await expect(tab.locator('[data-tab][data-path="swapped.tex"]')).toBeVisible({
+    timeout: 20_000,
+  });
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.type("Wxyz");
+
+  await cdp.send("Network.emulateNetworkConditions", {
+    offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1,
+  });
+
+  // The old file is what matters. A character that never arrived is a
+  // nuisance the writer sees at once; a character written into a file
+  // they are not looking at is a corruption they find much later. Read
+  // from disk through the route rather than off the DOM, because the
+  // editor is the thing under test. Before the gate this held
+  // `...microtype}Wxyz` while the new file was empty.
+  await expect
+    .poll(async () => textOf(app, project, "main.tex"), { timeout: 15_000 })
+    .toBe(before);
+
+  // And the pane comes back. Those keystrokes were dropped, which is the
+  // trade the gate makes, so the writer types again and that lands.
+  await expect(tab.getByTestId("editor-host")).toHaveAttribute(
+    "data-shown", "swapped.tex", { timeout: 20_000 },
+  );
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.type("Wxyz");
+  await landed(app, project, "Wxyz", "swapped.tex");
+  expect(await textOf(app, project, "main.tex")).toBe(before);
 });

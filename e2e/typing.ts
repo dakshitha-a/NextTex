@@ -46,3 +46,17 @@ export async function retype(
   await page.keyboard.type(text);
   await landed(app, project, text);
 }
+
+/** The file's text right now, without waiting for it to say anything. */
+export async function textOf(
+  app: Instance,
+  project: { id: string },
+  path: string,
+): Promise<string> {
+  const response = await fetch(
+    `${app.base}/api/projects/${project.id}/file?path=${encodeURIComponent(path)}`,
+    { headers: { "x-nexttex-token": app.token } },
+  );
+  if (!response.ok) throw new Error(`could not read ${path}: ${response.status}`);
+  return (await response.json()).text as string;
+}
