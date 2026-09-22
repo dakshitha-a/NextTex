@@ -147,6 +147,8 @@ built in the same breath missed its own build, and a stream that dropped
 mid-build came back with nothing in the world able to lower the flag it had
 raised.
 
+Both snapshots are taken inside the generator, immediately after it subscribes and with no await between the two, so nothing can be queued ahead of them. Subscribing in the route handler instead leaves a gap: the subscription is live from that moment and the generator's body does not run until the response starts streaming, so under load an event can land in the queue and be delivered *after* a snapshot that is newer than it is, leaving the browser one transition out of date. A build recovers from that at the next one; sharing does not, because nothing republishes it.
+
 The second frame is `collab_peers`, from `ProjectSession.peers_snapshot`,
 and it is there for exactly the same reason one flag along. Sharing is
 published when it begins and when a peer comes or goes, the browser keeps

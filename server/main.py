@@ -6179,10 +6179,22 @@ async def claude_logout():
 @app.get("/api/projects/{project_id}/events")
 async def events(project_id: str, request: Request):
     session = session_for(project_id)
-    queue = session.events.subscribe()
 
     async def stream():
         import json as _json
+        # Subscribed here rather than in the route above, so that nothing
+        # can be queued before the snapshots are taken. A subscription made
+        # in the handler is live from that moment, while the generator's
+        # body does not run until the response starts streaming, and under
+        # load that gap is long enough for an event to land in the queue:
+        # the snapshot then went out first and the older event after it,
+        # leaving the browser holding a state one transition out of date.
+        # `compile_state` recovers from that at the next build; sharing
+        # does not, because nothing republishes it. Subscribing and
+        # snapshotting in that order, with no await between them, leaves no
+        # window at all. It also means a request that is dropped before its
+        # body is read leaves no queue behind.
+        queue = session.events.subscribe()
         try:
             yield "retry: 2000\n\n"
             # The first frame is what this connection missed. `compile_start`
