@@ -271,16 +271,30 @@
    searching for the literal string `.nx-theme-dark {`. */
 :root[data-theme="dark"],
 .nx-theme-dark {
-  --surround: #0A0C0B;
-  --surface: #121614;
-  --surface-2: #1A1F1C;
-  --surface-3: #262C28;
+  /* The floor, raised on 22 September at the writer's word.  The four
+     surfaces sat at L* 3, 7, 11 and 17, near-black grounds under
+     near-white type: the ratio was high, the halation with it, and in a
+     lit room the frame vanished into the bezel and the text glared.  They
+     are L* 11, 16, 20 and 26 now, the same green-biased grey lifted in
+     oklab with its hue and chroma kept, the 4 L* steps between them
+     kept, and the frame still the darkest plane so the panes read as
+     lit.  Three floors were rendered from the running app and measured;
+     this is the middle one.  The one above squeezed the ink ladder to
+     under 10 L* between --ink and --ink-2; the one below was too modest
+     to answer the complaint. */
+  --surround: #1B1F1D;
+  --surface: #232825;
+  --surface-2: #2D322F;
+  --surface-3: #3A3E3C;
+  /* Unchanged: the floor is what takes body text from 15:1 to 12:1 on
+     the page, which is where the glare went.  A softer ink was tried
+     and took the blue syntax family under its 14 L* from the prose. */
   --ink: #E3E8E2;
-  /* Lifted 4.4 L*, opening the --ink-2 / --ink-3 gap from 6.7 to 11.1.
-     Upwards here for the same reason it went downwards in light: --ink-3
-     is at 4.55:1 on --surface-3, the tightest pair in either theme. */
-  --ink-2: #B0B5B0;
-  --ink-3: #909892;
+  /* Both lifted with the floor so that --ink-3 keeps 4.6:1 on
+     --surface-3, the tightest pair in either theme, and --ink-2 keeps
+     8.5 L* above --ink-3 and 14 L* under --ink. */
+  --ink-2: #BDC2BD;
+  --ink-3: #A2ABA4;
   --pen: #C988E7;
   --on-pen: #0A0C0B;
   /* --hint and --ok used to be eight degrees apart in hue with identical

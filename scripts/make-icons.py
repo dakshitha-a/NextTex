@@ -59,7 +59,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # The palette is the application's own, from frontend/src/styles.css.  A
 # fixed brand violet was tried and is wrong: #7B45A0 measures 2.8:1 against
 # the dark rail, under the 3:1 a graphic needs.
-GROUND = "#0A0C0B"   # --surround, dark
+GROUND = "#1B1F1D"   # --surround, dark
 INK = "#E3E8E2"      # --ink, dark
 PEN = "#C988E7"      # --pen, dark
 

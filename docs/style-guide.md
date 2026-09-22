@@ -34,7 +34,13 @@ tokens are declared in `frontend/src/styles.css` and bridged to Tailwind
 through `@theme inline`, so a component reaches them as `bg-surface-2`,
 `text-ink-3`, `rounded-control` or `var(--nx-row)`.
 
-Colour, one palette per theme:
+Colour, one palette per theme. The dark palette's floor is
+`--surround` at L* 11 and `--surface` at 16 since 22 September (section
+62 of `docs/design.md`): dark enough that the page is still the lit
+object, light enough that body text sits at 12:1 rather than 15:1 and
+the frame does not vanish into the bezel in a lit room. A change to any
+surface moves the inks with it, so that `--ink-3` keeps 4.5:1 on
+`--surface-3`, and `contrast.test.ts` is the gate.
 
 | Token | Meaning |
 | --- | --- |

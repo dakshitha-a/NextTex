@@ -1065,8 +1065,8 @@ def _sign_in_page() -> str:
      --ink-2. That rule cannot reach a page whose stylesheet is a copy, so
      the copy carries the ink it needs. Both values are the app's own,
      from styles.css. */
-  :root {{ --surround:#0A0C0B; --surface:#121614; --surface-3:#262C28;
-           --ink:#E3E8E2; --ink-2:#B0B5B0; --ink-3:#909892; --hint:#3FC6D2;
+  :root {{ --surround:#1B1F1D; --surface:#232825; --surface-3:#3A3E3C;
+           --ink:#E3E8E2; --ink-2:#BDC2BD; --ink-3:#A2ABA4; --hint:#3FC6D2;
            --pen:#C988E7; --error:#F47365; color-scheme: dark; }}
   @media (prefers-color-scheme: light) {{
     :root {{ --surround:#BEC3BD; --surface:#E8ECE7; --surface-3:#CDD2CC;

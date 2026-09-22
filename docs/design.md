@@ -72,13 +72,13 @@ between them, and the light frame came up one step with them to keep the ramp ru
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--surround` | `#BEC3BD` | `#0A0C0B` | App background; the field the PDF sits on |
-| `--surface` | `#E8ECE7` | `#121614` | Panes: the editor body, the page field's neighbours |
-| `--surface-2` | `#DCE1DB` | `#1A1F1C` | The bar, the drawer, the Claude column, tab bars, strips, code blocks |
-| `--surface-3` | `#CDD2CC` | `#262C28` | Pressed states inside a raised surface; a switch's track |
+| `--surround` | `#BEC3BD` | `#1B1F1D` | App background; the field the PDF sits on |
+| `--surface` | `#E8ECE7` | `#232825` | Panes: the editor body, the page field's neighbours |
+| `--surface-2` | `#DCE1DB` | `#2D322F` | The bar, the drawer, the Claude column, tab bars, strips, code blocks |
+| `--surface-3` | `#CDD2CC` | `#3A3E3C` | Pressed states inside a raised surface; a switch's track |
 | `--ink` | `#141715` | `#E3E8E2` | Primary text |
-| `--ink-2` | `#373B36` | `#B0B5B0` | Secondary text, user messages, consequences |
-| `--ink-3` | `#4E534D` | `#909892` | Metadata, file extensions, line numbers, idle dot |
+| `--ink-2` | `#373B36` | `#BDC2BD` | Secondary text, user messages, consequences |
+| `--ink-3` | `#4E534D` | `#A2ABA4` | Metadata, file extensions, line numbers, idle dot |
 | `--pen` | `#6F2998` | `#C988E7` | Agent identity, SyncTeX highlight, active-file bar, primary button |
 | `--hint` | `#00626D` | `#3FC6D2` | Live and interactive states that are *not* the agent: streaming stopped, a switch that is on, a control the eye should find |
 | `--error` | `#971710` | `#F47365` | Compile errors, destructive hover |
@@ -128,7 +128,8 @@ and the paper will look whiter than it does in VS Code.
 hectograph duplicators, which is what mid-century thesis copies were printed in. It is
 explicitly *not* `#6366F1`, the indigo every AI-built app reaches for.
 
-**The dark surround is deliberately near-black (`#0A0C0B`).** In dark mode the PDF is the
+**The dark surround was deliberately near-black (`#0A0C0B`), and is `#1B1F1D` since
+22 September; section 62 says why the floor rose.** In dark mode the PDF is the
 only light source, a lightbox. To make that read as a lit sheet rather than a hole punched
 in the UI, the page gets a 1 px `--line` border plus `0 8px 24px rgba(0,0,0,0.55)`. In light
 mode the same page gets a hairline border only, no shadow.
@@ -141,7 +142,7 @@ protecting, that the page is the brightest, most physical object on screen,
 is better served by the shadow than by its absence.
 
 Dark is **not** an inversion: inter-surface contrast steps are compressed
-(`#0A0C0B → #121614 → #1A1F1C`, 3 to 6 L* apart, versus 4 to 5 in light), and `--ink` is
+(`#1B1F1D → #232825 → #2D322F`, 4 to 5 L* apart since the floor rose, and 3 to 6 before), and `--ink` is
 `#E3E8E2`, never `#FFFFFF`, pure white text beside a pure white PDF page is the fastest way
 to make the page stop looking like paper.
 
@@ -10156,3 +10157,59 @@ the card away. `hover-card-placement.spec.ts` drives those four cases at
 100 % and 125 %; `verb-row-scale.spec.ts` the two selections;
 `menus-contrast.spec.ts` lists the card among the surfaces it measures
 and sweeps; `rename.spec.ts` presses the buttons with a click now.
+
+## 62. The dark floor rises
+
+Raised by the writer on 22 September, after the placement work: "the
+dark theme's dark floor needs to be raised. do it the same way you are
+adjusting the figure placements. iteratively test and find a sweet spot
+most users will find pleasing. the goal is to have enough contrast so
+everything is readable even in a lit environment while not being harsh
+on the eyes. a user needs to be able to use the app for long stretches
+of time comfortably whether it's editing the text or using the UI."
+
+**What was wrong.** The four dark surfaces sat at L* 3, 7, 11 and 17:
+`#0A0C0B`, `#121614`, `#1A1F1C`, `#262C28`. Near-black grounds under
+near-white type put body text at 15:1 on the page, which is not
+readable so much as glaring, with the halation that comes with it; in a
+lit room the frame vanished into the monitor's bezel and the panes lost
+their separation from it. Section 2 had chosen the near-black surround
+on purpose, so that the page would read as the only lit object in the
+room; it still does, at the new floor, because the surround is still the
+darkest plane and the page shadow is unchanged.
+
+**Three floors, rendered and measured.** The same green-biased grey was
+lifted in oklab with its hue and chroma kept and the 4 L* steps between
+the four surfaces kept, at three heights: `--surface` at L* 12, 16 and
+19, the other three stepped with it, and the second and third inks
+lifted with each so that `--ink-3` keeps 4.6:1 on `--surface-3`, the
+tightest pair in either theme, and `--ink-2` keeps 8.5 L* above it.
+Each was injected over the running app in the dark theme and the
+workspace and the projects screen rendered. The lowest was too modest
+to answer the complaint; the highest went grey, and squeezed the ink
+ladder to under 10 L* between `--ink` and `--ink-2`, so the three inks
+stopped reading as three. The middle one is the floor now:
+
+| Token | Was | Is | L* |
+|---|---|---|---|
+| `--surround` | `#0A0C0B` | `#1B1F1D` | 3 to 11 |
+| `--surface` | `#121614` | `#232825` | 7 to 16 |
+| `--surface-2` | `#1A1F1C` | `#2D322F` | 11 to 20 |
+| `--surface-3` | `#262C28` | `#3A3E3C` | 17 to 26 |
+| `--ink-2` | `#B0B5B0` | `#BDC2BD` | 74 to 78 |
+| `--ink-3` | `#909892` | `#A2ABA4` | 62 to 69 |
+
+Body ink on the page goes from 14.7:1 to 12.1:1, on `--surface-3` from
+11.5:1 to 8.7:1; every accent stays above 4.65:1 on `--surface-2`; the
+six syntax families stay above 7:1 on the page and keep their distance
+from the prose. A softer body ink was tried alongside, `#DCE1DB`, and
+took the blue syntax family under its 14 L* from the prose, so `--ink`
+stays `#E3E8E2`: the floor is what took the glare off, not the ink.
+
+**Everything that copies the palette moved with it.** The sign-in page's
+hand-written copy in `server/main.py`, the `theme-color` and the inline
+favicon in `frontend/index.html`, the icon script's ground and the icons
+it draws, the five dark SVG illustrations and the logo under `docs/`,
+the palette table in section 2, the direction page's dark tokens, and
+the README's thirteen screenshots, regenerated. `contrast.test.ts`
+measured every pair the stylesheet names before the change was kept.
