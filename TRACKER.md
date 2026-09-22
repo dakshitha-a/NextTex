@@ -263,11 +263,18 @@ this host could not reproduce; each says which.
       finishing its turn before the card's answer lands, or the 500 ms
       shield on the card's buttons letting the click through a moment
       early under load, so the press is lost and the turn waits out its
-      timeout. Four sightings in one day is past the one-sighting bar the
-      two entries above set; what closes it is reading the card's answer
-      route under load (`tests/api/` has the permission gate's cases) and
-      having the spec wait on the card's own "answered" state rather than
-      on the turn's last word. `previews.spec.ts` "renaming a previewed
+      timeout. **The shield half of that is wrong**, and reading
+      `Chat.tsx:1704-1756` says so: the buttons carry `disabled={!armed}`,
+      `ui/Button.tsx` forwards it to a real button, and Playwright's
+      actionability check waits for enabled, so a press cannot be dropped
+      that way. The spec no longer sleeps 500 ms against a 350 ms shield;
+      it waits for the button to be enabled and then asserts the card's
+      folded `decided-always` row before it waits for the turn's last
+      word, so the next failure says which of the three things it is: the
+      press lost, the card expired server-side under load, or the
+      scripted stand-in's turn not finishing. That is the only remaining
+      suspect and it stays open until a failure names it.
+      `previews.spec.ts` "renaming a previewed
       document moves its tab and its page together", `history-trash.spec.ts`
       "naming a version makes it findable later" and `writing.spec.ts`
       "typing lands on disk without being asked to" each flaked once in
@@ -423,11 +430,17 @@ this host could not reproduce; each says which.
       and `keymaps.spec.ts`'s `C-k` against the real build is what says
       the keys arrived.
 - [ ] **`password.spec.ts` "setting a password says so and closes itself"
-      timed out once in four full runs**, waiting on the done card for the
-      five second default, and passed on its retry in three seconds. The
-      hash it waits on is already off the loop and takes fifty
-      milliseconds here, and the spec starts a server of its own, so the
-      wait was a cold instance under five browsers. Not reproduced in
-      isolation, nor in five consecutive runs with retries off. If it
-      recurs, open the trace `playwright.config.ts` retains on failure
-      before touching the timeout.
+      timed out once in four full runs**, and is understood well enough to
+      be left alone. The close-out run worked the arithmetic rather than
+      the timeout. The chain is a sequence of causes, not a race: the POST
+      returns, `access-done` renders, `AccessCard.tsx:61-69`'s deliberate
+      1800 ms timer fires `onClose`, `PasswordNudge.tsx:74-77` runs one
+      `api.auth()`, and the lock goes. Every wait in the spec is on an
+      observable and there is no window in which an event can be missed.
+      The budget against that is generous: `playwright.config.ts` gives
+      `expect` ten seconds, not the five this entry used to claim, the
+      spec's own `toHaveCount(0)` gets six for 1800 ms plus a round trip,
+      and the test has sixty against a worst case near twenty-six. Only a
+      whole-machine stall fails it, which the one retry is there for.
+      Widening a timeout here is the move `docs/testing.md` calls not
+      worth it. If it recurs, open the trace before touching the numbers.
