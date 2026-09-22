@@ -1,29 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1040" height="326" viewBox="0 0 1040 326" role="img" aria-label="The three positions of the control under the agent's box. Ask before acting, the default, is a card for every command, every fetch and every write that leaves the project. Run the work without asking lets commands and edits run, and still asks about a write outside the project or to a file the build runs, and about anything that reaches the internet. Never ask about anything asks about nothing, and takes a second press to switch on.">
 <title>The three positions of the fence</title>
 <rect width="1040" height="326" rx="10" fill="#232825"/>
-<text x="24" y="34" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" letter-spacing="1.6" fill="#A2ABA4">THE THREE POSITIONS OF THE FENCE</text>
+<text x="24" y="34" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" letter-spacing="1.6" fill="#A9B2AB">THE THREE POSITIONS OF THE FENCE</text>
 <rect x="24" y="60" width="320" height="214" rx="5" fill="#1E2320" stroke="#C988E7" stroke-width="1.5"/>
 <text x="42" y="88" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#C988E7">Ask before acting</text>
 <text x="42" y="108" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C988E7">the default</text>
-<text x="42" y="138" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">asks about every command,</text>
-<text x="42" y="158" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">every fetch, and every write</text>
-<text x="42" y="178" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">that leaves the project</text>
-<text x="42" y="218" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">the only complete fence</text>
+<text x="42" y="138" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">asks about every command,</text>
+<text x="42" y="158" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">every fetch, and every write</text>
+<text x="42" y="178" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">that leaves the project</text>
+<text x="42" y="218" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">the only complete fence</text>
 <rect x="360" y="60" width="320" height="214" rx="5" fill="#1E2320" stroke="#3A403C" stroke-width="1"/>
 <text x="378" y="88" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2">Run the work without asking</text>
-<text x="378" y="108" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A2ABA4">the one most people want</text>
-<text x="378" y="138" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">commands and edits run silently,</text>
-<text x="378" y="158" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">pipes, chains and redirects included</text>
-<text x="378" y="198" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">still asks: a write outside the project</text>
-<text x="378" y="218" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">or to a file the build runs; anything</text>
-<text x="378" y="238" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">that reaches the internet</text>
+<text x="378" y="108" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB">the one most people want</text>
+<text x="378" y="138" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">commands and edits run silently,</text>
+<text x="378" y="158" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">pipes, chains and redirects included</text>
+<text x="378" y="198" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">still asks: a write outside the project</text>
+<text x="378" y="218" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">or to a file the build runs; anything</text>
+<text x="378" y="238" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">that reaches the internet</text>
 <rect x="696" y="60" width="320" height="214" rx="5" fill="#1E2320" stroke="#3A403C" stroke-width="1"/>
 <text x="714" y="88" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2">Never ask about anything</text>
-<text x="714" y="108" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A2ABA4">a second press to switch on</text>
-<text x="714" y="138" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">asks about nothing, including a</text>
-<text x="714" y="158" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">write that leaves the project</text>
-<text x="714" y="198" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">your project's own files help</text>
-<text x="714" y="218" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">instruct the agent, and they came</text>
-<text x="714" y="238" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#BDC2BD">from templates, clones, co-authors</text>
-<text x="24" y="306" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="12" fill="#BDC2BD">Whichever position you are in, every automatic approval is marked as one in the transcript, and Auto beside the agent's name says which position is on.</text>
+<text x="714" y="108" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB">a second press to switch on</text>
+<text x="714" y="138" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">asks about nothing, including a</text>
+<text x="714" y="158" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">write that leaves the project</text>
+<text x="714" y="198" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">your project's own files help</text>
+<text x="714" y="218" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">instruct the agent, and they came</text>
+<text x="714" y="238" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#C3C8C3">from templates, clones, co-authors</text>
+<text x="24" y="306" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="12" fill="#C3C8C3">Whichever position you are in, every automatic approval is marked as one in the transcript, and Auto beside the agent's name says which position is on.</text>
 </svg>

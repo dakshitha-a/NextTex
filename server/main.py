@@ -1066,7 +1066,7 @@ def _sign_in_page() -> str:
      the copy carries the ink it needs. Both values are the app's own,
      from styles.css. */
   :root {{ --surround:#1B1F1D; --surface:#232825; --surface-3:#3A3E3C;
-           --ink:#E3E8E2; --ink-2:#BDC2BD; --ink-3:#A2ABA4; --hint:#3FC6D2;
+           --ink:#E3E8E2; --ink-2:#C3C8C3; --ink-3:#A9B2AB; --hint:#3FC6D2;
            --pen:#C988E7; --error:#F47365; color-scheme: dark; }}
   @media (prefers-color-scheme: light) {{
     :root {{ --surround:#BEC3BD; --surface:#E8ECE7; --surface-3:#CDD2CC;

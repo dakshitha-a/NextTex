@@ -290,11 +290,13 @@
      the page, which is where the glare went.  A softer ink was tried
      and took the blue syntax family under its 14 L* from the prose. */
   --ink: #E3E8E2;
-  /* Both lifted with the floor so that --ink-3 keeps 4.6:1 on
-     --surface-3, the tightest pair in either theme, and --ink-2 keeps
-     8.5 L* above --ink-3 and 14 L* under --ink. */
-  --ink-2: #BDC2BD;
-  --ink-3: #A2ABA4;
+  /* Both lifted with the floor so that --ink-3 keeps 5:1 on
+     --surface-3 and 4.8:1 on the selected row's wash over --surface-2,
+     the tightest pairs in either theme (the a11y sweep measures the
+     second, which the token tests do not), and --ink-2 keeps 8 L* above
+     --ink-3 and 11 L* under --ink. */
+  --ink-2: #C3C8C3;
+  --ink-3: #A9B2AB;
   --pen: #C988E7;
   --on-pen: #0A0C0B;
   /* --hint and --ok used to be eight degrees apart in hue with identical

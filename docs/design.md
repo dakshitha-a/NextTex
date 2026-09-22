@@ -77,8 +77,8 @@ between them, and the light frame came up one step with them to keep the ramp ru
 | `--surface-2` | `#DCE1DB` | `#2D322F` | The bar, the drawer, the Claude column, tab bars, strips, code blocks |
 | `--surface-3` | `#CDD2CC` | `#3A3E3C` | Pressed states inside a raised surface; a switch's track |
 | `--ink` | `#141715` | `#E3E8E2` | Primary text |
-| `--ink-2` | `#373B36` | `#BDC2BD` | Secondary text, user messages, consequences |
-| `--ink-3` | `#4E534D` | `#A2ABA4` | Metadata, file extensions, line numbers, idle dot |
+| `--ink-2` | `#373B36` | `#C3C8C3` | Secondary text, user messages, consequences |
+| `--ink-3` | `#4E534D` | `#A9B2AB` | Metadata, file extensions, line numbers, idle dot |
 | `--pen` | `#6F2998` | `#C988E7` | Agent identity, SyncTeX highlight, active-file bar, primary button |
 | `--hint` | `#00626D` | `#3FC6D2` | Live and interactive states that are *not* the agent: streaming stopped, a switch that is on, a control the eye should find |
 | `--error` | `#971710` | `#F47365` | Compile errors, destructive hover |
@@ -10182,8 +10182,11 @@ darkest plane and the page shadow is unchanged.
 lifted in oklab with its hue and chroma kept and the 4 L* steps between
 the four surfaces kept, at three heights: `--surface` at L* 12, 16 and
 19, the other three stepped with it, and the second and third inks
-lifted with each so that `--ink-3` keeps 4.6:1 on `--surface-3`, the
-tightest pair in either theme, and `--ink-2` keeps 8.5 L* above it.
+lifted with each so that `--ink-3` keeps 4.5:1 on `--surface-3` and on
+the selected row's wash over `--surface-2`, the tightest pairs in either
+theme (the a11y sweep measures the second, which the token tests do
+not; at the first lift it came out at 4.45:1), and `--ink-2` keeps 8 L*
+above it.
 Each was injected over the running app in the dark theme and the
 workspace and the projects screen rendered. The lowest was too modest
 to answer the complaint; the highest went grey, and squeezed the ink
@@ -10196,8 +10199,8 @@ stopped reading as three. The middle one is the floor now:
 | `--surface` | `#121614` | `#232825` | 7 to 16 |
 | `--surface-2` | `#1A1F1C` | `#2D322F` | 11 to 20 |
 | `--surface-3` | `#262C28` | `#3A3E3C` | 17 to 26 |
-| `--ink-2` | `#B0B5B0` | `#BDC2BD` | 74 to 78 |
-| `--ink-3` | `#909892` | `#A2ABA4` | 62 to 69 |
+| `--ink-2` | `#B0B5B0` | `#C3C8C3` | 74 to 80 |
+| `--ink-3` | `#909892` | `#A9B2AB` | 62 to 72 |
 
 Body ink on the page goes from 14.7:1 to 12.1:1, on `--surface-3` from
 11.5:1 to 8.7:1; every accent stays above 4.65:1 on `--surface-2`; the
