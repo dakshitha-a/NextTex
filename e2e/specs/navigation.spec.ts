@@ -382,6 +382,15 @@ test("the caret readout belongs to the file on screen", async ({ tab }) => {
   await expect(tab.locator('[data-tab][data-path="second.tex"]')).toBeVisible({
     timeout: 20_000,
   });
+  // The tab, and then the document. They are different moments: the tab
+  // is drawn from the strip's state the moment the file is made, while
+  // the view keeps the file it had until `openBuffer` has connected and
+  // waited for the shared document. This spec read `Ln 1, Col 2` once,
+  // having typed three characters, because it went on while the view was
+  // still holding main.tex.
+  await expect(tab.getByTestId("editor-host")).toHaveAttribute(
+    "data-shown", "second.tex", { timeout: 20_000 },
+  );
   await expect(caret).toHaveText("Ln 1, Col 1");
 
   await tab.locator(".cm-content").click();

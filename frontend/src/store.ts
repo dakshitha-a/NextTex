@@ -353,6 +353,16 @@ export type State = {
     plan?: string;
   } | null;
   cursor: { line: number; column: number };
+  /** The path whose EditorState is installed in the view, which is the
+   *  document a keystroke reaches.  Not the same fact as the tab in front:
+   *  a tab is drawn from the strip's state the moment it is opened, while
+   *  the view keeps the file it had until the shared document for the new
+   *  one has arrived.  Written by `afterSwap` alone, so it follows every
+   *  swap and nothing else, and rendered on the editor host as
+   *  `data-shown` because that gap is otherwise invisible from outside.
+   *  Null with no file open, and, while an old version is on screen, the
+   *  path that version belongs to. */
+  shownPath: string | null;
   /** How many lines the file in the editor has. Only the word count reads
    *  it, for a section that runs to the end of the file: the outline knows
    *  where every section starts and nothing else knows where the last one
@@ -450,6 +460,7 @@ const state: State = {
   agent: null,
   library: null,
   cursor: { line: 1, column: 1 },
+  shownPath: null,
   lineCount: 1,
   outline: [],
   symbolRequest: null,

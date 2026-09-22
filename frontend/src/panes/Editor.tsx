@@ -295,6 +295,7 @@ export default function Editor({
   const [topLine, setTopLine] = useState(1);
   const outlineNow = useStore((s) => s.outline);
   const viewingNow = useStore((s) => s.viewing);
+  const shownNow = useStore((s) => s.shownPath);
   const [actions, setActions] = useState<
     { left: number; top: number; from: number; to: number } | null
   >(null);
@@ -822,6 +823,13 @@ export default function Editor({
         applySpelling(view.current);
         void applyKeymap(view.current);
       }
+      // Which document the view actually holds, said out loud. A tab
+      // appears the moment it is opened and the view keeps the file it
+      // had until `openBuffer` has waited for the shared document, so
+      // "the tab is there" and "keystrokes reach that file" are different
+      // moments and nothing outside could tell them apart.
+      const shown = current.current ?? viewing.current?.path ?? null;
+      if (get().shownPath !== shown) set({ shownPath: shown });
       const state = view.current?.state;
       if (!state) return;
       const head = state.selection.main.head;
@@ -1355,6 +1363,8 @@ export default function Editor({
   return (
     <div
       ref={host}
+      data-testid="editor-host"
+      data-shown={shownNow ?? ""}
       className={`relative h-full min-h-0 overflow-hidden${skin}${colour}${plain}`}
     >
       {atTop ? (
