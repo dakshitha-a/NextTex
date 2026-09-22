@@ -395,6 +395,43 @@ cannot prove is that a real model reaches for the tool when a writer says
 belongs with the live check above: ask the real agent to remember something,
 clear the conversation, and see whether the next one knows it.
 
+## When the harness itself is what failed
+
+`startServer` in `e2e/server.ts` spawns a real server per spec, and two
+workers do it at once beside a real LaTeX build, so a slow start is an
+ordinary event. It used to wait on one route against one thirty-second
+budget and report the same sentence whatever had gone wrong: "the server
+never answered". A server that died at import, a port already taken, and a
+token the server refused all cost the full thirty seconds and said nothing
+about themselves, which is why a single sighting of a slow start in
+`tab-strips.spec.ts` could not be acted on.
+
+It waits in stages now, against the same budget: the child staying up,
+watched through `exit` rather than `close`; the port binding, probed with a
+socket; and the route answering, keeping the last status it refused with.
+The failure names the stage that ran out, the elapsed time of the stages
+that passed, and the last refusal, on top of the server's own output it
+already printed.
+
+The budget was deliberately not widened. Every mechanism above is a case
+more time does not fix, and the one case more time would help, a genuinely
+cold boot, has no evidence behind it yet; the right order is to instrument
+first and widen when a failure says the port was never bound in thirty
+seconds. There is no test for this, which is where the line below falls:
+it is harness code, and the vitest run is `src/**/*.test.ts` in the
+frontend, so covering it would mean a second vitest root dragging
+Playwright's types into a jsdom run for one test. It is checked by hand
+instead, and these are the three reproductions:
+
+- **A child that cannot start**: `startServer({ XDG_DATA_HOME: "/dev/null/nope" })`,
+  which fails in about a second with "the server exited with 1" and the
+  server's own last words, where it used to take thirty.
+- **A port that never binds**: point the spawn at a command that sleeps.
+  The failure says it was waiting for the port to be bound.
+- **A route that refuses**: write a different token into the instance's
+  `config.json` than the one the fetch carries. The failure says the route
+  answered, and with what.
+
 ## Where the line is
 
 Worth its maintenance: anything that asserts a contract, anything that

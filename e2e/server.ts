@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { createServer } from "node:net";
+import { connect, createServer } from "node:net";
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -17,6 +17,25 @@ async function freePort(): Promise<number> {
       const port = typeof address === "object" && address ? address.port : 0;
       probe.close(() => resolve(port));
     });
+  });
+}
+
+/** Whether anything is listening on the port yet.
+ *
+ *  This is the stage a slow start actually spends its time in: the venv's
+ *  python starting, the app importing, the port binding.  Told apart from
+ *  the route answering because more time helps one of them and not the
+ *  other. */
+function connected(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ port, host: "127.0.0.1" });
+    const done = (answer: boolean) => {
+      socket.destroy();
+      resolve(answer);
+    };
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+    socket.setTimeout(1000, () => done(false));
   });
 }
 
@@ -101,24 +120,69 @@ export async function startServer(
   let log = "";
   child.stdout?.on("data", (chunk) => (log += chunk));
   child.stderr?.on("data", (chunk) => (log += chunk));
+  // `exit` rather than `close`: close waits on the stdio streams, and what
+  // is wanted here is the moment the process is gone.
+  let died = "";
+  child.on("exit", (code, signal) => {
+    died = signal ? `killed by ${signal}` : `exited with ${code}`;
+  });
 
   const base = `http://127.0.0.1:${port}`;
-  const deadline = Date.now() + 30_000;
+  // Three stages against one budget, so a failure says which one ran out.
+  // This was a single wait on the route, and its whole vocabulary was "the
+  // server never answered": a server that died at import, a port already
+  // taken and a token the server refused all spent the full thirty seconds
+  // and then reported the same sentence, which is why one sighting of a
+  // slow start in `tab-strips.spec.ts` could not be acted on. Two workers
+  // each boot a real server beside a real LaTeX build, so the slow case is
+  // real; it is now told apart from the three that are not slow at all.
+  const started = Date.now();
+  const deadline = started + 30_000;
+  const took: string[] = [];
+  let stage = "the process to stay up";
+  let refusal = "";
+  const mark = (next: string) => {
+    took.push(`${stage}: ${Date.now() - started}ms`);
+    stage = next;
+  };
+  const giveUp = (): never => {
+    child.kill("SIGKILL");
+    const where = died ? `the server ${died}` : `waiting for ${stage}`;
+    const passed = took.length ? `\npast: ${took.join(", ")}` : "";
+    const said = refusal ? `\nlast answer: ${refusal}` : "";
+    throw new Error(
+      `the server did not start on ${base}: ${where}${passed}${said}\n${log}`,
+    );
+  };
+
+  // 1. Alive. A child that is already gone will never bind anything, and
+  //    waiting thirty seconds to say so hides the reason, which is in the
+  //    log this throws with.
+  stage = "the port to be bound";
   for (;;) {
-    if (Date.now() > deadline) {
-      child.kill("SIGKILL");
-      throw new Error(`the server never answered on ${base}\n${log}`);
-    }
+    if (died || Date.now() > deadline) giveUp();
+    const bound = await connected(port);
+    if (bound) break;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  mark("the route to answer");
+
+  // 2. Answering. A refusal is an answer: a wrong token used to look
+  //    exactly like a server that was not there.
+  for (;;) {
+    if (died || Date.now() > deadline) giveUp();
     try {
       const response = await fetch(`${base}/api/projects`, {
         headers: { "x-nexttex-token": token },
       });
       if (response.ok) break;
+      refusal = `${response.status} ${response.statusText}`;
     } catch {
       /* not up yet */
     }
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
+  mark("");
 
   // A run that ends without reaching `stop()` -- an interrupt, a crash in a
   // fixture, a killed terminal -- used to leave the server behind, still

@@ -254,13 +254,6 @@ this host could not reproduce; each says which.
       rather than work around it. The browser test asserts the row's height;
       a screenshot from a Windows machine at 125 percent is what would close
       this.
-- [ ] **A spec's own server once took longer to start than the harness
-      waits.** `tab-strips.spec.ts` failed at the backlog close-out's push
-      B check with "the server never answered on 127.0.0.1:36551" and
-      passed on retry; nothing in the spec ran. Two workers, each a real
-      server, beside a LaTeX build. One sighting; a second is the signal
-      to read what `startServer` in `e2e/server.ts` waits on and how
-      long, and to widen it or to have it say which step was slow.
 - [ ] **`openai-card.spec.ts` "Allow always survives a reload as a
       settled card" failed and passed on retry in four of the frame run's
       nine full checks.** The failing read was `toBeVisible` on "Done."

@@ -127,10 +127,20 @@ test("Allow always survives a reload as a settled card", async ({ page }) => {
   await askForAFigure(page);
   const card = page.locator(".permission-card");
   await card.waitFor({ timeout: 20_000 });
-  // The buttons arm after a short shield against a click meant for the
-  // editor; the click goes through once they have.
-  await page.waitForTimeout(500);
-  await card.getByTestId("always").click();
+  // The buttons arm on a 350 ms shield against a click meant for the
+  // editor, and the shield is `disabled` on a real button, so waiting on
+  // the button is waiting on the shield. This slept 500 ms of wall clock
+  // instead, which is a different thing under load and is the wait the
+  // testing document forbids.
+  const always = card.getByTestId("always");
+  await expect(always).toBeEnabled({ timeout: 10_000 });
+  await always.click();
+  // Two assertions, because two things can fail here and this case
+  // failed in four of nine full runs saying only that a word never
+  // appeared. No `decided-` row means the press was lost; `decided-
+  // expired` means the card timed out server-side under load; the row
+  // with no "Done." means the scripted turn did not finish.
+  await expect(page.getByTestId("decided-always").first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Done.", { exact: true })).toBeVisible({ timeout: 20_000 });
 
   await page.reload();
