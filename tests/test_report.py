@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 import re
-from hypothesis import given, settings, strategies as st
+from hypothesis import assume, given, settings, strategies as st
 
 from nexttex import report
 
@@ -97,7 +97,18 @@ def test_the_home_directory_is_spelled_as_a_tilde():
 )
 def test_the_account_name_never_leaves_as_itself(name, filler):
     """A Windows event names the account as DOMAIN\\name and journalctl as
-    name@host, and neither is inside the home path the tilde fold reaches."""
+    name@host, and neither is inside the home path the tilde fold reaches.
+
+    An account actually called AppData is excluded, and the exclusion is
+    the interesting part: the last line below folds to `~\\AppData\\x`,
+    and this test then asks for two things that cannot both be true, that
+    the name appears nowhere as a word and that `~\\AppData` is still
+    there. Hypothesis found it after this file had been green for weeks,
+    which is what an unconstrained alphabet does eventually. It is a
+    collision between the name and the literal this fixture uses, not
+    something `redact` gets wrong.
+    """
+    assume(name != "AppData")
     text = (f"{filler} UserContext: DESKTOP\\{name} {filler}\n"
             f"session opened for user {name}@laptop\n"
             f"C:\\Users\\{name}\\AppData\\x {filler}")
