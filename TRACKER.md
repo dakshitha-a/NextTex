@@ -193,6 +193,22 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
+- [ ] **A hover card fetches and decodes a whole image to draw a small
+      picture of it.** `thumbnail` in `frontend/src/panes/thumbnails.ts`
+      makes a raster's picture by setting `picture.src` to the download
+      route, so hovering a tree row for a 192 MiB PNG fetches 192 MiB and
+      decodes it in the renderer to fill a card a few hundred pixels
+      wide; the PDF path reads the whole file into an `ArrayBuffer` for
+      the same reason. Seen on the Windows laptop on 22 September as the
+      renderer freezing for thirty to sixty seconds and recovering by
+      itself, once immediately after the figures folder holding that file
+      was expanded. Not conclusive, since it also froze once before any
+      project was open, and the card was never hovered deliberately. The
+      fix is cheap and the size is already at the call site:
+      `FileCard.tsx:40` passes `node.size`, and a file over some
+      threshold can take the state the card already has for a file it
+      cannot draw, its name and its size alone. Left for a run that can
+      choose the threshold and check the card in both themes.
 - [ ] **A file deleted outside NextTex does not schedule a build.** The
       watcher's tick now tells the compiler about every outside write it
       sees, so a pull, another editor's save or a regenerated figure
@@ -217,7 +233,18 @@ this host could not reproduce; each says which.
       it: the words on Chrome's download bar when it fails ("Failed -
       Network error", "Blocked", "Insecure download"), whether it was the
       laptop or this machine, and whether the tab was on the tailnet's
-      HTTPS address or the token URL. The close-out run then found that
+      HTTPS address or the token URL. A third attempt, on the laptop on
+      22 September in Google Chrome 153 on the reported commit itself
+      (`ba4b191`), downloaded a 169-byte PNG intact through the tree's row
+      menu and through the image viewer's strip, with the project open a
+      full minute first. **It clears nothing**, and the reason is worth
+      keeping: that install serves plain HTTP on 127.0.0.1, it has no TLS
+      front and no reachable HTTPS address, so the condition the failure
+      was recorded under was never reproduced. The download bar's wording
+      and the console were not captured either, and the 192 MiB file was
+      not downloaded through any control. The preview strip's Save PDF was
+      not reachable because the project had no typeset PDF, so whether it
+      lands as `pdf.pdf` is still unconfirmed on a real machine. The close-out run then found that
       two controls had never left the link road at all, the figure
       viewer's *Download* and the preview strip's *Save this PDF*, both
       missed by the sweep that named the first of them; they are on the
@@ -279,6 +306,17 @@ this host could not reproduce; each says which.
       "naming a version makes it findable later" and `writing.spec.ts`
       "typing lands on disk without being asked to" each flaked once in
       the same runs.
+- [ ] **The printed token link is refused when a browser extension drives
+      the navigation.** `_same_origin_request` (`server/main.py:720`)
+      accepts `Sec-Fetch-Site` of `none` or `same-origin`, and an
+      extension-initiated navigation is neither, so the link prints, works
+      when a person types or bookmarks it, and answers 403 with "This
+      request came from another page, so it was refused" when something
+      automated opens it. That is the gate doing its job and no writer
+      meets it. Recorded because the next session that tries to drive a
+      browser at that link from outside the origin will otherwise lose an
+      hour to it, as one did on 22 September; the way in is to set
+      `location.href` from a page already on the origin.
 - [ ] **The issue form's `where` field is an input rather than a dropdown**
       because GitHub does not prefill dropdowns from a URL. If that changes,
       a dropdown for the platform would make the field sortable.
