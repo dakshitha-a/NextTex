@@ -1255,6 +1255,17 @@ export default function App() {
   const widthsRef = useRef(widths);
   widthsRef.current = widths;
 
+  /** A double click on a divider puts that pane back to its default
+   *  width, and remembers it the way the end of a drag does.  It did not,
+   *  so the reset lasted until the next reload, which brought back
+   *  whatever width the last drag had stored. */
+  const resetWidth = useCallback((which: keyof Widths) => {
+    const next = { ...widthsRef.current, [which]: DEFAULTS[which] };
+    setWidths(next);
+    const id = get().projectId;
+    if (id) keep(`nexttex.widths.${id}`, next);
+  }, []);
+
   const chatOpenRef = useRef(chatOpen);
   chatOpenRef.current = chatOpen;
   const chatOverRef = useRef(chatOver);
@@ -2364,7 +2375,7 @@ export default function App() {
           {drawerOver ? null : (
             <Handle
               onPointerDown={startDrag("rail")}
-              onReset={() => setWidths((current) => ({ ...current, rail: DEFAULTS.rail }))}
+              onReset={() => resetWidth("rail")}
             />
           )}
         </>
@@ -2554,9 +2565,7 @@ export default function App() {
         {tight || folded.editor || folded.pdf ? null : (
           <Handle
             onPointerDown={startDrag("split")}
-            onReset={() =>
-              setWidths((current) => ({ ...current, editor: DEFAULTS.editor }))
-            }
+            onReset={() => resetWidth("editor")}
           />
         )}
 
@@ -2731,7 +2740,7 @@ export default function App() {
       {noAgent ? null : !chatOver && !folded.chat ? (
         <Handle
           onPointerDown={startDrag("chat")}
-          onReset={() => setWidths((current) => ({ ...current, chat: DEFAULTS.chat }))}
+          onReset={() => resetWidth("chat")}
         />
       ) : null}
       {/* The pill is the way to the agent only while the column is an

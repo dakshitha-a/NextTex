@@ -238,7 +238,9 @@ No all-caps tracked labels anywhere. Sentence case throughout, including buttons
 
 One `100dvh` shell, `overflow: hidden`, four columns with three drag handles. Handles are a
 1 px `--line` rule with a 9 px invisible hit zone, 24 px on a coarse pointer; `col-resize`
-cursor; double-click resets to default; widths persist to `localStorage` per project.
+cursor; double-click resets to default; widths persist to `localStorage` per project, at
+the end of a drag and at a reset alike (a reset went unstored, so a reload undid it;
+`remembered-layout.spec.ts` drags, resets and reloads).
 
 | Pane | Default | Min | Max |
 |---|---|---|---|
