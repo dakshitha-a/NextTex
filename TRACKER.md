@@ -24,7 +24,22 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The hover cards run goes up as 3.4.0 on 21 September, planned after the
+The placement run goes up as 3.5.0 on 22 September, raised by the writer
+after 3.4.2 as a tune up of the hover cards and the selection menu: the
+cards blocked the thing hovered and vanished on the way to their buttons,
+and the menu had no order to where it appeared. Renders at 100 % and
+125 % interface size found one cause under both, the shell's `zoom`
+against measurements written as CSS pixels, and two more under the
+cards: CodeMirror's layer pinning a card over a multi-line range, and a
+button press leaving the card open. One placement rule, `placeClear`,
+now serves the verb row and the card; the card is a plugin of its own
+that stays for the pointer. Section 61 of `docs/design.md` and the
+direction page's Clear of the text section (version 54) carry the
+record; the tracker is https://claude.ai/artifact/JQviUT4Tsyy5xAX21SYW6e.
+The same run then raises the dark theme's floor, at the writer's word,
+as its own push.
+
+The hover cards run went up as 3.4.0 on 21 September, planned after the
 writer asked for a toggle for the editor's hover previews and control
 over which kinds get one: a switch called Hover cards on the settings
 sheet's While you write group and, under it while the switch is on, six
