@@ -243,10 +243,20 @@ test("a Markdown file's versions reach the open panel without a build", async ({
   // over, every start answered by a done, and count from there.
   const settled = async () => {
     if (events.count("compile_start") !== events.count("compile_done")) return false;
-    // A settling build starts within milliseconds of the result it
-    // follows; a moment's grace catches it.
-    await tab.waitForTimeout(400);
-    return events.count("compile_start") === events.count("compile_done");
+    // A settling build is spawned after the result it follows has gone
+    // out, so "every start has its done" is true for a moment before the
+    // settling build starts. This waited 400 ms for that, which held
+    // until it met two workers and a real LaTeX build: the settling
+    // build then started later than the grace and its compile_start
+    // landed after the count was taken, so the keystroke below was
+    // blamed for a build it did not cause. Quiet twice over is what is
+    // asked for now, which is cheap here because the poll around this
+    // has forty-five seconds to spend and stops at the first quiet pair.
+    for (let quiet = 0; quiet < 2; quiet += 1) {
+      await tab.waitForTimeout(750);
+      if (events.count("compile_start") !== events.count("compile_done")) return false;
+    }
+    return true;
   };
   await expect.poll(settled, { timeout: 45_000 }).toBe(true);
   const started = events.count("compile_start");

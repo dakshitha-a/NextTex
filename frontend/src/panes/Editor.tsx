@@ -821,7 +821,7 @@ export default function Editor({
     const closeForSwap = () => {
       if (!view.current) return;
       view.current.dispatch({
-        effects: swapCompartment.reconfigure(EditorView.editable.of(false)),
+        effects: swapCompartment.reconfigure(EditorState.readOnly.of(true)),
       });
     };
 
