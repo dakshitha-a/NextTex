@@ -947,6 +947,33 @@ class ProjectSession:
             ],
         }
 
+    def peers_snapshot(self) -> dict:
+        """The other thing a browser that has just connected has missed.
+
+        `collab_peers` is published when sharing begins, when a peer
+        arrives and when one goes, and the browser keeps what it hears in
+        one place. It has no way to ask. So a tab whose `EventSource` was
+        not connected at the moment `begin_sharing` published, and every
+        tab that reloads a project that was already shared, believed the
+        project was not shared at all: the People drawer offered no invite
+        and the strip showed nobody, on a project with members in it.
+
+        This is the same fault `compile_snapshot` above exists for, one
+        flag along, and it has the same answer. A flag raised by an event
+        and lowered by another needs a way to be read rather than only
+        listened for, so the stream sends this as its second frame and
+        every connection begins by being told the truth.
+
+        `PeerNetwork.state` is a dictionary comprehension over the members
+        already in memory, so this costs nothing worth measuring. Guarded
+        for the same reason `_announce_peers` is: a stand-in session in the
+        tests is not a `ProjectSession`.
+        """
+        peers = getattr(self, "peers", None)
+        if peers is None:
+            return {}
+        return {"type": "collab_peers", **peers.state()}
+
     def as_client_dict(self, result: CompileResult, document: str = "") -> dict:
         """A build result with paths the browser can match against.
 

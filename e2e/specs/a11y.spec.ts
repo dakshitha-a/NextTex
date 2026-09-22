@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import { shareProject, waitShared } from "../collab";
 import { test, expect, openFolders } from "../fixtures";
 import type { Page } from "@playwright/test";
 
@@ -390,10 +391,8 @@ test("the People drawer is usable, shared and not", async ({ app, project, tab }
   await tab.getByTestId("bar-people").click();
   await expect(tab.getByTestId("share-panel")).toHaveAttribute("data-state", "private", { timeout: 10_000 });
   expect(describeAll(await violations(tab))).toBe("");
-  const base = `${app.base}/api/projects/${project.id}/collab`;
-  expect((await tab.request.post(`${base}/share`, { data: { name: "Wilhelmina" } })).ok()).toBeTruthy();
-  await expect(tab.getByTestId("share-panel")).toHaveAttribute("data-state", "shared", { timeout: 10_000 });
-  await expect(tab.getByTestId("make-invite")).toBeVisible({ timeout: 10_000 });
+  await shareProject(tab.request, app, project.id);
+  await waitShared(tab);
   expect(describeAll(await violations(tab))).toBe("");
 });
 

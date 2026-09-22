@@ -6193,6 +6193,14 @@ async def events(project_id: str, request: Request):
             # Compiling. Both are answered by beginning with the state
             # rather than only with the news.
             yield f"data: {_json.dumps(session.compile_snapshot())}\n\n"
+            # And the same for sharing, which has exactly the same shape of
+            # fault: `collab_peers` is published on a transition and the
+            # browser has no way to ask, so a tab that connected a moment
+            # late, or reloaded a project that was already shared, showed
+            # the People drawer with no invite on a project with members.
+            peers = session.peers_snapshot()
+            if peers:
+                yield f"data: {_json.dumps(peers)}\n\n"
             while True:
                 if await request.is_disconnected():
                     return

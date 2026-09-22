@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures";
+import { shareProject, waitShared } from "../collab";
 
 /** The kit, measured on real surfaces.
  *
@@ -70,9 +71,9 @@ test("the kit's controls are 28 px and the strip's segments 20 px", async ({ app
   // An icon button in a drawer's heading row, and the small segmented
   // control under the preview: the two heights the direction fixes for
   // controls.  The People drawer's heading offers an invite once shared.
-  const base = `${app.base}/api/projects/${project.id}/collab`;
-  expect((await tab.request.post(`${base}/share`, { data: { name: "Wilhelmina" } })).ok()).toBeTruthy();
+  await shareProject(tab.request, app, project.id);
   await tab.getByTestId("bar-people").click();
+  await waitShared(tab);
   const share = (await tab.getByTestId("make-invite").boundingBox())!;
   expect(Math.round(share.height)).toBe(28);
   const scroll = tab.getByTestId("preview-footer").getByRole("button", { name: "Scroll" });

@@ -1,4 +1,5 @@
 import { test, expect, openProject } from "../fixtures";
+import { openPeople, shareProject, waitShared } from "../collab";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -173,4 +174,25 @@ test("a member's row says where they are, and Remove disconnects them", async ({
   await tab.getByTestId("confirm-remove").click();
   await expect(tab.getByTestId("member-row")).toHaveCount(0, { timeout: 10_000 });
   await second.close();
+});
+
+test("a tab that reloads a shared project still knows it is shared", async ({
+  app, project, tab,
+}) => {
+  // `collab_peers` is published when sharing begins and when a peer comes
+  // or goes, and the store has no way to ask for it. So every reload of a
+  // shared project drew the People drawer as a private one: no invite in
+  // the heading, on a project with members in it. A tab whose EventSource
+  // connected a moment after `begin_sharing` published had the same
+  // nothing, which is why a share made by the route and read immediately
+  // was a race the whole time. The stream sends the state as its second
+  // frame now, the way it already sent the build state as its first.
+  await shareProject(tab.request, app, project.id);
+  await openPeople(tab);
+  await waitShared(tab);
+
+  await tab.reload();
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await openPeople(tab);
+  await waitShared(tab);
 });

@@ -147,6 +147,18 @@ built in the same breath missed its own build, and a stream that dropped
 mid-build came back with nothing in the world able to lower the flag it had
 raised.
 
+The second frame is `collab_peers`, from `ProjectSession.peers_snapshot`,
+and it is there for exactly the same reason one flag along. Sharing is
+published when it begins and when a peer comes or goes, the browser keeps
+what it hears in `store.share`, and nothing in the interface can ask: so a
+tab whose `EventSource` was not yet connected when `begin_sharing`
+published, and every tab that reloaded a project that was already shared,
+held `share: null` for the rest of its life and drew the People drawer as
+a private project's, with no invite, on a project with members in it. The
+frame is byte for byte what `_announce_peers` publishes, so the store needs
+no second case for it, and a session without a network sends nothing rather
+than an empty one, which would read as a project that is not shared.
+
 
 A compile runs every time typing pauses, so the budget is about a second. Three decisions get it there.
 
