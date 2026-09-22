@@ -178,6 +178,14 @@ this host could not reproduce; each says which.
       build fails on the missing input. Left because the honest build is
       a failing one and the flush's `_settle_gone` would need to tell the
       session; small, once somebody wants it.
+- [ ] **`kit.spec.ts`'s People drawer case timed out twice under a full
+      run.** "the kit's controls are 28 px and the strip's segments 20 px"
+      waited a minute for `make-invite` after sharing the project, on both
+      attempts of one `check.sh --all` on 22 September, and passed in two
+      seconds alone and in the previous full run the same day. Nothing in
+      that run touched sharing. Left as a load flake to watch: if it
+      recurs, the share route or the drawer's wait for the shared state
+      is where to look.
 - [ ] **A PNG download the writer reported as broken was not reproduced,
       twice.** The report names the tree's row-menu *Download*, in Chrome.
       The route answers the bytes with `image/png` and an attachment
