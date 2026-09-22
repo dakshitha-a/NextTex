@@ -258,20 +258,64 @@ this host could not reproduce; each says which.
       was listening, with `server.err.log` empty and no crash, reboot or
       logoff in Windows' own logs. Either the process died with nothing
       logged or the minimized console window the shortcut opens was closed
-      by hand, which kills it without a word. Left because the two cannot
-      be told apart from the evidence; the bug report now carries the
-      evidence, since the backlog run gave it the task's history and the
-      Application log's crash events on Windows, so the next step is to
-      leave a freshly restarted server alone overnight on that machine
-      with its window untouched and read the report's Windows events
-      section in the morning, and if it is still up, to have the shortcut
-      run the server without a console window at all.
-- [ ] **The Windows restart helper on a machine where the task could not
-      be registered.** `updates.windows_restart_argv` brings the server
-      back after the update button on Windows. The lane drives it through
-      the scheduled task and the per-push Windows job runs its command-line
-      fallback for real under both PowerShells; the middle way back, the
-      Startup shortcut on a non-admin account, has run nowhere.
+      by hand, which kills it without a word.
+
+      **A second sighting, on 22 September, with better evidence and a
+      better suspect.** The same machine: the helper took the Startup
+      shortcut at 16:42:56 on 18 September, the server bannered at
+      16:43:02, and nothing has listened since. The event logs across that
+      window are silent in a way that is itself the finding: uptime
+      unbroken since 14 September, no Kernel-Power 41, no 1074, no 6008,
+      no bugcheck, zero Application Error events, zero events naming
+      python, and an empty Windows Error Reporting queue. The process
+      ended and nothing anywhere recorded it. What that machine did do in
+      the window is sleep: 73 Modern Standby cycles, 506 and 507 balanced,
+      the first of them two hours and forty minutes after the banner,
+      seventeen of half an hour or more and the longest seven and a half
+      hours. Nothing records a process reaped across Modern Standby, which
+      is exactly the evidence this leaves, and it would explain the first
+      sighting too, where a laptop was found dead in the morning. The
+      owner does not remember closing the window, so the original guess is
+      not ruled out, but it is no longer the first thing to check.
+
+      Process Termination auditing was turned on there on 22 September at
+      16:42, elevated, going from No Auditing to Success and Failure, so
+      the next death leaves a 4689 event. Reading it needs one more
+      elevation, because that account cannot read the Security log
+      unelevated; granting it read access was attempted and refused, and
+      the route to prefer if it is tried again is an explicit allow-read
+      ACE for the account's SID on the Security channel rather than
+      membership of Event Log Readers, since group membership lives in the
+      logon token and would not reach a session that only unlocks.
+
+      **A watch is running now**: pid 3240, python 3.12, port 8450,
+      started 16:27:16 on 22 September from the Startup shortcut, on
+      `ba4b191` / 2.11.0. What it answers is whether a server on that
+      machine survives a night of Modern Standby at all, which does not
+      depend on which commit it runs. If `restart.log` has grown past 534
+      bytes, the owner pressed Update after the session ended and the
+      watch belongs to whatever pid the helper started instead.
+- [x] **The Windows restart helper's Startup-shortcut branch has run, and
+      this line used to say it had run nowhere.** `restart.log` on the
+      owner's laptop, read on 22 September, holds two clean passes of it:
+      `[2026-09-15 23:24:42] server: helper started as pid 32948
+      (breakaway=True); leaving`, then `helper: waiting for pid 31624`,
+      then `[23:24:46] helper: starting ...\Startup\nexttex.lnk`; and the
+      same three lines again on 18 September at 16:42:53 to 16:42:56, with
+      a server banner in `server.log` six seconds later each time. The
+      account there is an administrator running unelevated, which is why
+      `register-task.ps1` fell back to the shortcut in the first place, so
+      this is exactly the middle way back the line said nothing had taken.
+      What is still unrun is the *scheduled task* branch on a real
+      machine, which needs an elevated shell and is the next line.
+- [ ] **The logon task branch has still run nowhere but a runner.** With
+      the task registered, `windows_restart_argv` tests `if ($t)` first and
+      takes it; every real machine this has been installed on lacked the
+      elevation to register one, so only GitHub's administrators have run
+      it. Registering it on the laptop also moves that machine off the
+      Startup shortcut, which is the launcher the silent-exit watch needs,
+      so the two cannot be done in the same sitting: the task branch wants
+      a session that can give the machine an hour and a reboot.
 - [ ] **The update footer's long-reason line is held by a Linux browser
       test and was not re-taken on Windows.** The wrapping that pushed Try
       again off the footer strip was found on the Windows laptop, fixed in
