@@ -2465,9 +2465,14 @@ async def open_project(project_id: str):
 
     Other routes open a session on demand; this one is what the *user*
     means by opening a project, so it is the only place that marks the
-    project as recently opened.
+    project as recently opened, and it marks it on every open.  It used
+    to mark only an open that built the session, which was every open
+    when the touch lived in the session's construction and stopped being
+    so once sessions outlived the tab: a session stays for half an hour
+    after its last request and for as long as a tab holds its stream, so
+    a project opened twice in one sitting kept the time of the first, and
+    the list sorted by last opened put it below projects opened since.
     """
-    fresh = project_id not in SESSIONS
     # Construction stays synchronous, and the docstring on `session_for` says
     # why: two requests arriving together must not build two sessions for one
     # project.  What was never necessary is doing the *filesystem* work on the
@@ -2475,8 +2480,7 @@ async def open_project(project_id: str):
     # during which no other request could be served and no autosave, event
     # stream or collaborator socket could make progress.
     session = session_for(project_id)
-    if fresh:
-        REGISTRY.touch(session.project.root)
+    REGISTRY.touch(session.project.root)
     # Opening is the one rule and the way back: an archived project that
     # turns out to be live, or one fished out of the trash, is active
     # again the moment it is opened.  Written only when the state moves.

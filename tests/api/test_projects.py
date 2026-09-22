@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import time
 from pathlib import Path
 
 
@@ -93,6 +94,32 @@ def test_opening_is_idempotent(client, project):
     first = client.post(f"/api/projects/{project['id']}/open")
     second = client.post(f"/api/projects/{project['id']}/open")
     assert first.status_code == second.status_code == 200
+
+
+def test_every_open_moves_the_project_to_the_top_of_the_list(client, project_dir, tmp_path):
+    """The list sorts by when each project was last opened, and opening
+    one is what moves it.  It moved only when the open built the session,
+    and a session outlives the tab by half an hour and for as long as a
+    tab holds its stream, so a project opened twice in one sitting kept
+    the time of the first open and sat below whatever was opened between.
+    """
+    other = tmp_path / "other"
+    shutil.copytree(project_dir, other)
+    first = client.post("/api/projects", json={"path": str(project_dir)}).json()["id"]
+    second = client.post("/api/projects", json={"path": str(other)}).json()["id"]
+
+    def order() -> list[str]:
+        return [row["id"] for row in client.get("/api/projects").json()["projects"]]
+
+    # A pause between opens, so a coarse clock cannot stamp two the same.
+    client.post(f"/api/projects/{first}/open")
+    time.sleep(0.02)
+    client.post(f"/api/projects/{second}/open")
+    assert order() == [second, first]
+    # The first project's session is still alive from its first open.
+    time.sleep(0.02)
+    client.post(f"/api/projects/{first}/open")
+    assert order() == [first, second]
 
 
 def test_a_name_with_a_quote_in_it_does_not_break_the_config(client, tmp_path):

@@ -1742,7 +1742,11 @@ required a project to be open, including the event stream, so after a
 restart the browser retried a 404 every two seconds forever with nothing on
 screen saying so. "Open" is what a user does to a window, not a
 precondition the server keeps: `session_for` opens a registered project on
-demand, and only the open route marks one as recently opened.
+demand, and only the open route marks one as recently opened. It marks it
+on every open, not only the one that builds the session: a session stays
+for half an hour after its last request and for as long as a tab holds
+its stream, so a project opened twice in one sitting kept the time of the
+first open and sat below whatever was opened between.
 
 **The preview zooms with the wheel and with a pinch.** Ctrl with the wheel,
 or two fingers on a trackpad, which every browser reports as a wheel event
