@@ -24,6 +24,31 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+The backlog close-out runs on 22 September, after 3.6.0, over two legs.
+The writer asked for the backlog's unverified half: the items that stayed
+open only because nobody could reproduce them or nobody had the machine,
+plus the browser-tier flakes that have a named fix. The Windows leg is a
+real laptop driven by a session of its own, which deletes the install that
+is there and makes a fresh one from the documented command, so the
+installer, the launcher, the update and the restart helper are all under
+test rather than only what they leave behind. Two read-only passes over
+that machine came first and moved three items before any code: the
+restart helper's Startup-shortcut branch has in fact run twice, on 15 and
+18 September, where the backlog says it has run nowhere; the silent exit
+has a second sighting, the server having bannered at 16:43:02 on 18
+September and nothing having listened since, with no crash, no reboot, no
+Application Error and no further byte in its own log, on a machine that
+slept 73 times in that window, which makes Modern Standby the suspect the
+original sighting never had; and the machine's account is an
+administrator running unelevated, so the logon task branch can be run
+there for the first time anywhere with a click on a UAC prompt. The code
+leg, 3.6.1, carries what the flakes turned out to be: the figure viewer's
+Download and the preview strip's Save PDF are still the bare anchor that
+`43e9c2c` swept everywhere else and named the figure viewer while missing
+it, a browser that connects late is never told its project is shared, and
+a keystroke during a file swap lands in the file just left. The tracker is
+https://claude.ai/artifact/NJ2VxtkGiPiwe3Sh3TFHxu.
+
 The placement run goes up as 3.5.0 on 22 September, raised by the writer
 after 3.4.2 as a tune up of the hover cards and the selection menu: the
 cards blocked the thing hovered and vanished on the way to their buttons,
