@@ -162,6 +162,47 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "the card over a cross-reference",
+    open: async (tab) => {
+      // The editor's hover card, placed by `hover-card.ts` inside the
+      // editor rather than by CodeMirror's tooltip layer, so it has to
+      // be listed here to be measured and swept.
+      const point = await tab.evaluate(() => {
+        const line = [...document.querySelectorAll(".cm-line")].find((el) => el.textContent?.includes("sec:results}."));
+        if (!line) return null;
+        // Rendered is not the same as on screen: the line sits below the
+        // fold after `prepare` leaves the caret on line 41.
+        line.scrollIntoView({ block: "center" });
+        const at = line.textContent!.indexOf("sec:results") + 5;
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        let seen = 0;
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const length = node.textContent!.length;
+          if (seen + length > at) {
+            const range = document.createRange();
+            range.setStart(node, at - seen);
+            range.setEnd(node, at - seen + 1);
+            const box = range.getBoundingClientRect();
+            return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          }
+          seen += length;
+        }
+        return null;
+      });
+      expect(point).not.toBeNull();
+      await tab.mouse.move(point!.x, point!.y);
+      await tab.mouse.move(point!.x + 1, point!.y);
+      const card = tab.locator(".nx-hover-card");
+      await expect(card).toBeVisible({ timeout: 5_000 });
+      await expect(card.getByTestId("link-references")).toBeVisible();
+      return card;
+    },
+    close: async (tab) => {
+      await tab.mouse.move(5, 5);
+      await expect(tab.locator(".nx-hover-card")).toHaveCount(0);
+    },
+  },
+  {
     name: "the papers chooser",
     open: async (tab) => {
       await rowMenu(tab, "references.bib", "Add papers from a folder…");

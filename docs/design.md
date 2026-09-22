@@ -10084,3 +10084,75 @@ words. `settling.spec.ts` types `\newpage` into an input file whose
 text names the page a later section is on and reads the number back
 out of the PDF: without the change it says "1 of 3" for ever.
 
+
+## 61. Clear of the text: the hover card and the verb row
+
+Raised by the writer on 22 September 2026, after 3.4.2, as "a serious
+tune up of the hover previews and the action menu that comes up upon
+text selection". The hover cards "often block the thing being hovered
+on and disappear when I try to click any buttons on it"; the only way to
+reach *Find references* was a card that had popped up under the pointer,
+where it hid the reference or the equation, table or figure code, or a
+scroll that brought the pointer onto a card above. The selection menu
+had "no order to where it appears", sometimes over the selected text,
+sometimes off the editor's frame, sometimes half under the preview pane.
+They asked for the placements to be verified visually and refined
+iteratively, without a mock-up round; the direction page carries the
+result as the record of what was built.
+
+**What the renders showed.** A probe drove both surfaces at 100 % and
+125 % interface size. Both complaints had one cause: the shell is scaled
+with `zoom` for the interface size, so a measurement from the browser
+comes back in viewport pixels while the thing is drawn in shell pixels,
+and anything that wrote the one as the other landed off by the factor.
+The verb row's `placeRow` mixed the two, and at 125 % the row for a
+paragraph at the foot of the view landed below it and off the pane. The
+hover cards were CodeMirror's `hoverTooltip`, whose tooltip layer did
+the same: at 125 % an `\eqref` card for a line at y 884 was drawn at
+y 811 to 1048 and x 683 to 1058, on the hovered line, into the preview
+pane, its buttons below the window, and a 20 px travel toward them lost
+it at the second step, since the layer closed the card the moment the
+pointer was neither over the range nor inside the card. At 100 % a
+five-line equation near the top of the view had its card pinned to the
+top over its own lines, because the layer anchors on the range's first
+line and clamps. And a click on *Find references* opened the drawer and
+left the card open, since the button ate the mousedown that would have
+closed it.
+
+**One rule for both, `placeClear`.** Anything that floats over the
+editor about a piece of its text is placed by one function, the verb
+row's ladder generalised: above the block's first line when there is
+room, below its last line when there is not, else at the pane edge
+nearest the pointer, a rung the row lacked (it took the foot whatever
+the pointer was near); the left edge at the text, clamped inside the
+pane; a 4 px gap; every input in shell pixels. The block is the whole
+hovered range, so an equation's card sits above `\begin` or below
+`\end`, never between them. The function says which side it chose.
+
+**The card owns the pointer.** `hover-card.ts` replaces the tooltip
+layer with a `ViewPlugin`: the card appears once the pointer has rested
+250 ms, is appended to `.cm-editor` so it is clipped by its own pane and
+never by a neighbour, is placed by `placeClear` from the range's line
+blocks and placed again when it grows (the maths when KaTeX lands, a
+figure when its thumbnail does), and stays while the pointer is over the
+range or the card, going 300 ms after it has left both, at once on a key
+press, a scroll, a mousedown outside it, a document change or the window
+losing focus. A mousedown on the card is kept from the editor, so a
+press on a button is an ordinary click that moves no selection, and the
+card goes after the click, the drawer it opened being where the writer
+looks next. A pointer that has left and comes back to the text gets a
+fresh card, since a build may have landed the reference's number
+meanwhile; one that comes back to the card keeps it. A card below the
+text puts its button row on its top edge, nearest the text, so the
+shortest path from the token reaches it first.
+
+**What the renders show now.** At both sizes a reference low in the view
+has its card above the line with a 4 px gap, inside the pane, and a 20 px
+travel to *Find references* keeps the card at every step; the click opens
+the search drawer and the card goes. The same reference at the top has
+its card below, buttons uppermost. The equation hovered on its third line
+has its card below `\end{equation}`, over none of its lines. A scroll puts
+the card away. `hover-card-placement.spec.ts` drives those four cases at
+100 % and 125 %; `verb-row-scale.spec.ts` the two selections;
+`menus-contrast.spec.ts` lists the card among the surfaces it measures
+and sweeps; `rename.spec.ts` presses the buttons with a click now.

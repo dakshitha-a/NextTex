@@ -9,7 +9,8 @@
  */
 
 import { shellTheme } from "../ui/FloatingCard";
-import { hoverTooltip, type EditorView, type Tooltip } from "@codemirror/view";
+import type { EditorView, Tooltip } from "@codemirror/view";
+import { hoverCard } from "./hover-card";
 import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
 import { sizeOf } from "../size";
@@ -276,7 +277,7 @@ export function mathHover(
   /** Absent in the read-only panes, which offer no rename. */
   onSymbol?: OnSymbol,
 ): Extension {
-  return hoverTooltip((view, pos): Tooltip | null => {
+  return hoverCard((view, pos): Tooltip | null => {
     // Which cards the writer has left on, read off the root now rather
     // than held in a compartment: this source runs on every hover, the
     // language compartment it sits in is never reconfigured (a file
@@ -304,7 +305,6 @@ export function mathHover(
     return {
       pos: span.from,
       end: span.to,
-      above: true,
       create() {
         // The kit's card in the shell's palette, with the maths in a body
         // of its own that has room around it so nothing a sub- or
@@ -344,7 +344,7 @@ export function mathHover(
         return { dom };
       },
     };
-  }, { hoverTime: 250 });
+  });
 }
 
 /** The table under the pointer, drawn as a table in the formula card's
@@ -356,7 +356,6 @@ function tableTooltip(from: number, to: number, source: string, symbols: () => S
   return {
     pos: from,
     end: to,
-    above: true,
     create() {
       // The reader is fetched on the first table hovered, as the thumbnail
       // service is, so the editor's chunk does not carry it; the source's
@@ -533,7 +532,6 @@ function linkTooltip(
   return {
     pos: line.from + link.from,
     end: line.from + link.to,
-    above: true,
     create() {
       const dom = document.createElement("div");
       dom.className = `nx-math-tooltip nx-link-tooltip nx-card ${shellTheme()}`;
@@ -643,13 +641,11 @@ function linkTooltip(
           button.dataset.size = "inline";
           button.textContent = label;
           button.dataset.testid = rename ? "link-rename" : "link-references";
-          // `mousedown` rather than `click`: the tooltip closes on the
-          // editor's own mousedown, before a click would arrive.
-          button.addEventListener("mousedown", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onSymbol(kind, link.name, rename);
-          });
+          // An ordinary click.  The buttons acted on `mousedown` once,
+          // because the editor's own mousedown closed the tooltip before
+          // a click could arrive; the card keeps a press on itself from
+          // the editor now, and closes itself after the click.
+          button.addEventListener("click", () => onSymbol(kind, link.name, rename));
           verbs.append(button);
         }
         dom.append(verbs);

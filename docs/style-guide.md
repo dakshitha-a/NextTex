@@ -161,7 +161,20 @@ else.
   keyboard and a finger reach them.
 - The tree's file card arms after 400 ms and the editor's hover cards
   after 250, never on touch; a key press, a scroll or a menu opening
-  dismisses the card.
+  dismisses the card. The editor's card stays while the pointer is over
+  the thing or over the card and goes 300 ms after it has left both, so
+  the pointer can travel to the card's buttons; a press on a button is a
+  click, and the card goes after it.
+- Anything that floats over the editor about a piece of its text, the
+  hover card and the selection's verb row, is placed by `placeClear` in
+  `frontend/src/panes/place-clear.ts`: above the block's first line when
+  there is room, below its last line when there is not, else at the pane
+  edge nearest the pointer; its left edge at the text, clamped inside the
+  pane; measured in shell pixels end to end, since the interface size
+  scales the shell with `zoom` and a viewport number written as CSS
+  pixels lands off by the factor. It lives inside the pane it belongs to,
+  never over a neighbour. A card below the text puts its button row on
+  its top edge, nearest the text.
 - A second press on the active bar icon folds the drawer; the drawer
   swap is a cut.
 - The pen marks what the agent touched and nothing else. A 2 px pen rule

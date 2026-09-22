@@ -117,8 +117,11 @@ close the tab. No database, no Docker, no nginx.
   source and it appears typeset, drawn, or as the picture with its size;
   on a `\ref` and the figure, table or equation it points at appears
   under what the reference says; the Files drawer does the same beside
-  an image's row. Which of them show is a row on the settings sheet, one
-  chip per kind, with a switch above it for all of them at once.
+  an image's row. The card keeps clear of the thing it is about, above
+  it or below it, and stays while the pointer travels to it, so *Find
+  references* and *Rename* on a `\ref` or `\cite` card are a click
+  away. Which of them show is a row on the settings sheet, one chip per
+  kind, with a switch above it for all of them at once.
 - **Find and drag in the Files drawer**, with open files following a folder
   that moves.
 - **The look is written down.** Every control comes from one kit on one
@@ -573,7 +576,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 857.7 kB | 860 kB |
+| Interface bundle | 855.5 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore

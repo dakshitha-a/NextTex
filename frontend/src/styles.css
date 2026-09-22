@@ -1947,6 +1947,12 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 }
 
 /* ---- equation previews -------------------------------------------------- */
+/* The editor's hover card (`hover-card.ts`): placed by the plugin inside
+   `.cm-editor`, above the verb row's z-20, a column so that the button
+   row can move to the edge nearest the text when the card sits below
+   it.  It does not follow the pointer or the page: a scroll closes it. */
+.nx-hover-card { z-index: 30; display: flex; flex-direction: column; }
+.nx-hover-card[data-side="below"] .nx-link-verbs { order: -1; padding-top: 0; padding-bottom: 6px; }
 /* The kit's card, in the shell's palette (math-hover.ts adds both classes),
    so a card over a white page under a dark shell is the shell's. */
 .nx-math-tooltip {

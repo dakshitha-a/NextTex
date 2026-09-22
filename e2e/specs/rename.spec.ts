@@ -66,7 +66,7 @@ test("Rename on a reference's tooltip renames the label in every file, asking fi
   await tab.mouse.move(point!.x + 1, point!.y);
   const tip = tab.locator(".nx-link-tooltip");
   await expect(tip).toBeVisible({ timeout: 10_000 });
-  await tip.getByTestId("link-rename").dispatchEvent("mousedown");
+  await tip.getByTestId("link-rename").click();
 
   // The search panel lists the uses: four, one in a comment, two files.
   const references = tab.getByTestId("references");
@@ -118,7 +118,7 @@ test("F2 on a label opens the rename, and Find references lists without renaming
   await tab.mouse.move(point!.x, point!.y);
   await tab.mouse.move(point!.x + 1, point!.y);
   await expect(tab.locator(".nx-link-tooltip")).toBeVisible({ timeout: 10_000 });
-  await tab.locator(".nx-link-tooltip").getByTestId("link-references").dispatchEvent("mousedown");
+  await tab.locator(".nx-link-tooltip").getByTestId("link-references").click();
   await expect(tab.getByTestId("references-summary")).toContainText("4 uses of sec:a", { timeout: 10_000 });
   await expect(tab.getByTestId("rename-to")).toHaveCount(0);
   await tab.getByTestId("references-rename").click();
