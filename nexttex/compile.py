@@ -683,7 +683,15 @@ class CompileScheduler:
         finally:
             self._process = None
 
-        if proc.returncode is not None and proc.returncode < 0:
+        killed = proc.returncode is not None and proc.returncode < 0
+        if killed or generation != self._generation:
+            # Superseded while it ran.  A newer build has cancelled this
+            # one and is about to run, and its result is the one that
+            # counts.  The second test matters on its own: latexmk traps
+            # the signal and can exit with a code of its own after killing
+            # its engine mid-run, so a superseded full pass was reported
+            # as finished, cleared the mark that asked for a full pass, and
+            # left a torn .aux for the next fast pass to typeset against.
             return CompileResult(
                 Outcome.CANCELLED, None, None, time.monotonic() - started, scope,
                 "full" if full_pass else "fast", engine, escape,

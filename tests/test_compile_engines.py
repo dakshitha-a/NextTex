@@ -245,3 +245,38 @@ def test_an_engine_that_cannot_be_run_has_no_version_and_no_error(monkeypatch):
 
     monkeypatch.setattr(build_module, "_VERSIONS", {})
     assert build_module.engine_version("no-such-engine-here") == ""
+
+
+def test_a_build_superseded_while_it_ran_is_cancelled_whatever_its_engine_returned(tmp_path, monkeypatch):
+    """latexmk traps the signal a superseding build sends and can exit with
+    a code of its own after killing its engine mid-run, so a superseded
+    full pass was reported as finished: it cleared the mark that asked for
+    a full pass and left a torn .aux for the next fast pass to typeset
+    against, which is how a fast pass right after a whole build found
+    every citation undefined."""
+    from nexttex import compile as build_module
+
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}\n", encoding="utf-8"
+    )
+    build = CompileScheduler(paths_in(tmp_path))
+
+    class Trapped:
+        returncode = 0
+        pid = 0
+
+        async def wait(self):
+            # A newer build arrives while this one runs.
+            build._generation += 1
+            return 0
+
+    async def fake_exec(*argv, **_):
+        return Trapped()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(build_module, "_VERSIONS", {"pdflatex": "pdfTeX"})
+    assert build._needs_full is True
+    result = asyncio.run(build.build())
+    assert result.outcome is build_module.Outcome.CANCELLED
+    assert build._needs_full is True, "a killed full pass must not count as one"
+
