@@ -184,12 +184,22 @@ test("a tab that reloads a shared project still knows it is shared", async ({
   // shared project drew the People drawer as a private one: no invite in
   // the heading, on a project with members in it. A tab whose EventSource
   // connected a moment after `begin_sharing` published had the same
-  // nothing, which is why a share made by the route and read immediately
-  // was a race the whole time. The stream sends the state as its second
-  // frame now, the way it already sent the build state as its first.
+  // nothing. The stream sends the state as its second frame now, the way
+  // it already sent the build state as its first.
+  //
+  // The drawer is opened before the reload for two reasons, and neither
+  // is the assertion: sharing is confirmed, and the drawer is remembered
+  // open, so the reloaded page draws the People panel straight away
+  // rather than after a click. Only the drawer's own `data-state` is
+  // waited on here, which comes from its own fetch. Waiting on the invite
+  // button as well made the setup depend on the very event this test is
+  // about, and under the full tier that wait, not the assertion, is what
+  // timed out.
   await shareProject(tab.request, app, project.id);
   await openPeople(tab);
-  await waitShared(tab);
+  await expect(tab.getByTestId("share-panel")).toHaveAttribute(
+    "data-state", "shared", { timeout: 15_000 },
+  );
 
   await tab.reload();
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });

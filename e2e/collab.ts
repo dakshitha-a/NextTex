@@ -40,12 +40,27 @@ export async function waitShared(tab: Page): Promise<void> {
 
 /** Open the People drawer, whether or not it is already open.
  *
- *  The activity bar remembers which drawer was open and restores it on a
- *  reload, so a spec that always clicks closes the drawer it wanted half
- *  the time. */
+ *  The bar's button is a toggle and the drawer's remembered choice is
+ *  restored from storage after the page has drawn, so neither "click it"
+ *  nor "click it if the panel is not there yet" is enough on its own: a
+ *  click can land before the restore and close the drawer the restore is
+ *  about to open. Under the full tier this failed exactly that way, with
+ *  the panel never appearing at all.
+ *
+ *  So it presses and checks, up to three times. A toggle that is out of
+ *  phase comes back into phase on the next press, and a drawer that is
+ *  simply slow is caught by the wait rather than by another press. */
 export async function openPeople(tab: Page): Promise<void> {
   const panel = tab.getByTestId("share-panel");
-  if (await panel.count()) return;
-  await tab.getByTestId("bar-people").click();
-  await expect(panel).toBeVisible({ timeout: 15_000 });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (await panel.isVisible()) return;
+    await tab.getByTestId("bar-people").click();
+    try {
+      await expect(panel).toBeVisible({ timeout: 5_000 });
+      return;
+    } catch {
+      /* the remembered drawer raced the press; press again */
+    }
+  }
+  await expect(panel).toBeVisible({ timeout: 10_000 });
 }
