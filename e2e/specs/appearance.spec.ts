@@ -301,7 +301,10 @@ test("a keystroke during a build is not forgotten when the build lands", async (
   //
   // Done with compile-as-you-type off, so that nothing else can start a
   // build and clear the flag legitimately -- with it on, this is a race
-  // against a 1.6 second debounce rather than a test.
+  // against a 1.6 second debounce rather than a test.  And with a whole
+  // build, Shift on the button, because a fast pass that leaves the
+  // layout behind is followed by a settling build of its own, which
+  // would compile the keystroke and clear the flag with every right.
   await expect
     .poll(async () => tab.getByTestId("status").getAttribute("data-state"), {
       timeout: 45_000,
@@ -314,7 +317,7 @@ test("a keystroke during a build is not forgotten when the build lands", async (
   await tab.getByRole("switch", { name: "Compile as you type" }).click();
   await tab.keyboard.press("Escape");
 
-  await tab.getByRole("button", { name: "Compile" }).click();
+  await tab.getByRole("button", { name: "Compile" }).click({ modifiers: ["Shift"] });
   await expect(tab.getByTestId("status")).toHaveAttribute("data-state", "compiling");
 
   await tab.locator(".cm-content").click();

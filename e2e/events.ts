@@ -11,6 +11,8 @@ import type { Instance } from "./server";
  */
 export type Watch = {
   types: string[];
+  /** The events themselves, in order, for a spec that needs a field. */
+  payloads: Record<string, unknown>[];
   count(type: string): number;
   stop(): void;
 };
@@ -21,6 +23,7 @@ export async function watchEvents(
 ): Promise<Watch> {
   const control = new AbortController();
   const types: string[] = [];
+  const payloads: Record<string, unknown>[] = [];
   const response = await fetch(
     `${app.base}/api/projects/${projectId}/events`,
     { headers: { "x-nexttex-token": app.token }, signal: control.signal },
@@ -42,7 +45,9 @@ export async function watchEvents(
           for (const line of frame.split("\n")) {
             if (!line.startsWith("data:")) continue;
             try {
-              types.push(JSON.parse(line.slice(5).trim()).type);
+              const event = JSON.parse(line.slice(5).trim());
+              types.push(event.type);
+              payloads.push(event);
             } catch {
               /* a keep-alive, or a frame split across reads */
             }
@@ -56,6 +61,7 @@ export async function watchEvents(
 
   return {
     types,
+    payloads,
     count: (type: string) => types.filter((seen) => seen === type).length,
     stop: () => control.abort(),
   };

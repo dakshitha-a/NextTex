@@ -228,6 +228,20 @@ test("a Markdown file's versions reach the open panel without a build", async ({
   const rows = tab.getByTestId("version");
   const before = await rows.count();
 
+  // The build the reload started may still be landing, and a fast pass
+  // that left the layout behind is followed by a settling build of its
+  // own; neither is the keystroke's doing.  So wait for the builds to be
+  // over, every start answered by a done, and count from there.
+  const settled = async () => {
+    if (events.count("compile_start") !== events.count("compile_done")) return false;
+    // A settling build starts within milliseconds of the result it
+    // follows; a moment's grace catches it.
+    await tab.waitForTimeout(400);
+    return events.count("compile_start") === events.count("compile_done");
+  };
+  await expect.poll(settled, { timeout: 45_000 }).toBe(true);
+  const started = events.count("compile_start");
+
   // Two edits from this one window inside the coalescing window are one
   // version, so one edit is what this asks for: a row that was not there.
   await tab.locator(".cm-content").click({ position: { x: 30, y: 20 } });
@@ -235,7 +249,7 @@ test("a Markdown file's versions reach the open panel without a build", async ({
   await tab.keyboard.type("\nA second line.\n");
   await landed(app, project, "A second line.", "notes.md");
   await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThan(before);
-  expect(events.count("compile_start")).toBe(0);
+  expect(events.count("compile_start")).toBe(started);
   events.stop();
 });
 
