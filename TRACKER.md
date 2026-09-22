@@ -265,7 +265,7 @@ this host could not reproduce; each says which.
       early under load, so the press is lost and the turn waits out its
       timeout. **The shield half of that is wrong**, and reading
       `Chat.tsx:1704-1756` says so: the buttons carry `disabled={!armed}`,
-      `ui/Button.tsx` forwards it to a real button, and Playwright's
+      `frontend/src/ui/Button.tsx` forwards it to a real button, and Playwright's
       actionability check waits for enabled, so a press cannot be dropped
       that way. The spec no longer sleeps 500 ms against a 350 ms shield;
       it waits for the button to be enabled and then asserts the card's
