@@ -213,6 +213,35 @@ this host could not reproduce; each says which.
       the writer notices, and `hasThumbnail` answers before anything is
       fetched. No new visual, since the state it falls back to is one the
       card already draws.
+- [x] **A file moved out of a project and back is no longer deleted, and
+      a path that once held a deleted file no longer swallows what is
+      written to it.** Found on the owner's Windows install on 23
+      September, by moving a figure out of its folder and back with
+      ordinary shell moves: NextTex put it in its own trash, recorded the
+      deletion as the writer's own, took it again 577 ms after Restore put
+      it back, and swallowed anything afterwards written under that name
+      while the same bytes under another name survived. A sync client, a
+      `git` checkout and any editor that saves by writing a temporary file
+      and renaming it over the target all do exactly that move. Four
+      causes, all in `server/collab/store.py`, all fixed together with
+      `tests/collab/test_a_file_that_comes_back.py`: the returning file
+      never withdrew the pending sighting, never cleared the flag once the
+      deletion had settled, was invisible to `file_id_for` because that
+      skips trashed records and so was adopted as a second record, and
+      `settle_paths` then followed the first record's deletion by moving
+      whatever was at the path into the trash. What is still open is the
+      trash record's own claim, the next line.
+- [ ] **A trash entry says the writer deleted the file even when nobody
+      did.** Every entry carries `by: "you"`, including one written when
+      the watcher inferred a deletion and one written for a file that had
+      merely been copied in. The schema in `nexttex/trash.py` has nowhere
+      to say otherwise: `id`, `at`, `by`, `path`, `name`, `kind`, `files`,
+      `dirs`, `count`, `bytes`. With the line above fixed, most of those
+      entries stop being written at all, but a deletion followed from a
+      peer is still filed as this writer's doing, which is wrong in the
+      one place somebody looks when a file has gone. A `source` beside
+      `by`, absent on old entries and read as the writer's own when
+      missing, so nothing already in anybody's trash changes meaning.
 - [ ] **A file deleted outside NextTex does not schedule a build.** The
       watcher's tick now tells the compiler about every outside write it
       sees, so a pull, another editor's save or a regenerated figure
