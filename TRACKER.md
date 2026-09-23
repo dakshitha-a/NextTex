@@ -487,6 +487,21 @@ this host could not reproduce; each says which.
       uninstall by design and was a third of a gigabyte on that machine.
       The README now says so, and says how to remove one.
 
+- [x] **A TeX named on the command line is no longer discarded because
+      the machine already has one.** `--tex=miktex` was accepted by the
+      parser, forwarded through the bootstrap and then dropped by
+      `Plan.set` without a word, because the TeX item is fixed when a TeX
+      is found: the writer asked for MiKTeX, got TinyTeX, and was told
+      nothing. Found on 23 September while trying to put a MiKTeX on the
+      laptop through the documented route, which turned out to be
+      impossible on any machine that already has a TeX. An item fixed
+      because the machine *already has* the thing is overridable now; one
+      fixed because the machine *cannot do* the thing, a desktop shortcut
+      where there is no desktop, is not. The same run found that the
+      installer locates TeX by its known install directory rather than by
+      PATH, so taking TinyTeX off PATH hides it from nothing, which is
+      worth knowing before anybody tries that again.
+
 ### Never run against the real thing
 
 - [ ] **The drawer's Install button has not been pressed on a MiKTeX.**

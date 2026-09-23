@@ -190,3 +190,47 @@ def test_a_machine_with_nothing_to_do_says_so(tmp_path):
     # so that --agent=none is still obeyed on such a machine.
     assert plan.choice("agent") == "claude"
     assert plan.megabytes == 0
+
+
+# --- a TeX the writer names, on a machine that already has one ----------------
+
+
+def with_tex(platform, root):
+    """A survey of a machine that already has a TeX on it."""
+    return survey(
+        platform, root,
+        which=lambda name: "/usr/bin/pdflatex" if name in ("pdflatex", "latexmk") else None,
+        exists=lambda _p: False, check_network=False,
+        environ={"XDG_DATA_HOME": str(Path(root) / "state")},
+    )
+
+
+def test_a_machine_with_a_tex_skips_the_tex_step_by_default(tmp_path):
+    """The default is still not to download a second three hundred
+    megabytes onto a machine that has one."""
+    plan = build_plan(with_tex("windows", tmp_path), interactive=False)
+    assert plan.item("tex").fixed, "the step should be skipped when a TeX is here"
+    assert plan.choice("tex") == "present"
+
+
+def test_a_tex_named_on_the_command_line_beats_what_was_found(tmp_path):
+    """--tex=miktex was accepted by the parser, forwarded through the
+    bootstrap, and then dropped without a word, so somebody who asked for
+    MiKTeX on a machine with TinyTeX got TinyTeX and was told nothing."""
+    plan = build_plan(with_tex("windows", tmp_path), interactive=False,
+                      answers={"tex": "miktex"})
+    assert plan.choice("tex") == "miktex", "the explicit choice was discarded"
+    assert not plan.item("tex").fixed, "the step must actually run"
+
+
+def test_a_fixed_item_the_machine_cannot_do_is_still_not_overridable(tmp_path):
+    """The distinction this rests on: TeX is fixed because one is already
+    here, which is a reason to skip. A desktop shortcut on a machine with
+    no desktop is fixed because it cannot be done, and answering it
+    differently would only fail later."""
+    plan = build_plan(bare("linux", tmp_path), interactive=False,
+                      answers={"shortcut": "yes"})
+    shortcut = plan.item("shortcut")
+    if shortcut.fixed:
+        assert not shortcut.overridable
+        assert plan.choice("shortcut") != "yes"

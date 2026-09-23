@@ -44,6 +44,19 @@ class Item:
     # machine cannot do it.  A fixed item still appears on the plan, because
     # "nothing to do" is information somebody wants before they start.
     fixed: str = ""
+    #: Whether a `fixed` item may still be overridden by somebody saying
+    #: what they want.  Most fixed items are fixed because the machine
+    #: cannot do the thing: there is no service manager, there is no
+    #: desktop, tailscale is not installed.  Answering those differently
+    #: would only fail later.  TeX is the exception: it is fixed because a
+    #: TeX is *already here*, which is a reason to skip the step and not a
+    #: reason to refuse the writer who asked for a different one.
+    #:
+    #: Without this, `--tex=miktex` on a machine with any TeX was accepted
+    #: by the parser, forwarded through the bootstrap, and then dropped by
+    #: `set` without a word: the writer asked for MiKTeX, got TinyTeX, and
+    #: was told nothing. Seen on a real install on 23 September 2026.
+    overridable: bool = False
     current: bool = False
     size_mb: int = 0
 
@@ -150,6 +163,10 @@ def build_plan(
     )
     if result.has_tex:
         tex.fixed = f"already here, at {result.tex_dir}"
+        # Skipped by default, because downloading a second TeX onto a
+        # machine that has one is a waste of three hundred megabytes.  Not
+        # refused, because somebody who names one has a reason.
+        tex.overridable = True
         if result.missing_tex_extras and result.tlmgr:
             tex.fixed += "; adding " + ", ".join(result.missing_tex_extras)
     items.append(tex)
@@ -275,11 +292,25 @@ class Plan:
         return None
 
     def set(self, key: str, value: str) -> None:
+        """Take an answer, from a flag or from the writer at the prompt.
+
+        A fixed item ignores this, because it is fixed for a reason the
+        answer cannot change, with one exception: an item that is fixed
+        only because the machine already has what the step would install.
+        Naming a different one there is a choice, not a mistake, and
+        dropping it silently is how somebody asks for MiKTeX and gets
+        TinyTeX with nothing said.
+        """
         item = self.item(key)
-        if item is None or item.fixed:
+        if item is None:
             return
-        if any(option.value == value for option in item.options):
-            item.choice = value
+        if not any(option.value == value for option in item.options):
+            return
+        if item.fixed:
+            if not item.overridable:
+                return
+            item.fixed = ""
+        item.choice = value
 
     def choice(self, key: str) -> str:
         item = self.item(key)
