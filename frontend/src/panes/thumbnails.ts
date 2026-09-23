@@ -36,6 +36,30 @@ export type Thumbnail = {
 
 const RASTER = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
 const CACHE_LIMIT = 64;
+
+/** Past this, a file gets no picture at all.
+ *
+ *  A raster's picture is the file itself, handed to an `<img>`, and a
+ *  PDF's is its first page read into an `ArrayBuffer`: both fetch and
+ *  decode the whole thing in the renderer to fill a card a few hundred
+ *  pixels wide.  For an ordinary figure that is cheap and the picture is
+ *  worth it.  For a 192 MiB PNG it is 192 MiB over the socket and a
+ *  couple of hundred megapixels decoded, which on the Windows laptop on
+ *  22 September 2026 showed up as the renderer freezing for thirty to
+ *  sixty seconds and recovering on its own, once right after the folder
+ *  holding that file was expanded.
+ *
+ *  Thirty-two megabytes, because it is far above any figure a paper
+ *  actually carries, including a full-page scan at print resolution, and
+ *  far below the size at which fetching one costs the writer a pause they
+ *  would notice.  Bytes rather than pixels because bytes are what the
+ *  tree already knows; the size comes from the same `stat` the tree's
+ *  listing is built from, so asking costs nothing.
+ *
+ *  What the writer sees instead is the state the card already draws for a
+ *  file it cannot picture: the name and the size, which for a file this
+ *  large is the more useful fact anyway. */
+export const BIGGEST_PICTURE = 32 * 1024 * 1024;
 const cache = new Map<string, Promise<Thumbnail>>();
 
 const NONE: Thumbnail = { url: null, width: 0, height: 0, unit: "px" };
@@ -46,14 +70,22 @@ function extensionOf(path: string): string {
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
 }
 
-/** Whether a hover on this file would show a picture at all. */
-export function hasThumbnail(path: string): boolean {
+/** Whether a hover on this file would show a picture at all.
+ *
+ *  `size` is the file's, where the caller knows it, which both callers
+ *  do; without it only the extension is asked, which is what a caller
+ *  that has no listing to hand can answer. */
+export function hasThumbnail(path: string, size?: number): boolean {
+  if (size !== undefined && size > BIGGEST_PICTURE) return false;
   const extension = extensionOf(path);
   return RASTER.has(extension) || extension === "pdf";
 }
 
 /** The picture for a project file, or the answer that there is none. */
-export function thumbnail(projectId: string, path: string, stamp: number): Promise<Thumbnail> {
+export function thumbnail(
+  projectId: string, path: string, stamp: number, size?: number,
+): Promise<Thumbnail> {
+  if (!hasThumbnail(path, size)) return Promise.resolve(NONE);
   const key = `${projectId}:${path}:${stamp}`;
   const held = cache.get(key);
   if (held) return held;

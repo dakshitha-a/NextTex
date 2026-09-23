@@ -37,7 +37,7 @@ export default function FileCard({
     let live = true;
     setThumb(null);
     if (projectId) {
-      void thumbnail(projectId, node.path, node.mtime ?? node.size ?? 0).then((made) => {
+      void thumbnail(projectId, node.path, node.mtime ?? node.size ?? 0, node.size).then((made) => {
         if (live) setThumb(made);
       });
     }

@@ -193,8 +193,8 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
-- [ ] **A hover card fetches and decodes a whole image to draw a small
-      picture of it.** `thumbnail` in `frontend/src/panes/thumbnails.ts`
+- [x] **A hover card no longer fetches and decodes a whole image to draw
+      a small picture of it.** `thumbnail` in `frontend/src/panes/thumbnails.ts`
       makes a raster's picture by setting `picture.src` to the download
       route, so hovering a tree row for a 192 MiB PNG fetches 192 MiB and
       decodes it in the renderer to fill a card a few hundred pixels
@@ -206,9 +206,13 @@ this host could not reproduce; each says which.
       project was open, and the card was never hovered deliberately. The
       fix is cheap and the size is already at the call site:
       `FileCard.tsx:40` passes `node.size`, and a file over some
-      threshold can take the state the card already has for a file it
-      cannot draw, its name and its size alone. Left for a run that can
-      choose the threshold and check the card in both themes.
+      threshold takes the state the card already has for a file it cannot
+      draw, its name and its size alone. Done: `BIGGEST_PICTURE` is
+      thirty-two megabytes, far above a full-page scan at print
+      resolution and far below the size at which fetching one is a pause
+      the writer notices, and `hasThumbnail` answers before anything is
+      fetched. No new visual, since the state it falls back to is one the
+      card already draws.
 - [ ] **A file deleted outside NextTex does not schedule a build.** The
       watcher's tick now tells the compiler about every outside write it
       sees, so a pull, another editor's save or a regenerated figure
@@ -343,11 +347,13 @@ this host could not reproduce; each says which.
       this. That machine is already at 125 percent, so the screenshot needs
       nothing but a moment with the footer in its long-reason state, and
       the way to get one is to point the install's remote at a URL that
-      fails with a long multi-line error. It was missed on 22 September
-      for a reason worth knowing before the next attempt: the same session
-      had just updated that install to the tip of master, so there was no
-      update to report on and the footer had nothing to say. Take the
-      screenshot before updating, or after master has moved on again.
+      fails with a long multi-line error. A note here said on 22 September
+      that the screenshot had become impossible because the install had
+      reached the tip of master and there was no update to report on. That
+      was wrong, and it is corrected rather than deleted because it is the
+      kind of wrong that wastes the next attempt: `UpdateFooter.tsx:442`
+      gates that line on `!report.checked`, the check itself failing, and
+      whether the install is behind has nothing to do with it.
 - [ ] **`openai-card.spec.ts` "Allow always survives a reload as a
       settled card" failed and passed on retry in four of the frame run's
       nine full checks.** The failing read was `toBeVisible` on "Done."

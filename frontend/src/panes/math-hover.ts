@@ -551,7 +551,7 @@ function linkTooltip(
         meta.className = "nx-link-hint";
         meta.textContent = facts.size !== undefined ? sizeOf(facts.size) : "";
         import("./thumbnails")
-          .then(({ thumbnail }) => thumbnail(facts.projectId, path, facts.stamp))
+          .then(({ thumbnail }) => thumbnail(facts.projectId, path, facts.stamp, facts.size))
           .then((made) => {
             if (made.url) {
               const picture = document.createElement("img");
@@ -683,7 +683,7 @@ function drawPreview(
     dom.append(box);
     if (facts) {
       import("./thumbnails")
-        .then(({ thumbnail }) => thumbnail(facts.projectId, preview.path, facts.stamp))
+        .then(({ thumbnail }) => thumbnail(facts.projectId, preview.path, facts.stamp, facts.size))
         .then((made) => {
           if (!made.url) {
             box.remove();
