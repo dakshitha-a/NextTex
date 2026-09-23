@@ -107,9 +107,24 @@ if (-not $registered) {
   # is what makes the file's emptiness mean something: empty now means it
   # never got that far.
   $startArgs = if ($Instance) { @('-u', $entry, '--log-to-state', '--instance', $Instance) } else { @('-u', $entry, '--log-to-state') }
-  Start-Process -FilePath $runner -ArgumentList $startArgs `
-    -WorkingDirectory $Root -WindowStyle Hidden
-  Write-Output "started; output in $out, errors in $err"
+  # Not if one is already serving this install.  Started unconditionally,
+  # a second run of this script raced the first server for the port, lost,
+  # and left "Port 8450 is already in use" in server.err.log.  Harmless in
+  # itself and not harmless in what it costs: an empty server.err.log is
+  # half the signature of the bug where a Windows server disappears
+  # overnight, so a line nobody asked for makes that file worth less every
+  # time this is re-run.  `$PID` excluded for the reason the README's
+  # uninstall now excludes it: this shell's own command line names the
+  # install too.
+  $running = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($entry) })
+  if ($running.Count) {
+    Write-Output "already running as pid $($running[0].ProcessId); leaving it alone"
+  } else {
+    Start-Process -FilePath $runner -ArgumentList $startArgs `
+      -WorkingDirectory $Root -WindowStyle Hidden
+    Write-Output "started; output in $out, errors in $err"
+  }
 }
 
 exit 0

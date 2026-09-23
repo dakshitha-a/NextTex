@@ -199,11 +199,18 @@ this host could not reproduce; each says which.
       route, so hovering a tree row for a 192 MiB PNG fetches 192 MiB and
       decodes it in the renderer to fill a card a few hundred pixels
       wide; the PDF path reads the whole file into an `ArrayBuffer` for
-      the same reason. Seen on the Windows laptop on 22 September as the
-      renderer freezing for thirty to sixty seconds and recovering by
-      itself, once immediately after the figures folder holding that file
-      was expanded. Not conclusive, since it also froze once before any
-      project was open, and the card was never hovered deliberately. The
+      the same reason. A renderer on the Windows laptop did freeze for thirty
+      to sixty seconds with such a file in the project on 22 September,
+      which is what sent somebody looking, but that attribution was
+      **withdrawn** the next day by the session that made it: the freeze
+      also happened with the file absent, the same pane then opened the
+      192 MiB PNG without trouble, and the machine had 1.9 to 2.2 GB free
+      of 15.6 GB that afternoon with two such images loaded in browser
+      tabs and one background command killed outright for low memory. So
+      nothing here is known to have stalled anybody's browser and the cap
+      rests on the cost alone, which is enough: fetching two hundred
+      megabytes to fill a card a few hundred pixels wide is indefensible
+      whether or not it has yet hurt somebody. The
       fix is cheap and the size is already at the call site:
       `FileCard.tsx:40` passes `node.size`, and a file over some
       threshold takes the state the card already has for a file it cannot
@@ -501,6 +508,17 @@ this host could not reproduce; each says which.
       installer locates TeX by its known install directory rather than by
       PATH, so taking TinyTeX off PATH hides it from nothing, which is
       worth knowing before anybody tries that again.
+
+- [x] **`register-task.ps1` no longer starts a second server on top of a
+      running one.** It started one unconditionally after writing the
+      Startup shortcut, so re-running it raced the server already serving
+      that install, lost the port, and left "Port 8450 is already in use"
+      in `server.err.log`. Harmless in itself; not harmless in what it
+      costs, because an empty `server.err.log` is half the signature of
+      the Windows server that disappears overnight, and a line nobody
+      asked for makes that file worth less every time. Seen on 23
+      September when the script was re-run to record what it chooses on an
+      unelevated account.
 
 ### Never run against the real thing
 
