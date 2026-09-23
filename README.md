@@ -423,6 +423,16 @@ you.
 Four things to remove, in this order: the service, the desktop shortcut,
 the install, and the state directory. Your projects are in none of them.
 
+**Your project *files* survive; your project *list* does not.** The state
+directory holds `projects.json`, so an uninstall takes NextTex's memory of
+which folders were yours with it. Every folder is still there, with its
+`.nexttex` directory and so with its history and its trash, but a fresh
+install opens on an empty list and you point it at each project again.
+If you are uninstalling in order to reinstall, copy `projects.json` out
+first and put it back afterwards and there will be nothing to redo. This
+was learned by following this section on a real machine on 23 September
+2026 and then wondering where the projects had gone.
+
 **Linux**
 
 ```bash

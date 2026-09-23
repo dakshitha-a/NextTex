@@ -584,6 +584,16 @@ this host could not reproduce; each says which.
       that machine for the overnight disappearance can mistake a slow
       start for a failure to start, which one session nearly did.
 
+- [x] **The uninstall section said projects are untouched and meant only
+      the files.** The state directory holds `projects.json`, so an
+      uninstall takes NextTex's memory of which folders were yours with
+      it: every folder survives with its history and its trash, and a
+      fresh install opens on an empty list. Found on 23 September by
+      following the section on a real machine and then wondering where
+      the projects had gone. The section says so now, and says to copy
+      `projects.json` out first if the uninstall is on the way to a
+      reinstall.
+
 ### Never run against the real thing
 
 - [ ] **The drawer's Install button has still not been pressed on a
