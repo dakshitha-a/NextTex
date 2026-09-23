@@ -24,29 +24,46 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The backlog close-out runs on 22 September, after 3.6.0, over two legs.
-The writer asked for the backlog's unverified half: the items that stayed
-open only because nobody could reproduce them or nobody had the machine,
-plus the browser-tier flakes that have a named fix. The Windows leg is a
-real laptop driven by a session of its own, which deletes the install that
-is there and makes a fresh one from the documented command, so the
-installer, the launcher, the update and the restart helper are all under
-test rather than only what they leave behind. Two read-only passes over
-that machine came first and moved three items before any code: the
-restart helper's Startup-shortcut branch has in fact run twice, on 15 and
-18 September, where the backlog says it has run nowhere; the silent exit
-has a second sighting, the server having bannered at 16:43:02 on 18
-September and nothing having listened since, with no crash, no reboot, no
-Application Error and no further byte in its own log, on a machine that
-slept 73 times in that window, which makes Modern Standby the suspect the
-original sighting never had; and the machine's account is an
-administrator running unelevated, so the logon task branch can be run
-there for the first time anywhere with a click on a UAC prompt. The code
-leg, 3.6.1, carries what the flakes turned out to be: the figure viewer's
-Download and the preview strip's Save PDF are still the bare anchor that
-`43e9c2c` swept everywhere else and named the figure viewer while missing
-it, a browser that connects late is never told its project is shared, and
-a keystroke during a file swap lands in the file just left. The tracker is
+The backlog close-out went up as 3.6.1 to 3.6.9 on 22 and 23 September,
+over two legs: the browser-tier flakes and the download report on this
+host, and everything Windows on the writer's laptop, driven by a session
+of its own. It took the backlog's unverified half, the items open only
+because nobody could reproduce them or nobody had the machine.
+
+Three of the five flakes were not flakes. The People drawer's timeout was
+a browser that had never been told its project was shared, because that
+flag is published on a transition and nothing could ask for it. The caret
+readout was a keystroke landing in the file the writer had just left,
+through the three round trips it takes to open a document. And the
+restart helper's Startup-shortcut branch, which this file said had run
+nowhere, had run three times on that laptop before anybody looked.
+
+Doing the documented thing on a real machine found seven more: two
+download controls still on the link pattern `43e9c2c` swept away six days
+earlier and named one of them while missing it; an uninstall line that
+killed the shell running it and left a half-uninstall looking like
+success; a git error reduced to its last line, which for an unreachable
+remote is the fragment "and the repository exists."; an explicit
+`--tex=miktex` discarded in silence on any machine that already had a
+TeX; a TeX search that inverted its own priority so the poorest directory
+won; a trash entry that said the writer deleted a file nobody had; and a
+hover card fetching a whole 192 MiB image to draw a picture a few hundred
+pixels wide.
+
+And one that was none of those. A file moved out of a watched project and
+back was moved into NextTex's own trash, and the path then swallowed
+whatever was written there afterwards. A sync client, a `git` checkout
+and any editor that saves by writing a temporary file and renaming it
+over the target all make exactly that move. Four causes, six tests, and
+two corrections along the way: an existing history test caught a first
+fix handing a new file the identity of a deleted one, and CI caught a
+second walking every record on every file creation.
+
+The Windows leg ran the uninstall, a clean install with MiKTeX fetched by
+the installer, the update button twice, the logon task with a reboot into
+it, and the desktop shortcut. The logon task branch had run nowhere but a
+runner since this project began. What it could not do is in the backlog
+with its reason. The run's tracker is
 https://claude.ai/artifact/NJ2VxtkGiPiwe3Sh3TFHxu.
 
 The placement run goes up as 3.5.0 on 22 September, raised by the writer
