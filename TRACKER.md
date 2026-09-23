@@ -393,14 +393,20 @@ this host could not reproduce; each says which.
       starting to the banner.
       What is still unrun is the *scheduled task* branch on a real
       machine, which needs an elevated shell and is the next line.
-- [ ] **The logon task branch has still run nowhere but a runner.** With
-      the task registered, `windows_restart_argv` tests `if ($t)` first and
-      takes it; every real machine this has been installed on lacked the
-      elevation to register one, so only GitHub's administrators have run
-      it. Registering it on the laptop also moves that machine off the
-      Startup shortcut, which is the launcher the silent-exit watch needs,
-      so the two cannot be done in the same sitting: the task branch wants
-      a session that can give the machine an hour and a reboot.
+- [x] **The logon task branch has run on a real machine.** Registered
+      elevated on 23 September 2026 with the owner's click, with the
+      Startup shortcut removed so exactly one launcher was armed, and the
+      machine rebooted: the task's own process started the server and it
+      was answering about five minutes later. `RunLevel` is `Limited`, so
+      the server runs unelevated, which is right. What is **not** done is
+      the restart helper's task branch, `windows_restart_argv` taking
+      `Start-ScheduledTask` rather than the shortcut, which needs an
+      update pressed while the task is the armed launcher.
+
+      That machine is now on the task and not the shortcut, which matters
+      for the item above it: both silent-exit sightings were on the
+      shortcut, so a future watch there is not comparing like with like
+      until somebody puts the shortcut back.
 - [ ] **The update footer's long-reason line is held by a Linux browser
       test and was not re-taken on Windows.** The wrapping that pushed Try
       again off the footer strip was found on the Windows laptop, fixed in
@@ -563,14 +569,22 @@ this host could not reproduce; each says which.
 
 ### Never run against the real thing
 
-- [ ] **The drawer's Install button has not been pressed on a MiKTeX.**
+- [ ] **The drawer's Install button has still not been pressed on a
+      MiKTeX, and now for a better reason.**
       `nexttex/texpkg.py` runs `mpm --install=<stem>` when `tlmgr` is
       absent and `mpm` is present, with the missing file's stem as the
       package name, because MiKTeX names nearly every package after its
       main file and installs on the fly by default anyway; nothing here
       has a MiKTeX to check either claim against. The tlmgr path is run
       for real on this machine's TinyTeX and against the stand-in in the
-      browser tier.
+      browser tier. A real MiKTeX finally existed on 23 September 2026, on
+      the laptop, installed by NextTex's own installer. The button was
+      still not pressed, deliberately: that machine had MiKTeX's engine
+      running against TinyTeX's package tree, so a package `mpm` installed
+      might land somewhere the running engine never looks, and neither a
+      pass nor a failure would have meant anything. What this needs is a
+      machine with one TeX on it, or the item above about the installer
+      recording its choice.
 - [ ] **The OpenAI provider has never spoken to OpenAI itself.**
       Everything above the transport runs for real against a stub, and
       since the backlog close-out against a real local server too:
@@ -592,11 +606,15 @@ this host could not reproduce; each says which.
       `NEXTTEX_LIVE`. `tests/fake_claude.py` speaks the sign-in commands
       and not the stream protocol, and teaching it the protocol is a
       day's work that would still be a stand-in.
-- [ ] **Windows: no clean install on current master is on the record.** Four
-      failures were found on a real Windows machine and fixed, the last in
-      `e92a9d7`, but the verification run afterwards was never written down.
-      The README says Windows is partly verified, which is honest; this is the
-      check that would change that.
+- [x] **Windows: a clean install of current master is on the record.**
+      Done on 23 September 2026 on the owner's laptop, by the documented
+      `irm ... | iex` route, from an uninstall of the previous install
+      through to a working one with MiKTeX fetched by the installer. The
+      same sitting took the update button twice, the logon task and a
+      reboot, and the desktop shortcut. The README's Windows section is
+      rewritten around what actually ran, and `docs/testing.md` records
+      which of the lane's blind spots have now been taken by hand and
+      which have not.
 
 ### Deliberately not done, and worth revisiting only if something changes
 

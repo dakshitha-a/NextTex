@@ -54,7 +54,7 @@ close the tab. No database, no Docker, no nginx.
   - [Joining into a folder you already have](#joining-into-a-folder-you-already-have)
   - [Git and the agent stay yours](#git-and-the-agent-stay-yours)
 - [What it is not](#what-it-is-not)
-  - [On Windows, only partly verified](#on-windows-only-partly-verified)
+  - [On Windows, verified in more places than it used to be](#on-windows-verified-in-more-places-than-it-used-to-be)
 - [Requirements](#requirements)
   - [What it costs to leave running](#what-it-costs-to-leave-running)
 - [What leaves this machine](#what-leaves-this-machine)
@@ -1179,27 +1179,53 @@ share sheet says sharing is unavailable and everything else works exactly as
 it does anywhere. The installer treats iroh as optional for the same reason:
 a missing build costs you the one feature, not the install.
 
-### On Windows, only partly verified
+### On Windows, verified in more places than it used to be
 
-Windows support is written and only partly verified. What has been run on
-a real Windows laptop, more than once: the `irm ... | iex` install to the
-end, the server starting from the Startup shortcut, `scripts\update.ps1`
-against the real repository, and a project shared from a Linux machine
-joined, edited, deleted with the server running, rejoined from the list,
-left, and joined again from a git clone. Each of those rounds found things
-and fixed them, and the ones from the latest round are in the commit log
-under 2.3.1.
+Windows support is written, and most of it has now been run end to end on
+a real laptop rather than only on a runner. On 22 and 23 September 2026,
+on Windows 11 with an account that is an administrator but runs
+unelevated, all of this happened in one sitting and each line of it found
+something:
+
+- the documented `irm ... | iex` install, from nothing to a working
+  install, including MiKTeX fetched by the installer;
+- the uninstall, by the six lines this README gives, which is how we
+  learned that one of them could kill the shell running it;
+- the update button twice, once carrying an install a hundred and
+  seventy-six commits forward in one step, with the restart helper
+  bringing the server back each time;
+- the **logon task**, registered, rebooted into, and starting the server
+  by itself, which this section called unproven for a year;
+- the desktop shortcut, from a OneDrive-redirected Desktop, starting a
+  server and opening a browser on it;
+- a server left alone overnight through nine sleep cycles, still serving
+  in the morning.
 
 The whole install after the clone is the same Python that Linux and macOS
 run, so what used to be Windows-only code is now Windows-only *branches*
 of code the test suite exercises on every platform, including the
 console-encoding fallback that a legacy code page needs.
 
-Two things are still unproven. The logon *task* branch has never run,
-because registering one needs administrator and the accounts this has been
-installed on do not have it; and no Intel Mac has run any of it. Signing in
-to Claude from the browser needs a pseudo-terminal, which Windows does not
-have, so run `claude auth login` in a terminal once or use an OpenAI key.
+**What is still unproven**, with the reason for each. Signing in to Claude
+from the browser needs a pseudo-terminal, which Windows does not have, so
+run `claude auth login` in a terminal once or use an OpenAI key. The
+drawer's *Install* button has never run against a real MiKTeX package
+manager: the machine that finally had one had a mismatched toolchain, one
+distribution's engine reading another's package tree, and a result from
+that would have meant nothing either way. The interactive prompts have
+never been answered by a person on Windows, because every automated run
+arrives with a redirected input and takes the unattended path. And no
+Intel Mac has run any of it.
+
+**Two things worth knowing if you run it there.** A server started by the
+logon task took about five minutes from boot to answering on its port,
+where the same build started from the desktop shortcut took twenty-five
+seconds, so if you reboot and look straight away you may think it did not
+start. And if you have two TeX distributions installed, check the TeX line
+in *Report a problem*: it now says when the engine on your PATH belongs to
+a different distribution from the one NextTex found, which is worth fixing
+before you wonder why a one-page document takes a minute and a half.
+
 Reports welcome.
 
 ## Requirements

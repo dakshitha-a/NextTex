@@ -366,18 +366,35 @@ machine in front of them:
   tool using `powershell -Command` is the case that breaks, and one did on
   23 September 2026;
 - that start-at-login actually fires after a reboot, since a runner cannot
-  reboot;
+  reboot. **Taken by hand on 23 September 2026**: the task registered, the
+  machine rebooted, and the server was serving about five minutes later,
+  which is the first time that branch has run anywhere but here;
 - that the desktop shortcut opens a browser, and starts the server first if
-  none is running;
+  none is running. **Taken by hand on 23 September 2026**, from a
+  OneDrive-redirected Desktop, serving in twenty-five seconds;
 - the non-admin Windows account, where the scheduled task cannot be
   registered and the Startup-folder shortcut is used instead: runners are
-  administrators;
+  administrators. **Taken by hand**, repeatedly: that is the default state
+  of the laptop this is tested on, and the restart helper has been seen
+  taking the shortcut branch four times;
 - a machine with a pre-existing MacTeX or MiKTeX, and the `tlmgr` additions
-  on it;
+  on it. **Half taken**: a MiKTeX was installed beside a TinyTeX on 23
+  September, which is what found the search order, the ignored `--tex`
+  flag and the mismatched toolchain, and what is still untaken is the
+  drawer's Install button against a real `mpm`, because a result from a
+  mismatched pair would have meant nothing;
 - the interactive prompts on Windows, since only the sh bootstrap has pty
-  tests;
+  tests. **Still untaken**, and now known to be harder than it looked:
+  every automated attempt arrives with a redirected input, which
+  `Test-Interactive` correctly reads as unattended, so it takes the
+  unattended path and the prompts are never drawn. A person has to do it;
 - a slow or failing CTAN mirror in the middle of a TinyTeX install; the
-  scheduled shape with `tex=tinytex` installs one, but on a fast mirror.
+  scheduled shape with `tex=tinytex` installs one, but on a fast mirror;
+- anything that depends on how long something takes on a real machine. A
+  server started by the logon task took about five minutes from boot to
+  answering, where the same build from the desktop shortcut took
+  twenty-five seconds; a session watching it nearly called that a failure
+  to start. Nothing here measures that and nothing here could.
 
 ## Two things the browser tier cannot prove
 
