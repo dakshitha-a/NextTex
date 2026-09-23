@@ -1,4 +1,4 @@
-"""The Windows bootstrap, as far as anything can check it from here.
+"""The PowerShell scripts, as far as anything can check them from here.
 
 `pwsh` is not installed on the machine this was written on, so every test in
 this file skips locally and runs in CI, where `ubuntu-latest` ships
@@ -282,3 +282,68 @@ def test_the_interface_fetch_offers_tls_12_before_it_asks_github():
     assert text[:start].count("\n") < first_call, "the fetch comes before the protocol is set"
     output = pwsh(statement + "\nWrite-Host ([Net.ServicePointManager]::SecurityProtocol)")
     assert "Tls12" in output
+
+
+# ---------------------------------------------------------------------------
+# update.ps1
+
+
+def test_the_leftover_sweep_counts_what_it_removed(tmp_path):
+    """Not what it found.
+
+    pip renames a package directory it cannot delete to `~` plus the rest
+    of the name, and the update sweeps those up. The sweep reported the
+    number of candidates, and under `-NoRestart`, which is what the update
+    button passes, the server is deliberately still running: anything it
+    has loaded cannot be removed, and pip has usually just made a fresh
+    pair moments earlier. So an update printed "removed 2 leftover
+    directories" and finished with exactly two sitting there.
+    """
+    site = tmp_path / "site-packages"
+    (site / "~atchfiles").mkdir(parents=True)
+    (site / "~ycrdt").mkdir()
+    (site / "watchfiles").mkdir()
+
+    out = pwsh(with_functions_of("update.ps1", f"""
+$answer = Remove-Litter '{site}'
+Write-Output "went=$($answer.Went) left=$($answer.Left)"
+"""))
+    assert "went=2 left=0" in out
+    assert not list(site.glob("~*")), "the removable ones should be gone"
+    assert (site / "watchfiles").is_dir(), "it took a directory that is not litter"
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="the stand-in for a locked directory is a read-only parent, which is POSIX",
+)
+def test_the_leftover_sweep_says_what_it_could_not_remove(tmp_path):
+    """The case the writer actually meets, which is every update.
+
+    A directory whose parent cannot be written to stands in for one whose
+    native module the running server has mapped: the removal fails
+    silently either way, which is the whole difficulty. POSIX only,
+    because that is how the stand-in is made.
+    """
+    site = tmp_path / "site-packages"
+    (site / "~atchfiles").mkdir(parents=True)
+    (site / "~ycrdt").mkdir()
+    site.chmod(0o555)
+    try:
+        out = pwsh(with_functions_of("update.ps1", f"""
+$answer = Remove-Litter '{site}'
+Write-Output "went=$($answer.Went) left=$($answer.Left)"
+"""))
+    finally:
+        site.chmod(0o755)
+    assert "went=0 left=2" in out, "it claimed a removal that did not happen"
+
+
+def test_the_leftover_sweep_is_quiet_when_there_is_nothing(tmp_path):
+    site = tmp_path / "site-packages"
+    site.mkdir()
+    out = pwsh(with_functions_of("update.ps1", f"""
+$answer = Remove-Litter '{site}'
+Write-Output "went=$($answer.Went) left=$($answer.Left)"
+"""))
+    assert "went=0 left=0" in out

@@ -152,6 +152,40 @@ function Test-PortFree {
         -ErrorAction SilentlyContinue)
 }
 
+function Remove-Litter {
+  <# Delete pip's abandoned `~name` directories, and say what actually went.
+
+     pip renames a package directory it cannot delete, because a running
+     process has the native module inside it mapped, to `~` plus the rest
+     of the name, and never comes back for it.  Deleting them is therefore
+     the next update's job.
+
+     Returns Went and Left, both counted from a second listing rather than
+     from the first.  This used to report the number of candidates it had
+     found, which is not the same number: under -NoRestart, which is what
+     the update button passes, the server is deliberately still running
+     while this runs, so anything it has loaded cannot be removed and pip
+     has usually just made a fresh pair moments earlier.  An update that
+     printed "removed 2 leftover directories" and left exactly two sitting
+     there was seen on 22 September 2026, and the message was the only
+     thing wrong: what it could remove, it did.
+  #>
+  param($SitePackages)
+  # `-like` rather than `-Filter`, so that the same call means the same
+  # thing under the Linux PowerShell the tests run on as it does on the
+  # Windows one that meets it for real.
+  $litter = {
+    @(Get-ChildItem -Path $SitePackages -Directory -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -like '~*' })
+  }
+  $found = & $litter
+  foreach ($stale in $found) {
+    Remove-Item -Recurse -Force $stale.FullName -ErrorAction SilentlyContinue
+  }
+  $left = & $litter
+  [pscustomobject]@{ Went = $found.Count - $left.Count; Left = $left.Count }
+}
+
 function Stop-Server {
   <# Returns how it was stopped: 'task', 'process', or '' for nothing to stop. #>
   if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
@@ -271,14 +305,18 @@ try {
   }
   Note 'up to date'
 
-  # Whatever previous updates left behind, now that nothing has them open.
-  # pip names these `~` plus the first characters of the package it could
-  # not finish removing, and never comes back for them.
-  $litter = @(Get-ChildItem -Path '.venv\Lib\site-packages' -Filter '~*' -Directory -ErrorAction SilentlyContinue)
-  foreach ($stale in $litter) {
-    Remove-Item -Recurse -Force $stale.FullName -ErrorAction SilentlyContinue
+  # Whatever previous updates left behind.  pip names these `~` plus the
+  # rest of the package it could not finish removing, and never comes back
+  # for them.
+  $litter = Remove-Litter '.venv\Lib\site-packages'
+  if ($litter.Went) {
+    Note "removed $($litter.Went) leftover director$(if ($litter.Went -eq 1) {'y'} else {'ies'}) from earlier updates"
   }
-  if ($litter.Count) { Note "removed $($litter.Count) leftover director$(if ($litter.Count -eq 1) {'y'} else {'ies'}) from earlier updates" }
+  if ($litter.Left) {
+    # Said rather than swallowed, because the number is the writer's only
+    # sign that anything is accumulating in there at all.
+    Note "$($litter.Left) more $(if ($litter.Left -eq 1) {'is'} else {'are'}) still loaded by the running server; the next update takes $(if ($litter.Left -eq 1) {'it'} else {'them'})"
+  }
 
   Say 'Interface'
   # Downloaded for the commit just landed on -- see scripts/fetch-interface.ps1.

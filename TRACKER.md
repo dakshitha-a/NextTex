@@ -288,13 +288,21 @@ this host could not reproduce; each says which.
       membership of Event Log Readers, since group membership lives in the
       logon token and would not reach a session that only unlocks.
 
-      **A watch is running now**: pid 3240, python 3.12, port 8450,
-      started 16:27:16 on 22 September from the Startup shortcut, on
-      `ba4b191` / 2.11.0. What it answers is whether a server on that
+      **A watch is running now**: pid 33316, python 3.12, port 8450,
+      started 20:48:11 on 22 September by the Startup shortcut through the
+      restart helper, on `b3b9e13` / 3.6.1. It replaced pid 3240, which
+      the update ended. What it answers is whether a server on that
       machine survives a night of Modern Standby at all, which does not
-      depend on which commit it runs. If `restart.log` has grown past 534
-      bytes, the owner pressed Update after the session ended and the
-      watch belongs to whatever pid the helper started instead.
+      depend on which commit it runs.
+
+      One thing in `server.err.log` there is not this bug. It grew from 92
+      to 832 bytes at 16:34:58 on 22 September with a
+      `ConnectionResetError` from `_ProactorBasePipeTransport`, which is a
+      client connection dropped abruptly while a browser was being driven
+      at it, not a server dying: that server went on answering until the
+      update stopped it at 20:48. Recorded because "server.err.log empty"
+      is half this item's signature and the next reader should not take
+      that traceback for the silent exit finally leaving a trace.
 - [x] **The Windows restart helper's Startup-shortcut branch has run, and
       this line used to say it had run nowhere.** `restart.log` on the
       owner's laptop, read on 22 September, holds two clean passes of it:
@@ -306,6 +314,14 @@ this host could not reproduce; each says which.
       account there is an administrator running unelevated, which is why
       `register-task.ps1` fell back to the shortcut in the first place, so
       this is exactly the middle way back the line said nothing had taken.
+      A third pass on 22 September at 20:48:07 was watched end to end
+      rather than read afterwards: the helper started as pid 26204 with
+      `breakaway=True`, waited for pid 3240, which had been written down
+      beforehand, and launched the shortcut four seconds later, and the
+      server that answered afterwards was a new pid on the new commit.
+      That was the in-app update button carrying the install from 2.11.0
+      to 3.6.1, 176 commits in one step, in 56 seconds from the script
+      starting to the banner.
       What is still unrun is the *scheduled task* branch on a real
       machine, which needs an elevated shell and is the next line.
 - [ ] **The logon task branch has still run nowhere but a runner.** With
@@ -324,7 +340,14 @@ this host could not reproduce; each says which.
       checkout at the fixed commit, and was told to leave that refusal alone
       rather than work around it. The browser test asserts the row's height;
       a screenshot from a Windows machine at 125 percent is what would close
-      this.
+      this. That machine is already at 125 percent, so the screenshot needs
+      nothing but a moment with the footer in its long-reason state, and
+      the way to get one is to point the install's remote at a URL that
+      fails with a long multi-line error. It was missed on 22 September
+      for a reason worth knowing before the next attempt: the same session
+      had just updated that install to the tip of master, so there was no
+      update to report on and the footer had nothing to say. Take the
+      screenshot before updating, or after master has moved on again.
 - [ ] **`openai-card.spec.ts` "Allow always survives a reload as a
       settled card" failed and passed on retry in four of the frame run's
       nine full checks.** The failing read was `toBeVisible` on "Done."
