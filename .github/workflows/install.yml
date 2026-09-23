@@ -201,10 +201,20 @@ jobs:
       - name: Uninstall, the README's way (Windows)
         if: runner.os == 'Windows'
         shell: powershell
+        # Character for character what the README says, which is the whole
+        # point of this step.  The `$PID` exclusion in the third line is
+        # part of that: without it the filter matches any shell that was
+        # handed this block as text, kills it, and the three lines after
+        # it never run, which looks like success because the server really
+        # does stop.  This job could never have caught that, because the
+        # runner writes the block to a file and runs the file, so the
+        # block's text is not in any command line; a person or a tool
+        # passing it with `-Command` is the case that breaks, and one did
+        # on 23 September 2026.
         run: |
           Stop-ScheduledTask -TaskName NextTex -ErrorAction SilentlyContinue
           Unregister-ScheduledTask -TaskName NextTex -Confirm:$false -ErrorAction SilentlyContinue
-          Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*apps\NextTex\server\run.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+          Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*apps\NextTex\server\run.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
           Remove-Item "$([Environment]::GetFolderPath('Startup'))\NextTex.lnk" -ErrorAction SilentlyContinue
           Remove-Item "$([Environment]::GetFolderPath('Desktop'))\NextTex.lnk" -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$HOME\.local\share\nexttex"

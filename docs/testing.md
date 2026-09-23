@@ -356,6 +356,15 @@ would have caught both a week earlier.
 **What the lane cannot verify**, and stays a checklist for a person with the
 machine in front of them:
 
+- anything that depends on *how* a documented command is invoked rather
+  than on what it does. The Windows uninstall's third line kills every
+  process whose command line names the install, and a shell handed that
+  block as text has the install's path in its own command line, so it
+  killed the uninstall that was running it and the three lines after it
+  never ran. This job writes the block to a file and runs the file, so the
+  text is in no command line and the step passed for years; a person or a
+  tool using `powershell -Command` is the case that breaks, and one did on
+  23 September 2026;
 - that start-at-login actually fires after a reboot, since a runner cannot
   reboot;
 - that the desktop shortcut opens a browser, and starts the server first if

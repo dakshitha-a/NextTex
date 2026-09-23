@@ -467,6 +467,26 @@ this host could not reproduce; each says which.
       because GitHub does not prefill dropdowns from a URL. If that changes,
       a dropdown for the platform would make the field sortable.
 
+- [x] **The documented Windows uninstall could kill the shell running it,
+      and say nothing.** Its third line stops every process whose command
+      line names the install, and a shell that was handed the block as
+      text has that path in its own command line, so the line killed the
+      uninstall in progress and the three lines after it never ran. The
+      failure looks exactly like success: the server stops, NextTex
+      disappears from the browser, and the install directory, the state
+      directory and both shortcuts are all still there. Hit for real on
+      23 September while running the documented sequence. `$PID` is
+      excluded now, in the README and in the install lane's copy of it,
+      and `docs/testing.md` records why that lane could never have caught
+      it: it writes the block to a file and runs the file, so the text is
+      in no command line, while a person or a tool using
+      `powershell -Command` is the case that breaks.
+
+      The same run found that the section says nothing about the
+      `.nexttex` directory each project keeps, which survives the
+      uninstall by design and was a third of a gigabyte on that machine.
+      The README now says so, and says how to remove one.
+
 ### Never run against the real thing
 
 - [ ] **The drawer's Install button has not been pressed on a MiKTeX.**

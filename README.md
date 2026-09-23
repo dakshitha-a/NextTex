@@ -447,7 +447,7 @@ rm -rf ~/apps/NextTex ~/.local/share/nexttex
 ```powershell
 Stop-ScheduledTask -TaskName NextTex -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName NextTex -Confirm:$false -ErrorAction SilentlyContinue
-Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*apps\NextTex\server\run.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*apps\NextTex\server\run.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 Remove-Item "$([Environment]::GetFolderPath('Startup'))\NextTex.lnk" -ErrorAction SilentlyContinue
 Remove-Item "$([Environment]::GetFolderPath('Desktop'))\NextTex.lnk" -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$HOME\.local\share\nexttex"
@@ -456,6 +456,31 @@ Remove-Item -Recurse -Force "$HOME\apps\NextTex", "$HOME\.local\share\nexttex"
 The third line stops a server that the Startup shortcut started, which no
 task knows about. Windows will not delete a program that is running, so
 the folder cannot go until the server has.
+
+`$_.ProcessId -ne $PID` in that line is not decoration. The filter reads
+every process's command line and looks for the install's path in it, and
+a shell that was *given this block as text* has that path in its own
+command line, so without the exclusion the line kills the shell running
+the uninstall and lines four, five and six never happen. Pasting the
+block at a PowerShell prompt is safe, because an interactive shell's
+command line is just the executable; it bites when the block is passed
+with `powershell -Command`, or by any script or tool that wraps it. The
+failure looks exactly like success, since the server does stop and
+NextTex does disappear from the browser, while the install directory, the
+state directory and both shortcuts are still there. Found on a real
+machine on 23 September 2026, by a run that did exactly that.
+
+**Your projects keep their own state, and this does not remove it.** Every
+project you opened has a `.nexttex` directory inside it holding that
+project's history, its trash, the agent's transcript and context, and
+anything the library imported. That is the project's, not the install's,
+which is why it lives with the project and survives all of the above: a
+copy of the folder carries its past with it, and reinstalling NextTex
+finds everything where it was. If you want a project's NextTex state gone
+as well, delete the `.nexttex` directory inside that project. On a machine
+with a few projects and a full trash this can be the largest thing the
+uninstall leaves, and `~/apps` is left behind empty if NextTex was the
+only thing in it.
 
 If you installed somewhere else with `NEXTTEX_DIR`, that is the directory to
 remove instead. If you installed a second copy with `--instance NAME`, every
