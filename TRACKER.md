@@ -520,6 +520,47 @@ this host could not reproduce; each says which.
       September when the script was re-run to record what it chooses on an
       unelevated account.
 
+- [ ] **The installer does not record which TeX it was told to use, so
+      the server still has to guess.** `--tex=miktex` installs MiKTeX now,
+      and then `nexttex/tools.py` searches a fixed list of locations in
+      which TinyTeX comes four lines earlier on Windows, so a machine that
+      had a TinyTeX before compiles with it anyway. Asking for MiKTeX gets
+      you MiKTeX on disk and TeX Live in every build. Seen on 23 September
+      on a fresh install that had explicitly asked for MiKTeX.
+      `NEXTTEX_TEX` names a directory and wins the search, which is the
+      seam and not the cure: nobody should have to set an environment
+      variable to get the TeX they asked the installer for. The cure is
+      for the install to write its choice into `config.json` and for the
+      server to read it, which is a config-format addition and wants its
+      own run. The list itself cannot be reordered to fix this: its order
+      is what makes a logon-started server find TeX at all, which the
+      comment at `tools.py:40-43` records.
+
+      **What that machine actually had is worse than "the wrong TeX", and
+      is the reason this matters.** A compile driven through the running
+      server reported `MiKTeX-pdfTeX 4.23` as its engine and read
+      `TinyTeX/texmf-dist` for its fonts in the same run: one
+      distribution's engine against another's package tree, because the
+      directory comes from the hint list and the binary from PATH and
+      nothing reconciles them. It built, correctly, and a document whose
+      body is one sentence took **95.6 seconds**. The survey's TeX line
+      now says when the pdflatex on PATH is a different TeX from the one
+      it reports, instead of printing one distribution's version beside
+      the other's directory and leaving somebody to notice.
+
+- [ ] **A logon-started server took five minutes to begin serving, where
+      the same build started from the desktop shortcut took under
+      twenty-five seconds.** Measured on the laptop on 23 September, eight
+      minutes apart: the task's process was created 62 seconds after boot,
+      wrote its banner three and a quarter minutes later, and was
+      answering on the port at about five minutes; the shortcut's was
+      serving in 25. A cold disk after boot, an antivirus reading a 400 MB
+      virtual environment and a freshly installed MiKTeX are all plausible
+      and none is measured. It matters twice over: a writer who reboots
+      and looks will think NextTex did not come up, and anybody watching
+      that machine for the overnight disappearance can mistake a slow
+      start for a failure to start, which one session nearly did.
+
 ### Never run against the real thing
 
 - [ ] **The drawer's Install button has not been pressed on a MiKTeX.**

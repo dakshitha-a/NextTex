@@ -341,3 +341,65 @@ def test_a_tex_that_cannot_print_its_version_is_still_present(tmp_path, monkeypa
                     environ={"XDG_DATA_HOME": str(tmp_path / "state")})
     assert result.get("tex").kind == PRESENT
     assert result.get("tex").version == ""
+
+
+def test_two_texs_on_one_machine_are_reported_as_two(tmp_path):
+    """One line of the bug report described a mismatched toolchain.
+
+    It carried MiKTeX's version string beside TinyTeX's directory, which
+    looked impossible and was not: MiKTeX's engine really was running
+    against TinyTeX's package tree, because the directory comes from the
+    hint list and the binary from PATH. A document whose body was one
+    sentence took ninety-five seconds. The line says so now.
+    """
+    tiny = tmp_path / "TinyTeX" / "bin" / "windows"
+    tiny.mkdir(parents=True)
+    (tiny / "pdflatex.exe").write_text("", encoding="utf-8")
+    other = tmp_path / "MiKTeX" / "bin"
+    other.mkdir(parents=True)
+    (other / "pdflatex.exe").write_text("", encoding="utf-8")
+
+    from nexttex.install import survey as survey_module
+
+    original = survey_module.TEX_HINTS
+    survey_module.TEX_HINTS = [tiny]
+    try:
+        result = survey_module.survey(
+            "windows", tmp_path,
+            which=lambda name: str(other / "pdflatex.exe") if name == "pdflatex" else None,
+            exists=lambda p: Path(p).exists(),
+            check_network=False,
+            environ={"XDG_DATA_HOME": str(tmp_path / "state")},
+        )
+    finally:
+        survey_module.TEX_HINTS = original
+
+    tex = next(f for f in result.findings if f.key == "tex")
+    assert str(tiny) in tex.where
+    assert "MiKTeX" in tex.why, f"the second TeX was not mentioned: {tex.why!r}"
+    assert "different TeX" in tex.why
+
+
+def test_one_tex_says_nothing_about_a_second(tmp_path):
+    """The note is for the machine that has two, and nobody else."""
+    tiny = tmp_path / "TinyTeX" / "bin" / "windows"
+    tiny.mkdir(parents=True)
+    (tiny / "pdflatex.exe").write_text("", encoding="utf-8")
+
+    from nexttex.install import survey as survey_module
+
+    original = survey_module.TEX_HINTS
+    survey_module.TEX_HINTS = [tiny]
+    try:
+        result = survey_module.survey(
+            "windows", tmp_path,
+            which=lambda name: str(tiny / "pdflatex.exe") if name == "pdflatex" else None,
+            exists=lambda p: Path(p).exists(),
+            check_network=False,
+            environ={"XDG_DATA_HOME": str(tmp_path / "state")},
+        )
+    finally:
+        survey_module.TEX_HINTS = original
+
+    tex = next(f for f in result.findings if f.key == "tex")
+    assert tex.why == ""

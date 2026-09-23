@@ -67,11 +67,38 @@ TOOLS = {
 }
 
 
+def named_tex_dir() -> Path | None:
+    """The TeX somebody has said to use, or None.
+
+    `NEXTTEX_TEX` names the directory holding the engine, the way
+    `NEXTTEX_TLMGR` names a tlmgr and `NEXTTEX_PANDOC` a pandoc.  It exists
+    because the list below cannot answer the question it is asked on a
+    machine with two TeXs on it: the list is in a fixed order, so whichever
+    distribution happens to be higher up wins, whatever the writer
+    installed on purpose.  A real install on 23 September 2026 had MiKTeX
+    put there by NextTex's own installer, at the writer's explicit
+    request, and compiled with the TinyTeX that happened to already be
+    there, because TinyTeX is four lines earlier.
+
+    This is the seam, not the cure.  The cure is for the installer to
+    record what it chose so nobody has to set an environment variable, and
+    that is written down in `TRACKER.md` rather than done here.
+    """
+    named = os.environ.get("NEXTTEX_TEX", "").strip()
+    if not named:
+        return None
+    directory = Path(named)
+    return directory if directory.is_dir() else None
+
+
 def _candidate_dirs() -> list[Path]:
     """Directories that plausibly hold TeX binaries, best first."""
     dirs: list[Path] = []
+    chosen = named_tex_dir()
+    if chosen is not None:
+        dirs.append(chosen)
     for hint in TEX_HINTS:
-        if hint.is_dir():
+        if hint.is_dir() and hint not in dirs:
             dirs.append(hint)
     for name in ("pdflatex", "latexmk", "synctex"):
         found = shutil.which(name)
@@ -103,10 +130,23 @@ def ensure_tex_on_path() -> Path | None:
     def richness(directory: Path) -> int:
         return sum(1 for name in TOOLS if (directory / name).exists())
 
-    for directory in sorted(candidates, key=richness, reverse=True):
-        current = os.environ.get("PATH", "").split(os.pathsep)
-        if str(directory) not in current:
-            os.environ["PATH"] = os.pathsep.join([str(directory), *current])
+    # Richest first, and a directory somebody named stays in front of all
+    # of them however poor it looks: naming one is the answer to this
+    # question and not an opinion about it.
+    chosen = named_tex_dir()
+    ordered = sorted(
+        candidates,
+        key=lambda directory: (directory != chosen, -richness(directory)),
+    )
+    # Built in one go rather than prepended one at a time.  Prepending in a
+    # loop reverses the order it is given: the first directory prepended
+    # ends up behind every directory prepended after it, so "richest first"
+    # put the *poorest* in front, and which TeX a machine with two of them
+    # compiled with came down to that inversion.
+    current = os.environ.get("PATH", "").split(os.pathsep)
+    ahead = [str(directory) for directory in ordered if str(directory) not in current]
+    if ahead:
+        os.environ["PATH"] = os.pathsep.join([*ahead, *current])
 
     found = shutil.which("pdflatex")
     return Path(found).parent if found else None

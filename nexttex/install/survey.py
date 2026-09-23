@@ -365,10 +365,30 @@ def survey(
         # 2026)", so the bug report can say which TeX a build ran under:
         # a build that differs between two machines is explained by this
         # line more often than by anything in the log.
+        #
+        # `tex_tool` answers from PATH first, so on a machine with two
+        # TeXs this line carried one distribution's version string beside
+        # the other's directory, and that is not a display bug: it is an
+        # accurate description of a mismatched toolchain, which is what
+        # that machine had.  MiKTeX's engine was running against TinyTeX's
+        # texmf tree, and a document whose body is one sentence took
+        # ninety-five seconds to build.  So both halves are reported, and
+        # when they disagree the line says so rather than leaving somebody
+        # to notice that two paths do not match.
         engine = tex_tool("pdflatex", result.tex_dir, which=which, exists=exists)
+        on_path = which("pdflatex")
+        elsewhere = ""
+        if on_path and Path(on_path).parent != Path(result.tex_dir):
+            elsewhere = (
+                f"the pdflatex on PATH is {Path(on_path).parent}, which is a "
+                "different TeX from the one above; a build uses the engine "
+                "on PATH and the package tree of whichever it finds, and a "
+                "mismatched pair is slow and can fail oddly"
+            )
         add(Finding(
             "tex", "TeX", PRESENT, where=result.tex_dir,
             version=_version_at(engine) if engine else "",
+            why=elsewhere,
         ))
     else:
         add(Finding("tex", "TeX (TinyTeX)", FETCHED, size=SIZES["tex"][0],
