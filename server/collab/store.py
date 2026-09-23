@@ -1097,7 +1097,10 @@ class CollabStore:
                 self.last_projected.pop(file_id, None)
             elif outcome in ("differs", "deleted elsewhere"):
                 try:
-                    trash.delete(self.project.resolve(path))
+                    trash.delete(
+                        self.project.resolve(path), source="rejoin",
+                        why="replaced when rejoining the share",
+                    )
                 except Exception:
                     log.warning("could not move %s into the trash before rejoining", path)
             elif outcome == "new from peers":
@@ -1686,7 +1689,10 @@ class CollabStore:
         if trash is None:
             return False
         try:
-            trash.delete(target)
+            trash.delete(
+                target, source="peer",
+                why="a collaborator deleted it",
+            )
         except Exception:
             log.warning("could not follow a deletion into the trash: %s", was)
             return False

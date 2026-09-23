@@ -585,3 +585,50 @@ def test_a_delete_during_an_empty_is_not_erased(tmp_path, monkeypatch):
     assert [held.id for held in trash.entries()] == landed, (
         "a file deleted while the trash was emptying was erased from the ledger"
     )
+
+
+# --- who actually deleted it --------------------------------------------------
+
+
+def test_an_ordinary_deletion_says_nothing_about_its_source(tmp_path):
+    """The writer pressed Delete, which is the overwhelming majority of
+    entries and the only thing an entry written before this field existed
+    can have been."""
+    trash, project = bin(tmp_path)
+    target = project / "notes.tex"
+    target.write_text("months of work", encoding="utf-8")
+
+    entry = trash.delete(target)
+    assert entry.source == ""
+    assert entry.why == ""
+    assert entry.as_dict()["source"] == ""
+
+
+def test_a_deletion_nobody_asked_for_says_where_it_came_from(tmp_path):
+    """Every entry used to say `by: "you"` and nothing else, including the
+    ones the writer had no part in. A person whose figure has gone looks
+    exactly here, and the record told them they had done it."""
+    trash, project = bin(tmp_path)
+    target = project / "figure.png"
+    target.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    entry = trash.delete(target, source="peer", why="a collaborator deleted it")
+    assert entry.source == "peer"
+    assert entry.why == "a collaborator deleted it"
+
+    # And it survives the round trip through the log, which is what the
+    # panel and the routes actually read.
+    back = trash.find(entry.id)
+    assert back is not None
+    assert back.source == "peer"
+    assert back.why == "a collaborator deleted it"
+
+
+def test_an_entry_written_before_the_field_existed_reads_as_the_writer_s_own(tmp_path):
+    """Nothing already in anybody's trash changes meaning."""
+    old = TrashEntry.from_dict({
+        "id": "t1a0cf4b74029b4c7f", "at": 1.0, "by": "you",
+        "path": "figures/big.png", "kind": "file", "files": [], "dirs": [],
+    })
+    assert old.source == ""
+    assert old.why == ""

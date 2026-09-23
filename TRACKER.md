@@ -251,21 +251,26 @@ this host could not reproduce; each says which.
       whether the log or the disk is meant to win when they differ at
       open. `tests/collab/test_outside_edits.py` is the file that already
       asks half of this question.
-- [ ] **A trash entry says the writer deleted the file even when nobody
-      did.** Every entry carries `by: "you"`, including one written when
+- [x] **A trash entry no longer says the writer deleted the file when
+      nobody did.** Every entry carries `by: "you"`, including one written when
       the watcher inferred a deletion and one written for a file that had
       merely been copied in. The schema in `nexttex/trash.py` has nowhere
       to say otherwise: `id`, `at`, `by`, `path`, `name`, `kind`, `files`,
       `dirs`, `count`, `bytes`. With the line above fixed, most of those
       entries stop being written at all, but a deletion followed from a
       peer is still filed as this writer's doing, which is wrong in the
-      one place somebody looks when a file has gone. A `source` beside
-      `by`, absent on old entries and read as the writer's own when
-      missing, so nothing already in anybody's trash changes meaning. The
-      vocabulary exists one module over and should be borrowed rather than
-      invented: a history version carries `op`, `why` and a `source` token
-      like `outside:1790109397581`, which is exactly what a trash entry
-      needs to say a deletion was not the writer's doing.
+      one place somebody looks when a file has gone. `source` and `why`
+      sit beside `by` now, absent on every entry written before they
+      existed and read as the writer's own when missing, so nothing
+      already in anybody's trash changes meaning. The vocabulary was
+      borrowed rather than invented, from the history one module over,
+      which has carried `op`, `why` and a `source` token all along. The
+      two callers that are not the writer say so: a collaborator's
+      deletion followed onto this disk, and a file replaced while
+      rejoining a share. **What is left is the interface**: no panel shows
+      the new field yet, and what a trash row should say when a deletion
+      was not the reader's own is a drawing for the direction page before
+      it is any code.
 - [ ] **A file deleted outside NextTex does not schedule a build.** The
       watcher's tick now tells the compiler about every outside write it
       sees, so a pull, another editor's save or a regenerated figure

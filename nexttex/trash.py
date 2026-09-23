@@ -93,6 +93,20 @@ class TrashEntry:
     kind: str                       # "file" or "dir"
     files: list[TrashedFile] = field(default_factory=list)
     dirs: list[str] = field(default_factory=list)
+    #: What put this here, when it was not the writer asking.  Empty for
+    #: the ordinary case, which is somebody pressing Delete, and the only
+    #: case an entry written before this field existed can be.
+    #:
+    #: Every entry used to say `by: "you"` and nothing else, including the
+    #: ones nobody asked for: a collaborator's deletion followed onto this
+    #: disk, and a file replaced while rejoining a share.  A person whose
+    #: figure has gone looks exactly here, and the record told them they
+    #: had done it themselves.  The history one module over has carried
+    #: `op`, `why` and a `source` token for this reason all along; this is
+    #: the same idea in the same words.
+    source: str = ""
+    #: The same thing in a sentence, for anything that shows it.
+    why: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -106,6 +120,8 @@ class TrashEntry:
             "dirs": self.dirs,
             "count": len(self.files),
             "bytes": sum(f.bytes for f in self.files),
+            "source": self.source,
+            "why": self.why,
         }
 
     @classmethod
@@ -125,6 +141,11 @@ class TrashEntry:
                 for item in (data.get("files") or [])
             ],
             dirs=[str(item) for item in (data.get("dirs") or [])],
+            # Absent on every entry written before this field existed, and
+            # read as the writer's own, so nothing already in anybody's
+            # trash changes meaning.
+            source=str(data.get("source") or ""),
+            why=str(data.get("why") or ""),
         )
 
 
@@ -255,8 +276,13 @@ class Trash:
         except OSError:
             pass
 
-    def delete(self, target: Path, *, by: str = "you") -> TrashEntry:
-        """Take a file or directory out of the project, keeping everything."""
+    def delete(self, target: Path, *, by: str = "you",
+               source: str = "", why: str = "") -> TrashEntry:
+        """Take a file or directory out of the project, keeping everything.
+
+        `source` and `why` are for a deletion the writer did not ask for,
+        and both default to the ordinary case, which is that they did.
+        """
         root = self.project_root.resolve()
         relative = str(target.resolve().relative_to(root))
         members = self._members(target)
@@ -304,6 +330,8 @@ class Trash:
             kind="dir" if target.is_dir() else "file",
             files=files,
             dirs=dirs,
+            source=source,
+            why=why,
         )
 
         # Move rather than copy: same filesystem, so this is instant however
