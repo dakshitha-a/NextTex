@@ -366,16 +366,26 @@ class CollabStore:
         #: `_settle_gone`, which is also where a stamped one is recorded
         #: as a version.
         self._gone_pending: dict[str, str] = {}
-        #: Records this machine's own watcher decided were deleted, as
-        #: opposed to ones the writer deleted through the trash.  Only
-        #: these may be revived by a file reappearing at their path: a
-        #: deliberate deletion followed by a new file of the same name is
-        #: a different file, and reviving it there would hand the new file
-        #: the old one's history and id.  In memory only, so a restart
-        #: forgets; the cost of forgetting is a second record rather than
-        #: a lost file, because `settle_paths` will not empty a path a
-        #: live record holds.
-        self._gone_outside: set[str] = set()
+        #: Deletions this machine's own watcher decided on, by the path
+        #: they were at, as opposed to ones the writer made through the
+        #: trash.  Only these may be revived by a file reappearing at that
+        #: path: a deliberate deletion followed by a new file of the same
+        #: name is a different file, and reviving it there would hand the
+        #: new file the old one's history and id.
+        #:
+        #: Keyed by path so that `_came_back` is a dictionary lookup.  It
+        #: was a set of ids and a scan of `self.files`, which is the
+        #: quadratic shape `file_id_for` exists to avoid: every record's
+        #: path is a call across the FFI boundary into Rust, and this runs
+        #: on every ingest of a path no live record holds, which includes
+        #: every file being created.  On CI that was enough to split a
+        #: batch of three writes into two events and turn a coalescing
+        #: test red.
+        #:
+        #: In memory only, so a restart forgets; the cost of forgetting is
+        #: a second record rather than a lost file, because `settle_paths`
+        #: will not empty a path a live record holds.
+        self._gone_outside: dict[str, str] = {}
         #: What a version recorded for an edit made outside NextTex says,
         #: and the `source` it carries.  The defaults are the fold's, for a
         #: file that changed while nothing was watching; the watcher sets
@@ -1567,28 +1577,24 @@ class CollabStore:
         the file's history, its id and its place in everybody else's
         manifest: to a collaborator this was never anything at all.
         """
-        live = self.file_id_for(relative)
-        if live is not None:
-            # The ordinary case, and the cheap one: a live record already
-            # holds this path, so there is nothing to undo.  Only the
-            # pending sighting can be outstanding, and dropping it is what
-            # stops a flush from trashing a file that is back.
-            self._gone_pending.pop(live, None)
+        file_id = self._gone_outside.pop(relative, None)
+        if file_id is None:
+            # Nothing this machine's watcher called deleted was at this
+            # path, which is the overwhelmingly common case and has to
+            # stay cheap: this runs on every tick that found a file.  A
+            # deletion the writer made through the trash is deliberately
+            # not in here, so a new file taking a freed name is adopted as
+            # itself rather than inheriting the deleted file's id and
+            # history.  All that can be outstanding is a sighting not yet
+            # settled, and dropping it is what stops the next flush from
+            # trashing a file that is back.
+            live = self.file_id_for(relative)
+            if live is not None:
+                self._gone_pending.pop(live, None)
             return
-        for file_id, record in self.files.items():
-            if record.get("path") != relative or not record.get("trashed"):
-                continue
-            if file_id not in self._gone_outside:
-                # The writer deleted this one on purpose, through the
-                # trash.  A file appearing at its path afterwards is a new
-                # file that has taken a free name, not this one returning,
-                # and reviving the record here would hand the new file the
-                # deleted one's history and its id.  Leave it alone: the
-                # walk adopts the new file, and `settle_paths` will not
-                # empty a path that a live record holds.
-                continue
-            self._gone_pending.pop(file_id, None)
-            self._gone_outside.discard(file_id)
+        self._gone_pending.pop(file_id, None)
+        record = self.files.get(file_id)
+        if record is not None and record.get("trashed"):
             record["trashed"] = False
             # The tree is drawn from events and was last told this file
             # had gone, so it has to be told it is back.  `note_arrived`
@@ -1598,7 +1604,6 @@ class CollabStore:
             noted = getattr(self.session, "note_arrived", None)
             if noted is not None:
                 noted(relative)
-            return
 
     def _settle_gone(self) -> None:
         """Call deleted what this machine saw missing, if it still is.
@@ -1636,7 +1641,7 @@ class CollabStore:
                 continue
             if not target.exists():
                 record["trashed"] = True
-                self._gone_outside.add(file_id)
+                self._gone_outside[record.get("path") or ""] = file_id
                 if stamp:
                     self._record_outside_deletion(file_id, target, stamp)
                 # Say so, now that it is a deletion and not a gap: the tab
