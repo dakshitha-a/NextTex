@@ -597,19 +597,35 @@ def test_the_readme_does_not_claim_windows_is_tested():
     the kind that costs somebody an evening, so the README has to keep
     naming what has actually not been done.
 
-    What that list holds has changed twice. It used to be everything after
-    the install; then a laptop ran the install, served a project, joined a
-    share and ran the update script, which between them found nine bugs.
-    What is left is the logon-task branch, which needs an administrator
-    account nobody has installed this on, and the Intel Mac. The
-    assertion is on the honesty rather than on the words, because the words
-    are meant to shrink as the list does.
+    What that list holds has changed three times. It used to be everything
+    after the install; then a laptop ran the install, served a project,
+    joined a share and ran the update script, which between them found nine
+    bugs; then on 23 September 2026 the same laptop took the uninstall, a
+    clean install with MiKTeX, the update button twice, the logon task, a
+    reboot and the desktop shortcut, which found six more. What is left is
+    browser sign-in, the Install button against a real package manager, the
+    interactive prompts, and the Intel Mac.
+
+    The assertion is on the honesty rather than on the words, because the
+    words are meant to shrink as the list does. It used to pin the phrase
+    "only partly verified", which is the opposite of that: the section
+    could not be rewritten to say more without failing, however honest the
+    rewrite. What is required is that the section still names something as
+    not done, and does not claim to be finished.
     """
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "only partly verified" in readme, (
-        "the Windows heading no longer hedges at all"
+    start = readme.find("### On Windows")
+    assert start != -1, "the README has no Windows section at all"
+    section = readme[start:readme.find("\n## ", start)]
+
+    admits = ("unproven", "unverified", "untested", "has never", "still not")
+    assert any(word in section for word in admits), (
+        "the Windows section names nothing as not done"
     )
-    assert "unproven" in readme or "unverified" in readme or "untested" in readme
+    overclaims = ("fully verified", "fully tested", "completely verified",
+                  "everything has been tested")
+    for claim in overclaims:
+        assert claim not in section.lower(), f"the Windows section claims {claim!r}"
 
 
 def test_an_install_without_the_claude_sdk_still_runs(monkeypatch, tmp_path):
