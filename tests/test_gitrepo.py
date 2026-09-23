@@ -386,3 +386,52 @@ def test_a_real_clone_of_a_local_bare_repository_is_refused_by_the_transport_rul
     into.mkdir()
     with pytest.raises(gitrepo.GitError):
         gitrepo.clone(f"file://{bare}", into)
+
+
+# --- what a failure says ------------------------------------------------------
+
+
+def test_the_line_shown_is_the_one_git_marked_as_the_failure():
+    """git's complaint, not the last thing it printed.
+
+    The last line was taken for years, on the reasoning that git prints
+    progress first and its complaint last. For an unreachable remote it
+    prints the opposite, and a writer on a real install was shown "and
+    the repository exists." with the diagnosis discarded before it left
+    the server.
+    """
+    said = gitrepo.said_by(
+        "fatal: 'C:/Users/daksh/test' does not appear to be a git repository\n"
+        "fatal: Could not read from remote repository.\n"
+        "\n"
+        "Please make sure you have the correct access rights\n"
+        "and the repository exists.\n",
+        "git failed",
+    )
+    assert said == "fatal: 'C:/Users/daksh/test' does not appear to be a git repository"
+
+
+def test_a_single_line_failure_is_itself():
+    said = gitrepo.said_by(
+        "fatal: unable to access 'https://nowhere.invalid/x.git/': "
+        "Could not resolve host: nowhere.invalid\n",
+        "git failed",
+    )
+    assert said.startswith("fatal: unable to access")
+    assert "Could not resolve host" in said
+
+
+def test_output_git_did_not_mark_keeps_the_last_line():
+    """The old behaviour, which everything written against it expects: a
+    push prints its progress first and the thing that went wrong last."""
+    said = gitrepo.said_by(
+        "Enumerating objects: 5, done.\n"
+        "Counting objects: 100% (5/5), done.\n"
+        "! [rejected] master -> master (fetch first)\n",
+        "git failed",
+    )
+    assert said == "! [rejected] master -> master (fetch first)"
+
+
+def test_nothing_at_all_falls_back():
+    assert gitrepo.said_by("   \n\n  ", "git failed") == "git failed"

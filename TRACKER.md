@@ -231,6 +231,26 @@ this host could not reproduce; each says which.
       `settle_paths` then followed the first record's deletion by moving
       whatever was at the path into the trash. What is still open is the
       trash record's own claim, the next line.
+- [ ] **An editor pane drew a document's collaboration log where the file
+      on disk said something else.** Seen once on the Windows install on
+      23 September and not dug into, because the run it turned up in was
+      holding that machine as evidence for the trash bug. After a fresh
+      page load the editor showed a 449-byte version of `main.tex` that
+      had been written into the project at 16:36 the day before; the file
+      on disk was the 69-byte original, and
+      `GET /api/projects/{id}/file` served those 69 bytes correctly. The
+      document's log, `.nexttex/collab/docs/f67098301b6788c1.y`, was last
+      written at 16:36:37, which is exactly when the 449-byte version was
+      made. So the file, the route and the log disagreed, and the editor
+      drew the log. Nothing was lost, but a writer who opened that project
+      and typed would have written the stale text over their own file,
+      which is the same shape as the trash bug and lives next door to it
+      in `server/collab/store.py`. What would settle it: whether the fold
+      that reconciles a document with its file runs when the file was
+      changed while the document was open but no tick was seen, and
+      whether the log or the disk is meant to win when they differ at
+      open. `tests/collab/test_outside_edits.py` is the file that already
+      asks half of this question.
 - [ ] **A trash entry says the writer deleted the file even when nobody
       did.** Every entry carries `by: "you"`, including one written when
       the watcher inferred a deletion and one written for a file that had
@@ -241,7 +261,11 @@ this host could not reproduce; each says which.
       peer is still filed as this writer's doing, which is wrong in the
       one place somebody looks when a file has gone. A `source` beside
       `by`, absent on old entries and read as the writer's own when
-      missing, so nothing already in anybody's trash changes meaning.
+      missing, so nothing already in anybody's trash changes meaning. The
+      vocabulary exists one module over and should be borrowed rather than
+      invented: a history version carries `op`, `why` and a `source` token
+      like `outside:1790109397581`, which is exactly what a trash entry
+      needs to say a deletion was not the writer's doing.
 - [ ] **A file deleted outside NextTex does not schedule a build.** The
       watcher's tick now tells the compiler about every outside write it
       sees, so a pull, another editor's save or a regenerated figure
@@ -383,6 +407,21 @@ this host could not reproduce; each says which.
       kind of wrong that wastes the next attempt: `UpdateFooter.tsx:442`
       gates that line on `!report.checked`, the check itself failing, and
       whether the install is behind has nothing to do with it.
+
+      **Taken on 23 September, and Try again is inside the sheet**, at 125
+      percent on that machine, with the remote pointed at an unresolvable
+      host and put back afterwards. So the line this item was opened for
+      is answered. Two things the screenshot showed that are not: the
+      reason is clipped with an ellipsis rather than wrapped, which is
+      what `truncate` is there for and is the trade that keeps Try again
+      on the row, but on that failure the clipped half was the useful half
+      ("Could not resolve host"), so whether the sheet should give a
+      failed check more room is a question for the direction page rather
+      than a defect; and the header control relabels itself from "An
+      update is waiting" to "Check for updates" when a check fails, which
+      tells a writer that nothing is pending when something is, and takes
+      two clicks to open the sheet. Those two are the next interface
+      run's, drawn before they are built.
 - [ ] **`openai-card.spec.ts` "Allow always survives a reload as a
       settled card" failed and passed on retry in four of the frame run's
       nine full checks.** The failing read was `toBeVisible` on "Done."

@@ -90,9 +90,42 @@ def _run(root: Path, *arguments: str, timeout: int = TIMEOUT) -> str:
     except OSError as error:
         raise GitError(f"could not run git: {error}")
     if result.returncode != 0:
-        message = (result.stderr or result.stdout or "").strip()
-        raise GitError(message.splitlines()[-1] if message else "git failed")
+        raise GitError(said_by(result.stderr or result.stdout or "", "git failed"))
     return result.stdout
+
+
+def said_by(output: str, fallback: str) -> str:
+    """The one line of a command's output worth showing somebody.
+
+    The last line was taken for a long time, on the reasoning that git
+    prints its progress first and its complaint last.  That holds for a
+    push and fails for exactly the case somebody meets when their remote
+    is wrong, because git says this:
+
+        fatal: 'C:/Users/daksh/test' does not appear to be a git repository
+        fatal: Could not read from remote repository.
+
+        Please make sure you have the correct access rights
+        and the repository exists.
+
+    and the last line of it is "and the repository exists.", a fragment
+    beginning with "and" that names nothing.  The update footer showed
+    precisely that to a writer whose remote was unreachable, with the
+    diagnosis thrown away before it ever left the server.  Seen on a real
+    install on 23 September 2026.
+
+    So: the first line git marked as the failure, which is its own
+    convention for the sentence that matters, and the last non-empty line
+    otherwise, which is what everything written against the old behaviour
+    expects.
+    """
+    lines = [line.strip() for line in output.strip().splitlines() if line.strip()]
+    if not lines:
+        return fallback
+    for line in lines:
+        if line.startswith("fatal:") or line.startswith("error:"):
+            return line
+    return lines[-1]
 
 
 @dataclass
@@ -346,7 +379,7 @@ def create_github(root: Path, name: str, private: bool = True) -> str:
     )
     if result.returncode != 0:
         message = (result.stderr or result.stdout).strip()
-        raise GitError(message.splitlines()[-1] if message else "gh failed")
+        raise GitError(said_by(message, "gh failed"))
     return _run(root, "remote", "get-url", "origin", timeout=15).strip()
 
 
@@ -471,7 +504,7 @@ def merge_three(root: Path, base: str, mine: str, theirs: str) -> tuple[str, int
             raise GitError(f"could not run git: {error}")
     if result.returncode < 0 or result.returncode >= 128:
         message = (result.stderr or b"").decode("utf-8", "replace").strip()
-        raise GitError(message.splitlines()[-1] if message else "git merge-file failed")
+        raise GitError(said_by(message, "git merge-file failed"))
     merged = result.stdout.decode("utf-8", "replace")
     # And the same on the way out, whatever git did with the endings.
     return merged.replace("\r\n", "\n"), result.returncode
