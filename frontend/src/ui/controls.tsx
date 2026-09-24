@@ -255,10 +255,15 @@ export type RowProps = HTMLAttributes<HTMLDivElement> & {
   trailing?: ReactNode;
   trailingAlways?: boolean;
   indent?: number;
+  /** A second line under the label, in the meta role and the third ink,
+   *  for the one fact a row needs that its label cannot carry: the
+   *  Deleted drawer's "A collaborator deleted it". The row grows to hold
+   *  it; a row without one keeps its height. */
+  note?: ReactNode;
 };
 
 export const Row = forwardRef<HTMLDivElement, RowProps>(function Row(
-  { selected = false, size = "sm", leading, trailing, trailingAlways = false, indent = 0, className, children, style, ...rest },
+  { selected = false, size = "sm", leading, trailing, trailingAlways = false, indent = 0, note, className, children, style, ...rest },
   ref,
 ) {
   return (
@@ -266,6 +271,7 @@ export const Row = forwardRef<HTMLDivElement, RowProps>(function Row(
       ref={ref}
       data-selected={selected || undefined}
       data-size={size}
+      data-note={note ? true : undefined}
       className={`nx-row${className ? ` ${className}` : ""}`}
       style={indent ? { paddingLeft: 8 + indent, ...style } : style}
       {...rest}
@@ -275,6 +281,7 @@ export const Row = forwardRef<HTMLDivElement, RowProps>(function Row(
       {trailing !== undefined && trailing !== null ? (
         <span className={`nx-row-trailing${trailingAlways ? " nx-row-trailing-always" : ""}`}>{trailing}</span>
       ) : null}
+      {note ? <span className="nx-row-note t-meta">{note}</span> : null}
     </div>
   );
 });

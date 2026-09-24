@@ -469,24 +469,47 @@ test("a long reason from git does not carry Try again off the sheet", async ({
     await open(app, page);
     const warn = page.getByTestId("update-unchecked");
     await expect(warn).toBeVisible({ timeout: 20_000 });
-    // The footer stands in a 280px rail now and its lines wrap, so the
-    // premise is asserted directly rather than through the row's height:
-    // git's paragraph is one truncated line, readable in full on hover,
-    // and the two controls are on screen, inside the footer, not carried
-    // off its end.
-    const row = warn.locator("..");
-    const message = row.locator("span[title]");
-    await expect(message).toHaveAttribute("title", /Could not resolve host/);
-    const said = await message.boundingBox();
-    expect(said!.height).toBeLessThan(20);
+    // git's paragraph has two lines of its own under the headline, in the
+    // source face, clamped with the whole of it in the title, and Try
+    // again is under it. On one line beside the control it was clipped,
+    // and at 125 percent on the Windows laptop the clipped half was the
+    // useful one, "Could not resolve host".
+    const reason = page.getByTestId("update-unchecked-reason");
+    await expect(reason).toHaveAttribute("title", /Could not resolve host/);
+    const said = (await reason.boundingBox())!;
+    expect(said.height).toBeGreaterThan(20);
+    expect(said.height).toBeLessThan(40);
+    const shown = await reason.evaluate((el) => {
+      // What is on screen: the text up to where two lines end.
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const box = el.getBoundingClientRect();
+      const node = el.firstChild!;
+      let seen = "";
+      for (let i = 0; i < (node.textContent ?? "").length; i += 1) {
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const r = range.getBoundingClientRect();
+        if (r.bottom > box.bottom + 1) break;
+        seen += node.textContent![i];
+      }
+      return seen;
+    });
+    expect(shown).toContain("Could not resolve host");
     // Inside the sheet, not carried off its edge.
     const sheet = await page.getByTestId("update-sheet").boundingBox();
-    const control = row.getByRole("button", { name: "Try again" });
+    const control = page.getByTestId("update-unchecked-block").getByRole("button", { name: "Try again" });
     await expect(control).toBeVisible();
     const box = (await control.boundingBox())!;
+    expect(box.y).toBeGreaterThan(said.y);
     expect(box.x).toBeGreaterThanOrEqual(sheet!.x);
     expect(box.x + box.width).toBeLessThanOrEqual(sheet!.x + sheet!.width + 1);
     expect(box.y + box.height).toBeLessThanOrEqual(sheet!.y + sheet!.height + 1);
+    // And the band's control says the check failed rather than offering one
+    // as if there were nothing to report.
+    await expect(page.getByTestId("update-open")).toHaveAttribute(
+      "aria-label", "Could not check for updates",
+    );
   } finally {
     await app.stop();
   }

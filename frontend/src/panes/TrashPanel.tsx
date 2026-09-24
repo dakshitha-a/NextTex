@@ -80,6 +80,7 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
                 data-path={entry.path}
                 title={entry.path}
                 leading={image ? <ImageIcon /> : <FileIcon />}
+                note={entry.source ? whyItWent(entry.why) : undefined}
                 trailingAlways
                 trailing={
                   <span className="nx-row-tail">
@@ -159,4 +160,13 @@ function splitName(name: string): [string, string] {
   const dot = name.lastIndexOf(".");
   if (dot <= 0) return [name, ""];
   return [name.slice(0, dot), name.slice(dot)];
+}
+
+/** What put a file here, when it was not the writer: the entry's own
+ *  sentence with a capital. The sync that carries a collaborator's
+ *  deletion does not say which collaborator, so the sentence does not
+ *  name one. */
+export function whyItWent(why: string | undefined): string {
+  const said = (why ?? "").trim() || "Not deleted by you";
+  return said.charAt(0).toUpperCase() + said.slice(1);
 }

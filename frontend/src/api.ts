@@ -194,6 +194,11 @@ export type TrashEntry = {
   kind: "file" | "dir";
   count: number;
   bytes: number;
+  /** Set when the writer did not ask for this: "peer" for a
+   *  collaborator's deletion followed here, "rejoin" for a file replaced
+   *  while rejoining a share. Absent on every entry written before. */
+  source?: string;
+  why?: string;
 };
 
 export type SyncPosition = {

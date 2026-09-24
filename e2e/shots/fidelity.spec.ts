@@ -658,6 +658,54 @@ const SURFACES: Record<string, Surface> = {
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
     },
   },
+  "drawer-trash-why": {
+    // An ordinary entry and one followed from a peer, written as the store
+    // writes them; section 65.
+    open: async (tab) => {
+      const trash = path.join(ctx!.root, ".nexttex", "trash");
+      fs.mkdirSync(trash, { recursive: true });
+      const now = Date.now();
+      const line = (id: string, where: string, extra: object) =>
+        JSON.stringify({ id, at: now, by: "you", path: where, kind: "file",
+          files: [{ path: where, bytes: 12 }], dirs: [], ...extra });
+      fs.writeFileSync(path.join(trash, "entries.jsonl"), [
+        line("t1a2b3c", "old-intro.tex", {}),
+        line("t4d5e6f", "figures/draft-figure.png", { source: "peer", why: "a collaborator deleted it" }),
+        line("t7a8b9c", "notes.md", { source: "rejoin", why: "replaced when rejoining the share" }),
+      ].join("\n") + "\n");
+      await showDrawer(tab, "trash");
+      await tab.getByTestId("trash-entry").first().waitFor();
+      return tab.getByTestId("drawer");
+    },
+  },
+  "update-failed": {
+    // A check that could not reach the repository, with git's own long
+    // words; section 65.
+    open: async (tab) => {
+      await tab.route("**/api/update*", (route) => route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({
+          checkout: true, checked: false, head: "abc1234", behind: 0, changing: 0,
+          commits: [], dirty: [], rebuild: false, build_ok: true, build_reason: "",
+          can_update: false, reason: "could not reach the repository", restart: "manual",
+          error: "fatal: unable to access 'https://github.com/dakshitha-a/NextTex/': Could not resolve host: github.com",
+          updating: false, phase: "",
+        }),
+      }));
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      await tab.getByTestId("update-open").click();
+      await tab.getByTestId("update-unchecked").waitFor();
+      await tab.waitForTimeout(300);
+      return tab.getByTestId("update-sheet");
+    },
+    close: async (tab) => {
+      await tab.unroute("**/api/update*");
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
   "update-sheet": {
     // The harness's instance is not a checkout, so the sheet's reachable
     // state is that sentence, not the waiting update the page draws.

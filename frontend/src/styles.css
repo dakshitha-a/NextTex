@@ -1355,6 +1355,19 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   color: var(--ink-2);
 }
 .nx-row[data-size="md"] { height: var(--nx-row); }
+/* A row with a second line: it grows, the icon and the tail stay on the
+   first line, and the note is the meta role in the third ink. */
+.nx-row[data-note] { height: auto; min-height: 30px; padding-block: 5px; flex-wrap: wrap; row-gap: 0; }
+/* Under the label and the tail both, from the label's edge: the tail keeps
+   its width for the actions it shows under the pointer, so a note inside
+   the label was clipped to what was left. */
+.nx-row-note { flex-basis: 100%; padding-left: 24px; color: var(--ink-3); }
+/* git's words when a check failed: two lines, then an ellipsis, with the
+   whole of it in the title. */
+.nx-update-reason {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere;
+}
 button.nx-row { width: 100%; text-align: left; }
 .nx-sheet-list { max-height: 180px; overflow: auto; margin: 4px -4px 0; }
 .nx-sheet-foot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding-top: 14px; }

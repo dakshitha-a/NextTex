@@ -10362,3 +10362,37 @@ against the registry again on 24 September 2026: 6.1.0 is still the
 newest release. An upgrade means vendoring again by hand, and
 `keymaps.spec.ts`'s `C-k` against the real build is what says the keys
 arrived.
+
+
+## 65. Two things the app knew and did not say
+
+Both drawn on the direction page on 24 September 2026 under the fifth
+run's delegation, and built as drawn except where this section says.
+
+**A deletion the writer did not make says so.** Since 3.6.6 a trash entry
+carries `source` and `why` when nobody here asked for it: a
+collaborator's deletion followed onto this disk, or a file replaced
+while rejoining a share. The Deleted drawer showed neither, so a figure a
+collaborator deleted looked like the writer's own doing, in the one place
+somebody looks when a file has gone. Those rows now carry a second line,
+the entry's own sentence with a capital, "A collaborator deleted it" or
+"Replaced when rejoining the share", through the kit's `Row` and its new
+`note` slot; an ordinary row is unchanged. The drawing said "Deleted by
+Mira". The sync that carries a peer's deletion is a flag on the
+manifest's record and says nothing about who set it, so the name is not
+known here, and the page was redrawn to the sentence that was built.
+
+**A failed update check keeps its useful half.** git's reason sat on one
+line beside Try again and was truncated, and on the Windows laptop at
+125 percent the half that went was the useful one, "Could not resolve
+host". It has two lines of its own now, under the headline, in the
+source face since they are the machine's words, clamped with the whole
+of it in the title, and Try again is under them with "This machine may
+be offline." at the line's end. The app bar's control said "Check for
+updates" after a failed check, as if there were nothing to report; it
+says "Could not check for updates" now, and when the last check that
+reached the repository had found an update waiting, it keeps saying "An
+update is waiting", since a failed check is no news about that.
+`update-state.test.ts` holds the three answers and `update.spec.ts` the
+sheet and the label.
+

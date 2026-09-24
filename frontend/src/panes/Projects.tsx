@@ -578,7 +578,9 @@ export default function Projects({
                 ? "The update needs you"
                 : updateState === "busy"
                   ? "Updating"
-                  : "Check for updates"
+                  : updateState === "unreachable"
+                    ? "Could not check for updates"
+                    : "Check for updates"
           }
           className="nx-appbar-update"
           data-state={updateState}

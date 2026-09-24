@@ -48,23 +48,6 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
-- [ ] **A trash entry's `source` and `why` are not shown anywhere yet.**
-      Since 3.6.6 an entry records when the writer did not ask for the
-      deletion: a collaborator's deletion followed onto this disk, or a
-      file replaced while rejoining a share. No panel reads the fields,
-      so the trash still looks as if the writer did it. What a row should
-      say in that case is a drawing for the direction page before it is
-      any code.
-- [ ] **A failed update check hides the useful half of its reason and
-      says nothing is pending.** Seen at 125 percent on the Windows laptop
-      on 23 September, with the remote pointed at an unresolvable host.
-      The reason is clipped with an ellipsis, which keeps Try again on the
-      row, but the clipped half was the useful one ("Could not resolve
-      host"). And the header control relabels itself from "An update is
-      waiting" to "Check for updates" when a check fails, which tells a
-      writer nothing is pending when something is, and takes two clicks
-      to open the sheet. Both are for the next interface run, drawn on the
-      direction page before they are built.
 - [ ] **A logon-started server took five minutes to begin serving, where
       the same build started from the desktop shortcut took under
       twenty-five seconds.** Measured on the laptop on 23 September, eight

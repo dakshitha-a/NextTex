@@ -25,7 +25,8 @@ import ReportSheet, { Card } from "./ReportSheet";
  */
 
 /** What the app bar's button shows. */
-export type UpdateState = "opening" | "resting" | "checking" | "waiting" | "busy" | "attention";
+export type UpdateState =
+  | "opening" | "resting" | "checking" | "waiting" | "busy" | "attention" | "unreachable";
 
 const DISMISSED = "nexttex.update.dismissed";
 
@@ -143,8 +144,15 @@ export default function UpdateFooter({
   useEffect(() => {
     onBusy(phase.kind === "updating" || phase.kind === "restarting");
   }, [phase.kind, onBusy]);
+  // Whether the last check that reached the repository found an update
+  // waiting, so a check that then fails does not unsay it.
+  const knownWaiting = useRef(false);
   useEffect(() => {
-    onState(stateOf(phase, self));
+    const state = stateOf(phase, self, knownWaiting.current);
+    if (phase.kind === "report" && phase.report.checked) {
+      knownWaiting.current = state === "waiting";
+    }
+    onState(state);
   }, [phase, self, onState]);
 
   /** Follow an update that is already running, from any tab. */
@@ -440,28 +448,34 @@ export default function UpdateFooter({
     // itself failing; a report that arrives carrying an error is not that,
     // and reached nothing that would draw it.
     if (!report.checked) {
+      // git's own words get two lines of their own under the headline, in
+      // the source face since they are the machine's, with Try again under
+      // them. On one line with the button they were clipped, and on the
+      // Windows laptop at 125 percent the clipped half was the useful one:
+      // "Could not resolve host".
       return (
-        <Line>
+        <div className="flex flex-col gap-1" data-testid="update-unchecked-block">
           <span
-            className="t-micro shrink-0 text-warn"
+            className="t-micro text-warn"
             data-testid="update-unchecked"
           >
             Could not reach the repository.
           </span>
-          {/* git's own words, which can be a paragraph: it is the least
-              important thing on the line and the only thing that can be
-              any length, so it is what gives way.  Without the truncate
-              the sentence wrapped to three rows and carried Try again off
-              the end of the footer. */}
-          <span
-            className="t-micro min-w-0 truncate text-ink-3"
-            title={report.error || undefined}
-          >
-            {report.error || "This machine may be offline."}
-          </span>
-          <span className="flex-1" />
-          <Button size="inline" onClick={() => check(true)}>Try again</Button>
-        </Line>
+          {report.error ? (
+            <span
+              className="nx-update-reason t-code-sm text-ink-2"
+              data-testid="update-unchecked-reason"
+              title={report.error}
+            >
+              {report.error}
+            </span>
+          ) : null}
+          <Line>
+            <Button size="inline" onClick={() => check(true)}>Try again</Button>
+            <span className="flex-1" />
+            <span className="t-micro text-ink-3">This machine may be offline.</span>
+          </Line>
+        </div>
       );
     }
 
@@ -588,7 +602,7 @@ export default function UpdateFooter({
  *  reaches the program and has not been set aside; "attention" is an
  *  install updated on disk and not restarted, or a failed update; "busy"
  *  is one running. */
-function stateOf(phase: Phase, self: Instance | null): UpdateState {
+export function stateOf(phase: Phase, self: Instance | null, wasWaiting = false): UpdateState {
   if (phase.kind === "opening") return "opening";
   if (phase.kind === "checking") return "checking";
   if (phase.kind === "updating" || phase.kind === "restarting") return "busy";
@@ -596,7 +610,11 @@ function stateOf(phase: Phase, self: Instance | null): UpdateState {
   if (standingOf(self) === "restart") return "attention";
   if (phase.kind === "report") {
     const report = phase.report;
-    if (!report.checkout || !report.checked) return "resting";
+    if (!report.checkout) return "resting";
+    // A check that failed is not "nothing to report". The band's control
+    // said "Check for updates" after one, which told the writer nothing was
+    // pending when an update was already known to be waiting.
+    if (!report.checked) return wasWaiting ? "waiting" : "unreachable";
     if (report.behind > 0 && report.changing > 0 && report.can_update) return "waiting";
   }
   return "resting";

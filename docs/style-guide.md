@@ -130,7 +130,7 @@ kit's `Button` carries those looks as its variants.
 | --- | --- | --- | --- |
 | `Button` | `Button.tsx` | any labelled action; `quiet` for the ordinary, `ghost` for the secondary with an edge, `pen` for the one filled button, `danger` for the irreversible; `sm` 28 px, `md` 32 px, `inline` 24 px for an action inside a row or a strip | a `<button>` with classes |
 | `IconButton` | `Button.tsx` | an action with a glyph and an `aria-label`; `on` marks the active one by ink weight and a wash | a coloured or badged button |
-| `Row` | `controls.tsx` | a line in a list or a drawer, with `leading`, `trailing` (shown under the pointer, on focus and on touch) and `selected` | a flex div with hover classes |
+| `Row` | `controls.tsx` | a line in a list or a drawer, with `leading`, `trailing` (shown under the pointer, on focus and on touch), `selected`, and `note`, a second line in `t-meta` and the third ink for the one fact the label cannot carry, which lets the row grow while its icon and tail stay on the first line | a flex div with hover classes |
 | `Field` | `controls.tsx` | a text input at 32 px on `--surface-2`, with `leading` and `trailing` slots | a bordered `<input>` |
 | `Chip` | `controls.tsx` | a small labelled thing that can be removed: a file, an added word, a format; `mono` for a literal | a pill with a colour |
 | `ChipToggle` | `controls.tsx` | one of several yes-or-no choices that are not exclusive, in one line: which cards the editor shows; on is the chip's shape in the ink, off is hollow in the third ink, `aria-pressed` carries the state | a switch row per item where the items are many and small |

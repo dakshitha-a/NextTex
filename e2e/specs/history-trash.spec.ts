@@ -429,3 +429,27 @@ test("Deleted and History say nothing until they know", async ({ tab }) => {
   }
   await expect(drawer).toContainText("Nothing yet for main.tex", { timeout: 5_000 });
 });
+
+test("a deletion the writer did not make says so under the name", async ({ project, tab }) => {
+  // Since 3.6.6 a trash entry records when the writer did not ask for the
+  // deletion, and the drawer did not show it, so a figure a collaborator
+  // deleted still looked like the writer's own doing. Two entries written
+  // as the store writes them: one ordinary, one followed from a peer.
+  const trash = join(project.root, ".nexttex", "trash");
+  const { mkdirSync } = await import("node:fs");
+  mkdirSync(trash, { recursive: true });
+  const now = Date.now();
+  const line = (id: string, path: string, extra: object) =>
+    JSON.stringify({ id, at: now, by: "you", path, kind: "file",
+      files: [{ path, bytes: 12 }], dirs: [], ...extra });
+  writeFileSync(join(trash, "entries.jsonl"), [
+    line("t1a2b3c", "old-intro.tex", {}),
+    line("t4d5e6f", "figures/draft.png", { source: "peer", why: "a collaborator deleted it" }),
+  ].join("\n") + "\n");
+
+  await tab.getByTestId("bar-trash").click();
+  const ordinary = tab.getByTestId("trash-entry").filter({ hasText: "old-intro" });
+  const theirs = tab.getByTestId("trash-entry").filter({ hasText: "draft" });
+  await expect(theirs).toContainText("A collaborator deleted it", { timeout: 10_000 });
+  await expect(ordinary).not.toContainText("deleted it");
+});
