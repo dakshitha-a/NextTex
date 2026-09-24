@@ -347,6 +347,8 @@ def execute(console: Console, plan, root: Path, platform: str,
             console.failed(tex, "TeX did not install. Everything else is fine; "
                                 "run the installer again to retry just this.")
             notes.append("TeX did not install, so builds will fail")
+        else:
+            _record_tex(tex_choice)
 
     # Whatever happened above, TeX's own directory goes on PATH before
     # anything asks what is installed.  This used to run only where TinyTeX
@@ -671,13 +673,43 @@ def _missing_tex_extras(tex_dir=None) -> list:
 
 
 def _add_tex_to_path() -> None:
-    from ..tools import TEX_HINTS
+    """TeX's directories onto this process's PATH, the chosen one first.
 
-    for hint in TEX_HINTS:
-        if hint.is_dir():
-            current = os.environ.get("PATH", "").split(os.pathsep)
-            if str(hint) not in current:
-                os.environ["PATH"] = os.pathsep.join([str(hint), *current])
+    Built in one go. Prepending each hint in turn put the last one found
+    first, the inversion `ensure_tex_on_path` was cured of on 23 September
+    2026, and on a machine with two TeXs that decided which one the extras
+    below were installed into.
+    """
+    from ..tools import TEX_HINTS, named_tex_dir, recorded_tex_dir
+
+    current = os.environ.get("PATH", "").split(os.pathsep)
+    ahead: list[str] = []
+    for hint in [named_tex_dir(), recorded_tex_dir(), *TEX_HINTS]:
+        if hint is not None and hint.is_dir() and str(hint) not in ahead:
+            ahead.append(str(hint))
+    rest = [entry for entry in current if entry not in ahead]
+    os.environ["PATH"] = os.pathsep.join([*ahead, *rest])
+
+
+def _record_tex(choice: str) -> None:
+    """Write down which TeX this install was told to use.
+
+    The server's search reads it ahead of the fixed list, so a machine that
+    already had a TinyTeX and was given MiKTeX on request builds with the
+    MiKTeX, engine and package tree both. Nothing is recorded when the
+    distribution's directory cannot be found, and then the list decides as
+    it always has.
+    """
+    from ..config import Settings
+    from ..tools import distribution_dir
+
+    directory = distribution_dir(choice)
+    if directory is None:
+        return
+    settings = Settings.load()
+    if settings.tex != str(directory):
+        settings.tex = str(directory)
+        settings.save()
 
 
 def _tidy_stray_state(console: Console, platform: str) -> None:

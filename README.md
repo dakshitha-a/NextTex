@@ -265,7 +265,10 @@ discover.
 **The plan.** A virtual environment and the Python dependencies, with `iroh`
 tried separately so a platform it has no build for loses sharing rather than
 the install. TinyTeX if you want one, or MiKTeX on Windows, and `tlmgr` to
-add whichever of the five tools are missing. A writing agent, if any.
+add whichever of the five tools are missing. The TeX it installs is the
+one NextTex builds with afterwards, even on a machine that already had
+another: the installer writes it down in the install's `config.json` as
+`tex`, and `NEXTTEX_TEX`, a directory, overrides both. A writing agent, if any.
 Nothing is installed unless you say Claude, the default is none, and the app
 asks again, in a sheet over its projects list, the first time it opens. The interface built for this commit,
 downloaded rather than built, with Node 20+ used only if that download

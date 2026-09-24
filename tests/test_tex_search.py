@@ -17,6 +17,7 @@ Two faults, and this file covers both.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -88,3 +89,76 @@ def test_a_name_that_is_not_a_directory_is_ignored(tmp_path, monkeypatch, clean_
 def test_no_tex_anywhere_is_still_none(tmp_path, monkeypatch, clean_path):
     monkeypatch.setattr(tools, "TEX_HINTS", [tmp_path / "empty"])
     assert tools.ensure_tex_on_path() is None
+
+
+@pytest.fixture
+def state(tmp_path, monkeypatch):
+    """A state directory of its own, so `config.json` is this test's."""
+    home = tmp_path / "state"
+    home.mkdir()
+    monkeypatch.setattr("nexttex.paths.state_home", lambda: home)
+    return home
+
+
+def test_what_the_installer_recorded_wins_over_the_list(tmp_path, monkeypatch,
+                                                        clean_path, state):
+    """The cure the backlog asked for: nobody sets a variable to get the TeX
+    they asked the installer for. A machine that had a TinyTeX before and
+    was given MiKTeX on request builds with the MiKTeX."""
+    tinytex = a_tex(tmp_path / "TinyTeX" / "bin", "pdflatex", "latexmk", "synctex",
+                    "biber", "chktex", "texcount")
+    miktex = a_tex(tmp_path / "MiKTeX" / "bin", "pdflatex")
+    monkeypatch.setattr(tools, "TEX_HINTS", [tinytex, miktex])
+    (state / "config.json").write_text(json.dumps({"tex": str(miktex)}))
+
+    assert tools.recorded_tex_dir() == miktex
+    assert tools.ensure_tex_on_path() == miktex
+
+
+def test_a_named_tex_still_beats_the_recorded_one(tmp_path, monkeypatch,
+                                                  clean_path, state):
+    recorded = a_tex(tmp_path / "recorded", "pdflatex")
+    named = a_tex(tmp_path / "named", "pdflatex")
+    monkeypatch.setattr(tools, "TEX_HINTS", [recorded, named])
+    (state / "config.json").write_text(json.dumps({"tex": str(recorded)}))
+    monkeypatch.setenv("NEXTTEX_TEX", str(named))
+
+    assert tools.ensure_tex_on_path() == named
+
+
+def test_nothing_recorded_changes_nothing(tmp_path, monkeypatch, clean_path, state):
+    rich = a_tex(tmp_path / "rich", "pdflatex", "latexmk")
+    poor = a_tex(tmp_path / "poor", "pdflatex")
+    monkeypatch.setattr(tools, "TEX_HINTS", [poor, rich])
+    (state / "config.json").write_text(json.dumps({"tex": ""}))
+
+    assert tools.recorded_tex_dir() is None
+    assert tools.ensure_tex_on_path() == rich
+
+
+def test_a_chosen_tex_already_on_path_behind_another_moves_in_front(
+        tmp_path, monkeypatch, clean_path, state):
+    """The laptop's shape: MiKTeX on the user's PATH, behind a TinyTeX. A
+    choice that is only prepended when absent left it where it was, and
+    the engine came from the TinyTeX."""
+    tinytex = a_tex(tmp_path / "TinyTeX" / "bin", "pdflatex", "latexmk")
+    miktex = a_tex(tmp_path / "MiKTeX" / "bin", "pdflatex")
+    monkeypatch.setattr(tools, "TEX_HINTS", [tinytex])
+    monkeypatch.setenv("PATH", os.pathsep.join([str(tinytex), str(miktex)]))
+    monkeypatch.setenv("NEXTTEX_TEX", str(miktex))
+
+    assert tools.ensure_tex_on_path() == miktex
+    assert os.environ["PATH"].split(os.pathsep)[0] == str(miktex)
+
+
+def test_the_installer_records_the_distribution_it_installed(tmp_path, monkeypatch, state):
+    from nexttex.install import __main__ as installer
+
+    miktex = a_tex(tmp_path / "AppData" / "Local" / "Programs" / "MiKTeX" / "bin", "pdflatex")
+    tinytex = a_tex(tmp_path / "AppData" / "Roaming" / "TinyTeX" / "bin", "pdflatex")
+    monkeypatch.setattr(tools, "TEX_HINTS", [tinytex, miktex])
+    monkeypatch.setattr("nexttex.config.state_home", lambda: state)
+
+    installer._record_tex("miktex")
+
+    assert json.loads((state / "config.json").read_text())["tex"] == str(miktex)

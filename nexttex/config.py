@@ -102,6 +102,10 @@ class Settings:
     # the answer is about one project, not about every project that will
     # ever be opened.
     shell_escape_allowed: list = field(default_factory=list)
+    # The directory of the TeX the installer was told to use, written by it
+    # after installing that TeX, and read by `recorded_tex_dir` ahead of the
+    # fixed list of places TeX usually lands. Empty, the list decides.
+    tex: str = ""
 
     @classmethod
     def path(cls) -> Path:

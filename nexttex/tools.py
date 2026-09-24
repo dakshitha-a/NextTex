@@ -14,6 +14,7 @@ typeset, which is a hard thing to diagnose from the inside.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -80,9 +81,8 @@ def named_tex_dir() -> Path | None:
     request, and compiled with the TinyTeX that happened to already be
     there, because TinyTeX is four lines earlier.
 
-    This is the seam, not the cure.  The cure is for the installer to
-    record what it chose so nobody has to set an environment variable, and
-    that is written down in `TRACKER.md` rather than done here.
+    It stays as the override.  What the installer was told to use is
+    `recorded_tex_dir`, below it and above the list.
     """
     named = os.environ.get("NEXTTEX_TEX", "").strip()
     if not named:
@@ -91,12 +91,49 @@ def named_tex_dir() -> Path | None:
     return directory if directory.is_dir() else None
 
 
+def recorded_tex_dir() -> Path | None:
+    """The TeX the installer was told to use, or None.
+
+    The installer writes the directory of the distribution it installed to
+    the `tex` field of this install's `config.json`, so a machine that had a
+    TinyTeX before and was given MiKTeX on request builds with the MiKTeX.
+    Before that was recorded the fixed list decided, and on the Windows
+    laptop on 23 September 2026 it ran MiKTeX's engine against TinyTeX's
+    package tree, and a one-sentence document took 95.6 seconds. Read here
+    rather than through `Settings`, which imports this module; the file is
+    plain JSON and a missing or unreadable one means nothing was recorded.
+    """
+    from .paths import state_home
+
+    try:
+        data = json.loads((state_home() / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    named = str(data.get("tex") or "").strip() if isinstance(data, dict) else ""
+    if not named:
+        return None
+    directory = Path(named)
+    return directory if directory.is_dir() else None
+
+
+def distribution_dir(choice: str) -> Path | None:
+    """Where the list says a distribution the installer offers lives, if it
+    is there: the first existing hint whose path names it."""
+    marker = {"tinytex": "tinytex", "miktex": "miktex"}.get(choice)
+    if marker is None:
+        return None
+    for hint in TEX_HINTS:
+        if marker in str(hint).lower() and hint.is_dir():
+            return hint
+    return None
+
+
 def _candidate_dirs() -> list[Path]:
     """Directories that plausibly hold TeX binaries, best first."""
     dirs: list[Path] = []
-    chosen = named_tex_dir()
-    if chosen is not None:
-        dirs.append(chosen)
+    for chosen in (named_tex_dir(), recorded_tex_dir()):
+        if chosen is not None and chosen not in dirs:
+            dirs.append(chosen)
     for hint in TEX_HINTS:
         if hint.is_dir() and hint not in dirs:
             dirs.append(hint)
@@ -132,21 +169,31 @@ def ensure_tex_on_path() -> Path | None:
 
     # Richest first, and a directory somebody named stays in front of all
     # of them however poor it looks: naming one is the answer to this
-    # question and not an opinion about it.
-    chosen = named_tex_dir()
+    # question and not an opinion about it. `NEXTTEX_TEX` first, then what
+    # the installer recorded it was told to use.
+    named, recorded = named_tex_dir(), recorded_tex_dir()
+
+    def rank(directory: Path) -> int:
+        return 0 if directory == named else 1 if directory == recorded else 2
+
     ordered = sorted(
         candidates,
-        key=lambda directory: (directory != chosen, -richness(directory)),
+        key=lambda directory: (rank(directory), -richness(directory)),
     )
     # Built in one go rather than prepended one at a time.  Prepending in a
     # loop reverses the order it is given: the first directory prepended
     # ends up behind every directory prepended after it, so "richest first"
     # put the *poorest* in front, and which TeX a machine with two of them
     # compiled with came down to that inversion.
-    current = os.environ.get("PATH", "").split(os.pathsep)
-    ahead = [str(directory) for directory in ordered if str(directory) not in current]
-    if ahead:
-        os.environ["PATH"] = os.pathsep.join([*ahead, *current])
+    # And moved to the front when already on PATH further back, which a
+    # MiKTeX that put itself on the user's PATH behind a TinyTeX is: left
+    # where it was, the engine came from the TinyTeX whatever was chosen.
+    ahead = [str(directory) for directory in ordered]
+    current = [
+        entry for entry in os.environ.get("PATH", "").split(os.pathsep)
+        if entry not in ahead
+    ]
+    os.environ["PATH"] = os.pathsep.join([*ahead, *current])
 
     found = shutil.which("pdflatex")
     return Path(found).parent if found else None
