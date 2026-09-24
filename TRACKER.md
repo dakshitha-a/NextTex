@@ -68,16 +68,6 @@ this host could not reproduce; each says which.
       whether the log or the disk is meant to win when they differ at
       open. `tests/collab/test_outside_edits.py` is the file that already
       asks half of this question.
-- [ ] **A file deleted outside NextTex does not schedule a build.** The
-      watcher's tick now tells the compiler about every outside write it
-      sees, so a pull, another editor's save or a regenerated figure
-      reaches the page, but a file the tick saw go is not yet known to be
-      deleted, for the reason `ingest` gives, and is settled at the
-      flush, where nothing schedules a build. A chapter removed in another
-      terminal therefore stays on the page until the next edit, when the
-      build fails on the missing input. Left because the honest build is
-      a failing one and the flush's `_settle_gone` would need to tell the
-      session; small, once somebody wants it.
 - [ ] **A trash entry's `source` and `why` are not shown anywhere yet.**
       Since 3.6.6 an entry records when the writer did not ask for the
       deletion: a collaborator's deletion followed onto this disk, or a

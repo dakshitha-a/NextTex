@@ -264,7 +264,8 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
     `ingest` left alone, since that is a rewrite to what the document
     already said, or the projection's own write coming back, and the page
     already shows it; and a file the tick saw go, whose deletion is not
-    yet known to be one, see `ingest`.  A document opened inside the tick
+    yet known to be one, see `ingest`; `_settle_gone` schedules the build
+    for that at the flush that calls it a deletion.  A document opened inside the tick
     has nothing for `ingest` to fold and its earlier text is not known,
     so the compiler is told nothing about what changed and takes the full
     pass, which is the honest answer once.

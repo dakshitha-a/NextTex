@@ -218,3 +218,42 @@ def test_a_new_file_taking_a_deliberately_deleted_name_is_its_own_file(peer: Pee
     assert peer.store.files[file_id].get("trashed"), (
         "a deletion the writer made was undone by a new file of the same name"
     )
+
+
+def test_a_file_deleted_outside_schedules_a_build(peer: Peer, monkeypatch):
+    """A chapter removed in another terminal used to stay on the page until
+    the next keystroke, when the build then failed on the missing input:
+    the watcher's tick tells the compiler about every write it sees, but a
+    file it saw go is only known to be deleted at the flush, and nothing
+    there scheduled a build. The honest build fails, and says why."""
+    builds: list[int] = []
+    monkeypatch.setattr(peer, "schedule_compile", lambda: builds.append(1))
+    chapter = peer.project.root / "one.tex"
+    chapter.unlink()
+    tick_text(peer, "one.tex")
+    settle(peer)
+
+    assert records_for(peer, "one.tex")[0].get("trashed")
+    assert builds, "a deletion outside NextTex scheduled no build"
+
+
+def test_a_file_that_comes_back_schedules_no_build_of_its_own(peer: Peer, monkeypatch):
+    builds: list[int] = []
+    monkeypatch.setattr(peer, "schedule_compile", lambda: builds.append(1))
+    chapter = peer.project.root / "one.tex"
+    held = chapter.read_text()
+    chapter.unlink()
+    tick_text(peer, "one.tex")
+    chapter.write_text(held)
+    settle(peer)
+
+    assert not records_for(peer, "one.tex")[0].get("trashed")
+    assert not builds
+
+
+def tick_text(peer: Peer, relative: str) -> None:
+    """A watcher tick for a text file, which reads its text when it is
+    there and reports it gone when it is not."""
+    path = peer.project.resolve(relative)
+    here = path.exists()
+    peer.store.ingest(relative, path.read_text() if here else None, gone=not here)

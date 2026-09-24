@@ -1649,6 +1649,7 @@ class CollabStore:
         if not self._root_present():
             return
         pending, self._gone_pending = self._gone_pending, {}
+        went = False
         for file_id, stamp in pending.items():
             record = self.files.get(file_id)
             if record is None or record.get("trashed"):
@@ -1670,6 +1671,16 @@ class CollabStore:
                 noted = getattr(self.session, "note_trashed", None)
                 if noted is not None:
                     noted(record.get("path") or "")
+                went = True
+        # And a build, once for the batch. The watcher's tick tells the
+        # compiler about every write it sees, but a file it saw go is only
+        # known to be deleted here, so a chapter removed in another terminal
+        # stayed on the page until the next keystroke. The honest build
+        # fails on the missing input and says so.
+        if went:
+            scheduled = getattr(self.session, "schedule_compile", None)
+            if scheduled is not None:
+                scheduled()
 
     def _record_outside_deletion(self, file_id: str, target: Path, stamp: str) -> None:
         """A text file the watcher saw go ends its history with a version.
