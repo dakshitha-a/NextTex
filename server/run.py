@@ -21,6 +21,8 @@ _RAN_AT = time.monotonic()
 
 import argparse
 import asyncio
+import atexit
+import signal
 import logging
 import os
 import socket
@@ -33,6 +35,7 @@ import uvicorn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from nexttex import lifeline
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools, required_missing
 
 
@@ -102,6 +105,25 @@ CLOCK = StartClock(_RAN_AT, _process_age())
 CLOCK.mark("imports")
 
 
+class _Server(uvicorn.Server):
+    """uvicorn's server, marking the end when it is asked to stop.
+
+    uvicorn catches SIGTERM and SIGINT, shuts down, and then raises the
+    signal again, so neither `main`'s `finally` nor an exit hook runs for
+    the most ordinary stop there is, a service manager's. Marked here, at
+    the moment the signal arrives, or every stop and every restart of the
+    unit would be reported at the next start as a server that ended
+    without a word."""
+
+    def handle_exit(self, sig, frame) -> None:
+        try:
+            name = signal.Signals(sig).name
+        except (ValueError, TypeError):
+            name = str(sig)
+        lifeline.stopped(f"asked to stop ({name})")
+        super().handle_exit(sig, frame)
+
+
 def tailscale_address() -> str | None:
     """This machine's tailnet address, if Tailscale is up."""
     import json
@@ -164,7 +186,7 @@ async def serve(settings: Settings) -> None:
             "server.main:app", host="127.0.0.1", port=settings.port,
             log_level="warning", access_log=False, proxy_headers=False,
         )
-        servers.append(uvicorn.Server(config))
+        servers.append(_Server(config))
         urls.append(f"http://127.0.0.1:{settings.port}")
 
     remote = settings.lan_host or (tailscale_address() if settings.tailscale else "")
@@ -183,7 +205,7 @@ async def serve(settings: Settings) -> None:
                 ssl_certfile=settings.certfile, ssl_keyfile=settings.keyfile,
                 log_level="warning", access_log=False, proxy_headers=False,
             )
-            servers.append(uvicorn.Server(config))
+            servers.append(_Server(config))
             urls.append(f"https://{remote}:{settings.port}")
 
     if not servers:
@@ -196,6 +218,13 @@ async def serve(settings: Settings) -> None:
         print(line)
     print()
 
+    async def keep_beating() -> None:
+        """The heartbeat, every minute while serving; see nexttex/lifeline.py."""
+        life = lifeline.current
+        while life is not None and not any(server.should_exit for server in servers):
+            life.beat()
+            await asyncio.sleep(lifeline.EVERY)
+
     async def say_when_answering() -> None:
         while not all(server.started for server in servers):
             if any(server.should_exit for server in servers):
@@ -207,9 +236,13 @@ async def serve(settings: Settings) -> None:
     # One loop, both sockets.  If either fails to bind, the whole thing
     # stops: a half-started server that silently drops the address the user
     # actually types is worse than not starting.
-    await asyncio.gather(
-        *(server.serve() for server in servers), say_when_answering(),
-    )
+    beating = asyncio.ensure_future(keep_beating())
+    try:
+        await asyncio.gather(
+            *(server.serve() for server in servers), say_when_answering(),
+        )
+    finally:
+        beating.cancel()
 
 
 def banner(urls: list[str], token: str, to_terminal: bool) -> list[str]:
@@ -316,6 +349,64 @@ def _open_when_up(port: int, url: str, timeout: float = 30.0) -> None:
             webbrowser.open(url)
             return
         time.sleep(0.25)
+
+
+def _keep_a_lifeline() -> None:
+    """Start the heartbeat, say what the last server left, and listen for
+    the ends Windows announces.
+
+    A Windows server has been found gone in the morning twice with nothing
+    anywhere to say why. What the previous one left is said first, so
+    server.log places its end to within a minute; the console handler
+    writes the event Windows sends a console process before ending it, a
+    closed window, a logoff or a shutdown, to server.err.log while it still
+    can. A process that is simply reaped sees nothing, and the next start
+    says so.
+    """
+    from nexttex.paths import state_home
+    from nexttex.version import VERSION
+
+    state = state_home()
+    said = lifeline.previous(state)
+    if said:
+        print(said)
+    lifeline.current = lifeline.Lifeline(state, VERSION)
+    lifeline.current.beat()
+    atexit.register(lifeline.stopped, "exited")
+    if sys.platform == "win32":
+        _hear_windows()
+
+
+#: What Windows calls the events a console process is told of before it
+#: is ended; see SetConsoleCtrlHandler.
+_CONSOLE_EVENTS = {
+    0: "Ctrl-C", 1: "Ctrl-Break", 2: "the console window was closed",
+    5: "the user logged off", 6: "the machine is shutting down",
+}
+_HANDLER = None
+
+
+def _hear_windows() -> None:
+    import ctypes
+
+    global _HANDLER
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
+    def handler(event: int) -> bool:
+        what = _CONSOLE_EVENTS.get(event, f"console event {event}")
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            print(f"{stamp} Windows said: {what}", file=sys.stderr, flush=True)
+        except Exception:
+            pass
+        lifeline.stopped(f"Windows said: {what}")
+        return False   # and let Windows go on to end the process
+
+    _HANDLER = handler   # kept, or the callback is collected under Windows
+    try:
+        ctypes.windll.kernel32.SetConsoleCtrlHandler(handler, True)
+    except (AttributeError, OSError):
+        pass
 
 
 def main() -> None:
@@ -440,10 +531,14 @@ def main() -> None:
 
     CLOCK.mark("the app")
 
+    _keep_a_lifeline()
+
     try:
         asyncio.run(serve(settings))
     except KeyboardInterrupt:
-        pass
+        lifeline.stopped("interrupted from the keyboard")
+    finally:
+        lifeline.stopped("exited")
 
 
 if __name__ == "__main__":

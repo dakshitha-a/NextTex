@@ -61,6 +61,21 @@ this host could not reproduce; each says which.
       that machine for the overnight disappearance can mistake a slow
       start for a failure to start, which one session nearly did.
 
+- [ ] **A Windows server exits silently overnight, and did again on 24
+      September.** Removed from this list on 23 September as not
+      reproduced, since a server there had survived a night of Modern
+      Standby. It came back: the 3.7.0 server the restart helper started
+      through the Startup shortcut at 00:28:49 was gone by 09:10, with its
+      start line the last thing in server.log, nothing new in
+      server.err.log, no crash or Windows Error Reporting record, no
+      reboot or logoff, and Modern Standby from 00:41 to 08:24. The
+      process-exit audit turned on there on 22 September was off again, so
+      the machine recorded nothing about the exit. The server now records
+      it itself: a heartbeat in the state directory every minute, a line
+      from a console-control handler, a line for every exit it sees, and
+      at the next start a line saying when the previous server was last
+      alive. The next death is placed to within a minute by that.
+
 ### Never run against the real thing
 
 - [ ] **The restart helper's scheduled-task branch has not run on a real

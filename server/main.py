@@ -5968,6 +5968,11 @@ def _leave_for_restart(windows: bool = os.name == "nt") -> None:
                 continue
             _note(note, f"helper started as pid {child.pid} (breakaway={breakaway}); leaving")
             break
+    # `os._exit` runs no exit handlers, so the end is marked here, or the
+    # next start would report every update as a server that died unseen.
+    from nexttex import lifeline
+
+    lifeline.stopped("restarting for an update")
     os._exit(3)
 
 
