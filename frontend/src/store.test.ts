@@ -563,3 +563,12 @@ describe("whether a transcript stopped in the middle", () => {
     expect(get().chat.filter((item: any) => item.kind === "notice")).toHaveLength(0);
   });
 });
+
+describe("the share's state, from its events", () => {
+  test("every collab_peers event is newer than anything fetched before it", () => {
+    const before = get().shareVersion;
+    __receive({ type: "collab_peers", shared: true, me: "a", members: [], removed: true });
+    expect(get().shareVersion).toBe(before + 1);
+    expect(get().share?.removed).toBe(true);
+  });
+});

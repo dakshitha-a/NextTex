@@ -501,16 +501,24 @@ export default function Editor({
         // and one sheet polled the same route for it, so nothing in the
         // tab strip could tell "nobody is here" from "somebody is here and
         // is not being drawn" from "they have gone for good".
+        // Only if nothing newer arrived while it was on its way: a removal
+        // announced in that gap was overwritten by this older answer, and
+        // the drawer's header went on offering an invite to an install
+        // that had been removed (a flake of the 24 September runs).
+        const asked = get().shareVersion;
         api.collab(projectId)
-          .then((collabState) => set({
-            peerId: collabState.me,
-            share: {
-              shared: collabState.shared,
-              me: collabState.me,
-              members: collabState.members,
-              removed: collabState.removed,
-            },
-          }))
+          .then((collabState) => {
+            set({ peerId: collabState.me });
+            if (get().shareVersion !== asked) return;
+            set({
+              share: {
+                shared: collabState.shared,
+                me: collabState.me,
+                members: collabState.members,
+                removed: collabState.removed,
+              },
+            });
+          })
           .catch(() => undefined);
         collab.current = module.collabFor(projectId, {
           name,

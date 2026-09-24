@@ -411,6 +411,9 @@ export type State = {
    *  socket to its own server, and the two must never be drawn as one
    *  thing. */
   share: { shared: boolean; me: string; members: Member[]; removed?: boolean } | null;
+  /** Bumped by every `collab_peers` event, so an answer fetched before one
+   *  arrived can tell it is older and leave the store alone. */
+  shareVersion: number;
   /** A project whose folder went away from under it while it was open.
    *  Shown once on the projects screen, where the row already says the
    *  folder is missing but not why the editor just closed. */
@@ -487,6 +490,7 @@ const state: State = {
   trashFailed: false,
   gitFailed: false,
   share: null,
+  shareVersion: 0,
   lostFolder: null,
   words: null,
   error: null,
@@ -1067,6 +1071,7 @@ function receive(event: any) {
           members: (event.members ?? []) as Member[],
           removed: Boolean(event.removed),
         },
+        shareVersion: state.shareVersion + 1,
       });
       break;
     }
