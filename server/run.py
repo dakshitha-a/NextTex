@@ -13,6 +13,12 @@ no gain.  Anything reachable from another machine is served over TLS.
 
 from __future__ import annotations
 
+# First, before anything slow is imported: the clock the start's own timing
+# is read against. See `StartClock`.
+import time
+
+_RAN_AT = time.monotonic()
+
 import argparse
 import asyncio
 import logging
@@ -28,6 +34,72 @@ import uvicorn
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools, required_missing
+
+
+def _process_age() -> float | None:
+    """Seconds since this process was created, or None where that cannot be
+    asked: the interpreter's own start and the imports it makes before this
+    file runs, which on a machine whose antivirus reads the whole virtual
+    environment is most of the wait."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+            handle = ctypes.windll.kernel32.GetCurrentProcess()
+            if not ctypes.windll.kernel32.GetProcessTimes(
+                handle, ctypes.byref(created), ctypes.byref(exited),
+                ctypes.byref(kernel), ctypes.byref(user),
+            ):
+                return None
+            ticks = (created.dwHighDateTime << 32) | created.dwLowDateTime
+            # FILETIME counts 100 ns intervals from 1601; the epoch is
+            # 11644473600 s later.
+            return max(0.0, time.time() - (ticks / 1e7 - 11644473600))
+        with open("/proc/self/stat", encoding="ascii") as stat:
+            fields = stat.read().rsplit(")", 1)[1].split()
+        with open("/proc/uptime", encoding="ascii") as uptime:
+            up = float(uptime.read().split()[0])
+        return max(0.0, up - int(fields[19]) / os.sysconf("SC_CLK_TCK"))
+    except (OSError, ValueError, IndexError, AttributeError):
+        return None
+
+
+class StartClock:
+    """How long each part of a start took, said once in the log.
+
+    A logon-started server on the Windows laptop took five minutes to
+    answer on 23 September 2026 where the same build from the desktop
+    shortcut took twenty-five seconds, and nothing said where the time
+    went: a cold disk, an antivirus reading a 400 MB virtual environment
+    and a freshly installed MiKTeX were all plausible and none was
+    measured. This is the measurement, one line in server.log per start.
+    """
+
+    def __init__(self, ran_at: float, age: float | None) -> None:
+        self.last = ran_at
+        self.before = age - (time.monotonic() - ran_at) if age is not None else None
+        self.steps: list[tuple[str, float]] = []
+
+    def mark(self, name: str) -> None:
+        now = time.monotonic()
+        self.steps.append((name, now - self.last))
+        self.last = now
+
+    def line(self) -> str:
+        parts = []
+        total = sum(seconds for _, seconds in self.steps)
+        if self.before is not None:
+            parts.append(f"the interpreter {self.before:.1f} s before this file ran")
+            total += self.before
+        parts += [f"{name} {seconds:.1f} s" for name, seconds in self.steps]
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        return f"{stamp} Answering after {total:.1f} s: " + ", ".join(parts) + "."
+
+
+CLOCK = StartClock(_RAN_AT, _process_age())
+CLOCK.mark("imports")
 
 
 def tailscale_address() -> str | None:
@@ -124,10 +196,20 @@ async def serve(settings: Settings) -> None:
         print(line)
     print()
 
+    async def say_when_answering() -> None:
+        while not all(server.started for server in servers):
+            if any(server.should_exit for server in servers):
+                return
+            await asyncio.sleep(0.05)
+        CLOCK.mark("listening")
+        print(CLOCK.line())
+
     # One loop, both sockets.  If either fails to bind, the whole thing
     # stops: a half-started server that silently drops the address the user
     # actually types is worse than not starting.
-    await asyncio.gather(*(server.serve() for server in servers))
+    await asyncio.gather(
+        *(server.serve() for server in servers), say_when_answering(),
+    )
 
 
 def banner(urls: list[str], token: str, to_terminal: bool) -> list[str]:
@@ -300,6 +382,7 @@ def main() -> None:
         return
 
     settings = Settings.load()
+    CLOCK.mark("settings")
     if arguments.port:
         settings.port = arguments.port
 
@@ -338,6 +421,7 @@ def main() -> None:
         print(f"  missing: {item}", file=sys.stderr)
     for item in missing_tools():
         print(f"  note: {item}")
+    CLOCK.mark("finding TeX")
 
     for host in filter(None, [
         "127.0.0.1" if settings.localhost else None,
@@ -348,6 +432,13 @@ def main() -> None:
                   f"Stop the other NextTex, or set a different port.",
                   file=sys.stderr)
             raise SystemExit(1)
+    CLOCK.mark("the port")
+
+    # Imported here rather than by uvicorn inside `serve`, so its cost is a
+    # step of its own; uvicorn then finds it already in `sys.modules`.
+    import server.main  # noqa: F401
+
+    CLOCK.mark("the app")
 
     try:
         asyncio.run(serve(settings))
