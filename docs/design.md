@@ -10481,5 +10481,8 @@ each with what in the paper supports it, and says plainly when nothing
 does; and never writes a `\cite` key or an entry, since a record goes in
 only through `add_reference`, from the publisher's record, when the
 writer asks. It edits nothing. The prompt list draws it like the other
-two, its first line as its hint. `tests/test_prompts.py` holds that it
+two, its first line as its hint; a first line longer than 140 characters
+is cut at a word and ends with an ellipsis, where it had been cut
+mid-word, which the fidelity render of this menu showed on the critical
+review's hint. `tests/test_prompts.py` holds that it
 ships and names the three tools and the two refusals.

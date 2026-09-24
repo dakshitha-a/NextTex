@@ -85,3 +85,11 @@ def test_missing_citations_proposes_records_and_never_writes_one():
         assert tool in found.text
     assert "Never write a citation yourself" in found.text
     assert "Do not edit the files" in found.text
+
+
+def test_a_long_first_line_is_cut_at_a_word_with_an_ellipsis():
+    line = "Read the selected passage, or the document in front of me if nothing is selected, " * 3
+    cut = prompts.hint(line.strip())
+    assert len(cut) <= prompts.HINT + 1 and cut.endswith("…")
+    assert line.startswith(cut[:-1]) and line[len(cut) - 1] in " ,"
+    assert prompts.hint("Short.") == "Short."

@@ -52,9 +52,21 @@ class Prompt:
             "said": self.said,
             "source": self.source,
             "text": self.text,
-            # The first line, for the menu's hint, cut to a sentence's width.
-            "hint": first[:140],
+            "hint": hint(first),
         }
+
+
+#: How long a hint may be before it is cut: a sentence's width.
+HINT = 140
+
+
+def hint(line: str) -> str:
+    """The first line, for the menu's hint, cut to a sentence's width at a
+    word and ended with an ellipsis, so it never stops inside a word."""
+    if len(line) <= HINT:
+        return line
+    cut = line[:HINT].rsplit(" ", 1)[0].rstrip(" ,;:")
+    return cut + "\u2026"
 
 
 def _read(path: Path, source: str) -> Prompt | None:
