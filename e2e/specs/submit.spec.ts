@@ -57,7 +57,7 @@ const SOURCE = [
   "Built on \\today.",
   "\\section{One}\\label{sec:one}",
   "\\section{Two}\\label{sec:one}",
-  "\\section{Three}\\label{sec:three}",
+  "\\section{Three}\\label{sec:threerelaxationinhexane}",
   "See section \\ref{sec:one} and \\cite{knuth84}. % TODO check this",
   "\\todo{tighten}",
   "% This paragraph was taken out of the introduction and kept here in case",
@@ -122,6 +122,20 @@ test("the panel lists what a venue would send back, and every row that has a pla
   // Every kind found has a row; the groups carry the counts now that the
   // drawer's heading is the bar's.
   expect(await rows.count()).toBeGreaterThanOrEqual(found.size);
+
+  // A long unbroken label wraps inside its column instead of running
+  // under the place beside it.
+  const overlaps = await rows.evaluateAll((els) => els.filter((el) => {
+    // The glyphs, not the box: the box keeps to its column while a word
+    // too long for it spills out.
+    const span = el.querySelector(".nx-find-text");
+    const range = document.createRange();
+    if (span) range.selectNodeContents(span);
+    const text = span ? range.getBoundingClientRect() : undefined;
+    const loc = el.querySelector(".nx-find-loc")?.getBoundingClientRect();
+    return text && loc && loc.width > 0 && text.right > loc.left + 0.5;
+  }).length);
+  expect(overlaps).toBe(0);
 
   // The `\today` row moves the caret to its line.
   await row("today").click();

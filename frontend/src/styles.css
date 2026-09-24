@@ -1860,7 +1860,7 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-find-bar { width: 3px; height: 100%; min-height: 18px; border-radius: 2px; background: var(--ink-3); }
 .nx-find[data-severity="error"] .nx-find-bar { background: var(--error); }
 .nx-find[data-severity="warning"] .nx-find-bar { background: var(--warn); }
-.nx-find-text { color: var(--ink); min-width: 0; }
+.nx-find-text { color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
 .nx-find-loc { color: var(--ink-3); font-size: 12px; font-family: var(--font-mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .nx-find-why { grid-column: 2 / span 2; color: var(--ink-3); font-size: 12.5px; line-height: 17px; margin-top: 2px; }
 .nx-find-why b { color: var(--ink); font-weight: 500; }

@@ -38,7 +38,11 @@ built and the rest moved into `docs/design.md` as decisions.
 Found on the way: the caret readout flake was a writer's first words in a
 new file being deleted by the watcher's late report of the file's
 creation, fixed in `CollabStore.body` with
-`tests/collab/test_a_new_file_keeps_its_first_keystrokes.py`.
+`tests/collab/test_a_new_file_keeps_its_first_keystrokes.py`. A
+submission row whose message holds one long unbroken word, such as
+`\label{sec:introduction}`, ran under its location in a narrow drawer;
+the message now wraps anywhere, and `e2e/specs/submit.spec.ts` measures
+the glyphs against the location.
 
 ## Backlog
 
