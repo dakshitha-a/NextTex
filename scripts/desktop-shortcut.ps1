@@ -15,8 +15,9 @@
   launcher reads the configuration, starts NextTex if nothing answers, and
   opens the browser once it does.
 
-  Minimised rather than hidden, for the same reason the login task is: a
-  window that reports nothing cannot tell anybody why it failed.
+  Windowless, like the login task, with what it prints in server.log and
+  server.err.log: a console window can be closed, and closing it ended the
+  server it had started.
 #>
 [CmdletBinding()]
 param(
@@ -27,7 +28,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$runner = Join-Path $Root '.venv\Scripts\python.exe'
+# pythonw.exe: the launcher may start the server itself, and a server
+# started from a console window ends when that window is closed. With no
+# console there is nothing to close. `--log-to-state` below keeps what it
+# prints.
+$runner = Join-Path $Root '.venv\Scripts\pythonw.exe'
 $entry = Join-Path $Root 'server\run.py'
 if (-not (Test-Path $runner)) {
   Write-Output "no interpreter at $runner"
@@ -46,7 +51,7 @@ $shortcut = $shell.CreateShortcut($link)
 $shortcut.TargetPath = $runner
 # The instance on the command line: a shortcut has no environment of its
 # own, and one for a second install used to open the first.
-$shortcut.Arguments = '-u "' + $entry + '" --open' + $(if ($Instance) { " --instance $Instance" } else { '' })
+$shortcut.Arguments = '-u "' + $entry + '" --open --log-to-state' + $(if ($Instance) { " --instance $Instance" } else { '' })
 $shortcut.WorkingDirectory = $Root
 $shortcut.WindowStyle = 7
 $shortcut.Description = 'Write LaTeX with the typeset page beside you'

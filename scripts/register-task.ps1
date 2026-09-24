@@ -29,7 +29,18 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$venv = Join-Path $Root '.venv\Scripts\python.exe'
+# pythonw.exe, the interpreter with no console. The task's server used to
+# be a console program, and Windows 11 hands a console program to Windows
+# Terminal, so the server lived in a terminal window, and closing that
+# window ended it: tried on the owner's laptop on 24 September 2026, and
+# server.err.log said "Windows said: the console window was closed". It is
+# also what ended the server that was found gone one morning. pythonw was
+# tried once before and dropped because a server that died on startup died
+# in silence; `--log-to-state` now puts server.log and server.err.log on its
+# own descriptors before anything heavy is imported, and every child it
+# starts is given no window (nexttex/winproc.py), so nothing is lost and no
+# console flashes up for a build.
+$venv = Join-Path $Root '.venv\Scripts\pythonw.exe'
 $entry = Join-Path $Root 'server\run.py'
 # On the command line, because a task and a shortcut carry no environment
 # of their own.  Setting $env:NEXTTEX_INSTANCE below reaches the one
@@ -82,26 +93,16 @@ try {
 }
 
 if (-not $registered) {
-  # python.exe, not pythonw.exe, and this is the second attempt at it.
-  #
-  # pythonw was chosen so that logging in did not leave a black rectangle on
-  # the desktop, and it does achieve that.  What it also does is discard
-  # stdout and stderr entirely, so a server that dies on startup dies in
-  # complete silence: no window, no message, no log.  That is exactly what
-  # happened -- the installer printed "started", the browser said the site
-  # could not be reached, and there was nothing anywhere to read.  A hidden
-  # window that reports nothing is worse than a minimised one that does.
-  #
-  # So the console interpreter runs it, the window is minimised rather than
-  # absent, and everything it writes goes to a file next to the install log.
+  # The same windowless interpreter as the task, for the same reason: a
+  # minimised console window is one a person can close, and closing it
+  # ends the server. Its output goes to server.log and server.err.log
+  # through `--log-to-state`, so it is not silent.
   $runner = $venv
   $startup = [Environment]::GetFolderPath('Startup')
   $link = Join-Path $startup "$Name.lnk"
   $shell = New-Object -ComObject WScript.Shell
   $shortcut = $shell.CreateShortcut($link)
-  # The shortcut cannot redirect, so it gets the minimised window instead:
-  # a taskbar button is a thing a person can find and read.  `-u` for the
-  # same reason as below.
+  # `-u` for the same reason as below.
   $shortcut.TargetPath = $runner
   $shortcut.Arguments = '-u ' + $entryArgs
   $shortcut.WorkingDirectory = $Root

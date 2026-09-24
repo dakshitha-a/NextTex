@@ -1458,3 +1458,43 @@ def test_neither_windows_launcher_starts_a_second_server_beside_a_running_one():
     assert text.count("$running = @(Get-CimInstance") == 1, "asked twice, and the two can disagree"
     shortcut_start = text.index("Start-Process -FilePath $runner")
     assert text.rindex("if ($running.Count)", 0, shortcut_start) > task_start
+
+
+def test_every_windows_launcher_starts_the_server_with_no_console_to_close():
+    """Closing the Windows Terminal window a console server lives in ends
+    it: tried on the owner's laptop on 24 September 2026, "Windows said:
+    the console window was closed". So every launcher runs pythonw.exe,
+    and every one passes --log-to-state, which is what keeps it from
+    dying in silence the way pythonw once did."""
+    task = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
+    link = (ROOT / "scripts" / "desktop-shortcut.ps1").read_text(encoding="utf-8")
+    assert "$venv = Join-Path $Root '.venv\\Scripts\\pythonw.exe'" in task
+    assert "$runner = $venv" in task          # the Startup shortcut too
+    assert "$runner = Join-Path $Root '.venv\\Scripts\\pythonw.exe'" in link
+    assert "--open --log-to-state" in link
+    assert "python.exe'" not in task.split("$venv =", 1)[1]
+    assert "python.exe'" not in link.split("$runner =", 1)[1]
+
+
+def test_a_windowless_server_gives_its_children_no_window_either(monkeypatch):
+    """A console program started by a windowless one opens a console window
+    of its own unless asked not to, so every child is given
+    CREATE_NO_WINDOW; a caller that chose a console of its own keeps it."""
+    import subprocess
+
+    from nexttex import winproc
+
+    seen = []
+
+    def fake_init(self, *args, creationflags=0, **kwargs):
+        seen.append(creationflags)
+
+    monkeypatch.setattr(subprocess.Popen, "__init__", fake_init)
+    monkeypatch.setattr(winproc, "_installed", False)
+    assert winproc.quiet_children("linux") is False
+    assert winproc.quiet_children("win32") is True
+    subprocess.Popen(["latexmk"])
+    subprocess.Popen(["x"], creationflags=0x200)
+    subprocess.Popen(["y"], creationflags=0x10)      # CREATE_NEW_CONSOLE
+    assert seen == [winproc.CREATE_NO_WINDOW, 0x200 | winproc.CREATE_NO_WINDOW, 0x10]
+    assert winproc.quiet_children("win32") is False  # once

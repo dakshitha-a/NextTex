@@ -456,6 +456,11 @@ def main() -> None:
         os.environ["NEXTTEX_INSTANCE"] = arguments.instance
     if arguments.log_to_state:
         _log_to_state()
+        # Started by a launcher, which on Windows is `pythonw.exe` with no
+        # console: every child is told to make no console window either.
+        from nexttex.winproc import quiet_children
+
+        quiet_children()
 
     if arguments.version:
         _print_version()

@@ -331,14 +331,15 @@ it is the shortcut, there is no task to start or stop: run
 `server\run.py` to stop it. `shell:startup` in the Run box opens the folder
 the shortcut is in.
 
-Not `pythonw`. It was tried, so that logging in did not leave a black
-rectangle on the desktop, and what it also does is discard everything the
-server prints: a server that dies on startup dies in complete silence, no
-window and no log. The shortcut runs the console interpreter minimised
-instead. Both the task and the shortcut start it with `--log-to-state`,
-which sends everything it prints to `server.log` and `server.err.log`
-beside the install log, so a server that will not start has left its last
-words there whichever way it was started.
+The task and the shortcuts run `pythonw.exe`, the interpreter with no
+window, so there is no terminal window holding NextTex that closing would
+stop it with. Each starts it with `--log-to-state`, which sends everything
+it prints to `server.log` and `server.err.log` beside the install log, so
+a server that will not start has left its last words there however it was
+started, and nothing it runs for you, a build or a git command, opens a
+window of its own. An install set up before 3.17.2 has a task that still
+runs `python.exe`; run `scripts\register-task.ps1` once more, as the
+installer does, to move it over.
 
 **Any platform.** To print the URL and token again, which is the way back in
 if you have forgotten the password. A server started as a service prints

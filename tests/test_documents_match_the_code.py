@@ -226,9 +226,12 @@ def test_the_readme_starts_windows_the_way_the_installer_does():
         "the README starts the Windows server with the silent interpreter"
     )
     assert "python.exe -u server\\run.py" in readme
-    # And the shortcut agrees with it.
+    # The launchers do use pythonw since 24 September 2026, because a
+    # console window can be closed and closing it ended the server; and
+    # they are not silent, because every one of them passes --log-to-state.
     task = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
-    assert "pythonw" not in task.replace("# ", "").split("$runner = $venv")[1]
+    assert "'.venv\\Scripts\\pythonw.exe'" in task
+    assert "--log-to-state" in task.split("$entryArgs =", 1)[1].splitlines()[0]
 
 
 def test_the_two_places_that_quote_a_tier_time_agree():
