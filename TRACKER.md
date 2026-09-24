@@ -24,183 +24,21 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The backlog close-out went up as 3.6.1 to 3.6.9 on 22 and 23 September,
-over two legs: the browser-tier flakes and the download report on this
-host, and everything Windows on the writer's laptop, driven by a session
-of its own. It took the backlog's unverified half, the items open only
-because nobody could reproduce them or nobody had the machine.
+**The roadmap, the rest of the backlog, and comments**, one run begun on
+24 September 2026. Its tracker page is
+https://claude.ai/artifact/7LzPbY8jvhfg3xSbAMqMwY and every interface
+change in it is drawn first on the direction page. In order: the backlog
+work that needs no drawing, then the Windows laptop, then Stop against the
+real CLI, then the two backlog surfaces, then comments, a feature the
+writer asked for while the run was planned, then the seven roadmap items,
+one push each. The known gaps below are the run's to close or re-file;
+the items deliberately not done are being re-judged, the cheap ones
+built and the rest moved into `docs/design.md` as decisions.
 
-Three of the five flakes were not flakes. The People drawer's timeout was
-a browser that had never been told its project was shared, because that
-flag is published on a transition and nothing could ask for it. The caret
-readout was a keystroke landing in the file the writer had just left,
-through the three round trips it takes to open a document. And the
-restart helper's Startup-shortcut branch, which this file said had run
-nowhere, had run three times on that laptop before anybody looked.
-
-Doing the documented thing on a real machine found seven more: two
-download controls still on the link pattern `43e9c2c` swept away six days
-earlier and named one of them while missing it; an uninstall line that
-killed the shell running it and left a half-uninstall looking like
-success; a git error reduced to its last line, which for an unreachable
-remote is the fragment "and the repository exists."; an explicit
-`--tex=miktex` discarded in silence on any machine that already had a
-TeX; a TeX search that inverted its own priority so the poorest directory
-won; a trash entry that said the writer deleted a file nobody had; and a
-hover card fetching a whole 192 MiB image to draw a picture a few hundred
-pixels wide.
-
-And one that was none of those. A file moved out of a watched project and
-back was moved into NextTex's own trash, and the path then swallowed
-whatever was written there afterwards. A sync client, a `git` checkout
-and any editor that saves by writing a temporary file and renaming it
-over the target all make exactly that move. Four causes, six tests, and
-two corrections along the way: an existing history test caught a first
-fix handing a new file the identity of a deleted one, and CI caught a
-second walking every record on every file creation.
-
-The Windows leg ran the uninstall, a clean install with MiKTeX fetched by
-the installer, the update button twice, the logon task with a reboot into
-it, and the desktop shortcut. The logon task branch had run nowhere but a
-runner since this project began. What it could not do is in the backlog
-with its reason. The run's tracker is
-https://claude.ai/artifact/NJ2VxtkGiPiwe3Sh3TFHxu.
-
-The placement run goes up as 3.5.0 on 22 September, raised by the writer
-after 3.4.2 as a tune up of the hover cards and the selection menu: the
-cards blocked the thing hovered and vanished on the way to their buttons,
-and the menu had no order to where it appeared. Renders at 100 % and
-125 % interface size found one cause under both, the shell's `zoom`
-against measurements written as CSS pixels, and two more under the
-cards: CodeMirror's layer pinning a card over a multi-line range, and a
-button press leaving the card open. One placement rule, `placeClear`,
-now serves the verb row and the card; the card is a plugin of its own
-that stays for the pointer. Section 61 of `docs/design.md` and the
-direction page's Clear of the text section (version 54) carry the
-record; the tracker is https://claude.ai/artifact/JQviUT4Tsyy5xAX21SYW6e.
-The same run then raises the dark theme's floor, at the writer's word,
-as its own push.
-
-The hover cards run went up as 3.4.0 on 21 September, planned after the
-writer asked for a toggle for the editor's hover previews and control
-over which kinds get one: a switch called Hover cards on the settings
-sheet's While you write group and, under it while the switch is on, six
-toggle chips, Equations, Tables, Figures, Cross-references, Citations,
-Files, a new kit control, `ChipToggle`. The drawing went on the direction
-page (version 51) and was approved before any code; the sheet was
-rendered in both themes and with the switch off beside it, and matched.
-The gate is a live read of `data-hover-cards` off the root at the moment
-of the hover, so nothing is reconfigured; a reference's card draws the
-thing it points at only while that thing's own kind is on. Two reports
-arrived after the push and were folded in as 3.4.1: a bibliography
-garbled on screen after two outside writes (pycrdt indexes a shared text
-in UTF-8 bytes and the store's diff was in code points; `splice` converts
-now and a guard puts the file in whole if a fold ever leaves the document
-differing from it), and figures on the wrong page until a whole rebuild
-(compile as you type is one engine pass, and the engine's own "rerun"
-hints went unread; a settling full build now follows a fast pass that
-left the layout unconverged, superseded by the next keystroke). The
-run's tracker is https://claude.ai/artifact/AQ3u3A5natmoaGvokAse2Z.
-
-The fit run went up as 3.3.0 on 21 September, planned against version
-47 of the direction page from what the writer found on opening 3.2.0:
-the project's name running past a narrowed drawer into the editor (the
-left column had no width of its own; it now states the bar, the drawer
-and the handle, and a name that does not fit fades at the column's edge
-and glides under the pointer, the writer's choice from three drawings,
-with the Files count yielding before its word at the drawer's
-narrowest), the four feet's controls 2 px above their strips' centre
-line (one class, `nx-foot`, carrying the drawers' foot padding onto the
-strips; the drawers' rule is `nx-panel-foot` now), a tab's keyboard ring
-in the pen colour outside its block where the guide gives rings the hint
-colour, three drawers (the bibliography's, Deleted and History) drawing
-an empty state for the round trip before their first answer, and the
-bibliography drawer's name, which is References. Every surface was
-compared with the page in both themes before its commit, and none
-deviated; the run's tracker is
-https://claude.ai/artifact/CBDEP9n8hMH2MhUahVY6e2.
-
-The frame run went up as 3.2.0 on 21 September, planned against version
-44 of the direction page after the writer opened 3.1.0 on a real
-manuscript: no title bar, the project's name heading the left column,
-the four first rows one band on the surround with the activity bar and
-a foot under each column on the surround too, no line between panes at
-rest, the open tab as the pane's own block with a short rule parting the
-rest, New conversation in the composer; People, Build and Download as
-drawers on the bar in place of the title bar's Share and Download and
-the tray under the source; the formula and table cards without their
-source; and a reference to a figure, a table or an equation drawing the
-thing on hover, from an environment index the scan now keeps. Every
-surface was compared with the page in both themes before its commit.
-Two things it changed on the page, recorded there: the light theme's
-error and warn inks stepped one shade darker to clear the surround, and
-an invite's note says a week, which is what the server keeps. Two
-tangents on the way: a collaborator's caret position is reported on
-every move rather than only while typing, and `AppControls`, the folded
-rail's bar from before the overhaul that nothing mounted, went with the
-download menu. The writer then settled the five differences the run
-put to them, all as built, the plan block in the Claude column among
-them: it sits before the agent's words, in transcript order, and the
-page now draws it there.
-
-The visual overhaul, after 2.18.0, rebuilds the interface on one kit and
-goes up as two pushes. It was planned over seventeen versions of a
-direction page the writer went through surface by surface, and that page
-is the specification: every surface is compared with it before its
-commit. The first push, 3.0.0, is the workspace: the tokens and the type
-roles on one family, a kit under every control, every menu and card on
-it, the light theme lit throughout, an activity bar and one drawer in
-place of the accordion rail, the Claude column, the strips, the editor's
-own chrome, and the settings sheet as master-detail; it is an x because
-the editor page goes from six grounds to two, the theme's own and the
-page's white. The second, 3.1.0, is the front door: the projects screen
-as a list under an app bar, with the writing agent chosen and set up
-there, a job application among the presets and Share on a row; the
-screenshots, README and design sections follow. What it leaves is
-written here as it is found.
-
-The workspace push went up as 3.0.0 on 20 September with every item of
-Phases 1 and 2 landed and compared with the page in both themes: the
-tokens, the type on one family, the kit and every overlay on it, the
-light theme lit throughout, the activity bar and one drawer with the
-eight instruments rebuilt, the strips and the tab strips, the master
-detail settings sheet, the Claude column with its views and composer,
-the editor's find strip and Vim bar, and the Git and Files drawers.
-Three things it left for the writer, on the tracker: the table hover
-card (item 2.10a) is drawn on the page as version 20 and waits on a
-yes before its code; the floating Claude pill keeps its earlier look
-because the page did not draw one; and the plan block in the column
-sits before the agent's words, as the transcript orders it, where the
-page drew it after. The CSS retirement of `.quiet` and `.ghost-button`
-follows the front door's rebuild (item 3.5), since those files still
-wear them.
-
-The front door went up as 3.1.0 on 20 September, and the overhaul is
-finished: the projects screen as a list under an app bar (3.1), Share
-from a row (3.1a), the job application template (3.1b), the writing
-agent chosen and set up in one sheet reached from the bar, the settings
-sheet and the Claude column (3.1c), projects archived or put in the
-trash with their views and restore (3.1d), the app bar's lock with its
-hover card, the join offer inside its sheet and the access card's bodies
-(3.2), the floating pill on the kit's card with its shortcut in the
-tooltip (3.2a), the update sheet, the tutorial brought up to date on the
-kit with its figures regenerated, the screen guide, the failure and
-waiting screens, all closing with Esc (3.3), the README's thirteen
-pictures and its prose read against the app (3.4, 3.4a), the record in
-`docs/design.md` §56 and the style guide, `docs/style-guide.md`, with
-its rule in `CLAUDE.md` (3.5, 3.5a), the figure hover as the tree's card
-(3.6), and the three legacy button classes gone from the stylesheet.
-Every surface was compared with the page in both themes; the three
-deviations the writer settled on the page (the frame's grey, the
-banner's verb, the pill) are recorded there. One difference is still
-with the writer: the plan block in the Claude column sits before the
-agent's words, in the order the transcript has them, where the page drew
-it after; it was reported at 3.0.0 and has had no answer, and moving it
-is a small change if the writer wants the page's order. Nothing else on
-the interface was left; the tangents the run fixed on the way are in the
-log, the last of them found by the front door's sweep,
-`e2e/shots/front-sweep.spec.ts`, which now runs beside the workspace's
-at every push.
+Found on the way: the caret readout flake was a writer's first words in a
+new file being deleted by the watcher's late report of the file's
+creation, fixed in `CollabStore.body` with
+`tests/collab/test_a_new_file_keeps_its_first_keystrokes.py`.
 
 ## Backlog
 
@@ -257,17 +95,6 @@ this host could not reproduce; each says which.
       writer nothing is pending when something is, and takes two clicks
       to open the sheet. Both are for the next interface run, drawn on the
       direction page before they are built.
-- [ ] **`navigation.spec.ts` "the caret readout belongs to the file on
-      screen" still fails now and then.** The backlog close-out traced it
-      to a keystroke landing in the file the writer had just left, and
-      fixed that. On 23 September it failed again, once in three full runs
-      of the browser tier with retries off: the readout said "Ln 1, Col 2"
-      where "Ln 1, Col 4" was expected, so two keystrokes were missing or
-      went elsewhere. Its trace is in `e2e/test-results/` on the owner's
-      Linux host until the next run clears it. Those three runs also had
-      two other failures that were not captured by name, so the tier has
-      at least one more intermittent test. `--retries 0` with
-      `--reporter list` is the way to name them.
 - [ ] **The printed token link is refused when a browser extension drives
       the navigation.** `_same_origin_request` (`server/main.py:720`)
       accepts `Sec-Fetch-Site` of `none` or `same-origin`, and an

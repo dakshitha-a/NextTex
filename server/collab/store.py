@@ -686,6 +686,15 @@ class CollabStore:
                 if on_disk:
                     with doc.transaction(origin=FROM_DISK):
                         text += on_disk
+                # An empty file is recorded as written empty. It was left
+                # out, and the watcher's late report of a file just made,
+                # read while the disk was still empty, then missed the echo
+                # guard and folded "" over whatever had been typed into it.
+                # See test_a_new_file_keeps_its_first_keystrokes.py. Only a
+                # file that is there, since `_read` says "" for a missing
+                # one too, and a peer's empty file recorded as written
+                # would never be written.
+                if on_disk or self._is_file(record["path"]):
                     self.last_projected[file_id] = on_disk
                     self._note_projected(file_id, on_disk)
         else:
@@ -1139,6 +1148,12 @@ class CollabStore:
             return read_text(self.project.resolve(relative)) or ""
         except (OSError, ValueError):
             return ""
+
+    def _is_file(self, relative: str) -> bool:
+        try:
+            return self.project.resolve(relative).is_file()
+        except (OSError, ValueError):
+            return False
 
     def note_gone(self, relative: str) -> bool:
         """A file this install has just moved to the trash.

@@ -368,6 +368,12 @@ test("the caret readout belongs to the file on screen", async ({ tab }) => {
   // the next keystroke moved it. And the keystroke after the swap must
   // still reach the readout, which is the half the first attempt broke.
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  // The document, not the frame: the editor is drawn before main.tex has
+  // arrived, and a Ctrl-End into the empty view it holds meanwhile lands
+  // on line 1, which is where this spec failed once in fifty under load.
+  await expect(tab.getByTestId("editor-host")).toHaveAttribute(
+    "data-shown", "main.tex", { timeout: 30_000 },
+  );
   const caret = tab.getByTestId("caret");
   await tab.locator(".cm-content").click();
   // The end of the file rather than a counted number of ArrowDowns: the
