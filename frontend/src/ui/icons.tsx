@@ -41,6 +41,10 @@ export const SearchIcon = icon(<><circle cx="7" cy="7" r="4" /><path d="M10 10l3
 export const SectionsIcon = icon(<path d="M3 4h10M5 8h8M7 12h6" />);
 export const PapersIcon = icon(<><path d="M3 3h7a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2z" /><path d="M12 5h1v9" /></>);
 export const HistoryIcon = icon(<><circle cx="8" cy="8" r="5.5" /><path d="M8 5v3l2 1.5" /></>);
+/** A speech bubble with two lines in it, for comments. The report icon is
+ *  the same bubble with a mark of exclamation, so the lines are what tell
+ *  them apart. */
+export const CommentIcon = icon(<><path d="M3 3h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7.5l-3 2.5V11H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /><path d="M5 6h6M5 8.2h3.5" /></>);
 export const PeopleIcon = icon(<><circle cx="6" cy="5.5" r="2.5" /><path d="M1.5 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" /><circle cx="11.5" cy="6" r="2" /><path d="M12 9.5c1.7.2 2.8 1.5 2.8 3.5" /></>);
 export const BuildIcon = icon(<><path d="M9 3.5l3.5 3.5" /><path d="M8 4.5l1-1 4 4-1 1z" /><path d="M8.5 6.5L3 12l1.5 1.5L10 8" /></>);
 export const GitIcon = icon(<><circle cx="5" cy="4" r="1.5" /><circle cx="5" cy="12" r="1.5" /><circle cx="11" cy="6" r="1.5" /><path d="M5 5.5v5M11 7.5c0 2-6 1-6 3" /></>);

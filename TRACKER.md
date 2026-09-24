@@ -121,6 +121,13 @@ this host could not reproduce; each says which.
 
 ### Deliberately not done, and worth revisiting only if something changes
 
+- [ ] **The agent does not read comments.** A thread is on the manifest,
+      where the agent's tools do not look, so "answer the open comments in
+      chapter 2" means nothing to it yet. Left out of the run that built
+      comments to keep that run to what the writer asked for; the natural
+      shape is a tool that lists a file's open threads with their quotes,
+      and a reply the agent writes goes through the same route as a
+      person's, under the agent's name.
 - [ ] **`password.spec.ts` "setting a password says so and closes itself"
       timed out once in four full runs**, and is understood well enough to
       be left alone. The close-out run worked the arithmetic rather than

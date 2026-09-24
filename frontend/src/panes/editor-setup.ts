@@ -272,6 +272,10 @@ export const spellCompartment = new Compartment();
  *  session that wants neither pays nothing.  First in the extensions so
  *  its keys are seen before the app's own. */
 export const keymapCompartment = new Compartment();
+/** Comments' underline, gutter and key, filled by the lazily loaded
+ *  `EditorComments` so none of it is in the entry bundle; like the keymap,
+ *  re-applied after every swap, since each file's state starts it empty. */
+export const commentCompartment = new Compartment();
 /** Held shut while a file swap is in flight.
  *
  *  Opening a file is three awaits long: connect, open the shared
@@ -597,6 +601,7 @@ function renameKey(onSymbol: OnSymbol): Extension {
 function base(): Extension[] {
   return [
     keymapCompartment.of([]),
+    commentCompartment.of([]),
     swapCompartment.of([]),
     lineNumbers(),
     // The fold markers, drawn only where `latexFolding` answers, and a

@@ -48,6 +48,7 @@ close the tab. No database, no Docker, no nginx.
 - [Writing it with somebody else](#writing-it-with-somebody-else)
   - [Both of you keep a whole copy](#both-of-you-keep-a-whole-copy)
   - [You can see where they are](#you-can-see-where-they-are)
+  - [You can leave a note on the text](#you-can-leave-a-note-on-the-text)
   - [A collaborator is a public key](#a-collaborator-is-a-public-key)
   - [Nobody owns it, and anyone can leave](#nobody-owns-it-and-anyone-can-leave)
   - [Losing your folder is not losing your place](#losing-your-folder-is-not-losing-your-place)
@@ -614,7 +615,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 855.5 kB | 860 kB |
+| Interface bundle | 857.6 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -1111,6 +1112,22 @@ else is in the project, filled in while they are typing, outlined while
 they are only there. Their name is on the versions they wrote, so a month
 later the history says who changed the paragraph.
 
+### You can leave a note on the text
+
+Select a word or a paragraph and choose *Comment*, or press `Ctrl-Alt-M`
+(`⌘⌥M` on a Mac), and write a note on it, the way you would in the margin
+of a printed draft. The text you commented on is underlined and a small
+speech bubble sits beside its line number; rest the pointer on either to
+read the note, and click to open the thread and reply. Everyone in the
+project sees it and can answer, and a thread follows its words as the
+text around it is edited, by you, by them or by another editor. When it
+is settled, *Resolve* takes it off the text and into the archive at the
+foot of the Comments drawer, where every thread in the project is listed
+by file and a click takes you to it. A thread whose words were deleted
+stays in the list and says so. Comments work in a project you have not
+shared, too, as notes to yourself, and they never go into your `.tex`
+files.
+
 ### A collaborator is a public key
 
 There are no accounts, no server in the middle, and nothing to sign up
@@ -1507,6 +1524,7 @@ of these, every setting and every file by typing.
 | `⌘⇧[` `⌘⇧]` / `Ctrl-Shift-[` `Ctrl-Shift-]` | Fold or unfold the section or environment the caret is in; the chevron in the gutter does the same, and `⌘⌥[` / `Ctrl-Alt-[` folds everything |
 | `↹` or `↵`, in the completion list | Take the suggestion |
 | `Esc` | Back to one caret |
+| `⌘⌥M` / `Ctrl-Alt-M` | Comment on the selection |
 
 ### On the page
 

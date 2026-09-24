@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import hashlib
 import logging
 import json
@@ -3284,6 +3285,96 @@ async def empty_trash(project_id: str):
 # ---------------------------------------------------------------------------
 # Version history
 
+
+
+# --- comments -----------------------------------------------------------------
+
+#: What a thread id looks like, so one off a URL is checked before it is used.
+_THREAD_ID = re.compile(r"c[0-9a-f]{12}")
+
+
+def _thread_id(thread_id: str) -> str:
+    if not _THREAD_ID.fullmatch(thread_id or ""):
+        raise HTTPException(404, "there is no such thread")
+    return thread_id
+
+
+def _comment_call(action):
+    """Run a comment action, turning its refusal into a sentence."""
+    from server.collab.comments import CommentError
+
+    try:
+        return action()
+    except CommentError as error:
+        raise HTTPException(400, str(error))
+
+
+@functools.lru_cache(maxsize=1)
+def _install_peer() -> str:
+    from server.collab.identity import peer_id
+
+    return peer_id()
+
+
+def _comments(session: ProjectSession):
+    """A project's threads, written as this install: its own key, shared or
+    not, so a thread made before a project is shared is still the writer's
+    after, and the name collaborators know it by, else the one in the
+    settings."""
+    from server.collab.comments import Comments
+
+    return Comments(session.collab, lambda: {
+        "name": session._peer_name() or SETTINGS.display_name or "",
+        "peer": _install_peer(),
+    })
+
+
+@app.get("/api/projects/{project_id}/comments")
+async def comments_list(project_id: str):
+    """Every thread in the project, where each one is now."""
+    session = session_for(project_id)
+    return {"threads": _comments(session).listing()}
+
+
+@app.post("/api/projects/{project_id}/comments")
+async def comments_create(
+    project_id: str,
+    path: str = Body(...),
+    start: str = Body(...),
+    end: str = Body(...),
+    quote: str = Body(""),
+    line: int = Body(1),
+    body: str = Body(...),
+):
+    """A new thread on a range of one file, anchored by the browser that made
+    it. The path goes through the same fence as every other route's."""
+    session = session_for(project_id)
+    _target, relative = _safe_rel(session, path)
+    made = _comment_call(
+        lambda: _comments(session).create(relative, start, end, quote, line, body)
+    )
+    return {"id": made}
+
+
+@app.post("/api/projects/{project_id}/comments/{thread_id}/reply")
+async def comments_reply(project_id: str, thread_id: str, body: str = Body(..., embed=True)):
+    session = session_for(project_id)
+    _comment_call(lambda: _comments(session).reply(_thread_id(thread_id), body))
+    return {"ok": True}
+
+
+@app.post("/api/projects/{project_id}/comments/{thread_id}/resolve")
+async def comments_resolve(project_id: str, thread_id: str, resolved: bool = Body(..., embed=True)):
+    session = session_for(project_id)
+    _comment_call(lambda: _comments(session).resolve(_thread_id(thread_id), resolved))
+    return {"ok": True}
+
+
+@app.delete("/api/projects/{project_id}/comments/{thread_id}")
+async def comments_delete(project_id: str, thread_id: str):
+    session = session_for(project_id)
+    _comment_call(lambda: _comments(session).delete(_thread_id(thread_id)))
+    return {"ok": True}
 
 @app.get("/api/projects/{project_id}/history")
 async def file_history(project_id: str, path: str):

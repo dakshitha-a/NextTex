@@ -49,6 +49,7 @@ import {
   get,
   handlers,
   reconcile,
+  refreshComments,
   refreshContext,
   refreshGit,
   refreshHistory,
@@ -105,7 +106,7 @@ import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
 import {
-  BuildIcon, DownloadIcon, FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, PeopleIcon,
+  BuildIcon, DownloadIcon, FileIcon, FolderIcon, GitIcon, HistoryIcon, PapersIcon, PeopleIcon, CommentIcon,
   PlusIcon, ReportIcon, SearchIcon, SectionsIcon, SubmitIcon, TrashIcon, UpdateIcon,
 } from "./ui/icons";
 import { agentName, type Provider } from "./agent-name";
@@ -138,6 +139,7 @@ import { actionFor } from "./actions";
  *  is what paid for the fold gutter; `bench/thresholds.json` had asked for
  *  exactly this before the budget was raised a third time. */
 const TrashPanel = lazy(() => import("./panes/TrashPanel"));
+const CommentsPanel = lazy(() => import("./panes/CommentsPanel"));
 /** The largest panel in the rail after the tree, and the last one that was
  *  not lazy.  It draws headings a moment after a static one would, from
  *  the same outline; taken out when the second roadmap run's fourth tile
@@ -160,7 +162,8 @@ const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
  *  is reached from the agent column, and moves into it with the column's
  *  own rebuild. */
 export type DrawerId =
-  | "files" | "sections" | "search" | "papers" | "history" | "git" | "people" | "build" | "submit" | "download" | "trash";
+  | "files" | "sections" | "search" | "papers" | "history" | "git" | "people" | "comments"
+  | "build" | "submit" | "download" | "trash";
 const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "files", title: "Files", Icon: () => <FileIcon size={18} /> },
   { id: "sections", title: "Sections", Icon: () => <SectionsIcon size={18} /> },
@@ -173,6 +176,10 @@ const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "history", title: "History", Icon: () => <HistoryIcon size={18} /> },
   { id: "git", title: "Git", Icon: () => <GitIcon size={18} /> },
   { id: "people", title: "People", Icon: () => <PeopleIcon size={18} /> },
+  // Its own drawer rather than a section of People: comments are used
+  // alone too, as notes to self, and open and resolved threads need the
+  // full height. No count on the icon.
+  { id: "comments", title: "Comments", Icon: () => <CommentIcon size={18} /> },
   { id: "build", title: "Build", Icon: () => <BuildIcon size={18} /> },
   { id: "submit", title: "Before you submit", Icon: () => <SubmitIcon size={18} /> },
   { id: "download", title: "Download", Icon: () => <DownloadIcon size={18} /> },
@@ -533,6 +540,10 @@ export default function App() {
     void reconcile();
     connect(id);
     refreshContext(id);
+    // Now rather than when the drawer opens: the editor draws a thread's
+    // mark and gutter icon on the file the moment it is shown.
+    set({ comments: [], openThread: null });
+    void refreshComments(id);
     setView("editor");
     // So a reload, or a browser restoring its tabs tomorrow morning, comes
     // back to the document rather than to the list of projects.
@@ -2328,6 +2339,9 @@ export default function App() {
                 />
                     ) : null}
                     {drawerId === "trash" ? <TrashPanel onRefresh={refreshTree} /> : null}
+                    {drawerId === "comments" ? (
+                      <CommentsPanel onOpen={(file, line) => openFile(file, line)} />
+                    ) : null}
                     {drawerId === "papers" ? (
                       <PapersPanel onRefresh={refreshTree} chooseNonce={choosePapers} />
                     ) : null}

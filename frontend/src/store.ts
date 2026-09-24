@@ -25,6 +25,7 @@ import api, {
   type ScriptResult,
   type ProjectSummary,
   type TrashEntry,
+  type CommentThread,
   type TreeNode,
   type Version,
 } from "./api";
@@ -199,6 +200,11 @@ export type State = {
   viewing: { path: string; sha: string; version: Version } | null;
   history: Version[];
   trash: TrashEntry[];
+  /** Every comment thread in the project, open and resolved, in document
+   *  order. Refreshed on `comments_changed`. */
+  comments: CommentThread[];
+  /** The thread whose card is open in the editor, if any. */
+  openThread: string | null;
   /** The script on the preview strip, if one is: the `.py` in front of
    *  the editor, or the one last run.  One at a time, and this window's
    *  own, never the server's strip: a script tab is where a run's output
@@ -423,6 +429,8 @@ const state: State = {
   viewing: null,
   history: [],
   trash: [],
+  comments: [],
+  openThread: null,
   script: null,
   markdown: null,
   markdownSource: null,
@@ -1252,6 +1260,9 @@ function receive(event: any) {
     case "trash_changed":
       if (state.projectId) refreshTrash(state.projectId);
       break;
+    case "comments_changed":
+      if (state.projectId) refreshComments(state.projectId);
+      break;
     case "root_lost":
       // The server has closed the project: its folder was deleted, moved,
       // or is on a drive that went away.  Nothing typed from here on
@@ -1556,6 +1567,21 @@ export async function refreshTrash(projectId: string) {
     set({ trash: (await api.trash(projectId)).entries, trashFailed: false });
   } catch {
     set({ trash: [], trashFailed: true });
+  }
+}
+
+export async function refreshComments(projectId: string) {
+  try {
+    const { threads } = await api.comments(projectId);
+    if (get().projectId !== projectId) return;
+    const open = get().openThread;
+    set({
+      comments: threads,
+      // A thread deleted elsewhere closes its card here.
+      openThread: open && threads.some((thread) => thread.id === open) ? open : null,
+    });
+  } catch {
+    /* the next event tries again */
   }
 }
 

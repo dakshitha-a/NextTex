@@ -55,6 +55,17 @@ async function seedState(tab: Page, state: "archived" | "trashed", name: string)
   await tab.request.post(`${ctx!.base}/api/projects/${id}/state`, { data: { state } });
 }
 
+/** The sentence the comment surfaces are drawn on, at the end of the
+ *  file, with its last word selected. */
+async function commentSentence(tab: Page) {
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.press("Enter");
+  await tab.keyboard.type("The fast component is 180 fs in hexane.");
+  await tab.keyboard.press("ArrowLeft");
+  for (let i = 0; i < 6; i += 1) await tab.keyboard.press("Shift+ArrowLeft");
+}
+
 const escape = async (tab: Page) => {
   await tab.keyboard.press("Escape");
   await tab.waitForTimeout(150);
@@ -704,6 +715,50 @@ const SURFACES: Record<string, Surface> = {
       await escape(tab);
       await tab.getByTestId("project-row").first().click();
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  "comment-toolbar": {
+    open: async (tab) => {
+      await commentSentence(tab);
+      await tab.getByTestId("selection-actions").waitFor();
+      return tab.getByTestId("editor-host");
+    },
+    close: escape,
+  },
+  "comment-composer": {
+    open: async (tab) => {
+      await commentSentence(tab);
+      await tab.getByTestId("selection-comment").click();
+      await tab.getByRole("textbox", { name: "Comment" }).fill("Is this assignment ours or from Schuurman 2018?");
+      return tab.getByTestId("editor-host");
+    },
+    close: escape,
+  },
+  "comment-thread": {
+    open: async (tab) => {
+      await commentSentence(tab);
+      await tab.getByTestId("selection-comment").click();
+      await tab.getByRole("textbox", { name: "Comment" }).fill("Which solvent is the slow one?");
+      await tab.keyboard.press("Control+Enter");
+      await tab.locator(".cm-content .nx-comment").last().waitFor();
+      await tab.locator(".nx-comment-gutter .nx-comment-icon").last().click();
+      await tab.getByTestId("comment-thread").waitFor();
+      return tab.getByTestId("editor-host");
+    },
+    close: escape,
+  },
+  "comment-preview": {
+    open: async (tab) => {
+      await tab.locator(".cm-content .nx-comment").last().hover();
+      await tab.getByTestId("comment-preview").waitFor();
+      return tab.getByTestId("editor-host");
+    },
+  },
+  "drawer-comments": {
+    open: async (tab) => {
+      await showDrawer(tab, "comments");
+      await tab.getByTestId("comment-row").first().waitFor();
+      return tab.getByTestId("drawer");
     },
   },
   "update-sheet": {

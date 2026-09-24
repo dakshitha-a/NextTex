@@ -572,8 +572,13 @@ class CollabStore:
         persist.load(self.root / "manifest.y", self.manifest)
         self.files = _root(self.manifest, "files", Map)
         self.meta = _root(self.manifest, "meta", Map)
+        #: Comment threads, one map per thread; see `server/collab/comments.py`.
+        self.comments = _root(self.manifest, "comments", Map)
         self._subscriptions.append(
             (self.manifest, self.manifest.observe(self._manifest_changed))
+        )
+        self._subscriptions.append(
+            (self.comments, self.comments.observe_deep(self._comments_changed))
         )
 
     def _manifest_changed(self, event) -> None:
@@ -588,6 +593,14 @@ class CollabStore:
         self._persist("manifest", event.update)
         self._moved("manifest", event.update)
         self._schedule()
+
+    def _comments_changed(self, events) -> None:
+        """A thread was made, answered, resolved or deleted, here or by a
+        peer. Inside the transaction, so the session is only told; it
+        publishes `comments_changed` and every browser asks again."""
+        noted = getattr(self.session, "note_comments", None)
+        if noted is not None:
+            noted()
 
     def _moved(self, doc_id: str, update: bytes) -> None:
         """Tell everyone watching. Runs inside the transaction that made the

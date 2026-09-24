@@ -8,6 +8,10 @@ import { yCollab, ySyncAnnotation, yUndoManagerKeymap } from "y-codemirror.next"
 import type { Extension } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 
+import type { CommentThread } from "./api";
+import { anchorsFor, marksFor } from "./panes/comment-anchors";
+import type { CommentMark } from "./panes/comment-marks";
+
 /** The browser's half of the shared documents.
  *
  *  Loaded on demand, never at boot.  Yjs and its bindings are about fifty
@@ -366,6 +370,17 @@ export class ProjectCollab {
   }
 
   /** Say where this browser is looking. Cheap, and called on every move. */
+  /** Where each open comment thread of one file is in its shared text.
+   *  Here rather than in the editor so Yjs stays out of the entry bundle. */
+  commentMarks(threads: CommentThread[], path: string, text: Y.Text, open: string | null): CommentMark[] {
+    return marksFor(threads, path, text, open);
+  }
+
+  /** A new thread's two anchors, from a range of a file's shared text. */
+  commentAnchors(text: Y.Text, from: number, to: number): { start: string; end: string } {
+    return anchorsFor(text, from, to);
+  }
+
   here(path: string, line: number, typed: boolean) {
     const at = this.presence.getLocalState()?.at as any;
     const typedAt = typed ? Date.now() : at?.typedAt || 0;

@@ -201,6 +201,34 @@ export type TrashEntry = {
   why?: string;
 };
 
+/** One message in a comment thread. */
+export type CommentMessage = {
+  id: string;
+  name: string;
+  peer: string;
+  at: number;
+  body: string;
+  /** Written from this install, so the card says "You". */
+  mine?: boolean;
+};
+
+/** A comment thread, where it is now as the server reads it. The anchors
+ *  are Yjs relative positions, base64, made by the browser that started
+ *  the thread from the file's shared text. */
+export type CommentThread = {
+  id: string;
+  file_id: string;
+  path: string;
+  start: string;
+  end: string;
+  quote: string;
+  line: number;
+  detached: boolean;
+  created: number;
+  resolved: { name?: string; peer?: string; at?: number; mine?: boolean };
+  messages: CommentMessage[];
+};
+
 export type SyncPosition = {
   page: number;
   x: number;
@@ -810,6 +838,19 @@ const api = {
       `/projects/${id}/trash/${entryId}/restore`,
       { method: "POST" },
     ),
+  comments: (id: string) =>
+    request<{ threads: CommentThread[] }>(`/projects/${id}/comments`),
+  comment: (
+    id: string,
+    body: { path: string; start: string; end: string; quote: string; line: number; body: string },
+  ) =>
+    request<{ id: string }>(`/projects/${id}/comments`, json(body)),
+  replyComment: (id: string, thread: string, body: string) =>
+    request<{ ok: boolean }>(`/projects/${id}/comments/${thread}/reply`, json({ body })),
+  resolveComment: (id: string, thread: string, resolved: boolean) =>
+    request<{ ok: boolean }>(`/projects/${id}/comments/${thread}/resolve`, json({ resolved })),
+  deleteComment: (id: string, thread: string) =>
+    request<{ ok: boolean }>(`/projects/${id}/comments/${thread}`, { method: "DELETE" }),
   purgeTrash: (id: string, entryId: string) =>
     request<{ ok: boolean }>(`/projects/${id}/trash/${entryId}`, { method: "DELETE" }),
   emptyTrash: (id: string) =>

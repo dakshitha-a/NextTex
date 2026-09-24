@@ -769,6 +769,11 @@ class ProjectSession:
 
         spawn(announce(), "closing a project whose folder is gone")
 
+    def note_comments(self) -> None:
+        """A thread changed, from this install or a peer. Called inside the
+        manifest's transaction, so it only enqueues."""
+        spawn(self.events.publish({"type": "comments_changed"}), "announcing a comment")
+
     def note_trashed(self, was: str) -> None:
         """A file a peer deleted has just been moved into this trash, or
         one the watcher saw go has just been called deleted.

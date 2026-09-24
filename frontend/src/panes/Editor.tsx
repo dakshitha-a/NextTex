@@ -50,7 +50,9 @@ import { noteTyping, onFrame } from "../timing";
  *  is: `bundle.initial_kb` counts only what a first visit has to
  *  download. */
 const SelectionActions = lazy(() => import("./SelectionActions"));
+const EditorComments = lazy(() => import("./EditorComments"));
 import { placeClear } from "./place-clear";
+import type { CommentsApi } from "./EditorComments";
 
 
 /** How long the outline waits behind the keyboard.
@@ -71,7 +73,7 @@ type Buffer = {
    *  Read whenever the parked state goes back into the view and whenever
    *  a parked file's text is asked for: the state stops following the
    *  shared text the moment it is parked, and this is what it follows. */
-  shared?: { toString(): string };
+  shared?: import("yjs").Text;
 };
 
 /** What a parked file says now: its shared text when it has one, since
@@ -298,8 +300,11 @@ export default function Editor({
   const viewingNow = useStore((s) => s.viewing);
   const shownNow = useStore((s) => s.shownPath);
   const [actions, setActions] = useState<
-    { left: number; top: number; from: number; to: number } | null
+    { left: number; top: number; from: number; to: number; verbs: boolean } | null
   >(null);
+  /** Comments' marks and cards, a lazy chunk; see EditorComments. */
+  const comments = useRef<CommentsApi | null>(null);
+
   /** Where the verb row goes for the selection the editor has now, in
    *  pane pixels, or null when there is no editor to ask.
    *
@@ -358,6 +363,7 @@ export default function Editor({
         : open,
     );
   }, [placeRow]);
+
   /** The row's real size once it is drawn.  The first placement guessed
    *  it; with the real one, the row moves if the guess would have put it
    *  over the text.  A stable callback, because the row's layout effect
@@ -625,10 +631,13 @@ export default function Editor({
       // double-click on one word happens constantly while reading, and a
       // row of verbs appearing over it every time would be the diagnostics
       // drawer's mistake in a third place.
-      if (!view.current || !span || selection.trim().length < 12 || viewing.current) {
+      if (!view.current || !span || !selection.trim() || viewing.current) {
         setActions((open) => (open === null ? open : null));
         return;
       }
+      // Commenting on one word is ordinary, so any selection gets Comment;
+      // the agent's verbs wait for twelve characters, for the reason above.
+      const verbs = selection.trim().length >= 12;
       const at = placeRow();
       if (!at) {
         setActions(null);
@@ -641,9 +650,10 @@ export default function Editor({
         open.left === at.left &&
         open.top === at.top &&
         open.from === span.fromLine &&
-        open.to === span.toLine
+        open.to === span.toLine &&
+        open.verbs === verbs
           ? open
-          : { left: at.left, top: at.top, from: span.fromLine, to: span.toLine },
+          : { left: at.left, top: at.top, from: span.fromLine, to: span.toLine, verbs },
       );
       // Where the user is looking, told to the server on a delay: it is
       // what the agent's "here" and "this" resolve to, and it changes on
@@ -835,6 +845,9 @@ export default function Editor({
 
     const afterSwap = () => {
       openAgain();
+      // The comment extension into the new file's state, its marks, and
+      // a thread the drawer asked for once its file is the one shown.
+      comments.current?.apply();
       setActions((open) => (open === null ? open : null));
       setOffer((open) => (open === null ? open : null));
       if (view.current) {
@@ -1445,6 +1458,10 @@ export default function Editor({
             at={{ left: actions.left, top: actions.top }}
             onMeasure={measureRow}
             onDismiss={() => setActions(null)}
+            verbs={actions.verbs}
+            onComment={() => {
+              if (comments.current?.start()) setActions(null);
+            }}
             onPick={(prompt) => {
               setActions(null);
               onAskAbout?.(prompt);
@@ -1452,6 +1469,17 @@ export default function Editor({
           />
         </Suspense>
       ) : null}
+      <Suspense fallback={null}>
+        <EditorComments
+          view={view}
+          host={host}
+          current={current}
+          viewing={viewing}
+          sharedOf={(path) => buffers.current.get(path)?.shared}
+          collab={collab}
+          handle={comments}
+        />
+      </Suspense>
       {/* The kit's menu: placed on the screen from its measured size, put
           away by a press anywhere else, and closed by Escape with focus
           going back to the editor. */}

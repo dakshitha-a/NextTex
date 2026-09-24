@@ -10396,3 +10396,59 @@ update is waiting", since a failed check is no news about that.
 `update-state.test.ts` holds the three answers and `update.spec.ts` the
 sheet and the label.
 
+
+## 66. Comments
+
+Raised by the writer while the fifth run was being planned: highlight
+text and choose Comment; the text stays highlighted and an icon appears
+beside the line number; anyone can open a thread by clicking it or see
+every thread in a list; an entry takes you to its place; collaborators
+reply until someone resolves it; resolved threads are archived; any
+thread can be deleted. Hover previews were asked for a message later. The
+design was delegated, drawn on the direction page's Comments section, and
+built from it, with the three changes below found while building.
+
+**Its own drawer, after People.** People is about who is in the project;
+comments are used alone too, as notes to self, and open and resolved
+threads need the drawer's full height. The bar's icon is the set's
+speech bubble with two lines in it, which is what tells it from Report a
+problem, and it carries no count.
+
+**The hint, an underline at rest and the wash while open.** The first
+drawing gave comments a muted blue. This guide says there is no second
+accent and no blue, so it was redrawn before any code: the hint is the
+colour for what is safe and interactive, and the find cursor, its other
+use, is an outlined box, so the two do not read alike.
+
+**Comment on the selection toolbar, after a rule, and on Ctrl Alt M.**
+Apart from Reword, Shorten, Expand and Ask, because it does not talk to
+the agent. The toolbar appears for twelve characters or more, so that a
+word double-clicked while reading does not raise the agent's verbs; a
+comment on one word is ordinary, so a shorter selection gets a toolbar
+with Comment alone. The editor has no menu of its own on a right click
+and none was added, since the browser's is where copy and paste live.
+
+**The cards.** The composer opens where the selection was, one field,
+Cancel and Post, Ctrl Enter posts. Resting on the text or the icon for a
+quarter of a second brings a preview with no controls, so reading a
+comment never commits the writer to anything: the first message, its
+author and when, and the rest counted in words; two threads on one line
+stack. A click opens the thread, placed clear of the text by the same
+`placeClear` the verb row uses: the messages, a reply field, Resolve as
+the one primary action (Reply takes its place while a reply is being
+written), and Delete last in its menu, asking once, because it removes
+other people's words too. The writer's own messages say "You"; the
+server marks them, since it knows whose install it is.
+
+**The drawer.** Open threads first, grouped by file, each with the text
+it is on, its first message and how many replies; Resolve and Delete
+under the pointer, Delete asking once. A thread whose text was deleted
+stays, struck through, saying the line it was last at. Resolved is
+folded below as the archive, where a thread says who resolved it and can
+be reopened or deleted. A click opens the file at the thread and, once
+the file is on screen, its card.
+
+`e2e/specs/comments.spec.ts` drives all of it, a second window's reply
+arriving live included; `comment-anchors.test.ts` holds the anchors
+against a real Yjs document, and `tests/collab/test_comments.py` and
+`tests/api/test_comments_routes.py` the model and the routes.

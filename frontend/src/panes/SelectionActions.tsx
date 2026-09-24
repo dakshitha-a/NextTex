@@ -1,6 +1,6 @@
 import { Button, IconButton } from "../ui/Button";
 import { shellTheme } from "../ui/FloatingCard";
-import { CloseIcon } from "../ui/icons";
+import { CloseIcon, CommentIcon } from "../ui/icons";
 import { useLayoutEffect, useRef } from "react";
 
 /** What to do with something you have selected.
@@ -57,6 +57,8 @@ export default function SelectionActions({
   onPick,
   onDismiss,
   onMeasure,
+  verbs = true,
+  onComment,
 }: {
   /** Which lines are selected, for the label. Inclusive and 1-based. */
   lines: { from: number; to: number };
@@ -67,6 +69,12 @@ export default function SelectionActions({
   /** The row's real size once it is drawn, so the pane can place it
    *  clear of the text rather than by a guess. */
   onMeasure?: (size: { width: number; height: number }) => void;
+  /** Whether the agent's four verbs are offered: not for a selection too
+   *  short to ask anything about, which still gets Comment. */
+  verbs?: boolean;
+  /** Start a comment on the selection. After a rule, apart from the
+   *  verbs, because it does not talk to the agent. */
+  onComment?: () => void;
 }) {
   const box = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
@@ -101,7 +109,7 @@ export default function SelectionActions({
       }}
     >
       <span className="t-meta px-1 pr-2 tabular-nums text-ink-3">{span}</span>
-      {VERBS.map((verb) => (
+      {(verbs ? VERBS : []).map((verb) => (
         <Button
           key={verb.label}
           size="inline"
@@ -113,6 +121,21 @@ export default function SelectionActions({
           {verb.label}
         </Button>
       ))}
+      {onComment ? (
+        <>
+          {verbs ? <span className="nx-selection-rule" aria-hidden="true" /> : null}
+          <Button
+            size="inline"
+            className="!text-ink"
+            icon={<CommentIcon size={13} />}
+            data-testid="selection-comment"
+            title="Leave a comment on this (Ctrl Alt M)"
+            onClick={onComment}
+          >
+            Comment
+          </Button>
+        </>
+      ) : null}
       <IconButton
         label="Put this away"
         data-testid="selection-dismiss"
