@@ -10617,3 +10617,27 @@ Found on the way: typing in a Markdown note rebuilt the paper at every
 pause, because a file no document reads was sent to every document; it
 now goes to none, and the flaky History spec that counted builds around
 a Markdown keystroke was that.
+
+## 73. Reading the page: dark, two at a time, turned
+
+The roadmap's second item, which two earlier runs left because pdf.js's
+own page colours recolour the finished canvas, figures and all. The
+answer was to find where the figures are: the page's operator list names
+every image and every form XObject, which is what an `\includegraphics`
+of a PDF becomes, under its transform, so the page is drawn dark and the
+figures are painted back from the render as it was.
+
+The three choices are one button, *View*, in the preview's foot with a
+short menu: *Dark page* and *Two pages side by side* as checks, then
+*Rotate a quarter turn* and *Back upright*. Three more controls would
+crowd a strip that already drops some as the pane narrows. The drawing
+called the button Page; the Scroll and Page pair beside it already says
+Page, so it is View, recorded as a deviation on the direction page.
+
+The dark page is the dark theme's surface and ink, never black and white
+turned inside out, per the comfort floor; a light shell gets the same
+dark page, since the reader asked for a dark page, not for the shell's
+colours. Links keep their hue. A TikZ drawing set inline is part of the
+page and darkens with it. Two pages open as a book does, one and two,
+three and four. A turn is a quarter at a time and survives a reload, as
+the other two do, per browser. SyncTeX works both ways in every mode.

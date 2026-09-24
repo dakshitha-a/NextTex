@@ -114,6 +114,12 @@ carried by size and weight, never by a change of face. Source Code Pro
 is for literal strings only, never for labels. Sentence case
 everywhere; no tracked capitals, no eyebrow labels.
 
+A menu item that is on and off, such as the preview's *Dark page*, is a
+`MenuItem` with `role="menuitemcheckbox"`, `aria-checked`, and
+`CheckIcon`, the same stroke as Submit's, in its icon column when it is
+on; an empty column of the same width when it is off, so the labels
+line up.
+
 Icons are one hand-drawn set in `frontend/src/ui/icons.tsx`, at one
 stroke weight (1.5) on a 16 px grid, 20 px on the activity bar. They are
 uncoloured and never decorate a menu row.

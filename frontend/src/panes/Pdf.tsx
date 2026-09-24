@@ -7,7 +7,13 @@ import { download, stemOf } from "../chrome";
 import { get, useStore } from "../store";
 import { Button, IconButton } from "../ui/Button";
 import { Field, Segmented } from "../ui/controls";
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon, SearchIcon } from "../ui/icons";
+import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon, SearchIcon } from "../ui/icons";
+import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
+import { under } from "../place-menu";
+import {
+  boxOnTurned, darkTransfer, figureBoxes, fromTurned, nextRotation, onCanvas, parseColour,
+  type Rotation,
+} from "./pdf-view";
 import { uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
 import type { WordHint } from "./locate-word";
@@ -104,12 +110,15 @@ function flash(
   position: { x: number; y: number; width: number; height: number },
   zoom: number,
 ): void {
+  // Where the box is on the page as turned: SyncTeX speaks of the page as
+  // TeX set it, upright.
+  const box = boxOnTurned(view.rotation, view.naturalWidth, view.naturalHeight, position);
   const mark = window.document.createElement("div");
   mark.className = "nx-flash";
-  mark.style.left = `${position.x * zoom}px`;
-  mark.style.top = `${(position.y - position.height) * zoom}px`;
-  mark.style.width = `${Math.max(position.width * zoom, 12)}px`;
-  mark.style.height = `${Math.max(position.height * zoom, 10)}px`;
+  mark.style.left = `${box.left * zoom}px`;
+  mark.style.top = `${box.top * zoom}px`;
+  mark.style.width = `${Math.max(box.width * zoom, 12)}px`;
+  mark.style.height = `${Math.max(box.height * zoom, 10)}px`;
   view.container.appendChild(mark);
   window.setTimeout(() => (mark.style.opacity = "0"), 250);
   window.setTimeout(() => mark.remove(), 950);
@@ -136,7 +145,69 @@ type PageView = {
    *  the ratio without changing the layout, so nothing else would. */
   drawnAt: number;
   task: pdfjs.RenderTask | null;
+  /** The figures, painted back in their own colours over a dark page. */
+  figures: HTMLCanvasElement | null;
+  /** The page's own size in points, upright, which is what SyncTeX's
+   *  coordinates are measured on, and the turn it is shown at. */
+  naturalWidth: number;
+  naturalHeight: number;
+  rotation: Rotation;
 };
+
+/** pdf.js's numbers for the operators the figure walk reads. */
+const FIGURE_OPS = {
+  save: pdfjs.OPS.save,
+  restore: pdfjs.OPS.restore,
+  transform: pdfjs.OPS.transform,
+  paintImageXObject: pdfjs.OPS.paintImageXObject,
+  paintInlineImageXObject: pdfjs.OPS.paintInlineImageXObject,
+  paintImageXObjectRepeat: pdfjs.OPS.paintImageXObjectRepeat,
+  paintFormXObjectBegin: pdfjs.OPS.paintFormXObjectBegin,
+  paintFormXObjectEnd: pdfjs.OPS.paintFormXObjectEnd,
+  beginGroup: pdfjs.OPS.beginGroup,
+  endGroup: pdfjs.OPS.endGroup,
+};
+
+/** The dark theme's surface and body ink, whatever theme the shell is in:
+ *  a dark page is dark in a light shell too. Read once from a probe. */
+function darkColours(): { surface: [number, number, number]; ink: [number, number, number] } {
+  const fallback = { surface: [35, 40, 37] as [number, number, number], ink: [227, 232, 226] as [number, number, number] };
+  if (typeof window === "undefined") return fallback;
+  const probe = window.document.createElement("div");
+  probe.className = "nx-theme-dark";
+  probe.style.display = "none";
+  window.document.body.appendChild(probe);
+  const style = window.getComputedStyle(probe);
+  const surface = parseColour(style.getPropertyValue("--surface")) ?? fallback.surface;
+  const ink = parseColour(style.getPropertyValue("--ink")) ?? fallback.ink;
+  probe.remove();
+  return { surface, ink };
+}
+
+/** The filter the dark page is baked through: white paper to the dark
+ *  surface, black ink to the dark ink, and the hue turned back so a blue
+ *  link stays blue. */
+function DarkPageFilter() {
+  const [lines] = useState(() => {
+    const { surface, ink } = darkColours();
+    return darkTransfer(surface, ink);
+  });
+  return (
+    <svg width="0" height="0" aria-hidden style={{ position: "absolute" }}>
+      {/* The hue is turned first and the lightness inverted after, so a
+          blue link comes out blue and the paper comes out exactly the
+          surface: turned last, the turn tinted the grey paper too. */}
+      <filter id="nx-dark-page" colorInterpolationFilters="sRGB">
+        <feColorMatrix type="hueRotate" values="180" />
+        <feComponentTransfer>
+          <feFuncR type="linear" slope={lines[0].slope} intercept={lines[0].intercept} />
+          <feFuncG type="linear" slope={lines[1].slope} intercept={lines[1].intercept} />
+          <feFuncB type="linear" slope={lines[2].slope} intercept={lines[2].intercept} />
+        </feComponentTransfer>
+      </filter>
+    </svg>
+  );
+}
 
 export default function Pdf({
   onNavigate,
@@ -192,6 +263,22 @@ export default function Pdf({
   });
   const [fitScale, setFitScale] = useState(1);
   const [pageFitScale, setPageFitScale] = useState(1);
+  // How the page is shown, remembered per browser like the mode and zoom:
+  // a dark page, two pages side by side, and a turn a quarter at a time.
+  const [dark, setDark] = useState(() => readStored("nexttex.pdf.dark") === "1");
+  const [spread, setSpread] = useState(() => readStored("nexttex.pdf.spread") === "1");
+  const [rotation, setRotation] = useState<Rotation>(() => {
+    const saved = Number(readStored("nexttex.pdf.rotation"));
+    return ([0, 90, 180, 270].includes(saved) ? saved : 0) as Rotation;
+  });
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
+  const spreadRef = useRef(spread);
+  spreadRef.current = spread;
+  const rotationRef = useRef(rotation);
+  rotationRef.current = rotation;
+  const [viewMenu, setViewMenu] = useState<{ left: number; top: number; flip: number } | null>(null);
+  const viewButton = useRef<HTMLButtonElement | null>(null);
   // What the footer shows.  Written to the node rather than held in state:
   // the committed `scale` only catches up when the pinch stops, and a
   // percentage frozen at the old number for the whole gesture reads as
@@ -325,7 +412,7 @@ export default function Pdf({
     try {
       const page = await document.getPage(index + 1);
       if (mine !== generation.current) return;
-      const viewport = page.getViewport({ scale: view.scale });
+      const viewport = page.getViewport({ scale: view.scale, rotation: (page.rotate + view.rotation) % 360 });
       view.text.replaceChildren();
       // Built at the committed scale, so any gesture transform is spent.
       view.text.style.transform = "";
@@ -349,6 +436,50 @@ export default function Pdf({
       view.textFor = -1;
     }
   }, [markHit]);
+
+  /** A dark page, from the page just drawn: the figures are copied as
+   *  they are onto a canvas of their own above it, then the page itself is
+   *  drawn back through the dark filter, once, so scrolling costs nothing
+   *  more than it did. */
+  const darken = useCallback(
+    async (
+      page: pdfjs.PDFPageProxy,
+      view: PageView,
+      viewport: pdfjs.PageViewport,
+      context: CanvasRenderingContext2D,
+    ) => {
+      const canvas = view.canvas;
+      let overlay = view.figures;
+      if (!overlay) {
+        overlay = window.document.createElement("canvas");
+        overlay.className = "nx-figures";
+        canvas.after(overlay);
+        view.figures = overlay;
+      }
+      overlay.width = canvas.width;
+      overlay.height = canvas.height;
+      const paint = overlay.getContext("2d");
+      if (paint) {
+        paint.clearRect(0, 0, overlay.width, overlay.height);
+        try {
+          const list = await page.getOperatorList();
+          for (const box of figureBoxes(list.fnArray, list.argsArray as unknown[][], FIGURE_OPS)) {
+            const at = onCanvas(viewport.transform, box, canvas.width, canvas.height);
+            if (at) paint.drawImage(canvas, at.x, at.y, at.width, at.height, at.x, at.y, at.width, at.height);
+          }
+        } catch {
+          // No figures found is a dark page with its figures dark too, which
+          // is still a page to read.
+        }
+      }
+      context.save();
+      context.filter = "url(#nx-dark-page)";
+      context.globalCompositeOperation = "copy";
+      context.drawImage(canvas, 0, 0);
+      context.restore();
+    },
+    [],
+  );
 
   const renderPage = useCallback(async (index: number) => {
     const view = pages.current[index];
@@ -385,8 +516,9 @@ export default function Pdf({
       // carries the area guard, which reduces the ratio rather than the box
       // when a page would be too big for the browser to allocate at all.
       const backing = backingFor(boxWidth, boxHeight, resolution());
-      const natural = page.getViewport({ scale: 1 });
-      const viewport = page.getViewport({ scale: backing.width / natural.width });
+      const turn = (page.rotate + view.rotation) % 360;
+      const natural = page.getViewport({ scale: 1, rotation: turn });
+      const viewport = page.getViewport({ scale: backing.width / natural.width, rotation: turn });
       const width = Math.floor(viewport.width);
       const height = Math.floor(viewport.height);
       // Both dimensions, and together: the height used to be assigned only
@@ -401,13 +533,15 @@ export default function Pdf({
       view.drawnAt = rasterKey(width / boxWidth);
       view.task = page.render({ canvasContext: context, viewport } as any);
       await view.task.promise;
+      if (mine !== generation.current) return;
+      if (darkRef.current) await darken(page, view, viewport, context);
       if (mine === generation.current) view.drawnFor = mine;
     } catch {
       /* superseded, or the page went away with the document */
     } finally {
       view.task = null;
     }
-  }, []);
+  }, [darken]);
 
   /** Draw what is on screen, and the page either side of it. */
   const drawVisible = useCallback(() => {
@@ -545,9 +679,12 @@ export default function Pdf({
       const count = document.numPages;
       const first = await document.getPage(1);
       if (superseded()) return;
-      const natural = first.getViewport({ scale: 1 });
+      const turn = rotationRef.current;
+      const natural = first.getViewport({ scale: 1, rotation: (first.rotate + turn) % 360 });
       const measured = scroller.current?.clientWidth ?? 0;
-      const available = (measured > 80 ? measured : 900) - 48;
+      // Two pages side by side share the width, less the gap between them.
+      const across = spreadRef.current ? 2 : 1;
+      const available = ((measured > 80 ? measured : 900) - 48 - (across - 1) * 16) / across;
       const fit = Math.max(0.2, +(available / natural.width).toFixed(3));
       setFitScale(fit);
       // A writer checking whether a figure has pushed a heading onto the
@@ -575,7 +712,8 @@ export default function Pdf({
       const views: PageView[] = [];
       for (let index = 0; index < count; index += 1) {
         const page = sheets[index];
-        const viewport = page.getViewport({ scale: effective });
+        const viewport = page.getViewport({ scale: effective, rotation: (page.rotate + turn) % 360 });
+        const upright = page.getViewport({ scale: 1 });
         const width = Math.floor(viewport.width);
         const height = Math.floor(viewport.height);
         if (reusable) {
@@ -585,6 +723,9 @@ export default function Pdf({
           view.width = width;
           view.height = height;
           view.scale = effective;
+          view.naturalWidth = upright.width;
+          view.naturalHeight = upright.height;
+          view.rotation = turn;
           view.container.style.width = `${width}px`;
           view.container.style.height = `${height}px`;
           views.push(view);
@@ -605,6 +746,7 @@ export default function Pdf({
         views.push({
           container: element, canvas, text, width, height,
           scale: effective, drawnFor: -1, drawnAt: 0, textFor: -1, textScale: 0, task: null,
+          figures: null, naturalWidth: upright.width, naturalHeight: upright.height, rotation: turn,
         });
       }
 
@@ -631,9 +773,13 @@ export default function Pdf({
   /** In page mode only one page is in the flow; in scroll mode all are. */
   const applyMode = useCallback((next: Mode) => {
     const index = currentRef.current - 1;
+    // Two pages side by side in page mode are the pair the current page
+    // is in: one and two, three and four, as a printed book opens.
+    const pair = spreadRef.current ? index - (index % 2) : index;
     pages.current.forEach((view, position) => {
-      view.container.style.display =
-        next === "scroll" || position === index ? "block" : "none";
+      const shown = next === "scroll" || position === index ||
+        (spreadRef.current && (position === pair || position === pair + 1));
+      view.container.style.display = shown ? "block" : "none";
     });
   }, []);
 
@@ -700,6 +846,25 @@ export default function Pdf({
   useEffect(() => {
     writeStored("nexttex.pdf.zoom", String(scale));
   }, [scale]);
+
+  // Two pages side by side and a turn change the layout; the dark page
+  // changes only how each page is drawn.
+  const shownOnce = useRef(false);
+  useEffect(() => {
+    writeStored("nexttex.pdf.spread", spread ? "1" : "0");
+    writeStored("nexttex.pdf.rotation", String(rotation));
+    if (!shownOnce.current) {
+      shownOnce.current = true;
+      return;
+    }
+    if (doc.current) layoutRef.current(doc.current, true);
+  }, [spread, rotation]);
+
+  useEffect(() => {
+    writeStored("nexttex.pdf.dark", dark ? "1" : "0");
+    if (doc.current) invalidateRaster();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dark]);
 
   useEffect(() => {
     writeStored("nexttex.pdf.mode", mode);
@@ -993,7 +1158,7 @@ export default function Pdf({
       // the canvas, so the conversion is the scale factor and nothing else.
       // Less the page's one pixel border, which the rectangle includes and
       // the canvas does not.
-      const x = (event.clientX - box.left - target.clientLeft) / drawn.current;
+      const across = (event.clientX - box.left - target.clientLeft) / drawn.current;
       // Asked at the middle of the span the click landed in rather than at
       // the pointer.  A heading's synctex box ends at its baseline, so a
       // click in the lower part of its glyphs, which is where a pointer
@@ -1002,7 +1167,12 @@ export default function Pdf({
       // a body line alike.
       const middle = span ? span.getBoundingClientRect() : null;
       const clientY = middle ? middle.top + middle.height / 2 : event.clientY;
-      const y = (clientY - box.top - target.clientTop) / drawn.current;
+      const down = (clientY - box.top - target.clientTop) / drawn.current;
+      // Back to the page as TeX set it, upright, when it is shown turned.
+      const view = pages.current[index];
+      const { x, y } = view
+        ? fromTurned(view.rotation, view.naturalWidth, view.naturalHeight, across, down)
+        : { x: across, y: down };
       try {
         const result = await api.inverse(projectId, index + 1, x, y, showing);
         if (result.found && result.file && result.line) {
@@ -1056,12 +1226,13 @@ export default function Pdf({
           const root = scroller.current;
           if (!view || !root) return false;
           const zoom = drawn.current;
+          const box = boxOnTurned(view.rotation, view.naturalWidth, view.naturalHeight, position);
           // Both modes need this and they need different arithmetic, which
           // is why it is here rather than in the caller: in page mode there
           // is one page on screen and the question is whether it is this
           // one, and in scroll mode the question is whether the box is
           // inside the part of the document the reader can see.
-          const top = view.container.offsetTop + (position.y - position.height) * zoom;
+          const top = view.container.offsetTop + box.top * zoom;
           const alreadyInFront =
             modeRef.current === "page"
               ? currentRef.current === position.page
@@ -1078,12 +1249,7 @@ export default function Pdf({
             await renderPage(position.page - 1);
           } else {
             root.scrollTo({
-              top: Math.max(
-                view.container.offsetTop +
-                  (position.y - position.height) * zoom -
-                  root.clientHeight / 3,
-                0,
-              ),
+              top: Math.max(view.container.offsetTop + box.top * zoom - root.clientHeight / 3, 0),
             });
           }
           flash(view, position, zoom);
@@ -1349,9 +1515,18 @@ export default function Pdf({
         ) : null}
         <div
           ref={sheet}
-          className="flex w-fit min-w-full flex-col items-center gap-4 px-6 py-4"
-          style={{ justifyContent: "safe center" }}
+          data-testid="pdf-sheet"
+          data-dark-page={dark || undefined}
+          data-spread={spread || undefined}
+          data-rotation={rotation || undefined}
+          className={
+            spread
+              ? "flex w-full flex-row flex-wrap content-start justify-center gap-4 px-6 py-4"
+              : "flex w-fit min-w-full flex-col items-center gap-4 px-6 py-4"
+          }
+          style={spread ? undefined : { justifyContent: "safe center" }}
         />
+        {dark ? <DarkPageFilter /> : null}
       </div>
 
       {/* The strip under the preview: 28 px on the second surface with no
@@ -1366,8 +1541,10 @@ export default function Pdf({
       >
         {/* What the strip drops as the pane narrows, in the order it drops
             them, each at the width the row measures with it: the fit pair
-            first (560), then Download (420), then this layout pair (340),
-            leaving the pager and the zoom, which a page always needs.  A
+            first (566), then Download (440), then View (372), then this
+            layout pair (340), leaving the pager and the zoom, which a page
+            always needs. View is kept past Download because the Download
+            drawer saves the PDF too, and nothing else turns the page.  A
             28 px strip cannot wrap, so a control it cannot hold is dropped
             rather than clipped. */}
         <span className="hidden shrink-0 @[340px]:inline-flex">
@@ -1451,7 +1628,7 @@ export default function Pdf({
             +
           </button>
         </span>
-        <span className="hidden shrink-0 @[560px]:inline-flex">
+        <span className="hidden shrink-0 @[566px]:inline-flex">
           <Segmented
             size="sm"
             label="How the page fits the pane"
@@ -1464,6 +1641,86 @@ export default function Pdf({
           />
         </span>
         <span className="min-w-0 flex-1" />
+        {/* How the page is shown: dark, two at a time, turned. One button
+            with a short menu, because three more controls would crowd a
+            strip that already drops some as the pane narrows. Named View
+            rather than Page, which the layout pair beside it already says. */}
+        <button
+          ref={viewButton}
+          type="button"
+          className={`hidden shrink-0 items-center gap-1 whitespace-nowrap hover:text-ink @[372px]:flex ${viewMenu ? "text-ink" : ""}`}
+          aria-haspopup="menu"
+          aria-expanded={viewMenu !== null}
+          data-testid="pdf-view"
+          onClick={() => {
+            if (viewMenu) {
+              setViewMenu(null);
+              return;
+            }
+            // Hung from the button's right edge and flipped above it, since
+            // the strip is the foot of the window.
+            const wanted = under(viewButton.current, 230, "right");
+            if (wanted) setViewMenu({ left: wanted.left, top: wanted.top, flip: wanted.flip ?? wanted.top });
+          }}
+        >
+          View <ChevronUpIcon size={10} />
+        </button>
+        <Menu
+          open={viewMenu !== null}
+          onClose={() => setViewMenu(null)}
+          wanted={viewMenu}
+          anchor={viewButton}
+          label="How the page is shown"
+          testid="pdf-view-menu"
+          width={230}
+        >
+          <MenuItem
+            role="menuitemcheckbox"
+            aria-checked={dark}
+            icon={dark ? <CheckIcon size={14} /> : <span className="inline-block w-[14px]" />}
+            data-testid="pdf-dark"
+            onClick={() => {
+              setViewMenu(null);
+              setDark(!dark);
+            }}
+          >
+            Dark page
+          </MenuItem>
+          <MenuItem
+            role="menuitemcheckbox"
+            aria-checked={spread}
+            icon={spread ? <CheckIcon size={14} /> : <span className="inline-block w-[14px]" />}
+            data-testid="pdf-spread"
+            onClick={() => {
+              setViewMenu(null);
+              setSpread(!spread);
+            }}
+          >
+            Two pages side by side
+          </MenuItem>
+          <MenuDivider />
+          <MenuItem
+            icon={<span className="inline-block w-[14px]" />}
+            data-testid="pdf-rotate"
+            onClick={() => {
+              setViewMenu(null);
+              setRotation(nextRotation(rotation));
+            }}
+          >
+            Rotate a quarter turn
+          </MenuItem>
+          <MenuItem
+            icon={<span className="inline-block w-[14px]" />}
+            data-testid="pdf-upright"
+            disabled={rotation === 0}
+            onClick={() => {
+              setViewMenu(null);
+              setRotation(0);
+            }}
+          >
+            Back upright
+          </MenuItem>
+        </Menu>
         {/* The page that is already rendered and already on disk. The
             Download drawer is the only other way to save it and its PDF
             chip forces a full server rebuild first, which is a wait for a
@@ -1476,7 +1733,7 @@ export default function Pdf({
         {projectId && pageCount ? (
           <button
             type="button"
-            className="hidden shrink-0 whitespace-nowrap hover:text-ink @[420px]:block"
+            className="hidden shrink-0 whitespace-nowrap hover:text-ink @[440px]:block"
             onClick={() =>
               void download(
                 api.pdfUrl(projectId, showing, stamp),

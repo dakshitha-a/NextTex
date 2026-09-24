@@ -45,15 +45,6 @@ the reversal should have to answer it.
    exists. *Medium; y.*
 
 
-2. **Read the page in the dark, two pages at once, rotate.** The editor
-   has six grounds and the page is always white, which at night is the
-   brightest thing in the room. An inverted page first, keeping figures
-   the right way round; a two-page spread and rotation are cheap beside
-   it. Two runs have left it for the same reason: a CSS invert on the
-   canvas cannot keep figures the right way round, and pdf.js gives no
-   per-object hook. *Small; y.*
-
-
 ## Not adopting, and why
 
 Each of these was considered and left out for the reason beside it. A

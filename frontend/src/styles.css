@@ -822,6 +822,12 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   pointer-events: none;
   forced-color-adjust: none;
 }
+/* A page turned from the View menu: pdf.js lays the text out upright and
+   marks the layer with the turn, and these are its own viewer's rules for
+   turning it to lie over the picture. */
+.nx-text-layer[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+.nx-text-layer[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+.nx-text-layer[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
 .nx-text-layer :is(span, br) {
   position: absolute;
   white-space: pre;
@@ -1977,6 +1983,10 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   border: 1px solid var(--line);
   box-shadow: var(--page-shadow);
 }
+/* The dark page's figures, copied in their own colours over the page drawn
+   dark; shown only while the page is dark. */
+.nx-page .nx-figures { position: absolute; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
+[data-dark-page] .nx-page .nx-figures { display: block; }
 .nx-flash {
   position: absolute;
   background: var(--pen-wash);

@@ -809,6 +809,16 @@ Both modes have a key as well, `⌘⌥R` / `Ctrl-Alt-R` for reading and `⌘⌥E
 / `Ctrl-Alt-E` for writing, for when the tab strip is full and there is
 nothing left to double-click.
 
+The preview's *View* button, in the strip under the page, reads the page
+the way you want to at the time. *Dark page* sets it in the dark theme's
+own colours, paper and ink, for late at night, while your figures keep
+theirs, since a plot with its colours inverted says something else; a
+drawing set inline in TikZ darkens with the text it sits in. *Two pages
+side by side* opens the document the way a printed one opens, and *Rotate
+a quarter turn* is for the landscape table. Double-clicking still takes
+you to the source, and the source still takes you to the page, however it
+is shown.
+
 Right-click the tab you are working in and you can close every other tab,
 close everything to its right, close the lot, duplicate the file, or download
 it. A duplicate arrives beside the original as `chapter (copy).tex` and the

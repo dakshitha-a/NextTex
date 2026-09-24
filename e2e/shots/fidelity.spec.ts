@@ -946,6 +946,23 @@ const SURFACES: Record<string, Surface> = {
       await tab.getByLabel("Close the history").click().catch(() => undefined);
     },
   },
+  "pdf-view-menu": {
+    // The preview with the page dark and the View menu open over its foot.
+    open: async (tab) => {
+      await tab.locator(".nx-page canvas").first().waitFor({ timeout: 45_000 });
+      await tab.getByTestId("pdf-view").click();
+      await tab.getByTestId("pdf-dark").click();
+      await tab.waitForTimeout(1500);
+      await tab.getByTestId("pdf-view").click();
+      await tab.getByTestId("pdf-view-menu").waitFor();
+      return tab.getByTestId("preview-footer").locator("xpath=..");
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+      await tab.getByTestId("pdf-view").click();
+      await tab.getByTestId("pdf-dark").click();
+    },
+  },
   "history-outside": {
     // A typed change, then one from another program: the drawer's History
     // with the disk's row above the writer's.
