@@ -210,51 +210,6 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
-- [x] **A hover card no longer fetches and decodes a whole image to draw
-      a small picture of it.** `thumbnail` in `frontend/src/panes/thumbnails.ts`
-      makes a raster's picture by setting `picture.src` to the download
-      route, so hovering a tree row for a 192 MiB PNG fetches 192 MiB and
-      decodes it in the renderer to fill a card a few hundred pixels
-      wide; the PDF path reads the whole file into an `ArrayBuffer` for
-      the same reason. A renderer on the Windows laptop did freeze for thirty
-      to sixty seconds with such a file in the project on 22 September,
-      which is what sent somebody looking, but that attribution was
-      **withdrawn** the next day by the session that made it: the freeze
-      also happened with the file absent, the same pane then opened the
-      192 MiB PNG without trouble, and the machine had 1.9 to 2.2 GB free
-      of 15.6 GB that afternoon with two such images loaded in browser
-      tabs and one background command killed outright for low memory. So
-      nothing here is known to have stalled anybody's browser and the cap
-      rests on the cost alone, which is enough: fetching two hundred
-      megabytes to fill a card a few hundred pixels wide is indefensible
-      whether or not it has yet hurt somebody. The
-      fix is cheap and the size is already at the call site:
-      `FileCard.tsx:40` passes `node.size`, and a file over some
-      threshold takes the state the card already has for a file it cannot
-      draw, its name and its size alone. Done: `BIGGEST_PICTURE` is
-      thirty-two megabytes, far above a full-page scan at print
-      resolution and far below the size at which fetching one is a pause
-      the writer notices, and `hasThumbnail` answers before anything is
-      fetched. No new visual, since the state it falls back to is one the
-      card already draws.
-- [x] **A file moved out of a project and back is no longer deleted, and
-      a path that once held a deleted file no longer swallows what is
-      written to it.** Found on the owner's Windows install on 23
-      September, by moving a figure out of its folder and back with
-      ordinary shell moves: NextTex put it in its own trash, recorded the
-      deletion as the writer's own, took it again 577 ms after Restore put
-      it back, and swallowed anything afterwards written under that name
-      while the same bytes under another name survived. A sync client, a
-      `git` checkout and any editor that saves by writing a temporary file
-      and renaming it over the target all do exactly that move. Four
-      causes, all in `server/collab/store.py`, all fixed together with
-      `tests/collab/test_a_file_that_comes_back.py`: the returning file
-      never withdrew the pending sighting, never cleared the flag once the
-      deletion had settled, was invisible to `file_id_for` because that
-      skips trashed records and so was adopted as a second record, and
-      `settle_paths` then followed the first record's deletion by moving
-      whatever was at the path into the trash. What is still open is the
-      trash record's own claim, the next line.
 - [ ] **An editor pane drew a document's collaboration log where the file
       on disk said something else.** Seen once on the Windows install on
       23 September and not dug into, because the run it turned up in was
@@ -275,26 +230,6 @@ this host could not reproduce; each says which.
       whether the log or the disk is meant to win when they differ at
       open. `tests/collab/test_outside_edits.py` is the file that already
       asks half of this question.
-- [x] **A trash entry no longer says the writer deleted the file when
-      nobody did.** Every entry carries `by: "you"`, including one written when
-      the watcher inferred a deletion and one written for a file that had
-      merely been copied in. The schema in `nexttex/trash.py` has nowhere
-      to say otherwise: `id`, `at`, `by`, `path`, `name`, `kind`, `files`,
-      `dirs`, `count`, `bytes`. With the line above fixed, most of those
-      entries stop being written at all, but a deletion followed from a
-      peer is still filed as this writer's doing, which is wrong in the
-      one place somebody looks when a file has gone. `source` and `why`
-      sit beside `by` now, absent on every entry written before they
-      existed and read as the writer's own when missing, so nothing
-      already in anybody's trash changes meaning. The vocabulary was
-      borrowed rather than invented, from the history one module over,
-      which has carried `op`, `why` and a `source` token all along. The
-      two callers that are not the writer say so: a collaborator's
-      deletion followed onto this disk, and a file replaced while
-      rejoining a share. **What is left is the interface**: no panel shows
-      the new field yet, and what a trash row should say when a deletion
-      was not the reader's own is a drawing for the direction page before
-      it is any code.
 - [ ] **A file deleted outside NextTex does not schedule a build.** The
       watcher's tick now tells the compiler about every outside write it
       sees, so a pull, another editor's save or a regenerated figure
@@ -305,183 +240,34 @@ this host could not reproduce; each says which.
       build fails on the missing input. Left because the honest build is
       a failing one and the flush's `_settle_gone` would need to tell the
       session; small, once somebody wants it.
-- [ ] **A PNG download the writer reported as broken was not reproduced,
-      twice.** The report names the tree's row-menu *Download*, in Chrome.
-      The route answers the bytes with `image/png` and an attachment
-      disposition; the tree's, the viewer's and the History panel's
-      *Download* each raise a real download in Chromium under
-      `e2e/specs/image-view.spec.ts`; and the backlog close-out went
-      after the two things that tier lacks, the origin and the size: a
-      throwaway install behind a TLS front on this host, a 1 MB PNG and a
-      201 MB one, Playwright's full Chromium through the row menu, both
-      files landing with their full byte counts and a clean console,
-      twice. Google Chrome itself is not on this host. What would close
-      it: the words on Chrome's download bar when it fails ("Failed -
-      Network error", "Blocked", "Insecure download"), whether it was the
-      laptop or this machine, and whether the tab was on the tailnet's
-      HTTPS address or the token URL. A third attempt, on the laptop on
-      22 September in Google Chrome 153 on the reported commit itself
-      (`ba4b191`), downloaded a 169-byte PNG intact through the tree's row
-      menu and through the image viewer's strip, with the project open a
-      full minute first. **It clears nothing**, and the reason is worth
-      keeping: that install serves plain HTTP on 127.0.0.1, it has no TLS
-      front and no reachable HTTPS address, so the condition the failure
-      was recorded under was never reproduced. The download bar's wording
-      and the console were not captured either, and the 192 MiB file was
-      not downloaded through any control. The preview strip's Save PDF was
-      not reachable because the project had no typeset PDF, so whether it
-      lands as `pdf.pdf` is still unconfirmed on a real machine. The close-out run then found that
-      two controls had never left the link road at all, the figure
-      viewer's *Download* and the preview strip's *Save this PDF*, both
-      missed by the sweep that named the first of them; they are on the
-      fetch helper now and `no-link-downloads.test.ts` forbids the shape.
-      That is not this report, which names the tree's row menu, and the
-      three questions above are still what would close it.
-- [ ] **A Windows install's server exited silently after an update's
-      restart.** Seen on the laptop during the cross-machine check for
-      2.3.0: the restart helper launched the Startup shortcut, the new
-      server printed its banner four seconds later, and by morning nothing
-      was listening, with `server.err.log` empty and no crash, reboot or
-      logoff in Windows' own logs. Either the process died with nothing
-      logged or the minimized console window the shortcut opens was closed
-      by hand, which kills it without a word.
-
-      **A second sighting, on 22 September, with better evidence and a
-      better suspect.** The same machine: the helper took the Startup
-      shortcut at 16:42:56 on 18 September, the server bannered at
-      16:43:02, and nothing has listened since. The event logs across that
-      window are silent in a way that is itself the finding: uptime
-      unbroken since 14 September, no Kernel-Power 41, no 1074, no 6008,
-      no bugcheck, zero Application Error events, zero events naming
-      python, and an empty Windows Error Reporting queue. The process
-      ended and nothing anywhere recorded it. What that machine did do in
-      the window is sleep: 73 Modern Standby cycles, 506 and 507 balanced,
-      the first of them two hours and forty minutes after the banner,
-      seventeen of half an hour or more and the longest seven and a half
-      hours. Nothing records a process reaped across Modern Standby, which
-      is exactly the evidence this leaves, and it would explain the first
-      sighting too, where a laptop was found dead in the morning. The
-      owner does not remember closing the window, so the original guess is
-      not ruled out, but it is no longer the first thing to check.
-
-      Process Termination auditing was turned on there on 22 September at
-      16:42, elevated, going from No Auditing to Success and Failure, so
-      the next death leaves a 4689 event. Reading it needs one more
-      elevation, because that account cannot read the Security log
-      unelevated; granting it read access was attempted and refused, and
-      the route to prefer if it is tried again is an explicit allow-read
-      ACE for the account's SID on the Security channel rather than
-      membership of Event Log Readers, since group membership lives in the
-      logon token and would not reach a session that only unlocks.
-
-      **A watch is running now**: pid 33316, python 3.12, port 8450,
-      started 20:48:11 on 22 September by the Startup shortcut through the
-      restart helper, on `b3b9e13` / 3.6.1. It replaced pid 3240, which
-      the update ended. What it answers is whether a server on that
-      machine survives a night of Modern Standby at all, which does not
-      depend on which commit it runs.
-
-      One thing in `server.err.log` there is not this bug. It grew from 92
-      to 832 bytes at 16:34:58 on 22 September with a
-      `ConnectionResetError` from `_ProactorBasePipeTransport`, which is a
-      client connection dropped abruptly while a browser was being driven
-      at it, not a server dying: that server went on answering until the
-      update stopped it at 20:48. Recorded because "server.err.log empty"
-      is half this item's signature and the next reader should not take
-      that traceback for the silent exit finally leaving a trace.
-- [x] **The Windows restart helper's Startup-shortcut branch has run, and
-      this line used to say it had run nowhere.** `restart.log` on the
-      owner's laptop, read on 22 September, holds two clean passes of it:
-      `[2026-09-15 23:24:42] server: helper started as pid 32948
-      (breakaway=True); leaving`, then `helper: waiting for pid 31624`,
-      then `[23:24:46] helper: starting ...\Startup\nexttex.lnk`; and the
-      same three lines again on 18 September at 16:42:53 to 16:42:56, with
-      a server banner in `server.log` six seconds later each time. The
-      account there is an administrator running unelevated, which is why
-      `register-task.ps1` fell back to the shortcut in the first place, so
-      this is exactly the middle way back the line said nothing had taken.
-      A third pass on 22 September at 20:48:07 was watched end to end
-      rather than read afterwards: the helper started as pid 26204 with
-      `breakaway=True`, waited for pid 3240, which had been written down
-      beforehand, and launched the shortcut four seconds later, and the
-      server that answered afterwards was a new pid on the new commit.
-      That was the in-app update button carrying the install from 2.11.0
-      to 3.6.1, 176 commits in one step, in 56 seconds from the script
-      starting to the banner.
-      What is still unrun is the *scheduled task* branch on a real
-      machine, which needs an elevated shell and is the next line.
-- [x] **The logon task branch has run on a real machine.** Registered
-      elevated on 23 September 2026 with the owner's click, with the
-      Startup shortcut removed so exactly one launcher was armed, and the
-      machine rebooted: the task's own process started the server and it
-      was answering about five minutes later. `RunLevel` is `Limited`, so
-      the server runs unelevated, which is right. What is **not** done is
-      the restart helper's task branch, `windows_restart_argv` taking
-      `Start-ScheduledTask` rather than the shortcut, which needs an
-      update pressed while the task is the armed launcher.
-
-      That machine is now on the task and not the shortcut, which matters
-      for the item above it: both silent-exit sightings were on the
-      shortcut, so a future watch there is not comparing like with like
-      until somebody puts the shortcut back.
-- [ ] **The update footer's long-reason line is held by a Linux browser
-      test and was not re-taken on Windows.** The wrapping that pushed Try
-      again off the footer strip was found on the Windows laptop, fixed in
-      `frontend/src/panes/UpdateFooter.tsx`, and confirmed there off the DOM
-      rather than off the screen: the laptop's session could not repoint its
-      checkout at the fixed commit, and was told to leave that refusal alone
-      rather than work around it. The browser test asserts the row's height;
-      a screenshot from a Windows machine at 125 percent is what would close
-      this. That machine is already at 125 percent, so the screenshot needs
-      nothing but a moment with the footer in its long-reason state, and
-      the way to get one is to point the install's remote at a URL that
-      fails with a long multi-line error. A note here said on 22 September
-      that the screenshot had become impossible because the install had
-      reached the tip of master and there was no update to report on. That
-      was wrong, and it is corrected rather than deleted because it is the
-      kind of wrong that wastes the next attempt: `UpdateFooter.tsx:442`
-      gates that line on `!report.checked`, the check itself failing, and
-      whether the install is behind has nothing to do with it.
-
-      **Taken on 23 September, and Try again is inside the sheet**, at 125
-      percent on that machine, with the remote pointed at an unresolvable
-      host and put back afterwards. So the line this item was opened for
-      is answered. Two things the screenshot showed that are not: the
-      reason is clipped with an ellipsis rather than wrapped, which is
-      what `truncate` is there for and is the trade that keeps Try again
-      on the row, but on that failure the clipped half was the useful half
-      ("Could not resolve host"), so whether the sheet should give a
-      failed check more room is a question for the direction page rather
-      than a defect; and the header control relabels itself from "An
-      update is waiting" to "Check for updates" when a check fails, which
-      tells a writer that nothing is pending when something is, and takes
-      two clicks to open the sheet. Those two are the next interface
-      run's, drawn before they are built.
-- [ ] **`openai-card.spec.ts` "Allow always survives a reload as a
-      settled card" failed and passed on retry in four of the frame run's
-      nine full checks.** The failing read was `toBeVisible` on "Done."
-      after the card's Always is pressed, within 20 s, on a run with two
-      workers beside a LaTeX build; the case passed alone every time it
-      was run alone. The likely shape is the scripted OpenAI stand-in
-      finishing its turn before the card's answer lands, or the 500 ms
-      shield on the card's buttons letting the click through a moment
-      early under load, so the press is lost and the turn waits out its
-      timeout. **The shield half of that is wrong**, and reading
-      `Chat.tsx:1704-1756` says so: the buttons carry `disabled={!armed}`,
-      `frontend/src/ui/Button.tsx` forwards it to a real button, and Playwright's
-      actionability check waits for enabled, so a press cannot be dropped
-      that way. The spec no longer sleeps 500 ms against a 350 ms shield;
-      it waits for the button to be enabled and then asserts the card's
-      folded `decided-always` row before it waits for the turn's last
-      word, so the next failure says which of the three things it is: the
-      press lost, the card expired server-side under load, or the
-      scripted stand-in's turn not finishing. That is the only remaining
-      suspect and it stays open until a failure names it.
-      `previews.spec.ts` "renaming a previewed
-      document moves its tab and its page together", `history-trash.spec.ts`
-      "naming a version makes it findable later" and `writing.spec.ts`
-      "typing lands on disk without being asked to" each flaked once in
-      the same runs.
+- [ ] **A trash entry's `source` and `why` are not shown anywhere yet.**
+      Since 3.6.6 an entry records when the writer did not ask for the
+      deletion: a collaborator's deletion followed onto this disk, or a
+      file replaced while rejoining a share. No panel reads the fields,
+      so the trash still looks as if the writer did it. What a row should
+      say in that case is a drawing for the direction page before it is
+      any code.
+- [ ] **A failed update check hides the useful half of its reason and
+      says nothing is pending.** Seen at 125 percent on the Windows laptop
+      on 23 September, with the remote pointed at an unresolvable host.
+      The reason is clipped with an ellipsis, which keeps Try again on the
+      row, but the clipped half was the useful one ("Could not resolve
+      host"). And the header control relabels itself from "An update is
+      waiting" to "Check for updates" when a check fails, which tells a
+      writer nothing is pending when something is, and takes two clicks
+      to open the sheet. Both are for the next interface run, drawn on the
+      direction page before they are built.
+- [ ] **`navigation.spec.ts` "the caret readout belongs to the file on
+      screen" still fails now and then.** The backlog close-out traced it
+      to a keystroke landing in the file the writer had just left, and
+      fixed that. On 23 September it failed again, once in three full runs
+      of the browser tier with retries off: the readout said "Ln 1, Col 2"
+      where "Ln 1, Col 4" was expected, so two keystrokes were missing or
+      went elsewhere. Its trace is in `e2e/test-results/` on the owner's
+      Linux host until the next run clears it. Those three runs also had
+      two other failures that were not captured by name, so the tier has
+      at least one more intermittent test. `--retries 0` with
+      `--reporter list` is the way to name them.
 - [ ] **The printed token link is refused when a browser extension drives
       the navigation.** `_same_origin_request` (`server/main.py:720`)
       accepts `Sec-Fetch-Site` of `none` or `same-origin`, and an
@@ -496,53 +282,6 @@ this host could not reproduce; each says which.
 - [ ] **The issue form's `where` field is an input rather than a dropdown**
       because GitHub does not prefill dropdowns from a URL. If that changes,
       a dropdown for the platform would make the field sortable.
-
-- [x] **The documented Windows uninstall could kill the shell running it,
-      and say nothing.** Its third line stops every process whose command
-      line names the install, and a shell that was handed the block as
-      text has that path in its own command line, so the line killed the
-      uninstall in progress and the three lines after it never ran. The
-      failure looks exactly like success: the server stops, NextTex
-      disappears from the browser, and the install directory, the state
-      directory and both shortcuts are all still there. Hit for real on
-      23 September while running the documented sequence. `$PID` is
-      excluded now, in the README and in the install lane's copy of it,
-      and `docs/testing.md` records why that lane could never have caught
-      it: it writes the block to a file and runs the file, so the text is
-      in no command line, while a person or a tool using
-      `powershell -Command` is the case that breaks.
-
-      The same run found that the section says nothing about the
-      `.nexttex` directory each project keeps, which survives the
-      uninstall by design and was a third of a gigabyte on that machine.
-      The README now says so, and says how to remove one.
-
-- [x] **A TeX named on the command line is no longer discarded because
-      the machine already has one.** `--tex=miktex` was accepted by the
-      parser, forwarded through the bootstrap and then dropped by
-      `Plan.set` without a word, because the TeX item is fixed when a TeX
-      is found: the writer asked for MiKTeX, got TinyTeX, and was told
-      nothing. Found on 23 September while trying to put a MiKTeX on the
-      laptop through the documented route, which turned out to be
-      impossible on any machine that already has a TeX. An item fixed
-      because the machine *already has* the thing is overridable now; one
-      fixed because the machine *cannot do* the thing, a desktop shortcut
-      where there is no desktop, is not. The same run found that the
-      installer locates TeX by its known install directory rather than by
-      PATH, so taking TinyTeX off PATH hides it from nothing, which is
-      worth knowing before anybody tries that again.
-
-- [x] **`register-task.ps1` no longer starts a second server on top of a
-      running one.** It started one unconditionally after writing the
-      Startup shortcut, so re-running it raced the server already serving
-      that install, lost the port, and left "Port 8450 is already in use"
-      in `server.err.log`. Harmless in itself; not harmless in what it
-      costs, because an empty `server.err.log` is half the signature of
-      the Windows server that disappears overnight, and a line nobody
-      asked for makes that file worth less every time. Seen on 23
-      September when the script was re-run to record what it chooses on an
-      unelevated account.
-
 - [ ] **The installer does not record which TeX it was told to use, so
       the server still has to guess.** `--tex=miktex` installs MiKTeX now,
       and then `nexttex/tools.py` searches a fixed list of locations in
@@ -570,7 +309,6 @@ this host could not reproduce; each says which.
       now says when the pdflatex on PATH is a different TeX from the one
       it reports, instead of printing one distribution's version beside
       the other's directory and leaving somebody to notice.
-
 - [ ] **A logon-started server took five minutes to begin serving, where
       the same build started from the desktop shortcut took under
       twenty-five seconds.** Measured on the laptop on 23 September, eight
@@ -584,17 +322,16 @@ this host could not reproduce; each says which.
       that machine for the overnight disappearance can mistake a slow
       start for a failure to start, which one session nearly did.
 
-- [x] **The uninstall section said projects are untouched and meant only
-      the files.** The state directory holds `projects.json`, so an
-      uninstall takes NextTex's memory of which folders were yours with
-      it: every folder survives with its history and its trash, and a
-      fresh install opens on an empty list. Found on 23 September by
-      following the section on a real machine and then wondering where
-      the projects had gone. The section says so now, and says to copy
-      `projects.json` out first if the uninstall is on the way to a
-      reinstall.
-
 ### Never run against the real thing
+
+- [ ] **The restart helper's scheduled-task branch has not run on a real
+      machine.** The Startup-shortcut branch has, three times on the
+      owner's laptop, and the logon task itself was registered and started
+      a server there after a reboot on 23 September. What has not run is
+      `windows_restart_argv` taking `Start-ScheduledTask` rather than the
+      shortcut, which needs an update pressed while the task is the armed
+      launcher. That laptop is on the task now, so the next update pressed
+      there runs it.
 
 - [ ] **The drawer's Install button has still not been pressed on a
       MiKTeX, and now for a better reason.**
