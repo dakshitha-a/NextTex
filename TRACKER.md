@@ -52,6 +52,21 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
+- [ ] **Seven browser tests fail about once in a full run and pass on
+      the retry.** Each has been seen in the full tier with retries on,
+      under a load of four workers, during the run of 24 September 2026,
+      and none has failed when run alone: the layout frame test
+      (`layout.spec.ts`, "the window is a frame"), the source strip's
+      overflow (`tab-strips.spec.ts`, "counts what it hides"), the hover
+      card at 125 % (`hover-card-placement.spec.ts`), the section bar
+      (`sections.spec.ts`, "a bar above the source"), the kit's 28 px
+      controls (`kit.spec.ts`), a second caret by keyboard
+      (`column-select.spec.ts`), and the rail's handle (`layout.spec.ts`,
+      "the rail's handle resizes the rail"). Two others that looked the same were
+      real defects and are fixed: the caret readout, a new file's first
+      keystrokes lost, and the Markdown History count, a note rebuilding
+      the paper. What each of these seven needs is its trace read from a
+      failing run with retries off, which the same run could not get to.
 - [ ] **A logon-started server took five minutes to begin serving, where
       the same build started from the desktop shortcut took under
       twenty-five seconds.** Measured on the laptop on 23 September, eight
