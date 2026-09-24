@@ -340,12 +340,16 @@ test("the source strip counts what it hides, lists it, and scrolls under a wheel
   await withManyFiles(app, project, tab, FILES);
   const count = tab.getByTestId("tabs-hidden");
   await expect(count).toBeVisible();
-  const hidden = Number(await count.innerText());
-  expect(hidden).toBeGreaterThan(0);
+  expect(Number(await count.innerText())).toBeGreaterThan(0);
 
   await count.click();
   const menu = tab.getByTestId("tabs-hidden-menu");
   await expect(menu).toBeVisible();
+  // The count read once the menu is open: until then the strip may still
+  // be scrolling the newest tab into sight, which hides one more, and the
+  // count read before that was one short of the list it then opened (a
+  // flake of the 24 September runs, seen once in 72 under load).
+  const hidden = Number(await count.innerText());
   await expect(menu.getByRole("menuitem")).toHaveCount(hidden);
   await menu.getByRole("menuitem", { name: "main.tex" }).click();
   await expect(
