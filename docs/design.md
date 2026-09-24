@@ -10425,8 +10425,18 @@ Apart from Reword, Shorten, Expand and Ask, because it does not talk to
 the agent. The toolbar appears for twelve characters or more, so that a
 word double-clicked while reading does not raise the agent's verbs; a
 comment on one word is ordinary, so a shorter selection gets a toolbar
-with Comment alone. The editor has no menu of its own on a right click
+with Comment alone, unless it was a double-click: a word double-clicked
+while reading still brings up nothing, which `agent.spec.ts` holds, and
+a word selected on purpose, by keyboard or by a drag, gets Comment. The
+editor has no menu of its own on a right click
 and none was added, since the browser's is where copy and paste live.
+
+**The gutter takes no room until it has an icon.** A file with no
+threads keeps the width it always had; the text moves over by the
+icon's width only once a thread is on it. Reserving the column on every
+file wrapped every long line a little sooner for writers who never
+comment, and the outside-write spec, which reads a line two screens
+down, was the first to notice.
 
 **The cards.** The composer opens where the selection was, one field,
 Cancel and Post, Ctrl Enter posts. Resting on the text or the icon for a

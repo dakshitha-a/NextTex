@@ -616,19 +616,51 @@ test("a selected paragraph can be handed to the agent by its verb", async ({
   await expect(tab.getByTestId("selection-chip")).toBeVisible();
 });
 
-test("selecting one word does not put a row of verbs over it", async ({
+test("a word double-clicked while reading puts nothing over it", async ({
   tab,
 }) => {
   // A double-click on a word happens constantly while reading, and a
   // control appearing over it every time would be the diagnostics drawer's
-  // mistake in a third place.
+  // mistake in a third place. A word selected on purpose, with the
+  // keyboard or a drag, gets Comment alone (comments.spec.ts); a
+  // double-click gets nothing, and neither gets the agent's verbs.
+  // "document" on the first line, short of the twelve characters the verbs
+  // wait for, so the only thing that could appear is Comment, and that is
+  // what is tested. Its place is measured off the text itself.
+  await expect(tab.locator(".cm-editor .cm-line").first()).toContainText("document");
+  const at = await tab.evaluate(() => {
+    const line = document.querySelector(".cm-editor .cm-line")!;
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const index = (node.textContent ?? "").indexOf("document");
+      if (index < 0) continue;
+      const range = document.createRange();
+      range.setStart(node, index + 2);
+      range.setEnd(node, index + 3);
+      const box = range.getBoundingClientRect();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }
+    return null;
+  });
+  await tab.mouse.dblclick(at!.x, at!.y);
+  // The word is chosen: the caret is at its end.
+  await expect(tab.getByTestId("caret")).toHaveText(/^Ln 1, Col 1[0-9]$/);
+  await tab.waitForTimeout(300);
+  await expect(tab.getByTestId("selection-actions")).toHaveCount(0);
+});
+
+test("two characters chosen with the keyboard get Comment, and not the verbs", async ({
+  tab,
+}) => {
   const content = tab.locator(".cm-editor .cm-content");
   await content.click();
   await tab.keyboard.press("Control+Home");
   await tab.keyboard.press("Shift+ArrowRight");
   await tab.keyboard.press("Shift+ArrowRight");
-  await tab.waitForTimeout(200);
-  await expect(tab.getByTestId("selection-actions")).toHaveCount(0);
+  const row = tab.getByTestId("selection-actions");
+  await expect(row).toBeVisible();
+  await expect(row.getByTestId("selection-comment")).toBeVisible();
+  await expect(row.getByTestId("selection-reword")).toHaveCount(0);
 });
 
 test("the agent sheet can be looked at and left, from the bar and by Escape", async ({ app, page }) => {

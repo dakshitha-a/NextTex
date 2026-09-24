@@ -304,6 +304,9 @@ export default function Editor({
   >(null);
   /** Comments' marks and cards, a lazy chunk; see EditorComments. */
   const comments = useRef<CommentsApi | null>(null);
+  /** When the pointer last pressed twice, which is how a word is picked
+   *  up while reading. */
+  const lastDouble = useRef(0);
 
   /** Where the verb row goes for the selection the editor has now, in
    *  pane pixels, or null when there is no editor to ask.
@@ -635,9 +638,14 @@ export default function Editor({
         setActions((open) => (open === null ? open : null));
         return;
       }
-      // Commenting on one word is ordinary, so any selection gets Comment;
-      // the agent's verbs wait for twelve characters, for the reason above.
+      // Commenting on one word is ordinary, so a selection the writer made
+      // gets Comment; the agent's verbs wait for twelve characters. A word
+      // double-clicked while reading gets nothing, for the reason above.
       const verbs = selection.trim().length >= 12;
+      if (!verbs && Date.now() - lastDouble.current < 600) {
+        setActions((open) => (open === null ? open : null));
+        return;
+      }
       const at = placeRow();
       if (!at) {
         setActions(null);
@@ -1428,6 +1436,9 @@ export default function Editor({
       data-testid="editor-host"
       data-shown={shownNow ?? ""}
       className={`relative h-full min-h-0 overflow-hidden${skin}${colour}${plain}`}
+      onMouseDownCapture={(event) => {
+        if (event.detail >= 2) lastDouble.current = Date.now();
+      }}
     >
       {atTop ? (
         <button

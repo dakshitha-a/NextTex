@@ -1375,7 +1375,6 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   cursor: pointer;
 }
 .cm-editor .nx-comment-open { background: var(--hint-wash); border-radius: 2px; }
-.cm-editor .nx-comment-gutter { min-width: 18px; }
 .cm-editor .nx-comment-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 18px; height: 100%; color: var(--ink-3); cursor: pointer;

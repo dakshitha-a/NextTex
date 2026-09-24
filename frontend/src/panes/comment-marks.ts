@@ -147,7 +147,8 @@ export function commentExtension(
       gutter({
         class: "nx-comment-gutter",
         markers: (view) => view.state.field(iconField),
-        initialSpacer: () => new CommentIcon([]),
+        // No spacer: a file with no threads keeps the width it always had,
+        // and the text moves over only once there is an icon to show.
         domEventHandlers: {
           click: (_view, _line, event) => {
             const hit = idsAt(event.target);
