@@ -222,3 +222,20 @@ def test_nothing_is_scheduled_when_compiling_as_you_type_is_off(
         assert pending(client, project_id) == {"main.tex": False}
     finally:
         session.project.config.autocompile = True
+
+
+def test_a_markdown_note_that_no_document_reads_schedules_nothing(client, opened, project_dir):
+    """A note beside the paper is not the paper: typing in notes.md
+    rebuilt every document at each pause, since an unrecognised file went
+    to all of them and an empty rebuild list read as "rebuild all"."""
+    project_id = opened["id"]
+    rested(client, project_id)
+    (project_dir / "notes.md").write_text("# Notes\n\nA thought.\n", encoding="utf-8")
+
+    fold(client, project_id, "notes.md")
+
+    assert pending(client, project_id) == {"main.tex": False}
+    # And the next edit to the paper still builds.
+    (project_dir / "main.tex").write_text("\\section{Pulled}\n", encoding="utf-8")
+    fold(client, project_id, "main.tex")
+    assert pending(client, project_id) == {"main.tex": True}

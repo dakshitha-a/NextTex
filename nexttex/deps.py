@@ -275,6 +275,10 @@ class DependencyGraph:
           produces a preview that silently stops updating, which is the worst
           way this feature can fail; over-attributing costs a background
           build nobody is waiting on.
+        * Except a Markdown file, which goes to **none** unless a document
+          reads it. It is a note beside the paper, and LaTeX reads one only
+          through a package that `\\input`s it, which the walk sees. Sent
+          to every document, each pause while typing notes rebuilt the paper.
         """
         reach = self._walk(documents)
         matched = [name for name in documents if relative in reach[name]]
@@ -282,6 +286,8 @@ class DependencyGraph:
             return matched
         if relative.endswith((".tex", ".ltx")):
             return list(documents[:1])
+        if relative.lower().endswith((".md", ".markdown")):
+            return []
         return list(documents)
 
     def reverse(self, documents: Sequence[str]) -> dict[str, list[str]]:

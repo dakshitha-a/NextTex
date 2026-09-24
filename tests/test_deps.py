@@ -120,6 +120,13 @@ class TestOwners:
         write(tmp_path, "scratch.tex", "notes\n")
         assert graph.owners("scratch.tex", docs) == ["main.tex"]
 
+    def test_an_unknown_markdown_note_goes_to_no_document(self, tmp_path):
+        # A note beside the paper; a document that \input's one through a
+        # package is seen by the walk and matched above.
+        graph, docs = self.build(tmp_path)
+        write(tmp_path, "notes.md", "# Notes\n")
+        assert graph.owners("notes.md", docs) == []
+
     def test_an_unknown_asset_goes_to_every_document(self, tmp_path):
         # Under-attributing an asset leaves a preview that silently stops
         # updating, which is worse than a background build nobody waits on.

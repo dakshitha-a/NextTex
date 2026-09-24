@@ -370,6 +370,10 @@ class ProjectSession:
         self._editor_state: dict = {}
         #: Documents with an edit waiting for the debounce to fire.
         self._dirty: set[str] = set()
+        #: Whether the edits noted since the last build named no document
+        #: at all, which is an answer, "nothing reads it", and not the
+        #: silence an empty `_dirty` otherwise is.
+        self._read_by_none = False
 
         # Files this server has just written, by mtime.  The watcher uses
         # this to tell the user's own save apart from an outside change; the
@@ -1128,6 +1132,12 @@ class ProjectSession:
         """
         if not self.project.config.autocompile:
             return
+        if not self._dirty and self._read_by_none:
+            # Every edit since the last build was to a file no document
+            # reads, a Markdown note: nothing to build.
+            self._read_by_none = False
+            return
+        self._read_by_none = False
         targets = self._visible_first(self._dirty or set(self.documents))
         self._dirty = set()
 
@@ -1185,6 +1195,8 @@ class ProjectSession:
             # it.  Rebuilding everything is the safe direction.
             owners = list(self.documents)
         self._dirty.update(owners)
+        if not owners:
+            self._read_by_none = True
 
         binary = isinstance(text, bytes) or isinstance(previous, bytes)
         for name in owners:
