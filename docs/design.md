@@ -6347,8 +6347,16 @@ red before them and green after:
   word, so a paragraph and the heading above it are told apart by the
   rest of what the writer clicked on. A heading's number, which is no
   word to search for, stands the nearest heading line in. An unnumbered
-  `\paragraph{}` set at body size is missed by both readings and gets
-  the ordinary search, which is no worse than before.
+  `\paragraph{}` set at body size was missed by both readings and got
+  the ordinary search until 24 September 2026; a third reading catches
+  it now, a span whose font is bold, which begins its line and is short.
+  pdf.js keeps neither the font nor the line on the span, so
+  `tagSpans` in `frontend/src/panes/pdf-heading.ts` marks each span with
+  its font's key and whether it begins a line when the text layer is
+  built, and the double-click asks the page's loaded fonts for the name,
+  which says bold for `CMBX10`, `LMRoman10-Bold` or Times's
+  `NimbusRomNo9L-Medi`. A bold word inside a sentence does not begin its
+  line, so it stays the ordinary search.
 
 The writer also asked, mid-run, that with several documents previewed a
 double-click open the source of the one on screen. It did: the preview
@@ -10262,5 +10270,86 @@ anchor's `href` and its `download` attribute, both of which stayed true
 for as long as the file came down under the wrong name.
 
 Neither of these is the writer's own report. That one names the tree's
-row menu, which has been on the fetch helper since the sweep; it is
-still open, and what would close it is written in `TRACKER.md`.
+row menu, which has been on the fetch helper since the sweep. It was
+never reproduced here, and on 23 September the writer said it works now,
+so it left the backlog.
+
+
+## 64. Left alone on purpose, and why
+
+The backlog carried a section of things deliberately not done, each with
+its reason, to be revisited only if something changed. On 24 September
+2026 the writer asked for every one to be judged again. One was built,
+the unnumbered heading in section 36's inverse search, and the rest are
+recorded here as decisions, so the reason outlives the backlog line.
+
+**The project tree is walked twice per open.** `Project.tree` and
+`DependencyGraph._source_files` each descend the project with the same
+exclusions. On the bench's 2602-file thesis the walk is 4.6 ms of a
+31 ms open, so the plumbing to hand one walk to the other costs more
+than it saves. Revisit if the walk gets more expensive.
+
+**The Sections panel has no selection verbs.** Selecting a section in the
+editor already offers them, and a second entry point would put a hover
+control on every row of a panel that can hold forty, for a shorter road
+to something already reachable.
+
+**Two documents whose stems match cannot both be on the strip.** The
+jobname is the stem, so `variants/acme/resume.tex` beside `resume.tex`
+would build to one `resume.pdf`; the session refuses the second with a
+notice. A jobname made from the relative path would end it, and was not
+chosen: the writer keeps names unique across their folders, and
+`main.pdf` is what every Makefile pointed at a project expects.
+
+**Another window's removal of a preview closes no tabs here.** The strip
+is shared and the tabs are each window's own, so `previews_changed` from
+elsewhere moves the strip and nothing else. Wiring it to the tabs would
+also fire for this window's own removal.
+
+**Escape within 100 ms of a keystroke closes the pending completion query
+rather than the extra carets.** That is CodeMirror's own rule, met while
+testing column selection. Nobody presses that fast; the test's wait says
+why it is there.
+
+**Building a session walks the project on the event loop.** About 17 ms
+on the 2602-file thesis, once per cold open. Building the session in a
+thread was tried and reverted, because pycrdt's documents belong to the
+thread that built them; moving only the walk means threading a listing
+through a function called from ninety-nine places. Not worth 17 ms once
+per open.
+
+**A settled edit records its version inside the flush.** A sha256 and a
+zlib pass on the loop, about 1.5 ms on a 900-line chapter, once per pause
+in typing. The ordered per-session queue that would move it off the loop
+is more machinery than that. Worth doing if it crosses about 5 ms.
+
+**A script never runs on its own.** Not on save and not after the agent
+edits it. The agent's runs pass the permission fence with the script as
+the card's text, and an automatic rerun of code the agent just wrote
+would be the fence's one hole.
+
+**Captured figures are PNG only.** `plt.show()` is kept at 150 dpi, and a
+figure saved through the seeded helper is a PDF in `figures/`, so the
+vector copy exists where it matters. Nobody has asked for the shown copy
+in vector form.
+
+**A file that appears outside NextTex begins its history as it arrived.**
+Its earlier state was never anywhere NextTex could see, so there is
+nothing to record; a file that already has a history keeps its earlier
+states there.
+
+**A document dropped by an outside move comes back as a followed one.**
+Telling "asked for" from "followed" for a document the strip lost and
+regained needs an origin the strip does not keep, and the only place it
+could live is the `previews.json` format change section 34 declined.
+
+**`PasswordNudge`'s dismissal cannot be undone from the nudge.** Argued in
+that file's own header; the action is still behind the cog.
+
+**The Emacs keymap is a vendored copy of `@replit/codemirror-emacs`
+6.1.0,** under `frontend/src/vendor/`, because the package's ESM build
+marks its own key registration as pure and a bundler drops it. Checked
+against the registry again on 24 September 2026: 6.1.0 is still the
+newest release. An upgrade means vendoring again by hand, and
+`keymaps.spec.ts`'s `C-k` against the real build is what says the keys
+arrived.
