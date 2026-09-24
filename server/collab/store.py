@@ -87,6 +87,7 @@ from nexttex.history import slug_for
 from nexttex.project import TEXT_SUFFIXES, Project
 
 from . import persist
+from .merge import merge as merge_three
 
 log = logging.getLogger("nexttex.collab")
 
@@ -796,7 +797,7 @@ class CollabStore:
             except (PermissionError, OSError, ValueError):
                 return
             recorder(
-                path, on_disk, previous=current, by="you",
+                path, on_disk, previous=current, by="outside",
                 why=self.outside_why, source=self.outside_source,
             )
 
@@ -1429,8 +1430,24 @@ class CollabStore:
             return False
 
         before = str(text)
-        spans = edits_for(before, after)
+        # What the disk said when this install last wrote or read it: the
+        # common ancestor of the document and the file. A document that
+        # has moved on from it, typing inside the flush's debounce or a
+        # collaborator's edit not yet written out, holds changes the file
+        # does not, and a two-way diff read each of them as a deletion made
+        # on disk and deleted it. So the fold is a merge; where both
+        # changed the same words the file wins, the writer's rule, and the
+        # document's text is kept as a version first.
+        target = after
+        base = self.last_projected.get(file_id)
+        if base is not None and base != before and base != after and before != after:
+            merged = merge_three(base, before, after, edits_for)
+            if merged.clashed:
+                self._keep_what_the_editor_held(relative, before)
+            target = merged.text
+        spans = edits_for(before, target)
         if not spans:
+            self.last_projected[file_id] = after
             return adopted
 
         doc = self.texts.get(file_id)
@@ -1452,7 +1469,7 @@ class CollabStore:
             # "@articløidstrup2014improved" on screen while the file on
             # disk was clean.  Whatever a diff got wrong, the file goes in
             # whole and the miss is said out loud, with the file's name.
-            if str(text) != after:
+            if str(text) != target:
                 log.error(
                     "the shared document of %s did not match the file after "
                     "an outside edit was folded in; replacing it with the file",
@@ -1460,11 +1477,15 @@ class CollabStore:
                 )
                 with doc.transaction(origin=FROM_DISK):
                     del text[0:len(text)]
-                    text += after
+                    text += target
         finally:
             self._projecting.discard(file_id)
 
         self.last_projected[file_id] = after
+        if target != after:
+            # The merge kept what the file does not have yet: write it out.
+            self._dirty.add(file_id)
+            self._schedule()
         return True
 
     # --- document -> disk -------------------------------------------------

@@ -21,9 +21,21 @@ import { sizeOf } from "../size";
  */
 export function who(version: Version, me: string): string {
   const mine = !version.peer || version.peer === me;
+  // A change somebody made to the file on disk, outside NextTex: another
+  // editor, a pull, another agent. Nobody here typed it, so it is the
+  // disk's, and whose disk when it was a collaborator's.
+  if (version.by === "outside") {
+    return mine ? "On disk" : `On ${version.who || `${version.peer!.slice(0, 6)}…`}'s disk`;
+  }
   if (mine) return version.by === "claude" ? "Claude" : "you";
   const them = version.who || `${version.peer!.slice(0, 6)}…`;
   return version.by === "claude" ? `${them}'s Claude` : them;
+}
+
+/** The author's ink: the agent's pen, the disk in the second ink, since
+ *  nobody here wrote it, and a person in the first. */
+export function whoInk(version: Version): string {
+  return version.by === "claude" ? "text-pen" : version.by === "outside" ? "text-ink-2" : "text-ink";
 }
 
 /** What this file used to say.
@@ -418,7 +430,7 @@ export default function History({
                     </span>
                   ) : null}
                   <span className="t-meta tnum text-ink-3">{timeOf(version.at)}</span>
-                  <span className={version.by === "claude" ? "text-pen" : "text-ink"}>
+                  <span className={whoInk(version)} data-testid="version-who">
                     {who(version, me)}
                   </span>
                   <span className="flex-1" />
@@ -692,7 +704,7 @@ export function ViewingBanner({
       data-testid="viewing-banner"
     >
       <span className="h-[32px] leading-[32px] text-ink">Viewing {timeOf(version.at)}</span>
-      <span className={version.by === "claude" ? "text-pen" : "text-ink"}>{who(version, me)}</span>
+      <span className={whoInk(version)}>{who(version, me)}</span>
       {version.label || version.why ? (
         <span
           className="min-w-0 flex-1 truncate text-ink-2"

@@ -10585,3 +10585,35 @@ German word list, 1.1 MB, once". The fetch is the eighth thing in the
 README's account of what leaves the machine.
 
 Grammar stays English only, for R1 to say when it lands.
+
+## 72. Outside edits, merged and named
+
+Raised by the writer on 24 September, after asking how outside edits are
+reconciled: "make sure the mechanisms are robust ... I want outside
+edits to be reconciled and to show up on the history as outside edits
+to file on disk." Reading the mechanism against that turned up two ways
+it lost work and one way it misnamed it.
+
+- **The fold is a merge.** An outside write was diffed against the
+  document, so anything the document held that the file did not, typing
+  inside the flush's debounce or a collaborator's edit not yet written
+  out, read as deleted on disk and was deleted. The last text this
+  install wrote is the ancestor of both, so the fold now merges: changes
+  on either side that do not touch are both kept, and where both changed
+  the same words the file wins, the rule the writer set for a file and a
+  document that disagree, with the document's text kept as a version
+  first.
+- **An empty read waits.** An editor that truncates before writing can
+  be read in between; a file read empty over a document that is not is
+  read again 300 ms later, and folded empty only if it still is.
+- **History says "On disk".** A version the watcher records, or the fold
+  at open records for an edit made while NextTex was stopped, is the
+  disk's: "On disk", or "On Mira's disk" for a collaborator's, in the
+  second ink since nobody here typed it, with the reason line under it
+  as before. Drawn on the direction page's "Outside edits in History"
+  section and built as drawn.
+
+Found on the way: typing in a Markdown note rebuilt the paper at every
+pause, because a file no document reads was sent to every document; it
+now goes to none, and the flaky History spec that counted builds around
+a Markdown keystroke was that.

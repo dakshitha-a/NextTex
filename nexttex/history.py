@@ -114,7 +114,7 @@ class Version:
     at: float
     sha: str
     bytes: int
-    by: str            # "you" or "claude"
+    by: str            # "you", "claude", or "outside" for a change made on disk
     why: str = ""
     op: str = "edit"   # edit | create | delete | restore | undo | redo | orphan
     label: str | None = None

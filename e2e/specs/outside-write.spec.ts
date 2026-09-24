@@ -86,3 +86,27 @@ test("an entry added to the bibliography from outside resolves the citation", as
   expect(textOf(pdf)).not.toContain("lamport1994");
   await expect(page.getByTestId("status")).toHaveAttribute("data-state", "built");
 });
+
+test("an outside edit is the disk's in History, and the editor shows it", async ({ tab, project }) => {
+  // Raised by the writer on 24 September: a change made to the file on
+  // disk shows in History as the disk's, not the writer's.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  const main = join(project.root, "main.tex");
+  appendFileSync(main, "Written by another editor.\n");
+  // The editor draws only the lines on screen, and this one is appended
+  // at the end.
+  await tab.locator(".cm-content").click();
+  await expect.poll(async () => {
+    await tab.keyboard.press("Control+End");
+    return tab.locator(".cm-line", { hasText: "Written by another editor." }).count();
+  }, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect(tab.locator(".cm-line", { hasText: "Written by another editor." })).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await tab.getByTestId("bar-history").click();
+  const newest = tab.getByTestId("version").first();
+  await expect(newest.getByTestId("version-who")).toHaveText("On disk", { timeout: 15_000 });
+  await expect(newest).toContainText("changed outside NextTex");
+  await expect(newest.getByTestId("version-who")).toHaveClass(/text-ink-2/);
+});

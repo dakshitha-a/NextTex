@@ -159,7 +159,8 @@ export type Version = {
   sha: string;
   bytes: number;
   /** The role: the person, or their agent. Now relative to `peer`. */
-  by: "you" | "claude";
+  /** "outside" is a change made to the file on disk, not in NextTex. */
+  by: "you" | "claude" | "outside";
   why: string;
   op: "edit" | "create" | "delete" | "restore" | "undo" | "replace" | "import";
   label: string | null;

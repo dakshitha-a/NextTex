@@ -224,6 +224,28 @@ async def _rejoin_shared_projects() -> None:
             continue
 
 
+#: How long a file read empty over a document that is not waits before it
+#: is read again: longer than an editor takes between truncating and writing.
+BLANK_SETTLE = 0.3
+
+
+def _read_empty_over_text(session: ProjectSession, paths: set[str]) -> bool:
+    """Whether any of the tick's files is empty on disk while its document,
+    as last written, is not."""
+    collab = session.collab
+    for relative in paths:
+        file_id = collab.file_id_for(relative)
+        if file_id is None or not collab.last_projected.get(file_id):
+            continue
+        try:
+            path = session.project.resolve(relative)
+            if path.is_file() and path.stat().st_size == 0:
+                return True
+        except (OSError, ValueError, PermissionError):
+            continue
+    return False
+
+
 async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
     """One watcher tick's changes, into the documents and the history.
 
@@ -273,6 +295,14 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
     """
     stamp = f"outside:{now_ms()}"
     collab = session.collab
+    # An editor that truncates a file and then writes it can be read in
+    # between, and folding that empty read would blank the document for
+    # everybody. So a file read empty over a document that is not is read
+    # again after a moment; empty then, it was emptied.
+    # On the loop: the manifest is a pycrdt object and belongs to it, and
+    # the check is one stat per file.
+    if _read_empty_over_text(session, paths):
+        await asyncio.sleep(BLANK_SETTLE)
     changed: list[tuple[Path, str, str | None, bool]] = []
     edited: list[tuple[Path, str | None, str | None]] = []
     with collab.live_outside_edits(stamp):
@@ -322,8 +352,10 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
             # between the write and the tick.  Either way the earlier state
             # was never anywhere NextTex could see, and the new state is
             # still a change the watcher saw: its history begins here.
+            # The disk's, not the writer's: nobody typed it here. History
+            # draws it as "On disk", or as a collaborator's disk.
             session.record_version(
-                path, text, by="you",
+                path, text, by="outside",
                 op="edit" if (before is not None or known) else "create",
                 previous=before, why="changed outside NextTex", source=stamp,
             )

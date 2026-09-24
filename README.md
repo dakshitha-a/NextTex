@@ -695,6 +695,12 @@ trash that clears after thirty days loses the thing you went looking for on
 day thirty-one. None of it is git, and none of it needs you to have
 committed.
 
+A change made to the file somewhere else, by another editor, a `git pull`
+or another program, is folded in without losing what you had typed but not
+yet saved, and History names it for what it is: *On disk*, not you. When
+the file and the editor changed the same words, the file's version wins and
+what the editor held is kept as a version first.
+
 On a shared project the history is shared too, and each version says who
 wrote it. Their versions arrive as a list straight away and their contents
 are fetched when you open one, because almost nobody opens almost any old

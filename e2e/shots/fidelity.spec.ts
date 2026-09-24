@@ -946,6 +946,24 @@ const SURFACES: Record<string, Surface> = {
       await tab.getByLabel("Close the history").click().catch(() => undefined);
     },
   },
+  "history-outside": {
+    // A typed change, then one from another program: the drawer's History
+    // with the disk's row above the writer's.
+    open: async (tab) => {
+      const editor = tab.locator(".cm-content");
+      await editor.click();
+      await tab.keyboard.press("Control+Home");
+      await tab.keyboard.press("End");
+      await tab.keyboard.type(" Revised.");
+      await tab.waitForTimeout(2500);
+      if (ctx) fs.appendFileSync(path.join(ctx.root, "main.tex"), "Written by another editor.\n");
+      await tab.waitForTimeout(2500);
+      await showDrawer(tab, "history");
+      await tab.getByTestId("version-who").filter({ hasText: "On disk" }).first().waitFor({ timeout: 20_000 });
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
   /* The drawers, one surface each: the drawer's own element, so the
      heading row and the body are in the picture.  Sections and Search
      are full in the dark run and empty in the light one, as the page

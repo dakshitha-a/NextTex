@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { who } from "./History";
+import { who, whoInk } from "./History";
 import type { Version } from "../api";
 
 /** Whose version is this?
@@ -44,5 +44,23 @@ describe("who wrote a version", () => {
     // A short prefix of the key rather than nothing: two unnamed peers must
     // not look like one person.
     expect(who(version({ peer: THEM }), ME)).toBe("bbbbbb…");
+  });
+});
+
+describe("a change made on disk", () => {
+  test("is the disk's, not the writer's", () => {
+    expect(who(version({ by: "outside" }), ME)).toBe("On disk");
+    expect(who(version({ by: "outside", peer: ME }), ME)).toBe("On disk");
+  });
+
+  test("names whose disk when it was a collaborator's", () => {
+    expect(who(version({ by: "outside", peer: THEM, who: "Mira" }), ME)).toBe("On Mira's disk");
+    expect(who(version({ by: "outside", peer: THEM }), ME)).toBe("On bbbbbb…'s disk");
+  });
+
+  test("is drawn in the second ink", () => {
+    expect(whoInk(version({ by: "outside" }))).toBe("text-ink-2");
+    expect(whoInk(version({ by: "claude" }))).toBe("text-pen");
+    expect(whoInk(version())).toBe("text-ink");
   });
 });
