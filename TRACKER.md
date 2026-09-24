@@ -48,26 +48,6 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
-- [ ] **An editor pane drew a document's collaboration log where the file
-      on disk said something else.** Seen once on the Windows install on
-      23 September and not dug into, because the run it turned up in was
-      holding that machine as evidence for the trash bug. After a fresh
-      page load the editor showed a 449-byte version of `main.tex` that
-      had been written into the project at 16:36 the day before; the file
-      on disk was the 69-byte original, and
-      `GET /api/projects/{id}/file` served those 69 bytes correctly. The
-      document's log, `.nexttex/collab/docs/f67098301b6788c1.y`, was last
-      written at 16:36:37, which is exactly when the 449-byte version was
-      made. So the file, the route and the log disagreed, and the editor
-      drew the log. Nothing was lost, but a writer who opened that project
-      and typed would have written the stale text over their own file,
-      which is the same shape as the trash bug and lives next door to it
-      in `server/collab/store.py`. What would settle it: whether the fold
-      that reconciles a document with its file runs when the file was
-      changed while the document was open but no tick was seen, and
-      whether the log or the disk is meant to win when they differ at
-      open. `tests/collab/test_outside_edits.py` is the file that already
-      asks half of this question.
 - [ ] **A trash entry's `source` and `why` are not shown anywhere yet.**
       Since 3.6.6 an entry records when the writer did not ask for the
       deletion: a collaborator's deletion followed onto this disk, or a

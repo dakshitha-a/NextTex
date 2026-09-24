@@ -745,13 +745,17 @@ class CollabStore:
         - neither: an edit made outside, folded in as one and recorded as
           a version under this install's name.
 
-        A file with no record, because this store predates the record or
-        the document was built elsewhere, keeps today's rule: the
-        document wins.
+        A file with no record, because this store predates the record, the
+        document was built elsewhere, or the file came back under an id
+        that had none, is the case the writer decided on 24 September 2026:
+        the file wins. The document's text is recorded as a version first,
+        so what the editor held can be restored; a pane had drawn a log's
+        449 bytes over a 69-byte file that said something else, and the
+        next keystroke would have written them over it. The cost, accepted:
+        a server killed between the log and the write, on a file it has no
+        record for, loses that last moment of typing.
         """
         known = self._projected.get(file_id)
-        if known is None:
-            return
         relative = record.get("path") or ""
         on_disk = self._read(relative)
         if not on_disk:
@@ -760,7 +764,9 @@ class CollabStore:
         if on_disk == current:
             self._note_projected(file_id, on_disk)
             return
-        if _sha(on_disk) == known:
+        if known is None:
+            self._keep_what_the_editor_held(relative, current)
+        elif _sha(on_disk) == known:
             # Ours, and behind the document.  `last_projected` holding the
             # document's text is what would stop `_write` from writing it.
             self.last_projected[file_id] = on_disk
@@ -780,6 +786,22 @@ class CollabStore:
                 path, on_disk, previous=current, by="you",
                 why=self.outside_why, source=self.outside_source,
             )
+
+    def _keep_what_the_editor_held(self, relative: str, current: str) -> None:
+        """A version of the document's text, before a file with no record
+        of this install's writing it wins over it."""
+        recorder = getattr(self.session, "record_version", None)
+        if recorder is None or not current:
+            return
+        try:
+            path = self.project.resolve(relative)
+        except (PermissionError, OSError, ValueError):
+            return
+        recorder(
+            path, current, by="you",
+            why="What the editor held when the file on disk won",
+            source=self.outside_source,
+        )
 
     def _watcher_for(self, file_id: str) -> Callable:
         def observed(event) -> None:

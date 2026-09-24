@@ -119,12 +119,29 @@ def test_a_file_rewritten_to_the_same_text_is_not_an_edit(project):
     again.close()
 
 
-def test_a_file_the_store_never_wrote_keeps_the_document(project):
-    """No record of a projection: the document wins, as it always did."""
+def test_a_file_the_store_never_wrote_wins_and_the_document_is_kept(project):
+    """No record of a projection: the file wins, and what the editor held is
+    a version. The writer decided this on 24 September 2026 after a pane
+    drew a log's 449 bytes over a 69-byte file that said something else;
+    the rule had been that the document wins, and the next keystroke would
+    have written the stale text over their file."""
     store, file_id = _open(project)
     store.close()
     (project.state_dir / "collab" / "docs" / PROJECTED).unlink()
     (project.root / "main.tex").write_text("Edited, but nothing can say by whom.\n")
+    session = _Recorder()
+    again, _ = _open(project, session)
+    assert str(again.body(file_id)) == "Edited, but nothing can say by whom.\n"
+    held = [text for _name, text, why in session.versions if "editor held" in why]
+    assert held == ["The chapter.\n"]
+    assert session.versions[-1][1] == "Edited, but nothing can say by whom.\n"
+    again.close()
+
+
+def test_a_file_the_store_never_wrote_that_agrees_is_left_alone(project):
+    store, file_id = _open(project)
+    store.close()
+    (project.state_dir / "collab" / "docs" / PROJECTED).unlink()
     session = _Recorder()
     again, _ = _open(project, session)
     assert str(again.body(file_id)) == "The chapter.\n"
