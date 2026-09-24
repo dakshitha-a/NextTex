@@ -68,10 +68,6 @@ the reversal should have to answer it.
    branching and merging stay where they are. *Medium; y.*
 
 
-5. **An equation as an image.** A selected equation typeset on its own
-   and handed back as SVG or PNG, for a slide or a message. *Small; y.*
-
-
 ## Not adopting, and why
 
 Each of these was considered and left out for the reason beside it. A

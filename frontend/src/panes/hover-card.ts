@@ -176,9 +176,11 @@ export function hoverCard(source: Source): Extension {
         dom.style.visibility = "hidden";
         // After a button has done its work the card has said what it
         // had to say; the drawer it opened is where the writer looks
-        // next.
+        // next.  A button whose answer is said on the card itself, the
+        // formula card's Copy as SVG, carries `data-keeps-card`.
         dom.addEventListener("click", (event) => {
-          if ((event.target as HTMLElement).closest("button")) this.close();
+          const button = (event.target as HTMLElement).closest("button");
+          if (button && !button.hasAttribute("data-keeps-card")) this.close();
         });
         this.view.dom.append(dom);
         card.mount?.(this.view);

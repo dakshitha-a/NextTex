@@ -59,7 +59,7 @@ import { isEscaped } from "./escaping";
 import { isBib, isScript } from "./file-kinds";
 import { inputTarget, labelTarget, linkAt } from "./latex-links";
 import { mac } from "./math-hover";
-import { mathHover, type FigureFacts, type OnSymbol } from "./math-hover";
+import { mathHover, type FigureFacts, type OnEquation, type OnSymbol } from "./math-hover";
 import {
   braceAfter,
   commentStart,
@@ -727,6 +727,8 @@ export function languageFor(
     figure?: (path: string) => FigureFacts | null;
     /** The tooltip's Find references and Rename, and F2 on a name. */
     onSymbol?: OnSymbol;
+    /** The formula card's Copy as SVG and Save as PNG. */
+    onEquation?: OnEquation;
   } = {},
 ): Extension[] {
   if (isScript(path)) {
@@ -763,7 +765,7 @@ export function languageFor(
     // in `base()` so a Python script, which has no sections, gets no
     // gutter, and the read-only version view folds like the live one.
     latexFolding(),
-    mathHover(symbols, options.figure, options.onSymbol),
+    mathHover(symbols, options.figure, options.onSymbol, options.onEquation),
     ...(options.onSymbol ? [renameKey(options.onSymbol)] : []),
     ...(options.follow ? [followLinks(symbols, options.follow)] : []),
     ...(options.complete ? [latexCompletions(symbols)] : []),

@@ -44,8 +44,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from nexttex import (
-    arrive, attachments, auth, auxlabels, claude_auth, gitrepo, plots, rename,
-    report, submit, synctex, texpkg,
+    arrive, attachments, auth, auxlabels, claude_auth, equation, gitrepo, plots,
+    rename, report, submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
 from server.collab import identity as collab_identity
@@ -57,7 +57,7 @@ from nexttex.atomic import (
     SUFFIX as SCRATCH_SUFFIX, NotAFile, read_bytes, read_text, unique_name,
     write_atomically,
 )
-from nexttex.compile import ENGINES, CompileScheduler, ProjectPaths
+from nexttex.compile import ENGINES, CompileScheduler, ProjectPaths, engine_for
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
 from nexttex import references
 from nexttex.library import (
@@ -4085,6 +4085,54 @@ async def submit_check(project_id: str, document: str = ""):
         return report.as_dict()
 
     return await asyncio.to_thread(run)
+
+
+class EquationRequest(BaseModel):
+    body: str = Field(max_length=equation.MAX_BODY)
+    format: str = "svg"
+    document: str = ""
+
+
+@app.post("/api/projects/{project_id}/equation")
+async def equation_image(project_id: str, request: EquationRequest):
+    """An equation typeset on its own, with the document's own preamble and
+    engine, as an SVG or a PNG: the formula card's Copy as SVG and Save as
+    PNG.
+
+    The preamble is the main file's text as it is now, the open document
+    winning over the disk, so a macro defined a moment ago is set. Built
+    in a scratch directory under the build directory, from the document's
+    own directory so its `\\input`s resolve, never with shell escape. A
+    refusal is a 400 whose sentence names the missing tool or quotes what
+    TeX said.
+    """
+    session = session_for(project_id)
+    if request.document and request.document not in session.documents:
+        raise HTTPException(404, "no such document")
+    if request.format not in equation.FORMATS:
+        raise HTTPException(400, f"{request.format!r} is not svg or png")
+    state = _document(session, request.document)
+    paths = state.paths
+    live = session.collab.open_texts()
+    main_source = live.get(state.path)
+    if main_source is None:
+        try:
+            main_source = await asyncio.to_thread(paths.main.read_text, encoding="utf-8", errors="replace")
+        except OSError as error:
+            raise HTTPException(404, f"could not read {state.path}: {error}")
+    engine = engine_for(main_source, session.project.config.engine)
+
+    def run() -> equation.Image:
+        return equation.render(
+            main_source=main_source, body=request.body, engine=engine, fmt=request.format,
+            cwd=paths.workdir, env=paths.search_env(), scratch_parent=paths.build_dir,
+        )
+
+    try:
+        made = await asyncio.to_thread(run)
+    except equation.EquationError as error:
+        raise HTTPException(400, str(error))
+    return Response(made.data, media_type=made.media_type, headers={"cache-control": "no-store"})
 
 
 @app.get("/api/tools")

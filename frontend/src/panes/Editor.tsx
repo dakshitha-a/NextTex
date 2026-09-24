@@ -55,6 +55,7 @@ import { placeClear } from "./place-clear";
 import type { CommentsApi } from "./EditorComments";
 
 
+
 /** How long the outline waits behind the keyboard.
  *
  *  There is no autosave delay any more.  A keystroke goes into the shared
@@ -725,6 +726,11 @@ export default function Editor({
       // confirmation a project-wide edit needs.
       onSymbol: (kind, name, rename) =>
         set({ symbolRequest: { kind, name, rename, nonce: Date.now() } }),
+      onEquation: (body, format) => {
+        const id = get().projectId;
+        if (!id) return Promise.reject(new Error("No project is open."));
+        return import("./equation-verbs").then(({ equationImage }) => equationImage(id, body, format));
+      },
     });
     /** The same, for a pane that cannot be edited: no completions, and
      *  no following a reference out of a version being read. */

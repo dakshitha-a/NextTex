@@ -193,6 +193,19 @@ const SURFACES: Record<string, Surface> = {
     open: (tab) => hoverAt(tab, "A gap of $E = mc^2$ appears.", "mc^2", ".nx-math-tooltip"),
     close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
   },
+  "equation-copied": {
+    // The formula card after Copy as SVG: the two verbs, and the line
+    // under them saying what happened.
+    open: async (tab) => {
+      await tab.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+      const card = await hoverAt(tab, "The decay $S(t) = A e^{-t/\\tau_1} + B e^{-t/\\tau_2}$ is fitted.", "S(t)", ".nx-math-tooltip");
+      await card.hover();
+      await card.getByTestId("equation-svg").click();
+      await card.getByTestId("equation-said").filter({ hasText: "Copied" }).waitFor({ timeout: 30_000 });
+      return card;
+    },
+    close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },
+  },
   "image-hover": {
     // The figure's card over `\\includegraphics`, as the page draws it:
     // the same 1200 by 800 plot the Files drawer's card shows.

@@ -10510,3 +10510,25 @@ that, and a Java runtime is too much to ask of a writer's machine for a
 row whose whole job is to say what to load. Drawn on the direction page's
 "Before you submit: metadata, alt text, PDF/A" section, redrawn after
 the build with the switch and the rows as they came out.
+
+## 69. An equation as an image
+
+The roadmap's fifth item: an equation typeset on its own and handed back
+as SVG or PNG, for a slide or a message. It lives on the formula card,
+which already stays for the pointer and already carries buttons on its
+neighbours, because the editor has no right-click menu of its own and
+adding one would take the browser's copy and paste away. Two quiet
+buttons, Copy as SVG and Save as PNG, and under them one line that says
+what happened: copied, saved, or what TeX said when the equation did not
+build. SVG goes on the clipboard because a slide editor and most message
+boxes take pasted SVG text, and a PNG is saved because an image on the
+clipboard is not something every browser lets a page write. Where the
+clipboard is closed to the page, over plain HTTP away from localhost,
+the SVG is saved instead and the line says so. The image is not the
+card's KaTeX rendering: it is set by the project's own engine with the
+document's own preamble, so a `\newcommand` and a font package hold,
+which is the point of asking for it. Every other card closes after its
+button is pressed, since the button opens something elsewhere; these
+two leave the card open, because their answer is on it. Drawn on the
+direction page's "An equation as an image" section, redrawn after the
+build so the buttons stay above the line.

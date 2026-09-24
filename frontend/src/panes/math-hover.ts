@@ -268,6 +268,12 @@ export type OnSymbol = (kind: "label" | "cite" | "macro", name: string, rename: 
  *  disk when the tree knows it. */
 export type FigureFacts = { projectId: string; stamp: number; size?: number };
 
+/** The formula card's two verbs: the equation typeset by the project's
+ *  own TeX with the document's preamble, and handed back as an SVG on
+ *  the clipboard or a PNG saved.  Resolves to the sentence the card says
+ *  after, and rejects with the one it says instead. */
+export type OnEquation = (body: string, format: "svg" | "png") => Promise<string>;
+
 export function mathHover(
   symbols: () => Symbols | null,
   /** The facts for a figure the hover on `\includegraphics` shows, or
@@ -276,6 +282,9 @@ export function mathHover(
   figure?: (path: string) => FigureFacts | null,
   /** Absent in the read-only panes, which offer no rename. */
   onSymbol?: OnSymbol,
+  /** Absent in the read-only panes too: a version being read is not the
+   *  document a preamble is taken from. */
+  onEquation?: OnEquation,
 ): Extension {
   return hoverCard((view, pos): Tooltip | null => {
     // Which cards the writer has left on, read off the root now rather
@@ -341,6 +350,13 @@ export function mathHover(
           .catch(() => {
             body.textContent = "Could not load the maths renderer.";
           });
+        // In a chunk of its own, fetched with the first formula card, so
+        // the entry bundle does not carry it.
+        if (onEquation) {
+          void import("./equation-verbs")
+            .then(({ equationVerbs }) => equationVerbs(dom, span.body, onEquation))
+            .catch(() => undefined);
+        }
         return { dom };
       },
     };

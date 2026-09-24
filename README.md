@@ -615,7 +615,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 857.8 kB | 860 kB |
+| Interface bundle | 858.3 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -835,6 +835,12 @@ the reference will say, "Figure 3, on page 7", and draws the figure, the
 table or the equation it points at, with its caption. The Files drawer
 shows the same picture card beside the row of an image or a PDF, on
 hover or when the row has the focus.
+
+The formula's card has two buttons, *Copy as SVG* and *Save as PNG*,
+for an equation you want on a slide or in a message. Your own TeX sets
+it with your document's preamble, so your macros and your fonts come
+out as they do on the page; `pdftocairo`, which comes with poppler,
+makes the image.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-hover-dark.png">
