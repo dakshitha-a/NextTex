@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist";
+import { headingHint, isBoldFont, tagSpans } from "./pdf-heading";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import api from "../api";
 import { download, stemOf } from "../chrome";
@@ -58,42 +59,6 @@ const MAX_ZOOM = 3;
  *  moment where fingers reset -- committed the zoom, relaid the document
  *  out and redrew every visible canvas, and the gesture then resumed
  *  against a page that had just jumped under it. */
-
-/** What the double-click can tell the editor beyond the word.
- *
- *  Whether the span is a heading is read off the page rather than asked
- *  of synctex, which does not know: a heading's span is set larger than
- *  the page's running text, or begins with its number.  The running size
- *  is the most common span size on the page, which on a page of prose is
- *  the body face.  A `\paragraph{}` heading set at body size and unnumbered
- *  is missed by both readings and gets the ordinary search, which is no
- *  worse than before.
- */
-export function headingHint(
-  page: HTMLElement,
-  span: HTMLElement | null,
-  word: string,
-): WordHint {
-  if (!span) return { word };
-  const context = span.textContent ?? "";
-  // pdf.js writes the size as `calc(var(--scale-factor) * 9.96px)`, so the
-  // number is fished out rather than parsed off the front.
-  const size = (el: HTMLElement) =>
-    Number(/([\d.]+)px/.exec(el.style.fontSize)?.[1] ?? 0);
-  const counts = new Map<number, number>();
-  for (const other of page.querySelectorAll<HTMLElement>(".nx-text-layer span")) {
-    const px = Math.round(size(other) * 10) / 10;
-    if (px > 0) counts.set(px, (counts.get(px) ?? 0) + 1);
-  }
-  let body = 0;
-  let most = 0;
-  for (const [px, count] of counts) {
-    if (count > most) { body = px; most = count; }
-  }
-  const larger = body > 0 && size(span) >= body * 1.15;
-  const numbered = /^\s*(?:\d+|[A-Z])(?:\.\d+)*\.?\s+\S/.test(context);
-  return { word, context, heading: larger || numbered };
-}
 
 const ZOOM_SETTLE = 260;
 
@@ -366,14 +331,19 @@ export default function Pdf({
       view.text.style.transform = "";
       // pdf.js positions its spans in unscaled units and divides by this.
       view.text.style.setProperty("--scale-factor", String(view.scale));
+      const content = await page.getTextContent();
+      if (mine !== generation.current) return;
       const layer = new pdfjs.TextLayer({
-        textContentSource: page.streamTextContent(),
+        textContentSource: content,
         container: view.text,
         viewport,
       });
       await layer.render();
       if (mine !== generation.current) view.text.replaceChildren();
-      else markHit(index);
+      else {
+        tagSpans(layer.textDivs, content.items);
+        markHit(index);
+      }
     } catch {
       // A page whose text cannot be read is still a page you can look at.
       view.textFor = -1;
@@ -1001,7 +971,23 @@ export default function Pdf({
       const span = (event.target as HTMLElement).closest(".nx-text-layer span") as
         | HTMLElement
         | null;
-      const hint = headingHint(target, span, word);
+      // Whether the span's font is bold, from the name pdf.js loaded it
+      // under: the span keeps only a generic family, and the page has
+      // been drawn by the time anybody can double-click it, so the font
+      // is there to ask.
+      let bold = false;
+      const font = span?.dataset.font;
+      if (font && doc.current) {
+        try {
+          const proxy = await doc.current.getPage(index + 1);
+          if (proxy.commonObjs.has(font)) {
+            bold = isBoldFont((proxy.commonObjs.get(font) as { name?: string })?.name);
+          }
+        } catch {
+          /* the document went away under the click */
+        }
+      }
+      const hint = headingHint(target, span, word, bold);
       const box = target.getBoundingClientRect();
       // SyncTeX works in PDF points from the top-left corner, and so does
       // the canvas, so the conversion is the scale factor and nothing else.

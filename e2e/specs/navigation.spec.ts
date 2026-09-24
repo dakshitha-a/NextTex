@@ -653,3 +653,42 @@ The keyword bravado appears only in the sibling file.
   const line = ONE.split("\n").findIndex((l) => l.includes("bravado")) + 1;
   await expect.poll(() => caretLine(page), { timeout: 20_000 }).toBe(line);
 });
+
+/** An unnumbered heading at body size, which only its bold face marks.
+ *
+ *  `\paragraph{}` in the article class is run in, set at the body size and
+ *  unnumbered, so neither reading the double-click had, larger than the
+ *  running text or opening with a number, called it a heading, and the
+ *  word search took the nearest line with the word in it. Each line under
+ *  it says "Methods" again, which is where that search lands.
+ */
+const RUN_IN = String.raw`\documentclass{article}
+\begin{document}
+Some opening prose so that the page has a running size to measure
+against, set in the body face over a couple of lines of text.
+
+\paragraph{Methods}
+Methods were chosen for the three solvents, and Methods recurs here
+so that a search starting under the heading finds it first. Methods
+appears on this line too, and on the next, Methods, once more.
+\end{document}
+`;
+const PARAGRAPH_LINE = RUN_IN.split("\n").findIndex((l) => l.startsWith("\\paragraph{")) + 1;
+
+test("double-clicking an unnumbered heading set at body size lands on its \\paragraph line", async ({
+  app, project, page,
+}) => {
+  writeFileSync(join(project.root, "main.tex"), RUN_IN);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const { openProject } = await import("../fixtures");
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  const heading = page
+    .locator(".nx-page").first()
+    .locator(".nx-text-layer span", { hasText: /^Methods$/ }).first();
+  await expect(heading).toBeAttached({ timeout: 60_000 });
+  const box = (await heading.boundingBox())!;
+  await page.mouse.dblclick(box.x + box.width * 0.5, box.y + box.height * 0.5);
+  await expect.poll(() => caretLine(page), { timeout: 20_000 }).toBe(PARAGRAPH_LINE);
+});
