@@ -72,11 +72,6 @@ the reversal should have to answer it.
    and handed back as SVG or PNG, for a slide or a message. *Small; y.*
 
 
-6. **Alt text and PDF metadata in the submission check.** On the
-   submission check that came with 2.14.0: hyperref's title and author
-   metadata, a figure with no alternative text, and whether `pdfx` is in
-   play for a venue that wants PDF/A. *Small; y.*
-
 ## Not adopting, and why
 
 Each of these was considered and left out for the reason beside it. A

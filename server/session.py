@@ -855,6 +855,7 @@ class ProjectSession:
             "shellEscape": self.shell_escape_state(),
             "pageLimit": config.page_limit,
             "blind": config.blind,
+            "pdfa": config.pdfa,
         }
 
     def documents_payload(self) -> dict:

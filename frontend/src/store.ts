@@ -334,9 +334,10 @@ export type State = {
     shellEscape: ShellEscape;
     /** The submission check's two venue facts: a page count the build
      *  must not exceed, 0 for none, and whether an author's name on the
-     *  page is a finding. */
+     *  page is a finding; and whether the venue wants PDF/A. */
     pageLimit: number;
     blind: boolean;
+    pdfa: boolean;
   };
   /** Which optional tools the machine has, fetched once per load; null
    *  until it answers.  The download menu and the submission panel read
@@ -462,7 +463,7 @@ const state: State = {
   contextStale: [],
   settings: {
     autocompile: true, markErrors: true, markWarnings: false, engine: "", shellEscape: "off",
-    pageLimit: 0, blind: false,
+    pageLimit: 0, blind: false, pdfa: false,
   },
   tools: null,
   agent: null,
@@ -1286,6 +1287,7 @@ function receive(event: any) {
             shellEscape: shellEscapeOf(event.shellEscape),
             pageLimit: countOf(event.pageLimit),
             blind: event.blind === true,
+            pdfa: event.pdfa === true,
           },
         });
       }

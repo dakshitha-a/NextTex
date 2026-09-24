@@ -52,6 +52,7 @@ export default function PageWindow({ request }: { request: PageWindowRequest }) 
             shellEscape: shellEscapeOf(project.shellEscape),
             pageLimit: countOf(project.pageLimit),
             blind: project.blind === true,
+            pdfa: project.pdfa === true,
           },
         });
         connect(request.projectId);

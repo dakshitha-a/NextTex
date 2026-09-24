@@ -4080,6 +4080,7 @@ async def submit_check(project_id: str, document: str = ""):
             relative=lambda path: session.relative_or_none(str(path) if path else None),
             blind=config.blind,
             page_limit=config.page_limit,
+            pdfa=config.pdfa,
         )
         return report.as_dict()
 
@@ -4989,6 +4990,7 @@ async def set_project_settings(
     engine: str | None = Body(None),
     pageLimit: int | None = Body(None),
     blind: bool | None = Body(None),
+    pdfa: bool | None = Body(None),
 ):
     """The three switches and the engine choice on the settings card, and
     the two venue facts the submission panel sets.
@@ -5017,6 +5019,8 @@ async def set_project_settings(
         config.page_limit = int(pageLimit)
     if blind is not None:
         config.blind = bool(blind)
+    if pdfa is not None:
+        config.pdfa = bool(pdfa)
     try:
         config.save(session.project.root)
     except OSError as error:

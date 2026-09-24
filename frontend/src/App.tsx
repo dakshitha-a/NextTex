@@ -528,6 +528,7 @@ export default function App() {
         shellEscape: shellEscapeOf(project.shellEscape),
         pageLimit: countOf(project.pageLimit),
         blind: project.blind === true,
+        pdfa: project.pdfa === true,
       },
       // The last project's import progress, which belongs to the last
       // project. It was left, so opening another one showed a papers

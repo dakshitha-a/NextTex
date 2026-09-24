@@ -15,17 +15,19 @@ import { set, useStore } from "../store";
  *  file and line through the editor, a page through the PDF pane.  A row
  *  with neither opens to say what to do.
  *
- *  The two venue facts, the page limit and whether the review is blind,
- *  are set here rather than on the settings sheet because they are read
- *  here, and they go into `nexttex.toml` so a co-author's check agrees.
+ *  The three venue facts, the page limit, whether the review is blind and
+ *  whether the venue wants PDF/A, are set here rather than on the
+ *  settings sheet because they are read here, and they go into
+ *  `nexttex.toml` so a co-author's check agrees.
  */
 
 type Group = { kind: string; title: string; rows: SubmitFinding[] };
 
 /** The order the groups are drawn in: what a reviewer notices first. */
 const ORDER = [
-  "pages", "blind", "undefined", "missing", "font", "image", "today", "todo",
-  "duplicate-label", "overfull", "commented", "uncited", "unused-label", "tool",
+  "pages", "blind", "pdfa", "undefined", "missing", "font", "image", "metadata", "alt",
+  "today", "todo", "duplicate-label", "overfull", "commented", "uncited", "unused-label",
+  "tool",
 ];
 
 function grouped(findings: SubmitFinding[]): Group[] {
@@ -117,12 +119,12 @@ export default function SubmitPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stamp]);
 
-  // The two venue facts change the list, and the settings sheet or a
+  // The venue facts change the list, and the settings sheet or a
   // co-author may have changed them: re-check when they do.
   useEffect(() => {
     if (shown && report) void check();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.blind, settings.pageLimit]);
+  }, [settings.blind, settings.pageLimit, settings.pdfa]);
 
   const saveLimit = () => {
     if (!projectId) return;
@@ -175,6 +177,21 @@ export default function SubmitPanel({
           onChange={(blind) => {
             if (!projectId) return;
             void api.setProjectSettings(projectId, { blind }).catch(
+              (error: any) => set({ error: error.message }),
+            );
+          }}
+        />
+      </div>
+      <div className="nx-line">
+        <span>Wants PDF/A</span>
+        <span className="flex-1" />
+        <Switch
+          checked={settings.pdfa}
+          data-testid="submit-pdfa"
+          aria-label="Wants PDF/A"
+          onChange={(pdfa) => {
+            if (!projectId) return;
+            void api.setProjectSettings(projectId, { pdfa }).catch(
               (error: any) => set({ error: error.message }),
             );
           }}

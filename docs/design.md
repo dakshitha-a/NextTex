@@ -10486,3 +10486,27 @@ is cut at a word and ends with an ellipsis, where it had been cut
 mid-word, which the fidelity render of this menu showed on the critical
 review's hint. `tests/test_prompts.py` holds that it
 ships and names the three tools and the two refusals.
+
+## 68. What a venue's own system reads
+
+The roadmap's last item: three more kinds in the submission check, each
+something a venue's upload form or its accessibility pass reads and
+none of which stops a build. The PDF's own title and author, which a
+library, a search engine and a screen reader show for it, are read with
+`pdfinfo`, the poppler tool the page count already used; an empty one is
+a warning whose fix names hyperref's `pdfusetitle`. A blind submission
+is expected to have no author there, so for one the empty field is
+quiet and a filled one is a blind-review error, because `pdfusetitle`
+copies `\author` into a place no reader of the page sees. A figure with
+no alternative text is a warning at its `\includegraphics`, cleared by
+graphicx's `alt=` key or, in an ACM paper, by a `\Description` before
+the figure ends. PDF/A is asked of the project rather than guessed: a
+third switch, *Wants PDF/A*, under *Blind review*, kept as `pdfa` in
+`nexttex.toml` beside the other two venue facts so a co-author's check
+agrees, and when it is on a preamble with neither `pdfx` nor a
+`\DocumentMetadata` that names a PDF/A standard is one error. The check
+does not validate the PDF against the standard; veraPDF is the tool for
+that, and a Java runtime is too much to ask of a writer's machine for a
+row whose whole job is to say what to load. Drawn on the direction page's
+"Before you submit: metadata, alt text, PDF/A" section, redrawn after
+the build with the switch and the rows as they came out.

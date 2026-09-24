@@ -136,10 +136,25 @@ EXPLAIN = {
         "detail": "The build has more pages than the limit set for this project.",
         "fix": "Shorten it, or check whether the venue counts references and appendices.",
     },
+    "metadata": {
+        "title": "PDF metadata",
+        "detail": "The PDF's own title and author are what a library, a search engine and a screen reader show for it, and a venue's system often fills its form from them.",
+        "fix": "Load hyperref with pdfusetitle, which takes them from \\title and \\author, or set pdftitle and pdfauthor in \\hypersetup.",
+    },
+    "alt": {
+        "title": "Figures without alt text",
+        "detail": "A figure with no alternative text is silence to a screen reader, and more venues now ask for it.",
+        "fix": "Give the figure alt={...} in \\includegraphics, which graphicx has read since 2021, or \\Description{...} in an ACM paper.",
+    },
+    "pdfa": {
+        "title": "PDF/A",
+        "detail": "The project says the venue wants PDF/A, and nothing in the preamble asks for it, so the PDF is an ordinary one.",
+        "fix": "Load pdfx with the level the venue names, \\usepackage[a-2b]{pdfx}, or put \\DocumentMetadata{pdfstandard=a-2b} before \\documentclass.",
+    },
     "tool": {
         "title": "Checks that could not run",
         "detail": "One of the poppler tools is not installed on this machine, so its check is not in this list.",
-        "fix": "Install poppler-utils; pdffonts and pdfimages come with it.",
+        "fix": "Install poppler-utils; pdffonts, pdfimages and pdfinfo come with it.",
     },
 }
 
@@ -299,6 +314,87 @@ def from_sources(texts: dict[str, str], bibs: dict[str, str], *, blind: bool) ->
     return out
 
 
+INCLUDEGRAPHICS = re.compile(r"\\includegraphics\s*(?:\[(?P<options>[^\]]*)\])?\s*\{(?P<file>[^}]*)\}")
+ALT_KEY = re.compile(r"(?:^|,)\s*alt\s*=")
+DESCRIPTION = re.compile(r"\\Description\b")
+BEGIN_FIGURE = re.compile(r"\\begin\s*\{\s*figure\*?\s*\}")
+END_FIGURE = re.compile(r"\\end\s*\{\s*figure\*?\s*\}")
+PDFX = re.compile(r"\\usepackage\s*(?:\[[^\]]*\])?\s*\{[^}]*\bpdfx\b[^}]*\}")
+DOCUMENT_METADATA_PDFA = re.compile(r"\\DocumentMetadata\s*\{[^}]*pdfstandard\s*=\s*\{?\s*a-", re.I)
+
+
+def alt_text(texts: dict[str, str]) -> list[Finding]:
+    """A figure with no alternative text: an \\includegraphics without an
+    `alt=` key, and, for ACM's classes, no \\Description before the figure
+    ends."""
+    out: list[Finding] = []
+    for path in sorted(texts):
+        if path.lower().endswith(".bib"):
+            continue
+        lines = texts[path].split("\n")
+        for number, raw in enumerate(lines, start=1):
+            cut = usage.comment_starts(raw)
+            code = raw if cut is None else raw[:cut]
+            for found in INCLUDEGRAPHICS.finditer(code):
+                if ALT_KEY.search(found.group("options") or ""):
+                    continue
+                if _described(lines, number - 1):
+                    continue
+                out.append(Finding(
+                    "alt", "warning", f"{found.group('file').strip()} has no alt text", path, number,
+                ))
+    return out
+
+
+def _described(lines: list[str], index: int) -> bool:
+    """Whether a \\Description comes before the figure this line is in
+    ends, within twenty lines, which is where an ACM paper puts it. The
+    next figure's start ends the search too, so a loose graphic does not
+    borrow the \\Description of the figure after it."""
+    for offset, line in enumerate(lines[index:index + 20]):
+        if offset and BEGIN_FIGURE.search(line):
+            return False
+        if DESCRIPTION.search(line):
+            return True
+        if END_FIGURE.search(line):
+            return False
+    return False
+
+
+def pdfa_missing(texts: dict[str, str]) -> list[Finding]:
+    """A project whose venue wants PDF/A, with nothing in the sources that
+    asks for it."""
+    for text in texts.values():
+        if PDFX.search(text) or DOCUMENT_METADATA_PDFA.search(text):
+            return []
+    return [Finding("pdfa", "error", "The venue wants PDF/A and nothing in the preamble asks for it")]
+
+
+def _info(output: str) -> dict[str, str]:
+    """`pdfinfo`'s key: value lines."""
+    out: dict[str, str] = {}
+    for line in (output or "").splitlines():
+        key, colon, value = line.partition(":")
+        if colon:
+            out[key.strip()] = value.strip()
+    return out
+
+
+def metadata(output: str, *, blind: bool) -> list[Finding]:
+    """The PDF's own title and author. A blind submission is expected to
+    have no author, and one that has one is a blind finding instead."""
+    info = _info(output)
+    out: list[Finding] = []
+    if not info.get("Title"):
+        out.append(Finding("metadata", "warning", "The PDF has no title"))
+    author = info.get("Author", "")
+    if blind and author:
+        out.append(Finding("blind", "error", f"The PDF's metadata names the author: {author[:80]}"))
+    elif not blind and not author:
+        out.append(Finding("metadata", "warning", "The PDF has no author"))
+    return out
+
+
 # -- the PDF -----------------------------------------------------------------
 
 def _rows(output: str) -> tuple[list[str], list[list[str]]]:
@@ -395,15 +491,16 @@ def run_pdfimages(pdf: Path) -> str | None:
     return _run(["pdfimages", "-list", str(pdf)])
 
 
-def pages_of(pdf: Path) -> int | None:
-    info = _run(["pdfinfo", str(pdf)])
-    for line in (info or "").splitlines():
-        if line.startswith("Pages:"):
-            try:
-                return int(line.split()[1])
-            except (IndexError, ValueError):
-                return None
-    return None
+def run_pdfinfo(pdf: Path) -> str | None:
+    return _run(["pdfinfo", str(pdf)])
+
+
+def pages_of(pdf: Path, info: str | None = None) -> int | None:
+    info = run_pdfinfo(pdf) if info is None else info
+    try:
+        return int(_info(info or "").get("Pages", "").split()[0])
+    except (IndexError, ValueError):
+        return None
 
 
 # -- all of it -----------------------------------------------------------------
@@ -420,8 +517,10 @@ def check(
     relative,
     blind: bool,
     page_limit: int,
+    pdfa: bool = False,
     pdffonts=run_pdffonts,
     pdfimages=run_pdfimages,
+    pdfinfo=run_pdfinfo,
 ) -> Report:
     """The whole report for one document.
 
@@ -440,6 +539,9 @@ def check(
     bibs = {path: text for path, text in texts.items() if path.lower().endswith(".bib")}
     sources = {path: text for path, text in texts.items() if path.lower().endswith(".tex")}
     findings.extend(from_sources(sources, bibs, blind=blind))
+    findings.extend(alt_text(sources))
+    if pdfa:
+        findings.extend(pdfa_missing(sources))
     built: float | None = None
     if pdf is not None and pdf.is_file():
         built = pdf.stat().st_mtime
@@ -453,8 +555,13 @@ def check(
             findings.append(Finding("tool", "note", "pdfimages is not installed, so image resolution was not checked"))
         else:
             findings.extend(images(images_out))
+        info_out = pdfinfo(pdf)
+        if info_out is None:
+            findings.append(Finding("tool", "note", "pdfinfo is not installed, so the PDF's title and author were not checked"))
+        else:
+            findings.extend(metadata(info_out, blind=blind))
         if pages is None:
-            pages = pages_of(pdf)
+            pages = pages_of(pdf, info_out)
     if page_limit > 0 and pages is not None and pages > page_limit:
         findings.append(Finding(
             "pages", "error", f"{pages} pages against a limit of {page_limit}",

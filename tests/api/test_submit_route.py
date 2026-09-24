@@ -67,6 +67,21 @@ def test_the_page_limit_and_blind_review_come_from_the_settings(client, opened, 
     assert pages["message"] == "12 pages against a limit of 8"
 
 
+def test_a_venue_that_wants_pdfa_is_a_setting_the_check_reads(client, opened, project_dir):
+    (project_dir / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}\n", encoding="utf-8",
+    )
+    fake_build(project_dir)
+    project_id = opened["id"]
+    before = {row["kind"] for row in client.get(f"/api/projects/{project_id}/submit").json()["findings"]}
+    assert "pdfa" not in before
+    settings = client.post(f"/api/projects/{project_id}/settings", json={"pdfa": True})
+    assert settings.status_code == 200 and settings.json()["pdfa"] is True
+    assert ProjectConfig.load(project_dir).pdfa is True
+    after = {row["kind"] for row in client.get(f"/api/projects/{project_id}/submit").json()["findings"]}
+    assert "pdfa" in after
+
+
 @pytest.mark.parametrize("limit", [-1, 100_001, "eight"])
 def test_a_page_limit_that_is_not_a_count_is_refused(client, opened, limit):
     answer = client.post(f"/api/projects/{opened['id']}/settings", json={"pageLimit": limit})

@@ -1328,6 +1328,36 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => { await showDrawer(tab, "files"); },
   },
+  "drawer-submit-more": {
+    // The three kinds the fifth run added: a figure with no alt text, the
+    // PDF's own title and author, and PDF/A once the venue is said to want
+    // it.  The figure is typed, since the sources are read as they are.
+    open: async (tab) => {
+      await typeLine(tab, "\\includegraphics[width=3in]{figures/decay-fit}");
+      if (ctx) {
+        await fetch(`${ctx.base}/api/projects/${ctx.id}/settings`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+          body: JSON.stringify({ pdfa: true }),
+        });
+      }
+      await showDrawer(tab, "submit");
+      await tab.getByTestId("submit-check").click();
+      await tab.locator('[data-testid="submit-row"][data-kind="pdfa"]').waitFor({ timeout: 60_000 });
+      await tab.waitForTimeout(300);
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => {
+      if (ctx) {
+        await fetch(`${ctx.base}/api/projects/${ctx.id}/settings`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+          body: JSON.stringify({ pdfa: false }),
+        });
+      }
+      await showDrawer(tab, "files");
+    },
+  },
   workspace: {
     // The shell at rest, at the page's width: the rail, the two panes and
     // the column, with nothing open.

@@ -200,6 +200,7 @@ def test_the_report_carries_pages_against_the_limit_and_the_tool_gaps(tmp_path):
         blind=True, page_limit=2,
         pdffonts=lambda _pdf: read("pdffonts-unembedded.txt"),
         pdfimages=lambda _pdf: None,
+        pdfinfo=lambda _pdf: "Title:          Ultrafast dynamics\nPages:          3\n",
     )
     assert report.pages == 3 and report.built is not None and report.engine == "pdflatex"
     counts = report.counts()
@@ -241,3 +242,71 @@ def test_the_real_tools_answer_over_a_real_build(tmp_path):
     rows = submit.images(submit.run_pdfimages(pdf) or "")
     assert rows and rows[0].page == 1 and "75 ppi" in rows[0].message
     assert submit.pages_of(pdf) == 1
+    assert "The PDF has no author" in [r.message for r in submit.metadata(submit.run_pdfinfo(pdf) or "", blind=False)]
+
+
+# -- alt text, metadata and PDF/A ---------------------------------------------
+
+def test_a_figure_with_no_alt_text_is_named_at_its_line():
+    texts = {"main.tex": (
+        "\\includegraphics[width=3in]{spectra}\n"
+        "\\includegraphics[width=3in, alt={Two decays}]{kinetics}\n"
+        "% \\includegraphics{commented}\n"
+        "\\begin{figure}\\includegraphics{acm}\n"
+        "\\Description{A plot}\\end{figure}\n"
+        "\\begin{figure}\\includegraphics{bare}\\end{figure}\n"
+        "\\Description{too late, another figure's}\n"
+    )}
+    rows = submit.alt_text(texts)
+    assert [(r.message, r.line) for r in rows] == [
+        ("spectra has no alt text", 1), ("bare has no alt text", 6),
+    ]
+    assert all(r.kind == "alt" and r.severity == "warning" for r in rows)
+
+
+def test_metadata_wants_a_title_and_an_author_unless_blind():
+    assert [r.message for r in submit.metadata("Pages: 3\n", blind=False)] == [
+        "The PDF has no title", "The PDF has no author",
+    ]
+    assert submit.metadata("Title: A\nAuthor: B\n", blind=False) == []
+    assert submit.metadata("Title: A\n", blind=True) == []
+    named = submit.metadata("Title: A\nAuthor: Ada Lovelace\n", blind=True)
+    assert [(r.kind, r.severity) for r in named] == [("blind", "error")]
+    assert "Ada Lovelace" in named[0].message
+
+
+def test_pdfa_is_asked_for_by_pdfx_or_document_metadata():
+    assert [r.kind for r in submit.pdfa_missing({"main.tex": "\\usepackage{graphicx}"})] == ["pdfa"]
+    assert submit.pdfa_missing({"main.tex": "\\usepackage[a-2b]{pdfx}"}) == []
+    assert submit.pdfa_missing({"main.tex": "\\DocumentMetadata{pdfstandard=A-2b, lang=en}"}) == []
+    assert submit.pdfa_missing({"main.tex": "\\DocumentMetadata{lang=en}"}) != []
+
+
+def test_pdfa_is_checked_only_when_the_venue_wants_it(tmp_path):
+    main = tmp_path / "main.tex"
+    main.write_text("x", encoding="utf-8")
+
+    def kinds(pdfa: bool) -> set[str]:
+        report = submit.check(
+            document="main.tex", log_text=LOG, project_root=tmp_path, main=main, pdf=None,
+            engine="", texts={"main.tex": "\\documentclass{article}"},
+            relative=lambda p: None, blind=False, page_limit=0, pdfa=pdfa,
+        )
+        return {r.kind for r in report.findings}
+
+    assert "pdfa" not in kinds(False)
+    assert "pdfa" in kinds(True)
+
+
+def test_a_missing_pdfinfo_is_a_tool_note(tmp_path):
+    main = tmp_path / "main.tex"
+    main.write_text("x", encoding="utf-8")
+    pdf = tmp_path / "main.pdf"
+    pdf.write_bytes(b"%PDF-1.5")
+    report = submit.check(
+        document="main.tex", log_text=LOG, project_root=tmp_path, main=main, pdf=pdf,
+        engine="", texts={}, relative=lambda p: None, blind=False, page_limit=0,
+        pdffonts=lambda _pdf: "", pdfimages=lambda _pdf: "", pdfinfo=lambda _pdf: None,
+    )
+    assert any(r.kind == "tool" and "pdfinfo" in r.message for r in report.findings)
+    assert not any(r.kind == "metadata" for r in report.findings)

@@ -259,6 +259,9 @@ class ProjectConfig:
     #: acknowledgement a row.
     page_limit: int = 0
     blind: bool = False
+    #: Whether the venue asks for PDF/A, which makes the submission check
+    #: look for pdfx or a \DocumentMetadata that names a PDF/A standard.
+    pdfa: bool = False
 
     @classmethod
     def load(cls, root: Path) -> "ProjectConfig":
@@ -288,6 +291,7 @@ class ProjectConfig:
             shell_escape=section.get("shell_escape") is True,
             page_limit=cls._count(section.get("page_limit")),
             blind=section.get("blind") is True,
+            pdfa=section.get("pdfa") is True,
         )
 
     @staticmethod
@@ -363,6 +367,8 @@ class ProjectConfig:
             lines.append(f"page_limit = {int(self.page_limit)}")
         if self.blind:
             lines.append("blind = true")
+        if self.pdfa:
+            lines.append("pdfa = true")
         if self.check_command:
             lines.append(f"check_command = {_toml(self.check_command)}")
         if self.exclude:
@@ -535,6 +541,7 @@ class Project:
             "shellEscapeAsked": self.config.shell_escape,
             "pageLimit": self.config.page_limit,
             "blind": self.config.blind,
+            "pdfa": self.config.pdfa,
         }
 
 

@@ -114,11 +114,14 @@ test("the panel lists what a venue would send back, and every row that has a pla
   const kinds = async () =>
     new Set(await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-kind"))));
   const found = await kinds();
-  for (const kind of ["today", "todo", "duplicate-label", "unused-label", "uncited", "commented", "image"]) {
+  for (const kind of [
+    "today", "todo", "duplicate-label", "unused-label", "uncited", "commented", "image", "alt", "metadata",
+  ]) {
     expect(found, kind).toContain(kind);
   }
   expect(found).not.toContain("blind");
   expect(found).not.toContain("font");
+  expect(found).not.toContain("pdfa");
   // Every kind found has a row; the groups carry the counts now that the
   // drawer's heading is the bar's.
   expect(await rows.count()).toBeGreaterThanOrEqual(found.size);
@@ -155,6 +158,18 @@ test("the panel lists what a venue would send back, and every row that has a pla
   await expect.poll(kinds, { timeout: 15_000 }).toContain("blind");
   await row("blind").click();
   await expect(tab.getByTestId("caret")).toHaveText(/^Ln 4, /);
+
+  // The figure with no alt text goes to its line.
+  await row("alt").click();
+  await expect(tab.getByTestId("caret")).toHaveText(/^Ln 16, /);
+  await expect(panel.getByText("low.png has no alt text")).toBeVisible();
+
+  // A venue that wants PDF/A makes the missing pdfx a row, and not wanting
+  // it takes the row away.
+  await panel.getByTestId("submit-pdfa").click();
+  await expect.poll(kinds, { timeout: 15_000 }).toContain("pdfa");
+  await panel.getByTestId("submit-pdfa").click();
+  await expect.poll(kinds, { timeout: 15_000 }).not.toContain("pdfa");
 
   // A page limit under the count is a row; clearing it takes the row away.
   await panel.getByTestId("submit-page-limit").fill("1");

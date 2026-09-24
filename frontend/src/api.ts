@@ -895,6 +895,7 @@ const api = {
       engine: Engine | "";
       pageLimit: number;
       blind: boolean;
+      pdfa: boolean;
     }>,
   ) =>
     request<{
@@ -907,6 +908,7 @@ const api = {
       shellEscape: ShellEscape;
       pageLimit: number;
       blind: boolean;
+      pdfa: boolean;
     }>(`/projects/${id}/settings`, json(patch)),
   /** This machine's answer to a project that asks for shell escape. The
    *  project asks in its own toml; the answer is kept per project on the
