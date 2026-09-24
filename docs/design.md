@@ -10346,6 +10346,15 @@ could live is the `previews.json` format change section 34 declined.
 **`PasswordNudge`'s dismissal cannot be undone from the nudge.** Argued in
 that file's own header; the action is still behind the cog.
 
+**The report form's "Where NextTex runs" is a text field, not a
+dropdown.** The footer fills it with one line, platform, how NextTex is
+started, Python and browser, which no single choice holds, and the form
+is useful only because the footer prefills it from the URL. GitHub's
+form schema says an `id` is what a URL prefills, and does not say that a
+dropdown takes a prefilled value; that could not be confirmed from
+here without a signed-in browser, and a dropdown that came up empty
+would lose the one field the footer answers for the writer.
+
 **The Emacs keymap is a vendored copy of `@replit/codemirror-emacs`
 6.1.0,** under `frontend/src/vendor/`, because the package's ESM build
 marks its own key registration as pure and a bundler drops it. Checked

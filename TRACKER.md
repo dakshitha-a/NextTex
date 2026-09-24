@@ -65,20 +65,6 @@ this host could not reproduce; each says which.
       writer nothing is pending when something is, and takes two clicks
       to open the sheet. Both are for the next interface run, drawn on the
       direction page before they are built.
-- [ ] **The printed token link is refused when a browser extension drives
-      the navigation.** `_same_origin_request` (`server/main.py:720`)
-      accepts `Sec-Fetch-Site` of `none` or `same-origin`, and an
-      extension-initiated navigation is neither, so the link prints, works
-      when a person types or bookmarks it, and answers 403 with "This
-      request came from another page, so it was refused" when something
-      automated opens it. That is the gate doing its job and no writer
-      meets it. Recorded because the next session that tries to drive a
-      browser at that link from outside the origin will otherwise lose an
-      hour to it, as one did on 22 September; the way in is to set
-      `location.href` from a page already on the origin.
-- [ ] **The issue form's `where` field is an input rather than a dropdown**
-      because GitHub does not prefill dropdowns from a URL. If that changes,
-      a dropdown for the platform would make the field sortable.
 - [ ] **A logon-started server took five minutes to begin serving, where
       the same build started from the desktop shortcut took under
       twenty-five seconds.** Measured on the laptop on 23 September, eight

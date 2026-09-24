@@ -458,6 +458,21 @@ instead, and these are the three reproductions:
   `config.json` than the one the fetch carries. The failure says the route
   answered, and with what.
 
+## The printed token link refuses a browser something else is driving
+
+`_same_origin_request` in `server/main.py` accepts a navigation whose
+`Sec-Fetch-Site` is `none` or `same-origin`. The link the server prints
+works when a person types it, pastes it or opens a bookmark, and answers
+403, "This request came from another page, so it was refused", when a
+browser extension or an automation tool opens it, because such a
+navigation is neither. That is the gate doing its job and no writer
+meets it. A session that drives a real browser at a running NextTex
+from outside, as the Windows leg of the backlog close-out did on 22
+September 2026, loses an hour to it otherwise. The way in is to open
+the server's own address first and set `location.href` to the token link
+from a page already on that origin; Playwright's `page.goto`, which the
+browser tier uses, arrives as `none` and is never refused.
+
 ## Where the line is
 
 Worth its maintenance: anything that asserts a contract, anything that
